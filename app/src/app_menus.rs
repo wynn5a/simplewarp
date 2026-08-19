@@ -565,9 +565,19 @@ fn make_new_blocks_menu(ctx: &AppContext) -> Menu {
         ctx,
     ));
     items.push(MenuItem::Separator);
+    // Both of these upload the block and hand back a link, so they need a Warp account.
+    //
+    // This is not only about a dead menu item. A menu item takes its title from the binding that
+    // carries the same `CustomAction`, and a binding that is disabled is hidden completely — so
+    // with the settings-page bindings gated, `default_name` cannot find the title and its
+    // `debug_assert!` brings the app down on launch.
+    if crate::features::warp_account_available() {
+        items.extend([
+            updateable_custom_item_without_checkmark(CustomAction::CreateBlockPermalink, ctx),
+            non_updateable_custom_item(CustomAction::ViewSharedBlocks, ctx),
+        ]);
+    }
     items.extend([
-        updateable_custom_item_without_checkmark(CustomAction::CreateBlockPermalink, ctx),
-        non_updateable_custom_item(CustomAction::ViewSharedBlocks, ctx),
         updateable_custom_item_without_checkmark(CustomAction::ToggleBookmarkBlock, ctx),
         updateable_custom_item_without_checkmark(CustomAction::FindWithinBlock, ctx),
         MenuItem::Separator,
@@ -609,7 +619,16 @@ fn make_new_drive_menu(ctx: &AppContext) -> Menu {
         MenuItem::Separator,
         updateable_custom_item_without_checkmark(CustomAction::ToggleWarpDrive, ctx),
         updateable_custom_item_without_checkmark(CustomAction::SearchDrive, ctx),
-        updateable_custom_item_without_checkmark(CustomAction::OpenTeamSettings, ctx),
+    ]);
+    // Team settings live behind an account, and the binding that titles this item is gated with
+    // the rest of the cloud settings pages. See the note above `CreateBlockPermalink`.
+    if crate::features::warp_account_available() {
+        items.push(updateable_custom_item_without_checkmark(
+            CustomAction::OpenTeamSettings,
+            ctx,
+        ));
+    }
+    items.extend([
         updateable_custom_item_without_checkmark(CustomAction::OpenAIFactCollection, ctx),
         updateable_custom_item_without_checkmark(CustomAction::OpenMCPServerCollection, ctx),
     ]);
