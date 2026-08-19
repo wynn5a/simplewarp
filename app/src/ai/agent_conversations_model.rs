@@ -751,7 +751,7 @@ impl AgentConversationsModel {
     }
 
     /// Returns whether cloud conversation metadata failed to load.
-    #[cfg_attr(not(feature = "tui"), allow(dead_code))]
+    #[allow(dead_code)]
     pub(crate) fn cloud_conversation_metadata_load_failed(&self) -> bool {
         self.initial_load_state == InitialConversationLoadState::CloudFailed
     }

@@ -1,10 +1,15 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use settings::Setting as _;
 use warpui::App;
 
 use super::*;
+use crate::LaunchMode;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
+use crate::ai::execution_profiles::{
+    AIExecutionProfile, ExecutionProfileId, ExecutionProfilesConfig,
+};
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::AuthManager;
@@ -13,11 +18,11 @@ use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::sync_queue::SyncQueue;
+use crate::settings::AISettings;
 use crate::terminal::input::models::query_model_picker_choices;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{LaunchMode, TuiEntryPoint};
 
 // -- DisableReason::should_clear_preference tests --
 
@@ -1110,16 +1115,26 @@ fn updating_active_profile_base_model_persists_and_updates_resolution() {
         app.add_singleton_model(SyncQueue::mock);
         app.add_singleton_model(UpdateManager::mock);
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
+        // This test exercises the settings-authoritative profile path. A
+        // file-backed launch that finds no existing collection starts in
+        // `PendingLegacyImport`, where writes are not yet authoritative, so
+        // seed an explicit collection first.
+        let _file_backed_profiles =
+            warp_core::features::FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
+        app.update(|ctx| {
+            let mut seeded = ExecutionProfilesConfig::default();
+            seeded.insert(
+                ExecutionProfileId::default_profile(),
+                AIExecutionProfile::default(),
+            );
+            AISettings::handle(ctx)
+                .update(ctx, |settings, ctx| {
+                    settings.execution_profiles.set_value(seeded, ctx)
+                })
+                .expect("seeding the execution profile collection should succeed");
+        });
         let profiles = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(
-                &LaunchMode::Tui {
-                    entrypoint: TuiEntryPoint::Interactive {
-                        mount: Box::new(|_| {}),
-                        api_key: None,
-                    },
-                },
-                ctx,
-            )
+            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
         });
         let preferences = app.add_singleton_model(|_| preferences_for_profile_model_tests());
         let surface_id = EntityId::new();

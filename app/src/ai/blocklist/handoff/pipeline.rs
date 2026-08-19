@@ -168,7 +168,7 @@ impl HandoffPrepareInput {
         self
     }
 
-    #[cfg_attr(not(feature = "tui"), allow(dead_code))]
+    #[allow(dead_code)]
     pub fn with_environment_required(mut self, environment_required: bool) -> Self {
         self.environment_required = environment_required;
         self
@@ -307,7 +307,7 @@ impl PendingHandoff {
     ///
     /// Once a frontend records an explicit user selection, later implicit
     /// defaults cannot replace it.
-    #[cfg_attr(not(feature = "tui"), allow(dead_code))]
+    #[allow(dead_code)]
     pub fn set_environment_id(&mut self, environment_id: Option<SyncId>, is_explicit: bool) {
         if !is_explicit && self.environment_selection_is_explicit {
             return;
@@ -321,7 +321,7 @@ impl PendingHandoff {
     ///
     /// Once a frontend records an explicit user selection, later implicit
     /// defaults cannot replace it.
-    #[cfg_attr(not(feature = "tui"), allow(dead_code))]
+    #[allow(dead_code)]
     pub fn set_model_id(&mut self, model_id: String, is_explicit: bool, ctx: &AppContext) {
         if !is_explicit && self.model_selection_is_explicit {
             return;
@@ -604,7 +604,7 @@ pub fn prepare_handoff(
 pub struct HandoffCreated {
     pub task_id: AmbientAgentTaskId,
     pub run_id: String,
-    #[cfg_attr(not(feature = "tui"), allow(dead_code))]
+    #[allow(dead_code)]
     pub url: String,
     pub at_capacity: bool,
     pub request: SpawnAgentRequest,

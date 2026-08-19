@@ -65,12 +65,11 @@ impl AIExecutionProfileInfo {
     }
 }
 
-/// Enables file-backed profiles for every TUI build and for flagged GUI builds.
+/// Enables file-backed profiles for flagged GUI builds.
 ///
 /// CLI and remote-server modes retain their dedicated in-memory behavior.
 fn file_backed_execution_profiles_enabled(launch_mode: &LaunchMode) -> bool {
     match launch_mode {
-        LaunchMode::Tui { .. } => true,
         LaunchMode::App { .. } | LaunchMode::Test { .. } => {
             FeatureFlag::FileBackedExecutionProfiles.is_enabled()
         }
@@ -255,34 +254,6 @@ impl AIExecutionProfilesModel {
         let uses_file_backed_profiles = source.is_settings_collection();
         let imports_legacy_profiles = source.imports_legacy_profiles();
 
-        // A TUI with no explicit collection seeds its default from the existing
-        // local scalar settings, then uses only the collection. Eval builds never launch the
-        // TUI and never read legacy settings, so this seeding is compiled out for them.
-        #[cfg(not(feature = "agent_mode_evals"))]
-        let last_settings_profiles = {
-            let mut last_settings_profiles =
-                AISettings::as_ref(ctx).execution_profiles.value().clone();
-            if matches!(launch_mode, LaunchMode::Tui { .. })
-                && !AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .is_value_explicitly_set()
-            {
-                let mut profiles = ExecutionProfilesConfig::default();
-                profiles.insert(
-                    ExecutionProfileId::default_profile(),
-                    super::create_default_for_tui_from_legacy_settings(ctx),
-                );
-                if let Err(error) = AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    settings.execution_profiles.set_value(profiles.clone(), ctx)
-                }) {
-                    report_error!(error.context("Failed to initialize TUI execution profiles"));
-                } else {
-                    last_settings_profiles = profiles;
-                }
-            }
-            last_settings_profiles
-        };
-        #[cfg(feature = "agent_mode_evals")]
         let last_settings_profiles = AISettings::as_ref(ctx).execution_profiles.value().clone();
 
         let settings_profiles_are_explicit = AISettings::as_ref(ctx)
@@ -375,9 +346,6 @@ impl AIExecutionProfilesModel {
                             id: ExecutionProfileId::new(),
                             profile: super::create_default_from_legacy_settings(ctx),
                         },
-                        // Settings-backed TUI initialization is handled before the
-                        // legacy cloud-object branch.
-                        LaunchMode::Tui { .. } => unreachable!("TUI profiles use settings"),
                     };
                     (
                         default_profile_state,

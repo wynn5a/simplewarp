@@ -190,7 +190,8 @@ fn a_non_zero_exit_code_marks_the_result_as_an_error() {
 
 #[test]
 fn the_new_input_is_appended_after_the_history() {
-    use api::request::input::user_inputs::{UserInput, user_input::Input};
+    use api::request::input::user_inputs::UserInput;
+    use api::request::input::user_inputs::user_input::Input;
 
     let mut request = request_with_messages(vec![user_message("first"), agent_message("ok")]);
     request.input = Some(api::request::Input {

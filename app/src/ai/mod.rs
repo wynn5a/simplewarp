@@ -55,7 +55,6 @@ pub(crate) mod restored_conversations;
 pub(crate) mod runner_display;
 pub(crate) mod skills;
 #[cfg(not(target_family = "wasm"))]
-pub(crate) mod tui_api_keys;
 pub(crate) mod voice;
 pub use agent_tips::*;
 pub use credit_availability::*;

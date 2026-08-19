@@ -230,19 +230,6 @@ impl FileMCPWatcher {
         watcher
     }
 
-    #[cfg(feature = "tui")]
-    pub fn reload_global_config(&mut self, ctx: &mut ModelContext<Self>) {
-        let Some(config) = warp_managed_mcp_config_path() else {
-            return;
-        };
-        self.update_servers_from_config_file(
-            &config.config_path,
-            config.root_path,
-            MCPProvider::Warp,
-            ctx,
-        );
-    }
-
     /// Register a project repo for file-based MCP watching via DirectoryWatcher.
     fn register_repo_for_file_mcp_watching(
         &mut self,

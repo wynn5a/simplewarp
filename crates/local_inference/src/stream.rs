@@ -6,8 +6,7 @@
 
 use std::collections::VecDeque;
 
-use futures::StreamExt;
-use futures::stream;
+use futures::{StreamExt, stream};
 use reqwest_eventsource::{Event, EventSource, RequestBuilderExt};
 use warp_multi_agent_api as api;
 

@@ -1,6 +1,3 @@
-#[cfg(feature = "tui")]
-pub mod tui;
-
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;

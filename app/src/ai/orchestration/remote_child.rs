@@ -95,7 +95,7 @@ fn resolve_repo_qualified_skill(
 }
 
 /// Frontend-neutral output used to launch one remote child.
-#[cfg_attr(not(feature = "tui"), allow(dead_code))]
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct PreparedRemoteChildLaunch {
     pub display_name: String,
@@ -128,7 +128,7 @@ pub enum CloudAgentStartupBlocker {
     GitHubAuthRequired { message: String, auth_url: String },
 }
 
-#[cfg_attr(not(feature = "tui"), allow(dead_code))]
+#[allow(dead_code)]
 impl CloudAgentStartupBlocker {
     pub fn message(&self) -> &str {
         match self {
@@ -156,7 +156,7 @@ pub enum CloudAgentStartupFailure {
     Other { message: String },
 }
 
-#[cfg_attr(not(feature = "tui"), allow(dead_code))]
+#[allow(dead_code)]
 impl CloudAgentStartupFailure {
     pub fn message(&self) -> &str {
         match self {
@@ -172,7 +172,7 @@ impl CloudAgentStartupFailure {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CloudAgentStartupAuthFlow {
     RetryRetainedRequest,
-    #[cfg_attr(not(feature = "tui"), allow(dead_code))]
+    #[allow(dead_code)]
     RerunOrchestrationRequest,
 }
 
@@ -373,7 +373,7 @@ pub(crate) fn should_disable_snapshot(ctx: &AppContext) -> bool {
 }
 
 /// Builds the Oz web URL for a server-assigned agent run ID.
-#[cfg_attr(not(feature = "tui"), allow(dead_code))]
+#[allow(dead_code)]
 pub fn oz_run_url(run_id: &str) -> String {
     format!("{}/runs/{run_id}", ChannelState::oz_root_url())
 }

@@ -408,8 +408,107 @@ Acceptance:
 One small step for each module. Run `./script/format`, `cargo clippy`, and `cargo nextest run`
 after each step.
 
-1. `crates/warp_tui` and the app-side TUI support (`app/src/tui/`, `tui_export.rs`,
-   `tui_test_support.rs`, `run_tui`).
+**The test suite needs `cargo nextest`, and the bootstrap script does not install it.** Plain
+`cargo test -p warp --lib` reports 13 failures. Every one of them passes when run alone, and the
+failing set changes between runs, so they are cross-test interference through process-global
+state, not bugs — the Phase 2 note that called them pre-existing debt was right that they are not
+ours, but wrong to treat them as failures at all. `cargo nextest run` gives each test its own
+process: **6453 pass, 0 fail**. Install with:
+
+```sh
+curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tmp/nextest.tar.gz -C ~/.cargo/bin
+```
+
+1. `crates/warp_tui` and the app-side TUI support — **DONE**.
+
+   210 files and ~97.5k lines removed. `tui` was in neither the `default` nor the `simplewarp`
+   feature set, so none of it was in the GUI build and the app suite could not regress from the
+   deletion itself.
+
+   | Removed | What |
+   | --- | --- |
+   | `crates/warp_tui` | The whole crate. Nothing depended on it; it depended on `warp` with the `tui` feature. |
+   | `app/src/tui/`, `tui_export.rs`, `tui_onboarding_markers.rs`, `tui_test_support.rs` | The app-side TUI modules. |
+   | `app/src/ai/tui_api_keys.rs` | Existed only so the GUI reloaded keys after the TUI process changed them. |
+   | `app/src/server/server_api/tui_onboarding.rs` | TUI onboarding client. |
+   | `app/src/settings/tui_{theme,voice,zero_state,autoupdate}.rs` | Four `SettingSurfaces::TUI` settings groups, plus their registrations. |
+   | `LaunchMode::Tui`, `TuiEntryPoint`, `TuiMountFn`, `run_tui*` | ~35 sites in `lib.rs`, including every match arm. |
+   | `PersistenceScope::Tui`, `PersistedDataScope::TuiFrontend` | The TUI's separate database. |
+   | `script/run-tui`, `.agents/skills/tui-*` | The runner script and three skills that described deleted code. |
+   | The `tui` cargo feature | Removed from `app/Cargo.toml`; ~90 `cfg` sites simplified. |
+
+   **Two tests failed, and both were the substitutions rather than the deletion.** Three tests
+   built their model with `LaunchMode::Tui` purely to reach a code path, so each needed the real
+   equivalent, not a mechanical swap:
+
+   - `ProfileSource::for_launch_mode` treats `App`/`Test` as importing legacy cloud profiles but
+     `Tui` as not, so a TUI launch was authoritative for settings **immediately** while `Test`
+     starts in `PendingLegacyImport`, where writes do not persist. `llms_tests` now seeds an
+     explicit profile collection, which is the state the TUI reached by seeding its own.
+   - `file_backed_execution_profiles_enabled` returned `true` for `Tui` *regardless of the
+     rollout flag*, so a block in `profile_sources_preserve_state_across_migration_and_rollout`
+     existed to assert exactly that. Its subject is gone, so the block is gone; swapping the
+     launch mode would have made it a duplicate of the test above it.
+
+   With the TUI gone, no launch mode reaches `SettingsCollection` without also importing legacy
+   profiles, so `migrates_legacy_cloud_profiles` is now always `true` there. Left alone for now.
+
+   Acceptance:
+
+   - [x] `cargo nextest run -p warp --lib`: **6435 pass, 0 fail** (6453 before; the 18 removed
+         are the TUI's own tests).
+   - [x] `cargo nextest run -p local_inference`: 83 pass.
+   - [x] `cargo clippy -p warp --lib --all-targets`: clean. Six pre-existing `redundant_closure`
+         warnings from Phase 2 were fixed on the way.
+   - [x] `cargo check --no-default-features --features simplewarp --bin simplewarp`: clean.
+   - [ ] Not re-run in the app. The deletion is compile-time only, but Phase 2 and 3 both show
+         that only running it proves it.
+
+   The `#[allow(dead_code)]` attributes left behind where `#[cfg_attr(not(feature = "tui"), …)]`
+   used to sit mark items the TUI alone used; they are dead now and fall to the later cloud and
+   ambient-agent steps.
+
+1b. The TUI rendering engine in `warpui_core` — **DONE**.
+
+   61 more files. Nothing enabled `warpui_core/tui` once the app's `tui` feature was gone, so the
+   whole feature was unreachable:
+
+   | Removed | What |
+   | --- | --- |
+   | `src/elements/tui/` | The cell-grid element library — the `TuiElement` trait, 45 files. |
+   | `src/runtime/` | The terminal runtime: renderer, event conversion, terminal probe. |
+   | `src/presenter/tui*`, `core/app/tui.rs`, `core/view/tui.rs`, `core/view/context/tui.rs` | The TUI halves of the presenter, app, and view. |
+   | `StoredView::Tui` | The TUI arm of the shared view registry, and ~15 match arms in `core/window.rs`. |
+   | `tests/tui_integration.rs`, `examples/tui_file_viewer.rs` | With their `required-features` target sections. |
+   | The `tui` feature and **the `ratatui` dependency** | `ratatui` no longer appears in `Cargo.lock` at all. |
+   | `AIExecutionProfile::default_profile_for_tui` | Orphaned when the TUI seeding went in step 1. |
+
+   `StoredView` is now a single-variant enum wrapping `Box<dyn AnyView>`. Collapsing it to a plain
+   newtype would touch every use site, so it is left as is.
+
+   Acceptance:
+
+   - [x] `cargo nextest run -p warpui_core`: 307 pass, 0 fail.
+   - [x] `cargo nextest run -p warp --lib`: 6435 pass, 0 fail — unchanged by this step.
+   - [x] `cargo clippy` on both crates: clean. `./script/format --check`: clean.
+   - [x] `cargo check --no-default-features --features simplewarp --bin simplewarp`: clean.
+
+1c. The TUI **surface metadata** — NOT STARTED, and bigger than it looks.
+
+   The front-end is gone but the *concept* of a TUI surface is still woven through settings and
+   command declarations. This is one coupled cluster and must move together:
+
+   | Surface marker | Scale |
+   | --- | --- |
+   | `SettingsMode::Tui` + `SettingSurfaces::TUI` | ~50 sites, including the `generate_settings_schema` binary, which emits a separate `tui` schema |
+   | `SlashCommandSurfaces::TuiOnly` | ~20 TUI-only slash commands in `static_commands/commands.rs`, plus ~30 assertions in `commands_tests.rs` |
+   | `BundledSkillActivation::TuiOnly` | with the `resources/bundled/skills/tui-migrate-setup` asset |
+   | `ExecutionMode::Tui` / `AppExecutionMode::is_tui` | `is_tui()` has exactly one caller: `BundledSkillActivation::TuiOnly` |
+   | `warp_core::paths::tui_{state_dir,config_local_dir,mcp_config_file_path}` | read by `warp_managed_paths_watcher`, `settings/mod.rs`, and the skills loader |
+   | MCP behaviour keyed on `settings_mode() == Tui` | `templatable_manager/native.rs`, `file_based_manager.rs`, `file_mcp_watcher.rs` |
+
+   Unlike steps 1 and 1b, most of this is not behind a `cfg`, so the compiler will not find the
+   dead paths — each one has to be read. It is a step of its own.
 2. `app/src/drive/`, `app/src/billing/`, `app/src/cloud_object/`.
 3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
@@ -436,7 +535,9 @@ after each step.
 - [x] Phase 3: the `local_inference` crate is written, tested, wired in, and verified by a
       real conversation in the app.
 - [ ] Phase 3b: a built-in model list, MCP tool support.
-- [ ] Phase 4: the cloud crates and the TUI are removed.
+- [ ] Phase 4: the cloud crates and the TUI are removed. Steps 1 and 1b are done — the TUI
+      front-end and its rendering engine are gone (~116k lines, and the `ratatui` dependency).
+      Step 1c (TUI surface metadata) and the cloud crates remain.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all

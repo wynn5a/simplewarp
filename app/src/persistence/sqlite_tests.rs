@@ -1,9 +1,8 @@
-use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use ai::workspace::WorkspaceMetadata;
-use chrono::{Local, Utc};
+use chrono::Utc;
 use cloud_object_persistence::to_cloud_object_permissions;
 use diesel::connection::SimpleConnection;
 use pathfinder_geometry::rect::RectF;
@@ -20,22 +19,17 @@ use crate::app_state::{
     AppState, CodePaneSnapShot, CodePaneTabSnapshot, LeafContents, LeafSnapshot, PaneNodeSnapshot,
     TabGroupSnapshot, TabSnapshot, TerminalPaneSnapshot, WindowSnapshot,
 };
-use crate::auth::UserUid;
 use crate::cloud_object::{CloudObjectPermissions, Owner};
 use crate::code::editor_management::CodeSource;
 use crate::notebooks::{CloudNotebook, CloudNotebookModel};
 use crate::persistence::model::ObjectPermissions;
-use crate::persistence::{
-    BlockCompleted, ModelEvent, PersistedDataScope, PersistenceScope, StartedCommandMetadata,
-};
+use crate::persistence::{BlockCompleted, ModelEvent, PersistedDataScope, PersistenceScope};
 use crate::server::ids::{ClientId, ServerId};
 use crate::tab::SelectedTabColor;
 use crate::terminal::ShellLaunchData;
 use crate::terminal::model::block::SerializedBlock;
-use crate::terminal::model::session::SessionId;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::workspace::tab_group::TabGroupId;
-use crate::workspaces::user_profiles::UserProfileWithUID;
 
 #[test]
 fn app_scope_database_path_matches_app_database_path() {
@@ -43,27 +37,6 @@ fn app_scope_database_path_matches_app_database_path() {
         database_file_path_for_scope(&PersistenceScope::App),
         app_database_file_path()
     );
-}
-
-#[test]
-fn tui_scope_database_path_is_tui_subdirectory_of_app_database_dir() {
-    let tui_path = database_file_path_for_scope(&PersistenceScope::Tui);
-    let app_path = database_file_path_for_scope(&PersistenceScope::App);
-
-    assert_ne!(tui_path, app_path);
-    assert_eq!(
-        tui_path,
-        warp_core::paths::tui_state_dir().join("warp.sqlite")
-    );
-
-    // The TUI database lives in a `tui` subdirectory of the same base
-    // directory that holds the GUI database, so the two front-ends never
-    // share (or migrate) each other's database.
-    let tui_dir = tui_path
-        .parent()
-        .expect("TUI database path should have a parent");
-    assert_eq!(tui_dir.file_name(), Some(OsStr::new("tui")));
-    assert_eq!(tui_dir.parent(), app_path.parent());
 }
 
 #[test]
@@ -162,79 +135,6 @@ fn sqlite_read_restores_app_state_and_codebase_metadata() {
         .app_state
         .expect("app state should be present for the full scope");
     assert_eq!(restored_app_state.windows.len(), 1);
-    assert_eq!(restored.codebase_indices.len(), 1);
-    assert_eq!(restored.codebase_indices[0].path, metadata.path);
-}
-
-/// Mirrors `init_db(&PersistenceScope::Tui)` in an isolated tempdir: the TUI
-/// database lives in a `tui/` subdirectory, runs the same migrations, and
-/// round-trips a write+read using the TUI's `PersistedDataScope`.
-#[test]
-fn tui_database_in_tui_subdirectory_round_trips_data() {
-    let tempdir = tempfile::tempdir().expect("tempdir should be created");
-    let database_path = tempdir.path().join("tui").join("warp.sqlite");
-    std::fs::create_dir_all(
-        database_path
-            .parent()
-            .expect("database path should have a parent"),
-    )
-    .expect("tui subdirectory should be created");
-    let mut conn = setup_database(&database_path).expect("database should initialize");
-
-    let metadata = test_codebase_metadata("/tmp/tui-repo");
-    save_codebase_index_metadata(&mut conn, metadata.clone())
-        .expect("codebase index metadata should save");
-    let writer = start_writer(conn, database_path.clone()).expect("writer should start");
-    writer
-        .sender
-        .send(ModelEvent::InsertCommand {
-            metadata: StartedCommandMetadata {
-                command: "ls".to_owned(),
-                start_ts: Some(Local::now()),
-                pwd: Some("/tmp/tui-repo".to_owned()),
-                shell: Some("zsh".to_owned()),
-                username: Some("test-user".to_owned()),
-                hostname: Some("test-host".to_owned()),
-                session_id: Some(SessionId::from(1)),
-                git_branch: None,
-                cloud_workflow_id: None,
-                workflow_command: None,
-                is_agent_executed: false,
-            },
-        })
-        .expect("insert command event should send");
-    writer
-        .sender
-        .send(ModelEvent::UpsertUserProfiles {
-            profiles: vec![UserProfileWithUID {
-                firebase_uid: UserUid::new("creator-uid"),
-                display_name: Some("MCP Creator".to_owned()),
-                email: "creator@example.com".to_owned(),
-                photo_url: String::new(),
-            }],
-        })
-        .expect("user profile event should send");
-    writer
-        .sender
-        .send(ModelEvent::Terminate)
-        .expect("terminate event should send");
-    writer.handle.join().expect("writer should terminate");
-
-    let mut conn = setup_database(&database_path).expect("database should reopen");
-
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::TuiFrontend)
-        .expect("persisted data should load");
-    // The TUI data scope skips GUI session restoration...
-    assert!(restored.app_state.is_none());
-    // ...but restores command history and shared data like creator profiles and
-    // codebase index metadata.
-    assert_eq!(restored.command_history.len(), 1);
-    assert_eq!(restored.command_history[0].command, "ls");
-    assert_eq!(restored.user_profiles.len(), 1);
-    assert_eq!(
-        restored.user_profiles[0].display_name.as_deref(),
-        Some("MCP Creator")
-    );
     assert_eq!(restored.codebase_indices.len(), 1);
     assert_eq!(restored.codebase_indices[0].path, metadata.path);
 }

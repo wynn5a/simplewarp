@@ -22,8 +22,6 @@ pub mod platform;
 pub mod prelude;
 pub mod presenter;
 pub mod rendering;
-#[cfg(feature = "tui")]
-pub mod runtime;
 pub mod scene;
 pub mod telemetry;
 #[cfg(test)]

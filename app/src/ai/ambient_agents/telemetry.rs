@@ -25,7 +25,7 @@ pub enum CloudModeEntryPoint {
 pub enum HandoffSurface {
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     Gui,
-    #[cfg_attr(not(feature = "tui"), allow(dead_code))]
+    #[allow(dead_code)]
     Tui,
 }
 

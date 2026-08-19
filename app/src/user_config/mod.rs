@@ -107,7 +107,7 @@ pub struct WarpConfig {
 /// Additional platform-dependent functionality can be found in impl blocks
 /// in native.rs and wasm.rs.
 impl WarpConfig {
-    #[cfg(any(test, all(feature = "tui", feature = "test-util")))]
+    #[cfg(test)]
     pub fn mock(_ctx: &mut ModelContext<Self>) -> Self {
         Self {
             theme_config: WarpThemeConfig::new(),

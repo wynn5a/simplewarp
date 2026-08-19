@@ -123,7 +123,7 @@ pub struct TerminalSurfaceInit {
     pub inactive_pty_reads_rx: InactiveReceiver<Arc<Vec<u8>>>,
 }
 
-#[cfg(any(test, all(feature = "tui", feature = "test-util")))]
+#[cfg(test)]
 impl TerminalSurfaceInit {
     /// Creates mock terminal surface inputs without spawning a PTY.
     pub fn new_for_test(ctx: &mut AppContext) -> Self {

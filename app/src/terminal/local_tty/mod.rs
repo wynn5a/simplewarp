@@ -30,8 +30,6 @@ use serde::{Deserialize, Serialize};
 use shell::ShellStarter;
 
 pub use self::terminal_manager::{TerminalManager, get_shell_starter};
-#[cfg(feature = "tui")]
-pub use self::terminal_manager::{TerminalManagerInit, TerminalSurfaceInit, TerminalSurfaceResult};
 #[cfg(windows)]
 pub use self::terminal_view_adaptor::shutdown_all_pty_event_loops;
 #[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]

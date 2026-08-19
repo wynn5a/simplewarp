@@ -99,14 +99,6 @@ pub fn create_default_from_legacy_settings(app: &AppContext) -> AIExecutionProfi
 }
 
 #[cfg(not(feature = "agent_mode_evals"))]
-fn create_default_for_tui_from_legacy_settings(app: &AppContext) -> AIExecutionProfile {
-    create_default_from_legacy_settings_with_profile(
-        AIExecutionProfile::default_profile_for_tui(),
-        app,
-    )
-}
-
-#[cfg(not(feature = "agent_mode_evals"))]
 fn create_default_from_legacy_settings_with_profile(
     default_profile: AIExecutionProfile,
     app: &AppContext,

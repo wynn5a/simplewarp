@@ -33,10 +33,10 @@ const CUSTOM_HOST_LABEL: &str = "Custom host…";
 const AUTH_SECRETS_LOAD_FAILED_MESSAGE: &str = "Unable to load secrets";
 
 /// Row id for the Cloud location option.
-#[cfg_attr(not(feature = "tui"), allow(dead_code))]
+#[allow(dead_code)]
 pub const LOCATION_CLOUD_ID: &str = "cloud";
 /// Row id for the Local location option.
-#[cfg_attr(not(feature = "tui"), allow(dead_code))]
+#[allow(dead_code)]
 pub const LOCATION_LOCAL_ID: &str = "local";
 
 /// One selectable row in an option snapshot. Carries no GUI types.
@@ -124,7 +124,7 @@ impl OptionSnapshot {
 /// Builds the Cloud/Local location options with the current mode selected.
 // Only the TUI renders a location page (via `tui_export`); the GUI has
 // its own Cloud/Local mode toggle.
-#[cfg_attr(not(feature = "tui"), allow(dead_code))]
+#[allow(dead_code)]
 pub fn location_snapshot(state: &OrchestrationConfigState, _ctx: &AppContext) -> OptionSnapshot {
     let rows = vec![
         OptionRow::new(LOCATION_CLOUD_ID, "Cloud"),
