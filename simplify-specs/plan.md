@@ -562,9 +562,47 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    diff is what confirmed all seven `return;` statements survived.
 
 3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
+
+   **`remote_server` was attempted and reverted, deliberately.** Deleting the module and crate
+   left 158 errors across 37 files, and most of them were not import fixes. The blocker is
+   `app/src/code/global_buffer_model.rs`: the code editor's `BufferSource` is
+   `Local | Remote | ServerLocal`, and **both** non-local variants exist only for the remote
+   server — `Remote` is the client editing a file on another host, `ServerLocal` is this process
+   acting as the daemon. Both carry a `SyncClock` that drives version tracking, LSP `didChange`
+   sync, debounced edit batching, and background diff parsing, across 31 sites in one 2.5k-line
+   file. `crates/warp_files` has the same `Local | Remote` split in `FileBackend`.
+
+   That is a redesign of the editor's version tracking, not a deletion — and the test file that
+   covers it, `code/buffer_location_tests.rs`, is itself remote-buffer-specific, so the change
+   would delete its own safety net. The earlier lesson applies with full force here: a wrong
+   removal still compiles. It needs an attended pass.
+
+   The same is true, more so, of `auth` (272 references) and `cloud_object` (437). Removing `auth`
+   is not deleting a directory; it is deciding what the app means when there is no user at all,
+   at every `is_logged_in()` call site. `cloud_object` is the persistence and sync layer that
+   Warp Drive objects — workflows, notebooks, prompts, env-var collections, AI facts — are built
+   on, so it goes only with those object types.
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, `warp_multi_agent_client`.
-5. The `FeatureFlag` variants that are no longer in use.
+5. The `FeatureFlag` variants that are no longer in use. **16 removed; more remain behind the
+   module deletions above.**
+
+   Of 292 variants, 16 had no `FeatureFlag::X` reference anywhere outside their own declaration:
+   `WelcomeTips`, `ThinStrokes`, `WelcomeBlock`, `CloudObjects`,
+   `FetchChannelVersionsFromWarpServer`, `ContextChips`, `FetchGenericStringObjects`,
+   `IntegratedGPU`, `AgentPredict`, `LazySceneBuilding`, `AIBlockOverflowMenu`,
+   `AIGeneratedOnboardingSuggestions`, `AIMemories`, `MarkdownImages`, `CloudModeHostSelector`,
+   `PricingTransparency`.
+
+   Three of them — `LazySceneBuilding`, `MarkdownImages`, `PricingTransparency` — were listed in
+   `DOGFOOD_FLAGS`, so a dogfood build turned them **on**. That changed nothing, because no code
+   ever asked whether they were enabled. A flag that is switched but never read is the most
+   misleading kind of dead code: the flag list reads as a feature inventory.
+
+   Searching for the bare variant name is not enough to prove one is dead — `WelcomeTips` and
+   `CloudObjects` both look used, but the hits are an unrelated `ToggleWelcomeTips` action, a
+   `WelcomeTipsViewState` type, and `CloudObjects::Listener` inside log strings. Match on
+   `FeatureFlag::X`.
 
 ## Risks
 
