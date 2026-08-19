@@ -719,7 +719,6 @@ impl SessionInfo {
         }
     }
 
-    #[cfg(not(feature = "remote_tty"))]
     fn determine_session_type(
         init_shell_value: &InitShellValue,
         is_ssh_session: bool,
@@ -741,15 +740,6 @@ impl SessionInfo {
                 BootstrapSessionType::Local
             }
         }
-    }
-
-    #[cfg(feature = "remote_tty")]
-    fn determine_session_type(
-        _init_shell_value: &InitShellValue,
-        _is_ssh_session: bool,
-    ) -> BootstrapSessionType {
-        // When the `remote_tty` feature is enabled--the session is always considered remote.
-        BootstrapSessionType::WarpifiedRemote
     }
 
     /// Returns a fully populated [`SessionInfo`] containing data derived from the given

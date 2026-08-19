@@ -1,4 +1,4 @@
-#[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]
+#[cfg(feature = "local_tty")]
 use std::collections::HashMap;
 #[cfg(feature = "local_tty")]
 use std::path::PathBuf;
@@ -28,7 +28,7 @@ use crate::ai::agent_sdk::driver::{
 use crate::ai::agent_sdk::setup_observability::SetupClientEventReporter;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
-#[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]
+#[cfg(feature = "local_tty")]
 use crate::banner::BannerState;
 #[cfg(feature = "local_tty")]
 use crate::pane_group::TerminalViewResources;
@@ -42,20 +42,18 @@ use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
 #[cfg(feature = "local_tty")]
 use crate::terminal::TerminalManager;
-#[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]
+#[cfg(feature = "local_tty")]
 use crate::terminal::available_shells::AvailableShell;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::local_tty::docker_sandbox::DOCKER_SANDBOX_HOME_DIR;
 #[cfg(feature = "local_tty")]
 use crate::terminal::local_tty::docker_sandbox::resolve_sbx_path_from_user_shell;
-#[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]
+#[cfg(feature = "local_tty")]
 use crate::terminal::local_tty::{
     TerminalManager as LocalTtyTerminalManager, TerminalViewSurfaceConfig,
     create_terminal_view_surface,
 };
-#[cfg(feature = "remote_tty")]
-use crate::terminal::remote_tty::TerminalManager as RemoteTtyTerminalManager;
-#[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]
+#[cfg(feature = "local_tty")]
 use crate::terminal::shared_session::IsSharedSessionCreator;
 
 /// Default base Docker image used for newly created sandbox shells.
@@ -83,18 +81,7 @@ fn create_docker_sandbox_view(
     ModelHandle<Box<dyn TerminalManager>>,
 ) {
     cfg_if::cfg_if! {
-        if #[cfg(feature = "remote_tty")] {
-            let terminal_init = RemoteTtyTerminalManager::create_model(
-                resources,
-                initial_size,
-                model_event_sender,
-                ctx.window_id(),
-                None, /* initial_input_config */
-                ctx,
-            );
-            let terminal_manager = terminal_init.manager;
-            let terminal_view = terminal_init.view;
-        } else if #[cfg(feature = "local_tty")] {
+        if #[cfg(feature = "local_tty")] {
             let user_default_shell_unsupported_banner_model_handle =
                 ctx.add_model(|_| BannerState::default());
 
@@ -168,7 +155,7 @@ impl TerminalView {
         // spawn and then build the pane in the completion callback.
         //
         // The sbx resolution and sandbox creation are only meaningful on
-        // platforms with a local tty; other builds (e.g. wasm/remote_tty) log
+        // platforms with a local tty; other builds (e.g. wasm) log
         // and bail.
         #[cfg(feature = "local_tty")]
         {

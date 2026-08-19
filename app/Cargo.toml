@@ -978,7 +978,6 @@ notebook_parameter = []
 oz_changelog_updates = []
 personal_cloud_objects = []
 # Remote-backed tty that connects to a PTY-like interface via a server.
-remote_tty = []
 # Fix for cursor reflow bug during window resize, from Alacritty resizing logic.
 resize_fix = []
 pluggable_notifications = []

@@ -12542,7 +12542,7 @@ impl Workspace {
         }
         // Docker sandboxes are inherently local — sbx resolution and the
         // `AvailableShell::new_docker_sandbox_shell` constructor both require
-        // `local_tty`. Other builds (e.g. wasm/remote_tty) log and bail.
+        // `local_tty`. Other builds (e.g. wasm) log and bail.
         #[cfg(feature = "local_tty")]
         {
             // Resolve sbx via the user's interactive shell PATH (same mechanism
