@@ -160,23 +160,73 @@ on a page that was no longer in the sidebar. `SettingsSection::available()` maps
 every page change funnels through, including session restore. Two unit tests in
 `settings_view/mod_tests.rs` pin both directions of that mapping.
 
-Still open here: the command palette still lists "Open Settings: Account", "…: Teams", and
-"…: Shared Blocks". They now land on Warp Agent rather than fail, but the labels are misleading.
-The bindings are declared in an array literal in `app/src/workspace/mod.rs`, so filtering them
-needs that array turned into a filtered `Vec`.
+**The command palette needed no filtered `Vec`.** `EditableBinding::with_enabled` already exists
+for exactly this, and its own docs say a disabled binding "is hidden completely". The six
+cloud pages in `add_open_setting_pages_as_editable_binding` — Account, Shared Blocks, Teams,
+Billing and usage, Referrals, and Environments — now carry
+`.with_enabled(|| features::warp_account_available())`, which matches how the file already gates
+on `FeatureFlag::AgentMode`. The predicate is re-read at runtime, so nothing is cached wrongly.
 
-Still to hide:
+**Two startup errors were reported for work that could never succeed.** Both features run on
+Warp's server, not on the user's provider, so in this build they failed on every launch and
+called `report_error!`:
 
-- Warp Drive panel and "Import to Drive" (`app/src/drive/`, `workspace/mod.rs`).
-- Shared sessions, cloud mode, ambient agents, and remote server UI.
-- The "use Warp credits as a fallback" toggle on the agent page: there are no Warp credits.
-- `cloud_preferences_syncer`, which still logs "unset personal drive" at startup.
-- The share-block modal, which logs "Tried to render share modal without a model".
+| Was | Now |
+| --- | --- |
+| `Failed to fetch prompt suggestions` | `generate_prompt_suggestions` returns before the request. The static suggestions above it need only the finished block, so they still work. |
+| `Failed to generate Next Command suggestion` | `generate_ai_input_suggestions_if_available` skips the call and answers with an empty suggestion. The history-based suggestion earlier in the same function reads the user's own shell history, so it still works. |
+
+An empty next-command action is now dropped quietly in
+`on_next_command_suggestion_result`. Without that it fell through to a warning about a prefix
+that an empty string could never match — trading an error for a misleading warning.
+
+**Two startup warnings are gone.**
+
+- `cloud_preferences_syncer` had the switch already: `sync_enabled`, which the TUI uses to keep
+  its config local. It is now also false with no Warp account. The check is at the call site, not
+  in `SettingsMode::should_sync_to_cloud`, because that asks which *surface* is running and the
+  `settings` crate knows nothing about accounts.
+- The share-block modal is built once per pane group with no block in it, and draws nothing until
+  one is chosen. With the entry points gated, nothing can ever choose one, so the empty draw is
+  expected and no longer warns.
+
+**Warp Drive was already hidden, by Phase 1.** `WarpDriveSettings::is_warp_drive_available` reads
+`!SkipFirebaseAnonymousUser.is_enabled() || !is_anonymous_or_logged_out()`. This build turns that
+flag on and is genuinely logged out, so both sides are false. All eight UI sites — the panel, the
+"Save as workflow" and "Import to Drive" menu items, the block list — already ask
+`is_warp_drive_enabled`. Nothing to do; this list entry was stale.
+
+**The shared-session and cloud features are compiled out.** The `simplewarp` feature set holds 144
+features and none of them is a `shared_session`, `drive`, `cloud`, `billing`, `referral`, `team`,
+`ambient`, `remote_server`, or `credits` feature, so those `FeatureFlag`s are off at compile time
+and the UI behind them never renders. What remained was the UI that those flags do **not** guard:
+
+- The "Share..." block context-menu item, which showed whatever the flags said. It is now pushed
+  only when an account is available, rather than listed and disabled — a disabled item still reads
+  as a feature that is merely unavailable today.
+- The "Warp credit fallback" toggle and its palette command. Both were gated on
+  `is_byo_api_key_enabled || is_custom_inference_enabled`, and this build forces **both** true, so
+  neither could stand in for an account check.
+
+**The app's test suite did not compile, and had not since Phase 3.** `LLMPreferences` gained
+`provider_llms` then, and the four literals in `app/src/ai/llms_tests.rs` were never updated. The
+Xcode blocker hid it, because nobody could build the tests. Fixed; `cargo test -p warp --lib` runs
+again.
+
+Still to hide: cloud mode, ambient agents, and the remote server UI, none of which was reachable
+in a startup log or a settings page, so each needs a look in the running app.
 
 Acceptance:
 
-- No cloud, login, or billing UI is reachable.
-- No dead buttons and no error toasts.
+- [x] No cloud settings page, and no palette command for one.
+- [x] No login or billing UI.
+- [x] 0 errors and no cloud warnings at startup: 17 warnings fell to 6.
+- [ ] No dead buttons anywhere. Verified for the settings pages, the palette, the block context
+      menu, and the agent page; the rest of the UI is unchecked.
+
+The 6 remaining startup warnings are all outside this phase. One is SQLite recovering its WAL
+after the app was killed rather than quit. The other five are one conversation each, all saying
+`missing an initial query` — see Phase 3b, because the cause is in the local adapter.
 
 ### Phase 3 — Local AI adapter — crate DONE and LIVE-TESTED, GUI path UNVERIFIED
 

@@ -395,6 +395,7 @@ fn custom_endpoint_usage_display_label_resolves_alias_name_and_generic_fallback(
         last_update: None,
         base_llm_for_terminal_view: HashMap::new(),
         custom_llms: build_custom_llm_infos(&keys),
+        provider_llms: Vec::new(),
         custom_model_routers: Vec::new(),
     };
 
@@ -538,6 +539,7 @@ fn is_cloud_runnable_oz_model_id_classifies_ids() {
         last_update: None,
         base_llm_for_terminal_view: HashMap::new(),
         custom_llms: build_custom_llm_infos(&keys),
+        provider_llms: Vec::new(),
         custom_model_routers: Vec::new(),
     };
 
@@ -725,6 +727,7 @@ fn with_model_picker_query_test_context(f: impl FnOnce(&LLMPreferences, &AppCont
                 last_update: None,
                 base_llm_for_terminal_view: HashMap::new(),
                 custom_llms: Vec::new(),
+                provider_llms: Vec::new(),
                 custom_model_routers: Vec::new(),
             };
             f(&preferences, app_ctx);
@@ -1056,6 +1059,7 @@ fn preferences_for_profile_model_tests() -> LLMPreferences {
         last_update: None,
         base_llm_for_terminal_view: HashMap::new(),
         custom_llms: Vec::new(),
+        provider_llms: Vec::new(),
         custom_model_routers: Vec::new(),
     }
 }

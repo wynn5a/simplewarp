@@ -558,8 +558,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             )
             .with_group(bindings::BindingGroup::WarpAi)
             .is_supported_on_current_platform(
-                UserWorkspaces::as_ref(app).is_byo_api_key_enabled(app)
-                    || UserWorkspaces::as_ref(app).is_custom_inference_enabled(app),
+                crate::features::warp_account_available()
+                    && (UserWorkspaces::as_ref(app).is_byo_api_key_enabled(app)
+                        || UserWorkspaces::as_ref(app).is_custom_inference_enabled(app)),
             ),
         ],
         app,
@@ -5200,7 +5201,12 @@ impl SettingsWidget for ApiKeysWidget {
         }
 
         // Warp credit fallback applies to member-provided API keys, not custom endpoints.
-        if is_byo_enabled && show_provider_keys {
+        //
+        // It also needs Warp credits, which belong to an account. In a build with no account the
+        // toggle would save a value that nothing can ever read, so it is not offered. Note that
+        // `is_byo_enabled` is true in such a build — a user key is the only path to a model there
+        // — so it cannot stand in for this check.
+        if is_byo_enabled && show_provider_keys && crate::features::warp_account_available() {
             column.add_child(
                 Container::new(self.render_warp_credit_fallback_toggle(view, app))
                     .with_margin_top(16.)

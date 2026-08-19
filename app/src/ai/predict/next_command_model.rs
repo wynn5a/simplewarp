@@ -465,7 +465,7 @@ impl NextCommandModel {
                     // For zero-state next command suggestions, return the result immediately.
                     let Some(prefix) = prefix else {
                         return (
-                            server_api.generate_ai_input_suggestions(&request).await,
+                            generate_ai_input_suggestions_if_available(&server_api, &request).await,
                             request,
                             true,
                             start_ts_ms,
@@ -545,7 +545,7 @@ impl NextCommandModel {
                     };
 
                     // Only if we have no commands from history and no completions, use the LLM to generate a partial suggestion.
-                    let response = server_api.generate_ai_input_suggestions(&request).await;
+                    let response = generate_ai_input_suggestions_if_available(&server_api, &request).await;
                     (
                         response,
                         request,
@@ -592,6 +592,12 @@ impl NextCommandModel {
         }
         match result {
             Ok(response) => {
+                // An empty action is not a suggestion, so there is nothing to show and nothing to
+                // report. This is what a build with no Warp account produces, and it must not turn
+                // into a warning about a prefix that an empty string could never match.
+                if response.most_likely_action.is_empty() {
+                    return;
+                }
                 if let Some(prefix) = &request.prefix {
                     if !response.most_likely_action.starts_with(prefix) {
                         // This is not expected to happen because the server applies its own filtering,
@@ -632,6 +638,29 @@ impl NextCommandModel {
 }
 
 impl SingletonEntity for NextCommandModel {}
+
+/// Asks Warp's server for a next-command suggestion, unless this build has no Warp account.
+///
+/// These suggestions run on Warp's server, not on the user's own provider, so a build with no
+/// account has no source for them. The history-based suggestion earlier in the same function needs
+/// nothing but the user's own shell history, so it keeps working.
+///
+/// An empty reply means "no suggestion", and [`NextCommandModel::on_next_command_suggestion_result`]
+/// drops it without a word. Calling the server instead fails on the missing session and logs an
+/// error for something that can never succeed.
+async fn generate_ai_input_suggestions_if_available(
+    server_api: &ServerApi,
+    request: &GenerateAIInputSuggestionsRequest,
+) -> Result<GenerateAIInputSuggestionsResponseV2, AIApiError> {
+    if !crate::features::warp_account_available() {
+        return Ok(GenerateAIInputSuggestionsResponseV2 {
+            commands: Vec::new(),
+            ai_queries: Vec::new(),
+            most_likely_action: String::new(),
+        });
+    }
+    server_api.generate_ai_input_suggestions(request).await
+}
 
 /// Validates that the arg is valid given its type (e.g. filepath exists if it's a filepath arg).
 /// This uses a file system call, so this function should be called only in background threads.

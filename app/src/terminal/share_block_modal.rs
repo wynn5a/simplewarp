@@ -1022,7 +1022,13 @@ impl ShareBlockModal {
                 .finish()
             }
             None => {
-                log::warn!("Tried to render share modal without a model");
+                // The modal is built once per pane group with no block in it, and it draws
+                // nothing until one is chosen. In a build with no Warp account nothing can ever
+                // choose one, because the entry points are gated, so the empty draw is expected
+                // rather than a fault worth reporting on every launch.
+                if crate::features::warp_account_available() {
+                    log::warn!("Tried to render share modal without a model");
+                }
                 Empty::new().finish()
             }
         };

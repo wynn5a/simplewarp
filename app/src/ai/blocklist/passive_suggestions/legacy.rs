@@ -266,6 +266,17 @@ impl PassiveSuggestionsModel {
             return;
         }
 
+        // The suggestions below come from Warp's server, not from the user's own provider, so a
+        // build with no Warp account has no source for them. The static suggestions above still
+        // work, because they need nothing but the block that just finished.
+        //
+        // Returning here leaves no suggestion, which is the honest result. Without the guard the
+        // request goes out, fails on the missing session, and reports an error for something that
+        // can never succeed.
+        if !crate::features::warp_account_available() {
+            return;
+        }
+
         let Some(execution_context) = self
             .active_session
             .as_ref(ctx)
