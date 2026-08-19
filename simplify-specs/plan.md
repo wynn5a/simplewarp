@@ -220,6 +220,40 @@ telemetry, terminal bootstrap and view, `util::path`, and a leak check, and they
 pass. Under default features every gate added here reads `warp_account_available() && …`, which is
 `true && …`, so the normal build cannot change behaviour.
 
+**Hiding a binding broke the native menu, and reading the log too early hid it.** The six gated
+settings-page bindings were the whole story only in the palette. Three of them also carry a
+`CustomAction`, and a native menu item takes its title from the binding with the same action, so
+`default_name` could not find one and its `debug_assert!` killed the app about twenty seconds into
+every launch:
+
+```
+panicked at 'action should have a name: ViewSharedBlocks'
+panicked at 'action should have a name: OpenTeamSettings'
+```
+
+The first check read `simplewarp.log` sixteen seconds after launch, saw no errors, and called the
+startup healthy. **Wait at least a minute and confirm the process is still alive before believing a
+clean log.** The warning counts above were real, but the process they came from then died.
+
+`ViewSharedBlocks` and `OpenTeamSettings` are the only two of the three that appear in
+`app_menus.rs`; `ShowAccount` does not, so grepping the exact action names gives a finite set
+rather than a guess. Both items are now gated, along with `CreateBlockPermalink`, which shares the
+block-sharing surface. Gating the items beats softening `default_name`, whose fallback title is
+`"<NO DESCRIPTION>"` — the assert only fires in a debug build, so a release build would have shown
+that as a menu item instead of crashing.
+
+**Two more surfaces turned up only by running the app**, both from the user testing the history
+panel:
+
+- The history panel showed `Sign in to access Agent conversations`. That account check is about
+  Warp's own cloud history, which a logged-out user has none of, but this build keeps every
+  conversation in the local database — so the wall stood in front of data already on the machine.
+  Dropped, mirroring `AISettings::is_any_ai_enabled`.
+- The Warp Drive toolbelt icon was still there. The claim above that Drive was already hidden holds
+  for its eight menu and panel sites, but **not** for the toolbelt, which built the icon from the
+  raw `enable_warp_drive` preference — default true — instead of `is_warp_drive_enabled`. Drive is
+  cloud-only with no local store, so the icon is dropped when no account is possible.
+
 Still to hide: cloud mode, ambient agents, and the remote server UI, none of which was reachable
 in a startup log or a settings page, so each needs a look in the running app.
 
@@ -228,16 +262,19 @@ Acceptance:
 - [x] No cloud settings page, and no palette command for one.
 - [x] No login or billing UI.
 - [x] 0 errors and no cloud warnings at startup: 17 warnings fell to 6.
-- [ ] No dead buttons anywhere. Verified for the settings pages, the palette, the block context
-      menu, and the agent page; the rest of the UI is unchecked.
+- [x] The app survives launch. Confirmed past 105 seconds with 0 panics and 0 errors.
+- [x] No dead buttons in the settings pages, the palette, the block context menu, the agent page,
+      the native menus, the history panel, or the toolbelt. **User-tested 2026-08-19.**
+- [ ] The rest of the UI is unchecked, and running the app is the only way to check it. Two of the
+      defects above were invisible to `cargo check` and to the startup log.
 
-The 6 remaining startup warnings are all outside this phase. One is SQLite recovering its WAL
-after the app was killed rather than quit. The other five are one conversation each, all saying
-`missing an initial query` — see Phase 3b, because the cause is in the local adapter.
+Of the 6 startup warnings, one is SQLite recovering its WAL after the app was killed rather than
+quit. The other five were one conversation each, saying `missing an initial query`; the cause was
+in the local adapter and is fixed in Phase 3. Conversations made since carry their question.
 
-### Phase 3 — Local AI adapter — crate DONE and LIVE-TESTED, GUI path UNVERIFIED
+### Phase 3 — Local AI adapter — DONE and VERIFIED IN THE APP
 
-New crate `crates/local_inference` (72 unit tests plus 3 live tests pass, clippy clean):
+New crate `crates/local_inference` (83 unit tests plus 5 live tests pass, clippy clean):
 
 | Module | What it does |
 | --- | --- |
@@ -331,28 +368,38 @@ Still open in this phase:
    answer came back as "There are **4,053** `.rs` files". The follow-up question in the same
    conversation then failed, which is how the tool-pairing bug above was found.
 
-5. **The user's question is never stored, so the model never sees it again.** Decoding an
-   `agent_tasks` row shows three messages — `AgentReasoning`, `ToolCall`, `AgentOutput` — and no
-   `UserQuery`. The emitter never adds one, because the client sends the question in
-   `Request::input` and Warp's server was the thing that echoed it back as a message to store.
+**The user's question was never stored, so the model never saw it again — FIXED.** Decoding an
+`agent_tasks` row showed three messages — `AgentReasoning`, `ToolCall`, `AgentOutput` — and no
+`UserQuery`. The emitter never added one, because the client sends the question in
+`Request::input` and Warp's server was the thing that echoed it back as a message to store.
 
-   Two consequences, one visible and one silent:
+Two consequences, one visible and one silent:
 
-   - Every conversation logs `missing an initial query` at startup and is dropped from the history
-     panel. `AgentConversationSummary` derives `initial_query` by looking for a `UserQuery` in the
-     root task (`crates/persistence/src/model.rs:1097`), and there is never one to find.
-   - On a follow-up question the model is shown its own past replies and tool calls, but not the
-     questions that prompted them. It answers with half the conversation missing, and nothing
-     reports that.
+- Every conversation logged `missing an initial query` and was dropped from the history panel.
+  `AgentConversationSummary` derives `initial_query` by looking for a `UserQuery` in the root task
+  (`crates/persistence/src/model.rs:1097`), and there was never one to find.
+- On a follow-up question the model was shown its own past replies and tool calls, but not the
+  questions that prompted them. It answered with half the conversation missing, and nothing
+  reported that.
 
-   The fix belongs in `emit.rs`: add the query from `Request::input` to the task in the opening
-   transaction, so it persists and replays like every other message.
+`emit.rs` now adds the question to the task in the opening transaction, before the reply to it. A
+request carrying tool results instead of a question — the next step of an agent loop — gets
+nothing, so a turn cannot gain a second question.
+
+It does not double up in the UI. A `UserQuery` message only becomes a rendered input when
+`Task::add_messages` is told to convert input messages, which the client does for a shared-session
+viewer alone; in a normal session its own copy already fills the exchange. Here the message lands
+in the task's message list, which is what gets persisted and replayed.
 
 Acceptance:
 
 - [x] An AI conversation runs from end to end with a user key.
 - [x] Tool calls map to the proto, and their results return to the model.
-- [ ] The same conversation runs through the app UI.
+- [x] The same conversation runs through the app UI. **User-tested 2026-08-19.** A question needing
+      a command worked, a follow-up in the same conversation worked, and asked what the first
+      question had been the model answered "你刚才问的是：这个目录下有多少个 .rs 文件". The task for
+      that conversation decodes as `UserQuery`, `ToolCall`, `AgentReasoning`, `ToolCall`,
+      `AgentOutput`, `UserQuery` — both questions stored in order.
 - [ ] The only network traffic goes to the provider host. (Checked at startup in Phase 1; not yet
       re-checked during an AI request.)
 
@@ -382,15 +429,21 @@ after each step.
 
 - [x] Phase 0: baseline build is green.
 - [x] Phase 1: `simplewarp` starts offline, direct to a terminal, with 0 startup errors.
-- [ ] Phase 2: no cloud, login, or billing UI is reachable.
-- [x] Phase 3: the `local_inference` crate is written, tested, and wired in and compiling.
+- [x] Phase 2: no cloud, login, or billing UI is reachable in any surface checked so far —
+      settings, palette, native menus, block menu, agent page, history panel, toolbelt.
+      User-tested 2026-08-19. Cloud mode, ambient agents, and the remote server UI are
+      unchecked, and only running the app can check them.
+- [x] Phase 3: the `local_inference` crate is written, tested, wired in, and verified by a
+      real conversation in the app.
 - [ ] Phase 3b: a built-in model list, MCP tool support.
 - [ ] Phase 4: the cloud crates and the TUI are removed.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
       round-trip. It found and fixed the `reasoning_content` bug described in Phase 3.
-- [ ] The same conversation through the app UI, which needs a GUI build.
+- [x] The same conversation through the app UI. **User-tested 2026-08-19.** It found three
+      more bugs that the crate-level tests could not: the missing user query, a launch crash
+      from a hidden menu binding, and a login wall on the local conversation history.
 
 ## Git: this repository is a fork
 
