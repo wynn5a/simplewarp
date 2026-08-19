@@ -1,0 +1,296 @@
+# SimpleWarp — Plan
+
+## Goal
+
+Make **SimpleWarp**: a fast terminal with bring-your-own-key (BYOK) AI.
+No cloud, no login, no subscription, no Warp Drive.
+
+Target experience:
+
+- The app works offline. The only network traffic goes to the AI provider that the user
+  configures.
+- No login screen and no anonymous Firebase user.
+- No Warp Drive, shared sessions, cloud mode, ambient agents, remote server, or billing UI.
+- AI keys stay on the machine. The app calls the provider direct.
+- Keep: terminal emulation, tabs, panes, settings, themes, shell management, completions,
+  command palette, and the GUI front-end.
+
+## Decisions
+
+| Topic | Decision |
+| --- | --- |
+| AI | Local adapter. The app calls the provider direct. |
+| Code removal | Gate, then hide, then delete. |
+| TUI (`crates/warp_tui`) | Delete. It is not part of the GUI app. |
+| Name | SimpleWarp. Bin `simplewarp`, id `dev.simplewarp.SimpleWarp`, scheme `simplewarp`. |
+
+## Reconnaissance
+
+| Metric | Value |
+| --- | --- |
+| Rust LOC | ~1.68M |
+| Workspace crates | 78 |
+| `app/src` modules | 127 |
+| Files that use server/firebase/graphql crates | 147 |
+| Cargo features in the `default` set | 199 |
+| Toolchain | Rust 1.92.0 |
+
+### Critical finding — BYOK is not local today
+
+`crates/warp_multi_agent_client/src/lib.rs:127` builds the AI endpoint from
+`ChannelState::server_root_url()`. Every agent request goes to `{warp_server}/ai/multi-agent`.
+`app/src/ai/agent/api.rs:405` puts the user API keys **inside that request**
+(`warp_multi_agent_api::request::settings::ApiKeys`). Warp's server does the model call.
+
+Result: if we remove the cloud, the AI stops to work. A local adapter is necessary.
+
+`app/src/ai/agent_sdk/` (Claude Code, Codex, and Gemini harness) does not help. It uses Warp
+cloud runners (`app/src/ai/agent_sdk/runner.rs`, `api_key.rs` use GraphQL and `ServerApiProvider`).
+
+### Good news — the protocol is small
+
+The server tells the client what to do with a small event stream:
+
+```
+ResponseEvent = Init | ClientActions | Finished
+ClientAction  = CreateTask | AddMessagesToTask | AppendToMessageContent
+              | UpdateTaskMessage | BeginTransaction | CommitTransaction | ...
+Message       = UserQuery | AgentOutput | ToolCall | ToolCallResult | AgentReasoning | ...
+```
+
+**The client already runs all the tools locally** (`RunShellCommand`, `ReadFiles`,
+`ApplyFileDiffs`, `Grep`, `CallMCPTool`, and more). The server only decides which tool to call.
+So a local adapter must do 3 things: build a provider request from the conversation, stream the
+reply, and emit the same events.
+
+Proto source: `github.com/warpdotdev/warp-proto-apis` rev `b0886a9`.
+
+### Scaffolding that we can use
+
+| Requirement | Existing mechanism |
+| --- | --- |
+| No telemetry, crash reporting, or autoupdate | `app/src/bin/oss.rs` sets these configs to `None` |
+| No login | `skip_login` cargo feature, `SkipFirebaseAnonymousUser` flag |
+| Custom AI UI | `solo_user_byok`, `api_key_management`, `custom_model_routers` flags |
+| Feature gating | `FeatureFlag` enum in `crates/warp_features`, mapped in `app/src/features.rs` |
+
+Warning: `skip_login` makes authenticated requests `bail!`
+(`crates/warp_server_client/src/auth/session.rs:98`). It hides nothing by itself.
+
+### Key files
+
+- `crates/warp_features/src/lib.rs` — the `FeatureFlag` enum.
+- `app/src/features.rs` — maps cargo features to flags.
+- `app/Cargo.toml` — `[features]`; the `default` set turns on the cloud surface.
+- `app/src/bin/oss.rs` — the model for the new binary.
+- `app/src/root_view.rs:1925-1964` — the startup gate. `ForceLogin` and the pre-login
+  onboarding path run **before** the `SkipFirebaseAnonymousUser` check.
+- `app/src/auth/`, `app/src/billing/`, `app/src/drive/`, `app/src/cloud_object/`,
+  `app/src/remote_server/`, `app/src/workspaces/` — the cloud surface.
+
+## Phases
+
+### Phase 0 — Baseline — DONE
+
+`cargo check -p warp --bin warp-oss` is green. Three tools were necessary that the bootstrap
+script does not install:
+
+| Tool | How |
+| --- | --- |
+| `protoc` | `brew install protobuf` |
+| Xcode | The App Store. Command Line Tools alone have no `metal`, which `crates/warpui/build.rs:113` runs. |
+| Metal Toolchain | `xcodebuild -downloadComponent MetalToolchain` (839 MB). Xcode 26 ships it separately. |
+
+`xcode-select` still points at Command Line Tools, so every build command carries
+`DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer`. `sudo xcode-select -s
+/Applications/Xcode-beta.app` would make that permanent.
+
+### Phase 1 — The `simplewarp` binary — DONE
+
+1. A `simplewarp` feature set in `app/Cargo.toml`: the `default` 199 features, less 57 cloud,
+   sharing, ambient, hand-off, and billing features, plus `local_only` and `local_inference`.
+2. `app/src/bin/simplewarp.rs`, modeled on `oss.rs`. Telemetry, crash reporting, and autoupdate
+   are `None`. App id `dev.simplewarp.SimpleWarp`, URL scheme `simplewarp`.
+3. `Channel::Oss` is reused. Branding comes from `AppId` and the Info.plist, so a seventh
+   `Channel` variant would only add 42 match arms for nothing. Rename it in Phase 4.
+4. `skip_firebase_anonymous_user` is on. `account_first_onboarding`, `agent_onboarding`, and
+   `open_warp_new_settings_modes` are off, so `root_view.rs:1934-1958` goes to the terminal.
+
+**`local_only` instead of `skip_login`.** `skip_login` installs a stand-in test user
+(`crates/warp_server_auth/src/auth_state.rs`), so `is_logged_in()` returns true and every cloud
+call site starts work that can only fail. The first run logged 6 startup errors for that reason.
+The new `local_only` feature makes the build genuinely logged out: no test user, no persisted
+user from secure storage (so a machine that has run Warp before is not silently reconnected),
+and no token. Every `is_logged_in()` guard then works, and the startup errors went from 6 to 0.
+
+**The BYOK gate had to move.** `is_byo_api_key_enabled` and `is_custom_inference_enabled`
+(`app/src/workspaces/user_workspaces.rs`) both return false for a logged-out user. In this build
+a user key is the only path to a model, so under `local_inference` both return true.
+
+Acceptance — all verified on a real run:
+
+- The app starts direct into a terminal (`Starting shell /bin/zsh`).
+- No login or onboarding modal.
+- `lsof -iTCP` on the running process shows no outbound connection at all.
+- 0 errors in the startup log.
+- `cargo check -p warp --bin warp-oss` is still green, so the normal build is not affected.
+
+### Phase 2 — Hide the cloud UI — STARTED
+
+Done so far, all gated on `features::warp_account_available()`, which is false when the
+`local_only` feature is on. That predicate is deliberately not "the user is logged out": in a
+normal build logged out means "you could sign in", here it means "there is no such thing".
+
+| Removed | Where |
+| --- | --- |
+| The title-bar **Sign up** button | `app/src/workspace/view.rs` |
+| The **Sign up** item in the user menu | `app/src/workspace/view.rs` |
+| The **Login for AI** inline banner | `app/src/terminal/view.rs` |
+| The sign-up prompt that replaced the AI toggle | `app/src/settings_view/warp_agent_page.rs` |
+| The settings pages with nothing local on them | `app/src/settings_view/mod.rs` |
+
+`SettingsSection::needs_warp_account()` names the dropped pages: Account, Billing and usage,
+Referrals, Shared blocks, Teams, Warp Drive, and the Cloud platform umbrella. An umbrella whose
+subpages have all gone is dropped with them.
+
+**Dropping a page from the sidebar is not enough.** `Account` is the enum `#[default]`, and a
+settings pane restored from SQLite carries whatever page was open last, so settings still opened
+on a page that was no longer in the sidebar. `SettingsSection::available()` maps such a page onto
+`WarpAgent`, and it is applied at `set_and_refresh_current_page_internal` — the one function
+every page change funnels through, including session restore. Two unit tests in
+`settings_view/mod_tests.rs` pin both directions of that mapping.
+
+Still open here: the command palette still lists "Open Settings: Account", "…: Teams", and
+"…: Shared Blocks". They now land on Warp Agent rather than fail, but the labels are misleading.
+The bindings are declared in an array literal in `app/src/workspace/mod.rs`, so filtering them
+needs that array turned into a filtered `Vec`.
+
+Still to hide:
+
+- Warp Drive panel and "Import to Drive" (`app/src/drive/`, `workspace/mod.rs`).
+- Shared sessions, cloud mode, ambient agents, and remote server UI.
+- The "use Warp credits as a fallback" toggle on the agent page: there are no Warp credits.
+- `cloud_preferences_syncer`, which still logs "unset personal drive" at startup.
+- The share-block modal, which logs "Tried to render share modal without a model".
+
+Acceptance:
+
+- No cloud, login, or billing UI is reachable.
+- No dead buttons and no error toasts.
+
+### Phase 3 — Local AI adapter — crate DONE, wiring UNVERIFIED
+
+New crate `crates/local_inference` (54 unit tests pass, clippy clean):
+
+| Module | What it does |
+| --- | --- |
+| `config.rs` | Picks the endpoint from `Settings`. A custom endpoint wins; otherwise the model slug decides (`claude*` → Anthropic, `*/*` → OpenRouter, `gemini*` → Google, else OpenAI). |
+| `convert.rs` | Flattens the proto conversation into a neutral `Turn` list, and renders tool results to text. Caps a result at 32 kB and keeps the tail. |
+| `tools.rs` | JSON schemas for `run_shell_command`, `read_files`, `apply_file_diffs`, `grep`, `file_glob`, and the two-way map to the proto `ToolCall`. Honours `Settings::supported_tools`. |
+| `provider/anthropic.rs` | Anthropic Messages: body and SSE. |
+| `provider/openai.rs` | OpenAI Chat Completions: body and SSE. Also covers OpenRouter, Google, Ollama, LM Studio, and vLLM. |
+| `prompt.rs` | The system prompt that Warp's server used to own. |
+| `emit.rs` | Deltas → `ResponseEvent`s. Streams text with `AppendToMessageContent`; holds a tool call back until its JSON arguments are whole, and drops a call that is broken or invented. |
+| `stream.rs` | `generate_local_output`, the drop-in for `generate_multi_agent_output`. |
+
+Wired at `app/src/ai/agent/api/impl.rs:141` behind the `local_inference` cargo feature, which
+`simplewarp` turns on. **Not compiled yet — see the Xcode blocker.**
+
+**The model list.** `app/src/ai/llms.rs` fetches the catalog from the server. With no server it
+falls back to `ModelsByFeature::default()`, whose only entry is `auto` — Warp's own server-side
+router, which names no real model. It was also the default, so a fresh user's first request
+failed with "No API key is set for model `auto`".
+
+Fixed by reusing machinery that was already there rather than adding a parallel path:
+
+- A new `DisableReason::NeedsWarpAccount` marks the built-in `auto` entries in a `local_only`
+  build. The picker already drops disabled models, and `fallback_llm_info` already falls back to
+  the user's first custom endpoint when the default is unusable — so a configured endpoint
+  becomes the effective default on its own.
+- `local_inference` returns `NoModelConfigured` for a router id instead of a missing-key error
+  that names a model the user never picked. A custom endpoint registered under the key `auto`
+  still wins; there is a test for that.
+
+**Where the model list comes from now.** A key for a provider means the user wants that
+provider's official API, so `crates/local_inference/src/models.rs` asks the provider itself:
+`GET /models` with that key. All four (Anthropic, OpenAI, Google's OpenAI-compatible surface,
+OpenRouter) answer with the same `{"data":[{"id":…}]}` envelope, so one parser serves them; only
+the auth header and Google's `models/` id prefix differ.
+
+This was chosen over a hardcoded catalog because provider slugs change often, and a stale slug
+fails at request time with a 404 the user cannot act on. Asking the provider cannot go stale.
+
+App side, in `app/src/ai/llms.rs`, mirroring how custom endpoints already work:
+`provider_llms` is refetched on `ApiKeyManagerEvent::KeysUpdated` and at startup, and is chained
+into the three model pickers, `model_info_for_id`, and `fallback_llm_info`. A provider that
+fails contributes nothing and is logged, not reported — with several keys configured, one being
+unreachable is ordinary. Both the fetch and the `LLMInfo` builder are `#[cfg(feature =
+"local_inference")]`, because that dependency is optional and the normal build takes its catalog
+from the server.
+
+The provider slug is the `LLMInfo::id`, which is also `ModelConfig.base`, which is also what
+`local_inference` sends — one string end to end, no mapping table.
+
+Still open in this phase:
+
+1. `call_mcp_tool` is not mapped yet, so the agent cannot use MCP servers.
+2. No retry and no context-window management.
+3. OpenRouter answers with several hundred models and they are all listed. The picker has search,
+   but the list wants a cap or a filter.
+
+Acceptance:
+
+- An AI conversation runs from end to end with a user key.
+- The only network traffic goes to the provider host.
+- Tool calls run locally and their results return to the model.
+
+### Phase 4 — Delete the dead code
+
+One small step for each module. Run `./script/format`, `cargo clippy`, and `cargo nextest run`
+after each step.
+
+1. `crates/warp_tui` and the app-side TUI support (`app/src/tui/`, `tui_export.rs`,
+   `tui_test_support.rs`, `run_tui`).
+2. `app/src/drive/`, `app/src/billing/`, `app/src/cloud_object/`.
+3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
+4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
+   `cloud_object_*`, `warp_multi_agent_client`.
+5. The `FeatureFlag` variants that are no longer in use.
+
+## Risks
+
+- **Deep coupling.** The cloud crates appear in ~147 files. This is why deletion is last.
+- **`skip_login` only makes errors.** Phase 2 must hide the UI, not show error toasts.
+- **The agent loop moves to the client.** Phase 3 must add the system prompt, the tool
+  schemas, and the loop control that the server did before. Quality can differ from Warp.
+- **Model configuration.** `should_refresh_model_config` and the model list come from the
+  server. The local build needs its own model list.
+
+## Definition of done
+
+- [x] Phase 0: baseline build is green.
+- [x] Phase 1: `simplewarp` starts offline, direct to a terminal, with 0 startup errors.
+- [ ] Phase 2: no cloud, login, or billing UI is reachable.
+- [x] Phase 3: the `local_inference` crate is written, tested, and wired in and compiling.
+- [ ] Phase 3b: a built-in model list, MCP tool support.
+- [ ] Phase 4: the cloud crates and the TUI are removed.
+- [ ] An end-to-end AI conversation with a real key. **Not yet run — no key on this machine.**
+
+## Build commands
+
+`DEVELOPER_DIR` is necessary until `xcode-select` is switched.
+
+```sh
+export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer
+cargo run --no-default-features --features simplewarp --bin simplewarp   # the app
+cargo test -p local_inference                                            # the AI adapter
+cargo check -p warp --bin warp-oss                                       # no regression
+```
+
+## How to test the AI
+
+1. Start the app, open Settings > AI.
+2. Paste a provider key, or add a custom endpoint (base URL plus model slug). A custom endpoint
+   also covers a local server such as Ollama at `http://localhost:11434/v1`.
+3. Ask the agent something. Watch `~/Library/Logs/simplewarp.log`, and check with
+   `lsof -nP -iTCP -a -p $(pgrep -f simplewarp)` that the only connection is to the provider.

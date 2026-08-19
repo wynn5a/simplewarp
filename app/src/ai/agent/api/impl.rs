@@ -138,30 +138,85 @@ pub async fn generate_multi_agent_output(
         mcp_context: params.mcp_context.map(Into::into),
     };
 
-    let response_stream =
-        warp_multi_agent_client::generate_multi_agent_output(server_api.as_ref(), &request).await;
-    match response_stream {
-        Ok(stream) => {
-            let output_stream = stream
-                .then(|result| async {
-                    match result {
-                        Ok(event) => Ok(event),
-                        Err(error) => Err(convert_multi_agent_client_error(error).await),
-                    }
-                })
-                .take_until(cancellation_rx);
-            Ok(Box::pin(output_stream))
-        }
-        Err(e) => {
-            let (tx, rx) = async_channel::unbounded();
-            let _ = tx
-                .send(Err(convert_multi_agent_client_error(e).await))
+    // SimpleWarp runs the model call on this machine, so the request never leaves for a Warp
+    // server and the API keys inside it never do either. The event stream has the same shape,
+    // so everything downstream is unchanged.
+    #[cfg(feature = "local_inference")]
+    {
+        let _ = &server_api;
+        return match local_inference::generate_local_output(&request).await {
+            Ok(stream) => {
+                let output_stream = stream
+                    .then(|result| async {
+                        match result {
+                            Ok(event) => Ok(event),
+                            Err(error) => Err(convert_local_inference_error(error)),
+                        }
+                    })
+                    .take_until(cancellation_rx);
+                Ok(Box::pin(output_stream))
+            }
+            Err(error) => {
+                let (tx, rx) = async_channel::unbounded();
+                let _ = tx.send(Err(convert_local_inference_error(error))).await;
+                Ok(Box::pin(rx))
+            }
+        };
+    }
+
+    #[cfg(not(feature = "local_inference"))]
+    {
+        let response_stream =
+            warp_multi_agent_client::generate_multi_agent_output(server_api.as_ref(), &request)
                 .await;
-            Ok(Box::pin(rx))
+        match response_stream {
+            Ok(stream) => {
+                let output_stream = stream
+                    .then(|result| async {
+                        match result {
+                            Ok(event) => Ok(event),
+                            Err(error) => Err(convert_multi_agent_client_error(error).await),
+                        }
+                    })
+                    .take_until(cancellation_rx);
+                Ok(Box::pin(output_stream))
+            }
+            Err(e) => {
+                let (tx, rx) = async_channel::unbounded();
+                let _ = tx
+                    .send(Err(convert_multi_agent_client_error(e).await))
+                    .await;
+                Ok(Box::pin(rx))
+            }
         }
     }
 }
 
+/// Maps a local-inference failure onto the error type that the AI UI already renders.
+///
+/// A missing key and a rejected key are the two failures a user can fix themselves, so they keep
+/// their own messages rather than falling into the generic bucket.
+#[cfg(feature = "local_inference")]
+fn convert_local_inference_error(error: local_inference::Error) -> Arc<AIApiError> {
+    use local_inference::Error as LocalError;
+
+    let error = match error {
+        LocalError::NoApiKey { ref model } => AIApiError::Other(anyhow::anyhow!(
+            "No API key is set for model `{model}`. Add one in Settings > AI."
+        )),
+        LocalError::ProviderStatus { status, ref body } => {
+            match http::StatusCode::from_u16(status) {
+                Ok(status) => AIApiError::ErrorStatus(status, body.clone()),
+                Err(_) => AIApiError::Other(anyhow::anyhow!("{error}")),
+            }
+        }
+        LocalError::Http(error) => AIApiError::Transport(error),
+        other => AIApiError::Other(anyhow::anyhow!("{other}")),
+    };
+    Arc::new(error)
+}
+
+#[cfg(not(feature = "local_inference"))]
 async fn convert_multi_agent_client_error(
     error: warp_multi_agent_client::Error,
 ) -> Arc<AIApiError> {

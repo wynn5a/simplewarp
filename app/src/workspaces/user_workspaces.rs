@@ -714,15 +714,27 @@ impl UserWorkspaces {
     /// For solo users (no workspace), this is controlled by the `SoloUserByok` feature flag.
     /// Anonymous or logged-out users are not allowed to use BYO API keys.
     pub fn is_byo_api_key_enabled(&self, app: &AppContext) -> bool {
-        if AuthStateProvider::as_ref(app)
-            .get()
-            .is_anonymous_or_logged_out()
+        // In the local-inference build there is no Warp account and no Warp-billed inference, so
+        // a user key is the only way to reach a model at all. The logged-out guard below would
+        // turn BYOK off for every user of that build, which would leave the AI with no path.
+        #[cfg(feature = "local_inference")]
         {
-            return false;
+            let _ = app;
+            return true;
         }
-        self.current_workspace()
-            .map(|workspace| workspace.is_byo_api_key_enabled())
-            .unwrap_or(FeatureFlag::SoloUserByok.is_enabled())
+
+        #[cfg(not(feature = "local_inference"))]
+        {
+            if AuthStateProvider::as_ref(app)
+                .get()
+                .is_anonymous_or_logged_out()
+            {
+                return false;
+            }
+            self.current_workspace()
+                .map(|workspace| workspace.is_byo_api_key_enabled())
+                .unwrap_or(FeatureFlag::SoloUserByok.is_enabled())
+        }
     }
 
     /// Whether the current workspace's managed BYOK/BYOE policy allows members
@@ -745,16 +757,28 @@ impl UserWorkspaces {
     /// Anonymous or logged-out users are not allowed to use custom inference.
     /// Controlled by the BYO_ENDPOINT billing policy.
     pub fn is_custom_inference_enabled(&self, app: &AppContext) -> bool {
-        if AuthStateProvider::as_ref(app)
-            .get()
-            .is_anonymous_or_logged_out()
+        // As with [`Self::is_byo_api_key_enabled`]: a custom endpoint is a first-class way to
+        // reach a model in the local-inference build, and the logged-out guard below would
+        // switch it off for every user of that build.
+        #[cfg(feature = "local_inference")]
         {
-            return false;
+            let _ = app;
+            return true;
         }
 
-        self.current_workspace()
-            .map(|workspace| workspace.billing_metadata.is_byo_endpoint_enabled())
-            .unwrap_or(true)
+        #[cfg(not(feature = "local_inference"))]
+        {
+            if AuthStateProvider::as_ref(app)
+                .get()
+                .is_anonymous_or_logged_out()
+            {
+                return false;
+            }
+
+            self.current_workspace()
+                .map(|workspace| workspace.billing_metadata.is_byo_endpoint_enabled())
+                .unwrap_or(true)
+        }
     }
 
     /// Whether the current workspace's managed BYOK/BYOE policy allows members

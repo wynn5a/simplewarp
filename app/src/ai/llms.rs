@@ -212,6 +212,9 @@ pub enum DisableReason {
     ProviderOutage,
     RequiresUpgrade,
     Unavailable,
+    /// The model only resolves on a Warp server, so a build with no Warp account behind it can
+    /// never reach it. Set by the client, never sent by the server.
+    NeedsWarpAccount,
 }
 
 impl DisableReason {
@@ -225,6 +228,10 @@ impl DisableReason {
             }
             DisableReason::RequiresUpgrade => "Please upgrade your plan to access this model.",
             DisableReason::Unavailable => "This model is unavailable.",
+            DisableReason::NeedsWarpAccount => {
+                "This model runs on Warp's servers. Add your own API key or endpoint in \
+                 Settings > AI."
+            }
         }
     }
 
@@ -239,7 +246,9 @@ impl DisableReason {
     /// resolve without user action, so we preserve the selection.
     fn should_clear_preference(&self, has_byok_key: bool) -> bool {
         match self {
-            DisableReason::AdminDisabled | DisableReason::Unavailable => true,
+            DisableReason::AdminDisabled
+            | DisableReason::Unavailable
+            | DisableReason::NeedsWarpAccount => true,
             DisableReason::RequiresUpgrade => !has_byok_key,
             DisableReason::OutOfRequests | DisableReason::ProviderOutage => false,
         }
@@ -603,6 +612,13 @@ impl ModelsByFeature {
     }
 }
 
+/// The disable reason for a model that only Warp's servers can route.
+///
+/// `None` in a normal build, so the entry behaves exactly as before.
+fn warp_routed_model_disable_reason() -> Option<DisableReason> {
+    (!crate::features::warp_account_available()).then_some(DisableReason::NeedsWarpAccount)
+}
+
 /// Returns the default AvailableLLMs for computer use.
 /// Used both in `ModelsByFeature::default()` and as a fallback in `get_computer_use_available()`.
 fn default_computer_use_llms() -> AvailableLLMs {
@@ -618,7 +634,12 @@ fn default_computer_use_llms() -> AvailableLLMs {
                 credit_multiplier: None,
             },
             description: None,
-            disable_reason: None,
+            // These are Warp's server-side routers: `auto` only resolves when a Warp server
+            // picks the model behind it. A build with no Warp account cannot reach one, so the
+            // entry is disabled there rather than offered and then failing at request time.
+            // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
+            // user's own custom endpoint instead.
+            disable_reason: warp_routed_model_disable_reason(),
             vision_supported: true,
             spec: None,
             provider: LLMProvider::Unknown,
@@ -645,7 +666,12 @@ impl Default for ModelsByFeature {
                         credit_multiplier: None,
                     },
                     description: None,
-                    disable_reason: None,
+                    // These are Warp's server-side routers: `auto` only resolves when a Warp server
+                    // picks the model behind it. A build with no Warp account cannot reach one, so the
+                    // entry is disabled there rather than offered and then failing at request time.
+                    // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
+                    // user's own custom endpoint instead.
+                    disable_reason: warp_routed_model_disable_reason(),
                     vision_supported: true,
                     spec: None,
                     provider: LLMProvider::Unknown,
@@ -667,7 +693,12 @@ impl Default for ModelsByFeature {
                         credit_multiplier: None,
                     },
                     description: None,
-                    disable_reason: None,
+                    // These are Warp's server-side routers: `auto` only resolves when a Warp server
+                    // picks the model behind it. A build with no Warp account cannot reach one, so the
+                    // entry is disabled there rather than offered and then failing at request time.
+                    // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
+                    // user's own custom endpoint instead.
+                    disable_reason: warp_routed_model_disable_reason(),
                     vision_supported: true,
                     spec: None,
                     provider: LLMProvider::Unknown,
@@ -689,7 +720,12 @@ impl Default for ModelsByFeature {
                         credit_multiplier: None,
                     },
                     description: None,
-                    disable_reason: None,
+                    // These are Warp's server-side routers: `auto` only resolves when a Warp server
+                    // picks the model behind it. A build with no Warp account cannot reach one, so the
+                    // entry is disabled there rather than offered and then failing at request time.
+                    // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
+                    // user's own custom endpoint instead.
+                    disable_reason: warp_routed_model_disable_reason(),
                     vision_supported: false,
                     spec: None,
                     provider: LLMProvider::Unknown,
@@ -734,6 +770,15 @@ pub struct LLMPreferences {
     /// Rebuilt from scratch on every `ApiKeyManagerEvent::KeysUpdated`, so adds, edits, and
     /// removals all immediately propagate to the picker.
     custom_llms: Vec<LLMInfo>,
+    /// Models fetched from a first-party provider the user holds a key for.
+    ///
+    /// Only used by builds with no Warp account, where nothing else supplies a catalog. A key
+    /// means the user wants that provider's official API, so the list is whatever the provider
+    /// answers for that key rather than a hardcoded guess that goes stale.
+    ///
+    /// Refetched on every `ApiKeyManagerEvent::KeysUpdated`, so pasting a key populates the
+    /// picker without a restart.
+    provider_llms: Vec<LLMInfo>,
     /// All custom model routers, including both local and cloud-backed.
     custom_model_routers: Vec<CustomModelRouter>,
 }
@@ -776,6 +821,7 @@ impl LLMPreferences {
             &ApiKeyManager::handle(ctx),
             |me, _, _event: &ApiKeyManagerEvent, ctx| {
                 me.rebuild_custom_llms(ctx);
+                me.refresh_provider_llms(ctx);
                 me.reconcile_disabled_model_preferences(ctx);
                 ctx.emit(LLMPreferencesEvent::UpdatedAvailableLLMs);
             },
@@ -801,8 +847,13 @@ impl LLMPreferences {
             last_update: None,
             base_llm_for_terminal_view,
             custom_llms,
+            provider_llms: Vec::new(),
             custom_model_routers: Vec::new(),
         };
+
+        // A key stored from a previous run is already loaded, so ask its provider what it can
+        // reach now rather than waiting for the user to touch the key again.
+        me.refresh_provider_llms(ctx);
 
         // Seed from any already-loaded local config (the async load emits
         // `ModelConfigs` shortly after startup to populate fully).
@@ -877,6 +928,7 @@ impl LLMPreferences {
         available
             .usable_default_llm_info(app)
             .or_else(|| self.custom_llm_choices(app).next())
+            .or_else(|| self.provider_llm_choices().next())
             .unwrap_or_else(|| available.default_llm_info())
     }
 
@@ -896,6 +948,7 @@ impl LLMPreferences {
         Self::server_info_for_id_router_gated(available, id)
             .or_else(|| self.custom_llm_info_for_id_if_enabled(id, app))
             .or_else(|| self.custom_router_llm_info_for_id_if_enabled(id))
+            .or_else(|| self.provider_llm_info_for_id(id))
     }
 
     pub fn get_active_coding_model<'a>(
@@ -951,13 +1004,19 @@ impl LLMPreferences {
             .agent_mode
             .choices
             .iter()
-            .filter(|llm| !matches!(llm.disable_reason, Some(DisableReason::AdminDisabled)))
+            .filter(|llm| {
+                !matches!(
+                    llm.disable_reason,
+                    Some(DisableReason::AdminDisabled | DisableReason::NeedsWarpAccount)
+                )
+            })
             // Gate cloud/team routers behind the same flag as local routers so
             // the entire custom-router feature is controlled by one flag.
             .filter(move |llm| {
                 routers_enabled || !custom_model_routers::is_cloud_custom_router_id(llm.id.as_str())
             })
             .chain(self.custom_llm_choices(app))
+            .chain(self.provider_llm_choices())
             .chain(self.custom_router_choices())
     }
 
@@ -977,12 +1036,18 @@ impl LLMPreferences {
             .coding
             .choices
             .iter()
-            .filter(|llm| !matches!(llm.disable_reason, Some(DisableReason::AdminDisabled)))
+            .filter(|llm| {
+                !matches!(
+                    llm.disable_reason,
+                    Some(DisableReason::AdminDisabled | DisableReason::NeedsWarpAccount)
+                )
+            })
             // Gate cloud/team routers behind the same flag as local routers.
             .filter(move |llm| {
                 routers_enabled || !custom_model_routers::is_cloud_custom_router_id(llm.id.as_str())
             })
             .chain(self.custom_llm_choices(app))
+            .chain(self.provider_llm_choices())
             .chain(self.custom_router_choices())
     }
 
@@ -995,8 +1060,14 @@ impl LLMPreferences {
         self.get_cli_agent_available()
             .choices
             .iter()
-            .filter(|llm| !matches!(llm.disable_reason, Some(DisableReason::AdminDisabled)))
+            .filter(|llm| {
+                !matches!(
+                    llm.disable_reason,
+                    Some(DisableReason::AdminDisabled | DisableReason::NeedsWarpAccount)
+                )
+            })
             .chain(self.custom_llm_choices(app))
+            .chain(self.provider_llm_choices())
     }
 
     /// Returns the `LLMInfo` for the CLI agent model.
@@ -1328,6 +1399,80 @@ impl LLMPreferences {
     /// edits, and removals all propagate immediately.
     fn rebuild_custom_llms(&mut self, app: &AppContext) {
         self.custom_llms = build_custom_llm_infos(ApiKeyManager::as_ref(app).keys());
+    }
+
+    /// Asks each provider the user holds a key for which models that key can reach, and replaces
+    /// [`Self::provider_llms`] with the answer.
+    ///
+    /// Does nothing in a build with a Warp account, where the server already supplies a catalog.
+    /// A provider that fails — a bad key, no network — contributes nothing and is logged rather
+    /// than reported: with several providers configured, one being unreachable is ordinary, and
+    /// the user finds out either way when the model is missing from the picker.
+    #[cfg(feature = "local_inference")]
+    fn refresh_provider_llms(&mut self, ctx: &mut ModelContext<Self>) {
+        if crate::features::warp_account_available() {
+            return;
+        }
+
+        let keys = ApiKeyManager::as_ref(ctx).keys().clone();
+        let requests: Vec<(local_inference::Provider, String)> = [
+            (local_inference::Provider::Anthropic, keys.anthropic),
+            (local_inference::Provider::OpenAI, keys.openai),
+            (local_inference::Provider::Google, keys.google),
+        ]
+        .into_iter()
+        .filter_map(|(provider, key)| {
+            let key = key.unwrap_or_default();
+            (!key.is_empty()).then_some((provider, key))
+        })
+        .collect();
+
+        if requests.is_empty() {
+            if !self.provider_llms.is_empty() {
+                self.provider_llms.clear();
+                ctx.emit(LLMPreferencesEvent::UpdatedAvailableLLMs);
+            }
+            return;
+        }
+
+        ctx.spawn(
+            async move {
+                let mut models = Vec::new();
+                for (provider, key) in requests {
+                    match local_inference::list_models(provider, &key).await {
+                        Ok(found) => models.extend(found),
+                        Err(e) => log::warn!(
+                            "Failed to list models from {}: {e}",
+                            provider.display_name()
+                        ),
+                    }
+                }
+                models
+            },
+            |me, models, ctx| {
+                let rebuilt: Vec<LLMInfo> = models.iter().map(provider_llm_info_from).collect();
+                if rebuilt != me.provider_llms {
+                    me.provider_llms = rebuilt;
+                    ctx.emit(LLMPreferencesEvent::UpdatedAvailableLLMs);
+                }
+            },
+        );
+    }
+
+    /// No provider is asked without the local-inference path, because the server supplies the
+    /// catalog in that build.
+    #[cfg(not(feature = "local_inference"))]
+    fn refresh_provider_llms(&mut self, _ctx: &mut ModelContext<Self>) {}
+
+    /// The models reachable with the user's own provider keys.
+    ///
+    /// Mirrors [`Self::custom_llm_choices`]. Always empty without the local-inference path.
+    pub fn provider_llm_choices(&self) -> std::slice::Iter<'_, LLMInfo> {
+        self.provider_llms.iter()
+    }
+
+    fn provider_llm_info_for_id(&self, id: &LLMId) -> Option<&LLMInfo> {
+        self.provider_llms.iter().find(|info| info.id == *id)
     }
 
     fn sanitize_disabled_custom_model_preferences(&mut self, ctx: &mut ModelContext<Self>) {
@@ -1966,6 +2111,32 @@ fn build_custom_llm_infos(keys: &ai::api_keys::ApiKeys) -> Vec<LLMInfo> {
                 .map(move |model| custom_llm_info_from(endpoint, model))
         })
         .collect()
+}
+
+/// Builds an [`LLMInfo`] from a model a provider reported for the user's key.
+///
+/// The `id` is the provider's own slug, which is what goes out as `ModelConfig.base` and what
+/// `local_inference` sends to the provider — so no mapping table is needed between the two.
+#[cfg(feature = "local_inference")]
+fn provider_llm_info_from(model: &local_inference::ProviderModel) -> LLMInfo {
+    LLMInfo {
+        display_name: model.display_name.clone(),
+        base_model_name: model.display_name.clone(),
+        id: model.id.clone().into(),
+        reasoning_level: None,
+        usage_metadata: LLMUsageMetadata {
+            request_multiplier: 1,
+            credit_multiplier: None,
+        },
+        description: Some(model.provider.display_name().to_owned()),
+        disable_reason: None,
+        vision_supported: true,
+        spec: None,
+        provider: LLMProvider::Unknown,
+        host_configs: HashMap::new(),
+        discount_percentage: None,
+        context_window: LLMContextWindow::default(),
+    }
 }
 
 fn custom_llm_info_from(endpoint: &CustomEndpoint, model: &CustomEndpointModel) -> LLMInfo {

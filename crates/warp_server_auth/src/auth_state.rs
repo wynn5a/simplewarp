@@ -115,9 +115,17 @@ impl AuthState {
     /// 1. Test user (test/integration/skip_login builds)
     /// 2. WARP_USER_SECRET environment variable
     /// 3. Persisted user from secure storage
+    ///
+    /// A `local_only` build stops before all three and stays logged out. It must not adopt a
+    /// user that secure storage happens to hold from a previous Warp install, because that
+    /// would silently reconnect the build to a Warp account it is built to do without.
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn initialize(ctx: &AppContext) -> Self {
         let state = Self::new(ctx);
+
+        if cfg!(feature = "local_only") {
+            return state;
+        }
 
         if Self::should_use_test_user() {
             state.set_user(Some(User::test()));
@@ -187,6 +195,12 @@ impl AuthState {
     }
 
     fn should_use_test_user() -> bool {
+        // A `local_only` build must report itself as logged out. Every cloud call site already
+        // guards on `is_logged_in()`, so a stand-in test user would make all of them start work
+        // that can only fail — which is exactly what `skip_login` alone does.
+        if cfg!(feature = "local_only") {
+            return false;
+        }
         cfg!(any(test, feature = "skip_login", feature = "test-util"))
             || ChannelState::channel() == Channel::Integration
     }

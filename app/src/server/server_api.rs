@@ -290,6 +290,9 @@ impl AIApiError {
 
     /// Format a stream error into a human-readable error message. This will read the response
     /// body if there is one.
+    // The only caller is the Warp-server agent stream, which the `local_inference` build
+    // replaces with a direct provider call.
+    #[cfg_attr(feature = "local_inference", allow(dead_code))]
     pub(crate) async fn from_stream_error(
         stream_type: &'static str,
         err: reqwest_eventsource::Error,

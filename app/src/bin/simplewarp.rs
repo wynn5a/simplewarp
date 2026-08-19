@@ -1,0 +1,74 @@
+// On Windows, we don't want to display a console window when the application is running in release
+// builds. See https://doc.rust-lang.org/reference/runtime.html#the-windows_subsystem-attribute.
+#![cfg_attr(feature = "release_bundle", windows_subsystem = "windows")]
+
+use anyhow::Result;
+use warp_core::AppId;
+use warp_core::channel::{Channel, ChannelConfig, ChannelState, OzConfig, WarpServerConfig};
+
+// SimpleWarp: a local-only terminal with bring-your-own-key AI.
+//
+// This binary has no telemetry, no crash reporting, and no autoupdate. The `simplewarp`
+// cargo feature set leaves out login, Warp Drive, billing, shared sessions, cloud mode,
+// ambient agents, and the remote server. Startup goes straight to a terminal because
+// `skip_firebase_anonymous_user` is on and the pre-login onboarding features are off.
+//
+// The server config below is only a placeholder to satisfy `ChannelConfig`. Nothing in the
+// SimpleWarp feature set makes a request to it; `skip_login` also makes every authenticated
+// request fail instead of reaching the network.
+fn main() -> Result<()> {
+    let mut state = ChannelState::new(
+        Channel::Oss,
+        ChannelConfig {
+            app_id: AppId::new("dev", "simplewarp", "SimpleWarp"),
+            logfile_name: "simplewarp.log".into(),
+            server_config: WarpServerConfig::production(),
+            oz_config: OzConfig::production(),
+            telemetry_config: None,
+            crash_reporting_config: None,
+            autoupdate_config: None,
+            mcp_static_config: None,
+        },
+    );
+    if cfg!(debug_assertions) {
+        state = state.with_additional_features(warp_core::features::DEBUG_FLAGS);
+    }
+    ChannelState::set(state);
+
+    warp::run()
+}
+
+// If we're not using an external plist, embed the following as the Info.plist.
+#[cfg(all(not(feature = "extern_plist"), target_os = "macos"))]
+embed_plist::embed_info_plist_bytes!(r#"
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>English</string>
+    <key>CFBundleDisplayName</key>
+    <string>SimpleWarp</string>
+    <key>CFBundleExecutable</key>
+    <string>simplewarp</string>
+    <key>CFBundleIdentifier</key>
+    <string>dev.simplewarp.SimpleWarp</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>SimpleWarp</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.developer-tools</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>UIDesignRequiresCompatibility</key>
+    <true/>
+    <key>CFBundleURLTypes</key>
+    <array><dict><key>CFBundleURLName</key><string>Custom App</string><key>CFBundleURLSchemes</key><array><string>simplewarp</string></array></dict></array>
+    </dict>
+    </plist>
+"#.as_bytes());

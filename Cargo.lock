@@ -7800,6 +7800,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "local_inference"
+version = "0.1.0"
+dependencies = [
+ "aha-reqwest-eventsource",
+ "futures",
+ "prost",
+ "prost-types",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "uuid",
+ "warp_multi_agent_api",
+]
+
+[[package]]
 name = "locale_config"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -15246,6 +15264,7 @@ dependencies = [
  "libsqlite3-sys",
  "line-ending",
  "local_control",
+ "local_inference",
  "log",
  "log-panics",
  "lsp",
