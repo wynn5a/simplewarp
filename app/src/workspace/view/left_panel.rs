@@ -109,9 +109,18 @@ impl ToolPanelView {
                 }
             }
             ToolPanelView::ConversationListView => {
-                if AuthStateProvider::as_ref(app)
-                    .get()
-                    .is_anonymous_or_logged_out()
+                // The account check is about Warp's own cloud history, which an anonymous or
+                // logged-out user has none of. A build with no Warp account keeps every
+                // conversation in the local database instead, so the history works logged out —
+                // and asking for an account here would put a dead Sign in button in front of data
+                // that is already on the machine.
+                //
+                // This mirrors `AISettings::is_any_ai_enabled`, which drops the same check for
+                // the same reason.
+                if crate::features::warp_account_available()
+                    && AuthStateProvider::as_ref(app)
+                        .get()
+                        .is_anonymous_or_logged_out()
                 {
                     ToolPanelAvailability::RequiresAccount
                 } else if AISettings::as_ref(app).is_conversation_history_available(app) {

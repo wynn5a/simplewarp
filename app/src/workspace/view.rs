@@ -23781,7 +23781,13 @@ impl Workspace {
                 entry_focus: GlobalSearchEntryFocus::Results,
             });
         }
-        if *WarpDriveSettings::as_ref(ctx).enable_warp_drive {
+        // Warp Drive is cloud-only, and unlike the conversation history it has no local store to
+        // fall back on. In a build with no Warp account the panel could only ever show its
+        // "Sign in to access Warp Drive" wall, behind a button that leads nowhere, so the toolbelt
+        // drops it. In a normal build that wall is a real invitation, so the icon stays.
+        if *WarpDriveSettings::as_ref(ctx).enable_warp_drive
+            && crate::features::warp_account_available()
+        {
             views.push(ToolPanelView::WarpDrive);
         }
         views
