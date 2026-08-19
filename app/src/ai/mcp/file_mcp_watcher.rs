@@ -598,12 +598,6 @@ fn should_watch_repository(
             RepoDetectionSource::ProjectRulesIndexing
             | RepoDetectionSource::CodeReviewInitialization => false,
         },
-        settings::SettingsMode::Tui => match source {
-            RepoDetectionSource::TerminalNavigation => true,
-            RepoDetectionSource::ProjectRulesIndexing
-            | RepoDetectionSource::CodeReviewInitialization
-            | RepoDetectionSource::CloudEnvironmentPrep => false,
-        },
     }
 }
 

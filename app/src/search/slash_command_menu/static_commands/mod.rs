@@ -54,20 +54,6 @@ pub enum SlashCommandKind {
     Agent,
     CloudAgent,
     AddMcp,
-    ApiKeys,
-    ConnectGrok,
-    Upgrade,
-    ManageBilling,
-    AutoApprove,
-    Statusline,
-    ResetStatusline,
-    Mcp,
-    ViewLogs,
-    Voice,
-    NaturalLanguageDetection,
-    Theme,
-    Exit,
-    Logout,
     CreateEnvironment,
     CreateDockerSandbox,
     CreateNewProject,
@@ -92,7 +78,6 @@ pub enum SlashCommandKind {
     OpenRepo,
     OpenRules,
     New,
-    Clear,
     Model,
     Host,
     Harness,
@@ -114,8 +99,6 @@ pub enum SlashCommandKind {
     Rewind,
     ExportToClipboard,
     ExportToFile,
-    VimMode,
-    Status,
     CopyDebuggingId,
 }
 
@@ -127,29 +110,21 @@ pub enum SlashCommandKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SlashCommandSurfaces {
     GuiOnly { icon_path: &'static str },
-    TuiOnly,
-    GuiAndTui { icon_path: &'static str },
 }
 
 impl SlashCommandSurfaces {
     pub fn supports_gui(self) -> bool {
-        matches!(self, Self::GuiOnly { .. } | Self::GuiAndTui { .. })
-    }
-
-    pub fn supports_tui(self) -> bool {
-        matches!(self, Self::TuiOnly | Self::GuiAndTui { .. })
+        matches!(self, Self::GuiOnly { .. })
     }
 
     pub fn gui_icon_path(self) -> Option<&'static str> {
         match self {
-            Self::GuiOnly { icon_path } | Self::GuiAndTui { icon_path } => Some(icon_path),
-            Self::TuiOnly => None,
+            Self::GuiOnly { icon_path } => Some(icon_path),
         }
     }
     pub fn includes(self, settings_mode: SettingsMode) -> bool {
         match settings_mode {
             SettingsMode::Gui => self.supports_gui(),
-            SettingsMode::Tui => self.supports_tui(),
         }
     }
 }
@@ -219,9 +194,6 @@ impl StaticCommand {
         self.supported_surfaces.supports_gui()
     }
 
-    pub fn supports_tui(&self) -> bool {
-        self.supported_surfaces.supports_tui()
-    }
     pub fn supports_surface(&self, settings_mode: SettingsMode) -> bool {
         self.supported_surfaces.includes(settings_mode)
     }

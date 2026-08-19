@@ -60,23 +60,6 @@ fn repository_discovery_is_surface_aware() {
         RepoDetectionSource::CodeReviewInitialization,
         SettingsMode::Gui
     ));
-
-    assert!(should_watch_repository(
-        RepoDetectionSource::TerminalNavigation,
-        SettingsMode::Tui
-    ));
-    assert!(!should_watch_repository(
-        RepoDetectionSource::ProjectRulesIndexing,
-        SettingsMode::Tui
-    ));
-    assert!(!should_watch_repository(
-        RepoDetectionSource::CodeReviewInitialization,
-        SettingsMode::Tui
-    ));
-    assert!(!should_watch_repository(
-        RepoDetectionSource::CloudEnvironmentPrep,
-        SettingsMode::Tui
-    ));
 }
 
 #[test]

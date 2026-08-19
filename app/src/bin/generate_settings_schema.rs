@@ -141,7 +141,7 @@ fn ensure_hierarchy<'a>(
 }
 
 fn setting_surface_names(surfaces: SettingSurfaces) -> Vec<Value> {
-    [(SettingsMode::Gui, "gui"), (SettingsMode::Tui, "tui")]
+    [(SettingsMode::Gui, "gui")]
         .into_iter()
         .filter(|(mode, _)| surfaces.includes(*mode))
         .map(|(_, name)| Value::String(name.to_owned()))

@@ -101,18 +101,17 @@ fn main() {
 
     let active_flags = active_flags_for_channel(channel);
 
-    // Only emit settings that apply to the target surface, so e.g. the TUI
-    // file excludes GUI-only keys. Required (with no default) so a typo or a
-    // missing value never silently generates the wrong surface's file.
+    // Only emit settings that apply to the target surface. Required (with no
+    // default) so a typo or a missing value never silently generates the wrong
+    // surface's file.
     let surface_mode = match surface {
         Some("gui") => SettingsMode::Gui,
-        Some("tui") => SettingsMode::Tui,
         Some(other) => {
-            eprintln!("Unknown surface '{other}' (expected 'gui' or 'tui')");
+            eprintln!("Unknown surface '{other}' (expected 'gui')");
             std::process::exit(1);
         }
         None => {
-            eprintln!("Missing required --surface (expected 'gui' or 'tui')");
+            eprintln!("Missing required --surface (expected 'gui')");
             std::process::exit(1);
         }
     };

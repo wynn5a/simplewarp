@@ -44,20 +44,6 @@ pub(crate) fn ensure_warp_watch_roots_exist() {
             config_local_dir.display()
         );
     }
-
-    // The TUI surface stores its settings in a separate config directory
-    // (see `warp_core::paths::tui_config_local_dir`). Create it up front — only
-    // for that surface — so the watcher can register it at startup and pick up
-    // the first settings write.
-    if settings::settings_mode() == settings::SettingsMode::Tui {
-        let tui_config_local_dir = warp_core::paths::tui_config_local_dir();
-        if let Err(err) = fs::create_dir_all(&tui_config_local_dir) {
-            log::warn!(
-                "Failed to create Warp TUI config directory {}: {err}",
-                tui_config_local_dir.display()
-            );
-        }
-    }
 }
 
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
@@ -73,7 +59,6 @@ pub(crate) fn warp_home_mcp_config_file_path() -> Option<PathBuf> {
 pub(crate) fn active_mcp_config_file_path() -> Option<PathBuf> {
     match settings::settings_mode() {
         settings::SettingsMode::Gui => warp_home_mcp_config_file_path(),
-        settings::SettingsMode::Tui => Some(warp_core::paths::tui_mcp_config_file_path()),
     }
 }
 
@@ -286,28 +271,6 @@ impl WarpManagedPathsWatcher {
                     "Warp config directory",
                 );
             }
-            // Watch the TUI settings directory for that surface. On macOS it's
-            // a sibling `.warp_cli*` directory outside `config_local_dir`; on
-            // other platforms it nests under `config_local_dir` and is already
-            // covered by the recursive watch above (the `starts_with` guard
-            // skips the redundant registration).
-            if settings::settings_mode() == settings::SettingsMode::Tui {
-                let tui_config_local_dir = warp_core::paths::tui_config_local_dir();
-                if tui_config_local_dir.exists()
-                    && !tui_config_local_dir.starts_with(&data_dir)
-                    && (!should_register_config_local_dir
-                        || !tui_config_local_dir.starts_with(&config_local_dir))
-                {
-                    Self::register_path(
-                        ctx,
-                        &watcher,
-                        tui_config_local_dir,
-                        WatchFilter::accept_all(),
-                        RecursiveMode::Recursive,
-                        "Warp TUI config directory",
-                    );
-                }
-            }
             if let Some(warp_home_skills_dir) = warp_home_skills_dir()
                 && warp_home_skills_dir.exists()
                 && !warp_home_skills_dir.starts_with(&data_dir)
@@ -329,20 +292,12 @@ impl WarpManagedPathsWatcher {
                 .and_then(Path::parent)
                 .map(Path::to_path_buf);
 
-            // The TUI settings and MCP files share one directory. Registering that
-            // directory again with an MCP-only filter would prevent settings hot reloads.
-            let is_covered_by_tui_config_watcher = settings::settings_mode()
-                == settings::SettingsMode::Tui
-                && active_mcp_config_dir.as_deref()
-                    == Some(warp_core::paths::tui_config_local_dir().as_path());
-
             if let Some(active_mcp_config_path) = active_mcp_config_path
                 && let Some(active_mcp_config_dir) = active_mcp_config_dir
                 && active_mcp_config_dir.exists()
                 && !active_mcp_config_dir.starts_with(&data_dir)
                 && (!should_register_config_local_dir
                     || !active_mcp_config_dir.starts_with(&config_local_dir))
-                && !is_covered_by_tui_config_watcher
             {
                 // Watch the config directory non-recursively,
                 // and ignore events for files other than the MCP config file.

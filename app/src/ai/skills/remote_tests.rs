@@ -42,11 +42,6 @@ fn snapshot_protos_serialize_activation_conditions() {
             BundledSkillActivation::RequiresMcp(McpIntegration::Figma),
         ),
         (
-            "tui-migrate-setup".to_string(),
-            daemon_skill("tui-migrate-setup", "# local migration"),
-            BundledSkillActivation::TuiOnly,
-        ),
-        (
             "file-present-skill".to_string(),
             daemon_skill("file-present-skill", "# file"),
             BundledSkillActivation::RequiresFile(present_file),

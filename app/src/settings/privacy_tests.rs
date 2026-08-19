@@ -18,6 +18,5 @@ fn privacy_settings_apply_to_gui_and_tui() {
 
         assert_eq!(surfaces, SettingSurfaces::ALL, "{storage_key}");
         assert!(surfaces.includes(SettingsMode::Gui), "{storage_key}");
-        assert!(surfaces.includes(SettingsMode::Tui), "{storage_key}");
     }
 }

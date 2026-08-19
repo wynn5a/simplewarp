@@ -373,44 +373,6 @@ fn test_read_skill_executor_rejects_warp_control_bundled_skills_when_disabled() 
 }
 
 #[test]
-fn test_read_skill_executor_rejects_tui_only_skill_in_gui() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        let _bundled_skills = FeatureFlag::BundledSkills.override_enabled(true);
-        let skill_id = "tui-migrate-setup";
-        SkillManager::handle(&app).update(&mut app, |manager, _ctx| {
-            manager.add_bundled_skill_for_testing(
-                skill_id,
-                bundled_skill(skill_id),
-                BundledSkillActivation::TuiOnly,
-            );
-        });
-        let executor_handle = add_test_read_skill_executor(&mut app);
-        let action = AIAgentAction {
-            id: AIAgentActionId::from(format!("test-action-id-{skill_id}")),
-            action: AIAgentActionType::ReadSkill(ReadSkillRequest {
-                skill: SkillReference::BundledSkillId(skill_id.to_string()),
-            }),
-            task_id: TaskId::new(format!("test-task-id-{skill_id}")),
-            requires_result: false,
-        };
-        let input = ExecuteActionInput {
-            action: &action,
-            conversation_id: AIConversationId::new(),
-        };
-
-        executor_handle.update(&mut app, |executor, ctx| {
-            let result: AnyActionExecution = executor.execute(input, ctx).into();
-            assert!(matches!(
-                result,
-                AnyActionExecution::Sync(AIAgentActionResultType::ReadSkill(
-                    ReadSkillResult::Error(_)
-                ))
-            ));
-        });
-    });
-}
-#[test]
 fn test_read_skill_executor_file_not_found() {
     let temp_dir = TempDir::new().unwrap();
     // Don't create the SKILL.md file

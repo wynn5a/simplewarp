@@ -493,22 +493,45 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    - [x] `cargo clippy` on both crates: clean. `./script/format --check`: clean.
    - [x] `cargo check --no-default-features --features simplewarp --bin simplewarp`: clean.
 
-1c. The TUI **surface metadata** — NOT STARTED, and bigger than it looks.
+1c. The TUI **surface metadata** — **DONE**.
 
-   The front-end is gone but the *concept* of a TUI surface is still woven through settings and
-   command declarations. This is one coupled cluster and must move together:
+   The front-end was gone but the *concept* of a TUI surface was still woven through settings and
+   command declarations. Unlike steps 1 and 1b, almost none of this was behind a `cfg`, so the
+   compiler could not find the dead paths — each had to be read.
 
-   | Surface marker | Scale |
+   | Surface marker | What happened |
    | --- | --- |
-   | `SettingsMode::Tui` + `SettingSurfaces::TUI` | ~50 sites, including the `generate_settings_schema` binary, which emits a separate `tui` schema |
-   | `SlashCommandSurfaces::TuiOnly` | ~20 TUI-only slash commands in `static_commands/commands.rs`, plus ~30 assertions in `commands_tests.rs` |
-   | `BundledSkillActivation::TuiOnly` | with the `resources/bundled/skills/tui-migrate-setup` asset |
-   | `ExecutionMode::Tui` / `AppExecutionMode::is_tui` | `is_tui()` has exactly one caller: `BundledSkillActivation::TuiOnly` |
-   | `warp_core::paths::tui_{state_dir,config_local_dir,mcp_config_file_path}` | read by `warp_managed_paths_watcher`, `settings/mod.rs`, and the skills loader |
-   | MCP behaviour keyed on `settings_mode() == Tui` | `templatable_manager/native.rs`, `file_based_manager.rs`, `file_mcp_watcher.rs` |
+   | `SettingsMode::Tui` + `SettingSurfaces::TUI` | Both collapse to GUI. `SettingSurfaces::ALL` now means the GUI alone, so the ~200 settings that declare `ALL` needed no edit. |
+   | `SlashCommandSurfaces` | 17 TUI-only commands and their `SlashCommandKind` variants deleted; the 16 `GuiAndTui` declarations became `GuiOnly`, leaving `GuiOnly` as the only variant. |
+   | The TUI-only dispatch arm | `slash_commands/mod.rs` held one arm for all 17 kinds whose body was `debug_assert!(false, "Attempted to execute TUI-only slash command in the GUI")`. Gone with them. |
+   | `BundledSkillActivation::TuiOnly` | Removed, with the `resources/bundled/skills/tui-migrate-setup` asset and the `tui_settings_file_path` / `tui_mcp_config_file_path` template variables only that skill used. |
+   | `ExecutionMode::Tui` / `is_tui()` | Removed. `is_tui()` had exactly one caller — the activation above. |
+   | The two TUI-only settings | `TuiUsageDisplayMode` and the `TuiStatusline` config (185 lines in `settings/ai.rs`) were the only `SettingSurfaces::TUI` declarations. |
+   | `warp_core::paths::tui_*` | `tui_state_dir`, `tui_config_local_dir`, `tui_mcp_config_file_path`, and the macOS `.warp_cli*` directory name. |
+   | MCP behaviour keyed on `settings_mode() == Tui` | Three flags that are now constant-false, removed rather than pinned to `false`. |
 
-   Unlike steps 1 and 1b, most of this is not behind a `cfg`, so the compiler will not find the
-   dead paths — each one has to be read. It is a step of its own.
+   **Two of those MCP flags were load-bearing machinery, not one-line checks.**
+   `FileBasedMCPManager` carried a whole deferral path — `defer_global_warp_autostart` plus
+   `global_warp_servers_activated` across six sites — so the TUI could scan its global MCP config
+   before login without starting servers. Its only non-test activation was the TUI login flow, and
+   `activate_global_warp_servers` was already `#[cfg(test)]`, so the entire mechanism went. In
+   `templatable_manager/native.rs` the OAuth callback mode was `Loopback` for the TUI and
+   `CustomScheme` otherwise; only the custom-scheme branch survives.
+
+   Acceptance:
+
+   - [x] `cargo nextest run -p warp --lib`: **6404 pass, 0 fail** (31 fewer than 1b — the deleted
+         TUI command, skill, statusline, and MCP-deferral tests).
+   - [x] `cargo nextest run` on `warp_core` (46), `settings` (71), `local_inference` (83): all pass.
+   - [x] `cargo check --all-targets` across the workspace, and clippy on `warp`, `warp_core`,
+         `settings`, `warpui_core`: clean. `./script/format --check`: clean.
+   - [x] `cargo check --no-default-features --features simplewarp --bin simplewarp`: clean.
+   - [ ] Not re-run in the app. Settings, slash commands, and MCP startup all changed here, so
+         this is the step most worth exercising by hand.
+
+   Two single-variant types are left behind: `SettingsMode::Gui` and
+   `SlashCommandSurfaces::GuiOnly`. Collapsing them would touch every settings and command
+   declaration for no behaviour change, so they stay until there is a reason to move them.
 2. `app/src/drive/`, `app/src/billing/`, `app/src/cloud_object/`.
 3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
@@ -535,9 +558,9 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
 - [x] Phase 3: the `local_inference` crate is written, tested, wired in, and verified by a
       real conversation in the app.
 - [ ] Phase 3b: a built-in model list, MCP tool support.
-- [ ] Phase 4: the cloud crates and the TUI are removed. Steps 1 and 1b are done — the TUI
-      front-end and its rendering engine are gone (~116k lines, and the `ratatui` dependency).
-      Step 1c (TUI surface metadata) and the cloud crates remain.
+- [ ] Phase 4: the cloud crates and the TUI are removed. **The TUI is fully gone** (steps 1, 1b,
+      and 1c): the front-end, its rendering engine, and every surface marker — ~120k lines and the
+      `ratatui` dependency. The cloud crates remain (steps 2–5).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all

@@ -184,29 +184,21 @@ pub enum RespectUserSyncSetting {
 pub enum SettingsMode {
     /// The full desktop GUI application.
     Gui,
-    /// The headless terminal-UI front-end (the `warp_tui` crate).
-    Tui,
 }
 
 impl SettingsMode {
-    /// Whether settings for this mode are synced to the cloud (Warp Drive). The
-    /// GUI syncs; the TUI keeps its config local so the two surfaces never
-    /// clobber shared cloud state.
+    /// Whether settings for this mode are synced to the cloud (Warp Drive).
     pub fn should_sync_to_cloud(self) -> bool {
         match self {
             SettingsMode::Gui => true,
-            SettingsMode::Tui => false,
         }
     }
 
     /// Whether this surface performs the one-time native-store → TOML settings
-    /// migration. Only the GUI has legacy native-store settings to migrate;
-    /// other surfaces (e.g. the TUI) start fresh and must never migrate or touch
-    /// the shared migration-complete marker.
+    /// migration. The GUI has legacy native-store settings to migrate.
     pub fn should_migrate_native_settings(self) -> bool {
         match self {
             SettingsMode::Gui => true,
-            SettingsMode::Tui => false,
         }
     }
 }
@@ -246,16 +238,13 @@ pub struct SettingSurfaces(u8);
 impl SettingSurfaces {
     /// The desktop GUI application only.
     pub const GUI: Self = Self(1 << 0);
-    /// The headless terminal-UI front-end (the `warp_tui` crate) only.
-    pub const TUI: Self = Self(1 << 1);
-    /// Every surface (currently GUI and TUI).
-    pub const ALL: Self = Self(Self::GUI.0 | Self::TUI.0);
+    /// Every surface (currently the GUI alone).
+    pub const ALL: Self = Self(Self::GUI.0);
 
     /// Whether the given runtime [`SettingsMode`] is included in this set.
     pub fn includes(self, mode: SettingsMode) -> bool {
         let bit = match mode {
             SettingsMode::Gui => Self::GUI.0,
-            SettingsMode::Tui => Self::TUI.0,
         };
         self.0 & bit != 0
     }

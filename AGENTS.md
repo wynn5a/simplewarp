@@ -63,11 +63,11 @@ The **GUI desktop app** is the `app/` crate on the WarpUI pixel/GPU framework (`
 Run with `cargo run` / `./script/run`; verify visually with `computer_use` or the real-display
 integration framework (`crates/integration`).
 
-SimpleWarp deleted the headless TUI front-end in Phase 4: the `crates/warp_tui` crate, the
-app-side TUI modules, and the cell-grid element library and terminal runtime in `warpui_core`
-(with the `tui` feature and the `ratatui` dependency). What is left is TUI *surface metadata* —
-`SettingsMode::Tui`, `SlashCommandSurfaces::TuiOnly`, `BundledSkillActivation::TuiOnly` — which
-no longer has a front-end behind it and is queued for removal.
+SimpleWarp removed the headless TUI front-end in Phase 4, in full: the `crates/warp_tui` crate,
+the app-side TUI modules, the cell-grid element library and terminal runtime in `warpui_core`
+(with the `tui` feature and the `ratatui` dependency), and every TUI surface marker —
+`SettingsMode` and `SettingSurfaces` are now GUI-only, and the TUI-only slash commands, bundled
+skills, execution mode, and config/state paths are gone. There is one front-end.
 
 **Skill convention:** a skill specific to the front-end says so in its name and/or description
 (e.g. `gui-ui-guidelines` / `gui-integration-test` are GUI-only). Skills with no front-end

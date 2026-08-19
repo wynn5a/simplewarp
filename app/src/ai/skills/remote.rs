@@ -23,7 +23,6 @@ pub(crate) fn bundled_skill_snapshot_protos(catalog: &BundledSkill) -> Vec<Remot
         .filter_map(|(id, skill, activation)| {
             let requires_mcp = match activation {
                 BundledSkillActivation::Always => None,
-                BundledSkillActivation::TuiOnly => return None,
                 BundledSkillActivation::RequiresMcp(integration) => {
                     Some(mcp_integration_wire_id(*integration).to_owned())
                 }
