@@ -66,7 +66,72 @@ pub fn turns_from_request(request: &api::Request) -> Vec<Turn> {
         push_input(&mut turns, input);
     }
 
+    pair_tool_calls(&mut turns);
     turns
+}
+
+/// The text that stands in for a tool result the conversation no longer holds.
+const RESULT_NOT_KEPT: &str = "This call already ran. Its output was not kept in the conversation history, so it cannot be \
+     shown again. Do not run it a second time unless the answer needs it.";
+
+/// Gives every tool call a result, inserting a placeholder where the conversation has none.
+///
+/// Both providers reject a conversation where an assistant message calls a tool and no result
+/// answers it. OpenAI says "an assistant message with 'tool_calls' must be followed by tool
+/// messages responding to each 'tool_call_id'"; Anthropic wants a `tool_result` block for every
+/// `tool_use`.
+///
+/// The client never persists tool results. `agent_tasks` rows hold only the reasoning, the calls,
+/// and the agent text, so a replayed history has a call for every result that is missing. The
+/// results do arrive for the turn in flight, in `Request::input`, which is why the first reply of
+/// a conversation works and the next one fails.
+///
+/// Rather than depend on what the client happens to store, this makes the turn list valid on its
+/// own. A placeholder keeps the call visible, so the model still knows the command ran and does
+/// not repeat it.
+fn pair_tool_calls(turns: &mut Vec<Turn>) {
+    let mut index = 0;
+    while index < turns.len() {
+        let Turn::Assistant { tool_calls, .. } = &turns[index] else {
+            index += 1;
+            continue;
+        };
+        if tool_calls.is_empty() {
+            index += 1;
+            continue;
+        }
+        let call_ids = tool_calls
+            .iter()
+            .map(|call| call.id.clone())
+            .collect::<Vec<_>>();
+
+        // The results for these calls, if any, are the turn straight after them.
+        let existing = match turns.get(index + 1) {
+            Some(Turn::ToolResults(results)) => {
+                results.iter().map(|result| result.id.clone()).collect()
+            }
+            _ => Vec::new(),
+        };
+
+        let missing = call_ids
+            .into_iter()
+            .filter(|id| !existing.contains(id))
+            .map(|id| ToolResult {
+                id,
+                content: RESULT_NOT_KEPT.to_string(),
+                is_error: false,
+            })
+            .collect::<Vec<_>>();
+
+        if !missing.is_empty() {
+            match turns.get_mut(index + 1) {
+                Some(Turn::ToolResults(results)) => results.extend(missing),
+                _ => turns.insert(index + 1, Turn::ToolResults(missing)),
+            }
+        }
+        // Step over the assistant turn and the results that now answer it.
+        index += 2;
+    }
 }
 
 // The deprecated `UserQuery` and `ToolCallResult` input variants are still handled, because a

@@ -222,6 +222,9 @@ fn collect_message(reply: &mut Reply, message: api::Message) {
                     ("read_files".to_string(), format!("{:?}", read.files))
                 }
                 Some(tool_call::Tool::Grep(grep)) => ("grep".to_string(), format!("{grep:?}")),
+                Some(tool_call::Tool::FileGlobV2(glob)) => {
+                    ("file_glob".to_string(), format!("{:?}", glob.patterns))
+                }
                 other => ("other".to_string(), format!("{other:?}")),
             };
             reply.tool_calls.push((name, summary));
@@ -322,5 +325,51 @@ async fn a_tool_result_comes_back_as_an_answer() {
         reply.text.contains("42"),
         "the answer ignored the tool result: {:?}",
         reply.text
+    );
+}
+
+fn reasoning_message(text: &str) -> api::Message {
+    message(api::message::Message::AgentReasoning(
+        api::message::AgentReasoning {
+            reasoning: text.to_string(),
+            ..Default::default()
+        },
+    ))
+}
+
+/// A second question in a conversation that already used a tool.
+///
+/// This is the exact history the client replays: `agent_tasks` rows hold the reasoning, the call,
+/// and the agent text, and never a tool result. Before `pair_tool_calls`, the request went out
+/// with two assistant messages in a row and the gateway answered 400 with "an assistant message
+/// with 'tool_calls' must be followed by tool messages responding to each 'tool_call_id'".
+#[tokio::test]
+#[ignore = "sends a real request to a provider"]
+async fn a_follow_up_question_after_a_tool_call_is_accepted() {
+    let endpoint = endpoint_or_skip!();
+    let request = request(
+        &endpoint,
+        vec![
+            reasoning_message("The user wants a count of .rs files. I will use the shell."),
+            shell_call("call-1", "find . -name '*.rs' -type f | wc -l"),
+            agent_message("There are **4,053** `.rs` files in this directory."),
+            user_message("Thanks. In one sentence, what kind of project is this?"),
+        ],
+    );
+
+    let reply = run(&request).await;
+    println!("text: {}", reply.text);
+    println!("tool calls: {:?}", reply.tool_calls);
+
+    // The point is that the provider accepts the conversation at all: `run` panics on the 400
+    // this used to produce. Whether the model answers in prose or looks at a file first is its
+    // own choice, so either counts as a reply.
+    assert!(
+        !reply.text.is_empty() || !reply.tool_calls.is_empty(),
+        "the follow-up question produced nothing"
+    );
+    assert!(
+        reply.committed_transaction,
+        "the reply must commit its transaction"
     );
 }
