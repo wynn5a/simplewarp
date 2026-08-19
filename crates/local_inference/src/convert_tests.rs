@@ -77,6 +77,7 @@ fn a_plain_exchange_becomes_two_turns() {
             Turn::User("hello".to_string()),
             Turn::Assistant {
                 text: "hi there".to_string(),
+                reasoning: String::new(),
                 tool_calls: Vec::new(),
             },
         ]
@@ -97,6 +98,7 @@ fn split_agent_output_is_joined_into_one_turn() {
         turns[1],
         Turn::Assistant {
             text: "hi there".to_string(),
+            reasoning: String::new(),
             tool_calls: Vec::new(),
         }
     );
@@ -112,7 +114,10 @@ fn a_tool_call_attaches_to_the_agent_turn_before_it() {
 
     let turns = turns_from_request(&request);
     assert_eq!(turns.len(), 2);
-    let Turn::Assistant { text, tool_calls } = &turns[1] else {
+    let Turn::Assistant {
+        text, tool_calls, ..
+    } = &turns[1]
+    else {
         panic!("expected an assistant turn, got {:?}", turns[1]);
     };
     assert_eq!(text, "I will look.");
@@ -128,7 +133,10 @@ fn a_tool_call_with_no_text_still_makes_an_agent_turn() {
 
     let turns = turns_from_request(&request);
     assert_eq!(turns.len(), 2);
-    let Turn::Assistant { text, tool_calls } = &turns[1] else {
+    let Turn::Assistant {
+        text, tool_calls, ..
+    } = &turns[1]
+    else {
         panic!("expected an assistant turn, got {:?}", turns[1]);
     };
     assert!(text.is_empty());
@@ -226,4 +234,72 @@ fn truncation_never_splits_a_character() {
 
     assert!(truncated.is_char_boundary(truncated.len()));
     assert!(truncated.contains('é'));
+}
+
+fn reasoning_message(text: &str) -> api::Message {
+    message(message::Message::AgentReasoning(message::AgentReasoning {
+        reasoning: text.to_string(),
+        ..Default::default()
+    }))
+}
+
+#[test]
+fn reasoning_joins_the_reply_it_belongs_to() {
+    // The emitter writes the reasoning message before the text and the tool calls of the same
+    // reply, so all three must land on one assistant turn.
+    let request = request_with_messages(vec![
+        user_message("what is here"),
+        reasoning_message("The user wants a listing."),
+        agent_message("I will look."),
+        shell_call("call-1", "ls"),
+    ]);
+
+    let turns = turns_from_request(&request);
+    assert_eq!(turns.len(), 2);
+    let Turn::Assistant {
+        text,
+        reasoning,
+        tool_calls,
+    } = &turns[1]
+    else {
+        panic!("expected an assistant turn, got {:?}", turns[1]);
+    };
+    assert_eq!(reasoning, "The user wants a listing.");
+    assert_eq!(text, "I will look.");
+    assert_eq!(tool_calls.len(), 1);
+}
+
+#[test]
+fn split_reasoning_is_joined_into_one_turn() {
+    let request = request_with_messages(vec![
+        user_message("hello"),
+        reasoning_message("first "),
+        reasoning_message("second"),
+    ]);
+
+    let turns = turns_from_request(&request);
+    assert_eq!(turns.len(), 2);
+    let Turn::Assistant { reasoning, .. } = &turns[1] else {
+        panic!("expected an assistant turn, got {:?}", turns[1]);
+    };
+    assert_eq!(reasoning, "first second");
+}
+
+#[test]
+fn reasoning_after_a_tool_result_opens_a_new_turn() {
+    // The second reply must not have its thinking folded into the first one.
+    let request = request_with_messages(vec![
+        user_message("count the files"),
+        shell_call("call-1", "ls"),
+        shell_result("call-1", "a\nb\n", 0),
+        reasoning_message("Two files."),
+        agent_message("There are two."),
+    ]);
+
+    let turns = turns_from_request(&request);
+    assert_eq!(turns.len(), 4, "got {turns:?}");
+    let Turn::Assistant { reasoning, .. } = &turns[3] else {
+        panic!("expected an assistant turn, got {:?}", turns[3]);
+    };
+    assert_eq!(reasoning, "Two files.");
 }

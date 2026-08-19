@@ -68,7 +68,13 @@ fn message_for(turn: &Turn) -> Value {
             "role": "user",
             "content": [{ "type": "text", "text": text }],
         }),
-        Turn::Assistant { text, tool_calls } => {
+        // `reasoning` is deliberately left out. Anthropic carries thinking in a `thinking` block
+        // that is signed, and it validates that signature when the block is replayed. This crate
+        // keeps only the text, so it has nothing valid to send back, and Anthropic does not ask
+        // for one.
+        Turn::Assistant {
+            text, tool_calls, ..
+        } => {
             let mut content = Vec::new();
             if !text.is_empty() {
                 content.push(json!({ "type": "text", "text": text }));

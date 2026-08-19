@@ -10,6 +10,7 @@ fn target() -> ProviderTarget {
         base_url: "https://api.anthropic.com/v1".to_string(),
         api_key: "sk-ant-test".to_string(),
         model: "claude-sonnet-4-20250514".to_string(),
+        is_custom: false,
     }
 }
 
@@ -55,6 +56,7 @@ fn tool_results_go_into_a_user_turn() {
 fn tool_arguments_stay_an_object() {
     let turns = vec![Turn::Assistant {
         text: "looking".to_string(),
+        reasoning: String::new(),
         tool_calls: vec![ToolUse {
             id: "toolu_1".to_string(),
             name: "grep".to_string(),

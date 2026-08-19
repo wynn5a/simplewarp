@@ -10,6 +10,7 @@ fn target() -> ProviderTarget {
         base_url: "https://api.openai.com/v1".to_string(),
         api_key: "sk-openai-test".to_string(),
         model: "gpt-5".to_string(),
+        is_custom: false,
     }
 }
 
@@ -42,6 +43,7 @@ fn the_system_prompt_is_the_first_message() {
 fn tool_arguments_are_sent_as_a_json_string() {
     let turns = vec![Turn::Assistant {
         text: String::new(),
+        reasoning: String::new(),
         tool_calls: vec![ToolUse {
             id: "call_1".to_string(),
             name: "grep".to_string(),
@@ -159,4 +161,84 @@ fn reasoning_from_a_compatible_server_is_read() {
 fn a_broken_event_is_ignored() {
     assert!(parse_event("not json").is_empty());
     assert!(parse_event(r#"{"choices":[]}"#).is_empty());
+}
+
+/// A custom endpoint may front a reasoning model that refuses a tool-call message with no
+/// `reasoning_content`. See the note in `push_messages`.
+#[test]
+fn a_custom_endpoint_gets_the_reasoning_back_with_a_tool_call() {
+    let mut target = target();
+    target.is_custom = true;
+
+    let turns = vec![Turn::Assistant {
+        text: String::new(),
+        reasoning: "I should list the files.".to_string(),
+        tool_calls: vec![ToolUse {
+            id: "call_1".to_string(),
+            name: "grep".to_string(),
+            arguments: json!({ "queries": ["fn main"] }),
+        }],
+    }];
+
+    let body = build_body(&target, "", &turns, &[]);
+    assert_eq!(
+        body["messages"][1]["reasoning_content"],
+        "I should list the files."
+    );
+}
+
+/// The field must be present even when the reply streamed no thinking, because the provider
+/// checks that it is there, not that it says anything.
+#[test]
+fn an_empty_reasoning_is_still_sent_to_a_custom_endpoint() {
+    let mut target = target();
+    target.is_custom = true;
+
+    let turns = vec![Turn::Assistant {
+        text: String::new(),
+        reasoning: String::new(),
+        tool_calls: vec![ToolUse {
+            id: "call_1".to_string(),
+            name: "grep".to_string(),
+            arguments: json!({ "queries": ["fn main"] }),
+        }],
+    }];
+
+    let body = build_body(&target, "", &turns, &[]);
+    assert_eq!(body["messages"][1]["reasoning_content"], "");
+}
+
+/// A first-party provider gets the official schema only, so an unknown field can never make it
+/// reject the request.
+#[test]
+fn a_first_party_provider_gets_no_reasoning_field() {
+    let turns = vec![Turn::Assistant {
+        text: String::new(),
+        reasoning: "thinking".to_string(),
+        tool_calls: vec![ToolUse {
+            id: "call_1".to_string(),
+            name: "grep".to_string(),
+            arguments: json!({ "queries": ["fn main"] }),
+        }],
+    }];
+
+    let body = build_body(&target(), "", &turns, &[]);
+    assert!(body["messages"][1]["reasoning_content"].is_null());
+}
+
+/// A plain reply carries no tool call, and the probe showed such a message is accepted without
+/// the field, so it stays off the ordinary chat path.
+#[test]
+fn a_reply_without_tool_calls_gets_no_reasoning_field() {
+    let mut target = target();
+    target.is_custom = true;
+
+    let turns = vec![Turn::Assistant {
+        text: "It prints the working directory.".to_string(),
+        reasoning: "thinking".to_string(),
+        tool_calls: Vec::new(),
+    }];
+
+    let body = build_body(&target, "", &turns, &[]);
+    assert!(body["messages"][1]["reasoning_content"].is_null());
 }

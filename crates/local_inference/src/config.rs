@@ -25,6 +25,13 @@ pub struct ProviderTarget {
     pub api_key: String,
     /// The model slug that the provider expects, for example `claude-sonnet-4-20250514`.
     pub model: String,
+    /// True when the user named this endpoint themselves, rather than it being a first-party
+    /// provider that this crate knows.
+    ///
+    /// A custom endpoint can be any OpenAI-compatible server, so the provider modules may send it
+    /// fields that are outside the official schema. A first-party endpoint gets the official
+    /// schema only.
+    pub is_custom: bool,
 }
 
 impl ProviderTarget {
@@ -102,6 +109,7 @@ fn custom_target(settings: &api::request::Settings, model: &str) -> Option<Provi
             base_url: trim_base_url(&provider.base_url),
             api_key: provider.api_key.clone(),
             model: matched.slug.clone(),
+            is_custom: true,
         });
     }
     None
@@ -154,6 +162,7 @@ fn builtin_target(settings: &api::request::Settings, model: &str) -> Result<Prov
         base_url: base_url.to_string(),
         api_key,
         model: model.to_string(),
+        is_custom: false,
     })
 }
 

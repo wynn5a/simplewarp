@@ -178,9 +178,9 @@ Acceptance:
 - No cloud, login, or billing UI is reachable.
 - No dead buttons and no error toasts.
 
-### Phase 3 — Local AI adapter — crate DONE, wiring UNVERIFIED
+### Phase 3 — Local AI adapter — crate DONE and LIVE-TESTED, GUI path UNVERIFIED
 
-New crate `crates/local_inference` (54 unit tests pass, clippy clean):
+New crate `crates/local_inference` (72 unit tests plus 3 live tests pass, clippy clean):
 
 | Module | What it does |
 | --- | --- |
@@ -231,18 +231,53 @@ from the server.
 The provider slug is the `LLMInfo::id`, which is also `ModelConfig.base`, which is also what
 `local_inference` sends — one string end to end, no mapping table.
 
+**Verified against a real provider on 2026-08-19.** `crates/local_inference/tests/live_provider.rs`
+holds three `#[ignore]`d tests that run the crate against a real endpoint, given
+`LOCAL_INFERENCE_BASE_URL`, `LOCAL_INFERENCE_API_KEY`, and `LOCAL_INFERENCE_MODEL`. They stay out
+of a normal `cargo test`, and no key goes in the repo. All three pass against an OpenAI-compatible
+LiteLLM gateway running `deepseek-v4-pro`:
+
+1. A plain question streams text back, inside the right event envelope.
+2. A question about the machine produces a `run_shell_command` call that maps onto the proto the
+   client runs.
+3. A tool result goes back to the model, and the model answers from it.
+
+The third test failed at first, and it found a real bug that only a live run could show.
+
+**A reasoning model can demand its thinking back.** The gateway answered 400:
+`The `reasoning_content` in the thinking mode must be passed back to the API`. DeepSeek in
+thinking mode rejects an assistant message that carries tool calls but no `reasoning_content`.
+`convert.rs` dropped every `AgentReasoning` message, on the grounds that reasoning carries no
+instruction to replay, so the field was never there to send.
+
+Probing the gateway direct fixed the shape of the fix: the field only has to be **present**. An
+empty string is accepted, and a plain assistant message with no tool calls needs it. So:
+
+- `convert.rs` now carries `AgentReasoning` into `Turn::Assistant::reasoning`.
+- `openai.rs` sends `reasoning_content` on an assistant message that has tool calls — the captured
+  thinking, or an empty string when the reply streamed none.
+- It goes to **custom endpoints only**. The field is outside the official schema, and a
+  first-party provider may reject an unknown message field. There is no key here to test
+  `api.openai.com` with, so that path keeps the official schema.
+- Anthropic is left alone. It carries thinking in a signed `thinking` block and validates the
+  signature on replay, so a rebuilt block would be invalid, and Anthropic does not ask for one.
+
 Still open in this phase:
 
 1. `call_mcp_tool` is not mapped yet, so the agent cannot use MCP servers.
 2. No retry and no context-window management.
 3. OpenRouter answers with several hundred models and they are all listed. The picker has search,
    but the list wants a cap or a filter.
+4. The app-side wiring at `app/src/ai/agent/api/impl.rs:141` is still only compiled, never run.
+   The live tests call `generate_local_output` direct, so they prove the crate, not the GUI path.
 
 Acceptance:
 
-- An AI conversation runs from end to end with a user key.
-- The only network traffic goes to the provider host.
-- Tool calls run locally and their results return to the model.
+- [x] An AI conversation runs from end to end with a user key.
+- [x] Tool calls map to the proto, and their results return to the model.
+- [ ] The same conversation runs through the app UI.
+- [ ] The only network traffic goes to the provider host. (Checked at startup in Phase 1; not yet
+      re-checked during an AI request.)
 
 ### Phase 4 — Delete the dead code
 
@@ -274,7 +309,11 @@ after each step.
 - [x] Phase 3: the `local_inference` crate is written, tested, and wired in and compiling.
 - [ ] Phase 3b: a built-in model list, MCP tool support.
 - [ ] Phase 4: the cloud crates and the TUI are removed.
-- [ ] An end-to-end AI conversation with a real key. **Not yet run — no key on this machine.**
+- [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
+      OpenAI-compatible LiteLLM gateway, by the live tests in
+      `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
+      round-trip. It found and fixed the `reasoning_content` bug described in Phase 3.
+- [ ] The same conversation through the app UI, which needs a GUI build.
 
 ## Git: this repository is a fork
 
@@ -304,6 +343,36 @@ cargo check -p warp --bin warp-oss                                       # no re
 ```
 
 ## How to test the AI
+
+### Without the app, against a real provider
+
+This needs no GUI build, so it runs even while the Xcode blocker stands. The tests are
+`#[ignore]`d, so they never run by accident.
+
+```sh
+export LOCAL_INFERENCE_BASE_URL=https://example.com/v1
+export LOCAL_INFERENCE_API_KEY=sk-...
+export LOCAL_INFERENCE_MODEL=some-model
+export LOCAL_INFERENCE_SCHEMA=anthropic        # optional; OpenAI Chat Completions is the default
+cargo test -p local_inference --test live_provider -- --ignored --nocapture
+```
+
+The app keeps its keys in the login keychain, under the service `dev.simplewarp.SimpleWarp` and
+the account `AiApiKeys`, as one JSON blob of provider keys and custom endpoints. To test with the
+endpoint that the app already holds, read it from there instead of pasting a key:
+
+```sh
+eval "$(security find-generic-password -s dev.simplewarp.SimpleWarp -a AiApiKeys -w \
+  | python3 -c '
+import sys, json, shlex
+e = json.loads(sys.stdin.read())["custom_endpoints"][0]
+print("export LOCAL_INFERENCE_BASE_URL=" + shlex.quote(e["url"]))
+print("export LOCAL_INFERENCE_API_KEY=" + shlex.quote(e["api_key"]))
+print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
+')"
+```
+
+### In the app
 
 1. Start the app, open Settings > AI.
 2. Paste a provider key, or add a custom endpoint (base URL plus model slug). A custom endpoint

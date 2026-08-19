@@ -92,7 +92,7 @@ pub async fn list_models(provider: Provider, api_key: &str) -> Result<Vec<Provid
         });
     }
 
-    Ok(parse_models(provider, &body)?)
+    parse_models(provider, &body)
 }
 
 /// Reads the `{"data": [{"id": ...}]}` envelope that all four providers return.

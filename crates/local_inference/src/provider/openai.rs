@@ -32,7 +32,7 @@ pub fn build_body(
 ) -> Value {
     let mut messages = vec![json!({ "role": "system", "content": system_prompt })];
     for turn in turns {
-        push_messages(&mut messages, turn);
+        push_messages(&mut messages, turn, target.is_custom);
     }
 
     let tools = tools
@@ -60,10 +60,14 @@ pub fn build_body(
     body
 }
 
-fn push_messages(messages: &mut Vec<Value>, turn: &Turn) {
+fn push_messages(messages: &mut Vec<Value>, turn: &Turn, is_custom: bool) {
     match turn {
         Turn::User(text) => messages.push(json!({ "role": "user", "content": text })),
-        Turn::Assistant { text, tool_calls } => {
+        Turn::Assistant {
+            text,
+            reasoning,
+            tool_calls,
+        } => {
             let mut message = json!({ "role": "assistant" });
             // The API rejects an assistant message with neither content nor tool calls, so an
             // empty text still goes out as an explicit null when tool calls are present.
@@ -89,6 +93,18 @@ fn push_messages(messages: &mut Vec<Value>, turn: &Turn) {
                         })
                         .collect(),
                 );
+                // A reasoning model in thinking mode can refuse a conversation where an assistant
+                // message that called a tool arrives without the thinking that led to the call.
+                // DeepSeek behind a LiteLLM gateway answers 400 with
+                // "`reasoning_content` in the thinking mode must be passed back to the API".
+                //
+                // The field only has to be present: an empty string is accepted, so a reply that
+                // streamed no thinking still round-trips. It is sent to custom endpoints only,
+                // because it is outside the official schema and a first-party provider may
+                // reject an unknown message field.
+                if is_custom {
+                    message["reasoning_content"] = Value::String(reasoning.clone());
+                }
             }
             messages.push(message);
         }

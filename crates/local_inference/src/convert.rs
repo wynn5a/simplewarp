@@ -19,6 +19,12 @@ pub enum Turn {
     /// Something the agent said, and any tools it decided to call.
     Assistant {
         text: String,
+        /// The thinking that came with the reply, when the provider streamed any.
+        ///
+        /// Most providers treat this as display-only. A reasoning model behind an
+        /// OpenAI-compatible gateway can require it back, so it is carried rather than dropped.
+        /// See [`crate::provider::openai`].
+        reasoning: String,
         tool_calls: Vec<ToolUse>,
     },
     /// The results of the tool calls in the turn before.
@@ -94,8 +100,11 @@ fn push_message(turns: &mut Vec<Turn>, proto_message: &api::Message) {
         Some(message::Message::AgentOutput(output)) => push_agent_text(turns, &output.text),
         Some(message::Message::ToolCall(call)) => push_tool_call(turns, call),
         Some(message::Message::ToolCallResult(result)) => push_tool_result(turns, result),
-        // Reasoning, todos, summaries, and server events carry no instruction that the model
-        // needs replayed, so they are left out.
+        Some(message::Message::AgentReasoning(reasoning)) => {
+            push_agent_reasoning(turns, &reasoning.reasoning)
+        }
+        // Todos, summaries, and server events carry no instruction that the model needs
+        // replayed, so they are left out.
         _ => {}
     }
 }
@@ -121,11 +130,34 @@ fn push_agent_text(turns: &mut Vec<Turn>, text: &str) {
         Some(Turn::Assistant {
             text: existing,
             tool_calls,
+            ..
         }) if tool_calls.is_empty() => {
             existing.push_str(text);
         }
         _ => turns.push(Turn::Assistant {
             text: text.to_string(),
+            reasoning: String::new(),
+            tool_calls: Vec::new(),
+        }),
+    }
+}
+
+/// Adds streamed thinking to the reply it belongs to.
+///
+/// The proto puts reasoning in its own message, and the emitter writes it before the text and the
+/// tool calls of the same reply, so this normally opens the assistant turn that they then join.
+fn push_agent_reasoning(turns: &mut Vec<Turn>, reasoning: &str) {
+    if reasoning.is_empty() {
+        return;
+    }
+    match turns.last_mut() {
+        Some(Turn::Assistant {
+            reasoning: existing,
+            ..
+        }) => existing.push_str(reasoning),
+        _ => turns.push(Turn::Assistant {
+            text: String::new(),
+            reasoning: reasoning.to_string(),
             tool_calls: Vec::new(),
         }),
     }
@@ -139,6 +171,7 @@ fn push_tool_call(turns: &mut Vec<Turn>, call: &message::ToolCall) {
         Some(Turn::Assistant { tool_calls, .. }) => tool_calls.push(use_),
         _ => turns.push(Turn::Assistant {
             text: String::new(),
+            reasoning: String::new(),
             tool_calls: vec![use_],
         }),
     }
