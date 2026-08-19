@@ -8601,6 +8601,11 @@ impl Workspace {
         search_query: Option<&str>,
         ctx: &mut ViewContext<Self>,
     ) {
+        // Every route into settings — the menu, the command palette, a deeplink, warpctrl —
+        // lands here, so this is the one place that has to map a page this build cannot show
+        // onto one it can.
+        let page = page.map(SettingsSection::available);
+
         // Ensure there is only one settings pane per window
         let settings_pane_manager = SettingsPaneManager::handle(ctx);
         if let Some(locator) = settings_pane_manager.as_ref(ctx).find_pane(ctx.window_id()) {
@@ -9865,7 +9870,8 @@ impl Workspace {
             MenuItem::Separator,
         ]);
 
-        if self.auth_state.is_anonymous_or_logged_out() {
+        if crate::features::warp_account_available() && self.auth_state.is_anonymous_or_logged_out()
+        {
             items.push(
                 MenuItemFields::new("Sign up")
                     .with_on_select_action(WorkspaceAction::SignupAnonymousUser)
@@ -21296,7 +21302,8 @@ impl Workspace {
             );
         }
 
-        if self.auth_state.is_anonymous_or_logged_out()
+        if crate::features::warp_account_available()
+            && self.auth_state.is_anonymous_or_logged_out()
             && !FeatureFlag::OpenWarpNewSettingsModes.is_enabled()
         {
             if is_web_anonymous_user {

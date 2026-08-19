@@ -895,3 +895,59 @@ fn empty_query_after_reapply_shows_all_widgets() {
         });
     });
 }
+
+#[test]
+fn account_pages_map_onto_a_page_this_build_has() {
+    // `Account` is the enum default and the page a saved session most often names, so it is the
+    // one that decides where settings opens.
+    for section in [
+        SettingsSection::Account,
+        SettingsSection::BillingAndUsage,
+        SettingsSection::Teams,
+        SettingsSection::WarpDrive,
+        SettingsSection::Referrals,
+        SettingsSection::SharedBlocks,
+        SettingsSection::CloudEnvironments,
+        SettingsSection::OzCloudAPIKeys,
+    ] {
+        assert!(
+            section.needs_warp_account(),
+            "{section:?} has nothing to show without a Warp account"
+        );
+        if crate::features::warp_account_available() {
+            assert_eq!(
+                section.available(),
+                section,
+                "a normal build keeps {section:?}"
+            );
+        } else {
+            assert_eq!(
+                section.available(),
+                SettingsSection::WarpAgent,
+                "{section:?} must land somewhere that exists"
+            );
+        }
+    }
+}
+
+#[test]
+fn local_pages_are_never_redirected() {
+    for section in [
+        SettingsSection::WarpAgent,
+        SettingsSection::Appearance,
+        SettingsSection::Features,
+        SettingsSection::Keybindings,
+        SettingsSection::Privacy,
+        SettingsSection::About,
+        SettingsSection::AgentProfiles,
+        SettingsSection::AgentMCPServers,
+        SettingsSection::CodeIndexing,
+        SettingsSection::EditorAndCodeReview,
+    ] {
+        assert!(
+            !section.needs_warp_account(),
+            "{section:?} is a local setting"
+        );
+        assert_eq!(section.available(), section);
+    }
+}

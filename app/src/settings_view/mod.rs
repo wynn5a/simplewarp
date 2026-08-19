@@ -363,6 +363,39 @@ impl Display for SettingsSection {
 }
 
 impl SettingsSection {
+    /// Whether this page only has anything to show when a Warp account is behind the build.
+    ///
+    /// Everything here is an account, a bill, a team, or a cloud object. Local settings —
+    /// appearance, keybindings, the agent, the editor — are not on this list, so they survive in
+    /// a `local_only` build.
+    pub fn needs_warp_account(self) -> bool {
+        matches!(
+            self,
+            Self::Account
+                | Self::BillingAndUsage
+                | Self::Referrals
+                | Self::SharedBlocks
+                | Self::Teams
+                | Self::WarpDrive
+                | Self::CloudEnvironments
+                | Self::OzCloudAPIKeys
+        )
+    }
+
+    /// Maps a section this build cannot show onto one it can.
+    ///
+    /// Call this wherever a section arrives from outside the sidebar — a restored session, the
+    /// enum default, a deeplink, or the command palette — because any of those can name a page
+    /// that [`Self::needs_warp_account`] rules out. The enum default is `Account`, so without
+    /// this the settings view opens on a page that is not even in the sidebar.
+    pub fn available(self) -> Self {
+        if self.needs_warp_account() && !crate::features::warp_account_available() {
+            Self::WarpAgent
+        } else {
+            self
+        }
+    }
+
     /// Stable identifier for this section, used everywhere the section leaves
     /// the process: the SQLite session-restore key and the
     /// `surface.settings.open --page` warpctrl vocabulary.
@@ -1446,12 +1479,32 @@ impl SettingsView {
             );
         }
 
+        // A build with no Warp account behind it has nothing to put on these pages. Leaving them
+        // in the sidebar would offer the user a sign-up prompt or an empty page instead of a
+        // setting, so they are dropped here, at the one place membership is declared.
+        if !crate::features::warp_account_available() {
+            nav_items.retain_mut(|item| match item {
+                SettingsNavItem::Page(section) => !section.needs_warp_account(),
+                SettingsNavItem::Umbrella(umbrella) => {
+                    umbrella
+                        .subpages
+                        .retain(|section| !section.needs_warp_account());
+                    umbrella
+                        .subpage_button_states
+                        .truncate(umbrella.subpages.len());
+                    // An umbrella whose subpages have all gone is an empty group header.
+                    !umbrella.subpages.is_empty()
+                }
+            });
+        }
+
         let initial_page = match page {
             Some(SettingsSection::Scripting) if !FeatureFlag::WarpControlCli.is_enabled() => {
                 SettingsSection::Account
             }
             other => other.unwrap_or_default(),
-        };
+        }
+        .available();
 
         // Auto-expand the umbrella if the initial page is one of its subpages.
         for item in &mut nav_items {
@@ -2032,6 +2085,11 @@ impl SettingsView {
         allow_steal_focus: bool,
         ctx: &mut ViewContext<Self>,
     ) {
+        // Every page change funnels through here, including a pane restored from a saved
+        // session, so this is where a page that this build dropped from the sidebar is mapped
+        // onto one it still has.
+        let section = section.available();
+
         // Every nav target owns its backing page. Check it exists.
         if self.settings_page(section).is_none() {
             return;

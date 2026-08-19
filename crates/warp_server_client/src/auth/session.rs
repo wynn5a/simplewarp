@@ -98,6 +98,12 @@ impl AuthSession {
         if cfg!(feature = "skip_login") {
             bail!("skip_login enabled; failing all authenticated requests");
         }
+        // Belt and braces: a `local_only` build holds no credentials, so the check below would
+        // already fail. Refusing here as well means no code path can reach the network to
+        // refresh a token, whatever credentials some future caller installs.
+        if cfg!(feature = "local_only") {
+            bail!("local_only build; this app makes no authenticated request");
+        }
 
         let Some(credentials) = self.auth_state.credentials() else {
             bail!("missing authentication credentials");

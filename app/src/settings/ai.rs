@@ -2181,9 +2181,14 @@ impl AISettings {
 
     pub fn is_any_ai_enabled(&self, app: &AppContext) -> bool {
         // Disable AI for anonymous and logged-out users.
-        let is_anonymous_or_logged_out = AuthStateProvider::as_ref(app)
-            .get()
-            .is_anonymous_or_logged_out();
+        //
+        // This guard exists because Warp bills its own inference to an account. A build with no
+        // account bills nobody: the user's own key is the only path to a model, so applying the
+        // guard there would pin AI off forever — the toggle would save and then read back false.
+        let is_anonymous_or_logged_out = crate::features::warp_account_available()
+            && AuthStateProvider::as_ref(app)
+                .get()
+                .is_anonymous_or_logged_out();
 
         *self.is_any_ai_enabled
             && !is_anonymous_or_logged_out

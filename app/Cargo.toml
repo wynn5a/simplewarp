@@ -18,6 +18,11 @@ path = "src/lib.rs"
 # flag overrides). Otherwise these binaries are exactly identical to our main binary.
 
 [[bin]]
+name = "simplewarp"
+path = "src/bin/simplewarp.rs"
+test = false
+
+[[bin]]
 name = "warp-oss"
 path = "src/bin/oss.rs"
 test = false
@@ -273,6 +278,7 @@ warp_ripgrep.workspace = true
 warp_managed_secrets.workspace = true
 warp_multi_agent_client.workspace = true
 local_control.workspace = true
+local_inference = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 block.workspace = true
@@ -712,6 +718,161 @@ default = [
     "well_known_mcp_ids",
     "factory_mcp",
 ]
+
+# Calls the AI provider direct from this machine instead of through a Warp server.
+# See crates/local_inference.
+local_inference = ["dep:local_inference"]
+
+# SimpleWarp: a local-only build. No cloud, no login, no billing, and no Warp Drive.
+# Build it with: cargo run --no-default-features --features simplewarp --bin simplewarp
+# It is the `default` set, less the cloud, sharing, ambient, hand-off, and billing
+# features, plus `skip_login`.
+simplewarp = [
+    "local_inference",
+    "local_only",
+    "agent_mode",
+    "osc_hyperlinks",
+    "render_continuous_block_selections_with_single_border",
+    "external_agent_mode_context",
+    "shell_selector",
+    "minimalist_ui",
+    "avatar_in_tab_bar",
+    "full_screen_zen_mode",
+    "workflow_aliases",
+    "ligatures",
+    "dynamic_workflow_enums",
+    "rect_selection",
+    "reload_stale_conversation_files",
+    "ai_rules",
+    "suggested_rules",
+    "default_waterfall_mode",
+    "am_workflows",
+    "autoupdate_ui_revamp",
+    "render_agent_mode_output_markdown",
+    "agent_mode_primary_xml",
+    "agent_mode_pre_plan_xml",
+    "command_correction_key",
+    "kitty_images",
+    "grep_tool",
+    "validate_autosuggestions",
+    "clear_autosuggestion_on_escape",
+    "file_retrieval_tools",
+    "mcp_server",
+    "fast_forward_autoexecute_button",
+    "image_as_context",
+    "command_palette_file_search",
+    "ai_context_menu",
+    "at_menu_outside_of_ai_mode",
+    "interactive_conversation_management_view",
+    "tab_close_button_on_left",
+    "ai_resume_button",
+    "code_find_replace",
+    "ai_context_menu_code",
+    "agent_decides_command_execution",
+    "linked_code_blocks",
+    "search_codebase_ui",
+    "profiles_design_revamp",
+    "multi_profile",
+    "tabbed_editor_view",
+    "allow_opening_file_links_using_editor_env",
+    "read_image_files",
+    "selection_as_context",
+    "undo_closed_panes",
+    "revert_diff_hunk",
+    "code_review_save_changes",
+    "create_project_flow",
+    "get_started_tab",
+    "file_tree",
+    "vim_code_editor",
+    "code_launch_modal",
+    "allow_ignoring_input_suggestions",
+    "mcp_oauth",
+    "expand_edit_to_pane",
+    "fallback_model_load_output_messaging",
+    "api_key_management",
+    "summarization_cancellation_confirmation",
+    "ui_zoom",
+    "discard_per_file_and_all_changes",
+    "auto_open_code_review_pane",
+    "diff_set_as_context",
+    "summarize_conversation_command",
+    "inline_code_review",
+    "web_search_ui",
+    "integration_command",
+    "artifact_command",
+    "conversation_api",
+    "code_review_find",
+    "async_find",
+    "mcp_grouped_server_context",
+    "fork_from_command",
+    "context_window_usage_v2",
+    "context_window_usage_breakdown",
+    "v4a_file_diffs",
+    "classic_completions",
+    "force_classic_completions",
+    "named_agents",
+    "agent_tips",
+    "pluggable_notifications",
+    "global_search",
+    "list_skills",
+    "ask_user_question",
+    "bundled_skills",
+    "agent_mode_computer_use",
+    "background_computer_use",
+    "agent_view",
+    "agent_view_block_context",
+    "agent_view_conversation_list_view",
+    "inline_slash_commands",
+    "inline_history_menu",
+    "inline_model_selector",
+    "new_tab_styling",
+    "richtext_multiselect",
+    "inline_profile_selector",
+    "web_fetch_ui",
+    "skill_arguments",
+    "incremental_auto_reload",
+    "active_conversation_requires_interaction",
+    "figma_detection",
+    "file_based_mcp",
+    "inline_repo_menu",
+    "kitty_keyboard_protocol",
+    "inline_menu_headers",
+    "github_pr_prompt_chip",
+    "conversations_as_context",
+    "markdown_tables",
+    "blocklist_markdown_table_rendering",
+    "markdown_mermaid",
+    "blocklist_markdown_images",
+    "pr_comments_v2",
+    "pr_comments_skill",
+    "revert_to_checkpoints",
+    "rewind_slash_command",
+    "warpify_footer",
+    "agent_toolbar_editor",
+    "configurable_toolbar",
+    "transfer_control_tool",
+    "cli_agent_rich_input",
+    "vertical_tabs",
+    "vertical_tabs_summary_mode",
+    "tab_configs",
+    "grouped_tabs",
+    "pinned_tabs",
+    "trim_trailing_blank_lines",
+    "skip_firebase_anonymous_user",
+    "settings_file",
+    "directory_tab_colors",
+    "git_credential_refresh",
+    "pending_user_query_indicator",
+    "queue_slash_command",
+    "queued_prompts_v2",
+    "solo_user_byok",
+    "custom_model_routers",
+    "git_operations_in_code_review",
+    "terminal_lifecycle_recovery",
+    "file_backed_execution_profiles",
+    "well_known_mcp_ids",
+    "factory_mcp",
+]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
 # substantially slow down program execution.
 dhat_heap_profiling = ["dep:dhat"]
@@ -852,6 +1013,8 @@ settings_file = []
 sequential_storage = []
 session_sharing = []
 session_sharing_acls = []
+# See crates/warp_server_auth: no account, no token, and no stand-in test user.
+local_only = ["warp_server_client/local_only"]
 skip_login = ["warp_server_client/skip_login"]
 # This feature should only be enabled when building a self-contained binary with the bundle script.
 standalone = ["warp_assets/standalone", "warp_core/standalone"]

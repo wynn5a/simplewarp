@@ -8,6 +8,10 @@ license.workspace = true
 
 [features]
 integration_tests = []
+# A build with no Warp account behind it: never adopt a user (test, env-var, or persisted) and
+# never obtain a token. Distinct from `skip_login`, which installs a stand-in test user so the
+# app still believes it is logged in.
+local_only = []
 skip_login = []
 test-util = []
 
