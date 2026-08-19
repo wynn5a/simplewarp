@@ -532,7 +532,35 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    Two single-variant types are left behind: `SettingsMode::Gui` and
    `SlashCommandSurfaces::GuiOnly`. Collapsing them would touch every settings and command
    declaration for no behaviour change, so they stay until there is a reason to move them.
-2. `app/src/drive/`, `app/src/billing/`, `app/src/cloud_object/`.
+2. **The cloud modules. Take them in coupling order, not the order written here.** Measured
+   external references *into* each module:
+
+   | Module | Size | References in from outside |
+   | --- | --- | --- |
+   | `app/src/billing/` | 3 files, 492 lines | **1** — DONE |
+   | `app/src/remote_server/` | 24 files, 10.3k lines | 29, across 22 files |
+   | `app/src/drive/` | 48 files, 23k lines | 184, across 110 files |
+   | `app/src/auth/` | 17 files, 6.9k lines | 272, across 185 files |
+   | `app/src/cloud_object/` | 12 files, 7k lines | **437, across 227 files** |
+
+   `cloud_object` is not a deletion, it is a refactor of the persistence and sync layer; it must
+   go last. `remote_server` looks small by reference count but is woven through the terminal, AI
+   file access, and code review (`read_files`, `apply_diff_model`, `diff_state/remote`,
+   `global_buffer_model`), each of which branches on local-vs-remote.
+
+   **`billing` is DONE.** Its one external reference was the "shared object creation denied" modal
+   in `workspace/view.rs`, but the events that opened it were raised in `drive/`, so eleven emit
+   sites and two event variants had to go with it. Every site reads
+   `if !has_capacity(..) { emit(modal); return; }`; only the `emit` was removed, so an object over
+   the team's limit is still not created — what is lost is the modal explaining why.
+
+   **A scripted removal is not safe here, and the compiler is not a sufficient check.** The script
+   that stripped the emit calls walked backwards to the nearest line starting with `ctx`, which in
+   `drive/panel.rs` swallowed the body of an unrelated match arm and two arms after it. That one
+   surfaced as an unclosed delimiter, but a removal that still compiles would not have. Every
+   scripted edit in this phase needs its diff read line by line — reading the `drive/index.rs`
+   diff is what confirmed all seven `return;` statements survived.
+
 3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, `warp_multi_agent_client`.
