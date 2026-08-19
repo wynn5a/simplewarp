@@ -276,6 +276,22 @@ after each step.
 - [ ] Phase 4: the cloud crates and the TUI are removed.
 - [ ] An end-to-end AI conversation with a real key. **Not yet run — no key on this machine.**
 
+## Git: this repository is a fork
+
+`wynn5a/simplewarp` is a fork of `warpdotdev/warp`. In a fork, `gh pr create` defaults its base
+to the **parent**, so a bare `gh pr create` opens a pull request against Warp's public upstream
+repository. This work is a private derivative and is not meant to go there.
+
+Two guards, because the first one is per-clone and a fresh clone loses it:
+
+```sh
+gh repo set-default wynn5a/simplewarp        # writes remote.origin.gh-resolved to .git/config
+gh pr create --repo wynn5a/simplewarp --base master --head <branch> ...
+```
+
+Always pass `--repo` explicitly. The same care applies to any `gh` command that acts on a repo,
+and to `git push`: push to `origin` only, and never add a remote pointing at `warpdotdev/warp`.
+
 ## Build commands
 
 `DEVELOPER_DIR` is necessary until `xcode-select` is switched.
