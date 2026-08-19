@@ -211,7 +211,14 @@ and the UI behind them never renders. What remained was the UI that those flags 
 **The app's test suite did not compile, and had not since Phase 3.** `LLMPreferences` gained
 `provider_llms` then, and the four literals in `app/src/ai/llms_tests.rs` were never updated. The
 Xcode blocker hid it, because nobody could build the tests. Fixed; `cargo test -p warp --lib` runs
-again.
+again: **6440 pass, 13 fail**.
+
+Those 13 are not from this work. Reverting only the Phase 2 code and running the same suite gives
+**14** failures — the same 13 plus one more — so the changes here cause none of them, and the
+varying count shows some are flaky. They are in secret redaction, experiments, notebooks,
+telemetry, terminal bootstrap and view, `util::path`, and a leak check, and they need their own
+pass. Under default features every gate added here reads `warp_account_available() && …`, which is
+`true && …`, so the normal build cannot change behaviour.
 
 Still to hide: cloud mode, ambient agents, and the remote server UI, none of which was reachable
 in a startup log or a settings page, so each needs a look in the running app.
@@ -318,8 +325,28 @@ Still open in this phase:
 2. No retry and no context-window management.
 3. OpenRouter answers with several hundred models and they are all listed. The picker has search,
    but the list wants a cap or a filter.
-4. The app-side wiring at `app/src/ai/agent/api/impl.rs:141` is still only compiled, never run.
-   The live tests call `generate_local_output` direct, so they prove the crate, not the GUI path.
+4. The app-side wiring at `app/src/ai/agent/api/impl.rs:141` ran for the first time on
+   2026-08-19. A question that needed a command worked end to end in the app: the model called
+   `run_shell_command` with `find . -name '*.rs' -type f | wc -l`, the client ran it, and the
+   answer came back as "There are **4,053** `.rs` files". The follow-up question in the same
+   conversation then failed, which is how the tool-pairing bug above was found.
+
+5. **The user's question is never stored, so the model never sees it again.** Decoding an
+   `agent_tasks` row shows three messages — `AgentReasoning`, `ToolCall`, `AgentOutput` — and no
+   `UserQuery`. The emitter never adds one, because the client sends the question in
+   `Request::input` and Warp's server was the thing that echoed it back as a message to store.
+
+   Two consequences, one visible and one silent:
+
+   - Every conversation logs `missing an initial query` at startup and is dropped from the history
+     panel. `AgentConversationSummary` derives `initial_query` by looking for a `UserQuery` in the
+     root task (`crates/persistence/src/model.rs:1097`), and there is never one to find.
+   - On a follow-up question the model is shown its own past replies and tool calls, but not the
+     questions that prompted them. It answers with half the conversation missing, and nothing
+     reports that.
+
+   The fix belongs in `emit.rs`: add the query from `Request::input` to the task in the opening
+   transaction, so it persists and replays like every other message.
 
 Acceptance:
 
