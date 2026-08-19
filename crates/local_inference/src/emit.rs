@@ -10,6 +10,7 @@
 //! ```text
 //! Init
 //! BeginTransaction
+//!   AddMessagesToTask        (the user's question, when the request carried one)
 //!   AddMessagesToTask        (the first piece of text, which makes the message)
 //!   AppendToMessageContent   (every later piece, appended to the same message)
 //!   AddMessagesToTask        (one message per tool call, once the arguments are whole)
@@ -38,6 +39,12 @@ pub struct Emitter {
     text_message_id: Option<String>,
     /// The message that streamed reasoning is appended to, once it exists.
     reasoning_message_id: Option<String>,
+    /// The question this reply answers, when the request carried one.
+    ///
+    /// The client sends the question in `Request::input` and keeps its own copy for the block it
+    /// draws, but it never puts one in the task. Warp's server did that, and everything that reads
+    /// a conversation back still expects it to be there. See [`Self::start`].
+    user_query: Option<api::message::UserQuery>,
     /// Tool calls being assembled, keyed by the index in the reply.
     pending_tools: BTreeMap<usize, PendingTool>,
 }
@@ -79,6 +86,7 @@ impl Emitter {
             needs_create_task,
             text_message_id: None,
             reasoning_message_id: None,
+            user_query: user_query_from_request(request),
             pending_tools: BTreeMap::new(),
         }
     }
@@ -102,6 +110,32 @@ impl Emitter {
                 }),
             }));
         }
+
+        // Store the question before the reply to it.
+        //
+        // The client sends the question in `Request::input`, not as a message, and Warp's server
+        // was what echoed it back so the client could keep it. Without that echo the task holds
+        // the reply and the tool calls but not the question, which breaks two things at once:
+        //
+        // - The history panel drops the conversation. `AgentConversationSummary` reads its
+        //   `initial_query` by looking for a `UserQuery` in the root task, finds none, and logs
+        //   `missing an initial query`.
+        // - A later request replays the task to the model, so the model is shown its own past
+        //   replies and tool calls without the questions that prompted them.
+        //
+        // This does not double up in the UI. A `UserQuery` message only becomes a rendered input
+        // when `Task::add_messages` is told to convert input messages, which the client does for
+        // a shared-session viewer alone; in a normal session its own copy already fills the
+        // exchange. Here the message lands in the task's message list, which is what gets
+        // persisted and replayed.
+        if let Some(query) = self.user_query.take() {
+            actions.push(add_action(
+                &self.task_id,
+                &new_id(),
+                api::message::Message::UserQuery(query),
+            ));
+        }
+
         events.push(actions_event(actions));
         events
     }
@@ -221,6 +255,49 @@ impl Emitter {
             }
         }
     }
+}
+
+/// Reads the question the user asked in this request, if it asked one.
+///
+/// A request whose input is a set of tool results — the next step of an agent loop — carries no
+/// question, and must not be given one. Only the first request of a turn has it.
+///
+/// The deprecated `UserQuery` input variant is still read, because a conversation that an older
+/// client started can carry it.
+#[allow(deprecated)]
+fn user_query_from_request(request: &api::Request) -> Option<api::message::UserQuery> {
+    use api::request::input::Type;
+    use api::request::input::user_inputs::user_input::Input as UserInput;
+
+    let query = match request.input.as_ref()?.r#type.as_ref()? {
+        Type::UserInputs(inputs) => inputs.inputs.iter().find_map(|entry| {
+            let UserInput::UserQuery(query) = entry.input.as_ref()? else {
+                return None;
+            };
+            // `Attachment` and `UserQueryMode` are the same types on both messages, so the extra
+            // fields carry over as they are. `context` has no counterpart on the input, so a
+            // stored query has none either.
+            Some(api::message::UserQuery {
+                query: query.query.clone(),
+                referenced_attachments: query.referenced_attachments.clone(),
+                mode: query.mode,
+                intended_agent: query.intended_agent,
+                ..Default::default()
+            })
+        })?,
+        Type::UserQuery(query) => api::message::UserQuery {
+            query: query.query.clone(),
+            ..Default::default()
+        },
+        _ => return None,
+    };
+
+    // An empty question is not one. Storing it would leave the history panel with a blank title
+    // and tell the model nothing.
+    if query.query.is_empty() {
+        return None;
+    }
+    Some(query)
 }
 
 /// Reads the collected argument fragments.

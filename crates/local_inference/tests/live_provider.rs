@@ -373,3 +373,36 @@ async fn a_follow_up_question_after_a_tool_call_is_accepted() {
         "the reply must commit its transaction"
     );
 }
+
+/// Proves the model is shown the earlier question, not just its own earlier answer.
+///
+/// The emitter now stores the question on the task, so a replayed history carries it. Before that
+/// the model saw its own replies and tool calls with nothing that prompted them, and answered a
+/// follow-up with half the conversation missing.
+#[tokio::test]
+#[ignore = "sends a real request to a provider"]
+async fn the_model_can_see_the_earlier_question() {
+    let endpoint = endpoint_or_skip!();
+    let request = request(
+        &endpoint,
+        vec![
+            user_message("How many .rs files are in this directory?"),
+            shell_call("call-1", "find . -name '*.rs' -type f | wc -l"),
+            agent_message("There are **4,053** `.rs` files in this directory."),
+            user_message(
+                "What did I ask you in my first message? Answer in one short sentence, and call \
+                 no tools.",
+            ),
+        ],
+    );
+
+    let reply = run(&request).await;
+    println!("text: {}", reply.text);
+
+    let answer = reply.text.to_lowercase();
+    assert!(
+        answer.contains(".rs") || answer.contains("rust") || answer.contains("file"),
+        "the model could not see the first question: {:?}",
+        reply.text
+    );
+}

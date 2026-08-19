@@ -297,3 +297,120 @@ fn empty_arguments_become_an_empty_object() {
     assert_eq!(parse_arguments("   "), serde_json::json!({}));
     assert_eq!(parse_arguments("{\"a\":1}"), serde_json::json!({"a": 1}));
 }
+
+/// Builds a request whose input is a question, the way the client sends the first turn.
+fn request_with_query(task_id: &str, query: &str) -> api::Request {
+    use api::request::input::user_inputs::{UserInput, user_input};
+
+    let mut request = request_with_task(task_id);
+    request.input = Some(api::request::Input {
+        r#type: Some(api::request::input::Type::UserInputs(
+            api::request::input::UserInputs {
+                inputs: vec![UserInput {
+                    input: Some(user_input::Input::UserQuery(
+                        api::request::input::UserQuery {
+                            query: query.to_string(),
+                            ..Default::default()
+                        },
+                    )),
+                }],
+            },
+        )),
+        ..Default::default()
+    });
+    request
+}
+
+/// Reads the queries that a list of actions stores on the task.
+fn stored_queries(actions: &[Action]) -> Vec<String> {
+    actions
+        .iter()
+        .filter_map(|action| match action {
+            Action::AddMessagesToTask(add) => Some(&add.messages),
+            _ => None,
+        })
+        .flatten()
+        .filter_map(|message| match message.message.as_ref()? {
+            api::message::Message::UserQuery(query) => Some(query.query.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Without this the task holds the reply but not the question, so the history panel drops the
+/// conversation and a later request replays the answers without the questions.
+#[test]
+fn the_question_is_stored_before_the_reply_to_it() {
+    let mut emitter = Emitter::new(&request_with_query("task-1", "how many rs files are here"));
+    let events = emitter.start();
+
+    let actions = actions_of(&events);
+    assert!(
+        matches!(actions[0], Action::BeginTransaction(_)),
+        "the transaction must open first"
+    );
+    assert_eq!(stored_queries(&actions), vec!["how many rs files are here"]);
+}
+
+#[test]
+fn the_question_is_stored_on_the_task_the_reply_belongs_to() {
+    let mut emitter = Emitter::new(&request_with_query("task-1", "hello"));
+    let events = emitter.start();
+
+    let Some(Action::AddMessagesToTask(add)) = actions_of(&events)
+        .into_iter()
+        .find(|action| matches!(action, Action::AddMessagesToTask(_)))
+    else {
+        panic!("expected the question to be added to a task");
+    };
+    assert_eq!(add.task_id, "task-1");
+    assert_eq!(add.messages[0].task_id, "task-1");
+    assert!(!add.messages[0].id.is_empty(), "a message needs an id");
+}
+
+/// The later steps of an agent loop send tool results, not a question. Inventing one there would
+/// put a second question in the conversation for a turn the user only asked once.
+#[test]
+fn a_request_carrying_tool_results_stores_no_question() {
+    let mut request = request_with_task("task-1");
+    request.input = Some(api::request::Input {
+        r#type: Some(api::request::input::Type::UserInputs(
+            api::request::input::UserInputs {
+                inputs: vec![api::request::input::user_inputs::UserInput {
+                    input: Some(
+                        api::request::input::user_inputs::user_input::Input::ToolCallResult(
+                            Default::default(),
+                        ),
+                    ),
+                }],
+            },
+        )),
+        ..Default::default()
+    });
+
+    let mut emitter = Emitter::new(&request);
+    assert!(stored_queries(&actions_of(&emitter.start())).is_empty());
+}
+
+#[test]
+fn a_request_with_no_input_stores_no_question() {
+    let mut emitter = Emitter::new(&request_with_task("task-1"));
+    assert!(stored_queries(&actions_of(&emitter.start())).is_empty());
+}
+
+#[test]
+fn an_empty_question_is_not_stored() {
+    let mut emitter = Emitter::new(&request_with_query("task-1", ""));
+    assert!(stored_queries(&actions_of(&emitter.start())).is_empty());
+}
+
+/// `start` is called once per reply, so the question must not be repeated if it is called again.
+#[test]
+fn the_question_is_stored_once() {
+    let mut emitter = Emitter::new(&request_with_query("task-1", "hello"));
+    let first = actions_of(&emitter.start());
+    let second = actions_of(&emitter.start());
+
+    assert_eq!(stored_queries(&first), vec!["hello"]);
+    assert!(stored_queries(&second).is_empty());
+}
