@@ -29,8 +29,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CocoaSentry,
         #[cfg(feature = "crash_reporting")]
         FeatureFlag::CrashReporting,
-        #[cfg(feature = "log_expensive_frames_in_sentry")]
-        FeatureFlag::LogExpensiveFramesInSentry,
         #[cfg(feature = "record_app_active_events")]
         FeatureFlag::RecordAppActiveEvents,
         #[cfg(feature = "runtime_feature_flags")]
@@ -57,8 +55,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ResizeFix,
         #[cfg(feature = "richtext_multiselect")]
         FeatureFlag::RichTextMultiselect,
-        #[cfg(feature = "default_waterfall_mode")]
-        FeatureFlag::DefaultWaterfallMode,
         #[cfg(feature = "settings_file")]
         FeatureFlag::SettingsFile,
         #[cfg(feature = "file_backed_execution_profiles")]
@@ -89,8 +85,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CloudAgentRunners,
         #[cfg(feature = "account_first_onboarding")]
         FeatureFlag::AccountFirstOnboarding,
-        #[cfg(all(feature = "simulate_github_unauthed", debug_assertions))]
-        FeatureFlag::SimulateGithubUnauthed,
         #[cfg(feature = "session_sharing_acls")]
         FeatureFlag::SessionSharingAcls,
         #[cfg(feature = "full_screen_zen_mode")]
@@ -133,10 +127,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::GlobalAIAnalyticsCollection,
         #[cfg(feature = "default_adeberry_theme")]
         FeatureFlag::DefaultAdeberryTheme,
-        #[cfg(feature = "agent_mode_primary_xml")]
-        FeatureFlag::AgentModePrimaryXML,
-        #[cfg(feature = "agent_mode_pre_plan_xml")]
-        FeatureFlag::AgentModePrePlanXML,
         #[cfg(feature = "agent_onboarding")]
         FeatureFlag::AgentOnboarding,
         #[cfg(feature = "agent_shared_sessions")]
@@ -155,8 +145,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::RemoteCodebaseIndexing,
         #[cfg(feature = "use_tantivy_search")]
         FeatureFlag::UseTantivySearch,
-        #[cfg(feature = "grep_tool")]
-        FeatureFlag::GrepTool,
         #[cfg(feature = "mcp_server")]
         FeatureFlag::McpServer,
         #[cfg(feature = "mcp_debugging_ids")]
@@ -177,14 +165,8 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ImageAsContext,
         #[cfg(feature = "msys2_shells")]
         FeatureFlag::MSYS2Shells,
-        #[cfg(feature = "file_retrieval_tools")]
-        FeatureFlag::FileRetrievalTools,
-        #[cfg(feature = "reload_stale_conversation_files")]
-        FeatureFlag::ReloadStaleConversationFiles,
         #[cfg(feature = "shared_block_title_generation")]
         FeatureFlag::SharedBlockTitleGeneration,
-        #[cfg(feature = "retry_truncated_code_responses")]
-        FeatureFlag::RetryTruncatedCodeResponses,
         #[cfg(feature = "read_image_files")]
         FeatureFlag::ReadImageFiles,
         #[cfg(feature = "usage_based_pricing")]
@@ -249,12 +231,8 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::DriveObjectsAsContext,
         #[cfg(feature = "pr_comments_v2")]
         FeatureFlag::PRCommentsV2,
-        #[cfg(feature = "pr_comments_skill")]
-        FeatureFlag::PRCommentsSkill,
         #[cfg(feature = "selection_as_context")]
         FeatureFlag::SelectionAsContext,
-        #[cfg(feature = "code_mode_chip")]
-        FeatureFlag::CodeModeChip,
         #[cfg(feature = "github_pr_prompt_chip")]
         FeatureFlag::GithubPrPromptChip,
         #[cfg(feature = "create_project_flow")]

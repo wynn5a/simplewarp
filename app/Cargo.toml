@@ -483,8 +483,6 @@ agent_mode = []
 agent_mode_computer_use = []
 background_computer_use = []
 agent_mode_debug = []
-agent_mode_primary_xml = []
-agent_mode_pre_plan_xml = []
 agent_onboarding = []
 account_first_onboarding = []
 agent_shared_sessions = []
@@ -531,24 +529,18 @@ default = [
     "ligatures",
     "dynamic_workflow_enums",
     "rect_selection",
-    "reload_stale_conversation_files",
     "loginless_conversion",
     "warp_packs",
     "ai_rules",
     "suggested_rules",
-    "default_waterfall_mode",
     "am_workflows",
     "autoupdate_ui_revamp",
     "render_agent_mode_output_markdown",
-    "agent_mode_primary_xml",
-    "agent_mode_pre_plan_xml",
     "command_correction_key",
     "kitty_images",
     "global_ai_analytics_collection",
-    "grep_tool",
     "validate_autosuggestions",
     "clear_autosuggestion_on_escape",
-    "file_retrieval_tools",
     "mcp_server",
     "fast_forward_autoexecute_button",
     "image_as_context",
@@ -665,7 +657,6 @@ default = [
     "markdown_mermaid",
     "blocklist_markdown_images",
     "pr_comments_v2",
-    "pr_comments_skill",
     "revert_to_checkpoints",
     "rewind_slash_command",
     "hoa_code_review",
@@ -739,21 +730,15 @@ simplewarp = [
     "ligatures",
     "dynamic_workflow_enums",
     "rect_selection",
-    "reload_stale_conversation_files",
     "ai_rules",
     "suggested_rules",
-    "default_waterfall_mode",
     "am_workflows",
     "autoupdate_ui_revamp",
     "render_agent_mode_output_markdown",
-    "agent_mode_primary_xml",
-    "agent_mode_pre_plan_xml",
     "command_correction_key",
     "kitty_images",
-    "grep_tool",
     "validate_autosuggestions",
     "clear_autosuggestion_on_escape",
-    "file_retrieval_tools",
     "mcp_server",
     "fast_forward_autoexecute_button",
     "image_as_context",
@@ -841,7 +826,6 @@ simplewarp = [
     "markdown_mermaid",
     "blocklist_markdown_images",
     "pr_comments_v2",
-    "pr_comments_skill",
     "revert_to_checkpoints",
     "rewind_slash_command",
     "warpify_footer",
@@ -881,7 +865,6 @@ embedded_code_review_comments = []
 agent_management_view = []
 agent_management_details_view = []
 interactive_conversation_management_view = []
-default_waterfall_mode = []
 enforce_revisions_to_cloud_objects = []
 suggested_agent_mode_workflows = []
 ssh_enable_host_denylist_in_settings = []
@@ -891,7 +874,6 @@ full_screen_zen_mode = []
 global_ai_analytics_banner = []
 global_ai_analytics_collection = []
 grab_the_baton_editing = []
-grep_tool = []
 # This feature is enabled in graphical builds of Warp, and groups together other features
 # that are not needed in headless builds. Because Cargo features are additive, the default
 # feature set is for a minimal build of Warp, and we add on GUI-specific features here.
@@ -906,9 +888,7 @@ nld_heuristic_v2 = ["input_classifier/nld_heuristic_v2"]
 nld_prompt_history_match = []
 msys2_shells = []
 file_backed_execution_profiles = []
-file_retrieval_tools = []
 get_started_tab = []
-code_mode_chip = []
 github_pr_prompt_chip = []
 create_project_flow = []
 agent_mode_evals = [
@@ -965,7 +945,6 @@ local_fs = [
     "repo_metadata/local_fs",
     "warp_core/local_fs",
 ]
-log_expensive_frames_in_sentry = []
 jupyter_notebook_rendering = []
 markdown_tables = []
 markdown_mermaid = []
@@ -1069,10 +1048,7 @@ command_correction_key = []
 full_source_code_embedding = []
 use_tantivy_search = []
 agent_management_popup = []
-simulate_github_unauthed = []
-reload_stale_conversation_files = []
 shared_block_title_generation = []
-retry_truncated_code_responses = []
 usage_based_pricing = []
 ai_context_menu = []
 at_menu_outside_of_ai_mode = []
@@ -1094,7 +1070,6 @@ selection_as_context = []
 send_telemetry_to_file = []
 multi_profile = []
 pr_comments_v2 = []
-pr_comments_skill = []
 conversation_artifacts = []
 conversations_as_context = []
 conversation_api = []

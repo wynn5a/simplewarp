@@ -10,7 +10,6 @@ pub enum FeatureFlag {
     CrashReporting,
     DebugMode,
     Autoupdate,
-    LogExpensiveFramesInSentry,
     WithSandboxTelemetry,
     RecordAppActiveEvents,
 
@@ -80,9 +79,6 @@ pub enum FeatureFlag {
 
     /// Enable multiselect in Notebooks and Warp Text.
     RichTextMultiselect,
-
-    /// If enabled, the default input mode is set to waterfall for new users.
-    DefaultWaterfallMode,
 
     /// Makes the input editor's prompt selectable.
     SelectablePrompt,
@@ -195,12 +191,6 @@ pub enum FeatureFlag {
     /// Enables actual collection of AI analytics data per the revised AI analytics policy.
     GlobalAIAnalyticsCollection,
 
-    /// Enables the XML output system prompt for the primary (terminal) agent in Agent Mode.
-    AgentModePrimaryXML,
-
-    /// Enables the XML output system prompt for the pre-plan agent in Agent Mode.
-    AgentModePrePlanXML,
-
     /// Enables Agent Mode onboarding.
     AgentOnboarding,
 
@@ -225,9 +215,6 @@ pub enum FeatureFlag {
     /// If enabled, command palette searches will use Tantivy search instead of the default fuzzy search.
     UseTantivySearch,
 
-    /// Allows AI to call the grep tool.
-    GrepTool,
-
     /// MCP server v0 functionality.
     McpServer,
 
@@ -237,17 +224,8 @@ pub enum FeatureFlag {
     /// UNIX shells running "natively" on Windows via MSYS2.
     MSYS2Shells,
 
-    /// Allows AI to call the file retrieval tools.
-    FileRetrievalTools,
-
-    /// Reload files in an AI conversation to prevent stale files.
-    ReloadStaleConversationFiles,
-
     /// Auto generate the title when creating a shared block.
     SharedBlockTitleGeneration,
-
-    /// Retry truncated file edit responses from the coding agent.
-    RetryTruncatedCodeResponses,
 
     /// Enables reading images with the `read_files` tool.
     ReadImageFiles,
@@ -335,9 +313,6 @@ pub enum FeatureFlag {
     /// Enables displaying imported PR review comments in the blocklist.
     PRCommentsV2,
 
-    /// Gates the bundled skill-based implementation of PR comment fetching.
-    PRCommentsSkill,
-
     /// A new first-time user experience which prioritizes choosing a coding repository.
     GetStartedTab,
 
@@ -346,9 +321,6 @@ pub enum FeatureFlag {
 
     /// Enables selection-as-context functionality in the code editor.
     SelectionAsContext,
-
-    /// A context chip that shows when the PWD is inside of a git repository.
-    CodeModeChip,
 
     /// Enables the prompt chip that displays the GitHub PR for the current branch.
     GithubPrPromptChip,
@@ -576,11 +548,6 @@ pub enum FeatureFlag {
     /// Enables pluggable notifications via OSC 9 and OSC 777 escape sequences.
     /// External programs can trigger system and in-app notifications.
     PluggableNotifications,
-
-    /// Dev-only: simulate a GitHub-unauthed user in the Environments page flow.
-    ///
-    /// This is intended for developer testing and should have no effect in release builds.
-    SimulateGithubUnauthed,
 
     /// When enabled, profile selection is displayed in an inline view above the Agent input (e.g. via /profile).
     InlineProfileSelector,
@@ -941,7 +908,6 @@ pub const LOCAL_FLAGS: &[FeatureFlag] = &[FeatureFlag::LocalClaudeCodexChildHarn
 /// Features enabled for the development team.  The expectation is that, over
 /// time, these will move on to PREVIEW_FLAGS before being launched.
 pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
-    FeatureFlag::LogExpensiveFramesInSentry,
     FeatureFlag::ToggleBootstrapBlock,
     FeatureFlag::CreatingSharedSessions,
     FeatureFlag::RemoveAutosuggestionDuringTabCompletions,
@@ -952,7 +918,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::MultiWorkspace,
     FeatureFlag::ImeMarkedText,
     FeatureFlag::MSYS2Shells,
-    FeatureFlag::RetryTruncatedCodeResponses,
     FeatureFlag::ContextLineReviewComments,
     FeatureFlag::RunGeneratorsWithCmdExe,
     FeatureFlag::Projects,
