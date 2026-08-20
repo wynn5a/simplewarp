@@ -741,9 +741,8 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    Steps 3e and 3f name the two conditions for starting this: the dead-code cascade stops at
    `base_client`, so `warp_server_client` is the first crate to go, and `warp_graphql` cannot
    go until the client traits themselves do, because their signatures still use its types.
-5. The `FeatureFlag` variants that are no longer in use. **16 removed in one sweep, plus
-   `Changelog` and `OzChangelogUpdates` with step 3g; more remain behind the module deletions
-   above.**
+5. The `FeatureFlag` variants that are no longer in use. **29 removed: 16 in the first sweep, 2
+   with step 3g, and 11 in a second sweep. More remain behind the module deletions above.**
 
    Of 292 variants, 16 had no `FeatureFlag::X` reference anywhere outside their own declaration:
    `WelcomeTips`, `ThinStrokes`, `WelcomeBlock`, `CloudObjects`,
@@ -761,6 +760,27 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `CloudObjects` both look used, but the hits are an unrelated `ToggleWelcomeTips` action, a
    `WelcomeTipsViewState` type, and `CloudObjects::Listener` inside log strings. Match on
    `FeatureFlag::X`.
+
+   **Second sweep: 11 more of the remaining 274.** `LogExpensiveFramesInSentry`,
+   `DefaultWaterfallMode`, `AgentModePrimaryXML`, `AgentModePrePlanXML`, `GrepTool`,
+   `FileRetrievalTools`, `ReloadStaleConversationFiles`, `RetryTruncatedCodeResponses`,
+   `PRCommentsSkill`, `CodeModeChip`, `SimulateGithubUnauthed`.
+
+   **Check the cargo feature as well as the flag.** Each of these had a cargo feature whose only
+   `cfg(feature = …)` site in the workspace was the mapping in `app/src/features.rs`, so the
+   feature existed only to switch a flag with no reader. Seven were in the `default` set and six
+   in `simplewarp`. Where a cargo feature has other `cfg` sites it is live even when its flag is
+   dead, so the two have to be counted separately.
+
+   **Four of them read as an inventory of live AI behaviour and are not.** "Allows AI to call
+   the grep tool", "Allows AI to call the file retrieval tools", and the two XML
+   system-prompt flags describe what the agent does today regardless: tool availability comes
+   from `get_supported_tools`, which gates on other flags. `git log -S "FeatureFlag::GrepTool"`
+   dates the last change to the initial public release, so these were dead upstream rather than
+   casualties of 3e and 3f. A doc comment is a claim about the past.
+
+   `FLAG_STATES` and `USER_PREFERENCE_MAP` are sized by `cardinality::<FeatureFlag>()`, so a
+   sweep leaves no count to keep in step.
 
 ## Risks
 
