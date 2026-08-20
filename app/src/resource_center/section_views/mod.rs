@@ -35,7 +35,6 @@ pub const DROPDOWN_ICON_OPACITY: u8 = 75;
 pub const SCROLLBAR_OFFSET: f32 = 7.;
 pub const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
 
-pub const SECTION_SPACING_BOTTOM: f32 = 24.;
 pub const SECTION_SPACING: f32 = 12.;
 pub const BUTTON_PADDING: f32 = 10.;
 pub const ITEM_PADDING_BOTTOM: f32 = 6.;

@@ -126,7 +126,6 @@ const ALL_SECTIONS: &[SettingsSection] = &[
     SettingsSection::Features,
     SettingsSection::Keybindings,
     SettingsSection::Privacy,
-    SettingsSection::Referrals,
     SettingsSection::Scripting,
     SettingsSection::SharedBlocks,
     SettingsSection::Teams,
@@ -154,7 +153,6 @@ fn all_sections_list_is_exhaustive() {
             | SettingsSection::Features
             | SettingsSection::Keybindings
             | SettingsSection::Privacy
-            | SettingsSection::Referrals
             | SettingsSection::Scripting
             | SettingsSection::SharedBlocks
             | SettingsSection::Teams
@@ -905,7 +903,6 @@ fn account_pages_map_onto_a_page_this_build_has() {
         SettingsSection::BillingAndUsage,
         SettingsSection::Teams,
         SettingsSection::WarpDrive,
-        SettingsSection::Referrals,
         SettingsSection::SharedBlocks,
         SettingsSection::CloudEnvironments,
         SettingsSection::OzCloudAPIKeys,
