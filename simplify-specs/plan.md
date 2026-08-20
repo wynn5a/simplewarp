@@ -847,6 +847,43 @@ cargo test -p local_inference                                            # the A
 cargo check -p warp --bin warp-oss                                       # no regression
 ```
 
+### Disk
+
+`target/` reached 23 GB and made the machine unusable. Measured on a *partial*
+build — one edit-and-check cycle over the `warp` crate, plus clippy:
+
+| `target/debug/` | Size |
+| --- | --- |
+| `incremental/` | 4.6 GB |
+| `deps/` | 1.3 GB, of which 871 MB is `.rmeta` |
+| `build/` | 699 MB |
+
+**The incremental cache is the whole problem, so `[profile.dev] incremental` is
+now `false`.** `warp` is one ~700k-line crate: a single cycle over it leaves
+~4.6 GB, each feature set keeps its own cache, and the total reached 13 GB of the
+23 GB peak. Everything else together is smaller. A changed crate now recompiles
+in full, which costs minutes on `warp` and almost nothing elsewhere. For a run of
+repeated edits to one crate, `CARGO_PROFILE_DEV_INCREMENTAL=true` turns it back
+on for that command.
+
+Dependency debuginfo was **not** worth touching: the dev profile is already
+`debug = "line-tables-only"`, so `.rlib` and `.dylib` come to 457 MB together.
+`[profile.dev.package."*"] debug = false` would cost a full rebuild of ~800
+crates and lose backtrace line numbers for a fraction of what incremental cost.
+
+Two things that are not build settings:
+
+- **macOS purges `target/` by itself**, because `target/CACHEDIR.TAG` marks it
+  reclaimable. It dropped from 14 GB to 3.4 GB mid-build on 2026-08-20. The
+  symptom is `couldn't create a temp dir: No such file or directory …
+  target/debug/deps/rmetaXXXX`, which reads like corruption. Re-run the command;
+  do not read it as a broken change.
+- **Alternating feature sets doubles the artifacts.** `--features simplewarp`
+  re-resolves features for the whole dependency graph and keeps a parallel set of
+  `.rmeta`. It is unavoidable — checking that binary is the point of the fork —
+  but it is a reason to run the default-feature checks together and the
+  `simplewarp` check last, rather than interleaving them.
+
 ## How to test the AI
 
 ### Without the app, against a real provider

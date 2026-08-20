@@ -442,6 +442,18 @@ debug = "line-tables-only"
 # This should work as long as you don't need to move the binary to a different
 # location while retaining the debug information.
 split-debuginfo = "unpacked"
+# SimpleWarp: off, because the cache is by far the largest thing this workspace
+# writes to disk. `warp` is a single ~700k-line crate, and one edit-and-check
+# cycle over it leaves ~4.6 GB in `target/debug/incremental`; alternating between
+# the `default` and `simplewarp` feature sets keeps a separate cache for each, and
+# it has reached 13 GB. Everything else in `target/debug` put together is smaller
+# than that. A changed crate now recompiles in full, which costs minutes on the
+# `warp` crate and almost nothing anywhere else.
+#
+# For a session of repeated edits to one crate, turn it back on for that session:
+#   CARGO_PROFILE_DEV_INCREMENTAL=true cargo check ...
+# and delete `target/debug/incremental` afterwards.
+incremental = false
 
 [profile.dev.package]
 # Improve the performance of core terminal logic.
