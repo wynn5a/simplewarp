@@ -373,72 +373,22 @@ pub trait HarnessSupportClient: 'static + Send + Sync {
 impl ServerApi {
     pub(crate) async fn get_public_api_response_for_task(
         &self,
-        task_id: &AmbientAgentTaskId,
-        path: &str,
+        _task_id: &AmbientAgentTaskId,
+        _path: &str,
     ) -> Result<http_client::Response> {
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .context("Failed to get access token for API request")?;
-
-        let url = format!("{}/api/v1/{}", crate::ChannelState::server_root_url(), path);
-
-        let mut request = self.base_client.http_client().get(&url);
-        if let Some(token) = auth_token.as_bearer_token() {
-            request = request.bearer_auth(token);
-        }
-
-        for (name, value) in self.ambient_agent_headers_for_task(task_id).await? {
-            request = request.header(name, value);
-        }
-
-        let response = request
-            .send()
-            .await
-            .with_context(|| format!("Failed to send API request to {url}"))?;
-
-        if response.status().is_success() {
-            Ok(response)
-        } else {
-            Err(Self::error_from_response(response).await)
-        }
+        Err(crate::server::server_api::local_only_error())
     }
 
     pub(crate) async fn post_public_api_response_for_task<B>(
         &self,
-        task_id: &AmbientAgentTaskId,
-        path: &str,
-        body: &B,
+        _task_id: &AmbientAgentTaskId,
+        _path: &str,
+        _body: &B,
     ) -> Result<http_client::Response>
     where
         B: serde::Serialize,
     {
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .context("Failed to get access token for API request")?;
-
-        let url = format!("{}/api/v1/{}", crate::ChannelState::server_root_url(), path);
-
-        let mut request = self.base_client.http_client().post(&url).json(body);
-        if let Some(token) = auth_token.as_bearer_token() {
-            request = request.bearer_auth(token);
-        }
-
-        for (name, value) in self.ambient_agent_headers_for_task(task_id).await? {
-            request = request.header(name, value);
-        }
-
-        let response = request
-            .send()
-            .await
-            .with_context(|| format!("Failed to send API request to {url}"))?;
-
-        if response.status().is_success() {
-            Ok(response)
-        } else {
-            Err(Self::error_from_response(response).await)
-        }
+        Err(crate::server::server_api::local_only_error())
     }
 
     pub(crate) async fn resolve_prompt_for_task(

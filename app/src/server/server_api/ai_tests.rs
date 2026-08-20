@@ -2,9 +2,7 @@ use chrono::{TimeZone, Utc};
 use futures::executor::block_on;
 use itertools::Itertools;
 use mockito::{Matcher, Server};
-use warp_server_client::base_client::CLOUD_AGENT_ID_HEADER;
 
-use super::super::ServerApi;
 use super::{
     AgentMessageHeader, AgentRunEvent, AgentSource, AmbientAgentTaskState, Artifact,
     ArtifactDownloadResponse, ArtifactType, CONNECTED_SELF_HOSTED_WORKERS_PATH,
@@ -16,30 +14,6 @@ use super::{
 };
 use crate::notebooks::NotebookId;
 use crate::server::server_api::presigned_upload::upload_to_target;
-
-#[test]
-fn ambient_agent_headers_for_task_overrides_existing_cloud_agent_header() {
-    let server_api = ServerApi::new_for_test();
-    let ambient_task_id = "550e8400-e29b-41d4-a716-446655440000".parse().unwrap();
-    let task_scoped_id = "123e4567-e89b-12d3-a456-426614174000".parse().unwrap();
-
-    server_api.set_ambient_agent_task_id(Some(ambient_task_id));
-
-    let cloud_agent_headers: Vec<_> =
-        block_on(server_api.ambient_agent_headers_for_task(&task_scoped_id))
-            .unwrap()
-            .into_iter()
-            .filter(|(name, _)| *name == CLOUD_AGENT_ID_HEADER)
-            .collect();
-
-    assert_eq!(
-        cloud_agent_headers,
-        vec![(
-            CLOUD_AGENT_ID_HEADER.to_string(),
-            task_scoped_id.to_string()
-        )]
-    );
-}
 
 #[test]
 fn spawn_agent_request_serializes_agent_uid_as_agent_identity_uid() {

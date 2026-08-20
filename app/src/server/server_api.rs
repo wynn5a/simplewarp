@@ -18,7 +18,6 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ::http::header::CONTENT_LENGTH;
 use ai::AIClient;
 use anyhow::{Context, Result, anyhow};
 use auth::AuthClient;
@@ -29,19 +28,15 @@ use factory::FactoryClient;
 use instant::Instant;
 use managed_mcp::ManagedMcpClient;
 use object::ObjectClient;
-use parking_lot::Mutex;
-use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use team::TeamClient;
-use url::Url;
 use warp_core::context_flag::ContextFlag;
 use warp_core::telemetry::TelemetryEvent;
-use warp_errors::{AnyhowErrorExt, ErrorExt, register_error, report_error};
+use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
 use warp_managed_secrets::client::ManagedSecretsClient;
-use warp_server_client::HttpStatusError;
-use warp_server_client::auth::{AuthClientImpl, AuthEvent, EXPERIMENT_ID_HEADER};
+use warp_server_client::auth::{AuthClientImpl, AuthEvent};
 use warp_server_client::base_client::{
-    AmbientHeaderPolicy, AuthenticatedGraphqlConfig, BaseClient, GraphqlRoutingConfig,
+    AuthenticatedGraphqlConfig, BaseClient, GraphqlRoutingConfig,
 };
 use warp_server_client::iap::{IapManager, IapState};
 use warp_server_client::network_logging::NetworkLogModel;
@@ -49,7 +44,6 @@ use warpui::r#async::BoxFuture;
 use warpui::{Entity, ModelContext, SingletonEntity};
 use workspace::WorkspaceClient;
 
-use crate::ChannelState;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::get_relevant_files::api::{GetRelevantFiles, GetRelevantFilesResponse};
 use crate::ai::predict::generate_ai_input_suggestions::GenerateAIInputSuggestionsRequest;
@@ -63,11 +57,6 @@ use crate::server::telemetry::TelemetryApi;
 use crate::settings::PrivacySettingsSnapshot;
 
 pub const FETCH_CHANNEL_VERSIONS_TIMEOUT: std::time::Duration = Duration::from_secs(60);
-#[derive(Serialize)]
-struct AgentTipShownAnalyticsRequest {
-    tip: String,
-}
-
 /// We use a special error code header `X-Warp-Error-Code` to allow the server to send
 /// more specific error code information, so that the client can discern between different
 /// errors with the same error code.
@@ -78,9 +67,6 @@ const WARP_ERROR_CODE_HEADER: &str = "X-Warp-Error-Code";
 /// state, but if Cloud Run is overloaded, it can also send 429s that aren't credit-related.
 /// So we use this to distinguish between the two cases.
 const WARP_ERROR_CODE_OUT_OF_CREDITS: &str = "OUT_OF_CREDITS";
-
-/// Error code indicating the user has reached their cloud agent concurrency limit.
-const WARP_ERROR_CODE_AT_CAPACITY: &str = "AT_CLOUD_AGENT_CAPACITY";
 
 /// ResponseType received by Client
 #[derive(thiserror::Error, Debug, Serialize, Deserialize)]
@@ -108,11 +94,6 @@ impl Deref for ServerApi {
 pub struct CloudAgentCapacityError {
     pub error: String,
     pub running_agents: i32,
-}
-
-#[derive(Deserialize, Debug)]
-struct TimeResponse {
-    current_time: DateTime<FixedOffset>,
 }
 
 #[derive(Debug, Clone)]
@@ -384,6 +365,17 @@ pub enum TranscribeError {
     Other(#[from] anyhow::Error),
 }
 
+/// SimpleWarp has no Warp server, so every request primitive below fails here
+/// rather than opening a connection. The channel config points at hostnames that
+/// cannot resolve, which already stops traffic; failing in the client turns a DNS
+/// timeout into an immediate, legible error and leaves nothing to time out on.
+const LOCAL_ONLY_MESSAGE: &str =
+    "SimpleWarp is a local-only build; this operation needs Warp's servers";
+
+pub(crate) fn local_only_error() -> anyhow::Error {
+    anyhow!(LOCAL_ONLY_MESSAGE)
+}
+
 /// An API wrapper struct with methods to requests to warp-server.
 ///
 /// Prefer NOT adding new methods directly on this struct; instead, add to one of the existing
@@ -393,7 +385,6 @@ pub struct ServerApi {
     base_client: Arc<BaseClient>,
     // TODO(jeff): Make `TelemetryApi` another type of client, and move it off `ServerApi`.
     telemetry_api: TelemetryApi,
-    last_server_time: Arc<Mutex<Option<ServerTime>>>,
 }
 
 impl ServerApi {
@@ -453,7 +444,6 @@ impl ServerApi {
         Self {
             base_client,
             telemetry_api,
-            last_server_time: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -491,33 +481,15 @@ impl ServerApi {
             .set_ambient_agent_task_id(task_id.map(|task_id| task_id.to_string()));
     }
 
-    /// Returns ambient agent headers to attach to requests.
-    async fn ambient_agent_headers(&self) -> Result<Vec<(String, String)>> {
-        self.ambient_headers(AmbientHeaderPolicy::inherit_all())
-            .await
-    }
-
-    async fn ambient_agent_headers_for_task(
-        &self,
-        task_id: &AmbientAgentTaskId,
-    ) -> Result<Vec<(String, String)>> {
-        self.ambient_headers(AmbientHeaderPolicy::for_task(task_id.to_string()))
-            .await
-    }
-
     pub fn send_graphql_request<'a, QF, O: warp_graphql::client::Operation<QF> + Send + 'a>(
         &'a self,
-        operation: O,
-        timeout: Option<Duration>,
+        _operation: O,
+        _timeout: Option<Duration>,
     ) -> BoxFuture<'a, Result<QF>>
     where
         QF: 'a,
     {
-        warp_server_client::graphql_helpers::send_graphql_request(
-            &self.base_client,
-            operation,
-            timeout,
-        )
+        Box::pin(async { Err(local_only_error()) })
     }
 
     /// Opens an SSE stream to the agent event-push endpoint.
@@ -531,195 +503,41 @@ impl ServerApi {
     /// `server_root_url()`.
     pub async fn stream_agent_events(
         &self,
-        run_ids: &[String],
-        since_sequence: i64,
+        _run_ids: &[String],
+        _since_sequence: i64,
     ) -> Result<http_client::EventSourceStream> {
-        debug_assert!(!run_ids.is_empty(), "run_ids must not be empty");
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .context("Failed to get access token for SSE stream")?;
-
-        let run_ids_param: String = run_ids
-            .iter()
-            .map(|id| format!("run_ids[]={}", urlencoding::encode(id)))
-            .collect::<Vec<_>>()
-            .join("&");
-        let url = format!(
-            "{}/api/v1/agent/events/stream?{run_ids_param}&since={since_sequence}",
-            ChannelState::rtc_http_url()
-        );
-
-        let mut request = self.base_client.http_client().get(&url);
-        if let Some(token) = auth_token.as_bearer_token() {
-            request = request.bearer_auth(token);
-        }
-
-        for (name, value) in self.ambient_agent_headers().await? {
-            request = request.header(name, value);
-        }
-
-        Ok(self.wrap_eventsource_with_iap_detection(request.eventsource()))
+        Err(local_only_error())
     }
 
     /// Opens an SSE stream against the ancestor-scoped agent event endpoint.
     pub async fn stream_agent_events_for_ancestor(
         &self,
-        ancestor_run_id: &str,
-        include_self: bool,
-        since_sequence: i64,
+        _ancestor_run_id: &str,
+        _include_self: bool,
+        _since_sequence: i64,
     ) -> Result<http_client::EventSourceStream> {
-        debug_assert!(
-            !ancestor_run_id.is_empty(),
-            "ancestor_run_id must not be empty"
-        );
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .context("Failed to get access token for SSE stream")?;
-
-        let include_self_param = if include_self {
-            "&include_self=true"
-        } else {
-            ""
-        };
-        let url = format!(
-            "{}/api/v1/agent/events/stream?ancestor_run_id={}&since={since_sequence}{include_self_param}",
-            ChannelState::rtc_http_url(),
-            urlencoding::encode(ancestor_run_id),
-        );
-
-        let mut request = self.base_client.http_client().get(&url);
-        if let Some(token) = auth_token.as_bearer_token() {
-            request = request.bearer_auth(token);
-        }
-
-        for (name, value) in self.ambient_agent_headers().await? {
-            request = request.header(name, value);
-        }
-
-        Ok(self.wrap_eventsource_with_iap_detection(request.eventsource()))
+        Err(local_only_error())
     }
 
     pub async fn stream_agent_events_for_task(
         &self,
-        task_id: &AmbientAgentTaskId,
-        run_ids: &[String],
-        since_sequence: i64,
+        _task_id: &AmbientAgentTaskId,
+        _run_ids: &[String],
+        _since_sequence: i64,
     ) -> Result<http_client::EventSourceStream> {
-        debug_assert!(!run_ids.is_empty(), "run_ids must not be empty");
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .context("Failed to get access token for SSE stream")?;
-
-        let run_ids_param: String = run_ids
-            .iter()
-            .map(|id| format!("run_ids[]={}", urlencoding::encode(id)))
-            .collect::<Vec<_>>()
-            .join("&");
-        let url = format!(
-            "{}/api/v1/agent/events/stream?{run_ids_param}&since={since_sequence}",
-            ChannelState::rtc_http_url()
-        );
-
-        let mut request = self.base_client.http_client().get(&url);
-        if let Some(token) = auth_token.as_bearer_token() {
-            request = request.bearer_auth(token);
-        }
-
-        for (name, value) in self.ambient_agent_headers_for_task(task_id).await? {
-            request = request.header(name, value);
-        }
-
-        Ok(self.wrap_eventsource_with_iap_detection(request.eventsource()))
+        Err(local_only_error())
     }
 
     /// Sends a POST request to a public API endpoint and returns the raw response on success.
     async fn post_public_api_response<B>(
         &self,
-        path: &str,
-        body: &B,
+        _path: &str,
+        _body: &B,
     ) -> Result<http_client::Response>
     where
         B: Serialize,
     {
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .context("Failed to get access token for API request")?;
-
-        let url = format!("{}/api/v1/{}", ChannelState::server_root_url(), path);
-
-        let mut request = self.base_client.http_client().post(&url).json(body);
-        if let Some(token) = auth_token.as_bearer_token() {
-            request = request.bearer_auth(token);
-        }
-
-        for (name, value) in self.ambient_agent_headers().await? {
-            request = request.header(name, value);
-        }
-
-        let response = request
-            .send()
-            .await
-            .with_context(|| format!("Failed to send API request to {url}"))?;
-
-        if response.status().is_success() {
-            Ok(response)
-        } else {
-            self.observe_iap_challenge(&response);
-            Err(Self::error_from_response(response).await)
-        }
-    }
-
-    /// Converts a non-success public API response into the most specific client error
-    /// available. The returned error always carries an [`HttpStatusError`] in its chain
-    /// (via [`anyhow::Error::context`]) so callers retrying through
-    /// [`is_transient_http_error`](super::retry_strategies::is_transient_http_error) fail
-    /// fast on a deterministic 4xx instead of defaulting to a transient retry.
-    async fn error_from_response(response: http_client::Response) -> anyhow::Error {
-        let status = response.status();
-        let is_at_capacity = response
-            .headers()
-            .get(WARP_ERROR_CODE_HEADER)
-            .and_then(|v| v.to_str().ok())
-            == Some(WARP_ERROR_CODE_AT_CAPACITY);
-        let is_out_of_credits = response
-            .headers()
-            .get(WARP_ERROR_CODE_HEADER)
-            .and_then(|v| v.to_str().ok())
-            == Some(WARP_ERROR_CODE_OUT_OF_CREDITS);
-
-        // Get the response text first since we may need to try multiple deserializations.
-        let response_text = response.text().await.unwrap_or_default();
-        let status_error = HttpStatusError {
-            status: status.as_u16(),
-            body: response_text.clone(),
-        };
-
-        // Check for AT_CAPACITY error code header.
-        if is_at_capacity
-            && let Ok(capacity_error) =
-                serde_json::from_str::<CloudAgentCapacityError>(&response_text)
-        {
-            return anyhow::Error::new(status_error).context(capacity_error);
-        }
-        if status == StatusCode::TOO_MANY_REQUESTS && is_out_of_credits {
-            let user_display_message = serde_json::from_str::<OutOfCreditsResponse>(&response_text)
-                .ok()
-                .and_then(|r| r.user_display_message);
-            return anyhow::Error::new(status_error).context(AIApiError::QuotaLimit {
-                user_display_message,
-            });
-        }
-
-        // Try to deserialize error response as { "error": "message" }
-        match serde_json::from_str::<ClientError>(&response_text) {
-            Ok(error_response) => anyhow::Error::new(status_error).context(error_response),
-            Err(_) => anyhow::Error::new(status_error)
-                .context(format!("API request failed with status {status}")),
-        }
+        Err(local_only_error())
     }
 
     /// Sends a POST request to a public API endpoint.
@@ -743,38 +561,13 @@ impl ServerApi {
     /// Sends a PUT request to a public API endpoint and returns the raw response on success.
     async fn put_public_api_response<B>(
         &self,
-        path: &str,
-        body: &B,
+        _path: &str,
+        _body: &B,
     ) -> Result<http_client::Response>
     where
         B: Serialize,
     {
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .context("Failed to get access token for API request")?;
-
-        let url = format!("{}/api/v1/{}", ChannelState::server_root_url(), path);
-
-        let mut request = self.base_client.http_client().put(&url).json(body);
-        if let Some(token) = auth_token.as_bearer_token() {
-            request = request.bearer_auth(token);
-        }
-
-        for (name, value) in self.ambient_agent_headers().await? {
-            request = request.header(name, value);
-        }
-
-        let response = request
-            .send()
-            .await
-            .with_context(|| format!("Failed to send API request to {url}"))?;
-
-        if response.status().is_success() {
-            Ok(response)
-        } else {
-            Err(Self::error_from_response(response).await)
-        }
+        Err(local_only_error())
     }
 
     /// Sends a PUT request to a public API endpoint.
@@ -801,100 +594,22 @@ impl ServerApi {
     }
 
     /// Sends a DELETE request to a public API endpoint that returns no response body.
-    async fn delete_public_api_unit(&self, path: &str) -> Result<()> {
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .context("Failed to get access token for API request")?;
-
-        let url = format!("{}/api/v1/{}", ChannelState::server_root_url(), path);
-
-        let mut request = self.base_client.http_client().delete(&url);
-        if let Some(token) = auth_token.as_bearer_token() {
-            request = request.bearer_auth(token);
-        }
-
-        for (name, value) in self.ambient_agent_headers().await? {
-            request = request.header(name, value);
-        }
-
-        let response = request
-            .send()
-            .await
-            .with_context(|| format!("Failed to send API request to {url}"))?;
-
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(Self::error_from_response(response).await)
-        }
+    async fn delete_public_api_unit(&self, _path: &str) -> Result<()> {
+        Err(local_only_error())
     }
 
     /// Sends a PATCH request to a public API endpoint that returns no response body.
-    async fn patch_public_api_unit<B>(&self, path: &str, body: &B) -> Result<()>
+    async fn patch_public_api_unit<B>(&self, _path: &str, _body: &B) -> Result<()>
     where
         B: Serialize,
     {
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .context("Failed to get access token for API request")?;
-
-        let url = format!("{}/api/v1/{}", ChannelState::server_root_url(), path);
-
-        let mut request = self.base_client.http_client().patch(&url).json(body);
-        if let Some(token) = auth_token.as_bearer_token() {
-            request = request.bearer_auth(token);
-        }
-
-        for (name, value) in self.ambient_agent_headers().await? {
-            request = request.header(name, value);
-        }
-
-        let response = request
-            .send()
-            .await
-            .with_context(|| format!("Failed to send API request to {url}"))?;
-
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(Self::error_from_response(response).await)
-        }
+        Err(local_only_error())
     }
 
     /// Sends an authenticated empty POST request to /client/login, which signals to the server
     /// that the user is logged in.
     pub async fn notify_login(&self) {
-        match self.get_or_refresh_access_token().await {
-            Ok(auth_token) => {
-                let url = format!("{}/client/login", ChannelState::server_root_url());
-                let mut request = self.base_client.http_client().post(&url);
-                if let Some(token) = auth_token.as_bearer_token() {
-                    request = request.bearer_auth(token);
-                }
-                request = request
-                    // Set the content-length header to 0 because the request has no body.
-                    // Otherwise, the server will return a 411 error. (In other cases, setting
-                    // content-type is sufficient (elides the content-length requirement), but
-                    // since this request has no body, it makes more sense to set content-length.
-                    .header(CONTENT_LENGTH, 0)
-                    .header(EXPERIMENT_ID_HEADER, self.anonymous_id());
-
-                let response = request.send().await;
-                if let Err(err) = response {
-                    report_error!(
-                        anyhow::Error::new(err)
-                            .context("Failed to send POST request to /client/login")
-                    );
-                }
-            }
-            Err(err) => {
-                report_error!(
-                    err.context("Could not retrieve access token for notifying user login")
-                );
-            }
-        }
+        log::debug!("Skipping login notification: {}", LOCAL_ONLY_MESSAGE);
     }
 
     /// Synchronously sends a [`TelemetryEvent`] to the Rudderstack API. Prefer not to call this
@@ -912,39 +627,8 @@ impl ServerApi {
             .await
     }
 
-    pub async fn send_agent_tip_shown_analytics_event(&self, tip: String) -> Result<()> {
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .context("Failed to get access token for API request")?;
-        let url = format!(
-            "{}/analytics/agent-tip-shown",
-            ChannelState::server_root_url()
-        );
-        let mut request = self
-            .base_client
-            .http_client()
-            .post(&url)
-            .json(&AgentTipShownAnalyticsRequest { tip });
-        if let Some(token) = auth_token.as_bearer_token() {
-            request = request.bearer_auth(token);
-        }
-
-        for (name, value) in self.ambient_agent_headers().await? {
-            request = request.header(name, value);
-        }
-
-        let response = request
-            .send()
-            .await
-            .with_context(|| format!("Failed to send API request to {url}"))?;
-
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            self.observe_iap_challenge(&response);
-            Err(Self::error_from_response(response).await)
-        }
+    pub async fn send_agent_tip_shown_analytics_event(&self, _tip: String) -> Result<()> {
+        Err(local_only_error())
     }
 
     /// Drains all queued [`TelemetryEvent`]s into Rudderstack requests containing the corresponding
@@ -988,219 +672,44 @@ impl ServerApi {
     /// Hits the /ai/generate_input_suggestions endpoint to get the predicted next action, based on past context.
     pub async fn generate_ai_input_suggestions(
         &self,
-        request: &GenerateAIInputSuggestionsRequest,
+        _request: &GenerateAIInputSuggestionsRequest,
     ) -> Result<generate_ai_input_suggestions::GenerateAIInputSuggestionsResponseV2, AIApiError>
     {
-        let auth_token = self.get_or_refresh_access_token().await?;
-
-        let request_builder = self.base_client.http_client().post(format!(
-            "{}/ai/generate_input_suggestions",
-            ChannelState::server_root_url()
-        ));
-        let response = if let Some(token) = auth_token.as_bearer_token() {
-            request_builder.bearer_auth(token)
-        } else {
-            request_builder
-        }
-        .json(request)
-        .send()
-        .await?
-        .error_for_status_with_body()
-        .await?
-        .json()
-        .await?;
-        Ok(response)
+        Err(AIApiError::Other(local_only_error()))
     }
 
     pub async fn get_relevant_files(
         &self,
-        request: &GetRelevantFiles,
+        _request: &GetRelevantFiles,
     ) -> Result<GetRelevantFilesResponse, AIApiError> {
-        let auth_token = self.get_or_refresh_access_token().await?;
-
-        let request_builder = self.base_client.http_client().post(format!(
-            "{}/ai/relevant_files",
-            ChannelState::server_root_url()
-        ));
-        let response = if let Some(token) = auth_token.as_bearer_token() {
-            request_builder.bearer_auth(token)
-        } else {
-            request_builder
-        }
-        .json(request)
-        .send()
-        .await?
-        .error_for_status_with_body()
-        .await?
-        .json()
-        .await?;
-
-        Ok(response)
+        Err(AIApiError::Other(local_only_error()))
     }
 
     /// Hits the /ai/generate_am_query_suggestions endpoint to get the predicted next query.
     pub async fn generate_am_query_suggestions(
         &self,
-        request: &GenerateAMQuerySuggestionsRequest,
+        _request: &GenerateAMQuerySuggestionsRequest,
     ) -> Result<generate_am_query_suggestions::GenerateAMQuerySuggestionsResponse, AIApiError> {
-        let auth_token = self.get_or_refresh_access_token().await?;
-
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "agent_mode_evals")] {
-                let url = format!(
-                    "{}/agent-mode-evals/generate_am_query_suggestions",
-                    ChannelState::server_root_url()
-                );
-            } else {
-                let url = format!(
-                    "{}/ai/generate_am_query_suggestions",
-                    ChannelState::server_root_url()
-                );
-            }
-        }
-
-        let request_builder = self.base_client.http_client().post(url);
-        let response = if let Some(token) = auth_token.as_bearer_token() {
-            request_builder.bearer_auth(token)
-        } else {
-            request_builder
-        }
-        .json(request)
-        .send()
-        .await?
-        .error_for_status_with_body()
-        .await?
-        .json()
-        .await?;
-        Ok(response)
+        Err(AIApiError::Other(local_only_error()))
     }
 
     pub async fn predict_am_queries(
         &self,
-        request: &PredictAMQueriesRequest,
+        _request: &PredictAMQueriesRequest,
     ) -> Result<PredictAMQueriesResponse, AIApiError> {
-        let auth_token = self.get_or_refresh_access_token().await?;
-        let request_builder = self.base_client.http_client().post(format!(
-            "{}/ai/predict_am_queries",
-            ChannelState::server_root_url()
-        ));
-        let response = if let Some(token) = auth_token.as_bearer_token() {
-            request_builder.bearer_auth(token)
-        } else {
-            request_builder
-        }
-        .json(request)
-        .send()
-        .await?
-        .error_for_status_with_body()
-        .await?
-        .json()
-        .await?;
-        Ok(response)
+        Err(AIApiError::Other(local_only_error()))
     }
 
     /// Hits the /ai/transcribe endpoint to get the transcription for the given audio.
     pub async fn transcribe(
         &self,
-        request: &TranscribeRequest,
+        _request: &TranscribeRequest,
     ) -> Result<TranscribeResponse, TranscribeError> {
-        let auth_token = self.get_or_refresh_access_token().await?;
-
-        let request_builder = self
-            .base_client
-            .http_client()
-            .post(format!("{}/ai/transcribe", ChannelState::server_root_url()));
-        let response = if let Some(token) = auth_token.as_bearer_token() {
-            request_builder.bearer_auth(token)
-        } else {
-            request_builder
-        }
-        .json(request)
-        .send()
-        .await;
-
-        match response {
-            Ok(res) => {
-                if res.status().is_success() {
-                    match res.json::<TranscribeResponse>().await {
-                        Ok(output_response) => Ok(output_response),
-                        Err(e) => {
-                            log::warn!("Failed to deserialize response: {e:?}");
-                            Err(TranscribeError::Deserialization)
-                        }
-                    }
-                } else if res.status() == http::StatusCode::TOO_MANY_REQUESTS {
-                    if res
-                        .headers()
-                        .get(WARP_ERROR_CODE_HEADER)
-                        .and_then(|v| v.to_str().ok())
-                        == Some(WARP_ERROR_CODE_OUT_OF_CREDITS)
-                    {
-                        Err(TranscribeError::QuotaLimit)
-                    } else {
-                        Err(TranscribeError::ServerOverloaded)
-                    }
-                } else {
-                    log::warn!("Non-success status code received: {}", res.status());
-                    Err(TranscribeError::Transport)
-                }
-            }
-            Err(e) => {
-                log::warn!("Error while sending request: {e:?}");
-                Err(TranscribeError::Transport)
-            }
-        }
-    }
-
-    fn set_server_time(&self, server_time: ServerTime) {
-        let mut last_server_time = self.last_server_time.lock();
-        *last_server_time = Some(server_time);
-    }
-
-    fn cached_server_time(&self) -> Option<ServerTime> {
-        let last_server_time = self.last_server_time.lock();
-        last_server_time.as_ref().cloned()
+        Err(TranscribeError::Other(local_only_error()))
     }
 
     pub async fn server_time(&self) -> Result<ServerTime> {
-        if let Some(cached) = self.cached_server_time() {
-            return Ok(cached);
-        }
-
-        let time_endpoint = format!("{}/current_time", ChannelState::server_root_url());
-        log::info!("Sending server time request to {}", &time_endpoint);
-        let res = self
-            .base_client
-            .http_client()
-            .get(&time_endpoint)
-            .send()
-            .await?;
-
-        if !res.status().is_success() {
-            self.observe_iap_challenge(&res);
-        }
-
-        match res.status() {
-            StatusCode::OK => {
-                let time_response: TimeResponse = res.json().await?;
-                log::info!(
-                    "Received current time from server: {:?}",
-                    &time_response.current_time
-                );
-                let server_time = ServerTime {
-                    time_at_fetch: time_response.current_time,
-                    fetched_at: Instant::now(),
-                };
-                let res = Ok(server_time.clone());
-                self.set_server_time(server_time);
-
-                res
-            }
-            _ => {
-                let payload: ClientError = res.json().await?;
-                Err(anyhow!(payload).context("fetching time from server failed"))
-            }
-        }
+        Err(local_only_error())
     }
 
     /// Fetches updated Warp Channel Versions from Warp Server. If it is the first such request of
@@ -1210,52 +719,10 @@ impl ServerApi {
     /// included in the response based on whether or not it will be used.
     pub async fn fetch_channel_versions(
         &self,
-        include_changelogs: bool,
-        is_daily: bool,
+        _include_changelogs: bool,
+        _is_daily: bool,
     ) -> Result<ChannelVersions> {
-        let mut url = Url::parse(&ChannelState::server_root_url())
-            .expect("Should not fail to parse server root URL");
-        if is_daily {
-            url.set_path("/client_version/daily");
-        } else {
-            url.set_path("/client_version");
-        }
-        url.query_pairs_mut()
-            .append_pair("include_changelogs", &include_changelogs.to_string());
-
-        if include_changelogs {
-            log::info!("Fetching channel versions and changelogs from Warp server");
-        } else {
-            log::info!("Fetching channel versions (without changelogs) from Warp server");
-        }
-
-        let mut request_builder = self
-            .base_client
-            .http_client()
-            .get(url.as_str())
-            .timeout(FETCH_CHANNEL_VERSIONS_TIMEOUT)
-            .header(EXPERIMENT_ID_HEADER, self.anonymous_id());
-
-        // Authorization for /client_version is optional. Attach authorization header if an access
-        // token is present. First, try to get a valid token. If our cached one is expired, try to
-        // refresh. Failing that, send the expired token.
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .ok()
-            .and_then(|token| token.bearer_token())
-            .or_else(|| self.access_token_ignoring_validity());
-        if let Some(token_str) = auth_token {
-            request_builder = request_builder.bearer_auth(token_str);
-        }
-
-        let response = request_builder.send().await?;
-        if !response.status().is_success() {
-            self.observe_iap_challenge(&response);
-        }
-        let versions: ChannelVersions = response.json().await?;
-        log::info!("Received channel versions from Warp server: {versions}");
-        Ok(versions)
+        Err(local_only_error())
     }
 }
 
@@ -1399,7 +866,3 @@ impl Entity for ServerApiProvider {
 }
 
 impl SingletonEntity for ServerApiProvider {}
-
-#[cfg(test)]
-#[path = "server_api_tests.rs"]
-mod tests;
