@@ -10,7 +10,6 @@ use ai::agent::action::RunAgentsExecutionMode;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
 use warp_cli::agent::Harness;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::Fill;
 use warpui::elements::{
     Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
@@ -45,7 +44,6 @@ pub use crate::ai::orchestration::{
 };
 use crate::appearance::Appearance;
 use crate::menu::{MenuItem, MenuItemFields};
-use crate::server::experiments::{ServerExperiment, ServerExperiments};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::view_components::FilterableDropdown;
@@ -70,13 +68,12 @@ const AUTH_SECRET_CREATE_NEW_LABEL: &str = "New API key…";
 
 /// Returns whether the client should expose the remote runner controls.
 ///
-/// Both the feature flag and the server-side experiment test arm are required.
-/// Keeping this predicate here ensures the picker creation and rendering paths
-/// use the same gate.
-pub fn runner_controls_enabled(ctx: &AppContext) -> bool {
-    FeatureFlag::CloudAgentRunners.is_enabled()
-        && ServerExperiments::as_ref(ctx)
-            .is_experiment_enabled(&ServerExperiment::MacosRunnersExperiment)
+/// Always `false`. The controls required a server-side experiment arm as well
+/// as the feature flag, and this build has no server to assign one, so the gate
+/// could never open. Dropping only the experiment half would have flipped the
+/// controls *on* wherever the flag is set, which is the opposite of the intent.
+pub fn runner_controls_enabled(_ctx: &AppContext) -> bool {
+    false
 }
 
 // ── Action trait ────────────────────────────────────────────────────

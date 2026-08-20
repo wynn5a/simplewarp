@@ -25,7 +25,7 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{
     Action, AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle, WeakViewHandle, id,
+    ViewHandle, WeakViewHandle,
 };
 
 use super::settings_page::{
@@ -99,17 +99,6 @@ fn maybe_add_settings_sync_toggle_binding<T: Action + Clone>(
             ),
         );
     }
-}
-
-pub fn handle_experiment_change(app: &mut AppContext) {
-    let mut toggle_binding_pairs: Vec<ToggleSettingActionPair<WorkspaceAction>> = Vec::new();
-    maybe_add_settings_sync_toggle_binding(
-        app,
-        &id!("Workspace"),
-        WorkspaceAction::DispatchToSettingsTab,
-        &mut toggle_binding_pairs,
-    );
-    ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(toggle_binding_pairs, app);
 }
 
 #[derive(Debug, Clone)]

@@ -286,7 +286,6 @@ use crate::root_view::{
 };
 use crate::server::cloud_objects::listener::Listener;
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::experiments::ServerExperiments;
 #[cfg(not(target_family = "wasm"))]
 use crate::server::iap_identity_minter::ManagedSecretsIapMinter;
 use crate::server::sync_queue::{QueueItem, SyncQueue};
@@ -1458,7 +1457,6 @@ pub(crate) fn initialize_app(
         restored_user_profiles,
         time_of_next_force_object_refresh,
         object_actions,
-        experiments,
         ai_queries,
         nld_prompts,
         persisted_workspaces,
@@ -1480,7 +1478,6 @@ pub(crate) fn initialize_app(
                 sqlite_data.user_profiles,
                 sqlite_data.time_of_next_force_object_refresh,
                 sqlite_data.object_actions,
-                sqlite_data.experiments,
                 sqlite_data.ai_queries,
                 sqlite_data.nld_prompts,
                 sqlite_data.codebase_indices,
@@ -1513,7 +1510,6 @@ pub(crate) fn initialize_app(
                 Default::default(),
                 Default::default(),
                 Default::default(),
-                Default::default(),
             )
         });
 
@@ -1525,11 +1521,6 @@ pub(crate) fn initialize_app(
             "[Remote codebase indexing] Restored daemon codebase index metadata: metadata_count={codebase_index_count}"
         );
     }
-
-    // Initialize a global model to track server-side experiment state.
-    // This depends on the [`GlobalResourceHandlesProvider`] and so it must
-    // be initialized after it.
-    ctx.add_singleton_model(|ctx| ServerExperiments::new_from_cache(experiments, ctx));
 
     ctx.add_singleton_model(|ctx| AIRequestUsageModel::new(ai_client, ctx));
 

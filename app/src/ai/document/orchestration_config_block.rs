@@ -45,7 +45,6 @@ use crate::ai::harness_availability::{
 };
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
-use crate::server::experiments::{ServerExperiments, ServerExperimentsEvent};
 use crate::server::server_api::ServerApiProvider;
 use crate::ui_components::blended_colors;
 use crate::workspace::WorkspaceAction;
@@ -209,17 +208,6 @@ impl OrchestrationConfigBlockView {
                 }
             },
         );
-        ctx.subscribe_to_model(&ServerExperiments::handle(ctx), |me, _, event, ctx| {
-            let ServerExperimentsEvent::ExperimentsUpdated = event;
-            if !oc::runner_controls_enabled(ctx) {
-                me.pickers.runner_picker = None;
-                me.runners.clear();
-                me.runners_loading = false;
-            } else {
-                me.ensure_runner_picker(ctx);
-            }
-            ctx.notify();
-        });
 
         // Repopulate the model picker when available LLMs change (Oz
         // harness only — non-Oz harnesses get their catalog from

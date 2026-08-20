@@ -77,7 +77,6 @@ use crate::pane_group::{NewTerminalOptions, PanesLayout};
 use crate::persistence::ModelEvent;
 use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::experiments::ServerExperiments;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::auth::UserAuthenticationError;
 use crate::server::server_api::{ServerApi, ServerApiProvider, ServerTime};
@@ -2457,10 +2456,6 @@ impl RootView {
                 let variant = offer_variant_for_account_class(account_class)
                     .expect("free account classes have an offer");
                 context.onboarding_view.update(ctx, |view, ctx| {
-                    // Snapshot the server-assigned arm just before the offer is
-                    // shown, then freeze it for this exposure (REV-1939).
-                    let arm = ServerExperiments::as_ref(ctx).choose_how_to_start_experiment_arm();
-                    view.set_choose_how_to_start_experiment_arm(arm, ctx);
                     view.show_post_auth_offer(variant, ctx);
                 });
                 self.auth_onboarding_state = AuthOnboardingState::PostAuthOnboarding {
@@ -2669,9 +2664,6 @@ impl RootView {
                     let variant = offer_variant_for_account_class(account_class)
                         .expect("free account classes have an offer");
                     onboarding_view.update(ctx, |view, ctx| {
-                        let arm =
-                            ServerExperiments::as_ref(ctx).choose_how_to_start_experiment_arm();
-                        view.set_choose_how_to_start_experiment_arm(arm, ctx);
                         view.show_post_auth_offer(variant, ctx);
                     });
                     self.focus(ctx);

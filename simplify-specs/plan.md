@@ -582,6 +582,29 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    at every `is_logged_in()` call site. `cloud_object` is the persistence and sync layer that
    Warp Drive objects — workflows, notebooks, prompts, env-var collections, AI facts — are built
    on, so it goes only with those object types.
+3b. **`app/src/server/experiments/` — DONE.** Server-assigned A/B experiment arms, fetched with
+   the user's GraphQL profile and cached in SQLite. With no server the model was always empty, so
+   every experiment already read as off.
+
+   The chain was longer than the module: GraphQL user response → `UserProperties` →
+   `AuthManager` → `ServerApiProvider::handle_experiments_fetched` → the model → a SQLite table,
+   plus the workspace-metadata response carrying its own copy.
+
+   **One consumer needed care, and it is the pattern to watch for.**
+   `runner_controls_enabled` was `FeatureFlag::CloudAgentRunners.is_enabled() && experiment_arm`.
+   Deleting only the experiment half would have left the flag alone in the `&&` and flipped the
+   cloud runner controls **on** wherever the flag is set — `cloud_agent_runners` is in the
+   `default` feature set. The behaviour-preserving answer is `false`, since the arm could never
+   be assigned. Its test is rewritten to pin that: the controls stay off for both flag states, so
+   a later change cannot quietly re-open the gate.
+
+   `handle_experiment_change`, which re-registered settings-sync toggle bindings, had no other
+   caller and went with it.
+
+   Acceptance: 6401 app tests pass, `cargo check --all-targets`, clippy, format, and the
+   `simplewarp` binary are clean. The diesel models in `crates/persistence` and the
+   `server_experiments` table are left in place; nothing writes them now.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, `warp_multi_agent_client`.
 5. The `FeatureFlag` variants that are no longer in use. **16 removed; more remain behind the

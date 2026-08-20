@@ -2,13 +2,10 @@ use warp_graphql::queries::get_user::UserOutput as GqlUserOutput;
 
 use super::UserUid;
 use super::user::User;
-use crate::convert_to_server_experiment;
-use crate::server::experiments::ServerExperiment;
 
 /// Intermediate app model state converted from a user response returned by the auth client.
 pub(crate) struct UserProperties {
     pub(crate) user: User,
-    pub(crate) server_experiments: Vec<ServerExperiment>,
     pub(crate) llms: crate::ai::llms::ModelsByFeature,
 }
 
@@ -40,11 +37,6 @@ impl From<GqlUserOutput> for UserProperties {
         let local_id = UserUid::new(user_profile.uid.as_str());
         let needs_sso_link = user_profile.needs_sso_link;
 
-        let server_experiments: Vec<ServerExperiment> = user_properties
-            .experiments
-            .and_then(|experiments| convert_to_server_experiment!(experiments))
-            .unwrap_or_default();
-
         // Convert LLM model choices from the GraphQL response.
         let llms = user_properties.llms.try_into().unwrap_or_default();
 
@@ -61,10 +53,6 @@ impl From<GqlUserOutput> for UserProperties {
             global_skills,
         };
 
-        UserProperties {
-            user,
-            server_experiments,
-            llms,
-        }
+        UserProperties { user, llms }
     }
 }

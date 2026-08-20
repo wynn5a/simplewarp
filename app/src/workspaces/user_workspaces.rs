@@ -29,7 +29,6 @@ use crate::channel::ChannelState;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObjectEventEntrypoint, ObjectType, Owner, Space};
 use crate::pricing::PricingInfoModel;
-use crate::server::experiments::{ServerExperiment, ServerExperiments, ServerExperimentsEvent};
 use crate::server::ids::ServerId;
 use crate::server::server_api::team::TeamClient;
 use crate::server::server_api::workspace::{PurchaseAddonCreditsOutcome, WorkspaceClient};
@@ -128,8 +127,6 @@ pub struct WorkspacesMetadataResponse {
     pub workspaces: Vec<Workspace>,
     /// The list of discoverable teams that the user can join.
     pub joinable_teams: Vec<DiscoverableTeam>,
-    /// The list of experiments applicable to the user.
-    pub experiments: Option<Vec<ServerExperiment>>,
     /// TODO(Tyler): Post-workspaces, move this into the workspace object.
     /// Feature model choices may change from user to user and while the app is open, so we need to periodically update this list.
     /// It makes most sense to fetch this in workspaces which is queried every 10 minutes.
@@ -164,9 +161,6 @@ impl UserWorkspaces {
         cached_workspaces: Vec<Workspace>,
         _ctx: &mut ModelContext<Self>,
     ) -> Self {
-        // In tests, avoid subscribing to [`ServerExperiments`] because it
-        // requires us to register that singleton along with _its_ dependencies
-        // for all tests that use [`UserWorkspaces`] (a lot of them do).
         Self {
             current_workspace_uid: cached_workspaces.first().map(|w| w.uid).into(),
             workspaces: cached_workspaces.into(),
@@ -195,11 +189,6 @@ impl UserWorkspaces {
         current_workspace_uid: Option<WorkspaceUid>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        ctx.subscribe_to_model(&ServerExperiments::handle(ctx), |me, _, event, ctx| {
-            let ServerExperimentsEvent::ExperimentsUpdated = event;
-            me.update_session_sharing_enablement(ctx);
-        });
-
         ctx.subscribe_to_model(
             &CodeSettings::handle(ctx),
             |_, _, code_settings_event, ctx| match code_settings_event {
@@ -1901,17 +1890,8 @@ impl UserWorkspaces {
     }
 
     /// Updates whether or not session sharing is enabled based on the current team's tier policy.
-    fn update_session_sharing_enablement(&self, ctx: &AppContext) {
+    fn update_session_sharing_enablement(&self, _ctx: &AppContext) {
         if cfg!(any(test, feature = "integration_tests")) {
-            return;
-        }
-
-        // If we have experiment state to unconditionally enable / disable the feature,
-        // then we defer to that.
-        let server_experiments = ServerExperiments::as_ref(ctx);
-        if server_experiments.is_experiment_enabled(&ServerExperiment::SessionSharingControl)
-            || server_experiments.is_experiment_enabled(&ServerExperiment::SessionSharingExperiment)
-        {
             return;
         }
 

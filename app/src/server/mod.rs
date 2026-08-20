@@ -1,6 +1,5 @@
 pub mod block;
 pub mod cloud_objects;
-pub mod experiments;
 pub mod graphql;
 // Runner-only: the minter is constructed solely in the native, ambient-agent-run
 // code path (see lib.rs), so it doesn't compile or ship on wasm.

@@ -59,9 +59,9 @@ use super::model::{
     self, AI_DOCUMENT_PANE_KIND, AI_FACT_PANE_KIND, ActiveMCPServer, CODE_PANE_KIND,
     CurrentUserInformation, ENV_VAR_COLLECTION_PANE_KIND, EXECUTION_PROFILE_EDITOR_PANE_KIND,
     MCP_SERVER_PANE_KIND, MCPEnvironmentVariables, NOTEBOOK_PANE_KIND, NewActiveMCPServer, NewApp,
-    NewCommand, NewServerExperiment, NewTab, NewTabGroup, NewTeam, NewWindow, NewWorkspace,
-    NewWorkspaceMetadata, NewWorkspaceTeam, Project, SETTINGS_PANE_KIND, TERMINAL_PANE_KIND, Tab,
-    TabGroup, WORKFLOW_PANE_KIND, Window, WorkspaceMetadata as WorkspaceMetadataModel,
+    NewCommand, NewTab, NewTabGroup, NewTeam, NewWindow, NewWorkspace, NewWorkspaceMetadata,
+    NewWorkspaceTeam, Project, SETTINGS_PANE_KIND, TERMINAL_PANE_KIND, Tab, TabGroup,
+    WORKFLOW_PANE_KIND, Window, WorkspaceMetadata as WorkspaceMetadataModel,
 };
 use super::{
     BlockCompleted, FinishedCommandMetadata, ModelEvent, PersistedData, PersistedDataScope,
@@ -98,7 +98,6 @@ use crate::persistence::model::{
     CODE_REVIEW_PANE_KIND, GET_STARTED_PANE_KIND, NewPersistedObjectAction, NewTeamSettings,
     ProjectRules, UserProfile,
 };
-use crate::server::experiments::ServerExperiment;
 use crate::server::ids::{ClientId, HashableId, ServerId, SyncId};
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings_view::SettingsSection;
@@ -738,9 +737,6 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
             actions_to_sync: objects_to_sync,
         } => {
             sync_object_actions(connection, objects_to_sync).context("error syncing object actions")
-        }
-        ModelEvent::SaveExperiments { experiments } => {
-            save_experiments(connection, experiments).context("error saving experiments")
         }
         ModelEvent::UpsertAIQuery { query } => {
             upsert_ai_query(connection, query).context("error upserting AI query")
@@ -2489,7 +2485,6 @@ fn read_sqlite_data(
             user_profiles: Default::default(),
             time_of_next_force_object_refresh: None,
             object_actions: Default::default(),
-            experiments: Default::default(),
             ai_queries: Default::default(),
             nld_prompts: Default::default(),
             codebase_indices: get_all_codebase_index_metadata(conn)?,
@@ -2860,14 +2855,6 @@ fn read_sqlite_data(
         Vec::new()
     };
 
-    let server_experiments = schema::server_experiments::dsl::server_experiments
-        .load_iter::<model::ServerExperiment, DefaultLoadingMode>(conn)?
-        .filter_map(|server_experiment| server_experiment.ok())
-        .filter_map(|server_experiment| {
-            ServerExperiment::from_string(server_experiment.experiment).ok()
-        })
-        .collect();
-
     let time_of_next_force_object_refresh = read_time_of_next_force_object_refresh(conn)?;
 
     // Seed up-arrow prompt history and (optionally) NLD prompt-history matching from a single
@@ -2903,7 +2890,6 @@ fn read_sqlite_data(
         user_profiles,
         time_of_next_force_object_refresh,
         object_actions,
-        experiments: server_experiments,
         ai_queries,
         nld_prompts,
         codebase_indices,
@@ -3020,27 +3006,6 @@ fn upsert_user_profiles(
                 .values(new_user_profile)
                 .execute(conn)?;
         }
-        Ok(())
-    })
-}
-
-fn save_experiments(
-    conn: &mut SqliteConnection,
-    experiments: Vec<ServerExperiment>,
-) -> Result<(), Error> {
-    conn.transaction::<(), Error, _>(|conn| {
-        diesel::delete(schema::server_experiments::dsl::server_experiments).execute(conn)?;
-
-        let new_experiments = experiments
-            .into_iter()
-            .map(|experiment| NewServerExperiment {
-                experiment: experiment.to_string(),
-            })
-            .collect_vec();
-
-        diesel::insert_into(schema::server_experiments::dsl::server_experiments)
-            .values(new_experiments)
-            .execute(conn)?;
         Ok(())
     })
 }

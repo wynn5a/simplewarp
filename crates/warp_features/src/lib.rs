@@ -37,11 +37,9 @@ pub enum FeatureFlag {
 
     /// A runtime flag to enable the creation of shared sessions.
     ///
-    /// It is enabled if the logged in user is part of a paying team
-    /// or part of the allowlist (via [`ServerExperiment::SessionSharingExperiment`]).
-    ///
-    /// We also use [`ServerExperiment::SessionSharingControl`] as a
-    /// killswitch for abuse prevention.
+    /// It is enabled if the logged in user is part of a paying team. The
+    /// server-side allowlist and killswitch that also drove it were removed
+    /// with the experiments module, which had no server to fetch from.
     CreatingSharedSessions,
 
     /// Enables the joining / viewing of shared sessions (_not_ creation).

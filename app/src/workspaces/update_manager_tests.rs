@@ -95,7 +95,6 @@ fn test_leaving_team_removes_objects() {
                 metadata: WorkspacesMetadataResponse {
                     workspaces: vec![],
                     joinable_teams: vec![],
-                    experiments: None,
                     feature_model_choices: None,
                     ai_credit_availability: None,
                     user_purchase_policy: None,
@@ -166,7 +165,6 @@ fn test_leaving_team_removes_objects() {
                     metadata: WorkspacesMetadataResponse {
                         workspaces: vec![],
                         joinable_teams: vec![],
-                        experiments: None,
                         feature_model_choices: None,
                         ai_credit_availability: None,
                         user_purchase_policy: None,
@@ -241,7 +239,6 @@ fn test_workspace_metadata_piggyback_feeds_ai_credit_availability() {
                 Ok(WorkspacesMetadataResponse {
                     workspaces: vec![],
                     joinable_teams: vec![],
-                    experiments: None,
                     feature_model_choices: None,
                     ai_credit_availability: Some(availability),
                     user_purchase_policy: None,
@@ -272,7 +269,6 @@ fn test_poll_path_apply_refreshes_user_purchase_policy() {
         let response_with_policy = WorkspacesMetadataResponse {
             workspaces: vec![],
             joinable_teams: vec![],
-            experiments: None,
             feature_model_choices: None,
             ai_credit_availability: None,
             user_purchase_policy: Some(PurchaseAddOnCreditsPolicy {
@@ -298,7 +294,6 @@ fn test_poll_path_apply_refreshes_user_purchase_policy() {
         let response_without_policy = WorkspacesMetadataResponse {
             workspaces: vec![],
             joinable_teams: vec![],
-            experiments: None,
             feature_model_choices: None,
             ai_credit_availability: None,
             user_purchase_policy: None,
