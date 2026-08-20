@@ -186,33 +186,6 @@ pub struct SnapshotFileInfo {
     pub mime_type: String,
 }
 
-/// Response from the upload-snapshot endpoint.
-///
-/// The `uploads` list is aligned by index with the [`SnapshotUploadRequest::files`]
-/// list in the request, so callers match each upload target back to the filename
-/// they requested by position. The server does not include filenames on the
-/// response entries — see the `UploadSnapshotResponse` schema in
-/// `warp-server`'s `public_api/openapi.yaml`.
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct SnapshotUploadResponse {
-    pub uploads: Vec<UploadTarget>,
-}
-
-#[derive(serde::Serialize)]
-struct CreateExternalConversationRequest {
-    format: String,
-}
-
-#[derive(serde::Deserialize)]
-struct CreateExternalConversationResponse {
-    conversation_id: String,
-}
-
-#[derive(serde::Serialize)]
-struct GetUploadTargetRequest {
-    conversation_id: String,
-}
-
 /// Skill attached to a resolve-prompt request,
 /// used when invoking a third-party harness with a skill
 /// via the CLI.
@@ -253,43 +226,6 @@ pub struct ResolvedHarnessPrompt {
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct ReportArtifactResponse {
     pub artifact_uid: String,
-}
-
-#[derive(serde::Serialize)]
-struct NotifyUserRequest {
-    message: String,
-}
-
-#[derive(serde::Serialize)]
-struct FinishTaskRequest {
-    success: bool,
-    summary: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-struct ShutdownError {
-    category: String,
-    message: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub(crate) struct ReportShutdownRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<ShutdownError>,
-}
-
-impl ReportShutdownRequest {
-    /// A clean shutdown with no error payload.
-    pub fn clean() -> Self {
-        Self { error: None }
-    }
-
-    /// An abnormal shutdown carrying an error category and message.
-    pub fn abnormal(category: String, message: String) -> Self {
-        Self {
-            error: Some(ShutdownError { category, message }),
-        }
-    }
 }
 
 /// Trait for API endpoints used to support third-party agent harnesses in Oz.
@@ -436,135 +372,71 @@ impl ServerApi {
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 impl HarnessSupportClient for ServerApi {
-    async fn create_external_conversation(&self, format: &str) -> Result<AIConversationId> {
-        let response: CreateExternalConversationResponse = self
-            .post_public_api(
-                "harness-support/external-conversation",
-                &CreateExternalConversationRequest {
-                    format: format.to_string(),
-                },
-            )
-            .await?;
-
-        AIConversationId::try_from(response.conversation_id)
-            .context("Server returned an invalid conversation ID")
+    async fn create_external_conversation(&self, _format: &str) -> Result<AIConversationId> {
+        Err(crate::server::server_api::local_only_error())
     }
 
     async fn get_transcript_upload_target(
         &self,
-        conversation_id: &AIConversationId,
+        _conversation_id: &AIConversationId,
     ) -> Result<UploadTarget> {
-        self.post_public_api(
-            "harness-support/transcript",
-            &GetUploadTargetRequest {
-                conversation_id: conversation_id.to_string(),
-            },
-        )
-        .await
+        Err(crate::server::server_api::local_only_error())
     }
 
     async fn get_block_snapshot_upload_target(
         &self,
-        conversation_id: &AIConversationId,
+        _conversation_id: &AIConversationId,
     ) -> Result<UploadTarget> {
-        self.post_public_api(
-            "harness-support/block-snapshot",
-            &GetUploadTargetRequest {
-                conversation_id: conversation_id.to_string(),
-            },
-        )
-        .await
+        Err(crate::server::server_api::local_only_error())
     }
 
-    async fn resolve_prompt(&self, request: ResolvePromptRequest) -> Result<ResolvedHarnessPrompt> {
-        self.post_public_api("harness-support/resolve-prompt", &request)
-            .await
+    async fn resolve_prompt(
+        &self,
+        _request: ResolvePromptRequest,
+    ) -> Result<ResolvedHarnessPrompt> {
+        Err(crate::server::server_api::local_only_error())
     }
 
-    async fn report_artifact(&self, artifact: &Artifact) -> Result<ReportArtifactResponse> {
-        self.post_public_api("harness-support/report-artifact", artifact)
-            .await
+    async fn report_artifact(&self, _artifact: &Artifact) -> Result<ReportArtifactResponse> {
+        Err(crate::server::server_api::local_only_error())
     }
 
-    async fn notify_user(&self, message: &str) -> Result<()> {
-        self.post_public_api_unit(
-            "harness-support/notify-user",
-            &NotifyUserRequest {
-                message: message.to_string(),
-            },
-        )
-        .await
+    async fn notify_user(&self, _message: &str) -> Result<()> {
+        Err(crate::server::server_api::local_only_error())
     }
 
-    async fn finish_task(&self, success: bool, summary: &str) -> Result<()> {
-        self.post_public_api_unit(
-            "harness-support/finish-task",
-            &FinishTaskRequest {
-                success,
-                summary: summary.to_string(),
-            },
-        )
-        .await
+    async fn finish_task(&self, _success: bool, _summary: &str) -> Result<()> {
+        Err(crate::server::server_api::local_only_error())
     }
 
     async fn report_clean_shutdown(&self) -> Result<()> {
-        self.post_public_api_unit(
-            "harness-support/report-shutdown",
-            &ReportShutdownRequest::clean(),
-        )
-        .await
+        Err(crate::server::server_api::local_only_error())
     }
 
     async fn report_error_shutdown(
         &self,
-        error_category: String,
-        error_message: String,
+        _error_category: String,
+        _error_message: String,
     ) -> Result<()> {
-        self.post_public_api_unit(
-            "harness-support/report-shutdown",
-            &ReportShutdownRequest::abnormal(error_category, error_message),
-        )
-        .await
+        Err(crate::server::server_api::local_only_error())
     }
 
     async fn get_snapshot_upload_targets(
         &self,
-        request: &SnapshotUploadRequest,
+        _request: &SnapshotUploadRequest,
     ) -> Result<Vec<UploadTarget>> {
-        let response: SnapshotUploadResponse = self
-            .post_public_api("harness-support/upload-snapshot", request)
-            .await?;
-        Ok(response.uploads)
+        Err(crate::server::server_api::local_only_error())
     }
 
     async fn commit_snapshot(
         &self,
-        request: &CommitSnapshotRequest,
+        _request: &CommitSnapshotRequest,
     ) -> Result<CommitSnapshotResponse> {
-        self.post_public_api("harness-support/commit-snapshot", request)
-            .await
+        Err(crate::server::server_api::local_only_error())
     }
 
     async fn fetch_transcript(&self) -> Result<bytes::Bytes> {
-        #[cfg(not(target_family = "wasm"))]
-        {
-            with_bounded_retry("fetch harness-support transcript", || async {
-                let response = self
-                    .get_public_api_response("harness-support/transcript")
-                    .await?;
-                response
-                    .bytes()
-                    .await
-                    .context("Failed to read harness-support transcript body")
-            })
-            .await
-        }
-        #[cfg(target_family = "wasm")]
-        {
-            unreachable!(
-                "fetch_transcript is not supported on wasm; agent_sdk is not built on this target"
-            );
-        }
+        Err(crate::server::server_api::local_only_error())
     }
 
     fn http_client(&self) -> &http_client::Client {

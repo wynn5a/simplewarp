@@ -137,29 +137,3 @@ fn external_reference_artifact_round_trips() {
     let deserialized: Artifact = serde_json::from_value(json).unwrap();
     assert_eq!(artifact, deserialized);
 }
-
-#[test]
-fn report_shutdown_clean_serializes_without_error() {
-    use super::ReportShutdownRequest;
-
-    let request = ReportShutdownRequest::clean();
-    let json = serde_json::to_value(&request).unwrap();
-    assert_eq!(json, serde_json::json!({}));
-}
-
-#[test]
-fn report_shutdown_abnormal_serializes_with_error() {
-    use super::ReportShutdownRequest;
-
-    let request = ReportShutdownRequest::abnormal("oom".to_string(), "out of memory".to_string());
-    let json = serde_json::to_value(&request).unwrap();
-    assert_eq!(
-        json,
-        serde_json::json!({
-            "error": {
-                "category": "oom",
-                "message": "out of memory"
-            }
-        })
-    );
-}

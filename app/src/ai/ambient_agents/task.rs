@@ -156,15 +156,6 @@ pub enum ExecutionLocation {
     Remote,
 }
 
-impl ExecutionLocation {
-    pub(crate) fn as_query_param(self) -> &'static str {
-        match self {
-            ExecutionLocation::Local => "LOCAL",
-            ExecutionLocation::Remote => "REMOTE",
-        }
-    }
-}
-
 fn deserialize_ambient_agent_source<'de, D>(
     deserializer: D,
 ) -> Result<Option<AgentSource>, D::Error>

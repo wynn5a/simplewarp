@@ -1,8 +1,6 @@
 pub mod ai;
 pub mod auth;
 pub mod block;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) mod download;
 pub mod factory;
 pub mod harness_support;
 pub mod integrations;
@@ -19,7 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ai::AIClient;
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use auth::AuthClient;
 use block::BlockClient;
 use channel_versions::ChannelVersions;
@@ -525,84 +523,6 @@ impl ServerApi {
         _run_ids: &[String],
         _since_sequence: i64,
     ) -> Result<http_client::EventSourceStream> {
-        Err(local_only_error())
-    }
-
-    /// Sends a POST request to a public API endpoint and returns the raw response on success.
-    async fn post_public_api_response<B>(
-        &self,
-        _path: &str,
-        _body: &B,
-    ) -> Result<http_client::Response>
-    where
-        B: Serialize,
-    {
-        Err(local_only_error())
-    }
-
-    /// Sends a POST request to a public API endpoint.
-    ///
-    /// # Arguments
-    /// * `path` - Endpoint path relative to `/api/v1` (e.g., "agent/run")
-    /// * `body` - Request body to serialize as JSON
-    async fn post_public_api<B, R>(&self, path: &str, body: &B) -> Result<R>
-    where
-        B: Serialize,
-        R: serde::de::DeserializeOwned,
-    {
-        let response = self.post_public_api_response(path, body).await?;
-        let url = response.url().clone();
-        response
-            .json::<R>()
-            .await
-            .with_context(|| format!("Failed to deserialize response from {url}"))
-    }
-
-    /// Sends a PUT request to a public API endpoint and returns the raw response on success.
-    async fn put_public_api_response<B>(
-        &self,
-        _path: &str,
-        _body: &B,
-    ) -> Result<http_client::Response>
-    where
-        B: Serialize,
-    {
-        Err(local_only_error())
-    }
-
-    /// Sends a PUT request to a public API endpoint.
-    async fn put_public_api<B, R>(&self, path: &str, body: &B) -> Result<R>
-    where
-        B: Serialize,
-        R: serde::de::DeserializeOwned,
-    {
-        let response = self.put_public_api_response(path, body).await?;
-        let url = response.url().clone();
-        response
-            .json::<R>()
-            .await
-            .with_context(|| format!("Failed to deserialize response from {url}"))
-    }
-
-    /// Sends a POST request to a public API endpoint that returns no response body.
-    async fn post_public_api_unit<B>(&self, path: &str, body: &B) -> Result<()>
-    where
-        B: Serialize,
-    {
-        self.post_public_api_response(path, body).await?;
-        Ok(())
-    }
-
-    /// Sends a DELETE request to a public API endpoint that returns no response body.
-    async fn delete_public_api_unit(&self, _path: &str) -> Result<()> {
-        Err(local_only_error())
-    }
-
-    /// Sends a PATCH request to a public API endpoint that returns no response body.
-    async fn patch_public_api_unit<B>(&self, _path: &str, _body: &B) -> Result<()>
-    where
-        B: Serialize,
-    {
         Err(local_only_error())
     }
 
