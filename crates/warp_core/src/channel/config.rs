@@ -54,6 +54,23 @@ pub struct WarpServerConfig {
 }
 
 impl WarpServerConfig {
+    /// The configuration for a build that must never reach Warp's servers.
+    ///
+    /// The URLs are syntactically valid — callers parse them, and some `expect`
+    /// that the parse succeeds — but `.invalid` is reserved by RFC 2606 and can
+    /// never resolve. So a request that escapes a deleted guard fails in DNS
+    /// with SimpleWarp's own name in the error, instead of quietly reaching
+    /// Warp. There is no Firebase key to ship, and no session sharing.
+    pub fn local_only() -> Self {
+        Self {
+            server_root_url: "https://server.simplewarp.invalid".into(),
+            rtc_server_url: "wss://rtc.simplewarp.invalid/graphql/v2".into(),
+            session_sharing_server_url: None,
+            firebase_auth_api_key: "".into(),
+            iap_config: None,
+        }
+    }
+
     pub fn production() -> Self {
         Self {
             server_root_url: "https://app.warp.dev".into(),
@@ -77,6 +94,14 @@ pub struct OzConfig {
 }
 
 impl OzConfig {
+    /// See [`WarpServerConfig::local_only`].
+    pub fn local_only() -> Self {
+        Self {
+            oz_root_url: "https://oz.simplewarp.invalid".into(),
+            workload_audience_url: None,
+        }
+    }
+
     pub fn production() -> Self {
         Self {
             oz_root_url: "https://oz.warp.dev".into(),
