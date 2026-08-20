@@ -605,10 +605,145 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `simplewarp` binary are clean. The diesel models in `crates/persistence` and the
    `server_experiments` table are left in place; nothing writes them now.
 
+3c. **The channel config points at hosts that cannot resolve — DONE.** Locality rested on
+   every call site being guarded or deleted, while the binary still carried
+   `https://app.warp.dev`, two `wss://` endpoints, `https://oz.warp.dev`, and Warp's Firebase
+   API key. The startup log printed all of them. The comment above the config called it "only a
+   placeholder" — the kind of claim that stops being true without anyone noticing.
+
+   `WarpServerConfig::local_only` and `OzConfig::local_only` now use RFC 2606 `.invalid`
+   hostnames. They parse, which matters because callers parse them and some `expect` the parse
+   to succeed, but they can never resolve. A request that escapes a deleted guard fails in DNS
+   naming SimpleWarp instead of quietly reaching Warp. Session sharing is `None`, and there is
+   no Firebase key to ship.
+
+   This is the belt to the deletions' braces: locality becomes structural rather than a
+   property that has to hold at ~20 call sites.
+
+   Acceptance: the running build made **zero outbound TCP connections in 15.5 hours** of
+   uptime, with zero errors and zero panics. 6404 app tests and 46 `warp_core` tests pass;
+   check, clippy, and format are clean.
+
+3d. **The referral system — DONE.** ~2,100 lines. Referrals unlocked two bonus themes by
+   inviting other people to Warp, and every part needed an account: the status model queried
+   `ReferralsClient` on startup, the reward modal fired when the server confirmed an unlock,
+   and the settings page showed the invite link. With no account nothing can unlock.
+
+   Phase 2 hid the Referrals *settings page* and its palette command, but left five entry
+   points: an "Invite a friend to Warp" button in the resource center, "Invite a friend" in the
+   user menu, an "Earn rewards" widget on the settings main page, and an "Invite People..."
+   palette binding.
+
+   **The palette binding carried `CustomAction::ReferAFriend` — the Phase 2 crash waiting to
+   happen again.** Removing a binding while `app_menus.rs` still lists an item with the same
+   action leaves `default_name` with nothing to find, and its `debug_assert!` kills the app
+   about twenty seconds into launch. The binding, the menu item, and the `CustomAction` variant
+   have to go together. **Whenever a gated or deleted binding has a `CustomAction`, grep
+   `app_menus.rs` for that action in the same change.**
+
+   The two referral themes are filtered out of the theme chooser unconditionally, which is what
+   the referral-status check already produced with no server. `ThemeKind::SentReferralReward`
+   and its serde alias stay, so an existing settings file that names one still parses.
+
+   Acceptance: 6399 app tests pass; check, clippy, format, and the `simplewarp` binary clean.
+
+3e. **Every warp-server request fails locally — DONE.** The seam is not the 381 call sites that
+   reach for a client, nor the ~20 client traits: it is the 22 transport primitives they all
+   funnel through — `send_graphql_request`, the public-API post/put/delete/patch helpers, the
+   three agent-event SSE streams, `server_time`, `fetch_channel_versions`, `transcribe`, the AI
+   suggestion calls, and four methods in `harness_support`, `block`, and `ai` that built their
+   own requests instead of going through a primitive.
+
+   Each returns an immediate local error and never constructs a request. No path under
+   `app/src/server/` reaches `http_client()` any more, except telemetry, which posts to
+   Rudderstack rather than warp-server and is its own step.
+
+   This is the counterpart to 3c. That change made traffic impossible; this one makes it
+   legible — a caller gets "SimpleWarp is a local-only build" at once instead of waiting on a
+   DNS failure. It applies to **every** feature set, not only `simplewarp`: this fork has no
+   reason to keep a build that can talk to Warp, and cfg-gating the primitives would be work to
+   undo when the cloud modules go.
+
+   Dead transport made the layer above it provably dead, and the compiler listed it:
+   `error_from_response` and its 5 tests, `ambient_agent_headers` and
+   `ambient_agent_headers_for_task`, the server-time cache, `AgentTipShownAnalyticsRequest`,
+   `TimeResponse`, and the at-capacity error code. **The cascade stops at `base_client`**;
+   taking that out means taking `warp_server_client` with it, which is step 4.
+
+   Acceptance: 6393 app tests pass, including the mock-server tests in `ai_tests` and
+   `presigned_upload_tests`, which exercise request building and response parsing directly
+   rather than through the primitives.
+
+3f. **The request-building code behind the client traits — DONE.** ~5,300 lines. With the
+   primitives failing, the 165 methods in the ten `impl ... for ServerApi` blocks were building
+   GraphQL operations and HTTP requests only to hand them to a function that returns an error.
+   Each now returns that error directly.
+
+   **The trait surfaces stay**, because 381 call sites are typed against them, and so do the
+   types in their signatures — which is why `warp_graphql` survives this step and goes in step
+   4. Deleting the bodies made a second layer provably dead: the seven public-API helpers on
+   `ServerApi`, 21 request/response structs, 19 URL builders and GraphQL converters,
+   `app/src/server/graphql/schema/` and `server_api/download.rs` (both left holding nothing but
+   imports), and 24 tests of URL construction and response deserialisation.
+
+   Three tooling lessons, each of which cost time:
+
+   | Symptom | Cause |
+   | --- | --- |
+   | `cargo fix --lib` dropped `ServerIdAndType` from the `server::ids` re-export | No *library* code used it; seven test files did. **Verify any auto-fix pass with `--all-targets`, not `--lib`.** |
+   | A `#[tracing::instrument(fields(?task_state, …))]` attribute stopped compiling | `cargo fix --broken-code` renamed the unused parameters it named. The stubbed method has nothing left to trace, so the fields went rather than the rename being reverted. |
+   | A block of `E0614 cannot be dereferenced` in `ai_tests` looked like damage to the `Artifact` enum | **One unresolved name in a `use {…}` list poisons every name in it**, so `Artifact` stopped resolving and its match bindings took error types. Trimming the import list fixed all of them; `git diff` on the enum was the check that ruled out real damage. |
+
+   Acceptance: 6369 app tests pass (24 fewer — the deleted builders' own tests); check across
+   the workspace, clippy, format, and the `simplewarp` binary clean.
+
+3g. **The resource center and the changelog — DONE.** Both were server-fed: `ChangelogModel`
+   fetched release notes through `ServerApiProvider` and the resource center rendered them, so
+   with no server neither could ever show anything. Gone with them: the changelog user
+   preference, the `changelog` and `oz_changelog_updates` cargo features and their two feature
+   flags, the App-menu items, the two bindings and two `CustomAction`s, the `/changelog` slash
+   command, the `surface.resource_center.toggle` warpctrl action, and the "Latest updates"
+   section of the agent-view zero state, which read the same model.
+
+   `Tip`, `TipHint`, `TipAction`, and `TipsCompleted` moved to `app/src/tips`, beside the
+   `WelcomeTipFeature` they belong with — a TODO in that file asked for exactly this move.
+
+   **A file's name is not evidence of what reads it.** `app/src/command_palette.rs` held
+   `PRIORITIZED_KEYBINDINGS`, whose doc comment says it orders the top of the command palette.
+   Its only reader was the resource center's keybindings page, so the file went and the palette
+   is untouched. `git grep` on the constant, not on the file name, is what settled it.
+
+   **Two settings outlived the section they controlled**, so the Warp Agent page kept a toggle
+   that changed nothing: `should_show_oz_updates_in_zero_state` and `should_expand_oz_updates`,
+   with the toggle, its binding pair, and a `Show_Oz_Updates_In_Zero_State` context flag that
+   was set but never read. Deleting a UI section means auditing the settings that fed it —
+   the compiler is happy to keep a live toggle wired to nothing.
+
+   Three test fixes, two of them older breakage that this step was the first to expose, because
+   it was the first change since to compile those crates:
+
+   | Test | Fix |
+   | --- | --- |
+   | `crates/integration` did not build at all | `SettingsSection::Referrals` went with 3d. The fixture DB still names that page, so the test now asserts the `load_pane_contents` fallback: an unknown persisted page decodes to the enum default instead of failing the restore. |
+   | `warp_cli` asserted the `resource-center` completion group **exists** | It now asserts it is absent, matching how `history` and `share-to-team` are already pinned. |
+   | `local_control` pinned 84 retained actions | 83, and `surface.resource_center.toggle` joins the names that must no longer deserialize. |
+
+   Acceptance: 6364 app tests and 264 across `warp_cli`, `warp_features`, and `local_control`
+   pass. `cargo check --all-targets -p warp -p integration`, clippy, format, and the
+   `simplewarp` binary are clean. Not re-run in the app.
+
+   `crates/channel_versions` still has an `oz_updates` field. It mirrors the shape of a remote
+   JSON file, so an unread field there is not dead code in the same sense; it stays.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, `warp_multi_agent_client`.
-5. The `FeatureFlag` variants that are no longer in use. **16 removed; more remain behind the
-   module deletions above.**
+
+   Steps 3e and 3f name the two conditions for starting this: the dead-code cascade stops at
+   `base_client`, so `warp_server_client` is the first crate to go, and `warp_graphql` cannot
+   go until the client traits themselves do, because their signatures still use its types.
+5. The `FeatureFlag` variants that are no longer in use. **16 removed in one sweep, plus
+   `Changelog` and `OzChangelogUpdates` with step 3g; more remain behind the module deletions
+   above.**
 
    Of 292 variants, 16 had no `FeatureFlag::X` reference anywhere outside their own declaration:
    `WelcomeTips`, `ThinStrokes`, `WelcomeBlock`, `CloudObjects`,
@@ -647,9 +782,16 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
 - [x] Phase 3: the `local_inference` crate is written, tested, wired in, and verified by a
       real conversation in the app.
 - [ ] Phase 3b: a built-in model list, MCP tool support.
-- [ ] Phase 4: the cloud crates and the TUI are removed. **The TUI is fully gone** (steps 1, 1b,
-      and 1c): the front-end, its rendering engine, and every surface marker — ~120k lines and the
-      `ratatui` dependency. The cloud crates remain (steps 2–5).
+- [ ] Phase 4: the cloud crates and the TUI are removed.
+      - [x] **The TUI is fully gone** (1, 1b, 1c): the front-end, its rendering engine, and every
+            surface marker — ~120k lines and the `ratatui` dependency.
+      - [x] **The features that only a server could answer are gone**: billing (2), experiments
+            (3b), referrals (3d), the resource center and changelog (3g) — and with 3c, 3e, and
+            3f the app can no longer build, let alone send, a warp-server request. ~9k further
+            lines.
+      - [ ] **The cloud crates remain** (4), and so do the three modules that are refactors
+            rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), plus `drive`
+            (2). The remaining dead `FeatureFlag` variants fall out of those (5).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
