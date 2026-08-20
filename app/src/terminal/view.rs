@@ -341,9 +341,6 @@ use crate::projects::ProjectManagementModel;
 use crate::remote_server::manager::{
     RemoteServerInitPhase, RemoteServerManager, RemoteServerManagerEvent,
 };
-use crate::resource_center::{
-    Tip, TipHint, TipsCompleted, mark_feature_used_and_write_to_user_defaults,
-};
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ObjectUid, SyncId};
@@ -517,6 +514,7 @@ use crate::terminal::{
 };
 use crate::themes::theme::WarpTheme;
 use crate::throttle::throttle;
+use crate::tips::{Tip, TipHint, TipsCompleted, mark_feature_used_and_write_to_user_defaults};
 use crate::ui_components::icons::{self};
 use crate::util::bindings::{
     CustomAction, custom_tag_to_keystroke, keybinding_name_to_display_string,

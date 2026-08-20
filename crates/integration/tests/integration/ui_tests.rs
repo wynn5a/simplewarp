@@ -29,8 +29,6 @@ integration_tests! {
     test_text_input_on_block_list,
     #[ignore = "Affected by agent_view feature flag UI changes"]
     test_text_input_on_block_list_while_composing,
-    #[ignore]
-    test_open_and_close_resource_center,
     test_open_and_close_context_menu_with_keybinding,
     test_open_and_close_settings,
     #[ignore = "Affected by agent_view feature flag UI changes"]

@@ -18,9 +18,9 @@ fn test_keybinding_name_to_display_string() {
                 )
                 .with_key_binding("cmd-,"),
                 EditableBinding::new(
-                    "workspace:toggle_resource_center",
-                    "Toggle Resource Center",
-                    WorkspaceAction::ToggleResourceCenter,
+                    "workspace:toggle_warp_drive",
+                    "Toggle Warp Drive",
+                    WorkspaceAction::ToggleWarpDrive,
                 ),
             ]);
 
@@ -36,7 +36,7 @@ fn test_keybinding_name_to_display_string() {
 
             assert_eq!(
                 None,
-                keybinding_name_to_display_string("workspace:toggle_resource_center", ctx)
+                keybinding_name_to_display_string("workspace:toggle_warp_drive", ctx)
             );
 
             ctx.set_custom_trigger(
@@ -55,7 +55,7 @@ fn test_keybinding_name_to_display_string() {
             );
 
             ctx.set_custom_trigger(
-                "workspace:toggle_resource_center".to_owned(),
+                "workspace:toggle_warp_drive".to_owned(),
                 Trigger::Keystrokes(vec![Keystroke::parse("cmd-alt-/").unwrap()]),
             );
 
@@ -66,8 +66,7 @@ fn test_keybinding_name_to_display_string() {
             };
             assert_eq!(
                 Some(expected_keybinding),
-                keybinding_name_to_display_string("workspace:toggle_resource_center", ctx)
-                    .as_deref()
+                keybinding_name_to_display_string("workspace:toggle_warp_drive", ctx).as_deref()
             );
         });
     });

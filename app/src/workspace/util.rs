@@ -26,7 +26,6 @@ pub(super) struct WorkspaceMouseStates {
     pub(super) banner_button: MouseStateHandle,
     pub(super) banner_secondary_button: MouseStateHandle,
     pub(super) more_info_banner_button: MouseStateHandle,
-    pub(super) resource_center_icon: MouseStateHandle,
     pub(super) ai_tab_bar_button: MouseStateHandle,
     pub(super) agent_management_view_button: MouseStateHandle,
     pub(super) left_panel_icon: MouseStateHandle,
@@ -85,10 +84,8 @@ pub struct WorkspaceState {
     pub is_theme_chooser_open: bool,
     pub is_theme_creator_modal_open: bool,
     pub is_theme_deletion_modal_open: bool,
-    pub is_changelog_modal_open: bool,
     pub is_tab_being_dragged: bool,
     pub is_launch_config_save_modal_open: bool,
-    pub is_resource_center_open: bool,
     pub is_command_search_open: bool,
     pub is_warp_drive_open: bool,
     pub is_ai_assistant_panel_open: bool,
@@ -136,7 +133,6 @@ impl WorkspaceState {
     pub fn is_any_non_palette_modal_open(&self, app: &AppContext) -> bool {
         self.is_theme_creator_modal_open
             || self.is_theme_deletion_modal_open
-            || self.is_changelog_modal_open
             || self.tab_being_renamed.is_some()
             || self.pane_being_renamed.is_some()
             || self.tab_group_being_renamed.is_some()
@@ -176,7 +172,6 @@ impl WorkspaceState {
         self.is_ctrl_tab_palette_open = false;
         self.is_theme_creator_modal_open = false;
         self.is_theme_deletion_modal_open = false;
-        self.is_changelog_modal_open = false;
         self.tab_being_renamed = None;
         self.pane_being_renamed = None;
         self.tab_group_being_renamed = None;
@@ -202,7 +197,7 @@ impl WorkspaceState {
     }
 
     pub fn is_right_panel_open(&self) -> bool {
-        self.is_resource_center_open || self.is_ai_assistant_panel_open
+        self.is_ai_assistant_panel_open
     }
 
     pub fn is_left_panel_open(&self) -> bool {

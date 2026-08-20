@@ -1520,9 +1520,6 @@ pub enum TelemetryEvent {
     SetLineHeight {
         new_value: f32,
     },
-    ResourceCenterOpened,
-    ResourceCenterTipsCompleted,
-    ResourceCenterTipsSkipped,
     KeybindingsPageOpened,
     CommandSearchOpened {
         has_initial_query: bool,
@@ -4056,9 +4053,6 @@ impl TelemetryEvent {
             | TelemetryEvent::ToggleApprovalsModal
             | TelemetryEvent::ChangedInviteViewOption(_)
             | TelemetryEvent::SendEmailInvites
-            | TelemetryEvent::ResourceCenterOpened
-            | TelemetryEvent::ResourceCenterTipsCompleted
-            | TelemetryEvent::ResourceCenterTipsSkipped
             | TelemetryEvent::KeybindingsPageOpened
             | TelemetryEvent::OpenedAltScreenFind
             | TelemetryEvent::QuitModalDisabled
@@ -4839,9 +4833,6 @@ impl TelemetryEvent {
             | TelemetryEvent::ChangedInviteViewOption(_)
             | TelemetryEvent::SendEmailInvites
             | TelemetryEvent::SetLineHeight { .. }
-            | TelemetryEvent::ResourceCenterOpened
-            | TelemetryEvent::ResourceCenterTipsCompleted
-            | TelemetryEvent::ResourceCenterTipsSkipped
             | TelemetryEvent::KeybindingsPageOpened
             | TelemetryEvent::GlobalSearchOpened
             | TelemetryEvent::GlobalSearchQueryStarted
@@ -5378,9 +5369,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ChangedInviteViewOption => EnablementState::Always,
             Self::SendEmailInvites => EnablementState::Always,
             Self::SetLineHeight => EnablementState::Always,
-            Self::ResourceCenterOpened => EnablementState::Always,
-            Self::ResourceCenterTipsCompleted => EnablementState::Always,
-            Self::ResourceCenterTipsSkipped => EnablementState::Always,
             Self::KeybindingsPageOpened => EnablementState::Always,
             Self::GlobalSearchOpened => EnablementState::Always,
             Self::GlobalSearchQueryStarted => EnablementState::Always,
@@ -5855,9 +5843,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::LogOut => "Log Out",
             Self::SelectNavigationPaletteItem => "Select Navigation Palette Item",
             Self::SetLineHeight => "Set Line Height",
-            Self::ResourceCenterOpened => "Resource Center Opened",
-            Self::ResourceCenterTipsCompleted => "Resource Center Tips Completed",
-            Self::ResourceCenterTipsSkipped => "Resource Center Tips Skipped",
             Self::KeybindingsPageOpened => "Resource Center Keybindings Page Opened",
             Self::GlobalSearchOpened => "Global Search Opened",
             Self::GlobalSearchQueryStarted => "Global Search Query Started",
@@ -6457,9 +6442,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ChangedInviteViewOption => "Toggled between link and invite for invite",
             Self::SendEmailInvites => "Sent email invites for Warp Drive team",
             Self::SetLineHeight => "Set line height through Settings -> Appearance",
-            Self::ResourceCenterOpened => "Opened Resource Center pane",
-            Self::ResourceCenterTipsCompleted => "Completed resource center tips",
-            Self::ResourceCenterTipsSkipped => "Skipped welcome tips for new users",
             Self::KeybindingsPageOpened => "Opened the keybinding page within the resource center",
             Self::CommandSearchOpened => "Opened command search (universal search panel to search)",
             Self::CommandSearchExited => {

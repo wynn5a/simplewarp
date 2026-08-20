@@ -17,8 +17,8 @@ use warpui::{
 
 use super::WELCOME_TIP_FEATURE_LENGTH;
 use crate::appearance::Appearance;
-use crate::resource_center::{Tip, TipAction, TipsCompleted};
 use crate::themes::theme::{Blend, Fill};
+use crate::tips::{Tip, TipAction, TipsCompleted};
 use crate::util::bindings::trigger_to_keystroke;
 
 const CHECK_MARK_WIDTH: f32 = 20.;

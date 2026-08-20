@@ -107,7 +107,6 @@ impl LocalControlBridge {
             | ActionKind::SurfaceKeybindingsOpen
             | ActionKind::SurfaceWarpDriveOpen
             | ActionKind::SurfaceWarpDriveToggle
-            | ActionKind::SurfaceResourceCenterToggle
             | ActionKind::SurfaceAiAssistantToggle
             | ActionKind::SurfaceCodeReviewOpen
             | ActionKind::SurfaceCodeReviewToggle

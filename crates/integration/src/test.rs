@@ -2073,43 +2073,6 @@ pub fn test_add_and_close_session() -> Builder {
         )
 }
 
-pub fn test_open_and_close_resource_center() -> Builder {
-    new_builder()
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(
-            new_step_with_default_assertions("Click the resource center button to show the menu")
-                .with_hover_over_saved_position("resource_center_button")
-                .with_click_on_saved_position("resource_center_button")
-                .add_assertion(|app, window_id| {
-                    let views = app.views_of_type(window_id).expect("No workspace found");
-                    let workspace: &ViewHandle<Workspace> =
-                        views.first().expect("No workspace in views");
-                    let is_resource_center_showing =
-                        workspace.read(app, |workspace, _| workspace.is_resource_center_showing());
-                    async_assert!(
-                        is_resource_center_showing,
-                        "Expected resource center to be showing",
-                    )
-                }),
-        )
-        .with_step(
-            new_step_with_default_assertions("Click the resource center button to hide the menu")
-                .with_hover_over_saved_position("resource_center_button")
-                .with_click_on_saved_position("resource_center_button")
-                .add_assertion(|app, window_id| {
-                    let views = app.views_of_type(window_id).expect("No workspace found");
-                    let workspace: &ViewHandle<Workspace> =
-                        views.first().expect("No workspace in views");
-                    let is_resource_center_showing =
-                        workspace.read(app, |workspace, _| workspace.is_resource_center_showing());
-                    async_assert!(
-                        !is_resource_center_showing,
-                        "Expected resource center not to be showing",
-                    )
-                }),
-        )
-}
-
 pub fn test_add_many_sessions() -> Builder {
     let mut builder = new_builder().with_step(wait_until_bootstrapped_single_pane_for_tab(0));
     for i in 1..5 {

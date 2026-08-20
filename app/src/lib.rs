@@ -10,14 +10,12 @@ mod app_state;
 mod auth;
 mod autoupdate;
 mod banner;
-mod changelog_model;
 mod chip_configurator;
 mod cloud_object;
 mod code;
 mod code_review;
 mod coding_entrypoints;
 mod coding_panel_enablement_state;
-mod command_palette;
 mod completer;
 #[allow(dead_code)]
 mod context_chips;
@@ -118,7 +116,6 @@ pub mod integration_testing;
 pub mod keyboard;
 pub mod launch_configs;
 pub mod pane_group;
-pub mod resource_center;
 pub mod root_view;
 pub mod search;
 pub mod settings;
@@ -254,7 +251,6 @@ use crate::ai::skills::SkillManager;
 use crate::antivirus::AntivirusInfo;
 use crate::app_state::AppState;
 use crate::autoupdate::{AutoupdateState, RelaunchModel};
-use crate::changelog_model::ChangelogModel;
 use crate::cloud_object::model::actions::{ObjectAction, ObjectActions};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::CloudViewModel;
@@ -1903,7 +1899,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|_| DisplayCount(display_count));
 
     ctx.add_singleton_model(|_| RelaunchModel::new());
-    ctx.add_singleton_model(|_| ChangelogModel::new(server_api.clone()));
     ctx.add_singleton_model(|_| GitHubAuthNotifier::new());
     ctx.add_singleton_model(|_| NetworkStatus::new());
     ctx.add_singleton_model(|_| SystemStats::new());

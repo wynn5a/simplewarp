@@ -1,4 +1,3 @@
-mod changelog;
 mod channel_versions;
 #[cfg(target_os = "linux")]
 pub mod linux;
@@ -24,7 +23,6 @@ use warpui::windowing::state::ApplicationStage;
 use warpui::windowing::{self, WindowManager};
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity, ViewContext};
 
-pub use self::changelog::get_current_changelog;
 use self::channel_versions::fetch_channel_versions;
 use crate::channel::Channel;
 use crate::features::FeatureFlag;

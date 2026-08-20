@@ -409,10 +409,6 @@ pub enum SurfaceCommand {
     #[command(subcommand)]
     WarpDrive(SurfaceOpenToggleCommand),
 
-    /// Toggle the resource center.
-    #[command(subcommand)]
-    ResourceCenter(SurfaceToggleCommand),
-
     /// Toggle the AI assistant.
     #[command(subcommand)]
     AiAssistant(SurfaceToggleCommand),

@@ -157,14 +157,15 @@ fn malformed_and_removed_action_names_are_not_deserialized() {
         "drive.object.insert",
         "drive.object.share_to_team",
         "drive.workflow.run",
+        "surface.resource_center.toggle",
     ] {
         assert!(serde_json::from_value::<ActionKind>(serde_json::json!(action)).is_err());
     }
 }
 
 #[test]
-fn catalog_has_exactly_84_retained_actions() {
-    assert_eq!(ActionKind::ALL.len(), 84);
+fn catalog_has_exactly_83_retained_actions() {
+    assert_eq!(ActionKind::ALL.len(), 83);
 }
 
 #[test]

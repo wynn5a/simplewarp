@@ -313,18 +313,6 @@ pub const OPEN_SETTINGS_FILE: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub const CHANGELOG: StaticCommand = StaticCommand {
-    name: "/changelog",
-    description: "Open the latest changelog",
-    kind: SlashCommandKind::Changelog,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/book-open.svg",
-    },
-    availability: Availability::ALWAYS,
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-
 // Accepts an optional argument so that buffers like `/feedback some text` still parse to
 // this command (the trailing text is ignored on execution). Without this, typing any
 // argument after `/feedback` would fall through and be treated as plain input.
@@ -810,10 +798,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         && FeatureFlag::HOARemoteControl.is_enabled()
     {
         commands.push(REMOTE_CONTROL);
-    }
-
-    if FeatureFlag::Changelog.is_enabled() {
-        commands.push(CHANGELOG);
     }
 
     if FeatureFlag::AgentView.is_enabled() {

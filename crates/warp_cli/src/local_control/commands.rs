@@ -69,11 +69,6 @@ pub(super) fn run_surface_command(
                 output_format,
             ),
         },
-        SurfaceCommand::ResourceCenter(command) => run_surface_toggle_command(
-            command,
-            ActionKind::SurfaceResourceCenterToggle,
-            output_format,
-        ),
         SurfaceCommand::AiAssistant(command) => {
             run_surface_toggle_command(command, ActionKind::SurfaceAiAssistantToggle, output_format)
         }

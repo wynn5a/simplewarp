@@ -136,7 +136,6 @@ pub(crate) enum SurfaceDestination {
     ThemePicker,
     Keybindings,
     WarpDrive,
-    ResourceCenter,
     AiAssistant,
     CodeReview,
     ProjectExplorer,
@@ -156,7 +155,6 @@ impl SurfaceDestination {
         Self::ThemePicker,
         Self::Keybindings,
         Self::WarpDrive,
-        Self::ResourceCenter,
         Self::AiAssistant,
         Self::CodeReview,
         Self::ProjectExplorer,
@@ -176,7 +174,6 @@ impl SurfaceDestination {
             Self::ThemePicker => "theme_picker",
             Self::Keybindings => "keybindings",
             Self::WarpDrive => "warp_drive",
-            Self::ResourceCenter => "resource_center",
             Self::AiAssistant => "ai_assistant",
             Self::CodeReview => "code_review",
             Self::ProjectExplorer => "project_explorer",
@@ -310,8 +307,7 @@ pub(crate) fn surface_unavailable_reason(
         | SurfaceDestination::CommandPalette
         | SurfaceDestination::CommandSearch
         | SurfaceDestination::ThemePicker
-        | SurfaceDestination::Keybindings
-        | SurfaceDestination::ResourceCenter => None,
+        | SurfaceDestination::Keybindings => None,
         SurfaceDestination::WarpDrive if !WarpDriveSettings::is_warp_drive_enabled(ctx) => {
             Some("Warp Drive is disabled")
         }
