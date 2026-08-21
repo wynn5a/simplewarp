@@ -895,6 +895,49 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
 
    `AIRequestUsageModel` (44 files) and `PricingInfoModel` (20) stay: they are the `auth`-class
    question of what the app means with no request quota at all, not a deletion.
+
+4d. **Every AI request is allowed, and none are metered — DONE.** ~2,100 lines. The question 4c
+   left open is answered: **all requests go through, nothing is counted against an allowance.**
+
+   `has_any_ai_remaining` was the single gate. It asked warp-server whether the account had
+   credit, then fell back to a local derivation over base quota, bonus grants, overages,
+   pay-as-you-go, auto-reload and BYO keys. It returns `true`.
+
+   That collapsed a state machine. `PromptAlertState` had eight variants — six ways to be out of
+   credit plus the anonymous soft gate. Two survive: `NoConnection | NoAlert`. With no state
+   offering an action, `PromptAlertAction` went and `PromptAlertEvent` became **uninhabited**,
+   which the compiler then walked *upward*: both wrapper variants
+   (`AgentInputFooterEvent::PromptAlert`, `UniversalDeveloperInputButtonBarEvent::PromptAlert`),
+   their forwarding subscriptions, and `Input::handle_prompt_alert` are unreachable once the
+   payload cannot exist. **An uninhabited event type is a strong deletion tool: it makes every
+   handler along the chain provably dead.**
+
+   Also gone: `credit_availability.rs` and the `AICreditAvailability` GraphQL round trip,
+   `ServerAvailabilityState` with its refresh/reset lifecycle, the `ai_credit_availability`
+   field on the workspaces-metadata response, `AIClient::get_ai_credit_availability`, and the
+   prompt-suggestion banner's disabled tooltip and out-of-credits modal path.
+
+   **A quota error can still arrive — from the provider.** `RenderableAIError::QuotaLimit` stays,
+   but it used to offer a Warp subscribe CTA and, with no message, invent "your credit limit
+   resets on {date}" from `next_refresh_time`. It now shows what the provider said. A 429 from an
+   OpenAI-compatible endpoint is the only way it can fire.
+
+   Two deliberate boundaries. Bonus grants survive as *data* — they gate nothing, but deleting
+   the type means touching the workspace billing GraphQL conversion, which belongs with the
+   `workspaces` refactor. And the onboarding credit-purchase slide keeps its handler in
+   `crates/onboarding`; only the subscription that could reach it is removed.
+
+   33 tests went with their subject and 4 replaced them. The 30 `test_has_any_ai_remaining_*`
+   tests each described a way to *earn* the right to make a request; one test now pins the
+   guarantee instead. `prompt_alert_tests`' seven availability-to-alert mappings became three
+   tests saying no account state raises an alert and offline is the only blocker.
+
+   **A deleted variant strands its doc comment onto the next one** — the 4c lesson again, caught
+   by the same scan, twice. And `cargo fix -p warp --all-targets` *failed* here where `--lib`
+   succeeded: one more reason not to trust an auto-fix pass without re-checking.
+
+   Acceptance: 6268 app tests pass (38 fewer); check across the workspace *and* `-p integration`,
+   clippy, format, and the `simplewarp` binary clean. Not re-run in the app.
 5. The `FeatureFlag` variants that are no longer in use. **29 removed: 16 in the first sweep, 2
    with step 3g, and 11 in a second sweep. More remain behind the module deletions above.**
 
@@ -971,7 +1014,10 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
             in this fork ever set.
       - [x] **Billing, credits, and usage are gone from the UI** (4c): ~13,450 lines — the
             settings page, the buy-credits banner, the auto-reload modal, `/usage`, and every
-            route and binding that reached them. The two usage *models* remain.
+            route and binding that reached them.
+      - [x] **The request quota gates nothing** (4d): `has_any_ai_remaining` is `true`, the
+            credit-availability layer is gone, and the prompt alert is down to offline-or-nothing.
+            Every AI request is allowed and none are metered.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), plus `drive`
             (2). The remaining dead `FeatureFlag` variants fall out of those (5).
