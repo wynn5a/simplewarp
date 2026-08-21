@@ -46,6 +46,7 @@ use warpui::{AddSingletonModel, App, WindowId};
 use warpui_extras::user_preferences;
 
 use super::*;
+use crate::ai::AIRequestUsageModel;
 use crate::ai::llms::LLMModelHost;
 use crate::auth::AuthManager;
 use crate::cloud_object::model::persistence::CloudModel;
@@ -217,7 +218,6 @@ fn test_loading_all_spaces_after_switching_from_offline() {
                         workspaces: vec![],
                         joinable_teams: vec![],
                         feature_model_choices: None,
-                        ai_credit_availability: None,
                         user_purchase_policy: None,
                     },
                     pricing_info: None,
@@ -235,7 +235,6 @@ fn test_loading_all_spaces_after_switching_from_offline() {
                         workspaces: vec![workspace.clone()],
                         joinable_teams: vec![],
                         feature_model_choices: None,
-                        ai_credit_availability: None,
                         user_purchase_policy: None,
                     },
                     pricing_info: None,
@@ -374,7 +373,6 @@ fn test_aws_bedrock_credentials_respect_user_setting() {
                 workspaces: vec![workspace_for_poll.clone()],
                 joinable_teams: vec![],
                 feature_model_choices: None,
-                ai_credit_availability: None,
                 user_purchase_policy: None,
             },
             pricing_info: None,
@@ -431,7 +429,6 @@ fn test_aws_bedrock_credentials_enforced_by_admin() {
                 workspaces: vec![workspace_for_poll.clone()],
                 joinable_teams: vec![],
                 feature_model_choices: None,
-                ai_credit_availability: None,
                 user_purchase_policy: None,
             },
             pricing_info: None,
@@ -1828,7 +1825,6 @@ fn test_remove_user_from_team_success_emits_success_event_and_refreshes_members(
                         workspaces: vec![updated_workspace.clone()],
                         joinable_teams: vec![],
                         feature_model_choices: None,
-                        ai_credit_availability: None,
                         user_purchase_policy: None,
                     },
                     pricing_info: None,

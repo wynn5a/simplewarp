@@ -18,6 +18,7 @@ use warp_multi_agent_api::ConversationData;
 
 use super::ServerApi;
 use super::harness_support::{UploadField, UploadTarget};
+use crate::ai::RequestUsageInfo;
 pub use crate::ai::agent::UserQueryMode;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{
@@ -41,7 +42,6 @@ use crate::ai::llms::{
 };
 #[cfg(feature = "agent_mode_evals")]
 use crate::ai::request_usage_model::RequestLimitInfo;
-use crate::ai::{AICreditAvailability, RequestUsageInfo};
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::ai_assistant::requests::GenerateDialogueResult;
 use crate::ai_assistant::utils::TranscriptPart;
@@ -859,10 +859,6 @@ pub trait AIClient: 'static + Send + Sync {
 
     async fn get_request_limit_info(&self) -> Result<RequestUsageInfo, anyhow::Error>;
 
-    /// Fetches the server-authoritative decision on whether the authenticated
-    /// user can start an interactive AI request.
-    async fn get_ai_credit_availability(&self) -> Result<AICreditAvailability, anyhow::Error>;
-
     /// Returns conversation usage history for the current user over the requested number of days.
     ///
     /// If `last_updated_end_timestamp` is provided, only conversations updated before that timestamp are returned.
@@ -1324,16 +1320,6 @@ impl AIClient for ServerApi {
 
     #[cfg(not(feature = "agent_mode_evals"))]
     async fn get_request_limit_info(&self) -> Result<RequestUsageInfo, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    #[cfg(feature = "agent_mode_evals")]
-    async fn get_ai_credit_availability(&self) -> Result<AICreditAvailability, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    #[cfg(not(feature = "agent_mode_evals"))]
-    async fn get_ai_credit_availability(&self) -> Result<AICreditAvailability, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 

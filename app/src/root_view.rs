@@ -45,7 +45,6 @@ use crate::ai::onboarding::{
     build_onboarding_models, current_onboarding_auth_state, onboarding_credit_packs,
     onboarding_pricing_promotion_message,
 };
-use crate::ai::request_usage_model::AIRequestUsageModelEvent;
 use crate::app_state::{AppState, PaneUuid, WindowSnapshot};
 use crate::appearance::Appearance;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
@@ -191,9 +190,6 @@ fn handle_onboarding_credit_purchase_event(
 /// advances off, so every path that could follow a purchase goes through here
 /// rather than refreshing its own subset.
 fn refresh_onboarding_account_state(ctx: &mut ViewContext<RootView>) {
-    AIRequestUsageModel::handle(ctx).update(ctx, |usage, ctx| {
-        usage.request_availability_refresh(ctx);
-    });
     LLMPreferences::handle(ctx).update(ctx, |prefs, ctx| {
         prefs.refresh_available_models(ctx);
     });
@@ -2265,22 +2261,6 @@ impl RootView {
                     // user's workspace, so a metadata refresh can move the
                     // displayed prices.
                     onboarding_view.set_credit_pack_options(credit_pack_options, ctx);
-                });
-            },
-        );
-
-        // Browser checkout doesn't report back to the app, so the purchase is
-        // only complete once the user can actually make an AI request.
-        let onboarding_view_for_usage = onboarding_view.clone();
-        ctx.subscribe_to_model(
-            &AIRequestUsageModel::handle(ctx),
-            move |_, _usage, event, ctx| {
-                if !matches!(event, AIRequestUsageModelEvent::CreditAvailabilityUpdated) {
-                    return;
-                }
-                let available = AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx);
-                onboarding_view_for_usage.update(ctx, |onboarding_view, ctx| {
-                    onboarding_view.on_ai_credit_availability_observed(available, ctx);
                 });
             },
         );

@@ -15,18 +15,15 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::ui_components::text::Span;
 use warpui::{AppContext, Element, EntityId, EventContext, SingletonEntity};
 
-use crate::ai::AIRequestUsageModel;
 use crate::ai::agent::RenderableAIError;
 use crate::themes::theme::{AnsiColorIdentifier, Fill, WarpTheme};
 use crate::ui_components::icons::Icon;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const PROVIDER_BUTTON_ICON_SIZE: f32 = 14.;
 const PROVIDER_BUTTON_ICON_TEXT_GAP: f32 = 8.;
 const ERROR_APOLOGY_TEXT: &str = "I'm sorry, I couldn't complete that request.";
 const INTERNAL_WARP_ERROR: &str = "Internal Warp error.";
 pub const FAILED_OUTPUT_USAGE_NOTICE_TEXT: &str = "This response won't count towards your usage.";
-pub const OUT_OF_CREDITS_SUBSCRIBE_LABEL: &str = "Subscribe";
 /// Text to use as a label throughout the app for user interactions that will attach selected
 /// block(s) or text selections to a new AI query.
 pub static ATTACH_AS_AGENT_MODE_CONTEXT_TEXT: LazyLock<&'static str> =
@@ -63,23 +60,10 @@ pub fn error_color(theme: &WarpTheme) -> ColorU {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FailedOutputPresentation {
     Message(String),
-    OutOfCredits {
-        message: String,
-        can_use_own_api_keys: bool,
-    },
-    InvalidApiKey {
-        title: &'static str,
-        detail: String,
-    },
-    ContextWindowExceeded {
-        message: String,
-    },
-    AwsBedrockCredentialsExpiredOrInvalid {
-        fallback_message: String,
-    },
-    GeminiEnterpriseCredentialsExpiredOrInvalid {
-        fallback_message: String,
-    },
+    InvalidApiKey { title: &'static str, detail: String },
+    ContextWindowExceeded { message: String },
+    AwsBedrockCredentialsExpiredOrInvalid { fallback_message: String },
+    GeminiEnterpriseCredentialsExpiredOrInvalid { fallback_message: String },
 }
 
 /// Returns the user-facing presentation for an Agent Mode request failure.
@@ -88,7 +72,7 @@ pub enum FailedOutputPresentation {
 /// an alarming terminal error while an automatic resume is still in flight.
 pub fn failed_output_presentation(
     error: &RenderableAIError,
-    app: &AppContext,
+    _app: &AppContext,
 ) -> Option<FailedOutputPresentation> {
     if error.should_suppress_during_recovery() {
         return None;
@@ -98,25 +82,13 @@ pub fn failed_output_presentation(
         RenderableAIError::QuotaLimit {
             user_display_message,
         } => {
-            if let Some(message) = user_display_message {
-                if should_show_subscribe_cta(app) {
-                    FailedOutputPresentation::OutOfCredits {
-                        message: format!("{ERROR_APOLOGY_TEXT}\n\n{message}"),
-                        can_use_own_api_keys: UserWorkspaces::as_ref(app)
-                            .is_byo_api_key_enabled(app),
-                    }
-                } else {
-                    FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{message}"))
-                }
-            } else {
-                let formatted_next_refresh_time = AIRequestUsageModel::as_ref(app)
-                    .next_refresh_time()
-                    .format("%B %d")
-                    .to_string();
-                FailedOutputPresentation::Message(format!(
-                    "{ERROR_APOLOGY_TEXT}\n\nYou've reached your credit limit. Your credit limit resets on {formatted_next_refresh_time}.",
-                ))
-            }
+            // SimpleWarp does not meter requests, so a quota error can only have
+            // come from the configured provider. Show what it said, and do not
+            // invent a Warp credit-reset date.
+            let message = user_display_message.clone().unwrap_or_else(|| {
+                "The AI provider reported that you have reached a rate or quota limit.".to_string()
+            });
+            FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{message}"))
         }
         RenderableAIError::ServerOverloaded => FailedOutputPresentation::Message(
             "Warp is currently overloaded. Please try again later.".to_string(),
@@ -184,14 +156,6 @@ pub fn should_show_failed_output_usage_notice(
         && !has_expanded_last_requested_command
         && !is_restored
         && !error.is_invalid_api_key()
-}
-
-/// Whether to show the out-of-credits CTA: only for non-paid users. Paid users and the enterprise
-/// spend-limit variant of this message fall back to plain text.
-fn should_show_subscribe_cta(app: &AppContext) -> bool {
-    UserWorkspaces::as_ref(app)
-        .current_workspace()
-        .is_none_or(|workspace| !workspace.billing_metadata.is_user_on_paid_plan())
 }
 
 /// Returns the AI icon element to be rendered in AI output blocks and the terminal input when in

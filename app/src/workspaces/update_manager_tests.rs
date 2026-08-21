@@ -4,7 +4,6 @@ use itertools::Itertools;
 use warpui::{AddSingletonModel, App};
 
 use super::*;
-use crate::ai::credit_availability::{AICreditAvailability, AICreditDenialReason};
 use crate::auth::AuthManager;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
@@ -96,7 +95,6 @@ fn test_leaving_team_removes_objects() {
                     workspaces: vec![],
                     joinable_teams: vec![],
                     feature_model_choices: None,
-                    ai_credit_availability: None,
                     user_purchase_policy: None,
                 },
                 pricing_info: None,
@@ -166,7 +164,6 @@ fn test_leaving_team_removes_objects() {
                         workspaces: vec![],
                         joinable_teams: vec![],
                         feature_model_choices: None,
-                        ai_credit_availability: None,
                         user_purchase_policy: None,
                     },
                     pricing_info: None,
@@ -212,48 +209,6 @@ fn test_leaving_team_removes_objects() {
 }
 
 #[test]
-fn test_workspace_metadata_piggyback_feeds_ai_credit_availability() {
-    App::test((), |mut app| async move {
-        let team_client = Arc::new(MockTeamClient::new());
-        initialize_app(
-            team_client.clone(),
-            Arc::new(MockWorkspaceClient::new()),
-            vec![],
-            &mut app,
-        );
-        if app
-            .models_of_type::<settings::PrivatePreferences>()
-            .is_empty()
-        {
-            app.update(crate::settings::init_and_register_user_preferences);
-        }
-        app.add_singleton_model(|ctx| {
-            AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
-        });
-        let team_update_manager =
-            app.add_singleton_model(|ctx| TeamUpdateManager::new(team_client, None, ctx));
-
-        let availability = AICreditAvailability::unavailable(AICreditDenialReason::OutOfCredits);
-        team_update_manager.update(&mut app, |manager, ctx| {
-            manager.on_workspaces_updated(
-                Ok(WorkspacesMetadataResponse {
-                    workspaces: vec![],
-                    joinable_teams: vec![],
-                    feature_model_choices: None,
-                    ai_credit_availability: Some(availability),
-                    user_purchase_policy: None,
-                }),
-                ctx,
-            );
-        });
-
-        AIRequestUsageModel::handle(&app).read(&app, |model, _| {
-            assert_eq!(model.server_availability(), Some(availability));
-        });
-    });
-}
-
-#[test]
 fn test_poll_path_apply_refreshes_user_purchase_policy() {
     App::test((), |mut app| async move {
         let team_client = Arc::new(MockTeamClient::new());
@@ -270,7 +225,6 @@ fn test_poll_path_apply_refreshes_user_purchase_policy() {
             workspaces: vec![],
             joinable_teams: vec![],
             feature_model_choices: None,
-            ai_credit_availability: None,
             user_purchase_policy: Some(PurchaseAddOnCreditsPolicy {
                 enabled: false,
                 premium_enabled: true,
@@ -295,7 +249,6 @@ fn test_poll_path_apply_refreshes_user_purchase_policy() {
             workspaces: vec![],
             joinable_teams: vec![],
             feature_model_choices: None,
-            ai_credit_availability: None,
             user_purchase_policy: None,
         };
         team_update_manager.update(&mut app, |manager, ctx| {

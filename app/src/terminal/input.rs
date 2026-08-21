@@ -170,7 +170,7 @@ use crate::ai::blocklist::conversation_selection::ConversationSelectionHandle;
 use crate::ai::blocklist::handoff::{
     HandoffLaunchAttachments, PendingCloudLaunch, suggest_handoff_environment,
 };
-use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertEvent, PromptAlertView};
+use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
 use crate::ai::blocklist::telemetry_banner::should_collect_ai_ugc_telemetry;
 use crate::ai::blocklist::{
     AttachmentType, BLOCK_CONTEXT_ATTACHMENT_REGEX, BlocklistAIActionModel,
@@ -2788,9 +2788,6 @@ impl Input {
                         &PromptDisplayEvent::TryExecuteCommand(cmd.clone()),
                         ctx,
                     );
-                }
-                AgentInputFooterEvent::PromptAlert(prompt_alert_event) => {
-                    me.handle_prompt_alert(prompt_alert_event, ctx);
                 }
                 AgentInputFooterEvent::ModelSelectorOpened => {
                     me.close_overlays(false, ctx);
@@ -6722,25 +6719,6 @@ impl Input {
         });
     }
 
-    fn handle_prompt_alert(
-        &mut self,
-        prompt_alert: &PromptAlertEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match prompt_alert {
-            PromptAlertEvent::SignupAnonymousUser => {
-                ctx.emit(Event::SignupAnonymousUser {
-                    entrypoint: AnonymousUserSignupEntrypoint::SignUpAIPrompt,
-                });
-            }
-            PromptAlertEvent::OpenBillingPortal { team_uid } => {
-                UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
-                    user_workspaces.generate_stripe_billing_portal_link(*team_uid, ctx);
-                });
-            }
-        }
-    }
-
     fn enable_auto_detection(&mut self, ctx: &mut ViewContext<Self>) {
         // Don't allow input mode changes for read-only viewers in shared sessions
         if self.model.lock().shared_session_status().is_reader() {
@@ -6873,9 +6851,6 @@ impl Input {
             UniversalDeveloperInputButtonBarEvent::SetAIContextMenuOpen(open) => {
                 self.focus_input_box(ctx);
                 self.set_ai_context_menu_open(*open, ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::PromptAlert(prompt_alert_event) => {
-                self.handle_prompt_alert(prompt_alert_event, ctx);
             }
             UniversalDeveloperInputButtonBarEvent::ModelSelectorOpened => {
                 self.close_overlays(false, ctx);

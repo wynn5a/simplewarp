@@ -248,7 +248,6 @@ impl AgentMessageBar {
             if matches!(
                 event,
                 AIRequestUsageModelEvent::RequestUsageUpdated
-                    | AIRequestUsageModelEvent::CreditAvailabilityUpdated
                     | AIRequestUsageModelEvent::AmbientCreditsBannerDismissed
             ) {
                 ctx.notify();

@@ -55,7 +55,7 @@ use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::blocklist::agent_view::is_in_cloud_context;
 use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
-use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertEvent, PromptAlertView};
+use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
 use crate::ai::blocklist::usage::icon_for_context_window_usage;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
@@ -759,10 +759,7 @@ impl AgentInputFooter {
             },
         );
 
-        let prompt_alert = ctx.add_typed_action_view(PromptAlertView::new);
-        ctx.subscribe_to_view(&prompt_alert, |_, _, event, ctx| {
-            ctx.emit(AgentInputFooterEvent::PromptAlert(event.clone()));
-        });
+        let prompt_alert = ctx.add_view(PromptAlertView::new);
 
         ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
@@ -2685,7 +2682,6 @@ pub enum AgentInputFooterEvent {
         open: bool,
     },
     TryExecuteChipCommand(PromptChipShellCommand),
-    PromptAlert(PromptAlertEvent),
     ModelSelectorOpened,
     ModelSelectorClosed,
     EnvironmentSelectorClosed,
