@@ -837,6 +837,64 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    after 41s waiting for a password prompt. That path is untouched and cannot work in this fork.
    This is the first time the integration crate's *tests* have been run; 3g only checked that it
    builds.
+
+4c. **The Billing and Usage page and the credits-purchase UI — DONE.** ~13,450 lines, the largest
+   step after the TUI. Phase 2 hid the page behind `needs_warp_account()`; this deletes it and
+   every surface whose only purpose was to reach it. Same shape as 3g.
+
+   | Removed | What |
+   | --- | --- |
+   | `settings_view/billing_and_usage*` | 18 files, 10,685 lines: the v1 and v2 pages, the dispatch view choosing between them, the billing-cycle usage tables, the usage-history model, the spending-limit modals. |
+   | `SettingsSection::BillingAndUsage` | Nav item, page handle, event plumbing, the `warp://settings/billing_and_usage` route, the palette binding. |
+   | `terminal/buy_credits_banner.rs` | 1,068 lines, its overlay helpers and three input render paths. |
+   | `terminal/enable_auto_reload_modal.rs` | 522 lines, plus the `OpenAutoReloadModal` chain through input → terminal view → pane group → workspace view. |
+   | `/usage` | The slash command and `TerminalAction::OpenBillingAndUsagePane`. |
+   | `FeatureFlag::BillingAndUsagePageV2`, `ui_components/tab_selector.rs` | The flag with its cargo feature; the tab strip nothing else used. |
+
+   **Deleting a nav target changed what the sidebar *is*, so the nav tests could not be
+   mechanically fixed.** Billing and Usage was the only plain page between two collapsed
+   umbrellas, and four arrow-key tests were built on that shape. The sidebar is now
+   `Account → Agents → Code → Cloud platform → Teams` with the three umbrellas adjacent, so each
+   test was re-pointed at the stop that now holds the position under test — `CodeIndexing`, which
+   maps back to the collapsed Code umbrella — rather than renamed. Same fix for the two
+   `crates/integration` navigation tests.
+
+   **`crates/integration` is not a default workspace member, so a root
+   `cargo check --all-targets` skips it silently.** It reported clean while the crate had two
+   hard errors. 3g hit this too. **Check it by name.**
+
+   Two behaviour calls, both 3b:
+
+   - `billing_and_usage_page_v2` was in `default` but **not** in `simplewarp`, so this fork's
+     build always took the `else` branch of its two `teams_page` conditions. Collapsed to that,
+     not to the `default` behaviour. **A flag's default-set membership is not its value in this
+     build.**
+   - The prompt alert's two overage states linked to the deleted page. The link goes, the
+     explanatory text stays, so the alert still says why a request was blocked without offering
+     an action that cannot work.
+
+   The compiler's cascade was larger than the deletion: the whole banner-dismissed state machine
+   in `request_usage_model`, `Dropdown::with_drop_shadow` and its field, two
+   `CloudActionConfirmationDialogVariant` credits variants, `TeamActionConfirmationTarget::RemoveUser`,
+   and `ConversationUsageView`'s `DisplayMode`, which collapsed to one variant and turned four
+   render branches into straight-line code.
+
+   **A deleted `use` moves its `#[cfg]`; a deleted field moves its `///` the same way.** The 4b
+   scan ran again here and found no orphaned attributes — but it only matched `#[`, and three doc
+   comments had drifted, including `/// The display mode for this view.` landing on `timing_info`.
+   Scan for both.
+
+   **A test that names a flag is not evidence the code under test consults it.**
+   `..._true_with_self_serve_auto_reload_and_billing_v2_disabled` was byte-identical to the test
+   above it; `request_usage_model.rs` never read `BillingAndUsagePageV2`, so the guard that
+   appeared to distinguish them did nothing.
+
+   Acceptance: 6306 app tests pass (57 fewer), all 22 `integration` settings tests pass, check
+   across the workspace *and* `-p integration`, clippy, format, and the `simplewarp` binary
+   clean. Not re-run in the app — the settings sidebar and the agent input overlays both changed.
+
+   `AIRequestUsageModel` (44 files) and `PricingInfoModel` (20) stay: they are the `auth`-class
+   question of what the app means with no request quota at all, not a deletion.
 5. The `FeatureFlag` variants that are no longer in use. **29 removed: 16 in the first sweep, 2
    with step 3g, and 11 in a second sweep. More remain behind the module deletions above.**
 
@@ -911,6 +969,9 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
       - [x] **The Identity-Aware Proxy layer is gone** (4b): ~2,100 lines of staging-only
             token minting across six crates, plus `IapConfig` itself, which no channel config
             in this fork ever set.
+      - [x] **Billing, credits, and usage are gone from the UI** (4c): ~13,450 lines — the
+            settings page, the buy-credits banner, the auto-reload modal, `/usage`, and every
+            route and binding that reached them. The two usage *models* remain.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), plus `drive`
             (2). The remaining dead `FeatureFlag` variants fall out of those (5).
