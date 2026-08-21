@@ -10,14 +10,6 @@ use super::{
     HeaderOverride,
 };
 
-struct StaticIapTokenProvider;
-
-impl http_client::iap::IapTokenProvider for StaticIapTokenProvider {
-    fn cached_token(&self) -> Option<String> {
-        Some("iap-token".to_string())
-    }
-}
-
 fn client() -> BaseClient {
     let (event_sender, _) = async_channel::unbounded();
     let mut authenticated_headers = HashMap::new();
@@ -33,30 +25,7 @@ fn client() -> BaseClient {
         AuthenticatedGraphqlConfig {
             headers: authenticated_headers,
         },
-        None,
     )
-}
-
-#[test]
-fn iap_proxy_auth_header_uses_configured_provider() {
-    let (event_sender, _) = async_channel::unbounded();
-    let client = BaseClient::new(
-        Arc::new(http_client::Client::new()),
-        Arc::new(AuthState::new_for_test()),
-        event_sender,
-        None,
-        GraphqlRoutingConfig::default(),
-        AuthenticatedGraphqlConfig::default(),
-        Some(Arc::new(StaticIapTokenProvider)),
-    );
-
-    assert_eq!(
-        client.iap_proxy_auth_header(),
-        Some((
-            http_client::iap::IAP_PROXY_AUTH_HEADER,
-            "Bearer iap-token".to_string()
-        ))
-    );
 }
 
 #[test]
@@ -146,10 +115,6 @@ fn authenticated_graphql_configuration_cannot_override_base_client_owned_headers
     headers.insert("content-type".to_string(), "text/plain".to_string());
     headers.insert("CONTENT-LENGTH".to_string(), "9999".to_string());
     headers.insert(
-        http_client::iap::IAP_PROXY_AUTH_HEADER.to_string(),
-        "malicious".to_string(),
-    );
-    headers.insert(
         CLOUD_AGENT_ID_HEADER.to_ascii_lowercase(),
         "malicious".to_string(),
     );
@@ -161,7 +126,6 @@ fn authenticated_graphql_configuration_cannot_override_base_client_owned_headers
         None,
         GraphqlRoutingConfig::default(),
         AuthenticatedGraphqlConfig { headers },
-        None,
     );
 
     let options = block_on(client.graphql_request_options(None)).unwrap();
@@ -169,11 +133,6 @@ fn authenticated_graphql_configuration_cannot_override_base_client_owned_headers
     assert!(!options.headers.contains_key("authorization"));
     assert!(!options.headers.contains_key("content-type"));
     assert!(!options.headers.contains_key("CONTENT-LENGTH"));
-    assert!(
-        !options
-            .headers
-            .contains_key(http_client::iap::IAP_PROXY_AUTH_HEADER)
-    );
     assert!(
         !options
             .headers

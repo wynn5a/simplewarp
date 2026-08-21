@@ -36,7 +36,6 @@ use warp_server_client::auth::{AuthClientImpl, AuthEvent};
 use warp_server_client::base_client::{
     AuthenticatedGraphqlConfig, BaseClient, GraphqlRoutingConfig,
 };
-use warp_server_client::iap::{IapManager, IapState};
 use warp_server_client::network_logging::NetworkLogModel;
 use warpui::r#async::BoxFuture;
 use warpui::{Entity, ModelContext, SingletonEntity};
@@ -353,14 +352,9 @@ impl ServerApi {
         auth_state: Arc<AuthState>,
         event_sender: async_channel::Sender<AuthEvent>,
         agent_source: Option<ai::AgentSource>,
-        iap_state: Option<Arc<IapState>>,
         ctx: &mut ModelContext<ServerApiProvider>,
     ) -> Self {
         let mut client = http_client::Client::new();
-        let iap_token_provider = iap_state.map(|state| {
-            client.set_iap_token_provider(state.clone());
-            state as Arc<dyn http_client::iap::IapTokenProvider>
-        });
         let mut telemetry_api = TelemetryApi::new();
         if ContextFlag::NetworkLogConsole.is_enabled() {
             NetworkLogModel::handle(ctx).update(ctx, |model, model_ctx| {
@@ -372,7 +366,6 @@ impl ServerApi {
             auth_state,
             event_sender,
             agent_source,
-            iap_token_provider,
             telemetry_api,
         )
     }
@@ -382,7 +375,6 @@ impl ServerApi {
         auth_state: Arc<AuthState>,
         event_sender: async_channel::Sender<AuthEvent>,
         agent_source: Option<ai::AgentSource>,
-        iap_token_provider: Option<Arc<dyn http_client::iap::IapTokenProvider>>,
         telemetry_api: TelemetryApi,
     ) -> Self {
         let graphql_routing = GraphqlRoutingConfig {
@@ -399,7 +391,6 @@ impl ServerApi {
             agent_source.map(|source| source.as_str().to_string()),
             graphql_routing,
             authenticated_graphql,
-            iap_token_provider,
         ));
 
         Self {
@@ -414,7 +405,7 @@ impl ServerApi {
         let auth_state = Arc::new(AuthState::new_for_test());
         let client = Arc::new(http_client::Client::new_for_test());
 
-        Self::new_with_parts(client, auth_state, tx, None, None, TelemetryApi::new())
+        Self::new_with_parts(client, auth_state, tx, None, TelemetryApi::new())
     }
 
     #[cfg(all(test, feature = "skip_login"))]
@@ -622,18 +613,11 @@ impl ServerApiProvider {
     pub fn new(
         auth_state: Arc<AuthState>,
         agent_source: Option<ai::AgentSource>,
-        iap_state: Option<Arc<IapState>>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         let (event_sender, event_receiver) = async_channel::bounded(10);
 
-        let server_api = ServerApi::new(
-            auth_state.clone(),
-            event_sender,
-            agent_source,
-            iap_state,
-            ctx,
-        );
+        let server_api = ServerApi::new(auth_state.clone(), event_sender, agent_source, ctx);
 
         ctx.spawn_stream_local(
             event_receiver,
@@ -654,10 +638,6 @@ impl ServerApiProvider {
                         AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
                             auth_manager.set_needs_reauth(true, ctx);
                         });
-                    }
-                    AuthEvent::IapChallengeReceived => {
-                        IapManager::handle(ctx)
-                            .update(ctx, |manager, ctx| manager.handle_challenge(ctx));
                     }
                     // Re-emit the event for subscribers.
                     // TODO: we probably want a different type for the event emitted to subscribers

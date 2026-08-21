@@ -176,7 +176,6 @@ use crate::ai::aws_credentials::AwsCredentialRefresher as _;
 use crate::ai::geap_credentials::GeapCredentialRefresher as _;
 use crate::ai::mcp::{FileBasedMCPManager, FileMCPWatcher};
 use crate::uri::web_intent_parser::maybe_rewrite_web_url_to_intent;
-use crate::view_components::DismissibleToast;
 pub mod workflows;
 pub mod workspace;
 
@@ -219,7 +218,6 @@ use warp_errors::{report_error, report_if_error};
 use warp_files::FileModel;
 use warp_logging::{LogDestination, LogFrontend};
 use warp_managed_secrets::ManagedSecretManager;
-use warp_server_client::iap::{IapManager, IapManagerEvent, IapState, ManagedIapMint};
 use warp_server_client::network_logging::NetworkLogModel;
 use warpui::integration::TestDriver;
 use warpui::modals::{AlertDialogWithCallbacks, AppModalCallback};
@@ -279,8 +277,6 @@ use crate::root_view::{
 };
 use crate::server::cloud_objects::listener::Listener;
 use crate::server::cloud_objects::update_manager::UpdateManager;
-#[cfg(not(target_family = "wasm"))]
-use crate::server::iap_identity_minter::ManagedSecretsIapMinter;
 use crate::server::sync_queue::{QueueItem, SyncQueue};
 pub use crate::server::telemetry::{
     AgentModeEntrypoint, AgentModeEntrypointSelectionType, TelemetryEvent,
@@ -1197,66 +1193,6 @@ impl StartupUserAuthentication {
     }
 }
 
-fn authenticate_user_after_iap_access(
-    authentication: StartupUserAuthentication,
-    non_blocking: bool,
-    ctx: &mut AppContext,
-) {
-    let iap_manager = IapManager::handle(ctx);
-    if !iap_manager.as_ref(ctx).is_enabled() || iap_manager.as_ref(ctx).has_valid_token() {
-        authentication.start(ctx);
-        return;
-    }
-
-    if non_blocking {
-        // Don't stall startup waiting for an IAP token the server may not even
-        // require. Authenticate immediately; if the server DOES enforce IAP, this
-        // first attempt hits an IAP challenge, which notifies `IapManager` to mint
-        // a token (`observe_iap_challenge` -> `handle_challenge`). Once a valid
-        // token lands we retry auth so login still recovers — unless the
-        // optimistic attempt already established a session.
-        authentication.clone().start(ctx);
-        let mut pending_authentication = Some(authentication);
-        ctx.subscribe_to_model(&iap_manager, move |iap_manager, event, ctx| match event {
-            IapManagerEvent::StateChanged => {
-                if !iap_manager.as_ref(ctx).has_valid_token() {
-                    return;
-                }
-                if AuthStateProvider::as_ref(ctx).get().user_id().is_some() {
-                    pending_authentication = None;
-                    return;
-                }
-                if let Some(authentication) = pending_authentication.take() {
-                    authentication.start(ctx);
-                }
-            }
-            IapManagerEvent::AccessUnavailable | IapManagerEvent::RefreshFailed { .. } => {}
-        });
-        iap_manager.update(ctx, |manager, ctx| manager.ensure_access(ctx));
-        return;
-    }
-
-    let mut pending_authentication = Some(authentication);
-    ctx.subscribe_to_model(&iap_manager, move |iap_manager, event, ctx| match event {
-        IapManagerEvent::StateChanged => {
-            if !iap_manager.as_ref(ctx).has_valid_token() {
-                return;
-            }
-            if let Some(authentication) = pending_authentication.take() {
-                authentication.start(ctx);
-            }
-        }
-        IapManagerEvent::AccessUnavailable => {
-            report_error!("Staging IAP access unavailable before startup user authentication");
-        }
-        IapManagerEvent::RefreshFailed {
-            message: _,
-            is_first_failure_of_streak: _,
-        } => {}
-    });
-    iap_manager.update(ctx, |manager, ctx| manager.ensure_access(ctx));
-}
-
 #[::tracing::instrument(skip_all, fields(tags.cloud_agent = true))]
 pub(crate) fn initialize_app(
     launch_mode: &LaunchMode,
@@ -1327,24 +1263,14 @@ pub(crate) fn initialize_app(
     // captured by the HTTP client hooks.
     ctx.add_singleton_model(|_ctx| NetworkLogModel::default());
 
-    // Create a shared IAP state for staging builds. The same `Arc<IapState>`
-    // is handed to both `ServerApi` (for sync reads on the request path) and
-    // `IapManager` (which owns refresh logic on the main thread).
-    #[cfg(not(target_family = "wasm"))]
-    let iap_state = ChannelState::iap_config().map(|cfg| Arc::new(IapState::new(&cfg)));
-    #[cfg(target_family = "wasm")]
-    let iap_state: Option<Arc<IapState>> = None;
-
     let server_api_provider = ctx.add_singleton_model({
         let auth_state = auth_state.clone();
-        let iap_state = iap_state.clone();
-        move |ctx| ServerApiProvider::new(auth_state, agent_source, iap_state, ctx)
+        move |ctx| ServerApiProvider::new(auth_state, agent_source, ctx)
     });
 
     let server_api = server_api_provider.as_ref(ctx).get();
     // Parse the ambient-agent task id once. A set-but-unparseable OZ_RUN_ID is
-    // treated as absent everywhere: it identifies no task and must not enable the
-    // runner-context IAP WIF mint below.
+    // treated as absent everywhere: it identifies no task.
     #[cfg(not(target_family = "wasm"))]
     let ambient_agent_task_id: Option<AmbientAgentTaskId> = std::env::var(warp_cli::OZ_RUN_ID_ENV)
         .ok()
@@ -2145,69 +2071,8 @@ pub(crate) fn initialize_app(
         ctx.add_singleton_model(system::SystemInfo::new);
     }
 
-    // In a sandboxed Oz runner, mint IAP tokens by self-minting via Workload
-    // Identity Federation (impersonating the IAP access service account). Gated
-    // on a valid ambient-agent task id so local staging clients — and any runner
-    // with a stray or malformed OZ_RUN_ID — keep using the gcloud path.
-    #[cfg(not(target_family = "wasm"))]
-    let managed_iap_mint = ambient_agent_task_id.is_some().then(|| {
-        let client = server_api_provider.as_ref(ctx).get_managed_secrets_client();
-        ManagedIapMint::new(Arc::new(ManagedSecretsIapMinter::new(client)))
-    });
-    #[cfg(target_family = "wasm")]
-    let managed_iap_mint: Option<ManagedIapMint> = None;
-
-    // `IapManager` drives IAP token refresh for staging builds.
-    // Register it after `LocalShellState`: the Manager needs to know where the gcloud
-    // cli lives & thus needs PATH config set by ~/.zshrc et al.
-    //
-    // Registered on all targets (including wasm) so consumers such as the
-    // shared-session viewer network — which compiles and runs on wasm — can
-    // read the singleton without panicking. On wasm `iap_state` is always
-    // `None`, making this an inert no-op: `IapManager::new` early-returns from
-    // its refresh loop and `iap_state()` yields no proxy-auth header.
-    ctx.add_singleton_model(move |ctx| {
-        let path_resolver = Box::new(|_ctx: &mut AppContext| {
-            #[cfg(feature = "local_tty")]
-            let path_future = LocalShellState::handle(_ctx).update(_ctx, |shell_state, ctx| {
-                shell_state.get_interactive_path_env_var(ctx)
-            });
-
-            #[cfg(not(feature = "local_tty"))]
-            let path_future =
-                futures::FutureExt::boxed_local(futures::future::ready(None::<String>));
-
-            path_future
-        });
-        IapManager::new(iap_state, path_resolver, managed_iap_mint, ctx)
-    });
-    // Subscribe to IAP manager events to show toasts when refresh fails.
-    ctx.subscribe_to_model(&IapManager::handle(ctx), |_, e, ctx| {
-        match e {
-            IapManagerEvent::RefreshFailed {
-                message,
-                is_first_failure_of_streak,
-            } if *is_first_failure_of_streak => {
-                let window_id = ctx
-                    .windows()
-                    .active_window()
-                    .or_else(|| ctx.windows().ordered_window_ids().first().copied());
-                let Some(window_id) = window_id else {
-                    return;
-                };
-                let toast: DismissibleToast<WorkspaceAction> =
-                    DismissibleToast::error(format!("IAP credential refresh failed: {message}"));
-                ToastStack::handle(ctx).update(ctx, |stack, ctx| {
-                    stack.add_ephemeral_toast(toast, window_id, ctx);
-                });
-            }
-            _ => {}
-        };
-    });
-
-    // CLI commands establish IAP access and refresh auth in their dispatch path so they can
-    // surface failures synchronously. Other interactive clients gate startup user authentication
-    // on IAP here, since the request itself calls the IAP-gated warp-server.
+    // CLI commands refresh auth in their dispatch path so they can surface failures
+    // synchronously; other interactive clients authenticate here.
     let startup_authentication = if matches!(launch_mode, LaunchMode::CommandLine { .. }) {
         None
     } else {
@@ -2216,7 +2081,7 @@ pub(crate) fn initialize_app(
             .or_else(|| user_is_logged_in.then_some(StartupUserAuthentication::RefreshUser))
     };
     if let Some(authentication) = startup_authentication {
-        authenticate_user_after_iap_access(authentication, false, ctx);
+        authentication.start(ctx);
     }
 
     // Add a singleton model that holds the current prompt configuration.

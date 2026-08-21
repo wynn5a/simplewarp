@@ -56,7 +56,6 @@ impl BaseClient {
         if response.status().is_success() {
             Ok(response)
         } else {
-            self.observe_iap_challenge(&response);
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             let status_error = HttpStatusError {

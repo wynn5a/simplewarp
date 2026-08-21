@@ -34,10 +34,6 @@ where
                 let _ = base_client.send_auth_event(AuthEvent::StagingAccessBlocked);
                 anyhow::bail!(GraphQLError::StagingAccessBlocked);
             }
-            Err(GraphQLError::IapChallengeBlocked) => {
-                let _ = base_client.send_auth_event(AuthEvent::IapChallengeReceived);
-                anyhow::bail!(GraphQLError::IapChallengeBlocked);
-            }
             Err(err) => {
                 let is_auth_rejection = match &err {
                     GraphQLError::HttpError { status, .. } => {
@@ -45,7 +41,6 @@ where
                     }
                     GraphQLError::RequestError(_)
                     | GraphQLError::StagingAccessBlocked
-                    | GraphQLError::IapChallengeBlocked
                     | GraphQLError::ResponseError(_) => false,
                 };
                 if !base_client.is_auth_refresh_allowed() && is_auth_rejection {

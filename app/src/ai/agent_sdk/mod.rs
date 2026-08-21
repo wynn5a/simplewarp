@@ -40,7 +40,6 @@ use warp_isolation_platform::IsolationPlatformError;
 #[cfg(not(target_family = "wasm"))]
 use warp_logging::log_file_path;
 use warp_managed_secrets::ManagedSecretManager;
-use warp_server_client::iap::{IapManager, IapManagerEvent};
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelSpawner, SingletonEntity};
 
@@ -1629,52 +1628,13 @@ fn launch_command(
         ));
     };
 
-    // On staging the warp-server is fronted by IAP, so establish an IAP token
-    // before *any* warp-server request.
-    let iap = IapManager::handle(ctx);
-    if !iap.as_ref(ctx).is_enabled() || iap.as_ref(ctx).has_valid_token() {
-        authenticate_and_dispatch(ctx, command, global_options, authentication, parent_span);
-        return Ok(());
-    }
-
-    let mut handled = false;
-    let parent_span_for_iap = parent_span.clone();
-    ctx.subscribe_to_model(&iap, move |_, event, ctx| {
-        let _guard = parent_span_for_iap.enter();
-        if handled {
-            return;
-        }
-        match event {
-            IapManagerEvent::StateChanged
-                if IapManager::handle(ctx).as_ref(ctx).has_valid_token() =>
-            {
-                handled = true;
-                authenticate_and_dispatch(
-                    ctx,
-                    command.clone(),
-                    global_options.clone(),
-                    authentication.clone(),
-                    parent_span.clone(),
-                );
-            }
-            IapManagerEvent::AccessUnavailable => {
-                handled = true;
-                report_fatal_error(
-                    anyhow::anyhow!("Timed out establishing IAP access to warp-server."),
-                    ctx,
-                );
-            }
-            _ => {}
-        }
-    });
-
-    iap.update(ctx, |manager, ctx| manager.ensure_access(ctx));
+    authenticate_and_dispatch(ctx, command, global_options, authentication, parent_span);
 
     Ok(())
 }
 
 /// Subscribes to auth events, authenticates, and dispatches the command once
-/// auth completes. Assumes IAP access (if applicable) is already established.
+/// auth completes.
 fn authenticate_and_dispatch(
     ctx: &mut AppContext,
     command: CliCommand,

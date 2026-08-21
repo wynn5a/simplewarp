@@ -183,17 +183,6 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(voice_input::VoiceInput::new);
     app.add_singleton_model(BlocklistAIPermissions::new);
     app.add_singleton_model(|_| GPUState::new());
-    // Register IapManager in a disabled state (no IapState). The settings
-    // page's `IapManager::as_ref(ctx).is_enabled()` check panics if the
-    // singleton isn't registered, even though it's a no-op on production.
-    app.add_singleton_model(|ctx| {
-        warp_server_client::iap::IapManager::new(
-            None,
-            Box::new(|_| futures::FutureExt::boxed(futures::future::ready(None::<String>))),
-            None,
-            ctx,
-        )
-    });
     app.add_singleton_model(|_| RestoredAgentConversations::new_seeded(vec![]));
     app.add_singleton_model(|ctx| {
         AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)

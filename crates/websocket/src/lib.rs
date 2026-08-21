@@ -156,22 +156,6 @@ impl WebSocket {
     }
 }
 
-/// If `err` originated from a websocket handshake that received a non-101 HTTP
-/// response (e.g. an auth or proxy challenge), returns that response so callers
-/// can inspect its status and headers (for example, to detect a GCP IAP
-/// challenge). Native-only: wasm websockets do not surface the handshake
-/// response on error.
-#[cfg(not(target_family = "wasm"))]
-pub fn connect_error_http_response(
-    err: &anyhow::Error,
-) -> Option<&tungstenite::http::Response<Option<Vec<u8>>>> {
-    err.chain()
-        .find_map(|cause| match cause.downcast_ref::<tungstenite::Error>() {
-            Some(tungstenite::Error::Http(response)) => Some(response),
-            _ => None,
-        })
-}
-
 /// Builds a native websocket client request for `url`, attaching the provided
 /// extra request headers to the handshake.
 #[cfg(not(target_family = "wasm"))]

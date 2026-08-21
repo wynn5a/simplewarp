@@ -15481,20 +15481,16 @@ dependencies = [
 name = "warp_server_client"
 version = "0.1.0"
 dependencies = [
- "aha-reqwest-eventsource",
  "anyhow",
  "async-channel",
  "async-trait",
- "base64 0.22.1",
  "bincode",
- "blocking",
  "bounded-vec-deque",
  "cfg-if",
  "chrono",
  "cloud_object_client",
  "cloud_object_models",
  "cloud_objects",
- "command",
  "cynic",
  "derivative",
  "diesel",
@@ -15518,7 +15514,6 @@ dependencies = [
  "serde_json",
  "session-sharing-protocol",
  "settings_value",
- "tempfile",
  "thiserror 2.0.17",
  "url",
  "uuid",
@@ -15528,7 +15523,6 @@ dependencies = [
  "warp_isolation_platform",
  "warp_server_auth",
  "warpui_core",
- "websocket",
 ]
 
 [[package]]

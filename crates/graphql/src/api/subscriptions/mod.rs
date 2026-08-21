@@ -23,8 +23,8 @@ const PROTOCOL: &str = "graphql-transport-ws";
 /// `handshake_headers` are extra HTTP request headers attached to the websocket
 /// upgrade itself (as opposed to the `init_payload`, which is only sent after
 /// the upgrade completes). This is where auth that must be validated by an
-/// intermediary on the handshake — e.g. the IAP `Proxy-Authorization` token on
-/// staging — belongs. Ignored on wasm, where handshake headers are unsupported.
+/// intermediary on the handshake belongs. Ignored on wasm, where handshake
+/// headers are unsupported.
 ///
 /// Note that the future returned by this method only resolves once the stream is done.
 /// However, a message is sent over stream_ready_sender when the stream is ready to receive messages.
