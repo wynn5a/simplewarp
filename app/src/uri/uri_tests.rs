@@ -760,10 +760,6 @@ fn test_settings_section_for_simple_subpage() {
         Some(SettingsSection::Appearance),
     );
     assert_eq!(
-        settings_section_for_simple_subpage("billing_and_usage"),
-        Some(SettingsSection::BillingAndUsage),
-    );
-    assert_eq!(
         settings_section_for_simple_subpage("platform"),
         Some(SettingsSection::OzCloudAPIKeys),
     );
@@ -772,6 +768,9 @@ fn test_settings_section_for_simple_subpage() {
         Some(SettingsSection::WarpAgent),
     );
     assert!(settings_section_for_simple_subpage("not_a_subpage").is_none());
+    // `billing_and_usage` went with the Billing and Usage page; the route must
+    // no longer resolve rather than silently landing somewhere else.
+    assert!(settings_section_for_simple_subpage("billing_and_usage").is_none());
 }
 
 // -- post-checkout desktop hand-off ------------------------------------------
@@ -806,7 +805,7 @@ fn test_url_reports_checkout_success() {
     // The flag is not tied to the auth host: an older confirmation page can
     // still send it on the settings deeplink.
     let on_settings = Url::parse(&format!(
-        "{scheme}://settings/billing_and_usage?checkoutSuccessful=true"
+        "{scheme}://settings/appearance?checkoutSuccessful=true"
     ))
     .unwrap();
     assert!(url_reports_checkout_success(&on_settings));

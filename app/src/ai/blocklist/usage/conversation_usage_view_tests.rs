@@ -55,12 +55,7 @@ fn initialize_test_app(app: &mut App) {
 }
 
 fn build_view(_ctx: &mut warpui::ViewContext<ConversationUsageView>) -> ConversationUsageView {
-    ConversationUsageView::new(
-        placeholder_usage_info(),
-        DisplayMode::Footer,
-        None,
-        MouseStateHandle::default(),
-    )
+    ConversationUsageView::new(placeholder_usage_info(), None, MouseStateHandle::default())
 }
 
 #[test]
@@ -140,7 +135,6 @@ fn custom_endpoint_models_use_the_external_key_icon_bucket() {
             }],
             ..placeholder_usage_info()
         },
-        DisplayMode::Footer,
         None,
         MouseStateHandle::default(),
     );

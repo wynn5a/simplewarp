@@ -19,17 +19,12 @@ const CANCEL_TEXT: &str = "Cancel";
 
 const DELETE_TEAM_TITLE_TEXT: &str = "Are you sure you want to delete this team?";
 const LEAVE_TEAM_TITLE_TEXT: &str = "Are you sure you want to leave this team?";
-const REMOVE_TEAM_MEMBER_TITLE_TEXT: &str = "Are you sure you want to remove this member?";
 
 const DELETE_TEAM_BODY_TEXT: &str = "Deleting this team will permanently delete it and all of its related content, including billing information or credits. You will not be able to restore them.";
 const LEAVE_TEAM_BODY_TEXT: &str = "You will need to be reinvited in order to rejoin.";
-const LEAVE_TEAM_RELOAD_CREDITS_BODY_TEXT: &str = "If you leave this team, you’ll lose access to any remaining reload credits tied to it. You’ll regain access to any unused, non-expired credits if you rejoin the same team later.";
-const REMOVE_TEAM_MEMBER_RELOAD_CREDITS_BODY_TEXT: &str = "This member will lose access to any remaining reload credits tied to this team. If they rejoin later, they’ll regain access to any unused, non-expired credits.";
 
 const DELETE_TEAM_CONFIRM_TEXT: &str = "Yes, delete";
 const LEAVE_TEAM_CONFIRM_TEXT: &str = "Yes, leave";
-const LEAVE_TEAM_RELOAD_CREDITS_CONFIRM_TEXT: &str = "Leave Team";
-const REMOVE_TEAM_MEMBER_RELOAD_CREDITS_CONFIRM_TEXT: &str = "Remove Member";
 
 pub enum CloudActionConfirmationDialogEvent {
     Cancel,
@@ -46,8 +41,6 @@ pub enum CloudActionConfirmationDialogAction {
 pub enum CloudActionConfirmationDialogVariant {
     LeaveTeam,
     DeleteTeam,
-    LeaveTeamReloadCredits,
-    RemoveTeamMemberReloadCredits,
     #[default]
     None,
 }
@@ -79,14 +72,8 @@ impl CloudActionConfirmationDialog {
 
     fn title_text(&self) -> String {
         match self.variant {
-            CloudActionConfirmationDialogVariant::LeaveTeam
-            | CloudActionConfirmationDialogVariant::LeaveTeamReloadCredits => {
-                LEAVE_TEAM_TITLE_TEXT.to_string()
-            }
+            CloudActionConfirmationDialogVariant::LeaveTeam => LEAVE_TEAM_TITLE_TEXT.to_string(),
             CloudActionConfirmationDialogVariant::DeleteTeam => DELETE_TEAM_TITLE_TEXT.to_string(),
-            CloudActionConfirmationDialogVariant::RemoveTeamMemberReloadCredits => {
-                REMOVE_TEAM_MEMBER_TITLE_TEXT.to_string()
-            }
             CloudActionConfirmationDialogVariant::None => String::new(),
         }
     }
@@ -95,12 +82,6 @@ impl CloudActionConfirmationDialog {
         match self.variant {
             CloudActionConfirmationDialogVariant::LeaveTeam => LEAVE_TEAM_BODY_TEXT.to_string(),
             CloudActionConfirmationDialogVariant::DeleteTeam => DELETE_TEAM_BODY_TEXT.to_string(),
-            CloudActionConfirmationDialogVariant::LeaveTeamReloadCredits => {
-                LEAVE_TEAM_RELOAD_CREDITS_BODY_TEXT.to_string()
-            }
-            CloudActionConfirmationDialogVariant::RemoveTeamMemberReloadCredits => {
-                REMOVE_TEAM_MEMBER_RELOAD_CREDITS_BODY_TEXT.to_string()
-            }
             CloudActionConfirmationDialogVariant::None => String::new(),
         }
     }
@@ -110,12 +91,6 @@ impl CloudActionConfirmationDialog {
             CloudActionConfirmationDialogVariant::LeaveTeam => LEAVE_TEAM_CONFIRM_TEXT.to_string(),
             CloudActionConfirmationDialogVariant::DeleteTeam => {
                 DELETE_TEAM_CONFIRM_TEXT.to_string()
-            }
-            CloudActionConfirmationDialogVariant::LeaveTeamReloadCredits => {
-                LEAVE_TEAM_RELOAD_CREDITS_CONFIRM_TEXT.to_string()
-            }
-            CloudActionConfirmationDialogVariant::RemoveTeamMemberReloadCredits => {
-                REMOVE_TEAM_MEMBER_RELOAD_CREDITS_CONFIRM_TEXT.to_string()
             }
             CloudActionConfirmationDialogVariant::None => String::new(),
         }

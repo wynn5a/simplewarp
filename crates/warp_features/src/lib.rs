@@ -790,8 +790,6 @@ pub enum FeatureFlag {
     /// background refresh loop that keeps them fresh during a task run.
     GitCredentialRefresh,
 
-    /// Gates the v2 billing and usage page redesign.
-    BillingAndUsagePageV2,
     /// Enables configurable expanded context windows for eligible GPT models.
     GPTConfigurableContextWindow,
 

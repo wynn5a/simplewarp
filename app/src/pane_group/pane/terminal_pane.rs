@@ -1013,11 +1013,6 @@ fn handle_terminal_view_event(
             Event::OpenSettings(section) => {
                 ctx.emit(pane_group::Event::OpenSettings(*section));
             }
-            Event::OpenAutoReloadModal { purchased_credits } => {
-                ctx.emit(pane_group::Event::OpenAutoReloadModal {
-                    purchased_credits: *purchased_credits,
-                });
-            }
             #[cfg(not(target_family = "wasm"))]
             Event::OpenPluginInstructionsPane(agent, kind) => {
                 ctx.emit(pane_group::Event::OpenPluginInstructionsPane(*agent, *kind));

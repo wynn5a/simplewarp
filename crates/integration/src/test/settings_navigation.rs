@@ -75,8 +75,8 @@ pub fn test_settings_keyboard_navigation_down_into_collapsed_umbrella() -> Build
 pub fn test_settings_keyboard_navigation_up_into_collapsed_umbrella() -> Builder {
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        // Billing and usage sits directly below the Agents umbrella.
-        .with_step(open_settings_page(SettingsSection::BillingAndUsage))
+        // The Code umbrella sits directly below the Agents umbrella.
+        .with_step(open_settings_page(SettingsSection::CodeIndexing))
         .with_step(assert_umbrella_expanded(AGENTS_UMBRELLA, false))
         .with_step(press_settings_nav_up())
         .with_step(assert_settings_section(
@@ -99,7 +99,7 @@ pub fn test_settings_keyboard_navigation_after_manual_collapse() -> Builder {
         .with_step(assert_settings_section(SettingsSection::Knowledge))
         // Down should continue past the umbrella, not restart from the top.
         .with_step(press_settings_nav_down())
-        .with_step(assert_settings_section(SettingsSection::BillingAndUsage))
+        .with_step(assert_settings_section(SettingsSection::CodeIndexing))
 }
 
 // ---------------------------------------------------------------------------

@@ -11,7 +11,6 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
 use warpui::clipboard::ClipboardContent;
@@ -475,10 +474,6 @@ pub struct OpenTeamsSettingsModalArgs {
 enum TeamActionConfirmationTarget {
     Leave,
     Delete,
-    RemoveUser {
-        user_uid: UserUid,
-        team_uid: ServerId,
-    },
 }
 
 pub struct TeamsPageView {
@@ -540,18 +535,7 @@ impl TypedActionView for TeamsPageView {
             TeamsPageAction::LeaveTeam => self.leave_team(ctx),
             TeamsPageAction::CreateTeam => self.create_team(ctx),
             TeamsPageAction::RemoveUserFromTeam { user_uid, team_uid } => {
-                if FeatureFlag::BillingAndUsagePageV2.is_enabled() {
-                    self.show_team_action_confirmation(
-                        CloudActionConfirmationDialogVariant::RemoveTeamMemberReloadCredits,
-                        TeamActionConfirmationTarget::RemoveUser {
-                            user_uid: *user_uid,
-                            team_uid: *team_uid,
-                        },
-                        ctx,
-                    );
-                } else {
-                    self.remove_user_from_team(*user_uid, *team_uid, ctx);
-                }
+                self.remove_user_from_team(*user_uid, *team_uid, ctx);
             }
             TeamsPageAction::ChangeInviteViewOption(view_option) => {
                 self.change_invite_view_option(view_option, ctx);
@@ -562,13 +546,8 @@ impl TypedActionView for TeamsPageView {
             }
             TeamsPageAction::OpenWarpDrive => ctx.emit(TeamsPageViewEvent::OpenWarpDrive),
             TeamsPageAction::ShowLeaveTeamConfirmationDialog => {
-                let variant = if self.should_show_reload_credits_confirmation(ctx) {
-                    CloudActionConfirmationDialogVariant::LeaveTeamReloadCredits
-                } else {
-                    CloudActionConfirmationDialogVariant::LeaveTeam
-                };
                 self.show_team_action_confirmation(
-                    variant,
+                    CloudActionConfirmationDialogVariant::LeaveTeam,
                     TeamActionConfirmationTarget::Leave,
                     ctx,
                 );
@@ -1116,15 +1095,6 @@ impl TeamsPageView {
         }
     }
 
-    fn should_show_reload_credits_confirmation(&self, ctx: &AppContext) -> bool {
-        FeatureFlag::BillingAndUsagePageV2.is_enabled()
-            && self
-                .ai_request_usage_model
-                .as_ref(ctx)
-                .total_user_interactive_bonus_credits_remaining()
-                > 0
-    }
-
     fn show_team_action_confirmation(
         &mut self,
         variant: CloudActionConfirmationDialogVariant,
@@ -1159,9 +1129,6 @@ impl TeamsPageView {
             TeamActionConfirmationTarget::Leave | TeamActionConfirmationTarget::Delete => {
                 self.leave_team(ctx);
             }
-            TeamActionConfirmationTarget::RemoveUser { user_uid, team_uid } => {
-                self.remove_user_from_team(user_uid, team_uid, ctx);
-            }
         }
         ctx.notify();
     }
@@ -1171,14 +1138,6 @@ impl TeamsPageView {
             && matches!(
                 &self.pending_team_action_confirmation,
                 Some(TeamActionConfirmationTarget::Leave | TeamActionConfirmationTarget::Delete)
-            )
-    }
-
-    fn should_show_remove_user_from_team_confirmation_dialog(&self) -> bool {
-        self.show_team_action_confirmation_dialog
-            && matches!(
-                &self.pending_team_action_confirmation,
-                Some(TeamActionConfirmationTarget::RemoveUser { .. })
             )
     }
 
@@ -4687,18 +4646,6 @@ impl SettingsWidget for TeamsWidget {
                 ),
             );
         }
-        if view.should_show_remove_user_from_team_confirmation_dialog() {
-            stack.add_positioned_overlay_child(
-                ChildView::new(&view.team_action_confirmation_dialog).finish(),
-                OffsetPositioning::offset_from_parent(
-                    vec2f(0., 0.),
-                    ParentOffsetBounds::WindowByPosition,
-                    ParentAnchor::Center,
-                    ChildAnchor::Center,
-                ),
-            );
-        }
-
         stack.finish()
     }
 }

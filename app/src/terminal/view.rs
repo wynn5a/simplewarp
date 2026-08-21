@@ -1977,9 +1977,6 @@ pub enum Event {
     OpenAgentProfileEditor {
         profile_id: ExecutionProfileId,
     },
-    OpenAutoReloadModal {
-        purchased_credits: i32,
-    },
     #[cfg(not(target_family = "wasm"))]
     OpenPluginInstructionsPane(CLIAgent, PluginModalKind),
     ShowToast {
@@ -22087,11 +22084,6 @@ impl TerminalView {
                     is_auto_open: false,
                 });
             }
-            InputEvent::OpenAutoReloadModal { purchased_credits } => {
-                ctx.emit(Event::OpenAutoReloadModal {
-                    purchased_credits: *purchased_credits,
-                });
-            }
             InputEvent::AuthSecretDeleteConfirmationDialogToggled { is_open } => {
                 ctx.emit(Event::AuthSecretDeleteConfirmationDialogToggled { is_open: *is_open });
             }
@@ -26787,7 +26779,6 @@ impl TypedActionView for TerminalView {
             | IndexProjectSpeedbump
             | OpenViewMCPPane
             | OpenAddMCPPane
-            | OpenBillingAndUsagePane
             | OpenAddRulePane
             | OpenRulesPane
             | OpenEditSkillPane { .. }
@@ -27735,9 +27726,6 @@ impl TypedActionView for TerminalView {
                 ctx.emit(Event::OpenMCPSettingsPage {
                     page: Some(MCPServersSettingsPage::Edit { item_id: None }),
                 });
-            }
-            OpenBillingAndUsagePane => {
-                ctx.emit(Event::OpenSettings(SettingsSection::BillingAndUsage));
             }
             OpenAddRulePane => {
                 ctx.emit(Event::OpenAddRulePane);

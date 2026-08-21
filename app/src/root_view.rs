@@ -3455,16 +3455,6 @@ impl RootView {
             return true;
         }
 
-        // A checkout confirmation that predates the unified success hand-off
-        // still returns the user through the Billing & Usage deeplink. Landing
-        // it mid-onboarding would interrupt the flow, so onboarding takes it as
-        // the purchase succeeding and moves on instead.
-        if *section == SettingsSection::BillingAndUsage
-            && self.notify_onboarding_checkout_succeeded(ctx)
-        {
-            return true;
-        }
-
         report_error!(
             "Auth not complete before trying to open settings page",
             extra: { "section" => ?section }
