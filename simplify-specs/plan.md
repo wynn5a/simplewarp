@@ -736,11 +736,59 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    JSON file, so an unread field there is not dead code in the same sense; it stays.
 
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
-   `cloud_object_*`, `warp_multi_agent_client`.
+   `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 
    Steps 3e and 3f name the two conditions for starting this: the dead-code cascade stops at
    `base_client`, so `warp_server_client` is the first crate to go, and `warp_graphql` cannot
    go until the client traits themselves do, because their signatures still use its types.
+
+   **`warp_multi_agent_client` is DONE.** 240 lines, one real call site
+   (`app/src/ai/agent/api/impl.rs`), and the last path that sent an agent request — with the
+   user's API keys inside it — to `{warp_server}/ai/multi-agent`.
+
+   **Deleting it forces the `local_inference` seam closed, which is the point.** Phase 3 wired
+   the local adapter behind `#[cfg(feature = "local_inference")]` and left the server path in
+   the `not` branch. With the crate gone that branch cannot compile, so the default build would
+   have no AI path at all — the adapter has to become unconditional. The cargo feature and its
+   12 `cfg` sites go with it. Same reasoning as 3e: a seam kept for a path that no longer works
+   is only work to undo later.
+
+   The compiler named most of the cascade — `convert_multi_agent_client_error`, then
+   `AIApiError::from_stream_error` (37 lines) whose only caller it was, already carrying a
+   `cfg_attr(…, allow(dead_code))` that admitted as much. It did **not** name the rest:
+
+   | Orphaned | Why nothing said so |
+   | --- | --- |
+   | `Workspace::is_byo_api_key_enabled` | `pub` items in a lib are exempt from dead-code analysis. Each had exactly one caller — the policy branch deleted from `UserWorkspaces`. Found by grepping for the call. |
+   | `BillingMetadata::is_byo_endpoint_enabled` | Same. |
+
+   That is the 3g lesson again, from the other direction: **deleting a branch orphans what only
+   that branch called, and for a `pub` item the compiler is silent.**
+
+   Two tests, neither a mechanical fix:
+
+   - `test_has_any_ai_remaining_false_with_grok_subscription_but_byo_disabled` asserted a
+     premise that can no longer occur. `..._true_with_grok_subscription_connected` already
+     covers the reachable case, so inverting it would have produced a duplicate. Deleted.
+   - `test_byo_api_key_disabled_for_anonymous_firebase_user` became
+     `test_anonymous_user_with_byo_key_has_ai_available`. Inverting the assertion under the old
+     name would have been nonsense; the new name pins the guarantee that is the point of the
+     fork — no account plus a user key means working AI.
+
+   Acceptance: 6363 app tests and 83 `local_inference` tests pass; check across the workspace,
+   clippy, format, and the `simplewarp` binary clean; `warp_multi_agent_client` gone from
+   `Cargo.lock`. **Not re-run in the app, and this is the step where that matters most** — the
+   AI dispatch is what changed, so a real conversation is the check.
+
+   `byo_endpoint_policy` stays on the tier struct, written by the GraphQL conversion and read by
+   nothing. It goes with `graphql`.
+
+   **`warp_server_client` next, and it is not a clean cut.** 17 files, 3,651 lines, 23 files
+   referencing it. Its `base_client` had two users and one is now gone, but the crate is four
+   separate things: `iap` (839 lines of identity-token minting), `auth` (845, the session and
+   token layer that `app/src/auth/` is built on), `base_client` (417), and `network_logging`
+   (164, which backs the in-app network log view). The `auth` half is entangled with step 3, so
+   the tractable slice is `iap` plus `base_client`, not the crate.
 5. The `FeatureFlag` variants that are no longer in use. **29 removed: 16 in the first sweep, 2
    with step 3g, and 11 in a second sweep. More remain behind the module deletions above.**
 
@@ -809,7 +857,10 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
             (3b), referrals (3d), the resource center and changelog (3g) — and with 3c, 3e, and
             3f the app can no longer build, let alone send, a warp-server request. ~9k further
             lines.
-      - [ ] **The cloud crates remain** (4), and so do the three modules that are refactors
+      - [x] **`warp_multi_agent_client` is gone** (4), and with it the `local_inference` cargo
+            feature: the local adapter is now the only AI path in every build, not one side of a
+            `cfg`.
+      - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), plus `drive`
             (2). The remaining dead `FeatureFlag` variants fall out of those (5).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
