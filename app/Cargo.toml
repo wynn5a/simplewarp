@@ -276,9 +276,8 @@ rmcp.workspace = true
 warp_isolation_platform.workspace = true
 warp_ripgrep.workspace = true
 warp_managed_secrets.workspace = true
-warp_multi_agent_client.workspace = true
 local_control.workspace = true
-local_inference = { workspace = true, optional = true }
+local_inference.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 block.workspace = true
@@ -707,16 +706,11 @@ default = [
     "factory_mcp",
 ]
 
-# Calls the AI provider direct from this machine instead of through a Warp server.
-# See crates/local_inference.
-local_inference = ["dep:local_inference"]
-
 # SimpleWarp: a local-only build. No cloud, no login, no billing, and no Warp Drive.
 # Build it with: cargo run --no-default-features --features simplewarp --bin simplewarp
 # It is the `default` set, less the cloud, sharing, ambient, hand-off, and billing
 # features, plus `skip_login`.
 simplewarp = [
-    "local_inference",
     "local_only",
     "agent_mode",
     "osc_hyperlinks",
@@ -900,7 +894,6 @@ agent_mode_evals = [
     "rust-embed/debug-embed",
     "warpui/log_named_telemetry_events",
     "warp_logging/agent_mode_evals",
-    "warp_multi_agent_client/agent_mode_evals",
     "warp_server_client/agent_mode_evals",
 ]
 ambient_agents_command_line = []

@@ -141,53 +141,23 @@ pub async fn generate_multi_agent_output(
     // SimpleWarp runs the model call on this machine, so the request never leaves for a Warp
     // server and the API keys inside it never do either. The event stream has the same shape,
     // so everything downstream is unchanged.
-    #[cfg(feature = "local_inference")]
-    {
-        let _ = &server_api;
-        return match local_inference::generate_local_output(&request).await {
-            Ok(stream) => {
-                let output_stream = stream
-                    .then(|result| async {
-                        match result {
-                            Ok(event) => Ok(event),
-                            Err(error) => Err(convert_local_inference_error(error)),
-                        }
-                    })
-                    .take_until(cancellation_rx);
-                Ok(Box::pin(output_stream))
-            }
-            Err(error) => {
-                let (tx, rx) = async_channel::unbounded();
-                let _ = tx.send(Err(convert_local_inference_error(error))).await;
-                Ok(Box::pin(rx))
-            }
-        };
-    }
-
-    #[cfg(not(feature = "local_inference"))]
-    {
-        let response_stream =
-            warp_multi_agent_client::generate_multi_agent_output(server_api.as_ref(), &request)
-                .await;
-        match response_stream {
-            Ok(stream) => {
-                let output_stream = stream
-                    .then(|result| async {
-                        match result {
-                            Ok(event) => Ok(event),
-                            Err(error) => Err(convert_multi_agent_client_error(error).await),
-                        }
-                    })
-                    .take_until(cancellation_rx);
-                Ok(Box::pin(output_stream))
-            }
-            Err(e) => {
-                let (tx, rx) = async_channel::unbounded();
-                let _ = tx
-                    .send(Err(convert_multi_agent_client_error(e).await))
-                    .await;
-                Ok(Box::pin(rx))
-            }
+    let _ = &server_api;
+    match local_inference::generate_local_output(&request).await {
+        Ok(stream) => {
+            let output_stream = stream
+                .then(|result| async {
+                    match result {
+                        Ok(event) => Ok(event),
+                        Err(error) => Err(convert_local_inference_error(error)),
+                    }
+                })
+                .take_until(cancellation_rx);
+            Ok(Box::pin(output_stream))
+        }
+        Err(error) => {
+            let (tx, rx) = async_channel::unbounded();
+            let _ = tx.send(Err(convert_local_inference_error(error))).await;
+            Ok(Box::pin(rx))
         }
     }
 }
@@ -196,7 +166,6 @@ pub async fn generate_multi_agent_output(
 ///
 /// A missing key and a rejected key are the two failures a user can fix themselves, so they keep
 /// their own messages rather than falling into the generic bucket.
-#[cfg(feature = "local_inference")]
 fn convert_local_inference_error(error: local_inference::Error) -> Arc<AIApiError> {
     use local_inference::Error as LocalError;
 
@@ -212,26 +181,6 @@ fn convert_local_inference_error(error: local_inference::Error) -> Arc<AIApiErro
         }
         LocalError::Http(error) => AIApiError::Transport(error),
         other => AIApiError::Other(anyhow::anyhow!("{other}")),
-    };
-    Arc::new(error)
-}
-
-#[cfg(not(feature = "local_inference"))]
-async fn convert_multi_agent_client_error(
-    error: warp_multi_agent_client::Error,
-) -> Arc<AIApiError> {
-    let error = match error {
-        warp_multi_agent_client::Error::Authentication(error)
-        | warp_multi_agent_client::Error::AmbientHeaders(error) => AIApiError::Other(error),
-        warp_multi_agent_client::Error::Base64Decode(error) => {
-            AIApiError::Other(anyhow::Error::from(error))
-        }
-        warp_multi_agent_client::Error::ProtobufDecode(error) => {
-            AIApiError::Other(anyhow::Error::from(error))
-        }
-        warp_multi_agent_client::Error::EventSource(error) => {
-            AIApiError::from_stream_error("GenerateMultiAgentOutput", *error).await
-        }
     };
     Arc::new(error)
 }

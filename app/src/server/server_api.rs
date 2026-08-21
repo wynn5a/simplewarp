@@ -260,43 +260,6 @@ impl AIApiError {
         }
     }
 
-    /// Format a stream error into a human-readable error message. This will read the response
-    /// body if there is one.
-    // The only caller is the Warp-server agent stream, which the `local_inference` build
-    // replaces with a direct provider call.
-    #[cfg_attr(feature = "local_inference", allow(dead_code))]
-    pub(crate) async fn from_stream_error(
-        stream_type: &'static str,
-        err: reqwest_eventsource::Error,
-    ) -> Self {
-        match err {
-            reqwest_eventsource::Error::InvalidStatusCode(
-                http::StatusCode::TOO_MANY_REQUESTS,
-                res,
-            ) => {
-                let headers = res.headers().clone();
-                let body = res.text().await.ok();
-                Self::error_for_429(&headers, body)
-            }
-            reqwest_eventsource::Error::InvalidStatusCode(status, res) => Self::ErrorStatus(
-                status,
-                res.text()
-                    .await
-                    .unwrap_or_else(|e| format!("(no response body: {e:#})")),
-            ),
-            reqwest_eventsource::Error::Transport(err) => Self::from_transport_error(err),
-            err => AIApiError::Stream {
-                stream_type,
-                // On WASM, `reqwest_eventsource::Error` doesn't implement `Into<anyhow::Error>` or
-                // `Send` because it may contain a `wasm_bindgen` JS value.
-                #[cfg(target_family = "wasm")]
-                source: anyhow!("{err:#?}"),
-                #[cfg(not(target_family = "wasm"))]
-                source: anyhow!(err),
-            },
-        }
-    }
-
     /// Whether the error is worth an automatic recovery attempt — a fresh request may
     /// succeed. Gates both retry (pre-actions) and resume (post-actions).
     pub fn is_recoverable(&self) -> bool {

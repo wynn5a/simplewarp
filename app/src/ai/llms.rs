@@ -1408,7 +1408,6 @@ impl LLMPreferences {
     /// A provider that fails — a bad key, no network — contributes nothing and is logged rather
     /// than reported: with several providers configured, one being unreachable is ordinary, and
     /// the user finds out either way when the model is missing from the picker.
-    #[cfg(feature = "local_inference")]
     fn refresh_provider_llms(&mut self, ctx: &mut ModelContext<Self>) {
         if crate::features::warp_account_available() {
             return;
@@ -1459,14 +1458,9 @@ impl LLMPreferences {
         );
     }
 
-    /// No provider is asked without the local-inference path, because the server supplies the
-    /// catalog in that build.
-    #[cfg(not(feature = "local_inference"))]
-    fn refresh_provider_llms(&mut self, _ctx: &mut ModelContext<Self>) {}
-
     /// The models reachable with the user's own provider keys.
     ///
-    /// Mirrors [`Self::custom_llm_choices`]. Always empty without the local-inference path.
+    /// Mirrors [`Self::custom_llm_choices`].
     pub fn provider_llm_choices(&self) -> std::slice::Iter<'_, LLMInfo> {
         self.provider_llms.iter()
     }
@@ -2117,7 +2111,6 @@ fn build_custom_llm_infos(keys: &ai::api_keys::ApiKeys) -> Vec<LLMInfo> {
 ///
 /// The `id` is the provider's own slug, which is what goes out as `ModelConfig.base` and what
 /// `local_inference` sends to the provider — so no mapping table is needed between the two.
-#[cfg(feature = "local_inference")]
 fn provider_llm_info_from(model: &local_inference::ProviderModel) -> LLMInfo {
     LLMInfo {
         display_name: model.display_name.clone(),

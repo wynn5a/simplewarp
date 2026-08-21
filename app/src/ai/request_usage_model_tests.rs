@@ -1145,38 +1145,6 @@ fn test_has_any_ai_remaining_true_with_grok_subscription_connected() {
 }
 
 #[test]
-fn test_has_any_ai_remaining_false_with_grok_subscription_but_byo_disabled() {
-    App::test((), |mut app| async move {
-        // No BYO policy: the Grok token can't be sent, so it must not count as
-        // available AI.
-        let (_uid, workspace) = create_test_workspace();
-
-        add_user_workspaces_with_workspace(&mut app, workspace);
-        let request_usage_model = add_request_usage_model(&mut app);
-
-        ApiKeyManager::handle(&app).update(&mut app, |manager, ctx| {
-            manager.set_grok_tokens(
-                Some(GrokTokens {
-                    access_token: "grok-test-token".to_string(),
-                    ..Default::default()
-                }),
-                ctx,
-            );
-        });
-
-        request_usage_model.update(&mut app, |model, ctx| {
-            model.request_limit_info = RequestLimitInfo::new_for_test(10, 10);
-            model.bonus_grants.clear();
-
-            assert!(
-                !model.has_any_ai_remaining(ctx),
-                "expected has_any_ai_remaining to be false when a Grok subscription is connected but BYO is disabled",
-            );
-        });
-    });
-}
-
-#[test]
 fn test_has_any_ai_remaining_true_with_byo_key_and_no_workspace() {
     App::test((), |mut app| async move {
         let _guard = FeatureFlag::SoloUserByok.override_enabled(true);
@@ -1203,10 +1171,13 @@ fn test_has_any_ai_remaining_true_with_byo_key_and_no_workspace() {
 }
 
 #[test]
-fn test_byo_api_key_disabled_for_anonymous_firebase_user() {
+/// A user with no account and their own provider key has working AI.
+///
+/// This is the point of the fork, and it used to be false: BYOK was gated on being signed in,
+/// so an anonymous or logged-out user was refused even holding a key. The model call now happens
+/// on this machine with that key, so there is nothing left for an account to authorize.
+fn test_anonymous_user_with_byo_key_has_ai_available() {
     App::test((), |mut app| async move {
-        let _guard = FeatureFlag::SoloUserByok.override_enabled(true);
-
         app.add_singleton_model(UserWorkspaces::default_mock);
         let request_usage_model = add_request_usage_model_for_anonymous_users(&mut app);
 
@@ -1216,8 +1187,8 @@ fn test_byo_api_key_disabled_for_anonymous_firebase_user() {
 
         app.read(|ctx| {
             assert!(
-                !UserWorkspaces::as_ref(ctx).is_byo_api_key_enabled(ctx),
-                "expected is_byo_api_key_enabled to be false for anonymous Firebase users even with SoloUserByok enabled",
+                UserWorkspaces::as_ref(ctx).is_byo_api_key_enabled(ctx),
+                "expected is_byo_api_key_enabled to be true with no account, because a user key is the only path to a model",
             );
         });
 
@@ -1226,8 +1197,8 @@ fn test_byo_api_key_disabled_for_anonymous_firebase_user() {
             model.bonus_grants.clear();
 
             assert!(
-                !model.has_any_ai_remaining(ctx),
-                "expected has_any_ai_remaining to be false for anonymous Firebase user even with BYO key and SoloUserByok enabled",
+                model.has_any_ai_remaining(ctx),
+                "expected has_any_ai_remaining to be true for an anonymous user holding a provider key",
             );
         });
     });
