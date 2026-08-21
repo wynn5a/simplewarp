@@ -789,6 +789,54 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    token layer that `app/src/auth/` is built on), `base_client` (417), and `network_logging`
    (164, which backs the in-app network log view). The `auth` half is entangled with step 3, so
    the tractable slice is `iap` plus `base_client`, not the crate.
+
+4b. **The Identity-Aware Proxy layer — DONE.** ~2,100 lines across six crates. IAP fronted the
+   *staging* warp-server, reachable only through `WarpServerConfig::iap_config`. **No channel
+   config in this fork ever set it** — `local_only` and `production` both pass `None`, as do
+   both integration binaries — so `IapState` could never be constructed and every consumer was
+   permanently inert.
+
+   `base_client` turned out not to be the tractable half after all: it is still `ServerApi`'s
+   `Deref` target, so it goes with `auth`. `iap` alone was the clean cut, but the seam was much
+   wider than the module:
+
+   | Removed | Where |
+   | --- | --- |
+   | `iap.rs` + tests | The gcloud shell-out, the WIF self-mint (STS + IAM `generateIdToken`), the on-disk token cache, `IapManager`'s refresh lifecycle. |
+   | `http_client::iap` | `IapTokenProvider`, `is_iap_challenge`, the `Proxy-Authorization` builder, and the `iap_token` parameter threaded through get/post/put/patch/delete. |
+   | `AuthEvent::IapChallengeReceived`, `GraphQLError::IapChallengeBlocked` | The challenge → refresh feedback loop, from the response check down to `ServerApiProvider`'s event arm. |
+   | The startup gate | `authenticate_user_after_iap_access` in `lib.rs` and its twin in the CLI's `launch_command`. Both now authenticate directly. |
+   | `IapCredentialsWidget` | With `MainPageAction::RefreshIapCredentials`. |
+   | The websocket handshake headers | Shared-session sharer and viewer attached the proxy-auth header on connect and refreshed on a handshake challenge; all three sites drop to plain `WebSocket::connect`. |
+   | `ManagedSecretsIapMinter` | The app-side bridge letting a sandboxed Oz runner self-mint. |
+
+   Deleting the transport orphaned code the compiler could not flag, in both directions.
+   `wrap_eventsource_with_iap_detection` already had no callers — 3e took its streams.
+   `http_client`'s `is_warp_server_origin` existed only to scope the IAP token to Warp's origin,
+   and once its one caller went it was left holding nothing but its own two tests; same for
+   `connect_error_http_response` in `websocket`, whose only user was `ws_connect_is_iap_challenge`.
+
+   **Deleting a `use` can silently move its `#[cfg]` onto the next line.** Three removed imports
+   carried `#[cfg(not(target_family = "wasm"))]`, and stripping the `use` alone left the
+   attribute attached to whatever followed: `server::sync_queue`,
+   `warpui::assets::asset_cache::AssetSource`, and — worst — `pub mod ids;` in
+   `app/src/server/mod.rs`, which would have made the whole module non-wasm. **Every one still
+   compiled on macOS**, so `cargo check` proved nothing; reading the diff line by line is what
+   caught them. The 2/3d lesson in a new shape: the damage a scripted removal does is not always
+   to the lines it touched.
+
+   Acceptance: 6363 app tests pass, **unchanged** — none of this had a test in `warp`. 106 pass
+   across `warp_server_client`, `http_client`, `warp_graphql`, `warp_core`, and `websocket`.
+   Check across the workspace, clippy, format, and the `simplewarp` binary are clean. Six now-unused
+   dependencies dropped from `warp_server_client`.
+
+   Two things this did **not** verify. The wasm target is not installed, and the three orphaned
+   `cfg`s were wasm-only hazards, so that build is argued correct rather than compiled. And
+   `cargo nextest run -p integration` fails 5 SSH tests: they tunnel into Warp's private GCP
+   project via `gcloud compute start-iap-tunnel` — an unrelated use of the name — and time out
+   after 41s waiting for a password prompt. That path is untouched and cannot work in this fork.
+   This is the first time the integration crate's *tests* have been run; 3g only checked that it
+   builds.
 5. The `FeatureFlag` variants that are no longer in use. **29 removed: 16 in the first sweep, 2
    with step 3g, and 11 in a second sweep. More remain behind the module deletions above.**
 
@@ -860,6 +908,9 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
       - [x] **`warp_multi_agent_client` is gone** (4), and with it the `local_inference` cargo
             feature: the local adapter is now the only AI path in every build, not one side of a
             `cfg`.
+      - [x] **The Identity-Aware Proxy layer is gone** (4b): ~2,100 lines of staging-only
+            token minting across six crates, plus `IapConfig` itself, which no channel config
+            in this fork ever set.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), plus `drive`
             (2). The remaining dead `FeatureFlag` variants fall out of those (5).
