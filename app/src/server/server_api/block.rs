@@ -7,8 +7,7 @@ use mockall::automock;
 use warp_graphql::queries::get_blocks_for_user::Block as GqlBlock;
 
 use super::ServerApi;
-use crate::ai::generate_block_title::api::{GenerateBlockTitleRequest, GenerateBlockTitleResponse};
-use crate::server::block::{Block, DisplaySetting};
+use crate::server::block::Block;
 
 #[cfg_attr(test, automock)]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
@@ -17,21 +16,7 @@ pub trait BlockClient: 'static + Send + Sync {
     /// Unshares a block identified at `block_id`.
     async fn unshare_block(&self, block_id: String) -> Result<(), anyhow::Error>;
 
-    /// Uploads a given block to the server via the /share_block endpoint.
-    async fn save_block(
-        &self,
-        block: &Block,
-        title: Option<String>,
-        show_prompt: bool,
-        display_setting: DisplaySetting,
-    ) -> Result<String, anyhow::Error>;
-
     async fn blocks_owned_by_user(&self) -> Result<Vec<Block>, anyhow::Error>;
-
-    async fn generate_shared_block_title(
-        &self,
-        request: GenerateBlockTitleRequest,
-    ) -> Result<GenerateBlockTitleResponse, anyhow::Error>;
 }
 
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
@@ -41,24 +26,7 @@ impl BlockClient for ServerApi {
         Err(crate::server::server_api::local_only_error())
     }
 
-    async fn save_block(
-        &self,
-        _block: &Block,
-        _title: Option<String>,
-        _show_prompt: bool,
-        _display_setting: DisplaySetting,
-    ) -> Result<String, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
     async fn blocks_owned_by_user(&self) -> Result<Vec<Block>, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn generate_shared_block_title(
-        &self,
-        _request: GenerateBlockTitleRequest,
-    ) -> Result<GenerateBlockTitleResponse, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 }
