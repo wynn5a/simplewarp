@@ -938,6 +938,53 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
 
    Acceptance: 6268 app tests pass (38 fewer); check across the workspace *and* `-p integration`,
    clippy, format, and the `simplewarp` binary clean. Not re-run in the app.
+
+4e. **Session sharing is gone — DONE.** ~41,000 lines, 61 files. The largest single deletion
+   after the TUI, and the first one whose *consumers* outnumbered the feature: the module tree
+   was 27k lines, the call sites another 14k.
+
+   Removed: `terminal/shared_session/` (sharer, viewer, network, heartbeat, presence,
+   permissions, selections, the share/role-change modals) and `terminal/view/shared_session/`,
+   `share_block_modal`, `crates/warp_terminal/src/shared_session.rs`, `ShareableObject::Session`
+   with the Warp Drive QR code, the tab and pane-header share menus, and the `WorkspaceAction`
+   and `pane_group::Event` variants that reached any of them.
+
+   **A mock is not a drop-in for the manager it replaces.** Cloud-mode panes were composed in an
+   *uninitialized shared-session viewer* — that was the trick that let the composer reuse the
+   terminal input with no backing session. Swapping in `MockTerminalManager` looked equivalent
+   and was not: the viewer's `TerminalView` was built with `is_ambient_agent: true`, so the mock
+   silently produced cloud panes with **no `AmbientAgentViewModel`**. Nothing failed to compile;
+   three tests caught it at runtime. `MockTerminalManager::create_model` now takes the flag.
+
+   **An "unused import" can be used by the test module below it.** `cargo check --lib --tests`
+   reported `SerializedBlock`, `ShellName`, and `AuthStateProvider` as unused; each is reached by
+   a `#[cfg(test)] mod tests` child through `use super::*`, so removing them broke a build that
+   the same command had just called clean. `cargo test --no-run` is the check that sees them.
+   `ShellName` is the honest case of the three: its only user is a `cfg(any(test, feature =
+   "test-util"))` constructor, so the import now carries the same `cfg`.
+
+   **A deleted dispatch branch fails at runtime, not at the compiler.** `is_viewing_shared_session`
+   survives as a field on `AIConversation`, so every test that *constructed* a viewer child still
+   compiled — and then materialized an ordinary pane, because the branch that read the field was
+   gone. Two hidden-child tests failed this way. A leftover boolean is worse than a deleted one:
+   it keeps the old shape compiling while the behaviour underneath it has changed.
+
+   244 tests went with their subject; none needed replacing, because every one of them asserted
+   on a sharer, a viewer, or a link. Eleven were kept by removing only the shared-session framing:
+   a composer-selector pair now gates on `is_dummy_cloud_mode_session` alone, the DCS-hook test
+   keeps the rejection half and drops the viewer half, and `unfreeze_agent_input` no longer needs
+   two statuses to say the same thing once. The close-session confirmation dialog's seven tests
+   all went: the dialog existed to warn before closing a *shared* pane, and it is now unreachable.
+
+   Acceptance: 6024 app tests pass (244 fewer), 0 fail. Format, clippy (no import or error
+   diagnostics), the `simplewarp` binary, and `-p integration` clean. Not re-run in the app.
+
+   **What is deliberately left standing** is now visible as ~85 clippy `never used` warnings, and
+   that list *is* the next step's work: the `is_viewing_shared_session` plumbing, two stubs that
+   only log or return `false` (`extend_shared_session_retention`,
+   `is_third_party_cloud_agent_viewer`), the shared-session scrollback loaders in
+   `terminal/model/blocks.rs`, the close-session confirmation dialog, and the four
+   `*SharedSessions*` `FeatureFlag` variants with their cargo features.
 5. The `FeatureFlag` variants that are no longer in use. **29 removed: 16 in the first sweep, 2
    with step 3g, and 11 in a second sweep. More remain behind the module deletions above.**
 
@@ -1018,9 +1065,14 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
       - [x] **The request quota gates nothing** (4d): `has_any_ai_remaining` is `true`, the
             credit-availability layer is gone, and the prompt alert is down to offline-or-nothing.
             Every AI request is allowed and none are metered.
+      - [x] **Session sharing is gone** (4e): ~41,000 lines — the sharer, the viewer, their
+            network layers, every modal, and the drive-object and tab-menu entry points. Cloud
+            mode survives it, but only because the composer pane was given back the ambient
+            model the viewer manager used to build.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), plus `drive`
-            (2). The remaining dead `FeatureFlag` variants fall out of those (5).
+            (2). The remaining dead `FeatureFlag` variants fall out of those (5), together with
+            the ~85 items 4e left dead but standing.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
