@@ -1051,6 +1051,12 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    and format all clean. 6007/6015 app tests pass (8 pre-existing failures, see above). Not
    re-run in the app.
 
+   **Follow-on found by clippy after the fact:** `AIRequestUsageModel::refresh_duration_to_string`
+   had exactly one caller, the widget's "This is the {weekly/monthly/biweekly} limit..."
+   description, and clippy only reported it dead once that caller was gone. Deleted
+   separately once found. `RequestLimitRefreshDuration` itself stays live elsewhere
+   (`settings/ai_tests.rs`, `ai_assistant/mod.rs`).
+
 4i. **The 4f-flagged warp-server residue is gone — DONE.** ~375 lines across four files.
    `generate_block_title/` and `BlockClient::{save_block, generate_shared_block_title}` —
    both stubbed with `local_only_error()` since 3f, and the request/response types they
