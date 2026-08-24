@@ -1011,9 +1011,20 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    is itself dead, so rustc reported the pair and deleting the leaf broke the root. Both restored.
    **Delete a dead cluster from the top down, and check `grep -rl` for test users first.**
 
-   Left for later, and not session sharing's: the viewer-mode ancestor-SSE cluster in
-   `orchestration_event_streamer.rs` (~600 interlinked lines, its own step), and the
-   warp-server residue in `server/block.rs`, `attachment_utils.rs`, and `generate_block_title/`.
+   Left for later, and not session sharing's: the warp-server residue in `server/block.rs`,
+   `attachment_utils.rs`, and `generate_block_title/`.
+
+4g. **The viewer-mode ancestor SSE is gone — DONE.** ~1,200 lines. The streamer ran a second,
+   parallel event path purely for a shared-session viewer watching someone else's orchestrator:
+   one ancestor SSE per `parent_task_id`, a consumer refcount so several viewer panes could
+   share it, a REST cold-start seed, and its own drain and reconnect timers. Its only entry
+   point was a viewer pane calling `register_viewer_mode_consumer`, so after 4e nothing but its
+   own tests reached it — a cluster kept alive solely by the tests written for it.
+
+   **A two-valued mode enum is a deletion in disguise.** `FamilyDrainMode` existed to say which
+   of the two paths a drain was serving. With `Observer` gone, `Primary` is the only answer, so
+   the enum, the three signatures that threaded it, and the two `if mode == Primary` guards all
+   collapse — and what is left reads as one plain drain rather than a configurable one.
 
    Acceptance: 6023 app tests pass (one fewer — the continuation-pane test went with its
    subject), 0 fail. Format, clippy (0 errors, 52 dead-code warnings), and all three binaries —
@@ -1098,7 +1109,7 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
       - [x] **The request quota gates nothing** (4d): `has_any_ai_remaining` is `true`, the
             credit-availability layer is gone, and the prompt alert is down to offline-or-nothing.
             Every AI request is allowed and none are metered.
-      - [x] **Session sharing is gone** (4e, 4f): ~42,300 lines — the sharer, the viewer, their
+      - [x] **Session sharing is gone** (4e, 4f, 4g): ~43,500 lines — the sharer, the viewer, their
             network layers, every modal, the drive-object and tab-menu entry points, and the
             dead code they left behind. Cloud mode survives it, but only because the composer
             pane was given back the ambient model the viewer manager used to build.
