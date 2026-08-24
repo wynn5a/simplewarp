@@ -1331,8 +1331,6 @@ fn test_gap_after_banner() {
         last_size: *block_list.size(),
         new_size: SizeInfo::new_without_font_metrics(5, 5),
         new_gap_height: Some(5.0.into_lines()),
-        natural_rows: 5,
-        natural_cols: 5,
     };
     block_list.resize(&size_update, true);
 

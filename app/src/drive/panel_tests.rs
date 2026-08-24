@@ -17,7 +17,6 @@ use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::terminal::resizable_data::ResizableData;
-use crate::terminal::shared_session::permissions_manager::SessionPermissionsManager;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -40,7 +39,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
     app.add_singleton_model(AuthManager::new_for_test);
-    app.add_singleton_model(SessionPermissionsManager::new);
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
     #[cfg(feature = "voice_input")]

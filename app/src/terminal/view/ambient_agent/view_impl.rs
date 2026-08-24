@@ -145,8 +145,7 @@ impl TerminalView {
                 // Only the spawner's view handles `DispatchedAgent`. Viewer surfaces (shared
                 // ambient agent session or transcript viewer) have no submitted prompt to render
                 // and should not insert cloud-mode rich content here.
-                let is_viewer = self.is_shared_ambient_agent_session()
-                    || self.model.lock().is_conversation_transcript_viewer();
+                let is_viewer = self.model.lock().is_conversation_transcript_viewer();
                 if is_viewer {
                     ctx.notify();
                     return;
@@ -218,18 +217,6 @@ impl TerminalView {
             }
             AmbientAgentViewModelEvent::SessionReady { .. }
             | AmbientAgentViewModelEvent::ExecutionSessionReady { .. } => {
-                if matches!(
-                    event,
-                    AmbientAgentViewModelEvent::ExecutionSessionReady { .. }
-                ) {
-                    if self.pending_cloud_followup_task_id.is_some()
-                        && !self.is_conversation_details_panel_open
-                    {
-                        self.suppress_initial_conversation_details_panel_auto_open();
-                    }
-                    self.pending_cloud_followup_task_id = None;
-                    self.remove_conversation_ended_tombstone(ctx);
-                }
                 if FeatureFlag::HandoffCloudCloud.is_enabled() {
                     self.refresh_conversation_details_panel_if_open(ctx);
                 } else {
@@ -256,16 +243,11 @@ impl TerminalView {
                 ctx.notify();
             }
             AmbientAgentViewModelEvent::Failed { error_message } => {
-                self.pending_cloud_followup_task_id = None;
                 self.update_active_ambient_agent_conversation_status(
                     ConversationStatus::Error,
                     Some(RenderableAIError::other(error_message.clone(), false)),
                     ctx,
                 );
-
-                if FeatureFlag::CloudModeSetupV2.is_enabled() {
-                    self.insert_conversation_ended_tombstone_with_resolved_cta(ctx);
-                }
 
                 // Refresh the details panel to show failed status
                 if self.is_conversation_details_panel_open {
@@ -278,7 +260,6 @@ impl TerminalView {
             AmbientAgentViewModelEvent::ShowCloudAgentCapacityModal => {
                 if FeatureFlag::CloudMode.is_enabled()
                     && ambient_agent_view_model.as_ref(ctx).is_ambient_agent()
-                    && !self.model.lock().is_shared_ambient_agent_session()
                 {
                     ctx.emit(crate::terminal::view::Event::ShowCloudAgentCapacityModal {
                         variant: CloudAgentCapacityModalVariant::ConcurrentLimit,
@@ -290,7 +271,6 @@ impl TerminalView {
             AmbientAgentViewModelEvent::ShowAICreditModal => {
                 if FeatureFlag::CloudMode.is_enabled()
                     && ambient_agent_view_model.as_ref(ctx).is_ambient_agent()
-                    && !self.model.lock().is_shared_ambient_agent_session()
                 {
                     self.show_out_of_credits_modal(ctx);
                 }
@@ -298,7 +278,6 @@ impl TerminalView {
                 ctx.notify();
             }
             AmbientAgentViewModelEvent::NeedsGithubAuth => {
-                self.pending_cloud_followup_task_id = None;
                 if self.active_ambient_agent_conversation_is_child(ctx) {
                     self.update_active_ambient_agent_conversation_status(
                         ConversationStatus::Blocked {
@@ -314,7 +293,6 @@ impl TerminalView {
                 ctx.notify();
             }
             AmbientAgentViewModelEvent::Cancelled => {
-                self.pending_cloud_followup_task_id = None;
                 self.update_active_ambient_agent_conversation_status(
                     ConversationStatus::Cancelled,
                     None,
@@ -409,10 +387,6 @@ impl TerminalView {
                     }
                 }
 
-                // Force a fresh viewer size report to the sharer so the harness CLI (e.g.
-                // the claude TUI) starts at our terminal's actual dimensions instead of
-                // whatever the sandbox PTY was sized to during setup.
-                self.force_report_viewer_terminal_size(ctx);
                 ctx.emit(TerminalViewEvent::TerminalViewStateChanged);
                 ctx.notify();
             }
@@ -544,10 +518,9 @@ impl TerminalView {
                 .session(self.view_id)
                 .is_some()
         };
-        let is_shared_ambient_agent_session = self.is_shared_ambient_agent_session();
-
-        (has_ambient_third_party_harness || has_cli_agent_session)
-            && is_shared_ambient_agent_session
+        let _ = has_ambient_third_party_harness;
+        let _ = has_cli_agent_session;
+        false
     }
 
     /// Syncs agent view for a live shared-session viewer of a non-oz cloud run, so every

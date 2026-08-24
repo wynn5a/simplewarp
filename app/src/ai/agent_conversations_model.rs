@@ -1462,13 +1462,10 @@ impl AgentConversationsModel {
                 .get(&task_id)
                 .map(AmbientAgentTask::active_live_session_state)
             {
-                Some(AmbientAgentLiveSessionState::Attachable { session_id }) => {
-                    return Some(WorkspaceAction::OpenOrAttachAmbientAgentConversation {
-                        session_id,
-                        task_id,
-                    });
-                }
-                Some(AmbientAgentLiveSessionState::ActiveUnattachable) => {
+                Some(
+                    AmbientAgentLiveSessionState::Attachable { .. }
+                    | AmbientAgentLiveSessionState::ActiveUnattachable,
+                ) => {
                     return active_views_model
                         .get_terminal_view_id_for_ambient_task(task_id)
                         .map(
@@ -1700,7 +1697,6 @@ impl AgentConversationsModel {
             | BlocklistAIHistoryEvent::NewConversationRequestComplete { .. }
             | BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
             | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. }
-            | BlocklistAIHistoryEvent::LocalSharedSessionEstablished { .. }
             | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. } => {}
 
             BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. } => {

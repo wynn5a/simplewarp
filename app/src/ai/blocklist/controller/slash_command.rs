@@ -173,7 +173,6 @@ impl SlashCommandRequest {
             inputs,
             task_id,
             &controller.active_session,
-            controller.get_current_response_initiator(),
             conversation_id,
             controller.terminal_surface_id,
             ctx,

@@ -27,7 +27,6 @@ use voice_input::{
     StartListeningError, VoiceInputLifecycle, VoiceInputLifecycleState, VoiceSessionResult,
 };
 use warp_cli::agent::Harness;
-use warp_core::context_flag::ContextFlag;
 use warp_core::ui::color::ContrastingColor;
 use warp_core::ui::color::blend::Blend;
 use warp_core::ui::color::contrast::MinimumAllowedContrast;
@@ -60,7 +59,6 @@ use crate::ai::blocklist::usage::icon_for_context_window_usage;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::appearance::Appearance;
-use crate::auth::{AuthManager, AuthStateProvider};
 use crate::completer::SessionContext;
 use crate::context_chips::display_chip::{DisplayChip, DisplayChipConfig, PromptChipShellCommand};
 use crate::context_chips::prompt_type::PromptType;
@@ -96,12 +94,11 @@ use crate::terminal::profile_model_selector::{ProfileModelSelector, ProfileModel
 use crate::terminal::session_settings::{
     SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection,
 };
-use crate::terminal::shared_session::SharedSessionStatus;
+use crate::terminal::view::TerminalAction;
 use crate::terminal::view::ambient_agent::{
     AmbientAgentViewModel, ModelSelector, ModelSelectorEvent,
 };
 use crate::terminal::view::init::OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING;
-use crate::terminal::view::{AIQueryRouting, TerminalAction, resolve_ai_query_routing};
 use crate::terminal::{CLIAgent, TerminalModel};
 use crate::ui_components::icons::Icon;
 use crate::view_components::DismissibleToast;
@@ -123,12 +120,6 @@ const FAST_FORWARD_ON_TOOLTIP: &str = "Turn off auto-approve all agent actions";
 const FAST_FORWARD_OFF_TOOLTIP: &str = "Auto-approve all agent actions for this task";
 const FAST_FORWARD_LOCKED_TOOLTIP: &str =
     "Fast forward is always enabled for cloud agent conversations";
-
-const START_REMOTE_CONTROL_TOOLTIP: &str = "Start remote control";
-const START_REMOTE_CONTROL_LOGIN_REQUIRED_TOOLTIP: &str = "Log in to use /remote-control";
-
-const LIVE_REMOTE_VM_INDICATOR_TOOLTIP: &str = "Connected to a live cloud agent session. Your next prompt continues on the running remote machine.";
-const NEW_CLOUD_VM_INDICATOR_TOOLTIP: &str = "Not connected to cloud agent. Your next prompt starts a new cloud machine to continue this conversation.";
 
 const CLOUD_MODE_V2_FOOTER_GAP: f32 = 4.;
 
@@ -190,14 +181,10 @@ pub struct AgentInputFooter {
     mic_button: ViewHandle<ActionButton>,
     nld_button: ViewHandle<ActionButton>,
     file_button: ViewHandle<ActionButton>,
-    start_remote_control_button: ViewHandle<ActionButton>,
-    stop_remote_control_button: ViewHandle<ActionButton>,
     context_window_button: ViewHandle<ActionButton>,
     /// Non-interactive indicators for a cloud follow-up pane: one shown when attached to a live
     /// remote VM, one when the next follow-up will start a new cloud VM. See
     /// [`AIQueryRouting`].
-    live_session_indicator: ViewHandle<ActionButton>,
-    new_cloud_vm_indicator: ViewHandle<ActionButton>,
     model_selector: ViewHandle<ProfileModelSelector>,
     environment_selector: Option<ViewHandle<EnvironmentSelector>>,
     handoff_environment_selector: ViewHandle<EnvironmentSelector>,
@@ -651,51 +638,10 @@ impl AgentInputFooter {
             },
         );
 
-        let start_remote_control_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("/remote-control", RemoteControlButtonTheme)
-                .with_icon(Icon::Phone01)
-                .with_tooltip(START_REMOTE_CONTROL_TOOLTIP)
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::StartRemoteControl);
-                })
-        });
-
-        let stop_remote_control_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Stop sharing", RemoteControlButtonTheme)
-                .with_icon(Icon::StopFilled)
-                .with_icon_ansi_color(AnsiColorIdentifier::Red)
-                .with_tooltip("Stop sharing")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::StopRemoteControl);
-                })
-        });
-
         let context_window_button = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new("", AgentInputButtonTheme)
                 .with_icon(Icon::ContextRemaining100)
                 .with_tooltip("Context window usage")
-                .with_size(button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-        });
-
-        // Non-interactive cloud follow-up indicators. Only one is rendered at a time, chosen by
-        // `AIQueryRouting` at render time.
-        let live_session_indicator = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("", AgentInputButtonTheme)
-                .with_icon(Icon::CloudFilled)
-                .with_tooltip(LIVE_REMOTE_VM_INDICATOR_TOOLTIP)
-                .with_size(button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-        });
-        let new_cloud_vm_indicator = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("", AgentInputButtonTheme)
-                .with_icon(Icon::CloudOffline)
-                .with_icon_ansi_color(AnsiColorIdentifier::Yellow)
-                .with_tooltip(NEW_CLOUD_VM_INDICATOR_TOOLTIP)
                 .with_size(button_size)
                 .with_tooltip_alignment(TooltipAlignment::Left)
         });
@@ -802,12 +748,6 @@ impl AgentInputFooter {
         );
 
         // Keep the remote-control chip in sync with login state so we can
-        // disable it and swap the tooltip when the user is anonymous or
-        // logged out.
-        ctx.subscribe_to_model(&AuthManager::handle(ctx), |me, _, _, ctx| {
-            me.sync_remote_control_button(ctx);
-        });
-
         let prompt_for_session_settings = prompt.clone();
         ctx.subscribe_to_model(
             &SessionSettings::handle(ctx),
@@ -902,8 +842,6 @@ impl AgentInputFooter {
             file_explorer_button,
             rich_input_button,
             settings_button,
-            start_remote_control_button,
-            stop_remote_control_button,
             install_plugin_button,
             plugin_instructions_button,
             update_plugin_button,
@@ -912,8 +850,6 @@ impl AgentInputFooter {
             plugin_operation_in_progress: false,
             plugin_chip_ready: false,
             context_window_button,
-            live_session_indicator,
-            new_cloud_vm_indicator,
             model_selector: profile_model_selector_full,
             environment_selector,
             handoff_environment_selector,
@@ -937,7 +873,6 @@ impl AgentInputFooter {
             prompt_cache_expired: false,
         };
         me.sync_fast_forward_button(ctx);
-        me.sync_remote_control_button(ctx);
         me.update_context_window_button(ctx);
         me.update_display_chips(&prompt, ctx);
         // Route ambient wiring through the setter so construction and the lazy shared-session
@@ -1134,10 +1069,7 @@ impl AgentInputFooter {
         }
         #[cfg(not(target_family = "wasm"))]
         {
-            if self.plugin_operation_in_progress
-                || self.terminal_model.lock().is_shared_ambient_agent_session()
-                || !FeatureFlag::HOANotifications.is_enabled()
-            {
+            if self.plugin_operation_in_progress || !FeatureFlag::HOANotifications.is_enabled() {
                 return None;
             }
 
@@ -1488,25 +1420,13 @@ impl AgentInputFooter {
     fn render_cli_toolbar_item(
         &self,
         item: &AgentToolbarItemKind,
-        shared_status: &SharedSessionStatus,
         is_conversation_transcript_context: bool,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
-        if !item.available_in().is_available_for_cli()
-            || !item.available_to_session_viewer(shared_status, false)
-        {
+        if !item.available_in().is_available_for_cli() {
             return None;
         }
-
-        // Hide ShareSession for shared ambient (cloud) agent sessions —
-        // it doesn't make sense to offer remote-control when already
-        // viewing a cloud agent's shared session.
-        if matches!(item, AgentToolbarItemKind::ShareSession)
-            && (is_conversation_transcript_context
-                || self.terminal_model.lock().is_shared_ambient_agent_session())
-        {
-            return None;
-        }
+        let _ = is_conversation_transcript_context;
 
         match item {
             AgentToolbarItemKind::ContextChip(chip_kind) => {
@@ -1528,24 +1448,6 @@ impl AgentInputFooter {
                 #[cfg(not(feature = "voice_input"))]
                 None
             }
-            AgentToolbarItemKind::ShareSession => {
-                if is_conversation_transcript_context {
-                    return None;
-                }
-                let enabled = FeatureFlag::CreatingSharedSessions.is_enabled()
-                    && FeatureFlag::HOARemoteControl.is_enabled()
-                    && ContextFlag::CreateSharedSession.is_enabled();
-                if !enabled {
-                    return None;
-                }
-
-                let button = if shared_status.is_sharer() {
-                    &self.stop_remote_control_button
-                } else {
-                    &self.start_remote_control_button
-                };
-                Some(ChildView::new(button).finish())
-            }
             AgentToolbarItemKind::Settings => Some(ChildView::new(&self.settings_button).finish()),
             // Handled by the available_in() guard above; included for exhaustiveness.
             AgentToolbarItemKind::ModelSelector
@@ -1564,7 +1466,7 @@ impl AgentInputFooter {
         // the lock before calling into helpers like `should_use_manual_mode`
         // and `render_cli_toolbar_item`, which may re-lock the same model and
         // would deadlock since the lock is non-reentrant.
-        let (background_color, shared_status, is_conversation_transcript_context) = {
+        let (background_color, is_conversation_transcript_context) = {
             let terminal_model = self.terminal_model.lock();
             let background_color = if terminal_model.is_alt_screen_active() {
                 terminal_model
@@ -1574,14 +1476,9 @@ impl AgentInputFooter {
             } else {
                 appearance.theme().surface_1().into_solid()
             };
-            let shared_status = terminal_model.shared_session_status().clone();
             let is_conversation_transcript_context =
                 is_conversation_transcript_context(self.terminal_view_id, &terminal_model, app);
-            (
-                background_color,
-                shared_status,
-                is_conversation_transcript_context,
-            )
+            (background_color, is_conversation_transcript_context)
         };
 
         let session_settings = SessionSettings::as_ref(app);
@@ -1644,12 +1541,9 @@ impl AgentInputFooter {
         }
 
         for item in &left_items {
-            if let Some(element) = self.render_cli_toolbar_item(
-                item,
-                &shared_status,
-                is_conversation_transcript_context,
-                app,
-            ) {
+            if let Some(element) =
+                self.render_cli_toolbar_item(item, is_conversation_transcript_context, app)
+            {
                 left_buttons.add_child(element);
             }
         }
@@ -1660,12 +1554,9 @@ impl AgentInputFooter {
             .with_spacing(4.);
 
         for item in &right_items {
-            if let Some(element) = self.render_cli_toolbar_item(
-                item,
-                &shared_status,
-                is_conversation_transcript_context,
-                app,
-            ) {
+            if let Some(element) =
+                self.render_cli_toolbar_item(item, is_conversation_transcript_context, app)
+            {
                 right_buttons.add_child(element);
             }
         }
@@ -2044,21 +1935,6 @@ impl AgentInputFooter {
     /// Disable the start-remote-control chip and swap its tooltip when the
     /// user is anonymous or logged out, since session sharing requires a
     /// real account.
-    fn sync_remote_control_button(&self, ctx: &mut ViewContext<Self>) {
-        let login_required = AuthStateProvider::as_ref(ctx)
-            .get()
-            .is_anonymous_or_logged_out();
-        let tooltip = if login_required {
-            START_REMOTE_CONTROL_LOGIN_REQUIRED_TOOLTIP
-        } else {
-            START_REMOTE_CONTROL_TOOLTIP
-        };
-        self.start_remote_control_button.update(ctx, |button, ctx| {
-            button.set_disabled(login_required, ctx);
-            button.set_tooltip(Some(tooltip), ctx);
-        });
-    }
-
     fn update_context_window_button(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(conversation) =
             BlocklistAIHistoryModel::as_ref(ctx).active_conversation(self.terminal_view_id)
@@ -2123,21 +1999,11 @@ impl AgentInputFooter {
     fn render_toolbar_item(
         &self,
         item: &AgentToolbarItemKind,
-        shared_status: &SharedSessionStatus,
         is_cloud_context: bool,
         is_conversation_transcript_context: bool,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
-        let is_cloud_mode = FeatureFlag::CloudModeImageContext.is_enabled()
-            && self
-                .ambient_agent_view_model
-                .as_ref()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model.as_ref(app).is_ambient_agent()
-                });
-        if !item.available_in().is_available_for_agent_view()
-            || !item.available_to_session_viewer(shared_status, is_cloud_mode)
-        {
+        if !item.available_in().is_available_for_agent_view() {
             return None;
         }
 
@@ -2219,23 +2085,6 @@ impl AgentInputFooter {
                     );
                     stack.finish()
                 })
-            }
-            AgentToolbarItemKind::ShareSession => {
-                if is_conversation_transcript_context {
-                    return None;
-                }
-                let enabled = FeatureFlag::CreatingSharedSessions.is_enabled()
-                    && FeatureFlag::HOARemoteControl.is_enabled()
-                    && ContextFlag::CreateSharedSession.is_enabled();
-                if !enabled {
-                    return None;
-                }
-                let button = if shared_status.is_sharer() {
-                    &self.stop_remote_control_button
-                } else {
-                    &self.start_remote_control_button
-                };
-                Some(ChildView::new(button).finish())
             }
             AgentToolbarItemKind::FastForwardToggle => FeatureFlag::FastForwardAutoexecuteButton
                 .is_enabled()
@@ -2331,41 +2180,13 @@ impl View for AgentInputFooter {
         }
 
         let terminal_model = self.terminal_model.lock();
-        let shared_status = terminal_model.shared_session_status();
         let is_cloud_context = super::is_in_cloud_context(&terminal_model);
         let is_conversation_transcript_context =
             is_conversation_transcript_context(self.terminal_view_id, &terminal_model, app);
 
-        // Indicate whether the next follow-up continues on the live remote VM or starts a new one.
-        // The new-cloud-VM chip uses a yellow icon; the live-session chip uses the default color.
-        match resolve_ai_query_routing(
-            self.terminal_view_id,
-            self.ambient_agent_view_model.as_ref(),
-            &terminal_model,
-            app,
-        ) {
-            AIQueryRouting::LiveRemoteVm {
-                ambient_agent_task_id: Some(_),
-                ..
-            } => {
-                left_buttons.add_child(ChildView::new(&self.live_session_indicator).finish());
-            }
-            AIQueryRouting::NewCloudVm { .. } => {
-                left_buttons.add_child(ChildView::new(&self.new_cloud_vm_indicator).finish());
-            }
-            // Shared *local* session viewers (no ambient task) and non-live panes show no indicator.
-            AIQueryRouting::LiveRemoteVm {
-                ambient_agent_task_id: None,
-                ..
-            }
-            | AIQueryRouting::UnconnectedReadOnly
-            | AIQueryRouting::Local => {}
-        }
-
         for item in &left_items {
             if let Some(element) = self.render_toolbar_item(
                 item,
-                shared_status,
                 is_cloud_context,
                 is_conversation_transcript_context,
                 app,
@@ -2392,7 +2213,6 @@ impl View for AgentInputFooter {
             for item in &right_items {
                 if let Some(element) = self.render_toolbar_item(
                     item,
-                    shared_status,
                     is_cloud_context,
                     is_conversation_transcript_context,
                     app,
@@ -2441,8 +2261,6 @@ pub enum AgentInputFooterAction {
     OpenPluginInstallInstructionsPane,
     OpenPluginUpdateInstructionsPane,
     DismissPluginChip,
-    StartRemoteControl,
-    StopRemoteControl,
     OpenCodingAgentSettings,
     /// User clicked the "Hand off to cloud" footer chip. The terminal `Input`
     /// subscriber decides whether to dispatch the immediate empty-prompt
@@ -2627,12 +2445,6 @@ impl TypedActionView for AgentInputFooter {
                 }
                 ctx.notify();
             }
-            AgentInputFooterAction::StartRemoteControl => {
-                ctx.emit(AgentInputFooterEvent::StartRemoteControl);
-            }
-            AgentInputFooterAction::StopRemoteControl => {
-                ctx.emit(AgentInputFooterEvent::StopRemoteControl);
-            }
             AgentInputFooterAction::OpenCodingAgentSettings => {
                 #[cfg(not(target_family = "wasm"))]
                 ctx.dispatch_typed_action_deferred(WorkspaceAction::ScrollToSettingsWidget {
@@ -2674,8 +2486,6 @@ pub enum AgentInputFooterEvent {
     /// Toggle the file explorer side panel. `None` when no CLI agent session is
     /// attached to this pane.
     ToggleFileExplorer(Option<CLIAgent>),
-    StartRemoteControl,
-    StopRemoteControl,
     OpenRichInput,
     HideRichInput,
     ToggledChipMenu {

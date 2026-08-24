@@ -625,7 +625,6 @@ impl<P: BackingView> PaneHeader<P> {
                 let should_show_on_header = hover_state.is_hovered()
                     || self.open_overlay != OpenOverlay::None
                     || options.has_open_menu
-                    || self.has_shareable_shared_session(app)
                     || options.always_show_icons;
 
                 let (right_justified_row, min_right_width) = self.render_right_justified_row(

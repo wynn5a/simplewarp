@@ -1,4 +1,3 @@
-use warp_core::context_flag::ContextFlag;
 use warpui::AppContext;
 use warpui::keymap::{
     BindingDescription, ContextPredicate, EditableBinding, FixedBinding, PerPlatformKeystroke,
@@ -24,7 +23,6 @@ use crate::terminal::input::{
 };
 use crate::terminal::model::escape_sequences::{self, EscCodes};
 use crate::terminal::model::selection::SelectionDirection;
-use crate::terminal::shared_session::{SharedSessionActionSource, SharedSessionStatus};
 use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
 use crate::terminal::view::{
     LONG_RUNNING_AGENT_REQUESTED_COMMAND_CONTEXT_KEY,
@@ -559,15 +557,6 @@ pub fn init(app: &mut AppContext) {
             id!("Terminal") & id!("TerminalView_NonEmptyBlockList") & !id!("AltScreen"),
         ),
         EditableBinding::new(
-            "terminal:open_share_block_modal",
-            "Share selected block",
-            TerminalAction::OpenShareModal,
-        )
-        .with_custom_action(CustomAction::CreateBlockPermalink)
-        .with_context_predicate(
-            id!("Terminal") & eq!("TerminalView_BlockSelectionCardinality", "One"),
-        ),
-        EditableBinding::new(
             "terminal:bookmark_selected_block",
             "Bookmark selected block",
             TerminalAction::BookmarkSelectedBlock,
@@ -851,9 +840,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| {
             FeatureFlag::AgentOnboarding.is_enabled() && ChannelState::enable_debug_features()
         })
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        ),
+        .with_context_predicate(id!("Terminal")),
         EditableBinding::new(
             "terminal:agent_onboarding_flow_universal_input_no_project",
             "[Debug] Onboarding Callout: WarpInput - No Project",
@@ -864,9 +851,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| {
             FeatureFlag::AgentOnboarding.is_enabled() && ChannelState::enable_debug_features()
         })
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        ),
+        .with_context_predicate(id!("Terminal")),
         // AgentModality callout debug bindings
         EditableBinding::new(
             "terminal:agent_onboarding_flow_modality_project",
@@ -881,9 +866,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| {
             FeatureFlag::AgentOnboarding.is_enabled() && ChannelState::enable_debug_features()
         })
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        ),
+        .with_context_predicate(id!("Terminal")),
         EditableBinding::new(
             "terminal:agent_onboarding_flow_modality_no_project",
             "[Debug] Onboarding Callout: Modality - No Project",
@@ -897,9 +880,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| {
             FeatureFlag::AgentOnboarding.is_enabled() && ChannelState::enable_debug_features()
         })
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        ),
+        .with_context_predicate(id!("Terminal")),
         EditableBinding::new(
             "terminal:agent_onboarding_flow_modality_terminal",
             "[Debug] Onboarding Callout: Modality - Terminal",
@@ -913,9 +894,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| {
             FeatureFlag::AgentOnboarding.is_enabled() && ChannelState::enable_debug_features()
         })
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        ),
+        .with_context_predicate(id!("Terminal")),
     ]);
 
     app.register_editable_bindings([EditableBinding::new(
@@ -924,34 +903,6 @@ pub fn init(app: &mut AppContext) {
         TerminalAction::ImportSettings,
     )
     .with_context_predicate(id!("Terminal") & id!(flags::HAS_SETTINGS_TO_IMPORT_FLAG))]);
-
-    app.register_editable_bindings([
-        EditableBinding::new(
-            "terminal:share_current_session",
-            "Share current session",
-            TerminalAction::OpenShareSessionModal {
-                source: SharedSessionActionSource::CommandPalette,
-            },
-        )
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        )
-        .with_custom_action(CustomAction::ShareCurrentSession)
-        .with_enabled(|| {
-            FeatureFlag::CreatingSharedSessions.is_enabled()
-                && ContextFlag::CreateSharedSession.is_enabled()
-        }),
-        EditableBinding::new(
-            "terminal:stop_sharing_current_session",
-            "Stop sharing current session",
-            TerminalAction::StopSharingCurrentSession {
-                source: SharedSessionActionSource::CommandPalette,
-            },
-        )
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::ActiveSharer.as_keymap_context()),
-        ),
-    ]);
 
     app.register_editable_bindings([EditableBinding::new(
         TOGGLE_BLOCK_FILTER_KEYBINDING,

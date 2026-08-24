@@ -2003,7 +2003,6 @@ impl AIConversation {
             coding_model_id,
             cli_agent_model_id,
             computer_use_model_id,
-            shared_session_response_initiator,
             request_start_ts,
             ..
         } = request_input;
@@ -2028,8 +2027,6 @@ impl AIConversation {
                 cli_agent_model_id: cli_agent_model_id.clone(),
                 computer_use_model_id: computer_use_model_id.clone(),
                 request_cost: None,
-                // This will be None for non-shared sessions
-                response_initiator: shared_session_response_initiator.clone(),
             };
 
             let new_exchange_id = new_exchange.id;

@@ -236,8 +236,7 @@ impl<P: BackingView> PaneView<P> {
         match event {
             PaneConfigurationEvent::ShowAccentBorderUpdated
             | PaneConfigurationEvent::DimEvenIfFocusedUpdated => ctx.notify(),
-            PaneConfigurationEvent::RefreshPaneHeaderOverflowMenuItems
-            | PaneConfigurationEvent::SharedSessionLinkChanged => {
+            PaneConfigurationEvent::RefreshPaneHeaderOverflowMenuItems => {
                 let child = self.child(ctx);
                 let items = child.read(ctx, |view, ctx| view.pane_header_overflow_menu_items(ctx));
                 self.header.update(ctx, |header, ctx| {
@@ -247,11 +246,6 @@ impl<P: BackingView> PaneView<P> {
                 self.header.update(ctx, |header, ctx| {
                     header.set_toolbelt_buttons(buttons, ctx);
                 });
-                if matches!(event, PaneConfigurationEvent::SharedSessionLinkChanged) {
-                    self.header.update(ctx, |header, ctx| {
-                        header.refresh_shared_session_link(ctx);
-                    });
-                }
                 ctx.notify();
             }
             PaneConfigurationEvent::ShareableObjectChanged(object) => {
@@ -262,11 +256,6 @@ impl<P: BackingView> PaneView<P> {
             PaneConfigurationEvent::ToggleSharingDialog(source) => {
                 self.header.update(ctx, |header, ctx| {
                     header.share_pane_contents(*source, ctx);
-                });
-            }
-            PaneConfigurationEvent::OpenSharingQrCode(source) => {
-                self.header.update(ctx, |header, ctx| {
-                    header.open_shared_session_qr_code(*source, ctx);
                 });
             }
             _ => {}

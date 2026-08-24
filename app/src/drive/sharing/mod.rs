@@ -1,28 +1,22 @@
 use std::borrow::Cow;
 
-use chrono::{DateTime, Local};
-use session_sharing_protocol::common::SessionId;
 use warp_core::channel::ChannelState;
 use warp_core::ui::appearance::Appearance;
 use warpui::color::ColorU;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::{AppContext, SingletonEntity, WeakViewHandle};
+use warpui::{AppContext, SingletonEntity};
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::server::ids::ServerId;
 use crate::server::server_api::object::GuestIdentifier;
-use crate::terminal::TerminalView;
-use crate::terminal::shared_session::join_link;
-use crate::terminal::shared_session::manager::Manager;
 use crate::ui_components::avatar::{Avatar, AvatarContent};
 use crate::ui_components::icons::Icon;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub mod dialog;
-mod qr_code;
 mod style;
 
 // Re-export types from cloud_objects.
@@ -36,13 +30,6 @@ pub use cloud_objects::drive::sharing::{
 pub enum ShareableObject {
     /// A shareable Warp Drive object.
     WarpDriveObject(ServerId),
-    /// A shared terminal session. Shared sessions are identified by the participating terminal
-    /// pane.
-    Session {
-        handle: WeakViewHandle<TerminalView>,
-        session_id: SessionId,
-        started_at: DateTime<Local>,
-    },
     /// An AI conversation.
     AIConversation(AIConversationId),
 }
@@ -54,21 +41,6 @@ impl ShareableObject {
             ShareableObject::WarpDriveObject(id) => CloudModel::as_ref(app)
                 .get_by_uid(&id.uid())
                 .and_then(|object| object.object_link()),
-            ShareableObject::Session {
-                handle, session_id, ..
-            } => {
-                let handle = handle.upgrade(app)?;
-                let shared_session_status = handle
-                    .as_ref(app)
-                    .model
-                    .lock()
-                    .shared_session_status()
-                    .clone();
-                let link_session_id = Manager::as_ref(app)
-                    .session_id_for_link(&handle.id(), &shared_session_status)?;
-
-                (link_session_id == *session_id).then(|| join_link(session_id))
-            }
             ShareableObject::AIConversation(id) => {
                 // Use the unified helper that checks both loaded conversation and historical metadata
                 BlocklistAIHistoryModel::as_ref(app)

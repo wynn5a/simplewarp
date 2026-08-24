@@ -64,22 +64,20 @@ fn terminal_task_with_stale_session_id_loads_transcript() {
     );
 }
 
+/// Joining a live session was a shared-session capability, so a task that is still
+/// running has nothing to materialize: only a terminal run loads a transcript.
 #[test]
-fn attachable_task_attaches_live_with_session_id() {
+fn task_with_a_live_session_stays_pending() {
     let task = task(
         AmbientAgentTaskState::InProgress,
         true,
         Some("22222222-2222-2222-2222-222222222222"),
-        // A conversation_id is present but must be ignored in favor of the
-        // live session.
-        Some("server-token-irrelevant-for-attach"),
+        Some("server-token-for-an-unfinished-run"),
     );
 
     assert_eq!(
         decide_child_pane_materialization(&task),
-        ChildPaneMaterialization::AttachLive {
-            session_id: "22222222-2222-2222-2222-222222222222".parse().unwrap(),
-        },
+        ChildPaneMaterialization::Pending,
     );
 }
 

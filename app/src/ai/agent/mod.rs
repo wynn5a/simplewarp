@@ -30,7 +30,6 @@ use derivative::Derivative;
 use markdown_parser::{FormattedTable, FormattedText, FormattedTextInline, parse_markdown};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use session_sharing_protocol::common::ParticipantId;
 use task::TaskId;
 pub use telemetry::AIIdentifiers;
 use uuid::Uuid;
@@ -3196,10 +3195,6 @@ pub struct AIAgentExchange {
 
     /// The computer use model to which the request was sent.
     pub computer_use_model_id: LLMId,
-
-    /// The participant who initiated this exchange (for shared sessions)
-    /// For non-shared sessions, we just leave this as None.
-    pub response_initiator: Option<ParticipantId>,
 }
 
 impl AIAgentExchange {

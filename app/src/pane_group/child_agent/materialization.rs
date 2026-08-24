@@ -1,14 +1,10 @@
-use session_sharing_protocol::common::SessionId;
-
 use crate::ai::agent::api::ServerConversationToken;
-use crate::ai::ambient_agents::{AmbientAgentLiveSessionState, AmbientAgentTask};
+use crate::ai::ambient_agents::AmbientAgentTask;
 
 /// How to materialize a child agent pane given its [`AmbientAgentTask`].
 /// See [`decide_child_pane_materialization`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ChildPaneMaterialization {
-    /// Attachable live session — join it in place using `session_id`.
-    AttachLive { session_id: SessionId },
     /// No live session but a server conversation token is available; load
     /// the cloud transcript for it.
     LoadTranscript {
@@ -26,12 +22,6 @@ pub(crate) enum ChildPaneMaterialization {
 pub(crate) fn decide_child_pane_materialization(
     task: &AmbientAgentTask,
 ) -> ChildPaneMaterialization {
-    if let AmbientAgentLiveSessionState::Attachable { session_id } =
-        task.active_live_session_state()
-    {
-        return ChildPaneMaterialization::AttachLive { session_id };
-    }
-
     // Only terminal runs load a transcript. Empty/whitespace tokens would
     // drive a no-op cloud fetch, so treat them as absent.
     if task.is_terminal_run_state()

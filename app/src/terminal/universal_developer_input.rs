@@ -58,7 +58,6 @@ use crate::terminal::profile_model_selector::{
     calculate_scaled_font_size,
 };
 use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
-use crate::terminal::shared_session::permissions_manager::SessionPermissionsManager;
 use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
@@ -579,10 +578,6 @@ impl UniversalDeveloperInputButtonBar {
             me.notify_and_notify_children(ctx);
         });
 
-        // Keep the control disabled state in sync with role changes
-        ctx.subscribe_to_model(&SessionPermissionsManager::handle(ctx), |me, _, _, ctx| {
-            me.update_segmented_control_disabled_state(ctx);
-        });
         // Keep the control disabled state in sync with agent control state
         ctx.subscribe_to_model(&cli_subagent_controller, move |me, _, _, ctx| {
             me.update_segmented_control_disabled_state(ctx);
@@ -658,16 +653,13 @@ impl UniversalDeveloperInputButtonBar {
     }
 
     pub fn update_segmented_control_disabled_state(&mut self, ctx: &mut ViewContext<Self>) {
-        let (is_reader, is_agent_in_control) = {
-            let terminal_model = self.terminal_model.lock();
-            (
-                terminal_model.shared_session_status().is_reader(),
-                terminal_model
-                    .block_list()
-                    .active_block()
-                    .is_active_and_long_running(),
-            )
-        };
+        let is_reader = false;
+        let is_agent_in_control = self
+            .terminal_model
+            .lock()
+            .block_list()
+            .active_block()
+            .is_active_and_long_running();
 
         let tooltip = if is_reader {
             Some("Request edit access to change input mode".to_string())
@@ -827,15 +819,7 @@ impl View for UniversalDeveloperInputButtonBar {
 
             buttons = buttons.with_child(ChildView::new(&self.at_button).finish());
 
-            // Viewers cannot attach files in shared sessions at this point.
-            if !self
-                .terminal_model
-                .lock()
-                .shared_session_status()
-                .is_viewer()
-            {
-                buttons = buttons.with_child(ChildView::new(&self.file_button).finish());
-            }
+            buttons = buttons.with_child(ChildView::new(&self.file_button).finish());
 
             let show_model_selector = FeatureFlag::ProfilesDesignRevamp.is_enabled()
                 || *SessionSettings::as_ref(app).show_model_selectors_in_prompt;

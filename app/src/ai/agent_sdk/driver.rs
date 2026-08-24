@@ -3032,17 +3032,8 @@ impl AgentDriver {
         }
         self.debug_window_refresh_installed = true;
 
-        let terminal_driver = self.terminal_driver.clone();
-        ctx.subscribe_to_model(&terminal_driver, move |me, _, event, ctx| {
-            if matches!(event, TerminalDriverEvent::SharedSessionViewerInput)
-                && let Some(window) = idle_timeout.refresh()
-            {
-                log::debug!(
-                    "Ambient agent idle lifecycle: event=idle_timeout_refreshed trigger=viewer_input"
-                );
-                me.publish_debug_window_deadline(window, ctx);
-            }
-        });
+        // Without session sharing there is no viewer input to refresh the debug window on.
+        let _ = idle_timeout;
     }
 
     /// Publishes the debug window's current deadline for display on run surfaces.
@@ -3731,10 +3722,6 @@ impl AgentDriver {
                             ctx,
                         );
                     }
-                    terminal
-                        .model
-                        .lock()
-                        .send_cloud_mode_setup_phase_ended_for_shared_session();
                 })
             });
             if self.skip_initial_turn {
@@ -3997,8 +3984,7 @@ impl AgentDriver {
                 | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. }
                 | BlocklistAIHistoryEvent::NewConversationRequestComplete { .. }
                 | BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
-                | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. }
-                | BlocklistAIHistoryEvent::LocalSharedSessionEstablished { .. } => (),
+                | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. } => (),
             }
         });
 
@@ -4274,45 +4260,6 @@ impl AgentDriver {
                     "Warning: Terminal session is slow to bootstrap. See https://docs.warp.dev/support-and-community/troubleshooting-and-support/known-issues#shells to troubleshoot."
                 );
             }
-            TerminalDriverEvent::EstablishedSharedSession {
-                session_id,
-                join_url,
-            } => {
-                tracing::event!(
-                    tracing::Level::INFO,
-                    tags.cloud_agent = true,
-                    session_id = %*session_id,
-                    "shared session established",
-                );
-                write_session_joined(join_url, self.output_format);
-
-                // If running as part of a task, store the session-sharing link.
-                if let Some(task_id) = self.task_id {
-                    let server_api = ServerApiProvider::as_ref(ctx).get_ai_client();
-                    let session_id = *session_id;
-                    ctx.spawn(
-                        async move {
-                            report_if_error!(
-                                server_api
-                                    .update_agent_task(
-                                        task_id,
-                                        None,
-                                        Some(session_id),
-                                        None,
-                                        None,
-                                        None
-                                    )
-                                    .await
-                                    .context("Error setting ambient agent shared session ID")
-                            );
-                        },
-                        |_, _, _| {},
-                    );
-                }
-            }
-            // Only meaningful while a post-failure debug window is open, which subscribes to
-            // the terminal driver separately. Nothing to do on the steady-state path.
-            TerminalDriverEvent::SharedSessionViewerInput => {}
         }
     }
 
@@ -4640,20 +4587,6 @@ fn stamp_parent_agent_id_if_some(
             conv.set_parent_agent_id(parent_run_id);
         }
     });
-}
-
-/// Write the session URL to stdout using the appropriate output format
-fn write_session_joined(join_url: &str, output_format: OutputFormat) {
-    report_if_error!(
-        output::with_stdout_buffered(|buf| match output_format {
-            OutputFormat::Json | OutputFormat::Ndjson =>
-                output::json::shared_session_established(join_url, buf),
-            OutputFormat::Text | OutputFormat::Pretty => {
-                output::text::shared_session_established(join_url, buf)
-            }
-        })
-        .context("Failed to write shared session event")
-    );
 }
 
 #[cfg(test)]

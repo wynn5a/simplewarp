@@ -304,7 +304,6 @@ impl TerminalView {
                     controller.send_user_query_in_conversation(
                         initial_prompt,
                         conversation_id,
-                        None,
                         ctx,
                     );
                 });

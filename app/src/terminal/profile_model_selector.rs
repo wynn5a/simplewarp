@@ -1672,9 +1672,8 @@ impl ProfileModelSelector {
                         .is_configuring_ambient_agent()
                 });
         let terminal_model = self.terminal_model.lock();
-        let has_edit_access = is_composing_ambient_agent
-            || !terminal_model.shared_session_status().is_viewer()
-            || terminal_model.shared_session_status().is_executor();
+        let has_edit_access = true;
+        let _ = is_composing_ambient_agent;
         let is_lrc = FeatureFlag::InlineMenuHeaders.is_enabled()
             && terminal_model
                 .block_list()
@@ -2231,12 +2230,7 @@ impl View for ProfileModelSelector {
         let profiles_model = AIExecutionProfilesModel::as_ref(app);
         let has_multiple_profiles = profiles_model.has_multiple_profiles();
 
-        // Check if user is a viewer in a shared session
-        let is_viewer = self
-            .terminal_model
-            .lock()
-            .shared_session_status()
-            .is_viewer();
+        let is_viewer = false;
 
         let mut compact_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
 

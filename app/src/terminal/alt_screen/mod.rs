@@ -9,9 +9,7 @@ pub mod alt_screen_element;
 
 /// Determines if mouse event is intercepted based on SGR_MOUSE mode and mouse reporting setting.
 pub fn should_intercept_mouse(model: &TerminalModel, shift: bool, ctx: &AppContext) -> bool {
-    // Always intercept mouse for a shared session reader since their mouse events
-    // will not be processed by the sharer's running terminal app.
-    if model.shared_session_status().is_reader() || shift {
+    if shift {
         return true;
     }
     // Require some level of mouse tracking to be enabled when the block list is active.

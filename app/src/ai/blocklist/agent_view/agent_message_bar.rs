@@ -543,7 +543,6 @@ impl MessageProvider<AgentMessageArgs<'_>> for BootstrappingMessageProducer {
     fn produce_message(&self, args: AgentMessageArgs<'_>) -> Option<Message> {
         if args.terminal_model.block_list().is_bootstrapped()
             || args.terminal_model.is_dummy_cloud_mode_session()
-            || args.terminal_model.is_shared_ambient_agent_session()
         {
             None
         } else {
@@ -819,7 +818,6 @@ fn should_fork_from_last_known_good_state(
     terminal_model: &TerminalModel,
 ) -> bool {
     if terminal_model.is_conversation_transcript_viewer()
-        || terminal_model.shared_session_status().is_viewer()
         || active_conversation.is_viewing_shared_session()
     {
         return false;

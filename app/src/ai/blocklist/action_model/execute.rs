@@ -1039,7 +1039,7 @@ impl BlocklistAIActionExecutor {
     }
 
     fn is_shared_session_viewer(&self) -> bool {
-        self.terminal_model.lock().is_shared_session_viewer()
+        false
     }
 }
 impl Entity for BlocklistAIActionExecutor {

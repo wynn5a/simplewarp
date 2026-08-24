@@ -53,8 +53,6 @@ use crate::terminal::local_tty::{
     TerminalManager as LocalTtyTerminalManager, TerminalViewSurfaceConfig,
     create_terminal_view_surface,
 };
-#[cfg(feature = "local_tty")]
-use crate::terminal::shared_session::IsSharedSessionCreator;
 
 /// Default base Docker image used for newly created sandbox shells.
 ///
@@ -95,7 +93,6 @@ fn create_docker_sandbox_view(
             let terminal_init = LocalTtyTerminalManager::<TerminalView>::create_model(
                 None,
                 HashMap::new(),
-                IsSharedSessionCreator::No,
                 None, /* restored_blocks */
                 user_default_shell_unsupported_banner_model_handle,
                 initial_size,
@@ -138,6 +135,7 @@ fn create_docker_sandbox_view(
                 None, /* conversation_restoration */
                 initial_size,
                 ctx.window_id(),
+                /* is_ambient_agent */ false,
                 ctx,
             );
             let terminal_manager = terminal_init.manager;

@@ -14,7 +14,6 @@ use crate::server::retry_strategies::with_bounded_retry;
 use crate::server::server_api::ai::{
     AIClient, RunFollowupRequest, SpawnAgentRequest, TaskStatusMessage,
 };
-use crate::terminal::shared_session;
 
 /// How long to poll for the agent to be ready.
 /// This should be long enough that the shared session will be joinable.
@@ -50,10 +49,7 @@ impl SessionJoinInfo {
 
         // Prefer the server-provided `session_link`; fall back to constructing one from
         // `session_id`. `active_run_execution()` already filters out empty links.
-        let session_link = run_execution
-            .session_link
-            .map(String::from)
-            .unwrap_or_else(|| shared_session::join_link(&session_id));
+        let session_link = run_execution.session_link.map(String::from)?;
         Some(Self {
             session_id: Some(session_id),
             session_link,

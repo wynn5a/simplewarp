@@ -274,10 +274,7 @@ fn transition_matrix_preserves_normal_flow_and_plans_safe_completion_recovery() 
         Terminated,
     ] {
         let expected = plan(phase, StartCommand(super::CommandStartKind::UserOrQueued));
-        for kind in [
-            super::CommandStartKind::SharedSession,
-            super::CommandStartKind::InBand,
-        ] {
+        for kind in [super::CommandStartKind::InBand] {
             assert_eq!(plan(phase, StartCommand(kind)), expected);
         }
         if phase != Executing {

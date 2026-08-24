@@ -26,6 +26,10 @@ pub struct MockTerminalManagerInit {
 }
 
 impl MockTerminalManager {
+    /// `is_ambient_agent` gives the view an [`AmbientAgentViewModel`]. A cloud-mode pane
+    /// needs one even though its manager is a mock: the model carries the run's status and
+    /// harness, which the composer and the agent view read.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_model(
         shell_state: ShellLaunchState,
         resources: TerminalViewResources,
@@ -33,6 +37,7 @@ impl MockTerminalManager {
         conversation_restoration: Option<ConversationRestorationInNewPaneType>,
         initial_size: Vector2F,
         window_id: WindowId,
+        is_ambient_agent: bool,
         ctx: &mut AppContext,
     ) -> MockTerminalManagerInit {
         // Create all the necessary channels we need for communication.
@@ -80,7 +85,7 @@ impl MockTerminalManager {
                 // into the web view.
                 conversation_restoration,
                 None, // inactive_pty_reads_rx
-                false,
+                is_ambient_agent,
                 ctx,
             )
         });
@@ -194,6 +199,7 @@ mod testing {
                     None,
                     Vector2F::new(7., 10.5),
                     ctx.window_id(),
+                    /* is_ambient_agent */ false,
                     ctx,
                 );
                 let terminal_view = terminal_init.view;

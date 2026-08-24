@@ -148,12 +148,9 @@ impl PassiveSuggestionsModel {
             return true;
         }
 
-        // `ambient_agent_view_model` is captured at construction and may be `None`
-        // if we joined a session and lazily set the ambient agent config.
-        // Consult live terminal state as well.
-        let terminal_model = self.terminal_model.lock();
-        terminal_model.is_shared_ambient_agent_session()
-            || terminal_model.is_conversation_transcript_viewer()
+        self.terminal_model
+            .lock()
+            .is_conversation_transcript_viewer()
     }
 
     /// Test-only accessor for the private ambient-session guard so shared-session

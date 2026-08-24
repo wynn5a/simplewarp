@@ -8,8 +8,6 @@ fn headless_layout_update_uses_cell_dimensions() {
     assert!(update.rows_or_columns_changed());
     assert_eq!(update.new_size().rows(), 8);
     assert_eq!(update.new_size().columns(), 42);
-    assert_eq!(update.natural_rows(), 8);
-    assert_eq!(update.natural_cols(), 42);
 }
 
 #[test]

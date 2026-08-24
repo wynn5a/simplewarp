@@ -90,7 +90,6 @@ pub enum SlashCommandKind {
     ForkAndCompact,
     ForkFrom,
     ContinueLocally,
-    RemoteControl,
     Cost,
     Conversations,
     Prompts,

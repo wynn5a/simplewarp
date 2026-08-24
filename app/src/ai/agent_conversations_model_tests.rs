@@ -1443,8 +1443,11 @@ fn test_resolve_open_action_prefers_active_ambient_terminal() {
     });
 }
 
+/// An attachable session has no attach action left — joining a live session was a
+/// shared-session capability. Without a terminal view already registered for the task
+/// there is nothing to open, so the entry resolves to no action at all.
 #[test]
-fn test_resolve_open_action_opens_active_ambient_session() {
+fn test_resolve_open_action_has_no_target_for_an_unopened_ambient_session() {
     App::test((), |mut app| async move {
         add_entry_projection_test_models(&mut app);
 
@@ -1472,58 +1475,13 @@ fn test_resolve_open_action_opens_active_ambient_session() {
                 ctx,
             );
 
-            assert!(matches!(
-                action,
-                Some(WorkspaceAction::OpenOrAttachAmbientAgentConversation {
-                    session_id: resolved_session_id,
-                    task_id: resolved_task_id,
-                }) if resolved_session_id.to_string() == session_id && resolved_task_id == task_id
-            ));
+            assert!(action.is_none());
         });
     });
 }
 
 #[test]
-fn test_resolve_open_action_opens_active_ambient_session_from_link() {
-    App::test((), |mut app| async move {
-        add_entry_projection_test_models(&mut app);
-
-        let now = Utc::now();
-        let session_id = make_uuid(8205);
-        let mut task = create_test_task(&make_uuid(8206), "user-a", now);
-        task.state = AmbientAgentTaskState::InProgress;
-        task.session_link = Some(format!("https://example.com/session/{session_id}"));
-        task.is_sandbox_running = true;
-        let task_id = task.task_id;
-
-        app.add_singleton_model(|_| {
-            let mut model = create_test_model();
-            model.tasks.insert(task_id, task);
-            model
-        });
-
-        app.update(|ctx| {
-            let action = AgentConversationsModel::resolve_open_action(
-                AgentConversationNavigationSubject::Entry(AgentConversationEntryId::AmbientRun(
-                    task_id,
-                )),
-                None,
-                ctx,
-            );
-
-            assert!(matches!(
-                action,
-                Some(WorkspaceAction::OpenOrAttachAmbientAgentConversation {
-                    session_id: resolved_session_id,
-                    task_id: resolved_task_id,
-                }) if resolved_session_id.to_string() == session_id && resolved_task_id == task_id
-            ));
-        });
-    });
-}
-
-#[test]
-fn test_resolve_open_action_opens_retained_failed_ambient_session_from_link() {
+fn test_retained_failed_ambient_session_from_link_is_still_listed_as_openable() {
     App::test((), |mut app| async move {
         add_entry_projection_test_models(&mut app);
 
@@ -1542,22 +1500,6 @@ fn test_resolve_open_action_opens_retained_failed_ambient_session_from_link() {
         });
 
         app.update(|ctx| {
-            let action = AgentConversationsModel::resolve_open_action(
-                AgentConversationNavigationSubject::Entry(AgentConversationEntryId::AmbientRun(
-                    task_id,
-                )),
-                None,
-                ctx,
-            );
-
-            assert!(matches!(
-                action,
-                Some(WorkspaceAction::OpenOrAttachAmbientAgentConversation {
-                    session_id: resolved_session_id,
-                    task_id: resolved_task_id,
-                }) if resolved_session_id.to_string() == session_id && resolved_task_id == task_id
-            ));
-
             let entry = AgentConversationsModel::as_ref(ctx)
                 .get_entry_by_id(&AgentConversationEntryId::AmbientRun(task_id), ctx)
                 .expect("retained task entry should exist");
@@ -2058,8 +2000,10 @@ fn test_server_token_assignment_updates_copy_link_resolution() {
     });
 }
 
+/// A live ambient session is reachable only through the terminal view registered for it.
+/// Once that view unregisters there is no attach path left to fall back on.
 #[test]
-fn test_resolve_open_action_reopens_ambient_session_after_terminal_unregister() {
+fn test_resolve_open_action_follows_the_registered_terminal_view() {
     App::test((), |mut app| async move {
         add_entry_projection_test_models(&mut app);
 
@@ -2093,10 +2037,8 @@ fn test_resolve_open_action_reopens_ambient_session_after_terminal_unregister() 
 
             assert!(matches!(
                 action,
-                Some(WorkspaceAction::OpenOrAttachAmbientAgentConversation {
-                    session_id: resolved_session_id,
-                    task_id: resolved_task_id,
-                }) if resolved_session_id.to_string() == session_id && resolved_task_id == task_id
+                Some(WorkspaceAction::FocusTerminalViewInWorkspace { terminal_view_id: id })
+                    if id == terminal_view_id
             ));
         });
 
@@ -2113,13 +2055,7 @@ fn test_resolve_open_action_reopens_ambient_session_after_terminal_unregister() 
                 ctx,
             );
 
-            assert!(matches!(
-                action,
-                Some(WorkspaceAction::OpenOrAttachAmbientAgentConversation {
-                    session_id: resolved_session_id,
-                    task_id: resolved_task_id,
-                }) if resolved_session_id.to_string() == session_id && resolved_task_id == task_id
-            ));
+            assert!(action.is_none());
         });
     });
 }

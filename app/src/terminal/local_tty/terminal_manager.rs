@@ -51,8 +51,6 @@ use crate::terminal::model::terminal_model::ExitReason;
 use crate::terminal::model_events::ModelEvent as TerminalModelEvent;
 use crate::terminal::model_events::{ModelEventDispatcher, SshRemoteServerSupport};
 use crate::terminal::session_settings::{SessionSettings, ToolbarChipSelection};
-use crate::terminal::shared_session::sharer::network::Network;
-use crate::terminal::shared_session::{IsSharedSessionCreator, SharedSessionStatus};
 use crate::terminal::shell::ShellName;
 use crate::terminal::terminal_manager::BlockSpacing;
 use crate::terminal::warpify::settings::WarpifySettings;
@@ -106,10 +104,6 @@ pub struct TerminalManager<S> {
     /// to avoid unnecessary allocations of data coming from the PTY (high throughput).
     /// Note that we need to hold onto the inactive receiver so that the channel isn't closed prematurely.
     inactive_pty_reads_rx: InactiveReceiver<Arc<Vec<u8>>>,
-
-    /// The sharer side of the session sharing protocol. [`Some`] only when a
-    /// shared session connection is ongoing.
-    pub(super) session_sharer: Rc<RefCell<Option<ModelHandle<Network>>>>,
 }
 
 /// Shared inputs needed to construct a terminal surface for a local PTY.
@@ -197,7 +191,6 @@ impl<S> TerminalManager<S> {
     pub(crate) fn create_model<PostWire>(
         startup_directory: Option<PathBuf>,
         env_vars: HashMap<OsString, OsString>,
-        is_shared_session_creator: IsSharedSessionCreator,
         all_restored_blocks: Option<&Vec<SerializedBlockListItem>>,
         user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
         initial_size: Vector2F,
@@ -218,7 +211,6 @@ impl<S> TerminalManager<S> {
         Self::create_model_with_manager(
             startup_directory,
             env_vars,
-            is_shared_session_creator,
             all_restored_blocks,
             user_default_shell_unsupported_banner_model_handle,
             initial_size,
@@ -238,7 +230,6 @@ impl<S> TerminalManager<S> {
     pub fn create_tui_model<PostWire>(
         startup_directory: Option<PathBuf>,
         env_vars: HashMap<OsString, OsString>,
-        is_shared_session_creator: IsSharedSessionCreator,
         all_restored_blocks: Option<&Vec<SerializedBlockListItem>>,
         user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
         initial_size: Vector2F,
@@ -259,7 +250,6 @@ impl<S> TerminalManager<S> {
         Self::create_model_with_manager(
             startup_directory,
             env_vars,
-            is_shared_session_creator,
             all_restored_blocks,
             user_default_shell_unsupported_banner_model_handle,
             initial_size,
@@ -278,7 +268,6 @@ impl<S> TerminalManager<S> {
     fn create_model_with_manager<PostWire, BoxManager>(
         startup_directory: Option<PathBuf>,
         env_vars: HashMap<OsString, OsString>,
-        is_shared_session_creator: IsSharedSessionCreator,
         all_restored_blocks: Option<&Vec<SerializedBlockListItem>>,
         user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
         initial_size: Vector2F,
@@ -372,27 +361,6 @@ impl<S> TerminalManager<S> {
             );
         }
 
-        // If this session should be a shared-session creator, configure its initial
-        // shared-session state before the surface is constructed, so that bootstrap
-        // events can observe the correct pending status and source type.
-        match is_shared_session_creator {
-            IsSharedSessionCreator::Yes { source }
-                if FeatureFlag::CreatingSharedSessions.is_enabled() =>
-            {
-                model.lock().set_shared_session_status(
-                    SharedSessionStatus::SharePendingPreBootstrap { source },
-                );
-                log::info!("Configured terminal to start sharing after bootstrap");
-            }
-            IsSharedSessionCreator::Yes { .. } => {
-                log::warn!(
-                    "Session sharing was requested, but CreatingSharedSessions is disabled; \
-                     skipping shared-session startup"
-                );
-            }
-            IsSharedSessionCreator::No => {}
-        }
-
         // Initialize the PtyController.
         let pty_controller = init_pty_controller_model(
             event_loop_tx.clone(),
@@ -439,7 +407,6 @@ impl<S> TerminalManager<S> {
             #[cfg(feature = "integration_tests")]
             pid: None,
             inactive_pty_reads_rx,
-            session_sharer: Rc::new(RefCell::new(None)),
         };
 
         // Run surface-specific wiring after the manager exists, because this

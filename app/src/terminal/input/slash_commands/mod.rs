@@ -980,23 +980,6 @@ impl Input {
             SlashCommandKind::Rewind => {
                 self.open_rewind_menu(ctx);
             }
-            SlashCommandKind::RemoteControl => {
-                if !FeatureFlag::CreatingSharedSessions.is_enabled()
-                    || !FeatureFlag::HOARemoteControl.is_enabled()
-                {
-                    return false;
-                }
-                if self
-                    .model
-                    .lock()
-                    .shared_session_status()
-                    .is_sharer_or_viewer()
-                {
-                    show_error_toast("Session is already being shared".to_owned(), ctx);
-                    return true;
-                }
-                ctx.emit(Event::StartRemoteControl);
-            }
             SlashCommandKind::Cost => {
                 let history = BlocklistAIHistoryModel::handle(ctx);
                 let conversation = history

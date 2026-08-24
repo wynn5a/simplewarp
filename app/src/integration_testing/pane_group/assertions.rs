@@ -3,18 +3,6 @@ use warpui::integration::{AssertionCallback, AssertionOutcome};
 
 use crate::integration_testing::view_getters::pane_group_view;
 
-pub fn assert_num_shared_sessions_in_pane_group(
-    tab_index: usize,
-    num_shared_sessions: usize,
-) -> AssertionCallback {
-    Box::new(move |app, window_id| {
-        let pane_group = pane_group_view(app, window_id, tab_index);
-        pane_group.read(app, |view, ctx| {
-            async_assert_eq!(view.number_of_shared_sessions(ctx), num_shared_sessions)
-        })
-    })
-}
-
 pub fn assert_num_panes_in_tab(tab_index: usize, num_panes: usize) -> AssertionCallback {
     Box::new(move |app, window_id| {
         let pane_group = pane_group_view(app, window_id, tab_index);

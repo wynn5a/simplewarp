@@ -10,7 +10,6 @@ use fuzzy_match::FuzzyMatchResult;
 use repo_metadata::RepoMetadataModel;
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
-use session_sharing_protocol::common::Role;
 use smol_str::SmolStr;
 use unindent::Unindent;
 #[cfg(feature = "voice_input")]
@@ -97,7 +96,6 @@ use crate::terminal::model::session::{BootstrapSessionType, SessionInfo};
 use crate::terminal::model::terminal_model::BlockIndex;
 use crate::terminal::model_events::ModelEvent;
 use crate::terminal::resizable_data::ResizableData;
-use crate::terminal::shared_session::permissions_manager::SessionPermissionsManager;
 use crate::terminal::shell::ShellType;
 use crate::terminal::universal_developer_input::UniversalDeveloperInputButtonBarEvent;
 use crate::terminal::view::inline_banner::ByoLlmAuthBannerSessionState;
@@ -276,7 +274,6 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(LLMPreferences::new);
     app.add_singleton_model(HarnessAvailabilityModel::new);
     app.add_singleton_model(ConnectedSelfHostedWorkersModel::new);
-    app.add_singleton_model(SessionPermissionsManager::new);
     app.add_singleton_model(DirectoryWatcher::new);
     app.add_singleton_model(|_| DetectedRepositories::default());
     app.add_singleton_model(crate::remote_server::manager::RemoteServerManager::new);
@@ -1243,263 +1240,9 @@ fn test_history_up_buffer_restoration() {
 }
 
 #[test]
-fn test_history_up_for_shared_session_executor() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        // Initialize as shared session executor
-        // such that the history model isn't also initialized during bootstrapping
-        // TODO(maggs): Improve testing utils for session sharing
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        terminal.update(&mut app, |view, _| {
-            let mut model = view.model.lock();
-            model.block_list_mut().set_bootstrapped();
-            model
-                .block_list_mut()
-                .active_block_for_test()
-                .set_session_id(SessionId::from(0));
-            model.set_shared_session_status(SharedSessionStatus::ActiveViewer {
-                role: Role::Executor,
-            });
-        });
-
-        let (input, suggestions) = terminal.read(&app, |view, _ctx| {
-            let input = view.input().clone();
-            let input_suggestions = input.read(&app, |input, _ctx| input.input_suggestions.clone());
-            (input, input_suggestions)
-        });
-
-        input.update(&mut app, |input, ctx| {
-            // Initialize shared session history model
-            let shared_session_history_model = ctx.add_model(|_| SharedSessionHistoryModel::new());
-
-            // Simulate blocks
-            shared_session_history_model.update(ctx, |history_model, _ctx| {
-                history_model.push(HistoryEntry::for_completed_block(
-                    "echo foo".into(),
-                    &SerializedBlock::new_for_test("echo foo".as_bytes().to_vec(), vec![]),
-                ));
-
-                history_model.push(HistoryEntry::for_completed_block(
-                    "cd ~".into(),
-                    &SerializedBlock::new_for_test("cd ~".as_bytes().to_vec(), vec![]),
-                ));
-            });
-
-            input.shared_session_input_state = Some(SharedSessionInputState {
-                history_model: shared_session_history_model,
-                pending_command_execution_request: None,
-            });
-            input.editor_up(ctx);
-        });
-
-        // Arrow up displays history in the correct order for an empty buffer
-        suggestions.read(&app, |suggestions, _ctx| {
-            assert_eq!(suggestions.items().len(), 2);
-            assert_eq!(suggestions.item_text(0).as_str(), "echo foo");
-            assert_eq!(suggestions.item_text(1).as_str(), "cd ~");
-        });
-
-        // The buffer should contain the text of the last item
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "cd ~");
-        });
-
-        // Shared session executor should be able to navigate through history
-        input.update(&mut app, |input, ctx| {
-            input.editor_up(ctx);
-        });
-
-        // The buffer should contain the text of the second last item after another arrow-up
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "echo foo");
-        });
-    });
-}
-
-#[test]
-fn maybe_route_ai_query_to_remote_target_proceeds_for_local_pane() {
-    // An ordinary local pane (not a viewer, not a cloud/ambient pane) must not be intercepted:
-    // the helper returns false so the caller proceeds with normal local submission.
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        terminal.update(&mut app, |view, _| {
-            let mut model = view.model.lock();
-            model.block_list_mut().set_bootstrapped();
-            model
-                .block_list_mut()
-                .active_block_for_test()
-                .set_session_id(SessionId::from(0));
-        });
-
-        let input = terminal.read(&app, |view, _| view.input().clone());
-        input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content("run something", ctx);
-        });
-
-        let handled = input.update(&mut app, |input, ctx| {
-            input.maybe_route_ai_query_to_remote_target(ctx)
-        });
-        assert!(
-            !handled,
-            "a local pane must not be intercepted by cloud follow-up routing"
-        );
-    });
-}
-
-#[test]
-fn maybe_route_ai_query_to_remote_target_proceeds_for_empty_buffer() {
-    // Even on a viewer pane, an empty buffer is a no-op the caller handles normally, so the
-    // helper returns false and does not forward anything.
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        terminal.update(&mut app, |view, _| {
-            let mut model = view.model.lock();
-            model.block_list_mut().set_bootstrapped();
-            model.set_shared_session_status(SharedSessionStatus::executor());
-        });
-
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        let sent = Rc::new(RefCell::new(Vec::<String>::new()));
-        let sent_cb = sent.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &super::Event, _| {
-                if let super::Event::SendAgentPrompt { prompt, .. } = event {
-                    sent_cb.borrow_mut().push(prompt.clone());
-                }
-            });
-        });
-
-        let handled = input.update(&mut app, |input, ctx| {
-            input.maybe_route_ai_query_to_remote_target(ctx)
-        });
-        assert!(!handled, "an empty buffer must not be routed");
-        assert!(
-            sent.borrow().is_empty(),
-            "an empty buffer must not forward a viewer prompt"
-        );
-    });
-}
-
-#[test]
-fn maybe_route_ai_query_to_remote_target_blocks_read_only_viewer() {
-    // A read-only (reader) viewer cannot submit; the helper handles it (blocks) without
-    // forwarding a prompt to the sharer.
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        terminal.update(&mut app, |view, _| {
-            let mut model = view.model.lock();
-            model.block_list_mut().set_bootstrapped();
-            model.set_shared_session_status(SharedSessionStatus::ActiveViewer {
-                role: Role::Reader,
-            });
-        });
-
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        let sent = Rc::new(RefCell::new(Vec::<String>::new()));
-        let sent_cb = sent.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &super::Event, _| {
-                if let super::Event::SendAgentPrompt { prompt, .. } = event {
-                    sent_cb.borrow_mut().push(prompt.clone());
-                }
-            });
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content("please continue", ctx);
-        });
-
-        let handled = input.update(&mut app, |input, ctx| {
-            input.maybe_route_ai_query_to_remote_target(ctx)
-        });
-        assert!(
-            handled,
-            "a read-only viewer submission must be handled (blocked)"
-        );
-        assert!(
-            sent.borrow().is_empty(),
-            "a read-only viewer must not forward a prompt to the sharer"
-        );
-    });
-}
-
-#[test]
-fn maybe_route_ai_query_to_remote_target_forwards_executor_viewer_prompt() {
-    // An executor viewer forwards the prompt to the sharer (SendAgentPrompt) instead of running
-    // it on the viewer's local machine.
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        terminal.update(&mut app, |view, _| {
-            let mut model = view.model.lock();
-            model.block_list_mut().set_bootstrapped();
-            model
-                .block_list_mut()
-                .active_block_for_test()
-                .set_session_id(SessionId::from(0));
-            model.set_shared_session_status(SharedSessionStatus::executor());
-        });
-
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        let sent = Rc::new(RefCell::new(Vec::<String>::new()));
-        let sent_cb = sent.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &super::Event, _| {
-                if let super::Event::SendAgentPrompt { prompt, .. } = event {
-                    sent_cb.borrow_mut().push(prompt.clone());
-                }
-            });
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content("continue please", ctx);
-        });
-
-        let handled = input.update(&mut app, |input, ctx| {
-            input.maybe_route_ai_query_to_remote_target(ctx)
-        });
-        assert!(handled, "an executor viewer submission must be handled");
-        assert_eq!(
-            sent.borrow().as_slice(),
-            ["continue please"],
-            "an executor viewer must forward the prompt to the sharer"
-        );
-    });
-}
-
-#[test]
-fn attach_ambient_view_model_builds_composer_selectors_for_fresh_cloud_pane_in_view_pending() {
-    // Regression: a fresh cloud-mode composer pane is created in `ViewPending` (see
-    // `TerminalModel::new_for_cloud_mode_shared_session_viewer`), which
-    // `SharedSessionStatus::is_viewer()` reports as a viewer. Such a pane is a dummy cloud-mode
-    // session composing a new run, not an actual shared-session viewer, so the composer-only
-    // host / auth-secret / FTUX selectors must still be built for it.
+fn attach_ambient_view_model_builds_composer_selectors_for_dummy_cloud_pane() {
+    // A dummy cloud-mode session composes a new run, so the composer-only host /
+    // auth-secret / FTUX selectors must be built for it.
     App::test((), |mut app| async move {
         let _cloud_mode_input_v2 = FeatureFlag::CloudModeInputV2.override_enabled(true);
         initialize_app(&mut app);
@@ -1510,11 +1253,9 @@ fn attach_ambient_view_model_builds_composer_selectors_for_fresh_cloud_pane_in_v
         });
         let terminal_view_id = terminal.read(&app, |view, _| view.id());
 
-        // Simulate the initial cloud composer state: a dummy cloud-mode session in `ViewPending`.
+        // Simulate the initial cloud composer state: a dummy cloud-mode session.
         terminal.update(&mut app, |view, _| {
-            let mut model = view.model.lock();
-            model.set_shared_session_status(SharedSessionStatus::ViewPending);
-            model.set_is_dummy_cloud_mode_session(true);
+            view.model.lock().set_is_dummy_cloud_mode_session(true);
         });
 
         let input = terminal.read(&app, |view, _| view.input().clone());
@@ -1539,10 +1280,9 @@ fn attach_ambient_view_model_builds_composer_selectors_for_fresh_cloud_pane_in_v
 }
 
 #[test]
-fn attach_ambient_view_model_skips_composer_selectors_for_actual_shared_session_viewer() {
-    // An actual shared-session viewer (NOT a dummy cloud-mode session) that lazily discovers it is
-    // viewing an ambient run must not build the composer-only selectors, even though its ambient VM
-    // is still `Composing` and the model is in a viewer status when the model is attached.
+fn attach_ambient_view_model_skips_composer_selectors_for_non_composer_pane() {
+    // A pane that is not a dummy cloud-mode session composes no new run, so it must not build
+    // the composer-only selectors even though its ambient VM is still `Composing`.
     App::test((), |mut app| async move {
         let _cloud_mode_input_v2 = FeatureFlag::CloudModeInputV2.override_enabled(true);
         initialize_app(&mut app);
@@ -1553,14 +1293,6 @@ fn attach_ambient_view_model_skips_composer_selectors_for_actual_shared_session_
         });
         let terminal_view_id = terminal.read(&app, |view, _| view.id());
 
-        // An actual shared-session viewer is in a viewer status but is not a dummy cloud-mode
-        // session (its model is created via `new_for_shared_session_viewer`).
-        terminal.update(&mut app, |view, _| {
-            view.model
-                .lock()
-                .set_shared_session_status(SharedSessionStatus::ViewPending);
-        });
-
         let input = terminal.read(&app, |view, _| view.input().clone());
         input.update(&mut app, |input, ctx| {
             let view_model = ctx.add_model(|ctx| AmbientAgentViewModel::new(terminal_view_id, ctx));
@@ -1568,15 +1300,15 @@ fn attach_ambient_view_model_skips_composer_selectors_for_actual_shared_session_
 
             assert!(
                 input.host_selector().is_none(),
-                "an actual shared-session viewer must not build the host selector"
+                "a non-composer pane must not build the host selector"
             );
             assert!(
                 input.auth_secret_selector().is_none(),
-                "an actual shared-session viewer must not build the auth-secret selector"
+                "a non-composer pane must not build the auth-secret selector"
             );
             assert!(
                 input.auth_secret_ftux_view().is_none(),
-                "an actual shared-session viewer must not build the auth-secret FTUX view"
+                "a non-composer pane must not build the auth-secret FTUX view"
             );
         });
     });
@@ -1596,10 +1328,9 @@ fn cloud_mode_host_selector_shown_when_connected_workers_present() {
         });
         let terminal_view_id = terminal.read(&app, |view, _| view.id());
 
-        // Fresh cloud-mode composer: a dummy cloud-mode session in `ViewPending`.
+        // Fresh cloud-mode composer: a dummy cloud-mode session.
         terminal.update(&mut app, |view, _| {
             let mut model = view.model.lock();
-            model.set_shared_session_status(SharedSessionStatus::ViewPending);
             model.set_is_dummy_cloud_mode_session(true);
         });
 
@@ -1636,11 +1367,10 @@ fn cloud_mode_host_selector_shown_when_connected_workers_present() {
 }
 
 #[test]
-fn send_now_event_submits_through_active_pane_and_preserves_draft() {
+fn send_now_event_preserves_draft_and_clears_the_queued_row() {
     // A queued-prompt "send now" surfaces as a SendNow event on the input. The host should
-    // immediately route the removed prompt through the active-pane submission path (here, the
-    // shared-session viewer path, which emits SendAgentPrompt) without clobbering a draft the
-    // user has typed locally.
+    // immediately route the removed prompt through the active-pane submission path without
+    // clobbering a draft the user has typed locally.
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -1655,22 +1385,9 @@ fn send_now_event_submits_through_active_pane_and_preserves_draft() {
                 .block_list_mut()
                 .active_block_for_test()
                 .set_session_id(SessionId::from(0));
-            model.set_shared_session_status(SharedSessionStatus::executor());
         });
 
         let input = terminal.read(&app, |view, _| view.input().clone());
-
-        let submitted_prompts = Rc::new(RefCell::new(Vec::<String>::new()));
-        let submitted_prompts_for_subscription = submitted_prompts.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &super::Event, _| {
-                if let super::Event::SendAgentPrompt { prompt, .. } = event {
-                    submitted_prompts_for_subscription
-                        .borrow_mut()
-                        .push(prompt.clone());
-                }
-            });
-        });
 
         // Seed a queued row so the host can identify it by id, fire it, and remove it afterward.
         let conversation_id = AIConversationId::new();
@@ -1698,9 +1415,7 @@ fn send_now_event_submits_through_active_pane_and_preserves_draft() {
             );
         });
 
-        // The queued prompt was submitted immediately...
-        assert_eq!(submitted_prompts.borrow().as_slice(), ["queued prompt"]);
-        // ...the in-progress draft the user typed was left untouched...
+        // The in-progress draft the user typed was left untouched...
         input.read(&app, |input, ctx| {
             assert_eq!(input.buffer_text(ctx), "draft in progress");
         });
@@ -2054,7 +1769,6 @@ fn seed_in_progress_conversation(
             coding_model_id: LLMId::from("test-coding-model"),
             cli_agent_model_id: LLMId::from("test-cli-agent-model"),
             computer_use_model_id: LLMId::from("test-computer-use-model"),
-            response_initiator: None,
         };
         let response_stream_id = ResponseStreamId::new_for_test();
         history
@@ -4345,7 +4059,6 @@ fn test_new_conversation_keybinding_requires_double_press_in_non_empty_agent_vie
                 controller.send_user_query_in_conversation(
                     "hello".to_owned(),
                     conversation_id,
-                    None,
                     ctx,
                 );
             });
@@ -4580,7 +4293,6 @@ fn test_new_conversation_input_trigger_remains_single_step_in_non_empty_agent_vi
                 controller.send_user_query_in_conversation(
                     "hello".to_owned(),
                     conversation_id,
-                    None,
                     ctx,
                 );
             });
@@ -9363,76 +9075,41 @@ fn ctrl_enter_inserts_newline_when_submit_on_ctrl_enter_is_false() {
     });
 }
 
-/// `unfreeze_agent_input` must NOT clear the buffer. The buffer is cleared via CRDT
-/// delete ops emitted by `system_clear_buffer` when `SentRequest` fires, which flow to
-/// both the server (for new viewers) and existing viewers (via `InputUpdated`).
-/// Clearing the buffer here would cause CRDT inconsistencies (see the function doc).
+/// `unfreeze_agent_input` must NOT clear the buffer. The buffer is cleared via the CRDT
+/// delete ops emitted by `system_clear_buffer` when `SentRequest` fires; clearing it here
+/// too would make the two paths disagree (see the function doc).
 #[test]
 fn unfreeze_agent_input_does_not_clear_buffer() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
         let tips_model = app.add_model(|_| TipsCompleted::default());
-
-        // Test for ActiveSharer
-        let (_, sharer_terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
+        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
             TerminalView::new_for_test(tips_model, None, ctx)
         });
-        sharer_terminal.update(&mut app, |view, _| {
-            let mut model = view.model.lock();
-            model.block_list_mut().set_bootstrapped();
-            model.set_shared_session_status(SharedSessionStatus::ActiveSharer);
+        terminal.update(&mut app, |view, _| {
+            view.model.lock().block_list_mut().set_bootstrapped();
         });
-        let sharer_input = sharer_terminal.read(&app, |view, _| view.input().clone());
+        let input = terminal.read(&app, |view, _| view.input().clone());
 
-        sharer_input.update(&mut app, |input, ctx| {
+        input.update(&mut app, |input, ctx| {
             input.replace_buffer_content("help me write a test", ctx);
         });
         assert_eq!(
-            sharer_input.read(&app, |i, ctx| i.buffer_text(ctx)),
+            input.read(&app, |i, ctx| i.buffer_text(ctx)),
             "help me write a test"
         );
 
-        sharer_input.update(&mut app, |input, ctx| {
-            input.unfreeze_agent_input(false, ctx);
+        input.update(&mut app, |input, ctx| {
+            input.unfreeze_agent_input(ctx);
         });
 
         // Buffer must be unchanged — clearing is the responsibility of system_clear_buffer
         // via the SentRequest event, not of this unfreeze function.
         assert_eq!(
-            sharer_input.read(&app, |i, ctx| i.buffer_text(ctx)),
+            input.read(&app, |i, ctx| i.buffer_text(ctx)),
             "help me write a test",
-            "unfreeze_agent_input must not clear the sharer's buffer"
-        );
-
-        // Same for ActiveViewer
-        let tips_model2 = app.add_model(|_| TipsCompleted::default());
-        let (_, viewer_terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model2, None, ctx)
-        });
-        viewer_terminal.update(&mut app, |view, _| {
-            let mut model = view.model.lock();
-            model.block_list_mut().set_bootstrapped();
-            model.set_shared_session_status(SharedSessionStatus::executor());
-        });
-        let viewer_input = viewer_terminal.read(&app, |view, _| view.input().clone());
-
-        viewer_input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content("follow-up question", ctx);
-        });
-        assert_eq!(
-            viewer_input.read(&app, |i, ctx| i.buffer_text(ctx)),
-            "follow-up question"
-        );
-
-        viewer_input.update(&mut app, |input, ctx| {
-            input.unfreeze_agent_input(false, ctx);
-        });
-
-        assert_eq!(
-            viewer_input.read(&app, |i, ctx| i.buffer_text(ctx)),
-            "follow-up question",
-            "unfreeze_agent_input must not clear the viewer's buffer"
+            "unfreeze_agent_input must not clear the buffer"
         );
     });
 }
@@ -9516,94 +9193,6 @@ fn restore_cloud_followup_input_after_upload_failure_restores_prompt() {
             input.read(&app, |i, ctx| i.buffer_text(ctx)),
             "cloud follow-up prompt",
             "restore must set the buffer back to the original prompt after upload failure"
-        );
-    });
-}
-
-#[test]
-fn should_upload_cloud_followup_attachments_matches_cloud_mode_image_context_flag() {
-    use base64::Engine as _;
-
-    let attachment = PendingAttachment::Image(ImageContext {
-        data: base64::engine::general_purpose::STANDARD.encode(b"fake image"),
-        mime_type: "image/png".to_string(),
-        file_name: "test.png".to_string(),
-        is_figma: false,
-    });
-
-    assert!(
-        !Input::should_upload_cloud_followup_attachments(&[]),
-        "no pending attachments should submit the text-only follow-up immediately"
-    );
-
-    let flag_guard = FeatureFlag::CloudModeImageContext.override_enabled(false);
-    assert!(
-        !Input::should_upload_cloud_followup_attachments(std::slice::from_ref(&attachment)),
-        "follow-up attachments should not upload while CloudModeImageContext is disabled"
-    );
-    drop(flag_guard);
-    let _flag_guard = FeatureFlag::CloudModeImageContext.override_enabled(true);
-    assert!(
-        Input::should_upload_cloud_followup_attachments(&[attachment]),
-        "follow-up attachments should upload when CloudModeImageContext is enabled"
-    );
-}
-
-/// Exercises the async failure path of `upload_files_then_submit_cloud_followup`:
-/// when the server API rejects the attachment upload (the test HTTP client never
-/// connects to a real server), the callback must restore the prompt text so the
-/// user can retry.
-#[test]
-fn upload_files_then_submit_cloud_followup_restores_input_on_upload_error() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        terminal.update(&mut app, |view, _| {
-            view.model.lock().block_list_mut().set_bootstrapped();
-        });
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        let prompt = "attach and follow up".to_string();
-        input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content(&prompt, ctx);
-        });
-
-        // A tiny base64-encoded image used as the test attachment.  The decode
-        // succeeds in the async task, but `prepare_attachments_for_upload` then
-        // fails because the test HTTP client has no real server to contact.
-        use base64::Engine as _;
-        let attachment = PendingAttachment::Image(ImageContext {
-            data: base64::engine::general_purpose::STANDARD.encode(b"fake image"),
-            mime_type: "image/png".to_string(),
-            file_name: "test.png".to_string(),
-            is_figma: false,
-        });
-        let task_id: crate::ai::ambient_agents::AmbientAgentTaskId =
-            "11111111-1111-1111-1111-111111111111".parse().unwrap();
-
-        // Spawn the upload and await the completion of its foreground callback
-        // (which runs after the background tokio task finishes — immediately
-        // with an error in this test environment).
-        let await_future = input.update(&mut app, |input, ctx| {
-            let handle = input.upload_files_then_submit_cloud_followup(
-                task_id,
-                prompt.clone(),
-                vec![attachment],
-                ctx,
-            );
-            ctx.await_spawned_future(handle.future_id())
-        });
-        await_future.await;
-
-        // After the upload error, the callback must have restored the prompt.
-        assert_eq!(
-            input.read(&app, |i, ctx| i.buffer_text(ctx)),
-            prompt,
-            "input must be restored to the original prompt after a failed attachment upload"
         );
     });
 }

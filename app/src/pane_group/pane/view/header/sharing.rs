@@ -3,7 +3,6 @@
 //! This is tightly coupled to the pane header so that different overlays (context menus, the
 //! sharing dialog, and so on) are correctly displayed.
 
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warpui::elements::{ConstrainedBox, MouseStateHandle, ParentElement};
@@ -69,19 +68,8 @@ impl<P: BackingView> PaneHeader<P> {
         self.sharing_dialog().as_ref(ctx).has_target()
     }
 
-    pub fn has_shareable_shared_session<C: warpui::ViewAsRef>(&self, ctx: &C) -> bool {
-        self.sharing_dialog()
-            .as_ref(ctx)
-            .has_shared_session_target()
-    }
-
     pub fn is_sharing_dialog_enabled<C: warpui::ViewAsRef>(&self, ctx: &C) -> bool {
-        let sharing_enabled = self.has_shareable_object(ctx);
-        if self.has_shareable_shared_session(ctx) {
-            sharing_enabled && FeatureFlag::SessionSharingAcls.is_enabled()
-        } else {
-            sharing_enabled
-        }
+        self.has_shareable_object(ctx)
     }
 
     /// Share the panes' contents.
@@ -132,41 +120,6 @@ impl<P: BackingView> PaneHeader<P> {
         }
 
         ctx.notify();
-    }
-
-    pub fn open_shared_session_qr_code(
-        &mut self,
-        source: SharingDialogSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !self.is_sharing_dialog_enabled(ctx)
-            || !self
-                .sharing_dialog()
-                .as_ref(ctx)
-                .has_shared_session_link(ctx)
-        {
-            return;
-        }
-
-        let dialog_was_closed = self.open_overlay != OpenOverlay::SharingDialog;
-        if self.open_overlay == OpenOverlay::OverflowMenu {
-            ctx.emit(Event::PaneHeaderOverflowMenuToggled(false));
-        }
-        self.open_overlay = OpenOverlay::SharingDialog;
-        ctx.focus(&self.shared_content.sharing_dialog);
-        self.sharing_dialog().update(ctx, |dialog, ctx| {
-            dialog.show_qr_code(ctx);
-            if dialog_was_closed {
-                dialog.report_open(source, ctx);
-            }
-        });
-        ctx.notify();
-    }
-
-    pub fn refresh_shared_session_link(&mut self, ctx: &mut ViewContext<Self>) {
-        self.sharing_dialog().update(ctx, |dialog, ctx| {
-            dialog.refresh_shared_session_link(ctx);
-        });
     }
 
     fn handle_sharing_dialog_event(

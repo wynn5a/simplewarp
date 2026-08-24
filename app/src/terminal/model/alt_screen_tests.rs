@@ -40,8 +40,6 @@ fn test_alt_screen_resize_clears_selection() {
         last_size: original_size,
         new_size: original_size,
         new_gap_height: None,
-        natural_rows: original_size.rows(),
-        natural_cols: original_size.columns(),
     };
     screen.resize(&size_update);
     assert_eq!(
@@ -61,8 +59,6 @@ fn test_alt_screen_resize_clears_selection() {
         last_size: original_size,
         new_size,
         new_gap_height: None,
-        natural_rows: new_size.rows(),
-        natural_cols: new_size.columns(),
     };
     screen.resize(&size_update);
     assert!(screen.selection_range(&semantic_selection).is_none());

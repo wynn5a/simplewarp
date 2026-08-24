@@ -12,9 +12,6 @@ use crate::ai::blocklist::agent_view::agent_input_footer::{
     AgentInputFooter, AgentInputFooterEvent,
 };
 use crate::terminal::cli_agent_sessions::{CLIAgentInputEntrypoint, CLIAgentSessionsModel};
-use crate::terminal::shared_session::{
-    SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,
-};
 use crate::util::image::{MAX_IMAGE_SIZE_BYTES_FOR_CLI_AGENT, MIME_SNIFF_BYTES, infer_mime_type};
 mod warpify_footer;
 
@@ -249,24 +246,6 @@ impl TerminalView {
                 };
                 self.toggle_file_tree(source, cli_agent.map(Into::into), ctx);
             }
-            UseAgentToolbarEvent::StartRemoteControl { scrollback_type } => {
-                self.auto_stop_sharing_on_cli_end =
-                    *scrollback_type == SharedSessionScrollbackType::None;
-                let source = SharedSessionSource::user(
-                    self.active_conversation_task_id(ctx).map(|t| t.to_string()),
-                );
-                self.attempt_to_share_session(
-                    *scrollback_type,
-                    Some(SharedSessionActionSource::FooterChip),
-                    source,
-                    true,
-                    ctx,
-                );
-            }
-            UseAgentToolbarEvent::StopRemoteControl => {
-                self.auto_stop_sharing_on_cli_end = false;
-                self.stop_sharing_session(SharedSessionActionSource::FooterChip, ctx);
-            }
             UseAgentToolbarEvent::OpenRichInput => {
                 if self.has_active_cli_agent_input_session(ctx) {
                     self.close_cli_agent_rich_input_and_disable_auto_toggle(ctx);
@@ -348,11 +327,8 @@ impl TerminalView {
             }
         }
 
-        // Don't show the use agent footer during LRCs in setup phase of ambient agent sessions.
-        let is_shared_ambient_session = model.is_shared_ambient_agent_session();
-
         !self.is_input_box_visible(model, app)
-            && ((active_block.is_eligible_to_tag_in_agent() && !is_shared_ambient_session)
+            && (active_block.is_eligible_to_tag_in_agent()
                 || active_block.is_eligible_for_agent_handoff())
     }
 
@@ -1247,17 +1223,6 @@ impl UseAgentToolbar {
             AgentInputFooterEvent::ToggleFileExplorer(agent) => {
                 ctx.emit(UseAgentToolbarEvent::ToggleFileExplorer(*agent));
             }
-            AgentInputFooterEvent::StartRemoteControl => {
-                let scrollback_type = if self.cli_agent(ctx).is_some() {
-                    SharedSessionScrollbackType::None
-                } else {
-                    SharedSessionScrollbackType::All
-                };
-                ctx.emit(UseAgentToolbarEvent::StartRemoteControl { scrollback_type });
-            }
-            AgentInputFooterEvent::StopRemoteControl => {
-                ctx.emit(UseAgentToolbarEvent::StopRemoteControl);
-            }
             AgentInputFooterEvent::OpenRichInput => {
                 ctx.emit(UseAgentToolbarEvent::OpenRichInput);
             }
@@ -1354,12 +1319,6 @@ pub enum UseAgentToolbarEvent {
     /// Toggle the file explorer. `None` when no CLI agent session is attached
     /// to this pane.
     ToggleFileExplorer(Option<CLIAgent>),
-    /// Start remote control (one-click share without modal).
-    StartRemoteControl {
-        scrollback_type: SharedSessionScrollbackType,
-    },
-    /// Stop remote control (stop the active shared session).
-    StopRemoteControl,
     /// Open the rich input editor for composing a prompt.
     OpenRichInput,
     /// Hide the rich input editor (same as Escape).

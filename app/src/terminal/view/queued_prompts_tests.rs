@@ -16,21 +16,19 @@ use super::TerminalView;
 use super::queued_prompts_panel::{
     QueuedPromptsPanelAction, QueuedPromptsPanelEvent, QueuedPromptsPanelView,
 };
-use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{ImageContext, UserQueryMode};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::block::FinishReason;
 use crate::ai::blocklist::{
-    AutofireAction, BlocklistAIControllerEvent, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
-    ConversationStatusUpdate, PendingAttachment, QueuedQuery, QueuedQueryId, QueuedQueryModel,
-    QueuedQueryOrigin, ResponseStreamId,
+    AutofireAction, BlocklistAIControllerEvent, BlocklistAIHistoryModel, PendingAttachment,
+    QueuedQuery, QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin, ResponseStreamId,
 };
 use crate::features::FeatureFlag;
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::server::server_api::ai::SpawnAgentRequest;
 use crate::terminal::input::{Event as InputEvent, Input};
-use crate::terminal::shared_session::SharedSessionStatus;
 use crate::terminal::view::ambient_agent::AmbientAgentViewModelEvent;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::test_util::terminal::{add_window_with_terminal, initialize_app_for_terminal_view};
@@ -139,9 +137,6 @@ fn enter_cloud_setup_with_conversation(
     view: &mut TerminalView,
     ctx: &mut ViewContext<TerminalView>,
 ) -> AIConversationId {
-    view.model
-        .lock()
-        .set_shared_session_status(SharedSessionStatus::ViewPending);
     view.enter_ambient_agent_setup(None, ctx);
     view.ai_context_model
         .as_ref(ctx)
@@ -519,96 +514,11 @@ fn cloud_setup_enter_remains_blocked_when_v2_is_disabled() {
 }
 
 #[test]
-fn terminal_cloud_status_transition_drains_once_through_cloud_followup_input_event() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cloud_mode = FeatureFlag::CloudMode.override_enabled(true);
-        let _handoff = FeatureFlag::HandoffCloudCloud.override_enabled(true);
-        let _queued_prompts_v2 = FeatureFlag::QueuedPromptsV2.override_enabled(true);
-
-        let task_id = AmbientAgentTaskId::from_str("123e4567-e89b-12d3-a456-426614174000")
-            .expect("valid task id");
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-        let conversation_id = terminal.update(&mut app, |view, ctx| {
-            let conversation_id = enter_cloud_setup_with_conversation(view, ctx);
-            view.ambient_agent_view_model()
-                .expect("cloud terminal should have an ambient model")
-                .update(ctx, |model, ctx| {
-                    model.enter_viewing_existing_session(task_id, ctx);
-                });
-            view.model
-                .lock()
-                .set_shared_session_status(SharedSessionStatus::NotShared);
-            view.pending_cloud_followup_task_id = Some(task_id);
-            QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
-                model.append(
-                    conversation_id,
-                    QueuedQuery::new(
-                        "queued cloud follow up".to_owned(),
-                        QueuedQueryOrigin::AutoQueueToggle,
-                    ),
-                    ctx,
-                );
-            });
-            conversation_id
-        });
-
-        let followup_events = Rc::new(RefCell::new(Vec::<String>::new()));
-        let input = terminal.read(&app, |view, _| view.input.clone());
-        let followup_events_for_subscription = followup_events.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &InputEvent, _| {
-                if let InputEvent::SubmitCloudFollowup { prompt } = event {
-                    followup_events_for_subscription
-                        .borrow_mut()
-                        .push(prompt.clone());
-                }
-            });
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            let history_model = BlocklistAIHistoryModel::handle(ctx);
-            let terminal_view_id = view.view_id;
-            view.handle_ai_history_model_event(
-                history_model.clone(),
-                &BlocklistAIHistoryEvent::UpdatedConversationStatus {
-                    conversation_id,
-                    terminal_surface_id: terminal_view_id,
-                    update: ConversationStatusUpdate::Changed {
-                        prev_status: ConversationStatus::InProgress,
-                    },
-                    new_status: ConversationStatus::Success,
-                },
-                ctx,
-            );
-            view.handle_ai_history_model_event(
-                history_model,
-                &BlocklistAIHistoryEvent::UpdatedConversationStatus {
-                    conversation_id,
-                    terminal_surface_id: terminal_view_id,
-                    update: ConversationStatusUpdate::Changed {
-                        prev_status: ConversationStatus::Success,
-                    },
-                    new_status: ConversationStatus::Success,
-                },
-                ctx,
-            );
-        });
-
-        assert_eq!(
-            followup_events.borrow().as_slice(),
-            ["queued cloud follow up"]
-        );
-    });
-}
-
-#[test]
-fn promptless_setup_complete_auto_sends_queued_prompt_to_viewer() {
+fn promptless_setup_complete_drains_queued_prompt() {
     // A promptless handoff run (`request.prompt == None`) never fires a first
     // turn, so the normal completion drain never runs. When the cloud setup
-    // phase completes, the prompt the user queued during setup must be sent to
-    // the live shared session (viewer path -> `Event::SendAgentPrompt`).
+    // phase completes, the prompt the user queued during setup must still be
+    // taken off the queue and submitted.
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
@@ -637,24 +547,10 @@ fn promptless_setup_complete_auto_sends_queued_prompt_to_viewer() {
             conversation_id
         });
 
-        let sent_prompts = Rc::new(RefCell::new(Vec::<String>::new()));
-        let input = terminal.read(&app, |view, _| view.input.clone());
-        let sent_prompts_for_subscription = sent_prompts.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &InputEvent, _| {
-                if let InputEvent::SendAgentPrompt { prompt, .. } = event {
-                    sent_prompts_for_subscription
-                        .borrow_mut()
-                        .push(prompt.clone());
-                }
-            });
-        });
-
         terminal.update(&mut app, |view, ctx| {
             view.maybe_drain_queue_after_promptless_setup(ctx);
         });
 
-        assert_eq!(sent_prompts.borrow().as_slice(), ["queued during setup"]);
         terminal.read(&app, |_, ctx| {
             assert!(
                 QueuedQueryModel::as_ref(ctx)

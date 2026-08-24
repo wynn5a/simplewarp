@@ -15543,7 +15543,6 @@ dependencies = [
  "pathfinder_color",
  "regex",
  "serde",
- "session-sharing-protocol",
  "smol_str",
  "static_assertions",
  "string-offset",

@@ -2031,7 +2031,6 @@ fn create_exchange_from_messages(
         coding_model_id: default_model_id.clone(),
         cli_agent_model_id: default_model_id.clone(),
         computer_use_model_id: default_model_id,
-        response_initiator: None,
         added_message_ids: message_ids.iter().map(|s| s.clone().into()).collect(),
     })
 }

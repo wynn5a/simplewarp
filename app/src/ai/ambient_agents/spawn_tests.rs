@@ -11,7 +11,6 @@ use super::{
 use crate::ai::agent::UserQueryMode;
 use crate::ai::ambient_agents::{AmbientAgentTask, AmbientAgentTaskState};
 use crate::server::server_api::ai::{MockAIClient, SpawnAgentResponse, TaskStatusMessage};
-use crate::terminal::shared_session;
 
 fn task_with(
     state: AmbientAgentTaskState,
@@ -1004,34 +1003,14 @@ fn session_join_info_prefers_server_session_link_when_session_id_is_present() {
 }
 
 #[test]
-fn session_join_info_constructs_link_from_session_id_when_link_missing() {
+fn session_join_info_requires_a_server_session_link() {
     let task = task_with(
         AmbientAgentTaskState::InProgress,
-        Some("550e8400-e29b-41d4-a716-446655440000".to_string()),
+        Some(SessionId::new().to_string()),
         None,
     );
 
-    let join_info = SessionJoinInfo::from_task(&task).expect("expected join info");
-    assert!(!join_info.session_link.is_empty());
-    assert!(join_info.session_id.is_some());
-}
-
-#[test]
-fn session_join_info_falls_back_to_session_id() {
-    let session_id = SessionId::new();
-    let task = task_with(
-        AmbientAgentTaskState::InProgress,
-        Some(session_id.to_string()),
-        None,
-    );
-
-    let join_info = SessionJoinInfo::from_task(&task).expect("expected join info");
-
-    assert_eq!(join_info.session_id, Some(session_id));
-    assert_eq!(
-        join_info.session_link,
-        shared_session::join_link(&session_id)
-    );
+    assert_eq!(SessionJoinInfo::from_task(&task), None);
 }
 
 #[test]

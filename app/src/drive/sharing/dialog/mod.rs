@@ -3,13 +3,9 @@ use std::borrow::Cow;
 use email_address::EmailAddress;
 use inheritance::{InheritanceDetails, InheritanceState};
 use itertools::Itertools;
-use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
-use session_sharing_protocol::common::{Guest, PendingGuest, SessionId, TeamAclData};
 use warp_core::ui::appearance::Appearance;
-use warp_core::ui::theme::Fill as ThemeFill;
 use warp_editor::editor::NavigationKey;
-use warp_errors::report_error;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Align, Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
@@ -20,7 +16,7 @@ use warpui::elements::{
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::keymap::FixedBinding;
-use warpui::platform::{Cursor, SaveFilePickerConfiguration};
+use warpui::platform::Cursor;
 use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
@@ -28,10 +24,9 @@ use warpui::{
     ViewHandle, WeakViewHandle,
 };
 
-use super::qr_code::{QUIET_ZONE_MODULES, QrMatrix, qr_matrix_for_url, qr_png_for_url};
 use super::{
     ContentEditability, LinkSharingSubjectType, ShareableObject, SharingAccessLevel, Subject,
-    SubjectExt, TeamKind, UserKind, style,
+    SubjectExt, TeamKind, style,
 };
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::auth::AuthStateProvider;
@@ -47,19 +42,13 @@ use crate::server::ids::ServerId;
 use crate::server::telemetry::{
     CloudObjectTelemetryMetadata, OpenedSharingDialogEvent, SharingDialogSource,
 };
-use crate::terminal::TerminalView;
-use crate::terminal::shared_session::SharedSessionActionSource;
-use crate::terminal::shared_session::permissions_manager::{
-    SessionPermissionsEvent, SessionPermissionsManager,
-};
-use crate::ui_components::buttons::icon_button_with_color;
 use crate::ui_components::icons::Icon;
 use crate::view_components::DismissibleToast;
 use crate::word_block_editor::{
     WordBlockEditorStyles, WordBlockEditorView, WordBlockEditorViewEvent, WordBlockLayout,
     WordBlockStyles,
 };
-use crate::workspace::{ToastStack, WorkspaceAction};
+use crate::workspace::ToastStack;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{TelemetryEvent, send_telemetry_from_ctx};
 
@@ -73,7 +62,6 @@ const EMAIL_CHIP_WIDTH: f32 = 100.;
 const EMAIL_EDITOR_WIDTH: f32 = 100.;
 
 const SHARING_DIALOG_WIDTH: f32 = 425.;
-const QR_DIALOG_WIDTH: f32 = 400.;
 const QR_CARD_SIZE: f32 = 192.;
 const QR_VISUAL_SIZE: f32 = 160.;
 const QR_ICON_BUTTON_SIZE: f32 = 32.;
@@ -89,20 +77,8 @@ struct UiStateHandles {
     link_sharing_menu_button: MouseStateHandle,
     team_sharing_menu_button: MouseStateHandle,
     copy_link_button: MouseStateHandle,
-    qr_code_button: MouseStateHandle,
-    qr_back_button: MouseStateHandle,
-    qr_copy_button: MouseStateHandle,
-    qr_download_button: MouseStateHandle,
-    qr_close_button: MouseStateHandle,
     guest_list_state: UniformListState,
     guest_scroll_state: ScrollStateHandle,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-enum SharingDialogMode {
-    #[default]
-    Access,
-    QrCode,
 }
 
 /// State for which menu is currently open.
@@ -187,7 +163,6 @@ pub struct SharingDialog {
 
     ui_state_handles: UiStateHandles,
     open_menu_state: OpenMenuState,
-    mode: SharingDialogMode,
 }
 
 #[derive(Debug, Clone)]
@@ -199,9 +174,6 @@ pub enum SharingDialogEvent {
 pub enum SharingDialogAction {
     Close,
     CopyLink,
-    ShowQrCode,
-    BackToAccessDialog,
-    DownloadQrCode,
     #[allow(dead_code)]
     SetLinkPermissions(Option<SharingAccessLevel>),
     ToggleLinkSharingMenu,
@@ -249,13 +221,6 @@ impl SharingDialog {
         });
 
         ctx.subscribe_to_model(
-            &SessionPermissionsManager::handle(ctx),
-            |me, _, event, ctx| {
-                me.handle_session_permissions_event(event, ctx);
-            },
-        );
-
-        ctx.subscribe_to_model(
             &BlocklistAIHistoryModel::handle(ctx),
             |me, _, event, ctx| {
                 me.handle_ai_history_event(event, ctx);
@@ -298,7 +263,6 @@ impl SharingDialog {
             team_sharing_menu,
             ui_state_handles: Default::default(),
             open_menu_state: Default::default(),
-            mode: Default::default(),
         }
     }
 
@@ -339,32 +303,6 @@ impl SharingDialog {
         }
     }
 
-    fn handle_session_permissions_event(
-        &mut self,
-        event: &SessionPermissionsEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            SessionPermissionsEvent::GuestsUpdated {
-                session_id,
-                guests,
-                pending_guests,
-            } => {
-                self.update_session_guests(ctx, session_id, guests, pending_guests);
-            }
-            SessionPermissionsEvent::LinkPermissionsUpdated {
-                session_id,
-                access_level,
-            } => {
-                self.update_session_link_permissions(*session_id, *access_level, ctx);
-            }
-            SessionPermissionsEvent::TeamPermissionsUpdated {
-                session_id,
-                team_acl,
-            } => self.update_session_team_permissions(session_id, team_acl.clone(), ctx),
-        }
-    }
-
     fn handle_ai_history_event(
         &mut self,
         event: &BlocklistAIHistoryEvent,
@@ -386,7 +324,6 @@ impl SharingDialog {
     /// Sets the target object whose ACLs are shown.
     pub fn set_target(&mut self, target: Option<ShareableObject>, ctx: &mut ViewContext<Self>) {
         self.target = target;
-        self.mode = SharingDialogMode::Access;
         self.reset_invite_form(ctx);
         self.refresh_object_permission_states(ctx);
         ctx.notify();
@@ -394,32 +331,6 @@ impl SharingDialog {
 
     pub fn has_target(&self) -> bool {
         self.target.is_some()
-    }
-
-    pub fn has_shared_session_target(&self) -> bool {
-        self.target
-            .as_ref()
-            .is_some_and(|target| matches!(target, ShareableObject::Session { .. }))
-    }
-
-    pub(crate) fn has_shared_session_link(&self, app: &AppContext) -> bool {
-        self.has_shared_session_target() && self.target_link(app).is_some()
-    }
-
-    pub fn show_qr_code(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.has_shared_session_link(ctx) {
-            self.set_open_menu(OpenMenuState::None, ctx);
-            self.mode = SharingDialogMode::QrCode;
-            ctx.focus_self();
-            ctx.notify();
-        }
-    }
-
-    pub(crate) fn refresh_shared_session_link(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.mode == SharingDialogMode::QrCode && !self.has_shared_session_link(ctx) {
-            self.mode = SharingDialogMode::Access;
-        }
-        ctx.notify();
     }
 
     /// Returns `true` if the target is an AI conversation that cannot be shared.
@@ -464,7 +375,6 @@ impl SharingDialog {
                 ShareableObject::WarpDriveObject(server_id) => CloudModel::as_ref(app)
                     .get_by_uid(&server_id.uid())
                     .map(|object| object.display_name()),
-                ShareableObject::Session { .. } => Some("session".to_string()),
                 ShareableObject::AIConversation(_) => Some("conversation".to_string()),
             })
             .unwrap_or_else(|| "unknown".to_string())
@@ -489,8 +399,6 @@ impl SharingDialog {
     /// * Users that are view-only do not need to see permissions
     pub fn editability(&self, app: &AppContext) -> ContentEditability {
         match self.target.as_ref() {
-            // Always treat session contents as "editable," so that the sharing dialog is shown.
-            Some(ShareableObject::Session { .. }) => ContentEditability::Editable,
             Some(ShareableObject::WarpDriveObject(id)) => {
                 CloudViewModel::as_ref(app).object_editability(&id.uid(), app)
             }
@@ -551,63 +459,6 @@ impl SharingDialog {
                     }
                 }
             }
-            Some(ShareableObject::Session { handle, .. }) => {
-                // Sharer always has Full access.
-                if handle.upgrade(app).is_some_and(|handle| {
-                    handle
-                        .as_ref(app)
-                        .sharer_session_kind()
-                        .is_some_and(|kind| kind.is_sharer())
-                }) {
-                    return SharingAccessLevel::Full;
-                }
-
-                if let Some(owner) = self.owner(app) {
-                    // If we are the user owner, we have Full access.
-                    if let Some(user_uid) = AuthStateProvider::as_ref(app).get().user_id()
-                        && owner.is_user(user_uid)
-                    {
-                        return SharingAccessLevel::Full;
-                    }
-                    // Team members of owning team have Full access.
-                    if let Subject::Team(team_kind) = owner
-                        && self
-                            .window_team_uid(app)
-                            .is_some_and(|current| current == team_kind.team_uid())
-                    {
-                        return SharingAccessLevel::Full;
-                    }
-                }
-
-                // For viewers, compute effective access as the max across all channels.
-                let mut level = SharingAccessLevel::View;
-
-                if let Some(link_level) = self.link_sharing_state.access_level {
-                    level = level.max(link_level);
-                }
-
-                if let Some(team_level) = self.team_sharing_state.access_level
-                    && let Some(TeamKind::SharedSessionTeam { ref team_uid, .. }) =
-                        self.team_sharing_state.team
-                    && self
-                        .window_team_uid(app)
-                        .is_some_and(|current| current == *team_uid)
-                {
-                    level = level.max(team_level);
-                }
-
-                if let Some(user_uid) = AuthStateProvider::as_ref(app).get().user_id()
-                    && let Some(guest_level) = self
-                        .guest_states
-                        .iter()
-                        .find(|guest| guest.subject.is_user(user_uid))
-                        .map(|guest| guest.current_access_level)
-                {
-                    level = level.max(guest_level);
-                }
-
-                level
-            }
             None => SharingAccessLevel::Full,
         }
     }
@@ -631,17 +482,9 @@ impl SharingDialog {
                                 Owner::User { .. } => None,
                             },
                         }),
-                        session_id: None,
                     }),
                     None => return,
                 }
-            }
-            Some(ShareableObject::Session { session_id, .. }) => {
-                TelemetryEvent::OpenedSharingDialog(OpenedSharingDialogEvent {
-                    source,
-                    object_metadata: None,
-                    session_id: Some(*session_id),
-                })
             }
             // Skip telemetry for AI conversations
             Some(ShareableObject::AIConversation(_)) => return,
@@ -652,7 +495,6 @@ impl SharingDialog {
     }
 
     fn reset_editable_state(&mut self, ctx: &mut ViewContext<Self>) {
-        self.mode = SharingDialogMode::Access;
         self.reset_invite_form(ctx);
         ctx.notify();
     }
@@ -666,36 +508,6 @@ impl SharingDialog {
                     .owner;
                 Some(Subject::from_owner(owner))
             }
-            ShareableObject::Session { handle, .. } => {
-                // Check if team has Full access - if so, team is the owner.
-                if let Some(TeamKind::SharedSessionTeam { team_uid, name }) =
-                    self.team_sharing_state.team.as_ref()
-                    && self.team_sharing_state.access_level == Some(SharingAccessLevel::Full)
-                {
-                    return Some(Subject::Team(TeamKind::SharedSessionTeam {
-                        team_uid: *team_uid,
-                        name: name.clone(),
-                    }));
-                }
-
-                // Otherwise, the sharer is the owner.
-                // The sharer doesn't store their own participant info, so if it's unset, we assume
-                // the current user.
-                handle
-                    .upgrade(app)
-                    .and_then(|handle| handle.as_ref(app).shared_session_presence_manager())
-                    .and_then(|presence| presence.as_ref(app).get_sharer())
-                    .map(|sharer| {
-                        UserKind::SharedSessionParticipant(sharer.info.profile_data.clone())
-                    })
-                    .or_else(|| {
-                        AuthStateProvider::as_ref(app)
-                            .get()
-                            .user_id()
-                            .map(UserKind::Account)
-                    })
-                    .map(Subject::User)
-            }
             ShareableObject::AIConversation(id) => {
                 // Get owner from conversation's server metadata
                 BlocklistAIHistoryModel::as_ref(app)
@@ -705,121 +517,8 @@ impl SharingDialog {
         }
     }
 
-    fn update_session_guests(
-        &mut self,
-        ctx: &mut ViewContext<Self>,
-        session_id: &SessionId,
-        guests: &[Guest],
-        pending_guests: &[PendingGuest],
-    ) {
-        // We should only update the guests if the dialog is targeting the
-        // correct session.
-        match self.target.as_ref() {
-            Some(ShareableObject::Session {
-                session_id: target_session_id,
-                ..
-            }) => {
-                if session_id != target_session_id {
-                    return;
-                }
-            }
-            _ => return,
-        }
-
-        let guests_iter = guests.iter().map(|guest| GuestState {
-            menu_button_handle: Default::default(),
-            tooltip_handle: Default::default(),
-            current_access_level: guest.direct_acl.into(),
-            subject: Subject::User(UserKind::SharedSessionParticipant(
-                guest.profile_data.clone(),
-            )),
-            inheritance: None,
-        });
-
-        let pending_guests_iter = pending_guests.iter().map(|guest| GuestState {
-            menu_button_handle: Default::default(),
-            tooltip_handle: Default::default(),
-            current_access_level: guest.direct_acl.into(),
-            subject: Subject::PendingUser {
-                email: Some(guest.email.clone()),
-            },
-            inheritance: None,
-        });
-
-        self.guest_states = guests_iter.chain(pending_guests_iter).collect();
-
-        self.guest_states
-            .sort_by_cached_key(|guest| guest.subject.name(ctx));
-
-        ctx.notify();
-    }
-
-    fn update_session_link_permissions(
-        &mut self,
-        session_id: SessionId,
-        access_level: Option<SharingAccessLevel>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Ensure we're targeting the correct session.
-        let Some(ShareableObject::Session {
-            session_id: target_session_id,
-            ..
-        }) = self.target
-        else {
-            return;
-        };
-        if session_id != target_session_id {
-            return;
-        }
-
-        self.link_sharing_state = LinkSharingState {
-            access_level,
-            tooltip_handle: Default::default(),
-            inheritance: None,
-        };
-        ctx.notify()
-    }
-
-    fn update_session_team_permissions(
-        &mut self,
-        session_id: &SessionId,
-        team_acl: Option<TeamAclData>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Ensure we're targeting the correct session.
-        match self.target.as_ref() {
-            Some(ShareableObject::Session {
-                session_id: target_session_id,
-                ..
-            }) => {
-                if session_id != target_session_id {
-                    return;
-                }
-            }
-            _ => return,
-        }
-
-        self.team_sharing_state = TeamSharingState {
-            access_level: team_acl.as_ref().map(|team_acl| team_acl.acl.into()),
-            team: team_acl.map(|team_acl| TeamKind::SharedSessionTeam {
-                team_uid: ServerId::from_string_lossy(team_acl.uid),
-                name: team_acl.name,
-            }),
-            tooltip_handle: Default::default(),
-            inheritance: None,
-        };
-        ctx.notify()
-    }
-
     /// Refreshes all permissions that have cached UI state.
     fn refresh_object_permission_states(&mut self, ctx: &mut ViewContext<Self>) {
-        // The permission states for shared sessions are managed differently
-        // than other cloud objects. We return to avoid resetting the
-        // permissions for sessions.
-        if matches!(self.target, Some(ShareableObject::Session { .. })) {
-            return;
-        }
-
         // Handle AI conversations separately
         if let Some(ShareableObject::AIConversation(conversation_id)) = &self.target {
             // Use the helper that checks both loaded conversations and historical metadata
@@ -942,11 +641,6 @@ impl SharingDialog {
     pub fn copy_link(&self, ctx: &mut ViewContext<Self>) {
         if let Some(url) = self.target.as_ref().and_then(|target| target.link(ctx)) {
             let event = match self.target {
-                Some(ShareableObject::Session { .. }) => {
-                    Some(TelemetryEvent::CopiedSharedSessionLink {
-                        source: SharedSessionActionSource::SharingDialog,
-                    })
-                }
                 Some(ShareableObject::WarpDriveObject(_))
                 | Some(ShareableObject::AIConversation(_)) => {
                     Some(TelemetryEvent::ObjectLinkCopied { link: url.clone() })
@@ -990,7 +684,6 @@ impl SharingDialog {
                 matches!(self.target, Some(ShareableObject::AIConversation(_)));
             // Check if this is a team guest - team removal is only supported for non-session targets
             let is_team_guest = matches!(guest.subject, Subject::Team(_));
-            let is_session = matches!(self.target, Some(ShareableObject::Session { .. }));
 
             self.guest_menu.update(ctx, |menu, ctx| {
                 let mut items = vec![
@@ -1019,9 +712,9 @@ impl SharingDialog {
                     );
                 }
 
-                // Add Remove option for non-team guests, or for team guests in non-session contexts
-                // (team removal is supported for WarpDrive objects and AI conversations, but not sessions)
-                if !is_team_guest || !is_session {
+                // Add Remove option for non-team guests; team removal is supported for
+                // WarpDrive objects and AI conversations.
+                if !is_team_guest {
                     items.push(MenuItem::Separator);
                     items.push(
                         MenuItemFields::new("Remove")
@@ -1075,9 +768,6 @@ impl SharingDialog {
                     });
                 }
             }
-            Some(ShareableObject::Session { handle, .. }) => {
-                self.remove_targeted_guest_for_session(idx, handle.clone(), ctx);
-            }
             Some(ShareableObject::AIConversation(conversation_id)) => {
                 self.remove_targeted_guest_for_conversation(idx, *conversation_id, ctx);
             }
@@ -1085,37 +775,6 @@ impl SharingDialog {
         }
 
         self.set_open_menu(OpenMenuState::None, ctx);
-    }
-
-    fn remove_targeted_guest_for_session(
-        &mut self,
-        guest_idx: usize,
-        handle: WeakViewHandle<TerminalView>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(guest) = self.guest_states.get(guest_idx) else {
-            return;
-        };
-
-        let Some(handle) = handle.upgrade(ctx) else {
-            report_error!(
-                "Unable to upgrade handle to TerminalView when removing guest from session"
-            );
-            return;
-        };
-
-        if let Some(user_uid) = guest.subject.user_uid() {
-            // User is a full guest.
-            handle.update(ctx, |view, ctx| {
-                view.remove_guest(user_uid, ctx);
-            });
-        } else if let Some(email) = guest.subject.email(ctx) {
-            // User is a pending guest.
-            let email = email.to_owned();
-            handle.update(ctx, |view, ctx| {
-                view.remove_pending_guest(email, ctx);
-            });
-        }
     }
 
     /// Set the currently-targeted guest's access level.
@@ -1137,9 +796,6 @@ impl SharingDialog {
         match &self.target {
             Some(ShareableObject::WarpDriveObject(object_id)) => {
                 self.set_targeted_guest_access_for_object(idx, access_level, *object_id, ctx);
-            }
-            Some(ShareableObject::Session { handle, .. }) => {
-                self.set_targeted_guest_access_for_session(idx, access_level, handle.clone(), ctx);
             }
             Some(ShareableObject::AIConversation(conversation_id)) => {
                 self.set_targeted_guest_access_for_conversation(
@@ -1187,40 +843,6 @@ impl SharingDialog {
                 );
             }
         });
-
-        self.set_open_menu(OpenMenuState::None, ctx);
-    }
-
-    fn set_targeted_guest_access_for_session(
-        &mut self,
-        guest_idx: usize,
-        access_level: SharingAccessLevel,
-        handle: WeakViewHandle<TerminalView>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(guest) = self.guest_states.get(guest_idx) else {
-            return;
-        };
-
-        let Some(handle) = handle.upgrade(ctx) else {
-            report_error!(
-                "Unable to upgrade handle to TerminalView when setting guest ACL for session"
-            );
-            return;
-        };
-
-        if let Some(user_uid) = guest.subject.user_uid() {
-            // User is a full guest.
-            handle.update(ctx, |view, ctx| {
-                view.update_role_for_user(user_uid.to_owned(), access_level.into(), ctx);
-            });
-        } else if let Some(email) = guest.subject.email(ctx) {
-            // User is a pending guest.
-            let email = email.to_owned();
-            handle.update(ctx, |view, ctx| {
-                view.update_role_for_pending_user(email, access_level.into(), ctx);
-            });
-        }
 
         self.set_open_menu(OpenMenuState::None, ctx);
     }
@@ -1631,22 +1253,6 @@ impl SharingDialog {
                     );
                 });
             }
-            Some(ShareableObject::Session { handle, .. }) => {
-                let Some(handle) = handle.upgrade(ctx) else {
-                    report_error!(
-                        "Unable to upgrade handle to TerminalView when sending email invitations for session"
-                    );
-                    return;
-                };
-
-                handle.update(ctx, |view, ctx| {
-                    view.add_guests(
-                        form_state.invitee_emails,
-                        self.invite_form.selected_access_level.into(),
-                        ctx,
-                    );
-                });
-            }
             Some(ShareableObject::AIConversation(conversation_id)) => {
                 self.add_guests_for_conversation(
                     form_state.invitee_emails,
@@ -1813,47 +1419,6 @@ impl SharingDialog {
             .with_horizontal_padding(style::ACL_ITEM_PADDING)
             .with_vertical_margin(style::ACL_ITEM_GAP / 2.)
             .finish()
-    }
-
-    /// Renders a header with live session details only for shared session sharers.
-    fn render_session_header(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Option<Box<dyn Element>> {
-        let Some(ShareableObject::Session { started_at, .. }) = self.target else {
-            return None;
-        };
-
-        if !self.can_edit_access(app) {
-            return None;
-        }
-
-        let text = appearance
-            .ui_builder()
-            .wrappable_text(
-                format!(
-                    "Live session started at {} on {}",
-                    started_at.format("%l:%M%P"),
-                    started_at.format("%m/%d"),
-                ),
-                true,
-            )
-            .with_style(UiComponentStyles {
-                font_color: Some(style::acl_primary_text_color(appearance)),
-                font_size: Some(style::HEADER_TEXT_SIZE),
-                ..Default::default()
-            })
-            .build()
-            .finish();
-
-        Some(
-            Container::new(text)
-                .with_horizontal_padding(style::ACL_ITEM_PADDING)
-                .with_padding_top(style::ACL_ITEM_PADDING / 2.)
-                .with_padding_bottom(style::ACL_ITEM_PADDING)
-                .finish(),
-        )
     }
 
     /// Renders a clarification label if the user is not allowed to edit permissions.
@@ -2101,123 +1666,6 @@ impl SharingDialog {
 
     /// Renders the entry for the team sharing ACL, if the correct conditions
     /// are met.
-    fn render_team_sharing_subject(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Option<Box<dyn Element>> {
-        // Currently, we only allow editing the team ACL for sessions.
-        if !matches!(self.target, Some(ShareableObject::Session { .. })) {
-            return None;
-        }
-
-        let can_edit_access = self.can_edit_access(app);
-
-        // If there's no team ACL, and the user can't edit it, show nothing.
-        if !can_edit_access && self.team_sharing_state.access_level.is_none() {
-            return None;
-        }
-
-        let (inherited_label, inherited_tooltip) = self
-            .team_sharing_state
-            .inheritance
-            .as_ref()
-            .map(|inheritance| {
-                let InheritanceDetails {
-                    source_label,
-                    tooltip_text,
-                } = inheritance.details(appearance, app);
-                (source_label, tooltip_text)
-            })
-            .unzip();
-
-        // This logic assumes that the sharer's team is the one we would want
-        // to add permissions for.
-        let team_kind = if can_edit_access {
-            TeamKind::Team {
-                team_uid: self.window_team_uid(app)?,
-            }
-        } else {
-            self.team_sharing_state.team.clone()?
-        };
-        // If this team is the owner of the object, don't render this team sharing ACL since
-        // we already rendered the team as the owner (and you can't change ACLs on it).
-        if let Some(Subject::Team(team_owner)) = self.owner(app)
-            && team_owner.team_uid() == team_kind.team_uid()
-        {
-            return None;
-        }
-
-        let mut subject_row = Flex::row();
-        subject_row.add_child(
-            Container::new(self.render_subject(
-                &Subject::Team(team_kind),
-                inherited_label,
-                appearance,
-                app,
-            ))
-            .with_horizontal_padding(style::ACL_ITEM_PADDING)
-            .with_vertical_margin(style::ACL_ITEM_GAP / 2.)
-            .finish(),
-        );
-
-        let menu_button = {
-            let label = match self.team_sharing_state.access_level {
-                Some(access_level) => access_level.label(),
-                None => NO_ACCESS_LABEL,
-            };
-            let button = appearance
-                .ui_builder()
-                .button(
-                    ButtonVariant::Text,
-                    self.ui_state_handles.team_sharing_menu_button.clone(),
-                )
-                .with_centered_text_label(label.to_string())
-                .with_style(UiComponentStyles {
-                    padding: Some(Coords::default()),
-                    ..Default::default()
-                });
-            if can_edit_access {
-                button
-            } else {
-                button.disabled()
-            }
-        };
-
-        let menu_button = SavePosition::new(
-            menu_button
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(SharingDialogAction::ToggleTeamSharingMenu);
-                })
-                .finish(),
-            &self.team_sharing_menu_button_id(),
-        )
-        .finish();
-
-        subject_row.add_child(match inherited_tooltip {
-            Some(tooltip) => render_with_detail_tooltip(
-                tooltip,
-                self.team_sharing_state.tooltip_handle.clone(),
-                menu_button,
-                appearance,
-            ),
-            None => menu_button,
-        });
-
-        Some(
-            Container::new(
-                subject_row
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_main_axis_size(MainAxisSize::Max)
-                    .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                    .finish(),
-            )
-            .with_padding_right(style::ACL_ITEM_PADDING)
-            .finish(),
-        )
-    }
-
     fn reset_team_sharing_menu(&mut self, ctx: &mut ViewContext<Self>) {
         let inherited_access = self.team_sharing_state.inheritance.is_some();
         let current_access_level = self.team_sharing_state.access_level;
@@ -2433,311 +1881,6 @@ impl SharingDialog {
         self.target.as_ref().and_then(|target| target.link(app))
     }
 
-    fn target_session_id(&self) -> Option<SessionId> {
-        match self.target {
-            Some(ShareableObject::Session { session_id, .. }) => Some(session_id),
-            _ => None,
-        }
-    }
-
-    fn qr_filename(&self) -> String {
-        match self.target_session_id() {
-            Some(session_id) => format!("warp-session-qr-code-{session_id}.png"),
-            None => "warp-session-qr-code.png".to_string(),
-        }
-    }
-
-    fn show_ephemeral_toast(
-        &self,
-        toast: DismissibleToast<WorkspaceAction>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let window_id = ctx.window_id();
-        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-        });
-    }
-
-    fn download_qr_code(&self, ctx: &mut ViewContext<Self>) {
-        let Some(url) = self.target_link(ctx) else {
-            self.show_ephemeral_toast(
-                DismissibleToast::error("Unable to download QR code.".to_string()),
-                ctx,
-            );
-            return;
-        };
-
-        let png = match qr_png_for_url(&url, QR_EXPORT_SIZE) {
-            Ok(png) => png,
-            Err(_) => {
-                self.show_ephemeral_toast(
-                    DismissibleToast::error("Unable to download QR code.".to_string()),
-                    ctx,
-                );
-                return;
-            }
-        };
-
-        ctx.open_save_file_picker(
-            move |path, me, ctx| {
-                let Some(path) = path else {
-                    return;
-                };
-                me.write_qr_png(path, png, ctx);
-            },
-            SaveFilePickerConfiguration::new().with_default_filename(self.qr_filename()),
-        );
-    }
-
-    fn write_qr_png(&self, path: String, png: Vec<u8>, ctx: &mut ViewContext<Self>) {
-        ctx.spawn(
-            async move { async_fs::write(path, png).await },
-            |me, result, ctx| me.handle_qr_write_result(result, ctx),
-        );
-    }
-
-    fn handle_qr_write_result(&self, result: std::io::Result<()>, ctx: &mut ViewContext<Self>) {
-        match result {
-            Ok(()) => self.show_ephemeral_toast(
-                DismissibleToast::success("QR code downloaded.".to_string()),
-                ctx,
-            ),
-            Err(_) => self.show_ephemeral_toast(
-                DismissibleToast::error("Unable to download QR code.".to_string()),
-                ctx,
-            ),
-        }
-    }
-
-    fn render_footer_icon_button(
-        &self,
-        icon: Icon,
-        action: SharingDialogAction,
-        tooltip: &'static str,
-        mouse_state: MouseStateHandle,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        let button_background = appearance.theme().surface_2();
-        let button_foreground = appearance.theme().main_text_color(button_background);
-        let ui_builder = appearance.ui_builder().clone();
-        icon_button_with_color(
-            appearance,
-            icon,
-            false,
-            mouse_state,
-            ThemeFill::Solid(button_foreground.into()),
-        )
-        .with_tooltip(move || ui_builder.tool_tip(tooltip.to_string()).build().finish())
-        .with_style(UiComponentStyles {
-            width: Some(style::ACL_ITEM_HEIGHT),
-            height: Some(style::ACL_ITEM_HEIGHT),
-            padding: Some(Coords::uniform(4.)),
-            font_color: Some(button_foreground.into()),
-            background: Some(button_background.into()),
-            border_color: Some(style::form_border_color(appearance).into()),
-            border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-            ..Default::default()
-        })
-        .with_clicked_styles(UiComponentStyles {
-            background: Some(appearance.theme().surface_2().into()),
-            ..Default::default()
-        })
-        .with_hovered_styles(UiComponentStyles {
-            background: Some(appearance.theme().surface_3().into()),
-            ..Default::default()
-        })
-        .build()
-        .on_click(move |ctx, _, _| ctx.dispatch_typed_action(action.clone()))
-        .finish()
-    }
-
-    fn render_qr_matrix(&self, matrix: &QrMatrix) -> Box<dyn Element> {
-        let modules_with_quiet_zone = matrix.width().saturating_add(QUIET_ZONE_MODULES * 2);
-        let module_size = QR_VISUAL_SIZE / modules_with_quiet_zone as f32;
-        let mut column = Flex::column().with_main_axis_size(MainAxisSize::Max);
-
-        for y in 0..modules_with_quiet_zone {
-            let mut row = Flex::row().with_main_axis_size(MainAxisSize::Max);
-            for x in 0..modules_with_quiet_zone {
-                let matrix_x = x.saturating_sub(QUIET_ZONE_MODULES);
-                let matrix_y = y.saturating_sub(QUIET_ZONE_MODULES);
-                let is_dark = x >= QUIET_ZONE_MODULES
-                    && y >= QUIET_ZONE_MODULES
-                    && matrix_x < matrix.width()
-                    && matrix_y < matrix.width()
-                    && matrix.is_dark(matrix_x, matrix_y);
-                let color = if is_dark {
-                    ColorU::black()
-                } else {
-                    ColorU::white()
-                };
-                row.add_child(
-                    ConstrainedBox::new(
-                        Container::new(Empty::new().finish())
-                            .with_background(color)
-                            .finish(),
-                    )
-                    .with_width(module_size)
-                    .with_height(module_size)
-                    .finish(),
-                );
-            }
-            column.add_child(row.finish());
-        }
-
-        ConstrainedBox::new(column.finish())
-            .with_width(QR_VISUAL_SIZE)
-            .with_height(QR_VISUAL_SIZE)
-            .finish()
-    }
-
-    fn render_qr_header(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let foreground = style::acl_primary_text_color(appearance);
-        let icon_button_styles = UiComponentStyles {
-            width: Some(QR_ICON_BUTTON_SIZE),
-            height: Some(QR_ICON_BUTTON_SIZE),
-            font_color: Some(foreground),
-            border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-            ..Default::default()
-        };
-        let icon_hover_styles = UiComponentStyles {
-            background: Some(appearance.theme().surface_2().into()),
-            ..Default::default()
-        };
-        let back_button = icon_button_with_color(
-            appearance,
-            Icon::ArrowLeft,
-            false,
-            self.ui_state_handles.qr_back_button.clone(),
-            ThemeFill::Solid(foreground),
-        )
-        .with_style(icon_button_styles)
-        .with_hovered_styles(icon_hover_styles)
-        .build()
-        .on_click(|ctx, _, _| ctx.dispatch_typed_action(SharingDialogAction::BackToAccessDialog))
-        .finish();
-        let title = appearance
-            .ui_builder()
-            .span("Share session QR code")
-            .with_style(UiComponentStyles {
-                font_color: Some(foreground),
-                font_size: Some(style::HEADER_TEXT_SIZE),
-                ..Default::default()
-            })
-            .build()
-            .finish();
-        let esc_hint = appearance
-            .ui_builder()
-            .span("ESC")
-            .with_style(UiComponentStyles {
-                font_color: Some(style::acl_secondary_text_color(appearance)),
-                font_size: Some(12.),
-                background: Some(appearance.theme().surface_2().into()),
-                border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-                padding: Some(Coords::default().left(6.).right(6.).top(2.).bottom(2.)),
-                ..Default::default()
-            })
-            .build()
-            .finish();
-        let close_button = icon_button_with_color(
-            appearance,
-            Icon::X,
-            false,
-            self.ui_state_handles.qr_close_button.clone(),
-            ThemeFill::Solid(foreground),
-        )
-        .with_style(icon_button_styles)
-        .with_hovered_styles(icon_hover_styles)
-        .build()
-        .on_click(|ctx, _, _| ctx.dispatch_typed_action(SharingDialogAction::Close))
-        .finish();
-
-        Container::new(
-            Flex::row()
-                .with_main_axis_size(MainAxisSize::Max)
-                .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_children([
-                    back_button,
-                    Shrinkable::new(1., title).finish(),
-                    esc_hint,
-                    close_button,
-                ])
-                .finish(),
-        )
-        .with_horizontal_padding(style::ACL_ITEM_PADDING)
-        .with_padding_top(8.)
-        .with_padding_bottom(8.)
-        .finish()
-    }
-
-    fn render_qr_dialog(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
-        let qr_contents = self
-            .target_link(app)
-            .and_then(|url| qr_matrix_for_url(&url).ok())
-            .map(|matrix| {
-                let card = Container::new(Align::new(self.render_qr_matrix(&matrix)).finish())
-                    .with_background(ColorU::white())
-                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
-                    .finish();
-                let action_row = Flex::row()
-                    .with_main_axis_alignment(MainAxisAlignment::Center)
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_children([
-                        self.render_footer_icon_button(
-                            Icon::Copy,
-                            SharingDialogAction::CopyLink,
-                            "Copy link",
-                            self.ui_state_handles.qr_copy_button.clone(),
-                            appearance,
-                        ),
-                        Container::new(self.render_footer_icon_button(
-                            Icon::Download,
-                            SharingDialogAction::DownloadQrCode,
-                            "Download QR code",
-                            self.ui_state_handles.qr_download_button.clone(),
-                            appearance,
-                        ))
-                        .with_margin_left(8.)
-                        .finish(),
-                    ])
-                    .finish();
-                Flex::column()
-                    .with_main_axis_alignment(MainAxisAlignment::Center)
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_children([
-                        ConstrainedBox::new(card)
-                            .with_width(QR_CARD_SIZE)
-                            .with_height(QR_CARD_SIZE)
-                            .finish(),
-                        Container::new(action_row).with_margin_top(12.).finish(),
-                    ])
-                    .finish()
-            })
-            .unwrap_or_else(|| {
-                appearance
-                    .ui_builder()
-                    .paragraph("Unable to create QR code for this session link.")
-                    .with_style(UiComponentStyles {
-                        font_color: Some(style::acl_secondary_text_color(appearance)),
-                        ..Default::default()
-                    })
-                    .build()
-                    .finish()
-            });
-
-        Flex::column()
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_children([
-                self.render_qr_header(appearance),
-                Container::new(Align::new(qr_contents).finish())
-                    .with_vertical_padding(32.)
-                    .finish(),
-            ])
-            .finish()
-    }
-
-    /// Renders a link to the shared object, with a CTA to copy the URL.
     fn render_object_link(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let url = match self.target_link(app) {
             Some(url) => url,
@@ -2798,24 +1941,11 @@ impl SharingDialog {
             .on_click(|ctx, _, _| ctx.dispatch_typed_action(SharingDialogAction::CopyLink))
             .finish();
 
-        let qr_button = self.has_shared_session_link(app).then(|| {
-            self.render_footer_icon_button(
-                Icon::QrCode,
-                SharingDialogAction::ShowQrCode,
-                "Show QR code",
-                self.ui_state_handles.qr_code_button.clone(),
-                appearance,
-            )
-        });
-
         let mut link_row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(Shrinkable::new(1., link).finish());
-        if let Some(qr_button) = qr_button {
-            link_row.add_child(Container::new(qr_button).with_margin_left(8.).finish());
-        }
         link_row.add_child(Container::new(copy_button).with_margin_left(8.).finish());
 
         let link_form = ConstrainedBox::new(link_row.finish())
@@ -2860,14 +1990,8 @@ impl View for SharingDialog {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
-        let should_render_qr_code =
-            self.mode == SharingDialogMode::QrCode && self.has_shared_session_link(app);
-        let (contents, width) = if should_render_qr_code {
-            (self.render_qr_dialog(appearance, app), QR_DIALOG_WIDTH)
-        } else {
+        let (contents, width) = {
             let mut contents = Flex::column();
-
-            contents.extend(self.render_session_header(appearance, app));
 
             if self.can_edit_access(app) && self.can_direct_link_share(app) {
                 contents.add_child(self.render_invite_form(appearance, app));
@@ -2878,7 +2002,6 @@ impl View for SharingDialog {
             if self.can_anyone_with_link_share(app) {
                 contents.extend(self.render_link_sharing_subject(appearance, app));
             }
-            contents.extend(self.render_team_sharing_subject(appearance, app));
             contents.extend(self.render_owner(appearance, app));
 
             if let Some(guest_list) = self.render_guests(appearance) {
@@ -2913,7 +2036,7 @@ impl View for SharingDialog {
     }
 
     fn on_focus(&mut self, focus_ctx: &FocusContext, ctx: &mut ViewContext<Self>) {
-        if focus_ctx.is_self_focused() && self.mode == SharingDialogMode::Access {
+        if focus_ctx.is_self_focused() {
             ctx.focus(&self.invite_form.email_editor);
         }
     }
@@ -2934,13 +2057,6 @@ impl TypedActionView for SharingDialog {
                     UpdateManager::handle(ctx).update(ctx, move |update_manager, ctx| {
                         update_manager.set_object_link_permissions(*id, *access_level, ctx);
                     });
-                } else if let Some(ShareableObject::Session { handle, .. }) = self.target.as_ref() {
-                    if let Some(view) = handle.upgrade(ctx) {
-                        let role = access_level.map(|access_level| access_level.into());
-                        view.update(ctx, |view, ctx| {
-                            view.update_session_link_permissions(role, ctx)
-                        });
-                    }
                 } else if let Some(ShareableObject::AIConversation(conversation_id)) =
                     self.target.as_ref()
                 {
@@ -2966,34 +2082,12 @@ impl TypedActionView for SharingDialog {
                 }
                 ctx.notify();
             }
-            SharingDialogAction::SetTeamPermissions(access_level) => {
+            SharingDialogAction::SetTeamPermissions(_) => {
+                // Team ACLs were only editable for shared sessions.
                 self.set_open_menu(OpenMenuState::None, ctx);
-                // So far, we only support setting team permissions for sessions.
-                if let Some(ShareableObject::Session { handle, .. }) = self.target.as_ref() {
-                    let Some(view) = handle.upgrade(ctx) else {
-                        return;
-                    };
-                    let Some(team_uid) = UserWorkspaces::as_ref(ctx)
-                        .team_for_view(ctx)
-                        .map(|team| team.uid)
-                    else {
-                        return;
-                    };
-
-                    let role = access_level.map(|access_level| access_level.into());
-                    view.update(ctx, |view, ctx| {
-                        view.update_session_team_permissions(role, team_uid.uid(), ctx);
-                    });
-                }
                 ctx.notify();
             }
             SharingDialogAction::CopyLink => self.copy_link(ctx),
-            SharingDialogAction::ShowQrCode => self.show_qr_code(ctx),
-            SharingDialogAction::BackToAccessDialog => {
-                self.mode = SharingDialogMode::Access;
-                ctx.notify();
-            }
-            SharingDialogAction::DownloadQrCode => self.download_qr_code(ctx),
             SharingDialogAction::ToggleLinkSharingMenu => {
                 self.toggle_menu(OpenMenuState::LinkSharing, ctx);
             }
@@ -3018,7 +2112,3 @@ impl TypedActionView for SharingDialog {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "mod_tests.rs"]
-mod tests;
