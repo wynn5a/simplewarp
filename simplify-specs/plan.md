@@ -1119,6 +1119,13 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `FLAG_STATES` and `USER_PREFERENCE_MAP` are sized by `cardinality::<FeatureFlag>()`, so a
    sweep leaves no count to keep in step.
 
+   **Third sweep: 2 more of the remaining 259.** `BuildPlanAutoReloadBannerToggle` and
+   `BuildPlanAutoReloadPostPurchaseModal` — no `FeatureFlag::X` reference and no cargo
+   feature mapping. Both named the Build Plan auto-reload experiment; its banner and modal
+   (`terminal/buy_credits_banner.rs`, `enable_auto_reload_modal.rs`) went in 4c, which is
+   almost certainly why these two survived that step's own compiler-led cascade — nothing
+   *read* them, so nothing failed to compile when their UI went. 257 variants remain.
+
 ## Risks
 
 - **Deep coupling.** The cloud crates appear in ~147 files. This is why deletion is last.
