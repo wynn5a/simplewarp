@@ -1029,6 +1029,28 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    Acceptance: 6023 app tests pass (one fewer — the continuation-pane test went with its
    subject), 0 fail. Format, clippy (0 errors, 52 dead-code warnings), and all three binaries —
    `simplewarp`, `warp-oss`, and `-p integration` — clean. Not re-run in the app.
+4h. **The agent-profiles-page usage widget is gone — DONE.** ~330 lines. `UsageWidget`
+   rendered the used/limit AI-credit count and an "Upgrade" / "Compare plans" / "Contact
+   support" CTA, gated on `FeatureFlag::UsageBasedPricing`. 4d already made
+   `has_any_ai_remaining` always `true`, so the count had nothing left to warn about and
+   the CTA had nothing to sell — this closes that gap on the one page 4c and 4d did not
+   reach. `AgentProfilesPageAction::AttemptLoginGatedUpgrade`, the click target for a
+   logged-out user, went with it.
+
+   `on_page_selected`'s refresh of `AIRequestUsageModel` stays: the page's model dropdowns
+   are a separate consumer of request-usage events, so the widget was not the only reader.
+
+   Found as an uncommitted, already-written diff at the start of this session — verified
+   rather than authored. **Nextest showed 8 failures unrelated to this file**
+   (`settings::cloud_preferences_syncer`, six tests; `workspace::view::tests`, two Warp
+   Drive/signup tests), reproduced identically on a clean stash of master with no code
+   change at all, so they predate this step and are not counted against it.
+
+   Acceptance: `cargo check --no-default-features --features simplewarp --bin simplewarp`,
+   `cargo check -p warp --bin warp-oss`, `cargo check --all-targets` (simplewarp), clippy,
+   and format all clean. 6007/6015 app tests pass (8 pre-existing failures, see above). Not
+   re-run in the app.
+
 5. The `FeatureFlag` variants that are no longer in use. **29 removed: 16 in the first sweep, 2
    with step 3g, and 11 in a second sweep. More remain behind the module deletions above.**
 
@@ -1113,6 +1135,8 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
             network layers, every modal, the drive-object and tab-menu entry points, and the
             dead code they left behind. Cloud mode survives it, but only because the composer
             pane was given back the ambient model the viewer manager used to build.
+      - [x] **The agent-profiles-page usage widget is gone** (4h): ~330 lines — the last
+            credit-count-and-upgrade-CTA surface that 4c/4d did not reach.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), plus `drive`
             (2). The remaining dead `FeatureFlag` variants fall out of those (5), together with
