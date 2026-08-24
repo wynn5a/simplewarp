@@ -587,26 +587,6 @@ enum BlockHeightUpdate {
     Removal(TotalIndex),
 }
 
-struct SharedSessionScrollbackBlocks<'a> {
-    completed_blocks: &'a [SerializedBlock],
-    active_block: Option<&'a SerializedBlock>,
-}
-
-impl<'a> SharedSessionScrollbackBlocks<'a> {
-    fn new(scrollback: &'a [SerializedBlock]) -> Self {
-        match scrollback.split_last() {
-            Some((active_block, completed_blocks)) if active_block.completed_ts.is_none() => Self {
-                completed_blocks,
-                active_block: Some(active_block),
-            },
-            _ => Self {
-                completed_blocks: scrollback,
-                active_block: None,
-            },
-        }
-    }
-}
-
 impl BlockList {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -747,92 +727,6 @@ impl BlockList {
             }
         }
         self.create_warp_input_block();
-    }
-
-    pub(super) fn load_shared_session_scrollback(&mut self, scrollback: &[SerializedBlock]) {
-        let scrollback_blocks = SharedSessionScrollbackBlocks::new(scrollback);
-        // If the snapshot will restore any blocks, finish the placeholder active block first.
-        // For an empty snapshot, keep the existing placeholder active block instead of replacing
-        // it with another hidden block.
-        if !scrollback.is_empty() && !self.active_block().finished() {
-            self.active_block_mut().finish(0);
-        }
-
-        // Simulate finishing bootstrapping once we get the scrollback.
-        self.set_bootstrapped();
-        let mut processor: Processor = Processor::new();
-
-        for block in scrollback_blocks.completed_blocks {
-            if block.start_ts.is_some() && block.completed_ts.is_some() {
-                self.restore_block(block, BootstrapStage::PostBootstrapPrecmd, &mut processor);
-            } else {
-                log::warn!("A non-active scrollback block was either not started or not completed");
-            }
-        }
-        if let Some(active_block) = scrollback_blocks.active_block {
-            self.restore_block(
-                active_block,
-                BootstrapStage::PostBootstrapPrecmd,
-                &mut processor,
-            );
-        } else {
-            self.ensure_active_block_after_shared_session_scrollback();
-        }
-    }
-
-    pub(super) fn append_followup_shared_session_scrollback(
-        &mut self,
-        scrollback: &[SerializedBlock],
-    ) {
-        self.set_bootstrapped();
-        let mut processor = Processor::new();
-        let scrollback_blocks = SharedSessionScrollbackBlocks::new(scrollback);
-
-        for block in scrollback_blocks.completed_blocks {
-            if self.block_index_for_id(&block.id).is_some() {
-                continue;
-            }
-            if block.start_ts.is_some() && block.completed_ts.is_some() {
-                self.finish_active_block_before_followup_append();
-                self.restore_block(block, BootstrapStage::PostBootstrapPrecmd, &mut processor);
-            } else {
-                log::warn!(
-                    "A non-active follow-up scrollback block was either not started or not completed"
-                );
-            }
-        }
-
-        match scrollback_blocks.active_block {
-            Some(active_block) if self.block_index_for_id(&active_block.id).is_none() => {
-                self.finish_active_block_before_followup_append();
-                self.restore_block(
-                    active_block,
-                    BootstrapStage::PostBootstrapPrecmd,
-                    &mut processor,
-                );
-            }
-            Some(_) | None => {
-                self.ensure_active_block_after_shared_session_scrollback();
-            }
-        }
-    }
-
-    fn finish_active_block_before_followup_append(&mut self) {
-        if !self.active_block().finished() {
-            self.active_block_mut().finish(0);
-            self.update_active_block_height();
-        }
-    }
-
-    fn ensure_active_block_after_shared_session_scrollback(&mut self) {
-        if self.active_block().finished() {
-            self.create_new_block(
-                BlockId::new(),
-                BootstrapStage::PostBootstrapPrecmd,
-                None,
-                None,
-            );
-        }
     }
 
     /// This is an important function in the block list lifecycle. After this
@@ -1125,12 +1019,6 @@ impl BlockList {
         let view_id = item.view_id;
         self.append_rich_content(item, true);
         self.pinned_to_bottom = Some(view_id);
-    }
-
-    pub(in crate::terminal) fn unpin_rich_content_from_bottom(&mut self, view_id: EntityId) {
-        if self.pinned_to_bottom == Some(view_id) {
-            self.pinned_to_bottom = None;
-        }
     }
 
     /// If a rich content item is pinned to the bottom, removes it from its
@@ -2931,16 +2819,6 @@ impl BlockList {
         for block in self.blocks.iter_mut() {
             block.set_obfuscate_secrets(obfuscate_secrets);
         }
-    }
-
-    /// Sets whether subsequent blocks (including the active block) have their grids obfuscated.
-    pub(super) fn set_obfuscate_secrets_for_subsequent_blocks(
-        &mut self,
-        obfuscate_secrets: ObfuscateSecrets,
-    ) {
-        self.obfuscate_secrets = obfuscate_secrets;
-        self.active_block_mut()
-            .set_obfuscate_secrets(obfuscate_secrets);
     }
 
     /// Sets whether the grids of the specified block should be obfuscated.

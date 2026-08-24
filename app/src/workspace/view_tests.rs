@@ -1167,17 +1167,6 @@ impl Drop for TabConfigCleanupGuard {
     }
 }
 
-/// Disable the warn-before-quit setting. Because we don't fully bootstrap the shell in tests, this
-/// is generally needed in tests that close tabs.
-fn disable_quit_warning(app: &mut AppContext) {
-    GeneralSettings::handle(app).update(app, |settings, ctx| {
-        settings
-            .show_warning_before_quitting
-            .set_value(false, ctx)
-            .expect("Failed to disable quit warning");
-    });
-}
-
 fn get_newly_created_pane_id(panes: &PaneGroup, existing_ids: &[PaneId]) -> PaneId {
     panes
         .pane_ids()

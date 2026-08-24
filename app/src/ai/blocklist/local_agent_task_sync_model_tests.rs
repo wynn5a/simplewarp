@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use session_sharing_protocol::common::SessionId;
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
 use warpui::App;
 
@@ -471,12 +470,6 @@ fn fixed_task_id() -> AmbientAgentTaskId {
     "550e8400-e29b-41d4-a716-446655440a00"
         .parse()
         .expect("valid task id")
-}
-
-fn fixed_session_id() -> SessionId {
-    "550e8400-e29b-41d4-a716-446655440a01"
-        .parse()
-        .expect("valid session id")
 }
 
 /// Yields back to the executor a few times so any `ctx.spawn`-scheduled

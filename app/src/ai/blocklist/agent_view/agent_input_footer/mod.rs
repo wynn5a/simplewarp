@@ -2000,7 +2000,6 @@ impl AgentInputFooter {
         &self,
         item: &AgentToolbarItemKind,
         is_cloud_context: bool,
-        is_conversation_transcript_context: bool,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         if !item.available_in().is_available_for_agent_view() {
@@ -2181,16 +2180,9 @@ impl View for AgentInputFooter {
 
         let terminal_model = self.terminal_model.lock();
         let is_cloud_context = super::is_in_cloud_context(&terminal_model);
-        let is_conversation_transcript_context =
-            is_conversation_transcript_context(self.terminal_view_id, &terminal_model, app);
 
         for item in &left_items {
-            if let Some(element) = self.render_toolbar_item(
-                item,
-                is_cloud_context,
-                is_conversation_transcript_context,
-                app,
-            ) {
+            if let Some(element) = self.render_toolbar_item(item, is_cloud_context, app) {
                 left_buttons.add_child(element);
             }
         }
@@ -2211,12 +2203,7 @@ impl View for AgentInputFooter {
             );
         } else {
             for item in &right_items {
-                if let Some(element) = self.render_toolbar_item(
-                    item,
-                    is_cloud_context,
-                    is_conversation_transcript_context,
-                    app,
-                ) {
+                if let Some(element) = self.render_toolbar_item(item, is_cloud_context, app) {
                     right_buttons.add_child(element);
                 }
             }
@@ -2570,31 +2557,6 @@ impl ActionButtonTheme for AgentInputButtonTheme {
         } else {
             None
         }
-    }
-}
-
-struct RemoteControlButtonTheme;
-
-impl ActionButtonTheme for RemoteControlButtonTheme {
-    fn background(&self, hovered: bool, appearance: &Appearance) -> Option<Fill> {
-        AgentInputButtonTheme.background(hovered, appearance)
-    }
-
-    fn text_color(
-        &self,
-        hovered: bool,
-        background: Option<Fill>,
-        appearance: &Appearance,
-    ) -> ColorU {
-        AgentInputButtonTheme.text_color(hovered, background, appearance)
-    }
-
-    fn border(&self, appearance: &Appearance) -> Option<ColorU> {
-        AgentInputButtonTheme.border(appearance)
-    }
-
-    fn should_opt_out_of_contrast_adjustment(&self) -> bool {
-        AgentInputButtonTheme.should_opt_out_of_contrast_adjustment()
     }
 }
 

@@ -3405,11 +3405,6 @@ impl TerminalView {
         ctx.subscribe_to_model(
             &AgentConversationsModel::handle(ctx),
             |me, _, event, ctx| {
-                let is_task_update = matches!(
-                    event,
-                    AgentConversationsModelEvent::TasksUpdated
-                        | AgentConversationsModelEvent::NewTasksReceived
-                );
                 let should_refresh_details_panel = matches!(
                     event,
                     AgentConversationsModelEvent::TasksUpdated
@@ -6395,11 +6390,7 @@ impl TerminalView {
                     }
                 }
             }
-            CLISubagentEvent::UpdatedControl {
-                block_id,
-                agent_has_control,
-                ..
-            } => {
+            CLISubagentEvent::UpdatedControl { .. } => {
                 self.redetermine_terminal_focus(ctx);
             }
             CLISubagentEvent::FinishedSubagent {
@@ -16339,9 +16330,7 @@ impl TerminalView {
                 true,
             ) => {
                 // If selection is empty, only show non-block related options
-                let mut items = Vec::new();
-
-                items
+                Vec::new()
             }
             _ => vec![],
         };
@@ -23095,7 +23084,6 @@ impl TerminalView {
         &self,
         appearance: &Appearance,
         app: &AppContext,
-        model: &TerminalModel,
     ) -> HashMap<usize, Box<dyn Element>> {
         let mut inline_banners = HashMap::new();
 
@@ -23222,7 +23210,7 @@ impl TerminalView {
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
 
-        let (rows, columns) = (self.size_info.rows(), self.size_info.columns());
+        let columns = self.size_info.columns();
 
         // Note: The Alt screen relies on the accuracy of the `padding` elements of SizeInfo
         // for things like hit detection and selection. Since we are taking into account the
@@ -23327,7 +23315,7 @@ impl TerminalView {
         let padding_x = self.size_info.padding_x_px;
         let sessions = self.sessions.clone();
 
-        let inline_banners = self.render_inline_banners(appearance, app, model);
+        let inline_banners = self.render_inline_banners(appearance, app);
 
         let mut subshell_separators = HashMap::new();
 

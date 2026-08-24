@@ -323,8 +323,7 @@ impl AmbientAgentViewModel {
         self.set_setup_command_group_visibility(group_id, is_visible, ctx);
     }
 
-    /// Tear down the active "Running setup commands…" chip in response to the
-    /// `CloudModeSetupPhaseEnded` shared-session marker. Idempotent: the inner
+    /// Tear down the active "Running setup commands…" chip. Idempotent: the inner
     /// `finish_setup_command_group` no-ops when the group is not running, and
     /// `set_setup_command_group_visibility(false)` no-ops when already collapsed.
     pub(crate) fn tear_down_active_setup_command_group(&mut self, ctx: &mut ModelContext<Self>) {
@@ -682,12 +681,6 @@ impl AmbientAgentViewModel {
     /// Returns the task ID for the current cloud agent task, if one has been spawned.
     pub fn task_id(&self) -> Option<AmbientAgentTaskId> {
         self.task_id
-    }
-
-    pub(in crate::terminal::view) fn blocks_cloud_followups(&self) -> bool {
-        self.source
-            .as_ref()
-            .is_some_and(AgentSource::blocks_cloud_followups)
     }
 
     /// Whether or not this terminal session is in the setup state (first-time environment creation).

@@ -322,25 +322,6 @@ define_settings_group!(SessionSettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
-    should_confirm_close_session: ShouldConfirmCloseSession {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "general.should_confirm_close_session",
-        description: "Whether to show a confirmation dialog when closing a session.",
-    },
-    // Value is saved here but not shown in ui (can't be toggled in settings)
-    should_confirm_shared_session_edit_access: ShouldConfirmSharedSessionEditAccess {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    }
     notifications: Notifications {
         type: NotificationsSettings,
         default: NotificationsSettings::default(),

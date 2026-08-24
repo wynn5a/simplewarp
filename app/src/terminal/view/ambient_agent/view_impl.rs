@@ -10,9 +10,7 @@ use warp_core::ui::appearance::Appearance;
 use warp_terminal::model::BlockId;
 use warpui::elements::Align;
 use warpui::prelude::{Empty, Vector2F};
-use warpui::{
-    AppContext, Element, EntityId, ModelHandle, SingletonEntity, ViewContext, ViewHandle,
-};
+use warpui::{AppContext, Element, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use super::loading_screen::{
     render_cloud_mode_cancelled_screen, render_cloud_mode_error_screen,
@@ -26,11 +24,9 @@ use crate::ai::agent::{RenderableAIError, display_user_query_with_mode};
 use crate::ai::agent_sdk::driver::harness::auth_check_command_for;
 use crate::ai::ambient_agents::telemetry::{CloudAgentTelemetryEvent, CloudModeEntryPoint};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
-use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::conversation_details_panel::ConversationDetailsData;
 use crate::pane_group::TerminalViewResources;
 use crate::terminal::CLIAgent;
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::view::rich_content::{RichContentInsertionPosition, RichContentMetadata};
 use crate::terminal::view::{
     ConversationDetailsPanelAutoOpenPolicy, Event as TerminalViewEvent, TerminalView,
@@ -312,9 +308,6 @@ impl TerminalView {
                 ctx.notify();
             }
             AmbientAgentViewModelEvent::ViewerHarnessResolved => {
-                // Once we know which harness we're using from the server, try and enter the agent
-                // view if we haven't already.
-                self.sync_agent_view_for_shared_third_party_viewer(ctx);
                 self.update_pane_configuration(ctx);
                 ctx.emit(TerminalViewEvent::TerminalViewStateChanged);
                 ctx.notify();
@@ -502,84 +495,6 @@ impl TerminalView {
             RichContentInsertionPosition::BeforeBlockIndex(block_index),
             ctx,
         );
-    }
-
-    /// Returns whether this view is a live shared-session viewer for a non-Oz cloud run.
-    fn is_third_party_cloud_agent_viewer(&self, ctx: &AppContext) -> bool {
-        // The ambient model's harness resolves asynchronously after join, when we fetch the task.
-        // Until then, use the synced CLI-agent session (which we get on shared session join, if the
-        // CLI agent is currently active) as the live third-party harness signal.
-        let has_ambient_third_party_harness = self
-            .ambient_agent_view_model
-            .as_ref()
-            .is_some_and(|model| model.as_ref(ctx).is_third_party_harness());
-        let has_cli_agent_session = FeatureFlag::AgentHarness.is_enabled() && {
-            CLIAgentSessionsModel::as_ref(ctx)
-                .session(self.view_id)
-                .is_some()
-        };
-        let _ = has_ambient_third_party_harness;
-        let _ = has_cli_agent_session;
-        false
-    }
-
-    /// Syncs agent view for a live shared-session viewer of a non-oz cloud run, so every
-    /// viewer lands in the same agent-view chrome regardless of which entry point opened the
-    /// conversation. Called from two independent signals that race:
-    /// - `ViewerHarnessUpdated`: ambient model resolved the harness from the task fetch
-    /// - `apply_cli_agent_state_update`: CLI session synced on viewer join/reconnect
-    ///
-    /// Transcript viewer entry is handled directly in `load_data_into_transcript_viewer` so
-    /// the snapshot block exists before we retag — we intentionally do not trigger that path
-    /// here.
-    pub(crate) fn sync_agent_view_for_shared_third_party_viewer(
-        &mut self,
-        ctx: &mut ViewContext<Self>,
-    ) -> Option<AIConversationId> {
-        if !self.is_third_party_cloud_agent_viewer(ctx) {
-            return None;
-        }
-        if let Some(conversation_id) = self
-            .agent_view_controller
-            .as_ref(ctx)
-            .agent_view_state()
-            .active_conversation_id()
-        {
-            return Some(conversation_id);
-        }
-        self.enter_agent_view_for_new_conversation(
-            None,
-            AgentViewEntryOrigin::ThirdPartyCloudAgent,
-            ctx,
-        );
-
-        let vehicle_conversation_id = self
-            .agent_view_controller
-            .as_ref(ctx)
-            .agent_view_state()
-            .active_conversation_id()?;
-
-        // Retag existing non-setup blocks so the harness content passes the agent view filter.
-        self.model
-            .lock()
-            .block_list_mut()
-            .attach_non_startup_blocks_to_conversation(vehicle_conversation_id);
-
-        // Retag rich content inserted in terminal mode (setup-commands summary, tombstone, …)
-        // so it stays visible under the vehicle conversation. Rich content with
-        // `agent_view_conversation_id == None` is hidden in full-screen agent view by
-        // `RichContentItem::should_hide_for_agent_view_state`.
-        let ids_to_retag: Vec<EntityId> = self
-            .rich_content_views
-            .iter()
-            .filter(|rc| rc.agent_view_conversation_id().is_none())
-            .map(|rc| rc.view_id())
-            .collect();
-        for view_id in ids_to_retag {
-            self.set_rich_content_agent_view_conversation_id(view_id, vehicle_conversation_id);
-        }
-
-        Some(vehicle_conversation_id)
     }
 
     /// Returns `true` when the block's command is the CLI for the run's configured

@@ -18,18 +18,13 @@ use warpui::{AppContext, SingletonEntity, ViewHandle};
 use crate::appearance::Appearance;
 use crate::settings::{AISettings, InputSettings};
 use crate::terminal::input::{Input, InputAction, InputSuggestionsMode, MenuPositioning};
-use crate::terminal::model::TerminalModel;
 use crate::terminal::view::{PADDING_LEFT, TerminalAction};
 use crate::ui_components::icons::Icon;
 
 /// Whether the terminal input message bar should be shown.
 ///
-/// The message bar is hidden when AI is disabled, the user has turned it off in settings,
-/// or the session is a shared ambient agent session.
-pub(super) fn should_show_terminal_input_message_bar(
-    model: &TerminalModel,
-    app: &AppContext,
-) -> bool {
+/// The message bar is hidden when AI is disabled or the user has turned it off in settings.
+pub(super) fn should_show_terminal_input_message_bar(app: &AppContext) -> bool {
     FeatureFlag::AgentView.is_enabled()
         && !FeatureFlag::AgentViewPromptChip.is_enabled()
         && InputSettings::as_ref(app).is_terminal_input_message_bar_enabled()

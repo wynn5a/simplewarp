@@ -8,7 +8,6 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use futures::channel::oneshot;
-use session_sharing_protocol::sharer::SessionRetentionReason;
 use warp_cli::share::ShareRequest;
 use warp_completer::completer::CommandOutput;
 use warp_core::command::ExitCode;
@@ -84,10 +83,8 @@ pub(crate) enum ShareSessionError {
     /// The server rejected the session-sharing request.
     #[error("{0}")]
     Failed(String),
-    /// Session sharing is disabled for this user or team.
-    #[error(
-        "Session sharing is not enabled. This is likely because an administrator has disabled session sharing for your team."
-    )]
+    /// This build cannot share a session.
+    #[error("Session sharing is not available in this build.")]
     Disabled,
     /// The session-sharing request timed out.
     #[error("Timed out waiting for session sharing to start")]
@@ -598,14 +595,6 @@ impl TerminalDriver {
                 }),
             }
         }
-    }
-
-    pub fn extend_shared_session_retention(
-        &mut self,
-        reason: SessionRetentionReason,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-        log::warn!("Session sharing is not available in this build: {reason:?}");
     }
 }
 

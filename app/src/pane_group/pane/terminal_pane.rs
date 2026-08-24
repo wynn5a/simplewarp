@@ -1294,7 +1294,7 @@ fn dispatch_start_agent_conversation(
             harness_type: None,
             model_id,
         } => {
-            launch_local_no_harness_child(group, parent_pane_id, request, model_id, ctx);
+            launch_local_no_harness_child(parent_pane_id, request, model_id, ctx);
         }
         #[cfg(not(target_family = "wasm"))]
         StartAgentExecutionMode::Local {
@@ -1383,7 +1383,6 @@ fn dispatch_start_agent_conversation(
 /// path through `create_error_child_agent_conversation` instead.
 #[cfg(not(target_family = "wasm"))]
 fn launch_local_no_harness_child(
-    group: &mut PaneGroup,
     parent_pane_id: PaneId,
     request: StartAgentRequest,
     model_id: Option<String>,

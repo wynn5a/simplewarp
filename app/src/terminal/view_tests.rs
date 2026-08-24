@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use chrono::{Local, Utc};
+use chrono::Local;
 use parking_lot::FairMutex;
 use warp_terminal::model::escape_sequences::{BRACKETED_PASTE_END, BRACKETED_PASTE_START, C0};
 use warpui::notification::UserNotification;
@@ -21,8 +21,7 @@ use crate::ai::agent::{
     AIAgentActionId, AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutput,
     AIAgentOutputStatus, AgentReviewCommentBatch, UserQueryMode,
 };
-use crate::ai::ambient_agents::task::TaskPrincipalInfo;
-use crate::ai::ambient_agents::{AmbientAgentTask, AmbientAgentTaskId, AmbientAgentTaskState};
+use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::ai::blocklist::agent_view::{
     AgentViewEntryBlock, AgentViewEntryOrigin, AgentViewState, EnterAgentBlockAction,
@@ -37,14 +36,13 @@ use crate::ai::cloud_environments::{
     AmbientAgentEnvironment, CloudAmbientAgentEnvironment, CloudAmbientAgentEnvironmentModel,
 };
 use crate::ai::llms::LLMId;
-use crate::auth::user::TEST_USER_UID;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObjectMetadata, CloudObjectPermissions};
 use crate::code_review::comments::{
     AttachedReviewComment, AttachedReviewCommentTarget, CommentOrigin,
 };
 use crate::context_chips::prompt::Prompt;
-use crate::editor::{AutosuggestionLocation, AutosuggestionType, CrdtOperation};
+use crate::editor::{AutosuggestionLocation, AutosuggestionType};
 use crate::features::FeatureFlag;
 use crate::pane_group::focus_state::PaneGroupFocusState;
 use crate::pane_group::pane::PaneStack;
@@ -91,41 +89,6 @@ fn add_window_with_cloud_mode_terminal(app: &mut App) -> ViewHandle<TerminalView
         view.model.lock().set_is_dummy_cloud_mode_session(true);
     });
     terminal
-}
-
-/// Builds a resumable, owned (created by the current test user) Oz cloud task so
-/// `resolve_ai_query_routing` classifies a pane bound to it as a `NewCloudVm` follow-up target.
-fn owned_resumable_oz_task(task_id: AmbientAgentTaskId) -> AmbientAgentTask {
-    let now = Utc::now();
-    AmbientAgentTask {
-        task_id,
-        parent_run_id: None,
-        title: "Task".to_string(),
-        state: AmbientAgentTaskState::Succeeded,
-        prompt: "test".to_string(),
-        created_at: now,
-        started_at: Some(now),
-        updated_at: now,
-        run_time: None,
-        status_message: None,
-        source: None,
-        execution_location: None,
-        session_id: None,
-        session_link: None,
-        creator: Some(TaskPrincipalInfo {
-            creator_type: "USER".to_string(),
-            uid: TEST_USER_UID.to_string(),
-            display_name: None,
-        }),
-        executor: None,
-        conversation_id: None,
-        request_usage: None,
-        is_sandbox_running: false,
-        agent_config_snapshot: None,
-        artifacts: vec![],
-        last_event_sequence: None,
-        children: vec![],
-    }
 }
 
 /// The AI blocks currently flagged to render the transcript-navigation ring.
@@ -848,22 +811,6 @@ fn ctrl_c_from_shared_viewer_rejected_by_agent_in_control_does_not_arm_cancel_wi
             !armed,
             "a Ctrl-C that never reached the pty must not arm the cancel window"
         );
-    })
-}
-
-fn input_operations_for_buffer_content(app: &mut App, content: &str) -> Vec<CrdtOperation> {
-    let terminal = add_window_with_terminal(app, None);
-    terminal.update(app, |view, ctx| {
-        view.input().update(ctx, |input, ctx| {
-            input.replace_buffer_content(content, ctx);
-        });
-    });
-    terminal.read(app, |view, ctx| {
-        view.input()
-            .as_ref(ctx)
-            .latest_buffer_operations()
-            .cloned()
-            .collect()
     })
 }
 

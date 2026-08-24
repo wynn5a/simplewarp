@@ -26,7 +26,7 @@ use warpui::{
 
 use super::{
     ContentEditability, LinkSharingSubjectType, ShareableObject, SharingAccessLevel, Subject,
-    SubjectExt, TeamKind, style,
+    SubjectExt, style,
 };
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::auth::AuthStateProvider;
@@ -62,10 +62,6 @@ const EMAIL_CHIP_WIDTH: f32 = 100.;
 const EMAIL_EDITOR_WIDTH: f32 = 100.;
 
 const SHARING_DIALOG_WIDTH: f32 = 425.;
-const QR_CARD_SIZE: f32 = 192.;
-const QR_VISUAL_SIZE: f32 = 160.;
-const QR_ICON_BUTTON_SIZE: f32 = 32.;
-const QR_EXPORT_SIZE: u32 = 1024;
 
 const NO_ACCESS_LABEL: &str = "No access";
 
@@ -75,7 +71,6 @@ struct UiStateHandles {
     invite_access_level_button: MouseStateHandle,
     owner_tooltip: MouseStateHandle,
     link_sharing_menu_button: MouseStateHandle,
-    team_sharing_menu_button: MouseStateHandle,
     copy_link_button: MouseStateHandle,
     guest_list_state: UniformListState,
     guest_scroll_state: ScrollStateHandle,
@@ -133,9 +128,7 @@ struct LinkSharingState {
 /// UI state for team sharing.
 #[derive(Default)]
 struct TeamSharingState {
-    team: Option<TeamKind>,
     access_level: Option<SharingAccessLevel>,
-    tooltip_handle: MouseStateHandle,
     inheritance: Option<InheritanceState>,
 }
 

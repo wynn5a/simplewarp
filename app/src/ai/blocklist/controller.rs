@@ -60,7 +60,6 @@ use crate::ai::document::ai_document_model::{
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::ai::skills::{ActiveSkillLookupError, SkillManager};
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::features::FeatureFlag;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
 use crate::network::NetworkStatus;
 use crate::notebooks::editor::model::FileLinkResolutionContext;
@@ -2978,17 +2977,6 @@ impl BlocklistAIController {
                 }
 
                 if let Some(stream_cancellation) = &cancellation {
-                    // If this is a shared session, send a synthetic StreamFinished event to notify viewers
-                    // of any user-initiated cancellation. We skip internal cancellations that preserve
-                    // the conversation's InProgress status, such as follow-ups and CLI subagent user
-                    // takeover, because those do not end the conversation.
-                    if FeatureFlag::AgentSharedSessions.is_enabled()
-                        && !matches!(
-                            stream_cancellation.reason.conversation_outcome(),
-                            CancellationOutcome::KeepInProgress
-                        )
-                    {}
-
                     history_model.update(ctx, |history_model, ctx| {
                         history_model.mark_response_stream_cancelled(
                             &stream_id,

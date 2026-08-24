@@ -281,59 +281,6 @@ impl PaneGroup {
         });
     }
 
-    /// Replaces an off-tree child loading pane with the established ambient
-    /// cloud-mode continuation presentation.
-    pub(in crate::pane_group) fn replace_child_loading_with_continuation_pane(
-        &mut self,
-        pane_id: PaneId,
-        child_id: AIConversationId,
-        task_id: AmbientAgentTaskId,
-        merged: AIConversation,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let fallback_was_swapped_anchor = self.panes.original_pane_for_replacement(pane_id);
-        self.discard_child_agent_pane_for_conversation(child_id, ctx);
-
-        let resources = TerminalViewResources {
-            tips_completed: self.tips_completed.clone(),
-            server_api: self.server_api.clone(),
-            model_event_sender: self.model_event_sender.clone(),
-        };
-        let view_size = Self::estimated_view_bounds(ctx).size();
-        let (terminal_view, terminal_manager) =
-            Self::create_cloud_mode_terminal(resources, view_size, false, ctx);
-        Self::load_data_into_restored_ambient_cloud_mode_view(
-            terminal_view.clone(),
-            CloudConversationData::Oz(Box::new(merged)),
-            task_id,
-            false,
-            ctx,
-        );
-        let pane_data = TerminalPane::new(
-            Uuid::new_v4().as_bytes().to_vec(),
-            terminal_manager,
-            terminal_view,
-            self.model_event_sender.clone(),
-            ctx,
-        );
-        let replacement_pane_id = pane_data.terminal_pane_id();
-        if self
-            .attach_child_pane_off_tree(Box::new(pane_data), ctx)
-            .is_none()
-        {
-            report_error!(
-                "replace_child_loading_with_continuation_pane: failed to attach restored child pane",
-                extra: { "child_conversation_id" => ?child_id }
-            );
-            return;
-        }
-        self.child_agent_panes
-            .insert(child_id, replacement_pane_id.into());
-        if let Some(anchor) = fallback_was_swapped_anchor {
-            self.swap_active_pane_to_conversation(anchor, child_id, ctx);
-        }
-    }
-
     /// Restores a child transcript in place without enabling continuation.
     fn restore_child_passive_transcript(
         &mut self,

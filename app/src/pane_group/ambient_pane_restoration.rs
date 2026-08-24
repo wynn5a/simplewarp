@@ -68,13 +68,6 @@ impl PaneGroup {
             .copied()
             .collect();
 
-        let resources = TerminalViewResources {
-            tips_completed: self.tips_completed.clone(),
-            server_api: self.server_api.clone(),
-            model_event_sender: self.model_event_sender.clone(),
-        };
-        let view_size = Self::estimated_view_bounds(ctx).size();
-
         for task_id in ready_tasks {
             let Some(pane_id) = self
                 .pending_ambient_agent_conversation_restorations

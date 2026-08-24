@@ -26,9 +26,6 @@ pub const ACL_GUEST_HEIGHT: f32 = 36.;
 /// The font size for primary text in the dialog, like subject names.
 pub const PRIMARY_TEXT_SIZE: f32 = 14.;
 
-/// The font size for header text in the dialog.
-pub const HEADER_TEXT_SIZE: f32 = 16.;
-
 /// Background color for the sharing dialog.
 pub fn dialog_background(appearance: &Appearance) -> ColorU {
     appearance.theme().surface_1().into_solid()

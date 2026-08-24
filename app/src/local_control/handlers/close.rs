@@ -10,7 +10,6 @@ use crate::local_control::resolver::{
     reject_target_families, tab_index_from_target, target_pane_group, target_pane_id,
     target_window_id_for_target, target_workspace,
 };
-use crate::workspace::view::OpenDialogSource;
 
 fn tab_close_mode(action: &Action) -> Result<TabCloseMode, ControlError> {
     Ok(action.params_as::<TabCloseParams>()?.mode)
@@ -83,15 +82,7 @@ pub(crate) fn tab_close(
         if tab_indices.is_empty() {
             return Ok(true);
         }
-        let closed = workspace.close_tabs(
-            tab_indices.into_iter(),
-            OpenDialogSource::CloseTab {
-                tab_index: selected_index,
-            },
-            false,
-            true,
-            ctx,
-        );
+        let closed = workspace.close_tabs(tab_indices.into_iter(), false, true, ctx);
         Ok(closed)
     })?;
     if closed {

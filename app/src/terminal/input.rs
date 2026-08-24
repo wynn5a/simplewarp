@@ -246,8 +246,6 @@ use crate::server::ids::SyncId;
 use crate::server::server_api::ServerApi;
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use crate::server::server_api::ai::AttachmentInput;
-use crate::server::server_api::ai::{AIClient, AttachmentFileInfo};
-use crate::server::server_api::presigned_upload::upload_to_target;
 use crate::server::telemetry::{
     AICommandSearchEntrypoint, AgentModeAutoDetectionFalsePositivePayload,
     AgentModeAutoDetectionSettingOrigin, AnonymousUserSignupEntrypoint, CommandXRayTrigger,
@@ -1727,116 +1725,6 @@ impl DeferredRemoteOperations {
     fn flush(&mut self) -> Option<Vec<CrdtOperation>> {
         self.deferred_ops.remove(&self.latest_block_id)
     }
-}
-
-/// Per-attachment outcome from [`upload_pending_attachments_to_task`].
-enum TaskAttachmentUploadOutcome {
-    /// Successfully uploaded to the task's storage bucket. `attachment_id` is the
-    /// server-assigned identifier the new VM downloads at startup.
-    Uploaded {
-        attachment_id: String,
-        file_name: String,
-    },
-    /// Could not be uploaded — decode error, size limit exceeded, or HTTP failure.
-    /// `error` is a human-readable message suitable for display.
-    Failed { file_name: String, error: String },
-}
-
-/// Decode, size-check, and upload `pending_attachments` to the given task's storage
-/// via presigned upload targets obtained from the server. Returns one
-/// [`TaskAttachmentUploadOutcome`] per input attachment in the same order.
-///
-/// The outer `Err` is returned only when [`AIClient::prepare_attachments_for_upload`] fails
-/// (meaning no individual uploads were attempted). Decode errors, size-limit violations,
-/// and individual HTTP failures are surfaced as [`TaskAttachmentUploadOutcome::Failed`]
-/// entries so each caller can choose its own error-handling policy (fail-fast vs. best-effort).
-async fn upload_pending_attachments_to_task(
-    ai_client: Arc<dyn AIClient>,
-    server_api: Arc<ServerApi>,
-    task_id: crate::ai::ambient_agents::AmbientAgentTaskId,
-    pending_attachments: Vec<PendingAttachment>,
-) -> anyhow::Result<Vec<TaskAttachmentUploadOutcome>> {
-    let n = pending_attachments.len();
-    // Reserve a slot for each input attachment; filled below in original order.
-    let mut outcomes: Vec<Option<TaskAttachmentUploadOutcome>> =
-        std::iter::repeat_with(|| None).take(n).collect();
-    // Collect successfully decoded files together with their original index so we can
-    // zip the prepare-upload response back to the correct outcome slot.
-    let mut files_to_upload: Vec<(usize, String, String, Vec<u8>)> = Vec::new();
-
-    for (i, attachment) in pending_attachments.into_iter().enumerate() {
-        let decoded = match attachment {
-            PendingAttachment::File(file) => std::fs::read(&file.file_path)
-                .map(|bytes| (file.file_name.clone(), file.mime_type.clone(), bytes))
-                .map_err(|e| (file.file_name, format!("Failed to read attachment: {e}"))),
-            PendingAttachment::Image(image) => base64::engine::general_purpose::STANDARD
-                .decode(&image.data)
-                .map(|bytes| (image.file_name.clone(), image.mime_type.clone(), bytes))
-                .map_err(|e| (image.file_name, format!("Failed to decode attachment: {e}"))),
-        };
-        match decoded {
-            Ok((file_name, mime_type, bytes)) => {
-                if bytes.len() > MAX_ATTACHMENT_SIZE_BYTES {
-                    outcomes[i] = Some(TaskAttachmentUploadOutcome::Failed {
-                        file_name: file_name.clone(),
-                        error: format!("{file_name} exceeds the 10 MB attachment limit"),
-                    });
-                } else {
-                    files_to_upload.push((i, file_name, mime_type, bytes));
-                }
-            }
-            Err((file_name, error)) => {
-                outcomes[i] = Some(TaskAttachmentUploadOutcome::Failed { file_name, error });
-            }
-        }
-    }
-
-    if !files_to_upload.is_empty() {
-        let file_infos: Vec<AttachmentFileInfo> = files_to_upload
-            .iter()
-            .map(|(_, name, mime, _)| AttachmentFileInfo {
-                filename: name.clone(),
-                mime_type: mime.clone(),
-            })
-            .collect();
-
-        let prepare_response = ai_client
-            .prepare_attachments_for_upload(&task_id, &file_infos)
-            .await?;
-
-        if prepare_response.attachments.len() != files_to_upload.len() {
-            anyhow::bail!(
-                "Attachment upload preparation returned {} targets for {} files",
-                prepare_response.attachments.len(),
-                files_to_upload.len()
-            );
-        }
-
-        for ((orig_idx, file_name, mime_type, file_bytes), upload_info) in files_to_upload
-            .iter()
-            .zip(prepare_response.attachments.iter())
-        {
-            let target = upload_info.resolve_upload_target(mime_type);
-            let result =
-                upload_to_target(server_api.http_client(), &target, file_bytes.clone()).await;
-
-            outcomes[*orig_idx] = Some(match result {
-                Ok(()) => TaskAttachmentUploadOutcome::Uploaded {
-                    attachment_id: upload_info.attachment_id.clone(),
-                    file_name: file_name.clone(),
-                },
-                Err(e) => TaskAttachmentUploadOutcome::Failed {
-                    file_name: file_name.clone(),
-                    error: format!("{e:#}"),
-                },
-            });
-        }
-    }
-
-    Ok(outcomes
-        .into_iter()
-        .map(|o| o.expect("all slots filled during upload_pending_attachments_to_task"))
-        .collect())
 }
 
 pub fn init(app: &mut AppContext) {
@@ -4007,18 +3895,6 @@ impl Input {
         self.ambient_agent_view_state
             .as_ref()
             .map(AmbientAgentViewState::view_model)
-    }
-
-    /// Shows a transient error toast for a follow-up submission that was blocked or redirected.
-    fn show_ephemeral_error_toast(&self, message: &str, ctx: &mut ViewContext<Self>) {
-        let window_id = ctx.window_id();
-        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            toast_stack.add_ephemeral_toast(
-                DismissibleToast::error(message.to_string()),
-                window_id,
-                ctx,
-            );
-        });
     }
 
     /// Primary entry point for submitting the input buffer as an AI query. Every submission
@@ -7305,9 +7181,8 @@ impl Input {
     }
 
     /// Restores a VM-down cloud follow-up after an attachment upload fails. Unlike
-    /// [`Self::unfreeze_agent_input`], this path runs on a disconnected cloud pane rather than an
-    /// active shared-session viewer, so it must restore the visible prompt and editable state
-    /// directly.
+    /// [`Self::unfreeze_agent_input`], this path runs on a disconnected cloud pane, so it must
+    /// restore the visible prompt and editable state directly.
     fn restore_cloud_followup_input_after_upload_failure(
         &mut self,
         prompt: &str,
