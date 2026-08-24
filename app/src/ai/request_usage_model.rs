@@ -457,14 +457,6 @@ impl AIRequestUsageModel {
         self.request_limit_info.is_unlimited
     }
 
-    pub fn refresh_duration_to_string(&self) -> String {
-        match self.request_limit_info.request_limit_refresh_duration {
-            RequestLimitRefreshDuration::Weekly => "weekly".to_string(),
-            RequestLimitRefreshDuration::Monthly => "monthly".to_string(),
-            RequestLimitRefreshDuration::EveryTwoWeeks => "biweekly".to_string(),
-        }
-    }
-
     pub fn bonus_grants(&self) -> &[BonusGrant] {
         &self.bonus_grants
     }
