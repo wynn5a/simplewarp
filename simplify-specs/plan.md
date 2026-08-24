@@ -980,11 +980,44 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    diagnostics), the `simplewarp` binary, and `-p integration` clean. Not re-run in the app.
 
    **What is deliberately left standing** is now visible as ~85 clippy `never used` warnings, and
-   that list *is* the next step's work: the `is_viewing_shared_session` plumbing, two stubs that
-   only log or return `false` (`extend_shared_session_retention`,
-   `is_third_party_cloud_agent_viewer`), the shared-session scrollback loaders in
-   `terminal/model/blocks.rs`, the close-session confirmation dialog, and the four
-   `*SharedSessions*` `FeatureFlag` variants with their cargo features.
+   that list *is* the next step's work: two stubs that only log or return `false`
+   (`extend_shared_session_retention`, `is_third_party_cloud_agent_viewer`), the shared-session
+   scrollback loaders in `terminal/model/blocks.rs`, the close-session confirmation dialog, and
+   the four `*SharedSessions*` `FeatureFlag` variants with their cargo features.
+
+4f. **The dead code 4e left behind is cleared — DONE.** ~1,300 lines. Clippy's `never used` list
+   was the whole work list; it went from 120 diagnostics to 52.
+
+   The close-session confirmation dialog is the interesting one, because *nothing about it looked
+   like session sharing*. It is a tab-close warning with a user setting
+   (`should_confirm_close_session`), a features-page row, and an `OpenDialogSource` threaded
+   through `close_tabs` and the local-control close handler. All of it existed for one sentence:
+   "You are about to close a session that is currently being shared." With no shared pane it can
+   never open, so the dialog, both settings (`should_confirm_shared_session_edit_access` had no
+   reader at all), the row, the parameter, and `Workspace::close_pane` — reachable only from the
+   dialog's confirm branch — all went together.
+
+   **`is_viewing_shared_session` is NOT dead, and 4e was wrong to list it.** Three production
+   writers still set it, all in cloud-transcript restore: the flag now means "this conversation
+   is a passive view of a remote run", which is exactly what a restored ambient transcript is.
+   Deleting it would make those transcripts locally drivable. It is live plumbing under a stale
+   name — a rename, not a deletion, and not in this phase.
+
+   **`never used` is a claim about one target, and rustc's dead-code pass is transitive.** Acting
+   on the `--lib` list broke the build in two distinct ways. Four items (`restore_fired_row`,
+   `IdleTimeoutSender::refresh`, `reset_unknown`,
+   `restore_cloud_followup_input_after_upload_failure`) are used *only by tests*, which the lib
+   target does not see. And `tear_down_active_setup_command_group` has a real caller — one that
+   is itself dead, so rustc reported the pair and deleting the leaf broke the root. Both restored.
+   **Delete a dead cluster from the top down, and check `grep -rl` for test users first.**
+
+   Left for later, and not session sharing's: the viewer-mode ancestor-SSE cluster in
+   `orchestration_event_streamer.rs` (~600 interlinked lines, its own step), and the
+   warp-server residue in `server/block.rs`, `attachment_utils.rs`, and `generate_block_title/`.
+
+   Acceptance: 6023 app tests pass (one fewer — the continuation-pane test went with its
+   subject), 0 fail. Format, clippy (0 errors, 52 dead-code warnings), and all three binaries —
+   `simplewarp`, `warp-oss`, and `-p integration` — clean. Not re-run in the app.
 5. The `FeatureFlag` variants that are no longer in use. **29 removed: 16 in the first sweep, 2
    with step 3g, and 11 in a second sweep. More remain behind the module deletions above.**
 
@@ -1065,10 +1098,10 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
       - [x] **The request quota gates nothing** (4d): `has_any_ai_remaining` is `true`, the
             credit-availability layer is gone, and the prompt alert is down to offline-or-nothing.
             Every AI request is allowed and none are metered.
-      - [x] **Session sharing is gone** (4e): ~41,000 lines — the sharer, the viewer, their
-            network layers, every modal, and the drive-object and tab-menu entry points. Cloud
-            mode survives it, but only because the composer pane was given back the ambient
-            model the viewer manager used to build.
+      - [x] **Session sharing is gone** (4e, 4f): ~42,300 lines — the sharer, the viewer, their
+            network layers, every modal, the drive-object and tab-menu entry points, and the
+            dead code they left behind. Cloud mode survives it, but only because the composer
+            pane was given back the ambient model the viewer manager used to build.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), plus `drive`
             (2). The remaining dead `FeatureFlag` variants fall out of those (5), together with
