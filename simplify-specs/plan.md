@@ -1012,7 +1012,7 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    **Delete a dead cluster from the top down, and check `grep -rl` for test users first.**
 
    Left for later, and not session sharing's: the warp-server residue in `server/block.rs`,
-   `attachment_utils.rs`, and `generate_block_title/`.
+   `attachment_utils.rs`, and `generate_block_title/`. **Cleared in 4i.**
 
 4g. **The viewer-mode ancestor SSE is gone — DONE.** ~1,200 lines. The streamer ran a second,
    parallel event path purely for a shared-session viewer watching someone else's orchestrator:
@@ -1050,6 +1050,33 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `cargo check -p warp --bin warp-oss`, `cargo check --all-targets` (simplewarp), clippy,
    and format all clean. 6007/6015 app tests pass (8 pre-existing failures, see above). Not
    re-run in the app.
+
+4i. **The 4f-flagged warp-server residue is gone — DONE.** ~375 lines across four files.
+   `generate_block_title/` and `BlockClient::{save_block, generate_shared_block_title}` —
+   both stubbed with `local_only_error()` since 3f, and the request/response types they
+   built were the only thing keeping the module alive. `server/block.rs`'s
+   `/share_block`-embed renderer (`Block::new`, `native_prompt_for_server`,
+   `embed_pixel_height`, `embed_pixel_width`, eight pixel constants) went with its one
+   caller, `save_block`; `DisplaySetting` and its `GqlDisplaySetting` conversion went once
+   nothing built one. `attachment_utils`'s server-side download path
+   (`sanitize_filename`, `DownloadedAttachment`, `build_file_attachment_map`,
+   `download_file`) had no caller left; `attachments_download_dir` and
+   `MAX_ATTACHMENT_SIZE_BYTES`, the `local_inference` path's own functions, stay.
+
+   **One orphan the compiler couldn't see, same shape as the 4 `pub`-item trap.**
+   `Block::full_content_height_with_display_options` in `terminal/model/block.rs` is
+   `pub`, so dead-code analysis skips it — but it had zero callers anywhere in the
+   workspace. Its own doc comment named why: "used ... when sharing a block," and the
+   share-block modal went in 4e. **Grep the type a deleted signature took, not just the
+   signature's own crate** — `DisplaySetting` led here, not the `never used` list.
+
+   `Block` (the struct), its `TryFrom<GqlBlock>`, and `BlockClient::{unshare_block,
+   blocks_owned_by_user}` stay: `show_blocks_view.rs` still calls them, behind an account
+   check Phase 2 made unreachable but did not delete.
+
+   Acceptance: `cargo check --all-targets` (both feature sets, plus `-p integration`),
+   clippy, and format clean. 6015 app tests: 6007 pass, the same 8 pre-existing failures
+   as 4h, 0 new. Not re-run in the app — none of this was reachable UI to begin with.
 
 5. The `FeatureFlag` variants that are no longer in use. **29 removed: 16 in the first sweep, 2
    with step 3g, and 11 in a second sweep. More remain behind the module deletions above.**
@@ -1137,6 +1164,9 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
             pane was given back the ambient model the viewer manager used to build.
       - [x] **The agent-profiles-page usage widget is gone** (4h): ~330 lines — the last
             credit-count-and-upgrade-CTA surface that 4c/4d did not reach.
+      - [x] **The 4f-flagged warp-server residue is gone** (4i): ~375 lines — the
+            `/share_block` embed renderer, `generate_block_title`, and the dead half of
+            `attachment_utils`.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), plus `drive`
             (2). The remaining dead `FeatureFlag` variants fall out of those (5), together with
