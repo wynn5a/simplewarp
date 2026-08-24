@@ -369,10 +369,6 @@ pub enum FeatureFlag {
     /// Enables the ambient agents command-line interface.
     AmbientAgentsCommandLine,
 
-    /// Feature flags for the Build Plan Auto Reload experiment.
-    BuildPlanAutoReloadBannerToggle,
-    BuildPlanAutoReloadPostPurchaseModal,
-
     /// Enables inline code review functionality
     InlineCodeReview,
 
