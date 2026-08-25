@@ -561,6 +561,45 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    scripted edit in this phase needs its diff read line by line — reading the `drive/index.rs`
    diff is what confirmed all seven `return;` statements survived.
 
+   **`drive` turned out to be the same shape as `cloud_object` — a refactor, not a deletion —
+   just at smaller scale.** Four commits landed cleanly on the assumption that `drive/` was pure
+   dead UI (every entry point gated on `WarpDriveSettings::is_warp_drive_enabled`, which can never
+   be true with no account): `bbc9ccff` redirected 17 files' `CloudObjectTypeAndId` import off
+   the `crate::drive` barrel onto its real home, `cloud_objects::drive`; `0bbf18f6` deleted the
+   drive-sharing onboarding block; `494c2a37` deleted the Warp Drive settings page; `cfd45d52`
+   deleted the command-palette Warp Drive search subtree and, in one legitimate cascade, the
+   `/prompts` inline terminal menu (they shared a `DataSource`) — 5999/5999 tests passing, down
+   from 6015 by exactly the removed tests' own tests.
+
+   That assumption broke on the rest. A traced survey of `sharing/`, `folders/`, `items/`, and
+   `mod.rs`'s standalone types found three things load-bearing for code that survives this phase:
+   `sharing/dialog/`'s `SharingDialog` is live UI, reachable for `ShareableObject::AIConversation`
+   sharing (not just Drive objects) from `pane_group/`, `terminal/`, `workflows/`, `env_vars/`,
+   `notebooks/`, and `ai/ai_document_view.rs` — it only looks Drive-specific because of its file
+   path; `items/{workflow,notebook,folder,env_var_collection,ai_fact,ai_fact_collection,
+   mcp_server,mcp_server_collection}.rs`'s `impl WarpDriveItem` blocks are half load-bearing,
+   since `ai/facts/view/rule.rs` and `ai/blocklist/block/view_impl.rs` call `icon()`/
+   `display_name()`/`sync_status_icon()` on them to render sync-status icons and citation chips
+   (only `click_action`/`preview`/`secondary_icon` are Drive-row-only); and `folders/mod.rs` plus
+   `mod.rs`'s `DriveObjectType`/`DriveSortOrder`/`OpenWarpDriveObjectSettings`/`Args` are pure data
+   used by `cloud_object/breadcrumbs.rs`, `workspace/view.rs`, `pane_group/`, `workflow_pane.rs`,
+   `notebook_pane.rs`, and URI parsing.
+
+   A fourth finding is deferred rather than acted on: the `warp://drive/...` deep-link handler
+   (`extract_server_id_and_object_type_from_warp_drive_link` → `root_view.rs`'s
+   `open_warp_drive_object[_in_existing_window]`) is reachable code with no account gate, but every
+   path it opens is a guaranteed dead end — it resolves a pane by `SyncId::ServerId`, which per
+   3e/3f below can never succeed. The natural fix mirrors 3e/3f exactly (return "can't open, no
+   account" immediately instead of routing to a doomed pane-open), but that touches `root_view.rs`
+   and URI parsing on its own, so it is left as an open item rather than bundled in.
+
+   The remaining `drive/` work is split into what deletes outright (the panel, its index, the
+   `WarpDriveRow` rendering, the four Drive-only dialogs, the workflow-creation modal, import,
+   export, and the `workspace/view.rs`/`left_panel.rs` `DrivePanel` wiring those views are wrapped
+   in) versus what has to move out to `cloud_object/` (or a new home outside `drive/`, for the
+   sharing dialog) before the directory can come out. Full detail is in the working plan file for
+   this session, not reproduced here since it is not yet executed.
+
 3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
 
    **`remote_server` was attempted and reverted, deliberately.** Deleting the module and crate
