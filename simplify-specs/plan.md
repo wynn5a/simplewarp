@@ -1084,6 +1084,44 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    clippy, and format clean. 6015 app tests: 6007 pass, the same 8 pre-existing failures
    as 4h, 0 new. Not re-run in the app — none of this was reachable UI to begin with.
 
+4j. **A second clippy dead-code sweep — DONE.** `remote_server` (step 3) was looked at again
+   this session and set aside a second time — it is still the `BufferSource`/`FileBackend`
+   redesign, not a mechanical deletion, and stays for its own attended pass. In its place: a
+   fresh `cargo clippy -p warp --lib --all-targets` (no `target/` existed; a clean build took
+   2m36s) found a small new batch of dead code, almost all of it downstream of 4d, 4e, and 4g:
+
+   | Removed | Why it was dead |
+   | --- | --- |
+   | `AgentManagementTelemetryEvent::{TombstoneArtifactClicked, TombstoneContinueLocally, TombstoneContinueInCloud}` | Telemetry for tombstone-view buttons nothing constructs; the sibling `DetailsPanelContinueLocally`/`SlashCommandContinueLocally` variants are still constructed elsewhere, so only these three tombstone-specific ones went. |
+   | `BlocklistAIActionExecutor::terminal_model` field | Its own doc comment named the reason: "for checking session sharing state" (gone in 4e). The constructor still needs the parameter to build `ShellCommandExecutor`, which keeps its own copy — storing a second one on `self` was pointless. |
+   | `OrchestrationEventStreamer::persist_cursor_local_only` | Doc comment named `FamilyDrainMode::Observer`, deleted in 4g. Zero callers anywhere, not even tests. |
+   | `parent_task_id`/`run_id`/`status` fields on `ChildSpawned`/`ChildStatusChanged` | Both events are still emitted (real pill-bar broadcasts), but their sole subscriber (`controller.rs`) matches `{ .. }` and does nothing — its comment claimed `OrchestrationViewerModel` handles them, but that type no longer exists (removed with the ancestor SSE in 4g). Collapsed both to fieldless variants rather than deleting the broadcast itself, which is still real signal for a future consumer. |
+   | `ShareSessionError::Internal` | Session sharing is gone (4e); no construction site anywhere, unlike `Failed`, which a test still constructs — that one stays, matching the 4f lesson about test-only users. |
+   | `AIRequestUsageModel::requests_used` | Sits right below the 4d comment "SimpleWarp does not meter AI requests." Only its own tests called it; the four `assert_eq!` lines were removed, not the surrounding tests, which also cover `request_limit()`/`requests_remaining()` (both still live). |
+   | `make_ambient_task_with_task_id` | Test helper, zero callers even in its own test file. |
+   | `Modal::{set_header_icon, set_header_icon_color}` | Pre-existing dead API, unrelated to the cloud strip (last touched by the 2024-edition migration) — never called, so `header_icon`/`header_icon_color` are permanently `None`. |
+   | `window_id` field on the AI block struct (`ai/blocklist/block.rs`) | Set at construction, never read — every real use in the file calls `ctx.window_id()` fresh instead of `self.window_id`. |
+   | `SelectionCursorRenderLocation` (`Start`/`End`/`None`), `grid_renderer::render_selection_cursor`, `SELECTION_CURSOR_TOP_DIAMETER` | `git log` on the enum's file lands on **`b79e80a4` "Phase 4: delete session sharing"** — `Start`/`End` rendered a remote collaborator's selection-cursor edge; the sole call site always passes `None` now. Collapsed all the way: the enum, the now-single-behavior match arm, the parameter, and the renderer function it exclusively drove all went, not just the two dead variants — a single-variant enum plus an always-taken `_ => ()` arm is the same "deletion in disguise" shape as `FamilyDrainMode` in 4g. |
+
+   **Explicitly left alone, both already-settled decisions from 4f:** `restore_fired_row`,
+   `reset_unknown`, `restore_cloud_followup_input_after_upload_failure`,
+   `tear_down_active_setup_command_group`, and `IdleTimeoutSender::refresh` reappeared in this
+   clippy run under the same names — re-checked, still exactly the 4f finding (test-only
+   callers, or a caller that is itself dead). A related, larger cluster around
+   `tear_down_active_setup_command_group`'s real caller (`TerminalView::tear_down_cloud_mode_setup_phase`
+   and six sibling methods — queued-command draining, ambient setup sync, wasm detail-panel
+   checks) surfaced for the first time in this run too, once a broader warning-text pattern was
+   used. Left standing, same reasoning as 4f: the caller is itself dead, so this is a
+   cloud-mode/ambient-agent-lifecycle question needing its own pass, not a clippy-driven cleanup.
+
+   Acceptance: `cargo clippy -p warp --lib --all-targets` dropped from 21+18 to 7+2 warnings
+   (all of it the deferred `tear_down_cloud_mode_setup_phase` cluster and pre-existing style
+   lints). `cargo check --all-targets` (workspace and `-p integration`), `--no-default-features
+   --features simplewarp --bin simplewarp`, and `-p warp --bin warp-oss` all clean.
+   `./script/format --check` clean. `cargo nextest run -p warp --lib`: **6015 pass, 0 fail** —
+   better than 4h/4i's recorded 6007/6015 baseline; the 8 tests noted there as pre-existing
+   failures did not reproduce this run. Not re-run in the app — none of this was reachable UI.
+
 5. The `FeatureFlag` variants that are no longer in use. **29 removed: 16 in the first sweep, 2
    with step 3g, and 11 in a second sweep. More remain behind the module deletions above.**
 
@@ -1180,6 +1218,12 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
       - [x] **The 4f-flagged warp-server residue is gone** (4i): ~375 lines — the
             `/share_block` embed renderer, `generate_block_title`, and the dead half of
             `attachment_utils`.
+      - [x] **A second clippy sweep is clean** (4j): a small batch of 4d/4e/4g fallout —
+            orphaned tombstone telemetry, a session-sharing-only field, an observer-mode
+            cursor method, unread pill-bar event fields, one `ShareSessionError` variant, an
+            unmetered usage getter, and the last session-sharing selection-cursor code
+            (`SelectionCursorRenderLocation` and its renderer). `remote_server` (step 3) was
+            looked at again and set aside a second time — still needs its own pass.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), plus `drive`
             (2). The remaining dead `FeatureFlag` variants fall out of those (5), together with
