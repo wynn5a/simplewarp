@@ -68,6 +68,7 @@ mod safe_triangle;
 mod search_bar;
 mod server;
 mod session_management;
+mod sharing;
 mod shell_indicator;
 mod suggestions;
 mod system;
@@ -1785,7 +1786,7 @@ pub(crate) fn initialize_app(
     ai::blocklist::init(ctx);
     ai::blocklist::block::status_bar::init(ctx);
     drive::index::init(ctx);
-    drive::sharing::dialog::init(ctx);
+    sharing::dialog::init(ctx);
     ai_assistant::panel::init(ctx);
     settings_view::update_environment_form::init(ctx);
     env_vars::env_var_collection_block::init(ctx);

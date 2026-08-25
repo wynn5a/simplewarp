@@ -10,7 +10,6 @@ pub(crate) mod index;
 pub mod items;
 pub mod panel;
 pub mod settings;
-pub mod sharing;
 pub mod workflows;
 
 use std::cmp::Ordering;

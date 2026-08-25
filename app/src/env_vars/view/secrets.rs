@@ -16,12 +16,12 @@ use warpui::{Element, ViewContext};
 use super::env_var_collection::{
     CORE_MAX_WIDTH, EnvVarCollectionAction, EnvVarCollectionView, ROW_SPACING, VariableRowIndex,
 };
-use crate::drive::sharing::ContentEditability;
 use crate::env_vars::EnvVarValue;
 use crate::env_vars::active_env_var_collection_data::SavingStatus;
 use crate::external_secrets::{ExternalSecretManager, SecretManager};
 use crate::search::external_secrets::searcher::ExternalSecretSearchItemAction;
 use crate::search::external_secrets::view::ExternalSecretsMenuEvent;
+use crate::sharing::ContentEditability;
 use crate::ui_components::icons::Icon;
 #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
 use crate::{

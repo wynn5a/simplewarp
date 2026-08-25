@@ -22,11 +22,11 @@ use crate::cloud_object::{
     ServerPermissions, ServerWorkflow, UpdateCloudObjectResult,
 };
 use crate::drive::folders::FolderId;
-use crate::drive::sharing::SharingAccessLevel;
 use crate::notebooks::NotebookId;
 use crate::server::ids::ServerId;
 use crate::server::server_api::ServerApi;
 use crate::server::sync_queue::SerializedModel;
+use crate::sharing::SharingAccessLevel;
 use crate::workflows::WorkflowId;
 
 #[cfg_attr(not(target_family = "wasm"), async_trait)]

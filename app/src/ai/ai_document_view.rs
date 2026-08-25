@@ -32,7 +32,6 @@ use crate::ai::document::orchestration_config_block::OrchestrationConfigBlockVie
 use crate::appearance::Appearance;
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::items::WarpDriveItemId;
-use crate::drive::sharing::ShareableObject;
 use crate::editor::InteractionState;
 use crate::menu::{Menu, MenuItem, MenuItemFields};
 use crate::notebooks::editor::model::NotebooksEditorModel;
@@ -49,6 +48,7 @@ use crate::pane_group::pane::view::header::{PaneHeaderAction, toolbelt_button_po
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings::FontSettings;
+use crate::sharing::ShareableObject;
 use crate::terminal::input::MenuPositioning;
 use crate::terminal::view::TerminalView;
 use crate::ui_components::buttons::icon_button;
