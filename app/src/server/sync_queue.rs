@@ -26,6 +26,7 @@ use crate::ai::execution_profiles::CloudAIExecutionProfileModel;
 use crate::ai::facts::CloudAIFactModel;
 use crate::ai::mcp::CloudMCPServerModel;
 use crate::ai::mcp::templatable::CloudTemplatableMCPServerModel;
+use crate::cloud_object::folders::CloudFolderModel;
 use crate::cloud_object::model::actions::{
     ObjectAction, ObjectActionHistory, ObjectActionSubtype, ObjectActionType,
 };
@@ -38,7 +39,6 @@ use crate::cloud_object::{
     UpdateCloudObjectResult,
 };
 use crate::drive::CloudObjectTypeAndId;
-use crate::drive::folders::CloudFolderModel;
 use crate::env_vars::CloudEnvVarCollectionModel;
 use crate::notebooks::CloudNotebookModel;
 use crate::server::cloud_objects::update_manager::InitiatedBy;

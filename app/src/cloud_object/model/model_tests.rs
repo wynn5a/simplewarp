@@ -13,6 +13,7 @@ use super::*;
 use crate::auth::auth_manager::AuthManager;
 use crate::auth::user::TEST_USER_UID;
 use crate::auth::{AuthStateProvider, UserUid};
+use crate::cloud_object::folders::{CloudFolderModel, FolderId};
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::generic_string_model::GenericStringModel;
 use crate::cloud_object::model::view::{
@@ -23,7 +24,6 @@ use crate::cloud_object::{
     NumInFlightRequests, ObjectIdType, Owner, ServerMetadata, ServerPermissions,
 };
 use crate::drive::DriveIndexVariant;
-use crate::drive::folders::{CloudFolderModel, FolderId};
 use crate::features::FeatureFlag;
 use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::server::cloud_objects::listener::ObjectUpdateMessage;

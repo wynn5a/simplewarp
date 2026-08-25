@@ -19,6 +19,7 @@ use crate::ai::cloud_environments::{
 };
 use crate::auth::UserUid;
 use crate::auth::user::TEST_USER_UID;
+use crate::cloud_object::folders::{CloudFolder, CloudFolderModel, FolderId};
 use crate::cloud_object::model::actions::{
     ObjectAction, ObjectActionHistory, ObjectActionSubtype, ObjectActionType, ObjectActions,
 };
@@ -34,7 +35,6 @@ use crate::cloud_object::{
     ServerWorkflowEnum, Space, UpdateCloudObjectResult,
 };
 use crate::drive::CloudObjectTypeAndId;
-use crate::drive::folders::{CloudFolder, CloudFolderModel, FolderId};
 use crate::notebooks::{CloudNotebook, CloudNotebookModel, NotebookId};
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::listener::ObjectUpdateMessage;

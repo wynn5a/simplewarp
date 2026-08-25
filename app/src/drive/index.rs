@@ -42,7 +42,6 @@ use super::drive_helpers::{
 use super::empty_trash_confirmation_dialog::{
     EmptyTrashConfirmationDialog, EmptyTrashConfirmationEvent,
 };
-use super::folders::CloudFolder;
 use super::items::WarpDriveItemId;
 use super::items::ai_fact_collection::WarpDriveAIFactCollection;
 use super::items::item::{ItemStates, WarpDriveRow, tools_panel_menu_direction};
@@ -60,9 +59,9 @@ use crate::banner::BannerState;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::{CloudViewModel, CloudViewModelEvent, UpdateTimestamp};
 use crate::cloud_object::{
-    CloudObject, CloudObjectEventEntrypoint, CloudObjectLocation, CloudObjectSyncStatus,
-    GenericCloudObject, GenericStringObjectFormat, JsonObjectType, NumInFlightRequests, ObjectType,
-    Space,
+    CloudFolder, CloudObject, CloudObjectEventEntrypoint, CloudObjectLocation,
+    CloudObjectSyncStatus, GenericCloudObject, GenericStringObjectFormat, JsonObjectType,
+    NumInFlightRequests, ObjectType, Space,
 };
 use crate::drive::panel::DrivePanelAction;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};

@@ -38,11 +38,13 @@ use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub mod breadcrumbs;
+pub mod folders;
 pub mod grab_edit_access_modal;
 pub mod model;
 pub mod toast_message;
 
 pub use cloud_objects::cloud_object::*;
+pub use folders::{CloudFolder, CloudFolderModel, FolderId};
 
 /// A CloudObject represents
 /// therefore shareable and editable (i.e. Notebooks and Workflows). In order

@@ -6,15 +6,14 @@ pub use cloud_object_models::{CloudFolder, CloudFolderModel};
 // Re-exported from warp_server_client.
 pub use warp_server_client::ids::FolderId;
 
-use super::CloudObjectTypeAndId;
-use super::items::WarpDriveItem;
-// Re-exported from warp_server_client.
-use super::items::folder::WarpDriveFolder;
-use crate::appearance::Appearance;
-use crate::cloud_object::{
+use super::{
     CloudModelType, CloudObjectEventEntrypoint, CloudObjectUpsertParams, CreateCloudObjectResult,
     CreateObjectRequest, GenericServerObject, ObjectType, Revision, Space, UpdateCloudObjectResult,
 };
+use crate::appearance::Appearance;
+use crate::drive::CloudObjectTypeAndId;
+use crate::drive::items::WarpDriveItem;
+use crate::drive::items::folder::WarpDriveFolder;
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::server::ids::{ServerId, SyncId};
