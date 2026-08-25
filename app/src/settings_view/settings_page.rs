@@ -46,7 +46,6 @@ use super::scripting_page::ScriptingSettingsPageView;
 use super::show_blocks_view::ShowBlocksView;
 use super::teams_page::TeamsPageView;
 use super::warp_agent_page::WarpAgentPageView;
-use super::warp_drive_page::WarpDriveSettingsPageView;
 use super::warpify_page::WarpifyPageView;
 use crate::appearance::Appearance;
 use crate::settings::CloudPreferencesSettings;
@@ -125,7 +124,6 @@ pub enum SettingsPageViewHandle {
     CLIAgents(ViewHandle<CLIAgentsPageView>),
     CloudEnvironments(ViewHandle<EnvironmentsPageView>),
     MCPServers(ViewHandle<MCPServersSettingsPageView>),
-    WarpDrive(ViewHandle<WarpDriveSettingsPageView>),
 }
 
 impl SettingsPageViewHandle {
@@ -151,7 +149,6 @@ impl SettingsPageViewHandle {
             CLIAgents(view_handle) => ChildView::new(view_handle).finish(),
             CloudEnvironments(view_handle) => ChildView::new(view_handle).finish(),
             MCPServers(view_handle) => ChildView::new(view_handle).finish(),
-            WarpDrive(view_handle) => ChildView::new(view_handle).finish(),
         }
     }
 }
