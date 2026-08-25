@@ -13,7 +13,6 @@ pub mod message_bar;
 pub mod models;
 pub mod plans;
 pub mod profiles;
-pub mod prompts;
 pub mod repos;
 pub mod rewind;
 pub mod skills;
@@ -280,7 +279,6 @@ use crate::terminal::input::models::{
 };
 use crate::terminal::input::plans::{InlinePlanMenuEvent, InlinePlanMenuView};
 use crate::terminal::input::profiles::{InlineProfileSelectorEvent, InlineProfileSelectorView};
-use crate::terminal::input::prompts::{InlinePromptsMenuEvent, InlinePromptsMenuView};
 use crate::terminal::input::repos::{InlineReposMenuEvent, InlineReposMenuView};
 use crate::terminal::input::rewind::{RewindMenuEvent, RewindMenuView};
 use crate::terminal::input::skills::{InlineSkillSelectorEvent, InlineSkillSelectorView};
@@ -542,7 +540,6 @@ pub enum TelemetryInputSuggestionsMode {
     ConversationMenu,
     ModelSelector,
     ProfileSelector,
-    PromptsMenu,
     SkillMenu,
     InlineHistoryMenu,
     IndexedReposMenu,
@@ -685,9 +682,6 @@ pub enum InputSuggestionsMode {
     /// Skill menu mode for /open-skill command.
     SkillMenu,
 
-    /// Prompts menu mode for /prompts command.
-    PromptsMenu,
-
     /// User query menu mode for selecting a query point (e.g., fork-from, rewind).
     UserQueryMenu {
         action: UserQueryMenuAction,
@@ -740,7 +734,6 @@ impl InputSuggestionsMode {
             Self::SlashCommands
                 | Self::ConversationMenu
                 | Self::ModelSelector
-                | Self::PromptsMenu
                 | Self::UserQueryMenu { .. }
                 | Self::InlineHistoryMenu { .. }
                 | Self::PlanMenu { .. }
@@ -784,7 +777,6 @@ impl InputSuggestionsMode {
             InputSuggestionsMode::SlashCommands if FeatureFlag::AgentView.is_enabled() => {
                 Some("Search commands")
             }
-            InputSuggestionsMode::PromptsMenu => Some("Search prompts"),
             InputSuggestionsMode::IndexedReposMenu => Some("Search indexed repos"),
             InputSuggestionsMode::PlanMenu { .. } => Some("Search plans"),
             _ => None,
@@ -819,7 +811,6 @@ impl InputSuggestionsMode {
             }
             InputSuggestionsMode::ModelSelector => TelemetryInputSuggestionsMode::ModelSelector,
             InputSuggestionsMode::ProfileSelector => TelemetryInputSuggestionsMode::ProfileSelector,
-            InputSuggestionsMode::PromptsMenu => TelemetryInputSuggestionsMode::PromptsMenu,
             InputSuggestionsMode::SkillMenu => TelemetryInputSuggestionsMode::SkillMenu,
             InputSuggestionsMode::UserQueryMenu { .. } => {
                 TelemetryInputSuggestionsMode::ConversationMenu
@@ -1616,9 +1607,6 @@ pub struct Input {
 
     /// Whether the skill selector should invoke (true) or open (false) the skill.
     skill_selector_should_invoke: bool,
-
-    /// Inline prompts menu for /prompts command.
-    inline_prompts_menu_view: ViewHandle<InlinePromptsMenuView>,
 
     /// Inline menu for selecting a query point when forking a conversation.
     user_query_menu_view: ViewHandle<UserQueryMenuView>,
@@ -3455,19 +3443,6 @@ impl Input {
             me.handle_inline_profile_selector_event(event, ctx);
         });
 
-        let inline_prompts_menu_view = ctx.add_view(|ctx| {
-            InlinePromptsMenuView::new(
-                suggestions_mode_model.clone(),
-                agent_view_controller.clone(),
-                &buffer_model,
-                &inline_terminal_menu_positioner,
-                ctx,
-            )
-        });
-        ctx.subscribe_to_view(&inline_prompts_menu_view, |me, _, event, ctx| {
-            me.handle_inline_prompts_menu_event(event, ctx);
-        });
-
         let inline_skill_selector_view = ctx.add_view(|ctx| {
             InlineSkillSelectorView::new(
                 suggestions_mode_model.clone(),
@@ -3707,7 +3682,6 @@ impl Input {
             inline_repos_menu_view,
             inline_model_selector_view,
             inline_profile_selector_view,
-            inline_prompts_menu_view,
             inline_skill_selector_view,
             skill_selector_should_invoke: false,
             user_query_menu_view,
@@ -4872,36 +4846,6 @@ impl Input {
         self.focus_input_box(ctx);
     }
 
-    fn handle_inline_prompts_menu_event(
-        &mut self,
-        event: &InlinePromptsMenuEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let InlinePromptsMenuEvent::SelectedPrompt { id } = event;
-
-        let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(id).cloned() else {
-            log::warn!("Tried to open saved prompt for id {id:?} but it does not exist");
-            return;
-        };
-
-        if self.suggestions_mode_model.as_ref(ctx).is_prompts_menu() {
-            self.suggestions_mode_model.update(ctx, |model, ctx| {
-                model.set_mode(InputSuggestionsMode::Closed, ctx);
-            });
-            ctx.notify();
-        }
-        self.clear_buffer_and_reset_undo_stack(ctx);
-        self.focus_input_box(ctx);
-
-        self.show_workflows_info_box_on_workflow_selection(
-            WorkflowType::Cloud(Box::new(workflow)),
-            WorkflowSource::WarpAI,
-            WorkflowSelectionSource::SlashMenu,
-            None,
-            ctx,
-        );
-    }
-
     fn handle_inline_skill_selector_event(
         &mut self,
         event: &InlineSkillSelectorEvent,
@@ -5029,14 +4973,6 @@ impl Input {
 
         self.suggestions_mode_model.update(ctx, |model, ctx| {
             model.set_mode(InputSuggestionsMode::ProfileSelector, ctx);
-        });
-
-        ctx.notify();
-    }
-
-    fn open_prompts_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        self.suggestions_mode_model.update(ctx, |model, ctx| {
-            model.set_mode(InputSuggestionsMode::PromptsMenu, ctx);
         });
 
         ctx.notify();
@@ -8087,9 +8023,6 @@ impl Input {
                         // Profile selector selection is handled separately.
                         // This shouldn't be reached since profile selector doesn't use InputSuggestions
                     }
-                    InputSuggestionsMode::PromptsMenu => {
-                        // Prompts menu selection is handled via InlinePromptsMenuView
-                    }
                     InputSuggestionsMode::SkillMenu => {
                         // Skill menu selection is handled via InlineSkillSelectorView
                     }
@@ -8244,10 +8177,6 @@ impl Input {
             }
             InputSuggestionsMode::ProfileSelector => {
                 // Profile selector selection is handled separately
-                false
-            }
-            InputSuggestionsMode::PromptsMenu => {
-                // Prompts menu selection is handled separately
                 false
             }
             InputSuggestionsMode::SkillMenu => {
@@ -8554,12 +8483,6 @@ impl Input {
             }
             InputSuggestionsMode::ProfileSelector => {
                 self.inline_profile_selector_view.update(ctx, |view, ctx| {
-                    view.select_up(ctx);
-                });
-                true
-            }
-            InputSuggestionsMode::PromptsMenu => {
-                self.inline_prompts_menu_view.update(ctx, |view, ctx| {
                     view.select_up(ctx);
                 });
                 true
@@ -8918,12 +8841,6 @@ impl Input {
             }
             InputSuggestionsMode::ProfileSelector => {
                 self.inline_profile_selector_view.update(ctx, |view, ctx| {
-                    view.select_down(ctx);
-                });
-                true
-            }
-            InputSuggestionsMode::PromptsMenu => {
-                self.inline_prompts_menu_view.update(ctx, |view, ctx| {
                     view.select_down(ctx);
                 });
                 true
@@ -10113,9 +10030,6 @@ impl Input {
                     InputSuggestionsMode::ProfileSelector => {
                         // Profile selector handles its own state
                     }
-                    InputSuggestionsMode::PromptsMenu => {
-                        // Prompts menu handles its own state
-                    }
                     InputSuggestionsMode::SkillMenu => {
                         // Skill menu handles its own state
                     }
@@ -10265,9 +10179,6 @@ impl Input {
                         }
                         InputSuggestionsMode::ProfileSelector => {
                             // Profile selector handles its own selection state
-                        }
-                        InputSuggestionsMode::PromptsMenu => {
-                            // Prompts menu handles its own selection state
                         }
                         InputSuggestionsMode::SkillMenu => {
                             // Skill menu handles its own selection state
@@ -12516,13 +12427,6 @@ impl Input {
                 return;
             }
 
-            // If the prompts menu is open, Enter selects the highlighted prompt.
-            if self.suggestions_mode_model.as_ref(ctx).is_prompts_menu() {
-                self.inline_prompts_menu_view
-                    .update(ctx, |view, ctx| view.accept_selected_item(ctx));
-                return;
-            }
-
             // If the skill selector menu is open, Enter selects the highlighted skill.
             if self.suggestions_mode_model.as_ref(ctx).is_skill_menu() {
                 self.inline_skill_selector_view
@@ -12578,12 +12482,6 @@ impl Input {
             .is_profile_selector()
         {
             self.inline_profile_selector_view
-                .update(ctx, |view, ctx| view.accept_selected_item(ctx));
-            return;
-        }
-
-        if self.suggestions_mode_model.as_ref(ctx).is_prompts_menu() {
-            self.inline_prompts_menu_view
                 .update(ctx, |view, ctx| view.accept_selected_item(ctx));
             return;
         }

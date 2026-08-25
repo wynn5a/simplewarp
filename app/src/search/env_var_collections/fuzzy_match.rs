@@ -77,16 +77,6 @@ impl FuzzyMatchEnvVarCollectionResult {
         }
     }
 
-    /// Returns a dummy [`FuzzyMatchEnvVarCollectionResult`] for an item that is unmatched.
-    pub fn no_match() -> FuzzyMatchEnvVarCollectionResult {
-        Self {
-            title_match_result: Some(FuzzyMatchResult::no_match()),
-            var_name_match_result: Some(FuzzyMatchResult::no_match()),
-            description_match_result: Some(FuzzyMatchResult::no_match()),
-            breadcrumbs_match_result: Some(FuzzyMatchResult::no_match()),
-        }
-    }
-
     /// Returns the fuzzy match score of the EVC. The EVC name, description, and breadcrumbs
     /// are weighted equally.
     pub fn score(&self) -> OrderedFloat<f64> {

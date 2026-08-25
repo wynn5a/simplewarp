@@ -566,7 +566,6 @@ pub trait SlashCommandDataSource {
             &*commands::CREATE_ENVIRONMENT,
             &*commands::EDIT,
             &commands::CONVERSATIONS,
-            &commands::PROMPTS,
             &*commands::PLAN,
             &commands::AGENT,
         ];

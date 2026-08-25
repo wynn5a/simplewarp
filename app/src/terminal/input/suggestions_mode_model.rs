@@ -152,10 +152,6 @@ impl InputSuggestionsModeModel {
         matches!(self.mode, InputSuggestionsMode::ProfileSelector)
     }
 
-    pub fn is_prompts_menu(&self) -> bool {
-        matches!(self.mode, InputSuggestionsMode::PromptsMenu)
-    }
-
     pub fn is_skill_menu(&self) -> bool {
         matches!(self.mode, InputSuggestionsMode::SkillMenu)
     }

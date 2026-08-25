@@ -92,7 +92,6 @@ pub enum SlashCommandKind {
     ContinueLocally,
     Cost,
     Conversations,
-    Prompts,
     Rewind,
     ExportToClipboard,
     ExportToFile,
