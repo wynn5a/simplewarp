@@ -600,6 +600,27 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    sharing dialog) before the directory can come out. Full detail is in the working plan file for
    this session, not reproduced here since it is not yet executed.
 
+   **The "move out" half (Track B) is now done, in four commits, before any of the Track A
+   deletions above it.** `6e3b9606` relocated `sharing/dialog/` (the live `SharingDialog`) and
+   `sharing/mod.rs`'s `ShareableObject`/`ContentEditability`/`SubjectExt`/`UserKindExt`/
+   `TeamKindExt` to a new `app/src/sharing/`, since the dialog serves `AIConversation` sharing,
+   not just Drive objects. `44222607` moved `folders/mod.rs`'s `CloudFolder`/`CloudFolderModel`/
+   `FolderId` re-exports and `CloudModelType` impl into `cloud_object/folders.rs`. `bf9bbe4e`
+   moved the `WarpDriveItem` trait and `WarpDriveItemId` into `cloud_object/warp_drive_item.rs` —
+   this is the one that had cloud_object/mod.rs importing back from `drive::items`, the reverse
+   dependency this whole track exists to unwind. `3b84e4d1` moved `DriveObjectType`/
+   `DriveSortOrder`/`OpenWarpDriveObjectArgs`/`OpenWarpDriveObjectSettings` out of `drive/mod.rs`
+   into `cloud_object/drive_object_type.rs`. Every external and internal caller's import path was
+   updated to the real new location (no compatibility re-export left behind in `drive/`), verified
+   by a full `cargo check`/clippy/nextest/format pass after each commit — 5999/5999 tests still
+   passing throughout. `items/{workflow,notebook,folder,env_var_collection,ai_fact,
+   ai_fact_collection,mcp_server,mcp_server_collection,space}.rs` were left in place exactly as
+   scoped: their `impl WarpDriveItem` blocks now import the trait from its new
+   `cloud_object::warp_drive_item` home, but the files themselves wait on Track A's clippy sweep
+   to prune their now-half-dead `click_action`/`preview`/`secondary_icon` methods before moving.
+   Track A (the panel/index/dialogs/workflow-modal/import/export deletions) and Track C (the
+   `warp://drive/...` deep-link handler) remain open, as scoped.
+
 3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
 
    **`remote_server` was attempted and reverted, deliberately.** Deleting the module and crate
