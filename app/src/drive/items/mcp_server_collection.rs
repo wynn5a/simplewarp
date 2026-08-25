@@ -1,9 +1,8 @@
 use warpui::elements::MouseStateHandle;
 use warpui::{AppContext, Element};
 
-use super::{WarpDriveItem, WarpDriveItemId};
 use crate::appearance::Appearance;
-use crate::cloud_object::CloudObjectMetadata;
+use crate::cloud_object::{CloudObjectMetadata, WarpDriveItem, WarpDriveItemId};
 use crate::drive::DriveObjectType;
 use crate::drive::index::DriveIndexAction;
 use crate::server::ids::ClientId;

@@ -25,7 +25,6 @@ use self::model::persistence::CloudModel;
 use crate::appearance::Appearance;
 use crate::auth::UserUid;
 use crate::channel::ChannelState;
-use crate::drive::items::WarpDriveItem;
 use crate::drive::{CloudObjectTypeAndId, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
@@ -42,9 +41,11 @@ pub mod folders;
 pub mod grab_edit_access_modal;
 pub mod model;
 pub mod toast_message;
+pub mod warp_drive_item;
 
 pub use cloud_objects::cloud_object::*;
 pub use folders::{CloudFolder, CloudFolderModel, FolderId};
+pub use warp_drive_item::{WarpDriveItem, WarpDriveItemId};
 
 /// A CloudObject represents
 /// therefore shareable and editable (i.e. Notebooks and Workflows). In order

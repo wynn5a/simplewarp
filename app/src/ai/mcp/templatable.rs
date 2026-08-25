@@ -8,9 +8,8 @@ use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
     CloudObjectUuid, GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
-    Revision, UniquePer,
+    Revision, UniquePer, WarpDriveItem,
 };
-use crate::drive::items::WarpDriveItem;
 use crate::server::ids::SyncId;
 use crate::server::sync_queue::QueueItem;
 

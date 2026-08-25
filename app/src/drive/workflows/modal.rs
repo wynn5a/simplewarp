@@ -35,9 +35,10 @@ use crate::appearance::Appearance;
 use crate::auth::UserUid;
 use crate::cloud_object::breadcrumbs::{ContainingObject, ContainingObjectKind};
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{CloudObject, CloudObjectEventEntrypoint, ObjectType, Owner, Revision};
+use crate::cloud_object::{
+    CloudObject, CloudObjectEventEntrypoint, ObjectType, Owner, Revision, WarpDriveItemId,
+};
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
-use crate::drive::items::WarpDriveItemId;
 use crate::drive::{CloudObjectTypeAndId, DriveObjectType};
 use crate::editor::{
     EditorOptions, EditorView, EnterAction, EnterSettings, Event as EditorEvent, InteractionState,

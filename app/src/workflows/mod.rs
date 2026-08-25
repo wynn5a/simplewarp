@@ -28,9 +28,9 @@ use crate::cloud_object::model::view::CloudViewModel;
 use crate::cloud_object::{
     CloudModelType, CloudObjectEventEntrypoint, CloudObjectUpsertParams, CreateCloudObjectResult,
     CreateObjectRequest, GenericServerObject, ObjectType, Revision, UpdateCloudObjectResult,
+    WarpDriveItem,
 };
 use crate::drive::CloudObjectTypeAndId;
-use crate::drive::items::WarpDriveItem;
 use crate::drive::items::workflow::WarpDriveWorkflow;
 use crate::notebooks::{NotebookId, NotebookLocation};
 use crate::persistence::ModelEvent;

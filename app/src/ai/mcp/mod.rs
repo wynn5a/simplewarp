@@ -19,10 +19,9 @@ use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
     CloudObjectUuid, GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
-    Revision,
+    Revision, WarpDriveItem,
 };
 use crate::drive::CloudObjectTypeAndId;
-use crate::drive::items::WarpDriveItem;
 use crate::drive::items::mcp_server::WarpDriveMCPServer;
 #[cfg(not(target_family = "wasm"))]
 use crate::persistence::model::MCPEnvironmentVariables;

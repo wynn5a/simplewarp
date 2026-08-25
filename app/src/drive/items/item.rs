@@ -14,18 +14,19 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::ui_components::text::Span;
 use warpui::{AppContext, Element, SingletonEntity, ViewHandle};
 
-use super::WarpDriveItemId;
 use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::CloudViewModel;
-use crate::cloud_object::{CloudObject, CloudObjectLocation, CloudObjectMetadataExt, Owner, Space};
+use crate::cloud_object::{
+    CloudObject, CloudObjectLocation, CloudObjectMetadataExt, Owner, Space, WarpDriveItem,
+    WarpDriveItemId,
+};
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::index::{
     AUTOSCROLL_DETECTION_DISTANCE, AUTOSCROLL_SPEED_MULTIPLIER, DRIVE_INDEX_VIEW_POSITION_ID,
     DriveIndexAction, FOLDER_DEPTH_INDENT, INDEX_CONTENT_MARGIN_LEFT, ITEM_FONT_SIZE,
     ITEM_MARGIN_BOTTOM, ITEM_PADDING_HORIZONTAL, ITEM_PADDING_VERTICAL,
 };
-use crate::drive::items::WarpDriveItem;
 use crate::drive::panel::WARP_DRIVE_POSITION_ID;
 use crate::menu::Menu;
 use crate::ui_components::blended_colors;

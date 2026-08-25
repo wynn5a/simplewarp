@@ -42,7 +42,6 @@ use super::drive_helpers::{
 use super::empty_trash_confirmation_dialog::{
     EmptyTrashConfirmationDialog, EmptyTrashConfirmationEvent,
 };
-use super::items::WarpDriveItemId;
 use super::items::ai_fact_collection::WarpDriveAIFactCollection;
 use super::items::item::{ItemStates, WarpDriveRow, tools_panel_menu_direction};
 use super::items::mcp_server_collection::WarpDriveMCPServerCollection;
@@ -61,7 +60,7 @@ use crate::cloud_object::model::view::{CloudViewModel, CloudViewModelEvent, Upda
 use crate::cloud_object::{
     CloudFolder, CloudObject, CloudObjectEventEntrypoint, CloudObjectLocation,
     CloudObjectSyncStatus, GenericCloudObject, GenericStringObjectFormat, JsonObjectType,
-    NumInFlightRequests, ObjectType, Space,
+    NumInFlightRequests, ObjectType, Space, WarpDriveItemId,
 };
 use crate::drive::panel::DrivePanelAction;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};

@@ -1,9 +1,9 @@
 use warpui::AppContext;
 
 use super::{CloudObject, Space};
+use crate::cloud_object::WarpDriveItemId;
 use crate::cloud_object::folders::CloudFolder;
 use crate::drive::CloudObjectTypeAndId;
-use crate::drive::items::WarpDriveItemId;
 use crate::ui_components::breadcrumb::Breadcrumb;
 
 // Encapsulates an object that can contain other objects, and keeps

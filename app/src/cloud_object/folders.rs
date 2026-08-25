@@ -11,8 +11,8 @@ use super::{
     CreateObjectRequest, GenericServerObject, ObjectType, Revision, Space, UpdateCloudObjectResult,
 };
 use crate::appearance::Appearance;
+use crate::cloud_object::WarpDriveItem;
 use crate::drive::CloudObjectTypeAndId;
-use crate::drive::items::WarpDriveItem;
 use crate::drive::items::folder::WarpDriveFolder;
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
