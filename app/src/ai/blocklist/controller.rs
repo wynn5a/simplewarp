@@ -593,9 +593,10 @@ impl BlocklistAIController {
             } => {
                 me.handle_dormant_claude_wake_ready(*conversation_id, wake_message.clone(), ctx);
             }
-            // Viewer-mode events are handled by `OrchestrationViewerModel`.
-            OrchestrationEventStreamerEvent::ChildSpawned { .. }
-            | OrchestrationEventStreamerEvent::ChildStatusChanged { .. }
+            // No local consumer; the viewer-mode model that used to read these
+            // was removed with the ancestor SSE.
+            OrchestrationEventStreamerEvent::ChildSpawned
+            | OrchestrationEventStreamerEvent::ChildStatusChanged
             | OrchestrationEventStreamerEvent::WatchedRunStatusChanged { .. } => {}
         });
         Self {

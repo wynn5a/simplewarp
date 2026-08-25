@@ -220,14 +220,6 @@ impl<T: View> Modal<T> {
         self.title = title;
     }
 
-    pub fn set_header_icon(&mut self, icon: Option<icons::Icon>) {
-        self.header_icon = icon;
-    }
-
-    pub fn set_header_icon_color(&mut self, color: Option<Fill>) {
-        self.header_icon_color = color;
-    }
-
     pub fn set_offset_positioning(&mut self, offset_positioning: OffsetPositioning) {
         self.offset_positioning = offset_positioning;
     }

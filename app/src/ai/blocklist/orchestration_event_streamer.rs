@@ -219,18 +219,11 @@ pub enum OrchestrationEventStreamerEvent {
         conversation_id: AIConversationId,
         wake_message: AgentMessageEventMetadata,
     },
-    /// First time the streamer has seen a particular `run_id` under
-    /// `parent_task_id`. Emitted exactly once per child.
-    ChildSpawned {
-        parent_task_id: AmbientAgentTaskId,
-        run_id: String,
-    },
-    /// Lifecycle transition for a known child under `parent_task_id`.
-    ChildStatusChanged {
-        parent_task_id: AmbientAgentTaskId,
-        run_id: String,
-        status: ConversationStatus,
-    },
+    /// First time the streamer has seen a particular child run. Emitted
+    /// exactly once per child.
+    ChildSpawned,
+    /// Lifecycle transition for a known child.
+    ChildStatusChanged,
     /// Lifecycle transition observed on an owner-side stream for a watched run.
     #[allow(dead_code)]
     WatchedRunStatusChanged {
@@ -411,26 +404,6 @@ impl OrchestrationEventStreamer {
         ctx: &mut ModelContext<Self>,
     ) {
         self.persist_event_cursor(conversation_id, sequence, ctx);
-    }
-
-    /// Observer cursor authority for the family drain: persist to SQLite
-    /// only, never pushing the server cursor (only a Primary consumer may
-    /// write the server-side cursor). Monotonic: folds in the conversation's
-    /// already-persisted sequence.
-    fn persist_cursor_local_only(
-        &mut self,
-        conversation_id: AIConversationId,
-        sequence: i64,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let persisted = BlocklistAIHistoryModel::as_ref(ctx)
-            .conversation(&conversation_id)
-            .and_then(|conversation| conversation.last_event_sequence())
-            .unwrap_or(0);
-        let effective = sequence.max(persisted);
-        BlocklistAIHistoryModel::handle(ctx).update(ctx, |model, ctx| {
-            model.update_event_sequence(conversation_id, effective, ctx);
-        });
     }
 
     /// Fans out one family (`include_self`) SSE batch: classifies each event

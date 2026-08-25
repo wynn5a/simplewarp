@@ -279,9 +279,6 @@ pub struct BlocklistAIActionExecutor {
     /// We track them per action rather than as a single slot so multiple actions from the same
     /// parallel phase can complete independently.
     async_executing_actions: std::collections::HashMap<AIAgentActionId, AsyncExecutingAction>,
-
-    /// Reference to the terminal model for checking session sharing state.
-    terminal_model: Arc<FairMutex<TerminalModel>>,
 }
 
 impl BlocklistAIActionExecutor {
@@ -367,7 +364,6 @@ impl BlocklistAIActionExecutor {
             start_recording_executor,
             stop_recording_executor,
             async_executing_actions: Default::default(),
-            terminal_model,
             read_skill_executor,
             fetch_conversation_executor,
             start_agent_executor,

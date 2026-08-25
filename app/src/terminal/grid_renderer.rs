@@ -14,7 +14,7 @@ use warp_core::features::FeatureFlag;
 use warp_errors::{ReportErrorLogMode, report_error};
 use warpui::assets::asset_cache::{AssetCache, AssetSource, AssetState};
 use warpui::color::ColorU;
-use warpui::elements::{Border, CornerRadius, DEFAULT_UI_LINE_HEIGHT_RATIO, Fill, Radius};
+use warpui::elements::{Border, CornerRadius, DEFAULT_UI_LINE_HEIGHT_RATIO, Fill};
 use warpui::fonts::{FamilyId, FontId, Properties, Style, Weight};
 use warpui::geometry::rect::RectF;
 use warpui::geometry::vector::{Vector2F, vec2f};
@@ -50,9 +50,6 @@ const CURSOR_THICKNESS_SCALE_FACTOR: f32 = 0.15;
 
 // The scale factor of the underline relative to the glyph width.
 const UNDERLINE_THICKNESS_SCALE_FACTOR: f32 = 0.15;
-
-/// Diameter of the circle at the top of the selection cursor.
-const SELECTION_CURSOR_TOP_DIAMETER: f32 = 5.;
 
 /// Stores count of occurrences of distinct colors as a grid is rendered, which we can use to
 /// compute the most common background color of a grid and color-match other UI elements against
@@ -2618,47 +2615,6 @@ pub fn render_selection(
         account_for_padding_and_scroll(origin, cell_size, size.padding_x_px, scroll_top);
     let cached = CachedBackgroundColor::from_selection_points(color, start, end);
     render_background(selection_start, cached, cell_size, size.columns - 1, ctx)
-}
-
-pub fn render_selection_cursor(
-    cursor_point: &SelectionPoint,
-    size: &SizeInfo,
-    scroll_top: Lines,
-    origin: Vector2F,
-    color: ColorU,
-    is_cursor_at_end: bool,
-    ctx: &mut PaintContext,
-) {
-    let cell_size = calculate_cell_size(size);
-    let mut origin =
-        account_for_padding_and_scroll(origin, cell_size, size.padding_x_px, scroll_top);
-
-    // Move origin to where the selection point is.
-    // If the cursor is at the end of the selection, we need to move the point over one column
-    // for it to be after the end of the selection (cursor is actually at start of the next col)
-    origin += vec2f(
-        (cursor_point.col + is_cursor_at_end as usize) as f32 * cell_size.x(),
-        cursor_point.row.as_f64() as f32 * cell_size.y(),
-    );
-
-    // Render the vertical line cursor
-    let cursor_size = Vector2F::new(1., cell_size.y());
-    ctx.scene
-        .draw_rect_without_hit_recording(RectF::new(origin, cursor_size))
-        .with_background(Fill::Solid(color));
-    // Render the circle at the top of the vertical line
-    // The floor is needed to center the circle with the vertical line, since the rendering seems to be off with decimal pixels.
-    origin -= vec2f(
-        (SELECTION_CURSOR_TOP_DIAMETER / 2.).floor(),
-        (SELECTION_CURSOR_TOP_DIAMETER / 2.).floor(),
-    );
-    ctx.scene
-        .draw_rect_without_hit_recording(RectF::new(
-            origin,
-            vec2f(SELECTION_CURSOR_TOP_DIAMETER, SELECTION_CURSOR_TOP_DIAMETER),
-        ))
-        .with_corner_radius(CornerRadius::with_all(Radius::Percentage(50.)))
-        .with_background(Fill::Solid(color));
 }
 
 /// String builder that tracks information about styles and character index to cell mapping

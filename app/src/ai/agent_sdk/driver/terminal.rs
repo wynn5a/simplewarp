@@ -3,7 +3,6 @@ use std::ffi::OsString;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -77,9 +76,6 @@ impl std::error::Error for BootstrapError {}
 /// Describes why an agent's session-sharing request failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ShareSessionError {
-    /// Connection to the session-sharing server failed.
-    #[error("Internal error")]
-    Internal(#[source] Arc<anyhow::Error>),
     /// The server rejected the session-sharing request.
     #[error("{0}")]
     Failed(String),

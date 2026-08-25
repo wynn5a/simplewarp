@@ -421,13 +421,6 @@ impl AIRequestUsageModel {
         true
     }
 
-    pub fn requests_used(&self) -> usize {
-        if self.next_refresh_time() <= Utc::now() {
-            return 0;
-        }
-        self.request_limit_info.num_requests_used_since_refresh
-    }
-
     pub fn request_limit(&self) -> usize {
         self.request_limit_info.limit
     }

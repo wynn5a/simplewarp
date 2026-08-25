@@ -222,15 +222,6 @@ fn make_ambient_task_with_event_seq(
     }
 }
 
-fn make_ambient_task_with_task_id(
-    task_id: AmbientAgentTaskId,
-    last_event_sequence: Option<i64>,
-) -> crate::ai::ambient_agents::AmbientAgentTask {
-    let mut task = make_ambient_task_with_event_seq(last_event_sequence);
-    task.task_id = task_id;
-    task
-}
-
 fn make_server_metadata_with_harness(
     harness: AIAgentHarness,
 ) -> crate::ai::agent::conversation::ServerAIConversationMetadata {

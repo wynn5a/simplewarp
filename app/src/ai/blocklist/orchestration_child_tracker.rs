@@ -228,11 +228,11 @@ impl OrchestrationChildTracker {
             if let Some(child) = self.children.get_mut(&task_id) {
                 child.last_lifecycle = Some(kind);
             }
-            let status = conversation_status_from_lifecycle_event_type(kind);
             // Write status through immediately so the pill bar badge reflects
             // the lifecycle transition without waiting for a redraw cycle.
             #[cfg(not(test))]
             {
+                let status = conversation_status_from_lifecycle_event_type(kind);
                 let child_info = {
                     let history = BlocklistAIHistoryModel::as_ref(ctx);
                     history
@@ -254,11 +254,7 @@ impl OrchestrationChildTracker {
                     });
                 }
             }
-            ctx.emit(OrchestrationEventStreamerEvent::ChildStatusChanged {
-                parent_task_id: self.parent_task_id,
-                run_id: run_id.to_string(),
-                status,
-            });
+            ctx.emit(OrchestrationEventStreamerEvent::ChildStatusChanged);
             self.refetch_metadata_if_incomplete(task_id, run_id, ctx);
             return;
         }
@@ -270,12 +266,7 @@ impl OrchestrationChildTracker {
         if let Some(child) = self.children.get_mut(&task_id) {
             child.last_lifecycle = Some(kind);
         }
-        let status = conversation_status_from_lifecycle_event_type(kind);
-        ctx.emit(OrchestrationEventStreamerEvent::ChildStatusChanged {
-            parent_task_id: self.parent_task_id,
-            run_id: run_id.to_string(),
-            status,
-        });
+        ctx.emit(OrchestrationEventStreamerEvent::ChildStatusChanged);
     }
 
     /// Registers a child created in this process against its existing local
@@ -414,10 +405,7 @@ impl OrchestrationChildTracker {
     ) {
         self.children.insert(task_id, child);
         self.children_by_run_id.insert(run_id.to_string(), task_id);
-        ctx.emit(OrchestrationEventStreamerEvent::ChildSpawned {
-            parent_task_id: self.parent_task_id,
-            run_id: run_id.to_string(),
-        });
+        ctx.emit(OrchestrationEventStreamerEvent::ChildSpawned);
     }
 
     /// Requests metadata for a run, deduplicating concurrent calls. A
