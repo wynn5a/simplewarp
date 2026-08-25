@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use cloud_objects::drive::CloudObjectTypeAndId;
 use instant::Instant;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::color::blend::Blend;
@@ -46,7 +47,6 @@ use crate::cloud_object::{
     CloudObjectLocation, CloudObjectLookup as _, GenericStringObjectFormat, JsonObjectType, Owner,
     Space,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{
     EditorView, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };

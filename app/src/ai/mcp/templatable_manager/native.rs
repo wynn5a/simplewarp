@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_compat::CompatExt as _;
+use cloud_objects::drive::CloudObjectTypeAndId;
 use mcp::oauth::{
     self, AuthContext, CallbackResult, FILE_BASED_MCP_CREDENTIALS_KEY,
     FileBasedPersistedCredentialsMap, OAuthCallbackMode, PersistedCredentials,
@@ -44,7 +45,6 @@ use crate::cloud_object::{
     CloudObject, CloudObjectLocation, CloudObjectLookup as _, CloudObjectMetadataExt,
     CloudObjectUuidLookup as _, GenericStringObjectFormat, JsonObjectType, Space,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::persistence::{
     ModelEvent, database_file_path_for_current_scope, establish_ro_connection,
 };

@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use cloud_object_models::JsonSerializer;
+use cloud_objects::drive::CloudObjectTypeAndId;
 use lazy_static::lazy_static;
 use settings::{Setting as _, SyncToCloud};
 use warp_core::r#async::debounce;
@@ -23,7 +24,6 @@ use crate::auth::auth_state::AuthState;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObjectEventEntrypoint, GenericStringObjectFormat, JsonObjectType};
-use crate::drive::CloudObjectTypeAndId;
 use crate::server::cloud_objects::update_manager::{
     GenericStringObjectInput, InitiatedBy, UpdateManager, UpdateManagerEvent,
 };

@@ -4,6 +4,7 @@ use std::future::Future;
 pub use cloud_object_models::{
     CloudScheduledAmbientAgent, CloudScheduledAmbientAgentModel, ScheduledAmbientAgent,
 };
+use cloud_objects::drive::CloudObjectTypeAndId;
 use futures::FutureExt;
 use futures::channel::oneshot;
 use serde_json::{Map, Value};
@@ -17,7 +18,6 @@ use crate::cloud_object::{
     CloudObjectLookup as _, GenericStringObjectFormat, GenericStringObjectUniqueKey,
     JsonObjectType, Owner, Revision,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };

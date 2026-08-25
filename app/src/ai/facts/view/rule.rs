@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 
 use ai::project_context::model::{ProjectContextModel, ProjectContextModelEvent};
+use cloud_objects::drive::CloudObjectTypeAndId;
 use markdown_parser::weight::CustomWeight;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::ui::appearance::{Appearance, AppearanceEvent};
@@ -27,7 +28,6 @@ use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{
     CloudObject, GenericStringObjectFormat, JsonObjectType, Owner, Revision,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,

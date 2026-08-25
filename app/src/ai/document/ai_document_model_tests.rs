@@ -119,7 +119,9 @@ fn cloud_model_sync_event_reconciles_stale_document_client_id() {
         model_handle.update(&mut app, |model, ctx| {
             model.handle_cloud_model_event(
                 &CloudModelEvent::ObjectSynced {
-                    type_and_id: crate::drive::CloudObjectTypeAndId::Notebook(server_sync_id),
+                    type_and_id: cloud_objects::drive::CloudObjectTypeAndId::Notebook(
+                        server_sync_id,
+                    ),
                     client_id: stale_client_id,
                     server_id,
                 },

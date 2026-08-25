@@ -1,3 +1,4 @@
+use cloud_objects::drive::CloudObjectTypeAndId;
 use pathfinder_color::ColorU;
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
@@ -14,7 +15,6 @@ use crate::ai::agent::{SuggestedAgentModeWorkflow, SuggestedLoggingId, Suggested
 use crate::ai::facts::{AIFact, AIMemory, CloudAIFactModel};
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::drive::CloudObjectTypeAndId;
 use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };

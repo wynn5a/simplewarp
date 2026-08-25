@@ -6,6 +6,7 @@ use anyhow::anyhow;
 use chrono::{DateTime, Duration, Utc};
 use cloud_object_client::MockObjectClient;
 use cloud_objects::cloud_object::ServerPermissions;
+use cloud_objects::drive::CloudObjectTypeAndId;
 use firebase::FirebaseError;
 use itertools::Itertools;
 use warpui::r#async::Timer;
@@ -22,7 +23,6 @@ use crate::cloud_object::{
     GenericStringObjectFormat, JsonObjectType, ObjectIdType, ObjectType, Owner, Revision,
     RevisionAndLastEditor, ServerCreationInfo, UpdateCloudObjectResult,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::server::ids::{ClientId, HashableId, ServerId, ServerIdAndType, SyncId};

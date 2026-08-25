@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::Context as _;
+use cloud_objects::drive::CloudObjectTypeAndId;
 // Only the legacy import, which eval builds compile out, materializes an ordered collection.
 #[cfg(not(feature = "agent_mode_evals"))]
 use indexmap::IndexMap;
@@ -27,7 +28,6 @@ use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModelEvent, UpdateSource};
 use crate::cloud_object::{CloudObject as _, GenericStringObjectFormat, JsonObjectType};
-use crate::drive::CloudObjectTypeAndId;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
 use crate::settings::cloud_preferences::CloudPreferencesSettings;

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use cloud_objects::drive::CloudObjectTypeAndId;
 use warp_core::ui::appearance::Appearance;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::elements::{
@@ -17,7 +18,6 @@ use super::{AIFact, CloudAIFact, CloudAIFactModel};
 use crate::cloud_object::{
     CloudObject, CloudObjectSyncStatus, GenericStringObjectFormat, JsonObjectType,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::network::NetworkStatus;
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view;

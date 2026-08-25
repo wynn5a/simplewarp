@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use cloud_objects::drive::CloudObjectTypeAndId;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use settings::ToggleableSetting as _;
 use strum::IntoEnumIterator;
@@ -44,7 +45,6 @@ use crate::ai::mcp::{
 use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType};
-use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{
     EditorView, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };

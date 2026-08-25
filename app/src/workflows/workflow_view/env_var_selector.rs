@@ -1,3 +1,4 @@
+use cloud_objects::drive::CloudObjectTypeAndId;
 use itertools::Itertools as _;
 use warpui::elements::ChildView;
 use warpui::{
@@ -7,7 +8,6 @@ use warpui::{
 
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{CloudObject as _, GenericStringObjectFormat, JsonObjectType};
-use crate::drive::CloudObjectTypeAndId;
 use crate::server::ids::SyncId;
 use crate::view_components::{DropdownItem, FilterableDropdown, FilterableDropdownOrientation};
 

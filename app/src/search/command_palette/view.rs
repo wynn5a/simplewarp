@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::ops::Deref;
 use std::sync::Arc;
 
+use cloud_objects::drive::CloudObjectTypeAndId;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use warp_core::send_telemetry_from_app_ctx;
@@ -23,7 +24,6 @@ use warpui::{
 use super::super::palette_styles as styles;
 use super::CommandPaletteMixer;
 use crate::appearance::Appearance;
-use crate::drive::CloudObjectTypeAndId;
 use crate::features::FeatureFlag;
 use crate::palette::PaletteMode;
 use crate::root_view::OpenLaunchConfigArg;
