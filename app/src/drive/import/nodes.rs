@@ -18,7 +18,7 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 
 use super::modal_body::{BASE_INDENT, IMPORT_FONT_SIZE, INDENT_MARGIN, ImportModalBodyAction};
 use crate::appearance::Appearance;
-use crate::drive::DriveObjectType;
+use crate::cloud_object::DriveObjectType;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::notebooks::file::is_markdown_file;
 use crate::server::ids::ClientId;

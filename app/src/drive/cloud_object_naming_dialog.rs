@@ -9,10 +9,9 @@ use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, ViewHandle};
 
-use super::DriveObjectType;
 use super::index::DriveIndexAction;
 use crate::appearance::Appearance;
-use crate::cloud_object::Space;
+use crate::cloud_object::{DriveObjectType, Space};
 use crate::editor::EditorView;
 use crate::server::ids::SyncId;
 use crate::ui_components::blended_colors;

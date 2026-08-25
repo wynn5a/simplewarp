@@ -13,7 +13,7 @@ use warpui::r#async::SpawnedFutureHandle;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity, WindowId};
 
 use super::file::is_markdown_file;
-use crate::drive::OpenWarpDriveObjectArgs;
+use crate::cloud_object::OpenWarpDriveObjectArgs;
 use crate::terminal::model::session::Session;
 use crate::uri::parse_url_paths::{WarpWebLink, get_item_data_from_warp_link};
 #[cfg(feature = "local_fs")]

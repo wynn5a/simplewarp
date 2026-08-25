@@ -33,6 +33,7 @@ use warpui::{
     UpdateView, View, ViewContext, ViewHandle, WindowId,
 };
 
+use super::CloudObjectTypeAndId;
 use super::cloud_object_naming_dialog::CloudObjectNamingDialog;
 use super::drive_helpers::{
     has_feature_gated_anonymous_user_reached_env_var_limit,
@@ -46,7 +47,6 @@ use super::items::ai_fact_collection::WarpDriveAIFactCollection;
 use super::items::item::{ItemStates, WarpDriveRow, tools_panel_menu_direction};
 use super::items::mcp_server_collection::WarpDriveMCPServerCollection;
 use super::settings::WarpDriveSettings;
-use super::{CloudObjectTypeAndId, DriveObjectType, DriveSortOrder};
 use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::ai::facts::{AIFact, AIMemory};
 use crate::appearance::Appearance;
@@ -59,8 +59,9 @@ use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::{CloudViewModel, CloudViewModelEvent, UpdateTimestamp};
 use crate::cloud_object::{
     CloudFolder, CloudObject, CloudObjectEventEntrypoint, CloudObjectLocation,
-    CloudObjectSyncStatus, GenericCloudObject, GenericStringObjectFormat, JsonObjectType,
-    NumInFlightRequests, ObjectType, Space, WarpDriveItemId,
+    CloudObjectSyncStatus, DriveObjectType, DriveSortOrder, GenericCloudObject,
+    GenericStringObjectFormat, JsonObjectType, NumInFlightRequests, ObjectType, Space,
+    WarpDriveItemId,
 };
 use crate::drive::panel::DrivePanelAction;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};

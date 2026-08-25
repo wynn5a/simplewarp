@@ -2,12 +2,13 @@ use warpui::elements::MouseStateHandle;
 use warpui::{AppContext, Element};
 
 use crate::appearance::Appearance;
+use crate::cloud_object::drive_object_type::DriveObjectType;
 use crate::cloud_object::{CloudObjectMetadata, Space};
+use crate::drive::CloudObjectTypeAndId;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::index::{
     DriveIndexAction, DriveIndexSection, warp_drive_section_header_position_id,
 };
-use crate::drive::{CloudObjectTypeAndId, DriveObjectType};
 use crate::themes::theme::Fill;
 use crate::ui_components::icons::Icon;
 

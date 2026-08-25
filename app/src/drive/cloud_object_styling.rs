@@ -4,7 +4,7 @@ use warp_core::ui::color::ContrastingColor;
 use warp_core::ui::color::contrast::MinimumAllowedContrast;
 use warp_core::ui::theme::Fill;
 
-use super::DriveObjectType;
+use crate::cloud_object::DriveObjectType;
 use crate::ui_components::blended_colors;
 
 pub fn warp_drive_icon_color(

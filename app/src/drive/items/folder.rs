@@ -4,10 +4,10 @@ use warpui::{AppContext, Element};
 
 use crate::appearance::Appearance;
 use crate::cloud_object::folders::CloudFolder;
-use crate::cloud_object::{CloudObjectMetadata, WarpDriveItem, WarpDriveItemId};
+use crate::cloud_object::{CloudObjectMetadata, DriveObjectType, WarpDriveItem, WarpDriveItemId};
+use crate::drive::CloudObjectTypeAndId;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::index::DriveIndexAction;
-use crate::drive::{CloudObjectTypeAndId, DriveObjectType};
 use crate::themes::theme::Fill;
 use crate::ui_components::icons::Icon;
 

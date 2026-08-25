@@ -2,7 +2,7 @@ use settings::macros::define_settings_group;
 use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 use warp_core::features::FeatureFlag;
 
-use super::DriveSortOrder;
+use crate::cloud_object::DriveSortOrder;
 
 pub const HAS_AUTO_OPENED_WELCOME_FOLDER: &str = "HasAutoOpenedWelcomeFolder";
 

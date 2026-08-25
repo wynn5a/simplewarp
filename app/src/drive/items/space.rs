@@ -2,8 +2,9 @@ use warpui::Element;
 use warpui::elements::MouseStateHandle;
 
 use crate::appearance::Appearance;
-use crate::cloud_object::{CloudObjectMetadata, Space, WarpDriveItem, WarpDriveItemId};
-use crate::drive::DriveObjectType;
+use crate::cloud_object::{
+    CloudObjectMetadata, DriveObjectType, Space, WarpDriveItem, WarpDriveItemId,
+};
 use crate::drive::index::DriveIndexAction;
 use crate::themes::theme::Fill;
 

@@ -7,7 +7,7 @@ use warpui::platform::Cursor;
 use warpui::{Element, EventContext};
 
 use crate::appearance::Appearance;
-use crate::drive::DriveObjectType;
+use crate::cloud_object::DriveObjectType;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::search::{FilterChipRenderer as CommonFilterChipRenderer, QueryFilter};
 use crate::util::color::{ContrastingColor, MinimumAllowedContrast};

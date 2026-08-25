@@ -7,8 +7,7 @@ use warpui::windowing::WindowManager;
 use warpui::{App, SingletonEntity, ViewHandle, WindowId, async_assert};
 
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{CloudObjectEventEntrypoint, Space};
-use crate::drive::OpenWarpDriveObjectSettings;
+use crate::cloud_object::{CloudObjectEventEntrypoint, OpenWarpDriveObjectSettings, Space};
 use crate::integration_testing::view_getters::{notebook_view, workspace_view};
 use crate::notebooks::manager::NotebookSource;
 use crate::server::cloud_objects::update_manager::UpdateManager;

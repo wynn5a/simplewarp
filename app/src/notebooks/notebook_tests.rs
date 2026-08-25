@@ -22,9 +22,9 @@ use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::{CloudViewModel, Editor, EditorState};
 use crate::cloud_object::{
-    Owner, Revision, ServerCloudObject, ServerMetadata, ServerNotebook, ServerPermissions,
+    OpenWarpDriveObjectSettings, Owner, Revision, ServerCloudObject, ServerMetadata,
+    ServerNotebook, ServerPermissions,
 };
-use crate::drive::OpenWarpDriveObjectSettings;
 use crate::editor::{DisplayPoint, EditorAction, InteractionState, SelectAction};
 use crate::network::NetworkStatus;
 use crate::notebooks::active_notebook_data::Mode;
