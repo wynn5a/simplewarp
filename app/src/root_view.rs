@@ -1158,6 +1158,21 @@ fn open_linear_issue_work_in_new_window(args: &LinearIssueWork, ctx: &mut AppCon
 }
 
 fn open_warp_drive_object(arg: &OpenWarpDriveObjectArgs, ctx: &mut AppContext) {
+    // See the matching guard in `open_warp_drive_object_in_existing_window`: a `ServerId`-keyed
+    // object can never resolve in this build, so don't open a brand-new window that can only ever
+    // stay blank.
+    if CloudModel::as_ref(ctx)
+        .get_by_uid(&arg.server_id.uid())
+        .is_none()
+    {
+        log::info!(
+            "Ignoring warp://drive link for {:?} {:?}: object not available locally",
+            arg.object_type,
+            arg.server_id
+        );
+        return;
+    }
+
     match arg.object_type {
         ObjectType::Notebook => open_new_workspace_with_notebook_open(
             SyncId::ServerId(arg.server_id),
@@ -3107,6 +3122,17 @@ impl RootView {
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             let cloud_model = CloudModel::as_ref(ctx);
 
+            // No warp-server connection exists in this build (see `LOCAL_ONLY_MESSAGE` in
+            // `server/server_api.rs`), so an object identified by `ServerId` can never be synced
+            // into `CloudModel` here — every `warp://drive/...` link is a dead end. Fail fast and
+            // legibly for every object type instead of routing Notebook/Workflow into a pane that
+            // silently never loads (Folder/EnvVarCollection already guarded against this below;
+            // this hoists the same guard above the match so it applies uniformly).
+            if cloud_model.get_by_uid(&arg.server_id.uid()).is_none() {
+                display_object_missing_error_in_window(ctx.window_id(), ctx);
+                return false;
+            }
+
             match arg.object_type {
                 ObjectType::Notebook => {
                     handle.update(ctx, |workspace, ctx| {
@@ -3138,11 +3164,6 @@ impl RootView {
                 ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
                     JsonObjectType::EnvVarCollection,
                 )) => {
-                    if cloud_model.get_by_uid(&arg.server_id.uid()).is_none() {
-                        display_object_missing_error_in_window(ctx.window_id(), ctx);
-                        return false;
-                    }
-
                     let item_id =
                         WarpDriveItemId::Object(CloudObjectTypeAndId::from_generic_string_object(
                             GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection),
@@ -3158,11 +3179,6 @@ impl RootView {
                     });
                 }
                 ObjectType::Folder => {
-                    if cloud_model.get_by_uid(&arg.server_id.uid()).is_none() {
-                        display_object_missing_error_in_window(ctx.window_id(), ctx);
-                        return false;
-                    }
-
                     let item_id = WarpDriveItemId::Object(CloudObjectTypeAndId::Folder(
                         SyncId::ServerId(arg.server_id),
                     ));
