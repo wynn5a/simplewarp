@@ -48,7 +48,7 @@ pub use cloud_objects::cloud_object::*;
 pub use drive_object_type::{
     DriveObjectType, DriveSortOrder, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings,
 };
-pub use folders::{CloudFolder, CloudFolderModel, FolderId};
+pub use folders::CloudFolder;
 pub use warp_drive_item::{WarpDriveItem, WarpDriveItemId};
 
 /// A CloudObject represents
