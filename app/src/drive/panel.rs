@@ -1,4 +1,3 @@
-use futures::Future;
 use warp_errors::report_error;
 use warpui::elements::{
     Align, Flex, Hoverable, MouseStateHandle, ParentElement, SavePosition, Shrinkable,
@@ -31,7 +30,6 @@ use crate::notebooks::CloudNotebook;
 use crate::notebooks::manager::NotebookSource;
 use crate::server::cloud_objects::update_manager::{InitiatedBy, UpdateManager};
 use crate::server::ids::{ClientId, SyncId};
-use crate::server::telemetry::SharingDialogSource;
 use crate::workflows::manager::WorkflowOpenSource;
 use crate::workflows::{CloudWorkflow, WorkflowViewMode};
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -443,17 +441,6 @@ impl DrivePanel {
         });
     }
 
-    pub fn move_object_to_team_owner(
-        &mut self,
-        cloud_object_type_and_id: CloudObjectTypeAndId,
-        space: Space,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.index_view.update(ctx, |index_view, ctx| {
-            index_view.move_object_to_team_owner(&cloud_object_type_and_id, space, ctx);
-        })
-    }
-
     pub fn set_selected_object(
         &mut self,
         id: Option<WarpDriveItemId>,
@@ -618,34 +605,6 @@ impl DrivePanel {
         })
     }
 
-    pub fn set_focused_item(&mut self, item_id: WarpDriveItemId, ctx: &mut ViewContext<Self>) {
-        self.index_view.update(ctx, |index, ctx| {
-            ctx.focus(&self.index_view);
-            index.set_focused_item(item_id, true, ctx);
-        })
-    }
-
-    pub fn open_object_sharing_settings(
-        &mut self,
-        object_id: CloudObjectTypeAndId,
-        invitee_email: Option<String>,
-        source: SharingDialogSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let warp_drive_item_id = WarpDriveItemId::Object(object_id);
-        self.index_view.update(ctx, |index, ctx| {
-            index.set_focused_item(warp_drive_item_id, true, ctx);
-            index.toggle_share_dialog(&warp_drive_item_id, invitee_email, source, ctx);
-        });
-    }
-
-    pub fn has_warp_drive_initialized_sections(
-        &self,
-        app: &AppContext,
-    ) -> impl Future<Output = ()> + use<> {
-        self.index_view.as_ref(app).has_initialized_sections()
-    }
-
     pub fn reset_focused_index_in_warp_drive(
         &mut self,
         should_scroll: bool,
@@ -653,12 +612,6 @@ impl DrivePanel {
     ) {
         self.index_view.update(ctx, |index, ctx| {
             index.reset_focused_index_in_warp_drive(should_scroll, ctx);
-        })
-    }
-
-    pub fn reset_and_open_to_main_index(&mut self, ctx: &mut ViewContext<Self>) {
-        self.index_view.update(ctx, |index, ctx| {
-            index.reset_and_open_to_main_index(ctx);
         })
     }
 

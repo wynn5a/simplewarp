@@ -2,7 +2,6 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use futures::Future;
 use itertools::Itertools;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
@@ -728,11 +727,6 @@ impl DriveIndex {
         } else {
             self.compute_ordered_items(cloud_model.as_ref(ctx));
         }
-    }
-
-    pub fn has_initialized_sections(&self) -> impl Future<Output = ()> + use<> {
-        // We're not using `async fn` here so that the returned Future doesn't borrow self.
-        self.has_initialized_sections.wait()
     }
 
     /// Recursively sorts the objects within a CloudObjectLocation and its children, storing the sorted list
@@ -3240,19 +3234,6 @@ impl DriveIndex {
             self.current_drop_target = Some(new_location);
             ctx.notify();
         }
-    }
-
-    pub fn move_object_to_team_owner(
-        &mut self,
-        cloud_object_type_and_id: &CloudObjectTypeAndId,
-        space: Space,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.move_object(
-            cloud_object_type_and_id,
-            CloudObjectLocation::Space(space),
-            ctx,
-        );
     }
 
     fn move_object(
