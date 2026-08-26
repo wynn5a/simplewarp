@@ -10578,9 +10578,6 @@ impl Workspace {
                 // If saved workflow id matches the one that is currently displayed, then refresh workflow info box + input
                 self.maybe_refresh_workflow_info_box_and_input(workflow_id, ctx);
             }
-            WorkflowModalEvent::ViewInWarpDrive(id) => {
-                self.view_in_and_focus_warp_drive(*id, ctx);
-            }
             WorkflowModalEvent::AiAssistUpgradeError(team_uid, user_id) => {
                 let upgrade_link = team_uid
                     .map(UserWorkspaces::upgrade_link_for_team)
