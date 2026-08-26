@@ -92,9 +92,6 @@ impl PaneContent for AIDocumentPane {
                 AIDocumentEvent::CloseRequested => {
                     group.close_pane_with_confirmation(pane_id, ctx);
                 }
-                AIDocumentEvent::ViewInWarpDrive(id) => {
-                    ctx.emit(crate::pane_group::Event::ViewInWarpDrive(*id));
-                }
                 #[cfg(feature = "local_fs")]
                 AIDocumentEvent::OpenCodeInWarp {
                     source,
