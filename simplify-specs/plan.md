@@ -621,6 +621,58 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    Track A (the panel/index/dialogs/workflow-modal/import/export deletions) and Track C (the
    `warp://drive/...` deep-link handler) remain open, as scoped.
 
+   **A fifth agent round traced Track A's six sub-steps before touching any of them, and found the
+   whole deletion is blocked on Track C, plus a second reachable surface Track C's own note never
+   mentioned.** The plan's sub-steps 1-4 (left_panel.rs's `ToolPanelView::WarpDrive` tab plumbing,
+   `open_or_toggle_warp_drive`, the keyboard-nav `is_warp_drive_open` fallbacks, and the
+   `update_warp_drive_view` forwarder) all bottom out, one hop or two down, in the same handful of
+   `workspace/view.rs` methods that hold the live `ViewHandle<DrivePanel>`: `update_warp_drive_view`,
+   `view_in_warp_drive`, `view_in_and_focus_warp_drive`, `open_object_sharing_settings`,
+   `move_to_drive_space`, `has_warp_drive_initialized_sections`. Those six are not private to the
+   left-panel tab. Two more things call into them:
+
+   - **Track C's own deep-link handler** (`root_view.rs`'s `open_warp_drive_object_in_existing_window`,
+     4 sites) is the *only* caller of `WorkspaceView::has_warp_drive_initialized_sections`, and one of
+     three callers of `view_in_and_focus_warp_drive`. Since Track C is explicitly parked, this alone
+     blocks deleting the field these methods close over.
+   - **Not previously listed anywhere:** every open notebook/workflow/env-var-collection pane renders a
+     breadcrumb trail (`workflows/workflow_view.rs:2946`, `notebooks/notebook.rs`,
+     `env_vars/view/env_var_collection.rs`, via `ui_components::breadcrumb::render_breadcrumbs` and
+     `cloud_object::breadcrumbs::ContainingObject`) whose click handler dispatches `ViewInWarpDrive` →
+     `view_in_warp_drive`/`view_in_and_focus_warp_drive`. Unlike the panel itself, this breadcrumb is
+     **not** behind `is_warp_drive_enabled` — `update_breadcrumb` populates it from
+     `containing_objects_path()` for any cloud workflow/notebook/env-var collection, including ones
+     created locally in `Space::Personal`, so it is live, clickable UI in this build, not just
+     compiled-reachable dead code. Clicking it opens the left panel's Warp Drive tab, which then shows
+     "Sign in to access Warp Drive" instead of navigating anywhere — a real (if minor) dead end, same
+     shape as Track C's, that nobody has traced or fixed yet. The handler exists in six places:
+     `workflows/workflow_view.rs`, `notebooks/notebook.rs`, `env_vars/view/env_var_collection.rs`, and
+     the three `pane_group/pane/{workflow,notebook,env_var_collection}_pane.rs` wrappers that forward
+     `ViewInWarpDrive` events up to `workspace/view.rs`, plus `drive/workflows/modal.rs`'s own copy.
+
+   Net effect: **none of sub-steps 1-4 can land as a clean, compiling deletion without either
+   touching Track C (out of scope this round) or first deciding what to do with the breadcrumb
+   click surface (its own trace — e.g. does a team-owned or shared-with-me object's breadcrumb
+   behave differently? — not a mechanical deletion).** No code was changed this round; forcing a
+   partial cut here would either leave the field referenced from Track C (a compile error) or
+   silently change breadcrumb click behavior without having verified it's actually inert everywhere.
+
+   **The same round also re-checked three more Track A inventory items against actual callers, and
+   found them misclassified the same way `sharing/`/`folders/`/`items/` were — load-bearing code
+   living under `drive/` by path, not by function — while confirming a few really are panel-only:**
+
+   | Item | Verdict | Why |
+   | --- | --- | --- |
+   | `drive_helpers.rs` | **Not deletable, belongs in Track B.** | Its anonymous-user object-limit checks are called from `server/cloud_objects/update_manager.rs` (real object-creation gating), `workflows/workflow_view.rs`, `env_vars/view/menus.rs`, and `notebooks/notebook.rs` — all outside the Drive panel and unrelated to `panel.rs`/`index.rs` rendering it via `render_personal_object_limit_row`. |
+   | `drive/workflows/` | **Mixed, like `items/`.** | `arguments.rs`, `enum_creation_dialog.rs`, `workflow_arg_selector.rs`, `workflow_arg_type_helpers.rs` back the live workflow-argument editor (`workflows/workflow_view.rs` and its `alias_argument_selector.rs`/`argument_editor.rs`); `arguments.rs` is also used by `notebooks/editor/notebook_command.rs`. Only `modal.rs` (wired into `workspace/view.rs` as `WorkflowModal`/`WorkflowModalEvent`, itself supposedly one of Phase 2's already-hidden "Save as workflow"/"Import to Drive" sites, not independently re-verified this round) and `ai_assist.rs` look like the genuine Drive-modal-only remainder. |
+   | `cloud_object_styling.rs` | **Not deletable, belongs in Track B.** | Used well outside Drive: `cloud_object/warp_drive_item.rs`, `workspace/view/vertical_tabs.rs`, `workflows/workflow_view.rs`, three `search/` files, `notebooks/editor/embedded_item.rs`. |
+   | `cloud_action_confirmation_dialog.rs` | **Not Drive-panel code at all.** | Its only caller is `settings_view/teams_page.rs` (leave-team/delete-team confirmation) — `drive/index.rs` never uses it. Misfiled under `drive/` by path. Whether it's deletable depends on whether the Teams settings page itself is still reachable after Phase 2 hid it from the sidebar — a settings-page question, not a Drive-panel one. |
+   | `cloud_object_naming_dialog.rs`, `empty_trash_confirmation_dialog.rs`, `items/item.rs`'s `WarpDriveRow` | **Confirmed panel-only**, no external callers found. | Still blocked on the same root cause as the rest: `index.rs` can't go until `panel.rs`/`DrivePanel` can go. |
+
+   So the practical next step for a future round is not "start on sub-step 1" but: decide the
+   breadcrumb click surface's fate, then resolve (or knowingly re-scope past) Track C's four call
+   sites — only after that does any of Track A's deletion list stop being blocked.
+
 3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
 
    **`remote_server` was attempted and reverted, deliberately.** Deleting the module and crate
