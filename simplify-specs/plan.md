@@ -770,6 +770,95 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    link handler (c) and breadcrumb family (d) call sites will still need companion edits in the
    same commits that remove the six methods, since they're guarded-dead rather than deleted.
 
+   **An eighth agent round found the seventh round's "real unblock" conclusion was wrong about
+   one of the six methods, `update_warp_drive_view`, and by extension about `ToolPanelView::
+   WarpDrive`/`panel.rs`/`index.rs` themselves — they are not dead, they back real, everyday,
+   account-free features, and deleting them is a regression, not a cleanup.**
+
+   The other five methods held up under a full compiler-driven sweep (delete, let `cargo check`
+   enumerate every remaining caller, fix each one, repeat) and are gone for real:
+   `has_warp_drive_initialized_sections`, `view_in_and_focus_warp_drive`,
+   `open_object_sharing_settings`, `move_to_drive_space` are deleted; `view_in_warp_drive` survives
+   because `set_selected_object` (kept — see below) still calls it. Four more dispatch chains that
+   fed exclusively into the five deleted methods came out with them, each independently confirmed
+   dead by its own evidence, not by association: the command-palette `ViewInWarpDrive` action
+   (`data_sources.rs` already said in a comment that nothing produces its `ItemSummary` anymore,
+   since the Drive search subtree that made them was deleted in `cfd45d52`); the breadcrumb
+   "view in Warp Drive" click for Notebook/Workflow/EnvVarCollection panes (already permanently
+   disabled by `d4f62eb5`, so the action it would dispatch could never fire — same shape as
+   `86e98d5c`'s WorkflowModal finding, given the same treatment: deleted, not re-guarded); Notebook's
+   "Move to `<team>` space" menu item (gated on `is_on_server()`, impossible with no warp-server
+   connection); and the invitee-email "open Drive share dialog" flows in `open_notebook`,
+   `NotebookView::load`, and `WorkflowView` (each requires a `settings.invitee_email` that only a
+   real server-issued invite link could supply). `root_view.rs`'s deep-link handler and
+   `workspace/view.rs`'s own `OpenWarpDriveLink` handler got their promised companion edits,
+   collapsing their now-dead per-type arms into the existing "unsupported" fallback. Landed as
+   `6802b408` (the sweep) and `371f6424` (the DrivePanel/DriveIndex methods orphaned by it:
+   `move_object_to_team_owner`, `set_focused_item`, `has_warp_drive_initialized_sections`,
+   `reset_and_open_to_main_index`, `has_initialized_sections`).
+
+   `update_warp_drive_view` is different in kind, not degree: it is a generic forwarder
+   (`left_panel_view.warp_drive_view().update(ctx, |warp_drive, ctx| update_fn(warp_drive, ctx))`)
+   that **other, unrelated, genuinely-reachable features** route through to reach real
+   `DrivePanel`/`DriveIndex` mutation logic that has nothing to do with the panel being visible.
+   Found by tracing one specific caller that looked anomalous — `pane_group::Event::
+   OpenAddPromptPane` (reachable from a terminal slash command, `/prompts` — still present after
+   `cfd45d52` only removed the command-palette search subtree, not the slash command) calls
+   `drive_panel.create_workflow_with_content`/`open_cloud_object_dialog` to create a new
+   AI-agent-mode workflow with **no account or Drive-tab click required**. Pulling that thread
+   further: `WorkspaceAction::CreatePersonalFolder`/`CreateTeamFolder`/`CreateTeamNotebook`/
+   `CreateTeamEnvVarCollection` all call the same `open_cloud_object_dialog`, and — critically —
+   also set `current_workspace_state.is_warp_drive_open = true` themselves, which only does
+   anything because `ToolPanelView::WarpDrive`/`LeftPanelAction::WarpDrive` still exist to switch
+   the left panel to it. `CloudObjectNamingDialog` (the "name your new folder" prompt) is rendered
+   from *inside* `DriveIndex::render()` — it is not a standalone overlay like the app's other
+   modals — so if the tab that shows `DriveIndex` can never be selected, the dialog these actions
+   open is invisible and the object silently never gets named. **`CreatePersonalFolder` needs no
+   team and no account**: creating a personal folder is an ordinary, always-available action in
+   this build, and it was about to be silently broken.
+
+   This was caught before landing: a first pass deleted the whole tab-plumbing family (commit not
+   kept), got a clean compile and a full green test run — `cargo nextest` does not exercise "click
+   the button, does a dialog appear" — and only the `create_cloud_object_dialog` render chain
+   would have caught it, which nothing in the suite does. Reverted with `git checkout` before
+   committing anything broken; re-landed the round with `ToolPanelView::WarpDrive`,
+   `LeftPanelAction::WarpDrive`, `MouseStateHandles::warp_drive_button`, `LeftPanelView::
+   warp_drive_view`/`warp_drive_view()`, `CurrentWorkspaceState::is_warp_drive_open`,
+   `open_or_toggle_warp_drive`, `WorkspaceAction::ToggleWarpDrive`, and every other piece of Track
+   A's originally-scoped "tab/enum plumbing" (sub-step 1) and "keyboard-nav fallbacks" (sub-step 3)
+   left untouched. Two toast-driven `WorkspaceAction`s needed small fixes rather than deletion,
+   since they're reachable independent of everything above: `ViewObjectInWarpDrive` (the "Plan
+   synced to your Warp Drive" toast's "View" link, shown after any successful local create/update)
+   now calls the surviving `view_in_warp_drive` instead of the deleted `view_in_and_focus_warp_drive`;
+   `OpenObjectSharingSettings` (dispatched only by `sharing/dialog/inheritance.rs`'s "inherited from
+   `<parent folder>`" link) is now a no-op, since its one caller needs ACL data synced from
+   warp-server — impossible here — so it was already unreachable, but `sharing/` is otherwise live
+   code and not this round's to redesign.
+
+   **Track A's sub-steps 1 ("tab/enum plumbing") and most of 6 ("delete `panel.rs`/`index.rs`") are
+   not safe to attempt, full stop, not just "not yet attempted."** `DrivePanel`/`DriveIndex` are not
+   a dead UI shell wrapping a few load-bearing types the way `sharing/dialog/`, `folders/mod.rs`,
+   and `items/mod.rs`'s trait were (Track B's finding) — they are also the *only implementation* of
+   several real, reachable, account-free object-creation flows (new personal folder, new team
+   folder/notebook/env-var-collection, new agent-mode prompt via `/prompts`), invoked through a
+   left-panel tab that is permanently unselectable via normal navigation (the toolbelt button and
+   `ToggleWarpDrive` binding both gate on `is_warp_drive_enabled`, always false) but is still
+   force-switched-to programmatically by exactly those flows so their naming dialog has somewhere
+   to render. Deleting the tab without first giving those dialogs a new, non-Drive-panel home is a
+   redesign of "how does the app prompt for a new object's name," not a deletion — out of scope for
+   an agent round scoped as cleanup. A future round could pursue this (extract
+   `CloudObjectNamingDialog`'s render into a real standalone overlay, callable without a `DriveIndex`
+   in the tree — mirroring how `SharingDialog` already stands alone after Track B), but it needs to
+   be scoped and attempted as that redesign, not folded into "finish Track A."
+
+   Sub-steps 2, 4, and 5 are now fully done (modulo the one method, `update_warp_drive_view`, that
+   turned out to belong with sub-step 6 instead). Sub-step 6 is done for every file this round could
+   confirm has no remaining reference to `DrivePanel`/`DriveIndex` — none, since the panel/index
+   themselves are staying — so no files were deleted from `app/src/drive/` this round; the inventory
+   from the fifth/sixth rounds (`items/item.rs`, the four dialogs, `drive_helpers.rs`,
+   `cloud_object_styling.rs`, `drive/workflows/`, `import/`, `export/`) is unchanged and still
+   pending, now clearly blocked on `panel.rs`/`index.rs` staying rather than on caller-tracing.
+
 3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
 
    **`remote_server` was attempted and reverted, deliberately.** Deleting the module and crate
