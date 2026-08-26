@@ -1570,10 +1570,21 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
             unmetered usage getter, and the last session-sharing selection-cursor code
             (`SelectionCursorRenderLocation` and its renderer). `remote_server` (step 3) was
             looked at again and set aside a second time — still needs its own pass.
+      - [x] **`drive` (2) is mostly done.** Nine rounds: the panel's own UI (settings page,
+            onboarding block, command-palette search, `/prompts` menu, dead dispatch chains) is
+            deleted; the load-bearing types (`SharingDialog`, `CloudFolder`, `WarpDriveItem`,
+            `DriveObjectType`) are relocated into `cloud_object`/`sharing`; the deep-link handler
+            and breadcrumb click surface fail fast instead of dead-ending; and object creation
+            (`CreatePersonalFolder`/`CreateTeamNotebook`/etc.) no longer force-opens the tab to
+            show its naming dialog. What's left — `panel.rs`/`index.rs`, `items/item.rs`, four
+            dialogs, `drive_helpers.rs`, `cloud_object_styling.rs`, `drive/workflows/`,
+            `import/`, `export/` — turned out load-bearing for local-object selection tracking,
+            focus, and undo-trash, not just cloud UI, so it stays with `cloud_object` (3) as a
+            refactor rather than a deletion.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
-            rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), plus `drive`
-            (2). The remaining dead `FeatureFlag` variants fall out of those (5), together with
-            the ~85 items 4e left dead but standing.
+            rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), now including
+            the remainder of `drive`. The remaining dead `FeatureFlag` variants fall out of those
+            (5), together with the ~85 items 4e left dead but standing.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
