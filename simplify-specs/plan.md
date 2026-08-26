@@ -721,6 +721,55 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    and neutralize (or confirm dead) the workflow modal and the AI Document menu item before
    assuming these six methods are safe to delete.
 
+   **A seventh agent round closed out both of those, and Track A's six blocked methods are now
+   caller-free.** Tracing `WorkflowModal::view_in_warp_drive`'s two call sites (a breadcrumb click
+   in the modal header, and `ForceClose` replaying a pending breadcrumb click) found both are
+   unreachable in production, not merely dead-ended like Track C's cases: the breadcrumb header
+   only renders when `self.breadcrumbs` is `Some`, which only happens when `self.workflow_id` is
+   `Some` — but `workflow_id` is set to `Some` only inside `populate()`, an
+   `#[allow(dead_code)]` method nothing calls outside `modal_tests.rs`; the modal's real entry
+   point, `open_with_new`, always sets it to `None`. So `compute_breadcrumbs` always produces
+   `None`, the breadcrumb header branch (and the `WorkflowModalAction::ViewInWarpDrive` it would
+   dispatch) never runs, and `clicked_breadcrumb` (read by `ForceClose`) is always `None` too —
+   the earlier "reachable from terminal/workspace's 'create workflow' actions" characterization was
+   about the modal itself, which is live, not about this specific breadcrumb sub-feature inside it,
+   which isn't. Deleted the whole dead thread (breadcrumbs/clicked_breadcrumb fields,
+   `compute_breadcrumbs` and the `CloudModel` subscription that only existed to call it, the
+   `ViewInWarpDrive` action/event variants, the breadcrumb header render branch) rather than
+   gating it, since — unlike the breadcrumb surfaces Track C fixed, which rendered and dead-ended
+   on click — this one never rendered at all (`86e98d5c`).
+
+   `ai_document_view.rs`'s "Show in Warp Drive" menu item turned out to be the same shape: it (and
+   its sibling "Copy link") only appears when `get_document_warp_drive_object_link` returns
+   `Some`, which requires `get_document_save_status` to return `Saved`, which requires `sync_id`
+   to resolve to `SyncId::ServerId`. Every place that sets a `ServerId` sync_id
+   (`set_document_server_backing` via `reconcile_document_server_backing`/
+   `reconcile_server_backed_notebook`, `create_document_from_notebook`,
+   `hydrate_saved_plan_from_warp_drive`) requires a matching notebook already present in
+   `CloudModel` with a real `ServerId` — i.e. an object actually synced from warp-server, which
+   per 3e/3f can never happen in this build. `sync_id` can reach `SyncId::ClientId` locally (giving
+   `AIDocumentSaveStatus::Saving`), but never `ServerId`/`Saved`, so the menu item was never
+   pushed. Deleted `AIDocumentAction::ShowInWarpDrive`, its `handle_action` arm, the menu item
+   construction, `AIDocumentEvent::ViewInWarpDrive`, and the `ai_document_pane.rs` handler that
+   forwarded it to `pane_group::Event::ViewInWarpDrive` (`333db0be`). Left "Copy link" alone — same
+   always-false gate, but it doesn't call into Warp Drive, so it's out of scope here; a future
+   clippy sweep can revisit it alongside the already-known-dead command-palette
+   `ViewInWarpDrive` action.
+
+   Re-verified all six methods (`has_warp_drive_initialized_sections`,
+   `view_in_and_focus_warp_drive`, `view_in_warp_drive`, `open_object_sharing_settings`,
+   `move_to_drive_space`, `update_warp_drive_view`) against the whole `app/src` tree: every
+   remaining textual caller is now either (a) `workspace/view.rs`'s own internal calls between the
+   six methods, (b) `drive/panel.rs`'s identically-named `DrivePanel` methods (a different struct,
+   itself part of Track A's deletion list), (c) `root_view.rs`'s deep-link handler (Track C,
+   guarded dead by `419746ae`), or (d) the breadcrumb-emitting `WorkflowView`/`NotebookView`/
+   `EnvVarCollectionView`/`pane_group` family (Track C, disabled by `d4f62eb5`). No caller remains
+   outside those four already-accounted-for groups. **This is the real unblock: Track A's deletion
+   (the `ToolPanelView::WarpDrive` tab plumbing, `panel.rs`/`index.rs` themselves, and everything
+   else on its sub-step list) can now proceed without re-tracing any of this**, though the deep-
+   link handler (c) and breadcrumb family (d) call sites will still need companion edits in the
+   same commits that remove the six methods, since they're guarded-dead rather than deleted.
+
 3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
 
    **`remote_server` was attempted and reverted, deliberately.** Deleting the module and crate
