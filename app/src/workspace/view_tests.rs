@@ -2073,6 +2073,40 @@ fn test_open_or_toggle_warp_drive() {
 }
 
 #[test]
+// Regression test for the Phase 4 Warp Drive redesign: creating a personal folder (or a team
+// folder/notebook/env var collection) must show its naming dialog without needing the Warp
+// Drive tab to be open. An earlier attempt at removing the tab silently broke this, because
+// nothing else in the suite checks whether the naming dialog is actually visible.
+fn test_create_personal_folder_shows_naming_dialog_without_opening_warp_drive_tab() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            assert!(
+                !workspace.cloud_object_naming_modal.as_ref(ctx).is_open(ctx),
+                "Naming dialog should start closed"
+            );
+            assert!(
+                !workspace.current_workspace_state.is_warp_drive_open,
+                "Warp Drive tab should start closed"
+            );
+
+            workspace.handle_action(&WorkspaceAction::CreatePersonalFolder, ctx);
+
+            assert!(
+                workspace.cloud_object_naming_modal.as_ref(ctx).is_open(ctx),
+                "Creating a personal folder should open the standalone naming dialog"
+            );
+            assert!(
+                !workspace.current_workspace_state.is_warp_drive_open,
+                "Creating a personal folder should not need to open the Warp Drive tab"
+            );
+        });
+    });
+}
+
+#[test]
 // This tests the end-to-end behavior to correctly switch focus among panels.
 // (The only panels that can be focused currently are WD, workspace, & the agent panel.)
 fn test_switch_focus_panels() {

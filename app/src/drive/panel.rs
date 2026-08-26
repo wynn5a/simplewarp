@@ -48,6 +48,15 @@ pub struct DrivePanel {
     mouse_state_handles: MouseStateHandles,
 }
 
+impl DrivePanel {
+    /// A handle to the underlying `DriveIndex`, for callers that need to observe or render
+    /// its state (e.g. `CloudObjectNamingModal`'s standalone dialog) without going through
+    /// the Warp Drive tab.
+    pub(crate) fn index_view(&self) -> &ViewHandle<DriveIndex> {
+        &self.index_view
+    }
+}
+
 #[derive(Clone, Default)]
 struct MouseStateHandles {
     focus_panel_mouse_state: MouseStateHandle,

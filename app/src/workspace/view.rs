@@ -256,6 +256,7 @@ use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::context_chips::ChipRuntimeCapabilities;
 use crate::default_terminal::DefaultTerminal;
+use crate::drive::cloud_object_naming_dialog::CloudObjectNamingModal;
 use crate::drive::export::ExportManager;
 use crate::drive::import::modal::{ImportModal, ImportModalEvent};
 use crate::drive::settings::{WarpDriveSettings, WarpDriveSettingsChangedEvent};
@@ -1063,6 +1064,10 @@ pub struct Workspace {
     auth_override_warning_modal: ViewHandle<AuthOverrideWarningModal>,
     require_login_modal: ViewHandle<AuthView>,
     workflow_modal: ViewHandle<WorkflowModal>,
+    /// Standalone rendering of `DriveIndex`'s cloud-object naming dialog (new folder/notebook/
+    /// env var collection), shown as a floating modal without requiring the Warp Drive tab to
+    /// be open. See `CloudObjectNamingModal` for details.
+    cloud_object_naming_modal: ViewHandle<CloudObjectNamingModal>,
     prompt_editor_modal: ViewHandle<PromptEditorModal>,
     agent_toolbar_editor_modal: ViewHandle<AgentToolbarEditorModal>,
     header_toolbar_editor_modal: ViewHandle<HeaderToolbarEditorModal>,
@@ -2935,6 +2940,18 @@ impl Workspace {
             me.handle_left_panel_event(event, ctx);
         });
 
+        // A standalone rendering of the Warp Drive naming dialog (new folder/notebook/env var
+        // collection), so object-creation actions don't need the Warp Drive tab to be open for
+        // their naming prompt to be visible. See `CloudObjectNamingModal`.
+        let drive_index_view = left_panel_view
+            .as_ref(ctx)
+            .warp_drive_view()
+            .as_ref(ctx)
+            .index_view()
+            .clone();
+        let cloud_object_naming_modal =
+            ctx.add_typed_action_view(|_| CloudObjectNamingModal::new(drive_index_view));
+
         let right_panel_view = ctx.add_typed_action_view(|ctx| {
             RightPanelView::new(working_directories_model.clone(), ctx)
         });
@@ -3286,6 +3303,7 @@ impl Workspace {
             build_plan_migration_modal,
             require_login_modal,
             workflow_modal,
+            cloud_object_naming_modal,
             theme_creator_modal,
             theme_deletion_modal,
             import_modal,
@@ -23184,7 +23202,6 @@ impl TypedActionView for Workspace {
                             ctx,
                         );
                     });
-                    self.current_workspace_state.is_warp_drive_open = true;
                     ctx.notify();
                 }
             }
@@ -23212,7 +23229,6 @@ impl TypedActionView for Workspace {
                             ctx,
                         );
                     });
-                    self.current_workspace_state.is_warp_drive_open = true;
                     ctx.notify();
                 }
             }
@@ -23260,7 +23276,6 @@ impl TypedActionView for Workspace {
                         ctx,
                     );
                 });
-                self.current_workspace_state.is_warp_drive_open = true;
                 ctx.notify();
             }
             CreateTeamFolder => {
@@ -23274,7 +23289,6 @@ impl TypedActionView for Workspace {
                             ctx,
                         );
                     });
-                    self.current_workspace_state.is_warp_drive_open = true;
                     ctx.notify();
                 }
             }
@@ -25918,6 +25932,10 @@ impl View for Workspace {
 
         if self.workflow_modal.as_ref(app).is_open() {
             stack.add_child(ChildView::new(&self.workflow_modal).finish());
+        }
+
+        if self.cloud_object_naming_modal.as_ref(app).is_open(app) {
+            stack.add_child(ChildView::new(&self.cloud_object_naming_modal).finish());
         }
 
         if self.current_workspace_state.is_prompt_editor_open {

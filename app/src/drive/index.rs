@@ -5079,6 +5079,12 @@ impl DriveIndex {
     pub fn sections(&self) -> &Vec<DriveIndexSection> {
         &self.sections
     }
+
+    /// The naming dialog's live state, for callers that render it as a standalone modal
+    /// (e.g. `CloudObjectNamingModal`) instead of via `DriveIndex`'s own in-place rendering.
+    pub(crate) fn cloud_object_naming_dialog(&self) -> &CloudObjectNamingDialog {
+        &self.cloud_object_naming_dialog
+    }
 }
 
 pub fn warp_drive_section_header_position_id(section: &DriveIndexSection) -> String {

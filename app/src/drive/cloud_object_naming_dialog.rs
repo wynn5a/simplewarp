@@ -7,9 +7,11 @@ use warpui::platform::Cursor;
 use warpui::presenter::ChildView;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{AppContext, Element, ViewHandle};
+use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+};
 
-use super::index::DriveIndexAction;
+use super::index::{DriveIndex, DriveIndexAction};
 use crate::appearance::Appearance;
 use crate::cloud_object::{DriveObjectType, Space};
 use crate::editor::EditorView;
@@ -325,5 +327,58 @@ impl CloudObjectNamingDialog {
             ctx.dispatch_typed_action(DriveIndexAction::CloseCloudObjectNamingDialog)
         })
         .finish()
+    }
+}
+
+/// Renders `DriveIndex`'s naming dialog as a standalone, floating modal (like `WorkflowModal`
+/// or the various other app-level modals), instead of requiring `DriveIndex` itself — and so the
+/// Warp Drive tab — to be in the view tree. `DriveIndex` remains the sole owner of the dialog's
+/// state and creation/rename logic; this is a transparent read/dispatch shim over the real
+/// `DriveIndex` view, not a second copy of the dialog.
+pub struct CloudObjectNamingModal {
+    drive_index: ViewHandle<DriveIndex>,
+}
+
+impl CloudObjectNamingModal {
+    pub(crate) fn new(drive_index: ViewHandle<DriveIndex>) -> Self {
+        Self { drive_index }
+    }
+
+    pub(crate) fn is_open(&self, app: &AppContext) -> bool {
+        self.drive_index
+            .as_ref(app)
+            .cloud_object_naming_dialog()
+            .is_open()
+    }
+}
+
+impl Entity for CloudObjectNamingModal {
+    type Event = ();
+}
+
+impl View for CloudObjectNamingModal {
+    fn ui_name() -> &'static str {
+        "CloudObjectNamingModal"
+    }
+
+    fn render(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
+        self.drive_index
+            .as_ref(app)
+            .cloud_object_naming_dialog()
+            .render(appearance, app)
+    }
+}
+
+impl TypedActionView for CloudObjectNamingModal {
+    type Action = DriveIndexAction;
+
+    fn handle_action(&mut self, action: &DriveIndexAction, ctx: &mut ViewContext<Self>) {
+        // Forward straight to the real `DriveIndex`, which owns the dialog's state and
+        // performs the actual create/rename/close logic. This view exists only to make that
+        // state visible and interactive without the Warp Drive tab being open.
+        self.drive_index.update(ctx, |drive_index, ctx| {
+            drive_index.handle_action(action, ctx);
+        });
     }
 }
