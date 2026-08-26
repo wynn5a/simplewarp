@@ -859,6 +859,54 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `cloud_object_styling.rs`, `drive/workflows/`, `import/`, `export/`) is unchanged and still
    pending, now clearly blocked on `panel.rs`/`index.rs` staying rather than on caller-tracing.
 
+   **A ninth agent round did the redesign the eighth round scoped out — `CloudObjectNamingDialog`
+   now has a standalone render path — and this landed cleanly (`e98f8de3`), but it does NOT unblock
+   Track A the way the eighth round's write-up implied it would.**
+
+   The established pattern for a standalone modal in this app (`WorkflowModal`, `ThemeCreatorModal`,
+   `ModalViewState<T>` and its users) is: an app-level `ViewHandle<T: View>` field on `Workspace`,
+   conditionally spliced into `Workspace::render()`'s own top-level `Stack` (next to `workflow_modal`
+   at line ~25919) whenever it should be visible — independent of whatever tab/panel is or isn't
+   selected. Reused verbatim rather than inventing anything: a new `CloudObjectNamingModal` (in
+   `drive/cloud_object_naming_dialog.rs`, next to the dialog it wraps) holds a `ViewHandle<DriveIndex>`
+   and does nothing but read that `DriveIndex`'s already-existing `cloud_object_naming_dialog` field
+   for `is_open()`/`render()`, and forward `DriveIndexAction`s back to the real `DriveIndex::handle_action`
+   for `Create`/`Rename`/`Close`. **Zero lines changed inside `CloudObjectNamingDialog` itself** — its
+   render tree, its `ctx.dispatch_typed_action(DriveIndexAction::...)` calls, and its create/rename
+   logic are byte-for-byte what they were; only a new, thin, always-mounted View sits between it and
+   `Workspace`'s modal stack. `CreatePersonalFolder`/`CreateTeamFolder`/`CreateTeamNotebook`/
+   `CreateTeamEnvVarCollection` now call the same `open_cloud_object_dialog` as before (that's still
+   what actually opens the dialog's state) but no longer also set `is_warp_drive_open = true`. A new
+   test (`test_create_personal_folder_shows_naming_dialog_without_opening_warp_drive_tab`) dispatches
+   `CreatePersonalFolder` and asserts the standalone modal reports `is_open()` while
+   `is_warp_drive_open` stays false — the exact assertion the eighth round noted nothing in the suite
+   could make, and the one a bad Track A deletion would fail.
+
+   **Re-checking `update_warp_drive_view`'s callers (the eighth round's stated precondition for
+   revisiting Track A) found six more beyond the four now-fixed naming-dialog actions, all real and
+   all unrelated to dialog visibility:** `set_selected_object` (called from `open_notebook` and
+   friends — i.e. every time `CreatePersonalNotebook`, `CreatePersonalWorkflow`, or any existing-object
+   open happens, reachable with no account), `reset_focused_index_in_warp_drive` and the two
+   `is_warp_drive_open`/`set_focused_index` helpers, `pane_group::Event::OpenAddPromptPane` (the
+   `/prompts` slash command, still calling `drive_panel.create_workflow_with_content`/
+   `open_cloud_object_dialog` directly), and `WorkspaceAction::UndoTrash` (a toast "Undo" button after
+   trashing any object). None of these force `is_warp_drive_open = true`, so none of them were part of
+   the bug this round fixed — but all of them call real `DrivePanel`/`DriveIndex` methods that do real
+   work (selection bookkeeping, workflow/folder creation, trash restoration), regardless of whether the
+   tab is ever visually selected. **The eighth round's "nothing legitimate needs to force-open it
+   anymore" was conflating two different things: force-opening the tab for dialog visibility (now
+   fixed) and `DrivePanel`/`DriveIndex` existing at all as the implementation of these flows (never
+   only a visibility question).** `panel.rs`/`index.rs` are exactly as load-bearing after this round
+   as before it — Track A's sub-steps 1 and 6 remain correctly blocked, and no attempt was made to
+   delete the tab/panel plumbing or sweep the pending `app/src/drive/` file inventory this round.
+
+   Acceptance: `cargo nextest run -p warp --lib` — 6000 pass, 0 fail, 4 skipped (consistent with the
+   established baseline). `cargo clippy -p warp --lib --all-targets` — no new warnings; every existing
+   warning is in an unrelated file. `cargo check --all-targets` (workspace and `-p integration`),
+   `--no-default-features --features simplewarp --bin simplewarp` — all clean. `./script/format
+   --check` clean. Not re-run in the app — same testing-constraint note as every prior round in this
+   section.
+
 3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
 
    **`remote_server` was attempted and reverted, deliberately.** Deleting the module and crate
