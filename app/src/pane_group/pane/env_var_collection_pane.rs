@@ -7,7 +7,6 @@ use super::{
     ShareableLinkError,
 };
 use crate::app_state::{EnvVarCollectionPaneSnapshot, LeafContents};
-use crate::cloud_object::WarpDriveItemId;
 use crate::env_vars::EnvVarCollectionType;
 use crate::env_vars::manager::{EnvVarCollectionManager, EnvVarCollectionSource};
 use crate::env_vars::view::env_var_collection::{EnvVarCollectionEvent, EnvVarCollectionView};
@@ -169,7 +168,6 @@ fn handle_env_var_collection_event(
         EnvVarCollectionEvent::Pane(pane_event) => {
             group.handle_pane_event(pane_id, pane_event, ctx)
         }
-        EnvVarCollectionEvent::ViewInWarpDrive(id) => view_in_warp_drive(*id, ctx),
         EnvVarCollectionEvent::Invoke(env_var_collection) => {
             invoke_env_var_collection(env_var_collection.clone(), ctx)
         }
@@ -187,8 +185,4 @@ fn invoke_env_var_collection(
         env_var_collection: env_var_collection.into(),
         in_subshell: false,
     })
-}
-
-fn view_in_warp_drive(id: WarpDriveItemId, ctx: &mut ViewContext<PaneGroup>) {
-    ctx.emit(crate::pane_group::Event::ViewInWarpDrive(id))
 }

@@ -51,7 +51,6 @@ use anyhow::Result;
 use autoupdate::AutoupdateStage;
 #[cfg(target_os = "macos")]
 use command::blocking::Command;
-use futures::Future;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 pub(crate) use onboarding::OnboardingTutorial;
@@ -322,7 +321,7 @@ use crate::server::telemetry::{
     AddTabWithShellSource, AnonymousUserSignupEntrypoint, CloseTarget, EnvVarTelemetryMetadata,
     FileTreeSource, KnowledgePaneEntrypoint, LaunchConfigUiLocation,
     MCPServerCollectionPaneEntrypoint, NotificationsTurnedOnSource, OpenedWarpAISource,
-    PaletteSource, SharingDialogSource, TabRenameEvent, WarpDriveSource,
+    PaletteSource, TabRenameEvent, WarpDriveSource,
 };
 use crate::session_management::{SessionNavigationData, SessionSource, TabNavigationData};
 use crate::settings::cloud_preferences::CloudPreferencesSettings;
@@ -4478,17 +4477,6 @@ impl Workspace {
         });
     }
 
-    pub fn has_warp_drive_initialized_sections(
-        &self,
-        app: &AppContext,
-    ) -> impl Future<Output = ()> + use<> {
-        self.left_panel_view
-            .as_ref(app)
-            .warp_drive_view()
-            .as_ref(app)
-            .has_warp_drive_initialized_sections(app)
-    }
-
     /// Check if Warp Drive view is focused within.
     /// Routes to the appropriate Warp Drive panel.
     fn is_warp_drive_view_focused(&self, ctx: &mut ViewContext<Self>) -> bool {
@@ -7857,17 +7845,6 @@ impl Workspace {
                     root_view,
                     "root_view:handle_pane_navigation_event",
                     &locator,
-                );
-            }
-            // If the was an invitee email, open the share dialog as well after focusing the pane.
-            if let Some(invitee_email) = settings.invitee_email.clone()
-                && let NotebookSource::Existing(sync_id) = source
-            {
-                self.open_object_sharing_settings(
-                    CloudObjectTypeAndId::from_id_and_type(*sync_id, ObjectType::Notebook),
-                    Some(invitee_email),
-                    SharingDialogSource::InviteeRequest,
-                    ctx,
                 );
             }
         } else if default_to_new_pane {
@@ -14002,9 +13979,6 @@ impl Workspace {
                 ctx,
                 true,
             ),
-            CommandPaletteEvent::ViewInWarpDrive { id } => {
-                self.view_in_and_focus_warp_drive(WarpDriveItemId::Object(*id), ctx);
-            }
             #[allow(unused_variables)]
             CommandPaletteEvent::OpenFile {
                 path,
@@ -14084,21 +14058,6 @@ impl Workspace {
         });
     }
 
-    /// This function is used when we want to view an item in Warp Drive AND focus Warp Drive.
-    pub fn view_in_and_focus_warp_drive(
-        &mut self,
-        item_id: WarpDriveItemId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.view_in_warp_drive(item_id, ctx);
-
-        self.update_warp_drive_view(ctx, |warp_drive, ctx| {
-            warp_drive.reset_and_open_to_main_index(ctx);
-            warp_drive.set_focused_item(item_id, ctx);
-        });
-        ctx.notify();
-    }
-
     /// Updates the left panel's warp drive view.
     fn update_warp_drive_view<F>(&mut self, ctx: &mut ViewContext<Self>, update_fn: F)
     where
@@ -14108,34 +14067,6 @@ impl Workspace {
             left_panel.warp_drive_view().update(ctx, |warp_drive, ctx| {
                 update_fn(warp_drive, ctx);
             });
-        });
-    }
-
-    /// View an object in Warp Drive and open its sharing settings.
-    fn open_object_sharing_settings(
-        &mut self,
-        object_id: CloudObjectTypeAndId,
-        invitee_email: Option<String>,
-        source: SharingDialogSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.view_in_warp_drive(WarpDriveItemId::Object(object_id), ctx);
-        self.update_warp_drive_view(ctx, |warp_drive, ctx| {
-            warp_drive.reset_and_open_to_main_index(ctx);
-            warp_drive.open_object_sharing_settings(object_id, invitee_email, source, ctx);
-        });
-
-        ctx.notify();
-    }
-
-    fn move_to_drive_space(
-        &mut self,
-        cloud_object_type_and_id: CloudObjectTypeAndId,
-        space: Space,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.update_warp_drive_view(ctx, |warp_drive, ctx| {
-            warp_drive.move_object_to_team_owner(cloud_object_type_and_id, space, ctx);
         });
     }
 
@@ -14188,15 +14119,6 @@ impl Workspace {
             }
             SettingsViewEvent::LaunchNetworkLogging => {
                 self.open_network_log_pane(ctx);
-            }
-            SettingsViewEvent::OpenWarpDrive => {
-                self.close_all_overlays(ctx);
-                self.open_or_toggle_warp_drive(
-                    false, /* toggle */
-                    false, /* explicit_user_action */
-                    ctx,
-                );
-                ctx.notify();
             }
             SettingsViewEvent::SignupAnonymousUser => {
                 self.initiate_user_signup(AnonymousUserSignupEntrypoint::SignUpButton, ctx);
@@ -15249,12 +15171,6 @@ impl Workspace {
                     self.open_file_notebook(path.clone(), Some(session.clone()), layout, None, ctx);
                 }
             }
-            pane_group::Event::MoveToSpace {
-                cloud_object_type_and_id,
-                space,
-            } => {
-                self.move_to_drive_space(*cloud_object_type_and_id, *space, ctx);
-            }
             pane_group::Event::OpenWarpDriveLink {
                 open_warp_drive_args,
             } => {
@@ -15273,35 +15189,20 @@ impl Workspace {
                     return;
                 }
 
-                let server_id = open_warp_drive_args.server_id;
                 match open_warp_drive_args.object_type {
                     ObjectType::Notebook => self.open_notebook(
-                        &NotebookSource::Existing(SyncId::ServerId(server_id)),
+                        &NotebookSource::Existing(SyncId::ServerId(open_warp_drive_args.server_id)),
                         &open_warp_drive_args.settings,
                         ctx,
                         true,
                     ),
-                    ObjectType::Workflow => self.view_in_and_focus_warp_drive(
-                        WarpDriveItemId::Object(CloudObjectTypeAndId::Workflow(SyncId::ServerId(
-                            server_id,
-                        ))),
-                        ctx,
-                    ),
-                    ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
-                        JsonObjectType::EnvVarCollection,
-                    )) => self.view_in_and_focus_warp_drive(
-                        WarpDriveItemId::Object(CloudObjectTypeAndId::from_generic_string_object(
-                            GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection),
-                            SyncId::ServerId(server_id),
-                        )),
-                        ctx,
-                    ),
-                    ObjectType::Folder => self.view_in_and_focus_warp_drive(
-                        WarpDriveItemId::Object(CloudObjectTypeAndId::Folder(SyncId::ServerId(
-                            server_id,
-                        ))),
-                        ctx,
-                    ),
+                    // The other arms used to route into the Warp Drive left-panel tab's focused
+                    // item, via `view_in_and_focus_warp_drive` (removed — see
+                    // simplify-specs/plan.md, Phase 4 Track A: its only other caller,
+                    // `CommandPaletteEvent::ViewInWarpDrive`, was already unconstructed dead code).
+                    // The `object_found` guard above already makes this branch unreachable in
+                    // practice, since a `ServerId`-keyed object can never resolve with no
+                    // warp-server connection.
                     _ => {
                         log::warn!("Attempted to open an unsupported Warp Drive link")
                     }
@@ -15418,9 +15319,6 @@ impl Workspace {
             pane_group::Event::FocusPaneInWorkspace { locator } => {
                 // Focus an existing pane by its locator (used when avoiding duplicate file panes during undo close pane)
                 self.focus_pane(*locator, ctx);
-            }
-            pane_group::Event::ViewInWarpDrive(id) => {
-                self.view_in_and_focus_warp_drive(*id, ctx);
             }
             // If focused pane contains an object, then set selected state in WD to that object
             pane_group::Event::PaneFocused => {
@@ -15883,18 +15781,6 @@ impl Workspace {
             }
             pane_group::Event::AnonymousUserSignup => {
                 self.initiate_user_signup(AnonymousUserSignupEntrypoint::RenotificationBlock, ctx);
-            }
-            pane_group::Event::OpenDriveObjectShareDialog {
-                cloud_object_type_and_id,
-                invitee_email,
-                source,
-            } => {
-                self.open_object_sharing_settings(
-                    *cloud_object_type_and_id,
-                    invitee_email.clone(),
-                    *source,
-                    ctx,
-                );
             }
             pane_group::Event::OpenPalette {
                 mode,
@@ -24050,11 +23936,15 @@ impl TypedActionView for Workspace {
             FocusRightPanel => self.focus_right_panel(ctx),
             ViewObjectInWarpDrive(item_id) => {
                 // Focus newly created object in WD
-                self.view_in_and_focus_warp_drive(*item_id, ctx);
+                self.view_in_warp_drive(*item_id, ctx);
+                ctx.notify();
             }
-            OpenObjectSharingSettings { object_id, source } => {
-                self.open_object_sharing_settings(*object_id, None, *source, ctx);
-            }
+            // The only dispatcher of this action (`sharing/dialog/inheritance.rs`'s "inherited
+            // from <parent folder>" link) requires ACL data synced from warp-server, which can
+            // never happen in this build (see simplify-specs/plan.md, Phase 4 Track A/C), so this
+            // was already unreachable. Left as a no-op rather than deleting the action, since
+            // `sharing/` is otherwise live code (it also serves AIConversation sharing).
+            OpenObjectSharingSettings { .. } => {}
             UndoTrash(cloud_object_type_and_id) => {
                 self.update_warp_drive_view(ctx, |warp_drive, ctx| {
                     warp_drive.undo_trash(cloud_object_type_and_id, ctx);

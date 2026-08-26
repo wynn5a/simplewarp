@@ -68,7 +68,7 @@ use crate::app_state::{
 use crate::appearance::Appearance;
 use crate::banner::{Banner, BannerEvent, BannerState, BannerTextContent, DismissalType};
 use crate::channel::{Channel, ChannelState};
-use crate::cloud_object::{OpenWarpDriveObjectArgs, Space, WarpDriveItemId};
+use crate::cloud_object::OpenWarpDriveObjectArgs;
 use crate::code::active_file::ActiveFileModel;
 use crate::code::buffer_location::LocalOrRemotePath;
 #[cfg(feature = "local_fs")]
@@ -76,7 +76,6 @@ use crate::code::editor_management::CodeSource;
 use crate::code::view::{CodeView, CodeViewAction};
 use crate::code_review::comments::{AttachedReviewComment, PendingImportedReviewComment};
 use crate::code_review::diff_state::DiffMode;
-use crate::drive::CloudObjectTypeAndId;
 use crate::env_vars::EnvVarCollectionType;
 use crate::features::FeatureFlag;
 use crate::launch_configs::launch_config::{self, PaneMode, PaneTemplateType};
@@ -91,9 +90,7 @@ use crate::quit_warning::UnsavedStateSummary;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ObjectUid, SyncId};
 use crate::server::server_api::ServerApi;
-use crate::server::telemetry::{
-    AnonymousUserSignupEntrypoint, PaletteSource, SharingDialogSource, TelemetryEvent,
-};
+use crate::server::telemetry::{AnonymousUserSignupEntrypoint, PaletteSource, TelemetryEvent};
 use crate::session_management::SessionNavigationData;
 use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
@@ -505,13 +502,6 @@ pub enum Event {
     OpenWorkflowModalWithCommand(String),
     // Tell the workspace to open the workflow for edit.
     OpenCloudWorkflowForEdit(SyncId),
-    // Tell the workspace to open the share dialog for the given drive object. The share dialog will
-    // open in the index. If the invitee email is provided, it will be added to the share dialog.
-    OpenDriveObjectShareDialog {
-        cloud_object_type_and_id: CloudObjectTypeAndId,
-        invitee_email: Option<String>,
-        source: SharingDialogSource,
-    },
     // Tell the workspace to open the workflow modal with an unsaved workflow.
     OpenWorkflowModalWithTemporary(Box<Workflow>),
     OpenPromptEditor,
@@ -568,11 +558,6 @@ pub enum Event {
     },
     FocusPaneInWorkspace {
         locator: PaneViewLocator,
-    },
-    ViewInWarpDrive(WarpDriveItemId),
-    MoveToSpace {
-        cloud_object_type_and_id: CloudObjectTypeAndId,
-        space: Space,
     },
     PaneFocused,
     DroppedOnTabBar {

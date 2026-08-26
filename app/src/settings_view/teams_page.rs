@@ -182,7 +182,6 @@ pub enum TeamsPageAction {
     SendEmailInvites {
         team_uid: ServerId,
     },
-    OpenWarpDrive,
     GenerateUpgradeLink {
         team_uid: ServerId,
     },
@@ -296,7 +295,6 @@ impl TryFrom<&TeamsPageAction> for TelemetryEvent {
 #[derive(Clone)]
 pub enum TeamsPageViewEvent {
     TeamsChanged,
-    OpenWarpDrive,
     ShowToast {
         message: String,
         flavor: ToastFlavor,
@@ -544,7 +542,6 @@ impl TypedActionView for TeamsPageView {
                 self.send_email_invites(*team_uid, ctx);
                 ctx.notify();
             }
-            TeamsPageAction::OpenWarpDrive => ctx.emit(TeamsPageViewEvent::OpenWarpDrive),
             TeamsPageAction::ShowLeaveTeamConfirmationDialog => {
                 self.show_team_action_confirmation(
                     CloudActionConfirmationDialogVariant::LeaveTeam,

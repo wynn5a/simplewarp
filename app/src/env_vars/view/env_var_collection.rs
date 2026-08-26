@@ -23,7 +23,7 @@ use super::menus::Menus;
 use crate::ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels;
 use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{CloudObjectEventEntrypoint, Owner, WarpDriveItemId};
+use crate::cloud_object::{CloudObjectEventEntrypoint, Owner};
 use crate::editor::EditorView;
 use crate::env_vars::active_env_var_collection_data::{
     ActiveEnvVarCollection, ActiveEnvVarCollectionData, ActiveEnvVarCollectionDataEvent,
@@ -304,7 +304,6 @@ pub struct EnvVarCollectionView {
 pub enum EnvVarCollectionEvent {
     Pane(PaneEvent),
     UpdatedEnvVarCollection(SyncId),
-    ViewInWarpDrive(WarpDriveItemId),
     Invoke(EnvVarCollectionType),
 }
 #[derive(Debug, Clone)]
@@ -339,8 +338,6 @@ pub enum EnvVarCollectionAction {
     // Unsaved changes dialog actions
     ForceClose,
     CloseUnsavedChangesDialog,
-    // Breadcrumbs action
-    ViewInWarpDrive(WarpDriveItemId),
 }
 
 /// Defines the view for a collection of environment variables
@@ -1093,10 +1090,6 @@ impl EnvVarCollectionView {
             });
     }
 
-    fn view_in_warp_drive(&mut self, id: WarpDriveItemId, ctx: &mut ViewContext<Self>) {
-        ctx.emit(EnvVarCollectionEvent::ViewInWarpDrive(id));
-    }
-
     // This is a public re-export of close since it's a trait method
     pub(super) fn close_env_var_collection(&mut self, ctx: &mut ViewContext<Self>) {
         self.close(ctx);
@@ -1300,14 +1293,16 @@ impl View for EnvVarCollectionView {
             Align::new(
                 ConstrainedBox::new(
                     Align::new(
+                        // Clicking a breadcrumb used to view the object in the Warp Drive
+                        // left-panel tab, which no longer exists (see simplify-specs/plan.md,
+                        // Phase 4 Track A). The breadcrumb is always non-interactive now
+                        // (`update_breadcrumbs` in fixed_view_components.rs disables the drive
+                        // link whenever Warp Drive is unavailable, which in this build is
+                        // always), so this callback can never fire.
                         Container::new(render_breadcrumbs(
                             self.breadcrumbs.clone(),
                             appearance,
-                            |ctx, _, breadcrumb| {
-                                ctx.dispatch_typed_action(EnvVarCollectionAction::ViewInWarpDrive(
-                                    breadcrumb.kind.into_item_id(),
-                                ));
-                            },
+                            |_, _, _| {},
                         ))
                         .with_horizontal_margin(CORE_HORIZONATAL_MARGIN)
                         .with_vertical_margin(CORE_VERTICAL_MARGIN / 2.)
@@ -1534,7 +1529,6 @@ impl TypedActionView for EnvVarCollectionView {
                 self.update_open_modal_state(ctx);
                 ctx.notify();
             }
-            EnvVarCollectionAction::ViewInWarpDrive(id) => self.view_in_warp_drive(*id, ctx),
         }
     }
 }

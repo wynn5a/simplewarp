@@ -60,18 +60,13 @@ use crate::auth::web_handoff::{WebHandoffEvent, WebHandoffView};
 use crate::auth::{AuthStateProvider, LoginFailureReason};
 use crate::autoupdate::{AutoupdateState, AutoupdateStateEvent, RequestType, UpdateReady};
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{
-    GenericStringObjectFormat, JsonObjectType, ObjectType, OpenWarpDriveObjectArgs,
-    OpenWarpDriveObjectSettings, WarpDriveItemId,
-};
-use crate::drive::CloudObjectTypeAndId;
+use crate::cloud_object::{ObjectType, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
 use crate::drive::export::ExportManager;
 use crate::experiments::{BlockOnboarding, Experiment};
 use crate::features::FeatureFlag;
 use crate::interval_timer::IntervalTimer;
 use crate::launch_configs::launch_config;
 use crate::linear::LinearIssueWork;
-use crate::notebooks::manager::NotebookSource;
 use crate::pane_group::{NewTerminalOptions, PanesLayout};
 use crate::persistence::ModelEvent;
 use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
@@ -3119,7 +3114,7 @@ impl RootView {
         arg: &OpenWarpDriveObjectArgs,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
+        if let AuthOnboardingState::Terminal(_handle) = &self.auth_onboarding_state {
             let cloud_model = CloudModel::as_ref(ctx);
 
             // No warp-server connection exists in this build (see `LOCAL_ONLY_MESSAGE` in
@@ -3133,70 +3128,15 @@ impl RootView {
                 return false;
             }
 
-            match arg.object_type {
-                ObjectType::Notebook => {
-                    handle.update(ctx, |workspace, ctx| {
-                        let initialized_section_states =
-                            workspace.has_warp_drive_initialized_sections(ctx);
-                        let notebook_id = SyncId::ServerId(arg.server_id);
-                        let settings = arg.settings.clone();
-                        let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
-                            workspace.open_notebook(
-                                &NotebookSource::Existing(notebook_id),
-                                &settings,
-                                ctx,
-                                false,
-                            );
-                        });
-                    });
-                }
-                ObjectType::Workflow => {
-                    handle.update(ctx, |workspace, ctx| {
-                        let initialized_section_states =
-                            workspace.has_warp_drive_initialized_sections(ctx);
-                        let workflow_id = SyncId::ServerId(arg.server_id);
-                        let settings = arg.settings.clone();
-                        let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
-                            workspace.open_workflow_from_intent(workflow_id, &settings, ctx);
-                        });
-                    });
-                }
-                ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
-                    JsonObjectType::EnvVarCollection,
-                )) => {
-                    let item_id =
-                        WarpDriveItemId::Object(CloudObjectTypeAndId::from_generic_string_object(
-                            GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection),
-                            SyncId::ServerId(arg.server_id),
-                        ));
-
-                    handle.update(ctx, |workspace, ctx| {
-                        let initialized_section_states =
-                            workspace.has_warp_drive_initialized_sections(ctx);
-                        let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
-                            workspace.view_in_and_focus_warp_drive(item_id, ctx);
-                        });
-                    });
-                }
-                ObjectType::Folder => {
-                    let item_id = WarpDriveItemId::Object(CloudObjectTypeAndId::Folder(
-                        SyncId::ServerId(arg.server_id),
-                    ));
-                    handle.update(ctx, |workspace, ctx| {
-                        let initialized_section_states =
-                            workspace.has_warp_drive_initialized_sections(ctx);
-                        let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
-                            workspace.view_in_and_focus_warp_drive(item_id, ctx);
-                        });
-                    });
-                }
-                _ => {
-                    log::info!(
-                        "Object type {:?} not support yet for opening via link",
-                        arg.object_type
-                    )
-                }
-            }
+            // Every arm below used to route into the Warp Drive left-panel tab, which no longer
+            // exists (see `simplify-specs/plan.md`, Phase 4 Track A). The guard above already
+            // makes this function unreachable in practice, since a `ServerId`-keyed object can
+            // never resolve with no warp-server connection — so there is nothing left to route to
+            // for any object type.
+            log::info!(
+                "Object type {:?} not supported for opening via link",
+                arg.object_type
+            );
 
             let window_id = ctx.window_id();
             ctx.windows().show_window_and_focus_app(window_id);

@@ -72,15 +72,12 @@ impl DetailsBar {
         header_row.add_child(
             Shrinkable::new(
                 2.,
-                render_breadcrumbs(
-                    self.breadcrumbs.iter().cloned(),
-                    appearance,
-                    |ctx, _, breadcrumb| {
-                        ctx.dispatch_typed_action(NotebookAction::ViewInWarpDrive(
-                            breadcrumb.kind.into_item_id(),
-                        ));
-                    },
-                ),
+                // Clicking a breadcrumb used to view the object in the Warp Drive left-panel
+                // tab, which no longer exists (see simplify-specs/plan.md, Phase 4 Track A). The
+                // breadcrumb is always non-interactive now (`update_breadcrumbs` above disables
+                // the drive link whenever Warp Drive is unavailable, which in this build is
+                // always), so this callback can never fire.
+                render_breadcrumbs(self.breadcrumbs.iter().cloned(), appearance, |_, _, _| {}),
             )
             .finish(),
         );
