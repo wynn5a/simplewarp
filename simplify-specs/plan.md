@@ -673,6 +673,54 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    breadcrumb click surface's fate, then resolve (or knowingly re-scope past) Track C's four call
    sites — only after that does any of Track A's deletion list stop being blocked.
 
+   **A sixth agent round neutralized both of the fifth round's blockers — Track C's deep-link
+   handler and the breadcrumb click surface — without touching the `DrivePanel`/`left_panel.rs`
+   wiring itself, which is still Track A's job for a future round.**
+
+   For the deep-link handler: traced whether `SyncId::ServerId` can ever resolve end-to-end. It
+   can't — `CloudModel` only gains `ServerId`-keyed entries via a successful server sync
+   (`upsert_from_server_object`), and every warp-server request already fails immediately (step
+   3e/3f's `LOCAL_ONLY_MESSAGE`/`local_only_error()`, unconditional regardless of cargo features,
+   not just in the `simplewarp` feature set). A third, independent implementation of the same fact
+   already existed to confirm this against: `workspace/view.rs`'s in-app `OpenWarpDriveLink` click
+   handler (for a `warp://drive/...` link clicked inside a notebook, as opposed to the OS-level
+   URI) already guards with `cloud_model.get_by_uid(...).is_none()` before falling through to a
+   "Resource not found or access denied" toast, and the existing-window deep-link handler's
+   `Folder`/`EnvVarCollection` arms already had the identical guard — only its `Notebook`/
+   `Workflow` arms, and the free-standing new-window `open_warp_drive_object`, were missing it and
+   would silently open a pane/window that could never load. Hoisted the check above the `match` in
+   `open_warp_drive_object_in_existing_window` so it applies to all four object types uniformly,
+   and added the same check to `open_warp_drive_object` (`419746ae`).
+
+   For the breadcrumb click surface: gave `ContainingObject`
+   (`app/src/cloud_object/breadcrumbs.rs`) a `drive_viewable` flag backing its existing
+   `Breadcrumb::enabled()` (previously hardcoded `true`) and a `disable_drive_link()` setter,
+   called from the three UI update sites (`WorkflowView::update_breadcrumb`,
+   `notebooks/notebook/details_bar.rs`'s `DetailsBar::update_breadcrumbs`,
+   `env_vars/view/fixed_view_components.rs`'s `EnvVarCollectionView::update_breadcrumbs`) whenever
+   `WarpDriveSettings::is_warp_drive_enabled(ctx)` is false. `Hoverable::dispatch_event` already
+   returns before reaching its click handler when disabled, so this reuses the existing
+   enable/disable mechanism rather than adding a new one (`d4f62eb5`). First attempt threaded the
+   same check into `containing_objects_path()` itself — the shared trait method the UI and the
+   plain-text `breadcrumbs()` helper both call — and it broke
+   `cloud_object::model::persistence::tests::test_breadcrumbs`, whose harness never registers the
+   `WarpDriveSettings` singleton; the fix belongs at the three UI call sites, not in the shared
+   data lookup.
+
+   Track A's six blocked methods are **not yet fully caller-free**, though: `drive/workflows/
+   modal.rs`'s `WorkflowModal` (reachable from `terminal`/`workspace`'s "create workflow" actions —
+   a live surface, not the independently-re-verified-unreachable one the fifth round's table
+   assumed it might be) still calls `view_in_warp_drive`, and `ai/ai_document_view.rs`'s "Show in
+   Warp Drive" pane-header menu item (shown whenever a document has a synced Drive link) still
+   calls `AIDocumentEvent::ViewInWarpDrive` → `view_in_and_focus_warp_drive`. Both were out of
+   scope this round. The command-palette `CommandPaletteItemAction::ViewInWarpDrive`/
+   `Event::ViewInWarpDrive` path (`search/command_palette/{mixer,view}.rs`) is already dead —
+   nothing constructs the action variant since `cfd45d52` deleted the Drive search subtree that
+   used to — but the compiler doesn't flag it (a `pub` enum variant, matched but never built), so
+   it's a leftover for the eventual clippy sweep, not a live blocker. A future round should trace
+   and neutralize (or confirm dead) the workflow modal and the AI Document menu item before
+   assuming these six methods are safe to delete.
+
 3. `app/src/auth/`, `app/src/remote_server/`, cloud paths in `app/src/workspaces/`.
 
    **`remote_server` was attempted and reverted, deliberately.** Deleting the module and crate
