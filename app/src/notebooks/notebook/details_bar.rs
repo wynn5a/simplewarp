@@ -14,6 +14,7 @@ use super::{EDIT_BUTTON_MARGIN, NotebookAction};
 use crate::appearance::Appearance;
 use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::view::{Editor, EditorState};
+use crate::drive::settings::WarpDriveSettings;
 use crate::notebooks::active_notebook_data::Mode;
 use crate::notebooks::styles;
 use crate::sharing::ContentEditability;
@@ -41,9 +42,19 @@ impl DetailsBar {
 
     /// Update the cached breadcrumbs in the notebook header.
     pub fn update_breadcrumbs(&mut self, notebook_data: &ActiveNotebookData, ctx: &AppContext) {
+        let drive_enabled = WarpDriveSettings::is_warp_drive_enabled(ctx);
         self.breadcrumbs = notebook_data
             .breadcrumbs(ctx)
-            .map(|breadcrumbs| breadcrumbs.into_iter().map(BreadcrumbState::new).collect())
+            .map(|mut breadcrumbs| {
+                if !drive_enabled {
+                    // Without an account, "view in Warp Drive" only lands on Drive's sign-in
+                    // dead end, so don't make the breadcrumb segments look clickable.
+                    breadcrumbs
+                        .iter_mut()
+                        .for_each(ContainingObject::disable_drive_link);
+                }
+                breadcrumbs.into_iter().map(BreadcrumbState::new).collect()
+            })
             .unwrap_or_default();
     }
 

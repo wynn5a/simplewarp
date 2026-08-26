@@ -51,6 +51,7 @@ use crate::cloud_object::{
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_workflow_limit;
+use crate::drive::settings::WarpDriveSettings;
 use crate::drive::workflows::ai_assist::GeneratedCommandMetadataError;
 use crate::drive::workflows::arguments::ArgumentsState;
 use crate::drive::workflows::enum_creation_dialog::{
@@ -1808,11 +1809,15 @@ impl WorkflowView {
         let workflow = self.get_cloud_workflow(ctx);
 
         if let Some(the_workflow) = workflow {
-            self.breadcrumbs = the_workflow
-                .containing_objects_path(ctx)
-                .into_iter()
-                .map(BreadcrumbState::new)
-                .collect();
+            let mut breadcrumbs = the_workflow.containing_objects_path(ctx);
+            if !WarpDriveSettings::is_warp_drive_enabled(ctx) {
+                // Without an account, "view in Warp Drive" only lands on Drive's sign-in dead
+                // end, so don't make the breadcrumb segments look clickable.
+                breadcrumbs
+                    .iter_mut()
+                    .for_each(ContainingObject::disable_drive_link);
+            }
+            self.breadcrumbs = breadcrumbs.into_iter().map(BreadcrumbState::new).collect();
         } else {
             log::warn!("Workflow not found from cloudmodel, could not update breadcrumb");
         }

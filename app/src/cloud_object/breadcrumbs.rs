@@ -12,6 +12,13 @@ use crate::ui_components::breadcrumb::Breadcrumb;
 pub struct ContainingObject {
     pub name: String,
     pub kind: ContainingObjectKind,
+    /// Whether clicking this breadcrumb to view the object in Warp Drive is worth wiring up.
+    /// Defaults to `true`; callers building a *clickable* breadcrumb trail should call
+    /// [`ContainingObject::disable_drive_link`] when Warp Drive itself isn't available (e.g. no
+    /// account), since the click would only land on Drive's "sign in" dead end. Kept out of
+    /// `containing_objects_path` itself (which has no `WarpDriveSettings` dependency and is also
+    /// used by plain-text callers like `breadcrumbs()`) so it stays a pure data lookup.
+    drive_viewable: bool,
 }
 
 impl Breadcrumb for ContainingObject {
@@ -20,7 +27,14 @@ impl Breadcrumb for ContainingObject {
     }
 
     fn enabled(&self) -> bool {
-        true
+        self.drive_viewable
+    }
+}
+
+impl ContainingObject {
+    /// Marks this breadcrumb as not worth clicking through to Warp Drive.
+    pub fn disable_drive_link(&mut self) {
+        self.drive_viewable = false;
     }
 }
 
@@ -29,6 +43,7 @@ impl From<&CloudFolder> for ContainingObject {
         Self {
             name: folder.display_name().clone(),
             kind: ContainingObjectKind::Object(CloudObjectTypeAndId::Folder(folder.id)),
+            drive_viewable: true,
         }
     }
 }
@@ -38,6 +53,7 @@ impl Space {
         ContainingObject {
             name: self.name(app).clone(),
             kind: ContainingObjectKind::Space(self),
+            drive_viewable: true,
         }
     }
 }
