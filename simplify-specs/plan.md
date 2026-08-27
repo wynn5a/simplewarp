@@ -1135,6 +1135,62 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
 
    No commits made. `cargo nextest`/`clippy`/`check`/`format` not run — no code changed.
 
+3i. **The 5 files 3h left unverified turned out to be a much bigger, single finding — the
+   entire post-login onboarding flow, not 3-5 small files.** Traced every construction site of
+   the 5 candidates:
+
+   - `needs_sso_link_view.rs`'s `NeedsSsoLinkView` and `AuthOnboardingState::NeedsSsoLink` are
+     **unconditionally dead in every build this fork produces**, independent of any feature
+     flag. Their only entry point, `RootView::show_needs_sso_link_view`, fires exclusively from
+     `handle_auth_manager_event`'s `AuthManagerEvent::AuthComplete` arm, and that event has
+     exactly one emission site in the whole workspace: `auth_manager.rs:555`, inside the `Ok`
+     branch of `on_user_fetched`, itself only reached via `fetch_user`'s round-trip to
+     warp-server/Firebase. Step 3e's `local_only_error()` stub has no `cfg` gate — its own
+     comment says so ("It applies to every feature set, not only `simplewarp`") — so that
+     round-trip can never succeed anywhere in this fork. `AuthComplete` cannot fire, full stop.
+   - `login_slide.rs`/`login_slide_tests.rs` (`LoginSlideView`,
+     `AuthOnboardingState::LoginSlide`) and `paste_auth_token_modal.rs`
+     (`PasteAuthTokenModalView`) are dead by the **same** `AuthComplete`-never-fires argument
+     (via `begin_account_first_post_auth_refresh`), and *independently* dead a second way:
+     their only other construction sites are inside `handle_agent_onboarding_event`, which only
+     runs as a subscriber callback on `AgentOnboardingView` — a view that is itself only ever
+     created by `RootView::create_agent_onboarding_view`, called only when entering
+     `AuthOnboardingState::Onboarding`. Every path into `Onboarding` (`RootView::new`'s startup
+     branch, `try_open_onboarding_slides`, `debug_enter_onboarding_state`) requires
+     `FeatureFlag::AgentOnboarding.is_enabled()`, and `agent_onboarding` is not in the
+     `simplewarp` cargo feature set (confirmed again here, matching Phase 1's original finding).
+   - `login_error_modal.rs` and `web_handoff.rs` stay, as 3h already found: `LoginErrorModal` is
+     still imported by `web_handoff.rs`, which is `#[cfg(target_family = "wasm")]` — a real,
+     CI-checked target (`ci.yml`'s `--target wasm32-unknown-unknown` job) for a different
+     product line this plan's scope never covers. Deleting it changes nothing about the
+     `simplewarp` binary (already zero bytes there) and risks breaking an unrelated build this
+     round has no way to verify.
+
+   **Why this isn't a quick 3-file deletion.** `handle_agent_onboarding_event` is one ~380-line
+   function matched over `AgentOnboardingEvent`, and several of its arms exist *only* to
+   construct `LoginSlide`/`PostAuthOnboarding` state (`PrivacySettingsFromTerminalThemeSlideRequested`,
+   `LoginFromWelcomeRequested`, the `requires_login` branch of `OnboardingCompleted`,
+   `UpgradePasteTokenFromClipboardRequested`). Removing just those pieces while leaving the rest
+   of the function (and `Onboarding`/`AgentOnboardingView` themselves) standing means either
+   deleting match arms Rust's exhaustiveness check still requires (won't compile) or replacing
+   them with placeholder no-op bodies inside a function that is *itself* already fully
+   unreachable — exactly the "half-dead, deletion in disguise" shape 4j's
+   `SelectionCursorRenderLocation` finding warned against, not a real fix. The honest boundary
+   is: `Onboarding`, `PostAuthOnboarding`, `LoginSlide`, `NeedsSsoLink`, the account-first
+   cluster (`AccountFirstLoginContext`, `AccountFirstCompletion`, `complete_account_first`,
+   `resolve_account_first_post_auth`, `handle_account_first_workspaces_event`,
+   `account_first_offer_experiment_arm`, `handle_login_slide_event`), `AgentOnboardingView`,
+   `create_agent_onboarding_view`, `debug_enter_onboarding_state`, and the `ai/onboarding.rs`
+   support module behind them (`build_onboarding_models`, `current_onboarding_auth_state`,
+   `onboarding_credit_packs`, `onboarding_pricing_promotion_message`, the theme picker) all have
+   to go together, in one round — a refactor the size of `drive/`'s multi-round work, not a
+   follow-on to 3h.
+
+   No commits made this round either. `cargo nextest`/`clippy`/`check`/`format` not run — no
+   code changed. A future round should trace `AgentOnboardingView` and `ai/onboarding.rs` to the
+   same standard before touching `root_view.rs`, the same lesson 3h paid for by getting 6 of 11
+   files wrong on a first pass.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 
