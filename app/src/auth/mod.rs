@@ -6,8 +6,6 @@ pub mod auth_view_modal;
 mod auth_view_shared_helpers;
 mod login_error_modal;
 mod login_failure_notification;
-pub mod login_slide;
-pub mod paste_auth_token_modal;
 mod user_properties;
 pub use warp_server_auth::{auth_state, credentials, user, user_uid};
 #[cfg(target_family = "wasm")]
@@ -60,8 +58,6 @@ pub fn init(app: &mut AppContext) {
     auth_view_modal::init(app);
     auth_view_body::init(app);
     auth_override_warning_body::init(app);
-    login_slide::init(app);
-    paste_auth_token_modal::init(app);
 }
 
 /// Returns the configured Warp web logout URL.

@@ -883,16 +883,6 @@ impl AuthManager {
         )
     }
 
-    pub fn link_sso_url(&mut self, email: &str) -> String {
-        let state = self.generate_auth_state();
-        format!(
-            "{}/link_sso?email={}&state={}",
-            ChannelState::server_root_url(),
-            email,
-            state,
-        )
-    }
-
     /// Validates and consumes the pending auth state token. Returns `true` if the
     /// provided state matches; in that case the pending state is cleared so the
     /// CSRF token is single-use. A subsequent call with the same value will fail.

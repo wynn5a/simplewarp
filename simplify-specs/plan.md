@@ -1230,6 +1230,72 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    to pin `show_needs_sso_link_view`'s three-states-converge-on-`NeedsSsoLink` behavior). Not
    re-run in the app — none of this was reachable UI to begin with.
 
+3k. **The rest of 3i's onboarding cluster — DONE, on explicit direction to stop treating
+   `warp-oss`/`stable`/`dev`/`preview` as in-scope.** 3i stopped short of `LoginSlide`,
+   `PostAuthOnboarding`, `PasteAuthTokenModal`, and the account-first machinery because,
+   unlike `NeedsSsoLink`, they route through `handle_agent_onboarding_event` — reachable only
+   when `AuthOnboardingState::Onboarding` is entered, which needs `FeatureFlag::AgentOnboarding`.
+   That flag is off for `simplewarp` specifically but still sits in the `default` cargo feature
+   set, so `warp-oss` and the other channel binaries built from this same `root_view.rs` could
+   still reach it — deleting meant making a call for those binaries too, not just this one.
+   Checked what those channels actually are before making that call: `stable`/`preview`/`dev`
+   point their `ChannelConfig` at Warp's real production/staging servers
+   (`warp_channel_config::load_config!`) and none of the four (`stable`, `preview`, `dev`,
+   `local`) are built or tested by this fork's CI (`ci.yml` has no `--bin stable`/`--bin
+   dev`/`--bin preview`/`--bin local` step) — they're upstream `warpdotdev/warp` release-channel
+   scaffolding this fork inherited, not a product line `wynn5a/simplewarp` ships. Given that,
+   told to treat them as out of scope and delete the whole cluster.
+
+   **What went, all from `app/src/root_view.rs` plus three files whose only caller was in it:**
+
+   | Removed | Why it was reachable only from the dead cluster |
+   | --- | --- |
+   | `AuthOnboardingState::{Onboarding, PostAuthOnboarding, LoginSlide}`, and every match arm across `log_out`, `focus`, `render`, `on_focus`, `complete_auth_and_create_workspace`, `show_web_handoff_view` (wasm) that existed only to enter/exit them | `Onboarding` was the sole state `AgentOnboardingView` renders in; the other two are only reachable from it or from `AuthComplete` (dead per 3i/3j). |
+   | `create_agent_onboarding_view`, `debug_enter_onboarding_state` (+ its `shift-f12` `EditableBinding` and `RootViewAction::DebugEnterOnboardingState`), `try_open_onboarding_slides`, `handle_agent_onboarding_event` (~380 lines), `handle_login_slide_event`, `onboarding_theme_kind` | The construction/dispatch machinery for the states above. |
+   | `AccountFirstLoginContext`, `AccountFirstCompletion` (+ impl), `account_first_login_context`, `account_first_is_paid`, `account_first_class`, `begin_account_first_post_auth_refresh`, `account_first_offer_experiment_arm`, `resolve_account_first_post_auth`, `handle_account_first_workspaces_event` (+ its `UserWorkspaces` subscription), `complete_account_first`, `offer_variant_for_account_class`, `handle_onboarding_credit_purchase_event`, `refresh_onboarding_account_state`, `requires_post_onboarding_login`, `refresh_pending_onboarding_choices`, `mark_local_onboarding_completed` | The account-first post-auth flow, which only ever ran from `LoginSlide`/`PostAuthOnboarding`. `has_completed_local_onboarding` (the getter, not the `mark_*` setter) stays — `workspace/one_time_modal_model.rs` still calls it. |
+   | `paste_auth_token_modal` field/handling, `notify_onboarding_checkout_succeeded` (+ the `url_reports_checkout_success` check in `handle_incoming_auth_url`), `pending_tutorial`/`start_pending_tutorial`, `pending_post_auth_onboarding_settings`, `pending_account_first_*`, `account_first_refresh_in_flight`, `handle_cloud_preferences_syncer_event` (+ its `CloudPreferencesSyncer` subscription) | Each had zero remaining setters/callers once the states above were gone — `pending_tutorial` in particular was only ever set inside `handle_agent_onboarding_event`, so once that's gone `start_pending_tutorial` would have been a permanent no-op left standing, the same "deletion in disguise" shape 4j's `SelectionCursorRenderLocation` finding named. |
+   | `app/src/auth/login_slide.rs` (+`login_slide_tests.rs`), `app/src/auth/paste_auth_token_modal.rs`, `app/src/ai/onboarding.rs` (~1,940 lines total) | Their only callers were the deleted `root_view.rs` code; confirmed via `cargo check` (each type/function came back "never used"/"never constructed" once its one call site was gone), not by inspection alone. |
+   | `AuthManager::link_sso_url` | Orphaned one hop out: its only caller was `LoginSlideView::handle_auth_manager_event`, gone with `login_slide.rs`. Found by the post-deletion clippy pass, same pattern as 4j. |
+   | 6 tests in `root_view_tests.rs` that exercised the deleted functions directly | `account_first_class_uses_paid_status_then_fresh_request_limit`, `account_first_requires_login_even_without_ai_or_drive_settings`, `fallback_flow_only_requires_login_for_account_backed_settings`, `account_first_classes_route_to_paid_or_the_expected_offer`, `account_first_completion_metadata_matches_terminal_outcomes`, `refreshing_pending_onboarding_choices_replaces_stale_settings`. The three `sync_local_onboarding_to_server` tests stay — that helper is untouched. |
+
+   **Deliberately left alone, and why:**
+
+   - `AuthOnboardingTarget` enum + `AuthOnboardingTarget::to_workspace` — native `cargo check`
+     reports them unused, but that's an artifact of checking a non-wasm target:
+     `AuthOnboardingState::WebImport(AuthOnboardingTarget)` is real, `#[cfg(target_family =
+     "wasm")]` code, same as `web_handoff.rs`/`login_error_modal.rs` in 3h/3i. Kept for the wasm
+     build, which this round could not fully verify (see below).
+   - `onboarding_credit_pack_options` (`pricing/mod.rs`), `url_reports_checkout_success` +
+     `CHECKOUT_SUCCESSFUL_PARAM` (`uri/mod.rs`) — lost their only production caller but still
+     have direct test coverage (`pricing_tests.rs`, `uri_tests.rs`), the same "test-only caller
+     stays" call 4f/4j already made elsewhere. Both live in modules outside this round's scope.
+   - `Workspace::open_vertical_tabs_panel_if_enabled`, `OnboardingTutorial::intention` — now
+     genuinely zero-caller (not even a test), surfaced by the post-deletion clippy pass, but
+     each lives in a different large file (`workspace/view.rs`, `workspace/view/onboarding.rs`)
+     this round never otherwise touched. Left for a future clippy sweep, matching how 4j
+     deferred `tear_down_cloud_mode_setup_phase`'s cluster rather than chasing every orphan
+     into an unrelated file.
+   - `crates/onboarding` (43 files, ~16k lines, home of `AgentOnboardingView` itself) — not
+     touched at all. It's shared with a separate, likely-live "Get Started" in-terminal
+     onboarding surface (`terminal/view/block_onboarding/`, the `workspace/view.rs:7681` gate
+     that shows it precisely when `AgentOnboarding` is *off*) that this round never traced.
+     `AgentOnboardingView` may now be fully unused within that crate — worth checking in a
+     dedicated round scoped to `crates/onboarding` itself, not assumed here.
+
+   Acceptance: `cargo check -p warp --lib --all-targets`, `cargo clippy -p warp --lib
+   --all-targets`, `cargo check --no-default-features --features simplewarp --bin simplewarp`,
+   and `cargo check -p warp --bin warp-oss` all clean — the last one confirms this holds under
+   `default` features too, i.e. for the channels this round decided don't matter.
+   `./script/format --check` clean. `cargo nextest run -p warp --lib`: **5992 pass, 0 fail, 4
+   skipped** (7 fewer than 3j's 5999 — the 6 deleted `root_view_tests.rs` tests plus
+   `login_slide_tests.rs`'s own test). **Not verified: the wasm32-unknown-unknown target.**
+   Installed it and ran `cargo check -p warp --lib --target wasm32-unknown-unknown`; it failed
+   before reaching `app` at all, inside `crates/local_inference` (`Send`-bound errors on
+   `JsFuture` in `stream.rs`, unrelated to auth/onboarding and not touched by this round) — a
+   pre-existing break in a dependency of `app`, not evidence either way about the wasm-gated
+   code this round edited (`show_web_handoff_view`, `complete_web_import`). Not re-run in the
+   app.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 
