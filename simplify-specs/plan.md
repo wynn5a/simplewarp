@@ -1081,6 +1081,60 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `crates/channel_versions` still has an `oz_updates` field. It mirrors the shape of a remote
    JSON file, so an unread field there is not dead code in the same sense; it stays.
 
+3h. **`app/src/auth/`'s "11 dead login-UI files" survey was wrong — no deletion this round.**
+   A prior survey this session split the 17-file, 6.9k-line directory into ~11 files
+   (`auth_view_modal.rs`, `auth_view_body.rs`, `auth_view_shared_helpers.rs`,
+   `login_slide.rs`+tests, `login_error_modal.rs`, `login_failure_notification.rs`,
+   `needs_sso_link_view.rs`, `paste_auth_token_modal.rs`, `auth_override_warning_modal.rs`,
+   `auth_override_warning_body.rs`, `web_handoff.rs`) claimed dead because `root_view.rs`'s
+   `AuthOnboardingState` startup logic deterministically lands on `Terminal(...)` in this build
+   (`SkipFirebaseAnonymousUser` is on, `ForceLogin`/`AccountFirstOnboarding`/`AgentOnboarding`
+   are off — verified independently, that part holds). **The survey conflated "the initial
+   state is always `Terminal`" with "no other state is ever reachable."** It is not: logging
+   out is a runtime *transition*, not startup logic, and it is live.
+
+   Settings → Account unconditionally renders a `LogoutWidget` (`settings_view/main_page.rs`,
+   no flag or auth-state gate) whose button dispatches `WorkspaceAction::LogOut` →
+   `app:maybe_log_out` → `auth::maybe_log_out` → `auth::log_out` (both explicitly load-bearing,
+   not touched) → the `"root_view:log_out"` action → `AuthOnboardingState::log_out()`, whose
+   `Terminal(workspace) => { .. *self = AuthOnboardingState::Auth(..) }` arm fires from exactly
+   the state this build is always in. `RootView::render()` then shows
+   `ChildView::new(&self.auth_view)` — the supposedly-dead `AuthView` from `auth_view_modal.rs`.
+   `is_anonymous_or_logged_out()` is unconditionally `true` in this build (credentials never
+   populate), which also permanently disables the *native menu's* "Log out" item — that false
+   lead is almost certainly what the original survey trusted instead of grepping the Settings
+   page.
+
+   That makes `auth_view_modal.rs`, `auth_view_body.rs`, and `auth_view_shared_helpers.rs`
+   (survey step 1) live. `login_failure_notification.rs` (survey step 3) is live with them —
+   `auth_view_modal.rs` calls `login_failure_notification::render` directly.
+   `auth_override_warning_modal.rs`/`auth_override_warning_body.rs` (survey step 5) are
+   independently live too: `workspace/view.rs` unconditionally constructs
+   `auth_override_warning_modal: ViewHandle<AuthOverrideWarningModal>`, keeps it permanently in
+   the render stack, and opens it on the real `AuthManagerEvent::LoginOverrideDetected` from the
+   load-bearing `AuthManager` — a second, independent live wiring, not just `root_view.rs`'s own
+   `ConfirmIncomingAuth` state.
+
+   `login_slide.rs`(+tests), `needs_sso_link_view.rs`, `paste_auth_token_modal.rs`,
+   `login_error_modal.rs`, and `web_handoff.rs` are referenced only from `root_view.rs`, in
+   `AuthOnboardingState` variants (`Onboarding`, `LoginSlide`, `PostAuthOnboarding`,
+   `NeedsSsoLink`, `WebImport`) that `AuthOnboardingState::log_out()`'s match arms do not reach
+   from `Terminal`, and the one other entry point found (`debug_enter_onboarding_state`) is
+   gated on `ChannelState::enable_debug_features()` *and* the confirmed-off `AgentOnboarding`
+   flag — plausibly still dead. Not deleted this round regardless: `root_view.rs` is one
+   ~7,000-line file with dozens of match arms across all of `AuthOnboardingState`, deleting
+   these files requires editing it in the same commit either way, and the confidence gap after
+   getting six of eleven files wrong on a first pass was too large to spend the remainder of
+   the round re-verifying the other five to the same standard.
+
+   **Net effect: `app/src/auth/`'s UI files are not a quick deletion.** They read as dead from
+   the initial-state logic alone but are live through the logout transition, exactly the kind
+   of design decision item 3's framing ("removing auth is deciding what the app means when
+   there is no user at all, at every call site") already named. Folds into the existing
+   `AuthStateProvider` 124-file fan-out deferral below, not a separate quick win.
+
+   No commits made. `cargo nextest`/`clippy`/`check`/`format` not run — no code changed.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 
