@@ -1372,6 +1372,51 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    tests deleted (no test file referenced `AuthOnboardingState::Auth`/`ConfirmIncomingAuth` to
    begin with). Not re-run in the app.
 
+3m. **`app/src/workspaces/` (the cloud team-workspace concept) surveyed, not touched —
+   confirmed the same scale as `remote_server`/`cloud_object`, on explicit direction to scope
+   this round down to provably-dead code only rather than attempt it in one pass.**
+
+   **The scale first:** `grep -rl "workspaces::\|UserWorkspaces"` outside the module itself
+   returns **over 100 files** — AI settings inheritance, `terminal/cli_agent.rs`, pane/session
+   restoration, `settings_view` (`teams_page.rs` alone is 4,697 lines), notebooks, drive. Same
+   shape as the already-deferred `remote_server`/`cloud_object`/`drive`-remainder cluster in
+   item 4's checklist, not a follow-on to 3l's auth fix.
+
+   **The one clean finding: `UserWorkspaces.workspaces` and `.current_workspace_uid` are
+   provably always empty/`None` in this fork, for the same two independent reasons 3i/3l
+   already established elsewhere.** Traced the constructor
+   (`app/src/lib.rs:1446`, `UserWorkspaces::new(cached_workspaces, current_workspace_uid, ..)`):
+   both arguments come from a local SQLite read (`persisted_workspaces`) that a fresh
+   local-only install never populates, falling back to `Default::default()` (empty/`None`) when
+   the read is empty. The only thing that could ever refresh them post-startup —
+   `TeamClient`/`WorkspaceClient` (`app/src/server/server_api/team.rs`,
+   `.../workspace.rs`) — **are already fully stubbed by 3e/3f**: `local_only_error()` appears 16
+   and 5 times respectively, i.e. every team/workspace network method already returns
+   immediately with no request built. So this is not new dead code to cut; 3e/3f already cut
+   the layer that would matter.
+
+   **What's left standing above that line is the `UserWorkspaces` model and its 100+ UI/logic
+   consumers, and none of it is compiler-provable dead the way `NeedsSsoLink` was.** Every
+   consumer checked (`team_uid: Option<ServerId>`, `is_on_uber_team`,
+   `inherited_or_default_team_uid`, `admin_billing_link_for_default_team`, the Teams settings
+   page, `team_tester.rs`'s data-poller trigger) already handles the "no team" case gracefully
+   — it's logic that *always* takes one branch given the empty/`None` invariant above, not
+   logic the compiler will ever flag as unreachable. Turning "always takes the no-team branch"
+   into "deleted" needs the same site-by-site trace 3i/3k/3l already used for auth, just at 10x
+   the surface area — a dedicated multi-round effort, not a pass that fits in this one.
+
+   **Not a small cut even at the edges.** Checked `team_tester.rs` as the smallest candidate
+   (38 lines, a single-method event bus for triggering workspace-metadata polling) hoping it
+   would isolate cleanly like `NeedsSsoLink` did — it doesn't: `initiate_data_pollers` still
+   threads into `UpdateManager`/`TeamUpdateManager`'s polling machinery and
+   `auth_manager.rs`'s anonymous-user-linking flow, another 6 files, before hitting a boundary.
+
+   No code changed this round. Next round scoped to this item should start the same way 3i did
+   for auth: pick one self-contained UI surface (the Teams settings page is the closest analog
+   to Settings → Account, but at 4,697 lines it is not a quick first cut — `joinable_teams`/the
+   join-a-team-via-link flow may be smaller and worth checking first) and trace its construction
+   sites fully before deleting.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 
