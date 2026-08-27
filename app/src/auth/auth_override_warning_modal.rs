@@ -1,5 +1,4 @@
 use pathfinder_color::ColorU;
-use warp_core::ui::appearance::Appearance;
 use warpui::elements::{ChildView, Container, Fill};
 use warpui::ui_components::components::{Coords, UiComponentStyles};
 use warpui::{
@@ -17,18 +16,12 @@ use crate::root_view::unthemed_window_border;
 pub struct AuthOverrideWarningModal {
     auth_override_warning_modal: ViewHandle<Modal<AuthOverrideWarningBody>>,
     interrupted_auth_payload: Option<AuthRedirectPayload>,
-    variant: AuthOverrideWarningModalVariant,
-}
-
-pub enum AuthOverrideWarningModalVariant {
-    OnboardingView,
-    WorkspaceModal,
 }
 
 const MODAL_WIDTH: f32 = 364.;
 
 impl AuthOverrideWarningModal {
-    pub fn new(ctx: &mut ViewContext<Self>, variant: AuthOverrideWarningModalVariant) -> Self {
+    pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let auth_screen_view = ctx.add_typed_action_view(|_| AuthOverrideWarningBody::new());
         ctx.subscribe_to_view(&auth_screen_view, |me, _, event, ctx| match event {
             AuthOverrideWarningBodyEvent::Close => me.close(ctx),
@@ -66,7 +59,6 @@ impl AuthOverrideWarningModal {
         Self {
             auth_override_warning_modal,
             interrupted_auth_payload: None,
-            variant,
         }
     }
 
@@ -119,15 +111,8 @@ impl View for AuthOverrideWarningModal {
     }
 
     fn render(&self, ctx: &AppContext) -> Box<dyn Element> {
-        let background_color = match self.variant {
-            AuthOverrideWarningModalVariant::OnboardingView => {
-                Appearance::as_ref(ctx).theme().background().into()
-            }
-            AuthOverrideWarningModalVariant::WorkspaceModal => ColorU::transparent_black(),
-        };
-
         Container::new(ChildView::new(&self.auth_override_warning_modal).finish())
-            .with_background_color(background_color)
+            .with_background_color(ColorU::transparent_black())
             .with_corner_radius(ctx.windows().window_corner_radius())
             .with_border(unthemed_window_border())
             .finish()

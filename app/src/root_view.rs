@@ -35,20 +35,15 @@ use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::app_state::{AppState, PaneUuid, WindowSnapshot};
 use crate::appearance::Appearance;
+use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
-use crate::auth::auth_override_warning_modal::{
-    AuthOverrideWarningModal, AuthOverrideWarningModalEvent, AuthOverrideWarningModalVariant,
-};
 use crate::auth::auth_state::AuthState;
-use crate::auth::auth_view_modal::{AuthRedirectPayload, AuthView, AuthViewVariant};
+use crate::auth::auth_view_modal::AuthRedirectPayload;
 #[cfg(target_family = "wasm")]
 use crate::auth::web_handoff::{WebHandoffEvent, WebHandoffView};
-use crate::auth::{AuthStateProvider, LoginFailureReason};
 use crate::autoupdate::{AutoupdateState, AutoupdateStateEvent, RequestType, UpdateReady};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{ObjectType, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
-use crate::drive::export::ExportManager;
-use crate::experiments::{BlockOnboarding, Experiment};
 use crate::features::FeatureFlag;
 use crate::interval_timer::IntervalTimer;
 use crate::launch_configs::launch_config;
@@ -1610,8 +1605,6 @@ pub(crate) fn has_completed_local_onboarding(ctx: &AppContext) -> bool {
 
 /// Whether auth and onboarding have completed and we should render the `Workspace`.
 enum AuthOnboardingState {
-    Auth(Box<WorkspaceArgs>),
-    ConfirmIncomingAuth(Box<WorkspaceArgs>),
     /// The client is importing auth state from the host application.
     #[cfg(target_family = "wasm")]
     WebImport(AuthOnboardingTarget),
@@ -1621,8 +1614,6 @@ enum AuthOnboardingState {
 pub struct RootView {
     auth_onboarding_state: AuthOnboardingState,
     server_time: Option<Arc<ServerTime>>,
-    auth_view: ViewHandle<AuthView>,
-    auth_override_view: ViewHandle<AuthOverrideWarningModal>,
     #[cfg(target_family = "wasm")]
     web_handoff_view: ViewHandle<WebHandoffView>,
     pub server_api: Arc<ServerApi>,
@@ -1648,21 +1639,9 @@ impl RootView {
         });
         let server_api_provider = ServerApiProvider::as_ref(ctx);
         let server_api = server_api_provider.get();
-        let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
 
         ctx.subscribe_to_model(&AuthManager::handle(ctx), |me, _, event, ctx| {
             me.handle_auth_manager_event(event, ctx);
-        });
-
-        let auth_view =
-            ctx.add_typed_action_view(|ctx| AuthView::new(AuthViewVariant::Initial, ctx));
-
-        let auth_override_view: ViewHandle<_> = ctx.add_typed_action_view(|ctx| {
-            AuthOverrideWarningModal::new(ctx, AuthOverrideWarningModalVariant::OnboardingView)
-        });
-
-        ctx.subscribe_to_view(&auth_override_view, |me, _, event, ctx| {
-            me.handle_auth_override_warning_modal_event(event, ctx);
         });
 
         let model_event_sender = global_resource_handles.model_event_sender.clone();
@@ -1672,26 +1651,14 @@ impl RootView {
             workspace_setting,
         };
 
-        let auth_onboarding_state = if auth_state.is_logged_in() {
-            AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx))
-        } else {
-            cfg_if! {
-                if #[cfg(target_family = "wasm")] {
-                    AuthOnboardingState::WebImport(AuthOnboardingTarget::Workspace(workspace_args.into()))
-                } else {
-                    if FeatureFlag::ForceLogin.is_enabled() {
-                        // ForceLogin is true for Preview
-                        AuthOnboardingState::Auth(workspace_args.into())
-                    } else if FeatureFlag::SkipFirebaseAnonymousUser.is_enabled() {
-                        // When SkipFirebaseAnonymousUser is enabled, skip the login screen
-                        // entirely and go directly into the workspace.
-                        AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx))
-                    } else {
-                        AuthOnboardingState::Auth(workspace_args.into())
-                    }
-                }
-            }
-        };
+        // SimpleWarp is local-only and never shows a login screen: startup always lands
+        // directly in the workspace (wasm still imports auth state from the host app).
+        #[cfg(target_family = "wasm")]
+        let auth_onboarding_state =
+            AuthOnboardingState::WebImport(AuthOnboardingTarget::Workspace(workspace_args.into()));
+        #[cfg(not(target_family = "wasm"))]
+        let auth_onboarding_state =
+            AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx));
 
         #[cfg(target_family = "wasm")]
         let web_handoff_view = {
@@ -1703,8 +1670,6 @@ impl RootView {
         let root_view = Self {
             auth_onboarding_state,
             server_time: None,
-            auth_view,
-            auth_override_view,
             #[cfg(target_family = "wasm")]
             web_handoff_view,
             server_api: server_api.clone(),
@@ -1713,40 +1678,11 @@ impl RootView {
             window_id: ctx.window_id(),
         };
 
-        match &root_view.auth_onboarding_state {
-            AuthOnboardingState::Auth(_) => {
-                // ApplePressAndHoldEnabled is the setting for whether or not the accent
-                // menu is shown when a key is held. If "false", we repeat the character
-                // instead of showing the menu like the default terminal. We only override
-                // the default if it's not already set and the user is logging in.
-                #[cfg(target_os = "macos")]
-                {
-                    use warpui_extras::user_preferences::UserPreferences;
-
-                    // Make sure we're interacting with user defaults instead
-                    // of some other preferences store.  Apple implements some
-                    // per-application overrides of system preferences via user
-                    // defaults (like press-and-hold being either accented
-                    // characters or key repeat), so we need to make sure we're
-                    // interacting with the user defaults system.
-                    let user_defaults = warpui_extras::user_preferences::user_defaults::UserDefaultsPreferencesStorage::new(None);
-                    if user_defaults
-                        .read_value("ApplePressAndHoldEnabled")
-                        .unwrap_or_default()
-                        .is_none()
-                    {
-                        let _ = user_defaults
-                            .write_value("ApplePressAndHoldEnabled", "false".to_owned());
-                    }
-                }
-            }
-            #[cfg(target_family = "wasm")]
-            AuthOnboardingState::WebImport(_) => {
-                root_view
-                    .web_handoff_view
-                    .update(ctx, |view, ctx| view.import_user(ctx));
-            }
-            _ => {}
+        #[cfg(target_family = "wasm")]
+        if let AuthOnboardingState::WebImport(_) = &root_view.auth_onboarding_state {
+            root_view
+                .web_handoff_view
+                .update(ctx, |view, ctx| view.import_user(ctx));
         }
 
         let autoupdate_handle = AutoupdateState::handle(ctx);
@@ -1935,11 +1871,6 @@ impl RootView {
                     safe: ("Unable to parse AuthResult from url"),
                     full: ("Unable to parse AuthResult from url: {error}")
                 );
-                self.auth_view.update(ctx, |view, ctx| {
-                    view.last_login_failure_reason =
-                        Some(LoginFailureReason::InvalidRedirectUrl { was_pasted: false });
-                    ctx.notify()
-                });
             }
         }
         true
@@ -2327,25 +2258,9 @@ impl RootView {
             AuthManagerEvent::AuthComplete => {
                 Self::sync_local_onboarding_to_server(&auth_state, ctx);
 
-                if let AuthOnboardingState::Auth(_) | AuthOnboardingState::ConfirmIncomingAuth(_) =
-                    &self.auth_onboarding_state
-                {
-                    self.auth_view.update(ctx, |auth_view, ctx| {
-                        auth_view.set_variant(ctx, AuthViewVariant::Initial);
-                    });
-                    self.auth_onboarding_state
-                        .complete_auth_and_create_workspace(ctx);
-                }
-
                 #[cfg(target_family = "wasm")]
                 if let AuthOnboardingState::WebImport(_) = &self.auth_onboarding_state {
                     self.auth_onboarding_state.complete_web_import(ctx);
-                }
-
-                // Skip onboarding survey if in Variant One.
-                if let Some(BlockOnboarding::VariantOne) = BlockOnboarding::get_group(ctx) {
-                    self.auth_onboarding_state
-                        .complete_auth_and_create_workspace(ctx);
                 }
 
                 self.start_autoupdate_polling(ctx);
@@ -2381,75 +2296,8 @@ impl RootView {
                 UserAuthenticationError::InvalidStateParameter => {}
                 UserAuthenticationError::MissingStateParameter => {}
             },
-            AuthManagerEvent::SkippedLogin => {
-                if let AuthOnboardingState::Auth(_) | AuthOnboardingState::ConfirmIncomingAuth(_) =
-                    &self.auth_onboarding_state
-                {
-                    self.auth_onboarding_state
-                        .complete_auth_and_create_workspace(ctx);
-                }
-                self.start_autoupdate_polling(ctx);
-                self.focus(ctx);
-            }
-            AuthManagerEvent::LoginOverrideDetected(interrupted_auth_payload) => {
-                match &self.auth_onboarding_state {
-                    AuthOnboardingState::Auth(workspace_args)
-                    | AuthOnboardingState::ConfirmIncomingAuth(workspace_args) => {
-                        self.open_auth_override_warning_modal(
-                            workspace_args.clone(),
-                            interrupted_auth_payload.clone(),
-                            ctx,
-                        );
-                    }
-                    _ => {}
-                }
-            }
             _ => {}
         }
-    }
-
-    fn handle_auth_override_warning_modal_event(
-        &mut self,
-        event: &AuthOverrideWarningModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            AuthOverrideWarningModalEvent::Close => {
-                if matches!(
-                    self.auth_onboarding_state,
-                    AuthOnboardingState::ConfirmIncomingAuth(_)
-                ) {
-                    self.log_out(&(), ctx);
-                }
-            }
-            AuthOverrideWarningModalEvent::BulkExport => {
-                self.export_all_warp_drive_objects(ctx);
-            }
-        }
-    }
-
-    fn open_auth_override_warning_modal(
-        &mut self,
-        workspace_args: Box<WorkspaceArgs>,
-        auth_payload: AuthRedirectPayload,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.auth_override_view.update(ctx, |modal, _| {
-            modal.set_interrupted_auth_payload(auth_payload);
-        });
-        self.auth_onboarding_state = AuthOnboardingState::ConfirmIncomingAuth(workspace_args);
-        ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-        self.focus(ctx);
-        ctx.notify();
-    }
-
-    fn export_all_warp_drive_objects(&mut self, ctx: &mut ViewContext<Self>) {
-        let window_id = ctx.window_id();
-        let cloud_model = CloudModel::as_ref(ctx);
-        let exportable_objects = cloud_model.get_all_exportable_object_ids();
-        ExportManager::handle(ctx).update(ctx, move |export_manager, ctx| {
-            export_manager.export(window_id, &exportable_objects, ctx);
-        });
     }
 
     /// This is called when importing authentication state from the host app completes.
@@ -2466,7 +2314,7 @@ impl RootView {
                 if let AuthOnboardingState::WebImport(target) = &self.auth_onboarding_state {
                     self.auth_onboarding_state = match target {
                         AuthOnboardingTarget::Workspace(args) => {
-                            AuthOnboardingState::Auth(args.clone())
+                            AuthOnboardingState::Terminal(args.clone().create_workspace(ctx))
                         }
                         AuthOnboardingTarget::Terminal(view) => {
                             // If we're in this state, it means that refreshing the user's stored
@@ -2489,12 +2337,6 @@ impl RootView {
 
     pub fn focus(&mut self, ctx: &mut ViewContext<Self>) -> bool {
         match &self.auth_onboarding_state {
-            AuthOnboardingState::Auth(_) => {
-                ctx.focus(&self.auth_view);
-            }
-            AuthOnboardingState::ConfirmIncomingAuth(_) => {
-                ctx.focus(&self.auth_override_view);
-            }
             #[cfg(target_family = "wasm")]
             AuthOnboardingState::WebImport(_) => {
                 ctx.focus(&self.web_handoff_view);
@@ -2579,10 +2421,6 @@ impl View for RootView {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let child = match &self.auth_onboarding_state {
-            AuthOnboardingState::Auth(_) => ChildView::new(&self.auth_view).finish(),
-            AuthOnboardingState::ConfirmIncomingAuth(_) => {
-                ChildView::new(&self.auth_override_view).finish()
-            }
             #[cfg(target_family = "wasm")]
             AuthOnboardingState::WebImport(_) => ChildView::new(&self.web_handoff_view).finish(),
             AuthOnboardingState::Terminal(workspace) => ChildView::new(workspace).finish(),
@@ -2684,23 +2522,9 @@ impl WorkspaceArgs {
 }
 
 impl AuthOnboardingState {
-    fn complete_auth_and_create_workspace(&mut self, ctx: &mut ViewContext<RootView>) {
-        if let &mut AuthOnboardingState::Auth(ref args)
-        | &mut AuthOnboardingState::ConfirmIncomingAuth(ref args) = self
-        {
-            let workspace = args.clone().create_workspace(ctx);
-            *self = AuthOnboardingState::Terminal(workspace);
-        }
-        ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-    }
-
     #[cfg(target_family = "wasm")]
     fn show_web_handoff_view(&mut self) {
         match self {
-            AuthOnboardingState::Auth(args) | AuthOnboardingState::ConfirmIncomingAuth(args) => {
-                *self =
-                    AuthOnboardingState::WebImport(AuthOnboardingTarget::Workspace(args.clone()));
-            }
             AuthOnboardingState::WebImport(_) => (),
             AuthOnboardingState::Terminal(view) => {
                 *self = AuthOnboardingState::WebImport(AuthOnboardingTarget::Terminal(view.clone()))
@@ -2716,13 +2540,10 @@ impl AuthOnboardingState {
         }
     }
 
+    /// "Logging out" in a local-only build has no account to sign out of: it just resets the
+    /// local workspace to a fresh, empty one. There is no login screen to send the user to.
     fn log_out(&mut self, ctx: &mut ViewContext<RootView>) {
         match self {
-            AuthOnboardingState::Auth(_) => (),
-            AuthOnboardingState::ConfirmIncomingAuth(workspace_args) => {
-                *self = AuthOnboardingState::Auth(workspace_args.clone());
-                ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-            }
             #[cfg(target_family = "wasm")]
             AuthOnboardingState::WebImport(_) => {
                 // TODO(ben): Eventually, we could support logout here by logging out of the JS
@@ -2736,8 +2557,6 @@ impl AuthOnboardingState {
 
                 let global_resource_handles =
                     GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
-                // When a user logs out, reset workspace_setting so user logs back into a
-                // fresh workspace.
                 let workspace_setting = NewWorkspaceSource::Empty {
                     previous_active_window: None,
                     shell: None,
@@ -2748,10 +2567,8 @@ impl AuthOnboardingState {
                     workspace_setting,
                 };
 
-                // Auth no longer holds the original workspace view handle
-                // This way it is destroyed at this step, and we will re-create
-                // a new workspace view handle when the user logs in.
-                *self = AuthOnboardingState::Auth(workspace_args.into());
+                // Destroy the old workspace view handle and create a fresh one in its place.
+                *self = AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx));
                 ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
             }
         }

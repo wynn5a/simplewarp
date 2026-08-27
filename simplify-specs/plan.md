@@ -1296,6 +1296,82 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    code this round edited (`show_web_handoff_view`, `complete_web_import`). Not re-run in the
    app.
 
+3l. **Logging out no longer shows a login screen — DONE.** 3h found `app/src/auth/`'s UI files
+   (`auth_view_modal.rs`, `auth_view_body.rs`, `auth_view_shared_helpers.rs`,
+   `login_failure_notification.rs`, `auth_override_warning_modal.rs`,
+   `auth_override_warning_body.rs`) live through exactly one runtime path: Settings → Account →
+   "Log out" flips `AuthOnboardingState::Terminal` to `Auth`, and `RootView::render` shows the
+   full-screen `AuthView`. On explicit direction that this fork needs no login/account/quota UI
+   at all, traced what that transition is actually for and killed it at the root rather than
+   deleting the (still partly load-bearing) files it points at.
+
+   **The fix is one arm of `AuthOnboardingState::log_out`.** Real login can never complete in
+   this fork (3c pointed the channel config at `.invalid` hostnames, so every network call —
+   including `AuthClientImpl::fetch_user`'s own HTTP client in `warp_server_client`, a separate
+   code path from 3e/3f's `app/src/server/` stubs — dies at DNS resolution). So sending a
+   logged-out user to a login screen was already a dead end: `Auth` was reachable, but nothing
+   past it ever worked. Changed `log_out`'s `Terminal` arm to build a fresh empty `Terminal`
+   workspace directly, the same as it already did on the *inside* (tear down the old workspace,
+   reset `workspace_setting`) — it just no longer detours through `Auth` to get there. "Log out"
+   in a local-only build now means "reset local state", nothing more.
+
+   **That made `AuthOnboardingState::Auth` and `::ConfirmIncomingAuth` fully unreachable, and
+   the compiler + a trace of every remaining construction site confirmed it, not assumption:**
+   startup already always lands on `Terminal` (`SkipFirebaseAnonymousUser`, unconditional for
+   this fork per 3h), logout no longer constructs `Auth`, and the one other route —
+   `handle_auth_manager_event`'s `LoginOverrideDetected` arm calling
+   `open_auth_override_warning_modal` to enter `ConfirmIncomingAuth` — only fires when
+   `self.auth_onboarding_state` is *already* `Auth`/`ConfirmIncomingAuth`; from `Terminal` (now
+   permanent) it's a no-op, matched by the existing `_ => {}`. Deleted both variants, `RootView`'s
+   own `auth_view`/`auth_override_view` fields, `complete_auth_and_create_workspace` (both
+   remaining callers were the arms just removed), `handle_auth_override_warning_modal_event`,
+   `open_auth_override_warning_modal`, and `export_all_warp_drive_objects` (its only caller).
+
+   **`AuthView` and `AuthOverrideWarningModal` themselves stay — they are independently live a
+   second way this round does not touch.** `Workspace` owns its *own* instances
+   (`require_login_modal`, `auth_override_warning_modal`, built with
+   `AuthViewVariant::RequireLoginCloseable`/`AuthOverrideWarningModalVariant::WorkspaceModal`)
+   and pops them whenever a user hits a cloud-gated feature — `AuthManager::attempt_login_gated_feature`,
+   called from 9 sites across Drive, Teams, and the command palette, checks
+   `is_anonymous_or_logged_out()`, which 3h already found is unconditionally `true` in this fork.
+   So every Drive/Teams action still nags the user to log in, into a screen that (per the DNS
+   argument above) can never complete. **That nag is real UI debt matching this round's request,
+   but it belongs to the Drive/Teams/`cloud_object` gating cluster (item 3's `remote_server`/
+   `cloud_object` remainder, already deferred, not to `auth`) — collapsing it means deciding what
+   "click a cloud feature" does with no cloud, which is a `drive`-scale question, not this one.**
+
+   **One direct follow-on taken, one left.** `AuthOverrideWarningModalVariant` lost its
+   `OnboardingView` arm (RootView's own instance, deleted) and now has exactly one variant
+   (`WorkspaceModal`, still used by `Workspace`) — the same "single-variant enum, deletion in
+   disguise" shape 4g/4j named, so it went too: the enum, the `variant` field, and `render`'s
+   match all collapsed to the one background color that's still reachable.
+   `AuthViewVariant::Initial` — RootView's own `AuthView::new(AuthViewVariant::Initial, ...)`
+   call, also deleted — is left standing: it is not a bare enum collapse, it's matched across
+   ~10 sites in `auth_view_body.rs`/`auth_view_modal.rs` with genuinely different copy and
+   layout per arm ("Welcome to Warp!" vs. "Sign up for Warp", differing bodies at lines 702 vs.
+   732, 923 vs. 916), a 900-line file this round did not otherwise read closely enough to edit
+   safely. `cargo check` still flags it (`variant Initial is never constructed`) — a clean
+   pointer for whoever does that pass next.
+
+   Also fixed as a direct consequence, not scope creep: `handle_incoming_auth_url`'s malformed-
+   URL branch stopped writing `last_login_failure_reason` onto a `self.auth_view` that no longer
+   exists (kept the `safe_error!` log, dropped the now-impossible UI surface); wasm's
+   `handle_web_handoff_event` fallback for a failed `Workspace` re-import now builds a fresh
+   `Terminal` workspace instead of falling back to the deleted `Auth` state, mirroring its
+   sibling `Terminal` branch one match arm below.
+
+   Acceptance: `cargo check --no-default-features --features simplewarp --bin simplewarp`,
+   `cargo check -p warp --bin warp-oss`, and `cargo clippy -p warp --lib --all-targets
+   --no-default-features --features simplewarp` all clean (0 errors; only the pre-existing
+   `AuthViewVariant::Initial`-and-friends dead-code warnings named above, plus the unrelated
+   backlog from 4j/3k). `./script/format --check` clean. `cargo nextest run -p warp --lib
+   --no-default-features --features simplewarp --no-fail-fast`: 5984/5992 pass, 8 fail — the
+   same 8 (`cloud_preferences_syncer`'s six, `workspace::view::tests`'s two Drive/signup tests)
+   reproduce identically on a clean stash of master with zero code changed, confirmed by
+   re-running the same filter against the stashed tree before restoring this round's diff. 0
+   tests deleted (no test file referenced `AuthOnboardingState::Auth`/`ConfirmIncomingAuth` to
+   begin with). Not re-run in the app.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

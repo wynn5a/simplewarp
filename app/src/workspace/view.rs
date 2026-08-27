@@ -228,7 +228,7 @@ use crate::appearance::{Appearance, AppearanceManager};
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::auth_override_warning_modal::{
-    AuthOverrideWarningModal, AuthOverrideWarningModalEvent, AuthOverrideWarningModalVariant,
+    AuthOverrideWarningModal, AuthOverrideWarningModalEvent,
 };
 use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::{AuthRedirectPayload, AuthView, AuthViewEvent, AuthViewVariant};
@@ -1722,9 +1722,7 @@ impl Workspace {
     fn build_auth_override_warning_modal(
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<AuthOverrideWarningModal> {
-        let auth_override_warning_modal = ctx.add_typed_action_view(|ctx| {
-            AuthOverrideWarningModal::new(ctx, AuthOverrideWarningModalVariant::WorkspaceModal)
-        });
+        let auth_override_warning_modal = ctx.add_typed_action_view(AuthOverrideWarningModal::new);
 
         ctx.subscribe_to_view(&auth_override_warning_modal, |me, _, event, ctx| {
             me.handle_auth_override_warning_modal_event(event, ctx);
