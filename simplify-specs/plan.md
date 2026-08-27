@@ -1479,6 +1479,79 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    failing before this round for a different reason. Disk stayed well within bounds throughout
    (target/ 8.4 GB, 42 GB free). Not re-run in the app.
 
+3o. **`AuthView`, `AuthViewBody`, and the whole remaining login-UI file set — DELETED, closing
+   out the multi-round auth thread that started at 3h.** 3n left `Workspace::require_login_modal`
+   fully inert (never focused, never rendered) but still constructed at startup. Deleting that
+   construction made `AuthView::new` genuinely unreachable — the compiler's own dead-code
+   cascade proved it, the same signal 3l used for `NeedsSsoLink`: a fresh `cargo check` after
+   removing the one remaining `AuthView::new` call site flagged `AuthView::set_variant`,
+   `AuthViewBody::set_variant`, half of `AuthViewVariant`, most of `AuthManagerEvent`'s variants,
+   and several `LoginFailureReason`/`AuthStep` variants as newly dead in one pass. `grep -rn
+   "AuthView::new"` confirmed zero remaining callers workspace-wide before deleting anything.
+
+   **Two more browser-opening dead ends found and fixed on the way, same shape as 3n's toast
+   fix.** `Workspace::initiate_user_signup` (4 call sites: a Settings → Account "Sign up" button,
+   a renotification banner, and two more) and `LeftPanelEvent::SignInRequested`'s handler (the
+   locked-panel "Sign in" button shown whenever Warp Drive/Conversation History is opened while
+   anonymous — always, since `is_anonymous_or_logged_out()` is unconditionally `true` per 3h)
+   both still called `AuthManager::sign_up_url()`/`AuthView::start_sign_in()`, opening a real
+   browser tab to a URL that can never complete a login (3l: DNS-blocked), even after 3n's fix
+   made the modal invisible. Both now just call `open_require_login_modal` (the toast), nothing
+   else. A third one — `WorkspaceAction::Reauth`'s `sign_in_url()`/`ctx.open_url` — was traced
+   and left alone: its banner is gated on `auth_state.needs_reauth()`, which requires a real 401
+   response from a network request that actually connected, impossible under 3c's DNS block, so
+   it's unreachable the same way `HitDriveObjectLimitCloseable` was in 3n. `redirect_to_sign_in`
+   (behind `WorkspaceAction::SignInAnonymousWebUser`, another "Sign up" button) needed no fix:
+   its entire body is `#[cfg(target_family = "wasm")]`, already a no-op on native builds.
+
+   **`AuthViewVariant` itself went too, not just the two dead views it described.** Six external
+   files (`workspace/view.rs`, `search/command_search/view.rs`, `settings_view/main_page.rs`,
+   `settings_view/teams_page.rs`, `drive/index.rs`, plus `auth_manager.rs` itself) still passed
+   an `AuthViewVariant` into `attempt_login_gated_feature`/`open_require_login_modal` purely to
+   be discarded — `open_require_login_modal` had already reduced its parameter to `_variant`
+   in 3n. Rather than leave a type used by nothing but its own dead file, dropped the parameter
+   at its one source (`attempt_login_gated_feature`, `AuthManagerEvent::AttemptedLoginGatedFeature`,
+   `open_require_login_modal`) and updated all six call sites — the same "fix the shared
+   function, not every caller" shape as every round since 3l. That, in turn, let
+   `auth_view_modal.rs` shed everything except `AuthRedirectPayload` (still real: parses the
+   `warp://auth/...` deep-link URL for `handle_incoming_auth_url`/`initialize_user_from_auth_payload`,
+   both still live per 3h/3l) — kept in place, same file, so the four files that import
+   `AuthRedirectPayload` from it needed no path changes.
+
+   **Deleted:** `app/src/auth/auth_view_body.rs` (1,087 lines), `auth_view_shared_helpers.rs`
+   (602 lines), `login_failure_notification.rs` (165 lines) — all three had zero callers left
+   once `AuthView` did. `AuthManager::create_anonymous_user`/`on_create_anonymous_user`
+   (only caller was the deleted `AuthView::handle_login_later`), `sign_up_url`/
+   `copy_anonymous_user_linking_url_to_clipboard` (only caller was the deleted `auth_view_body.rs`),
+   `AuthRedirectPayload::from_raw_url` (only caller was the deleted paste-token handler), and
+   `AnonymousUserCreationError` (`server/server_api/auth.rs`, only referenced by the deleted
+   `on_create_anonymous_user`) — each confirmed zero callers, including test files, before
+   removal. `auth/mod.rs::init` no longer calls `auth_view_modal::init`/`auth_view_body::init`
+   (both registered `FixedBinding`s scoped to `id!(AuthView::ui_name())`/`"AuthViewBody"`, inert
+   once nothing constructs those views).
+
+   **Deliberately left standing, and why:** `AuthManagerEvent::CreateAnonymousUserFailed` and
+   `::SkippedLogin` are declared but now unconstructed — matched in `|`-grouped catch-alls in
+   `ai/connected_self_hosted_workers.rs` and `ai/mcp/templatable_manager/native.rs` that this
+   round didn't otherwise touch; harmless to leave, a two-file follow-on if anyone wants it.
+   `WorkspaceAction::AttemptLoginGatedAIUpgrade` (a live "Upgrade" button in
+   `workflows/workflow_view.rs`) is the same stale "Upgrade AI Usage" leftover as the two
+   `AttemptLoginGatedFeature`/`AttemptLoginGatedUpgrade` actions 3n deleted, except this one
+   still has a real dispatch site — only mechanically updated to match
+   `attempt_login_gated_feature`'s new signature, not traced further. `experiments/mod.rs`'s
+   `pub use login_layer::AuthFlowInstructions` is now an unused re-export (its only reader was
+   the deleted `auth_view_body.rs`) — a one-line, unrelated-module loose end, not fixed here.
+
+   Acceptance: `cargo check --no-default-features --features simplewarp --bin simplewarp
+   --all-targets`, `cargo check -p warp --bin warp-oss`, and `cargo clippy -p warp --lib
+   --all-targets --no-default-features --features simplewarp` all clean (0 errors; 48
+   warnings, matching 3n's pre-existing baseline plus the two documented loose ends above).
+   `./script/format --check` clean. `cargo nextest run -p warp --lib --no-default-features
+   --features simplewarp --no-fail-fast`: 5984/5992 pass, the same 8 pre-existing failures as
+   3n/3l, 0 new — confirmed with a full `--no-fail-fast` run, not just the fail-fast summary.
+   15 files changed, 2,456 lines removed against 24 added. Disk stayed well within bounds
+   (target/ 9.3 GB, 40 GB free). Not re-run in the app.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

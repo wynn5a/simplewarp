@@ -91,7 +91,6 @@ pub struct WorkspaceState {
     pub is_ai_assistant_panel_open: bool,
     pub is_agent_management_popup_open: bool,
     pub is_auth_override_modal_open: bool,
-    pub is_require_login_modal_open: bool,
     pub is_workflow_modal_open: bool,
     pub is_prompt_editor_open: bool,
     pub is_agent_toolbar_editor_open: bool,
@@ -180,7 +179,6 @@ impl WorkspaceState {
         self.is_header_toolbar_editor_open = false;
         self.is_import_modal_open = false;
         self.is_auth_override_modal_open = false;
-        self.is_require_login_modal_open = false;
         self.is_suggested_rule_modal_open = false;
         self.is_suggested_agent_mode_workflow_modal_open = false;
         self.is_codex_modal_open = false;

@@ -52,7 +52,6 @@ use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
 use crate::auth::auth_state::AuthState;
-use crate::auth::auth_view_modal::AuthViewVariant;
 use crate::banner::BannerState;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::{CloudViewModel, CloudViewModelEvent, UpdateTimestamp};
@@ -4902,11 +4901,7 @@ impl DriveIndex {
 
         if self.auth_state.is_anonymous_or_logged_out() {
             AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.attempt_login_gated_feature(
-                    "Share Object",
-                    AuthViewVariant::ShareRequirementCloseable,
-                    ctx,
-                )
+                auth_manager.attempt_login_gated_feature("Share Object", ctx)
             });
             return;
         }
@@ -5246,11 +5241,7 @@ impl TypedActionView for DriveIndex {
         // Block anonymous users from performing team actions
         if self.auth_state.is_anonymous_or_logged_out() && action.blocked_for_anonymous_user() {
             AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.attempt_login_gated_feature(
-                    action.into(),
-                    AuthViewVariant::RequireLoginCloseable,
-                    ctx,
-                )
+                auth_manager.attempt_login_gated_feature(action.into(), ctx)
             });
             return;
         }

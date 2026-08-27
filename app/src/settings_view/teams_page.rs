@@ -47,7 +47,6 @@ use crate::ai::AIRequestUsageModel;
 use crate::appearance::Appearance;
 use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
 use crate::auth::auth_state::AuthState;
-use crate::auth::auth_view_modal::AuthViewVariant;
 use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObjectEventEntrypoint, Space};
@@ -519,11 +518,7 @@ impl TypedActionView for TeamsPageView {
             && action.blocked_for_anonymous_user()
         {
             AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.attempt_login_gated_feature(
-                    action.into(),
-                    AuthViewVariant::RequireLoginCloseable,
-                    ctx,
-                )
+                auth_manager.attempt_login_gated_feature(action.into(), ctx)
             });
             return;
         }

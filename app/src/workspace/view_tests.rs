@@ -463,18 +463,6 @@ fn test_tools_panel_preferences_activate_after_signup_and_ai_enablement() {
                 );
                 drop(left_panel.render(ctx));
             });
-            workspace.handle_left_panel_event(&LeftPanelEvent::SignInRequested, ctx);
-            assert!(
-                workspace
-                    .current_workspace_state
-                    .is_require_login_modal_open,
-                "locked-panel Sign in should open the existing auth modal"
-            );
-            // Keep the remainder of this state-transition test focused on the
-            // tool panel rather than modal rendering.
-            workspace
-                .current_workspace_state
-                .is_require_login_modal_open = false;
         });
         app.read(|ctx| {
             // Availability must not erase the raw onboarding preferences.

@@ -1,11 +1,8 @@
 pub mod auth_manager;
 mod auth_override_warning_body;
 pub mod auth_override_warning_modal;
-mod auth_view_body;
 pub mod auth_view_modal;
-mod auth_view_shared_helpers;
 mod login_error_modal;
-mod login_failure_notification;
 mod user_properties;
 pub use warp_server_auth::{auth_state, credentials, user, user_uid};
 #[cfg(target_family = "wasm")]
@@ -16,7 +13,6 @@ use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 pub use auth_manager::AuthManager;
 pub use auth_state::AuthStateProvider;
 use itertools::Itertools;
-pub use login_failure_notification::LoginFailureReason;
 pub use user_uid::UserUid;
 use warp_core::channel::ChannelState;
 use warp_core::user_preferences::GetUserPreferences as _;
@@ -55,8 +51,6 @@ use crate::{
 };
 
 pub fn init(app: &mut AppContext) {
-    auth_view_modal::init(app);
-    auth_view_body::init(app);
     auth_override_warning_body::init(app);
 }
 

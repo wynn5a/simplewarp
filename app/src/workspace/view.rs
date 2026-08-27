@@ -231,7 +231,7 @@ use crate::auth::auth_override_warning_modal::{
     AuthOverrideWarningModal, AuthOverrideWarningModalEvent,
 };
 use crate::auth::auth_state::AuthState;
-use crate::auth::auth_view_modal::{AuthRedirectPayload, AuthView, AuthViewEvent, AuthViewVariant};
+use crate::auth::auth_view_modal::AuthRedirectPayload;
 use crate::autoupdate::{
     AutoupdateState, AutoupdateStateEvent, RelaunchModel, is_incoming_version_past_current,
 };
@@ -1062,7 +1062,6 @@ pub struct Workspace {
     should_show_ai_assistant_warm_welcome: bool,
     ai_assistant_close_warm_welcome_mouse_state_handle: MouseStateHandle,
     auth_override_warning_modal: ViewHandle<AuthOverrideWarningModal>,
-    require_login_modal: ViewHandle<AuthView>,
     workflow_modal: ViewHandle<WorkflowModal>,
     /// Standalone rendering of `DriveIndex`'s cloud-object naming dialog (new folder/notebook/
     /// env var collection), shown as a floating modal without requiring the Warp Drive tab to
@@ -1706,17 +1705,6 @@ impl Workspace {
         });
 
         (settings_pane, theme_chooser_view)
-    }
-
-    fn build_require_login_modal(ctx: &mut ViewContext<Self>) -> ViewHandle<AuthView> {
-        let require_login_modal = ctx.add_typed_action_view(|ctx| {
-            AuthView::new(AuthViewVariant::RequireLoginCloseable, ctx)
-        });
-        ctx.subscribe_to_view(&require_login_modal, move |me, _, event, ctx| {
-            me.handle_require_login_modal_event(event, ctx);
-        });
-
-        require_login_modal
     }
 
     fn build_auth_override_warning_modal(
@@ -2851,8 +2839,6 @@ impl Workspace {
             },
         );
 
-        let require_login_modal = Self::build_require_login_modal(ctx);
-
         let auth_override_warning_modal = Self::build_auth_override_warning_modal(ctx);
 
         let workflow_modal = Self::build_workflow_modal(ai_client.clone(), ctx);
@@ -3299,7 +3285,6 @@ impl Workspace {
             suggested_agent_mode_workflow_modal,
             suggested_rule_modal,
             build_plan_migration_modal,
-            require_login_modal,
             workflow_modal,
             cloud_object_naming_modal,
             theme_creator_modal,
@@ -6185,10 +6170,7 @@ impl Workspace {
                 );
             }
             LeftPanelEvent::SignInRequested => {
-                self.open_require_login_modal(AuthViewVariant::RequireLoginCloseable, ctx);
-                self.require_login_modal.update(ctx, |modal, ctx| {
-                    modal.start_sign_in(ctx);
-                });
+                self.open_require_login_modal(ctx);
             }
         }
     }
@@ -10645,19 +10627,6 @@ impl Workspace {
         }
     }
 
-    fn handle_require_login_modal_event(
-        &mut self,
-        event: &AuthViewEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            AuthViewEvent::Close => {
-                self.current_workspace_state.is_require_login_modal_open = false;
-                ctx.notify();
-            }
-        }
-    }
-
     fn handle_theme_creator_modal_event(
         &mut self,
         event: &ThemeCreatorModalEvent,
@@ -10787,9 +10756,7 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            AuthManagerEvent::AttemptedLoginGatedFeature { auth_view_variant } => {
-                self.open_require_login_modal(*auth_view_variant, ctx)
-            }
+            AuthManagerEvent::AttemptedLoginGatedFeature => self.open_require_login_modal(ctx),
             AuthManagerEvent::LoginOverrideDetected(interrupted_auth_payload) => {
                 self.open_auth_override_warning_modal(interrupted_auth_payload.clone(), ctx);
             }
@@ -13845,7 +13812,7 @@ impl Workspace {
 
     /// SimpleWarp is local-only: signing in can never succeed, so this shows a toast explaining
     /// that instead of the sign-up modal a cloud build would show for a login-gated feature.
-    fn open_require_login_modal(&mut self, _variant: AuthViewVariant, ctx: &mut ViewContext<Self>) {
+    fn open_require_login_modal(&mut self, ctx: &mut ViewContext<Self>) {
         self.toast_stack.update(ctx, |toast_stack, ctx| {
             toast_stack.add_ephemeral_toast(
                 DismissibleToast::error(
@@ -22294,27 +22261,15 @@ impl Workspace {
             .map(|team| team.uid)
     }
 
+    /// SimpleWarp is local-only: signing up can never succeed (3l), so this no longer opens a
+    /// browser tab to a sign-up page that can't complete. Just shows the same toast as any
+    /// other login-gated feature.
     fn initiate_user_signup(
         &mut self,
-        entrypoint: AnonymousUserSignupEntrypoint,
+        _entrypoint: AnonymousUserSignupEntrypoint,
         ctx: &mut ViewContext<Self>,
     ) {
-        if self.auth_state.is_user_anonymous().unwrap_or_default() {
-            // User has a Firebase anonymous account — use the linking flow.
-            AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.initiate_anonymous_user_linking(entrypoint, ctx);
-            });
-        } else {
-            // User is fully logged out (no Firebase user) — open the regular sign-up page.
-            AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                let sign_up_url = auth_manager.sign_up_url();
-                ctx.open_url(&sign_up_url);
-            });
-        }
-        self.require_login_modal.update(ctx, |auth_modal, ctx| {
-            auth_modal.skip_to_browser_open_step(ctx);
-        });
-        self.open_require_login_modal(AuthViewVariant::RequireLoginCloseable, ctx);
+        self.open_require_login_modal(ctx);
     }
 
     fn redirect_to_sign_in(&mut self) {
@@ -22558,11 +22513,7 @@ impl TypedActionView for Workspace {
 
         if self.auth_state.is_anonymous_or_logged_out() && action.blocked_for_anonymous_user() {
             AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.attempt_login_gated_feature(
-                    action.into(),
-                    AuthViewVariant::RequireLoginCloseable,
-                    ctx,
-                )
+                auth_manager.attempt_login_gated_feature(action.into(), ctx)
             });
             return;
         }
@@ -23992,11 +23943,7 @@ impl TypedActionView for Workspace {
             }
             AttemptLoginGatedAIUpgrade => {
                 AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                    auth_manager.attempt_login_gated_feature(
-                        "Upgrade AI Usage",
-                        AuthViewVariant::RequireLoginCloseable,
-                        ctx,
-                    )
+                    auth_manager.attempt_login_gated_feature("Upgrade AI Usage", ctx)
                 });
             }
             #[cfg(all(enable_crash_recovery, target_os = "linux"))]
@@ -25845,10 +25792,6 @@ impl View for Workspace {
 
         if self.current_workspace_state.is_ctrl_tab_palette_open {
             stack.add_child(ChildView::new(&self.ctrl_tab_palette).finish());
-        }
-
-        if self.current_workspace_state.is_require_login_modal_open {
-            stack.add_child(ChildView::new(&self.require_login_modal).finish());
         }
 
         if self.current_workspace_state.is_auth_override_modal_open {
