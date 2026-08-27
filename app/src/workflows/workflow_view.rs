@@ -39,8 +39,6 @@ use super::{CloudWorkflowModel, WorkflowSource, WorkflowType, WorkflowViewMode};
 use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::appearance::Appearance;
-use crate::auth::auth_state::AuthState;
-use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::CloudViewModel;
@@ -52,7 +50,6 @@ use crate::drive::CloudObjectTypeAndId;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_workflow_limit;
 use crate::drive::settings::WarpDriveSettings;
-use crate::drive::workflows::ai_assist::GeneratedCommandMetadataError;
 use crate::drive::workflows::arguments::ArgumentsState;
 use crate::drive::workflows::enum_creation_dialog::{
     EnumCreationDialog, EnumCreationDialogEvent, WorkflowEnumData,
@@ -94,11 +91,11 @@ use crate::ui_components::icons::Icon;
 #[cfg(target_family = "wasm")]
 use crate::uri::web_intent_parser::open_url_on_desktop;
 use crate::util::bindings::CustomAction;
-use crate::view_components::{DismissibleToast, ToastLink, ToastType};
+use crate::view_components::{DismissibleToast, ToastType};
 use crate::workflows::CloudWorkflow;
 use crate::workflows::workflow::{Argument, Workflow};
-use crate::workspace::{ToastStack, WorkspaceAction};
-use crate::{FeatureFlag, UserWorkspaces, send_telemetry_from_ctx};
+use crate::workspace::ToastStack;
+use crate::{FeatureFlag, send_telemetry_from_ctx};
 
 mod alias_argument_selector;
 mod alias_bar;
@@ -304,7 +301,6 @@ pub struct WorkflowView {
     default_argument_id: usize,
     pub(super) ai_metadata_assist_state: AiAssistState,
     revision_ts: Option<Revision>,
-    pub(super) auth_state: Arc<AuthState>,
     pub(super) ai_client: Arc<dyn AIClient>,
     owner: Option<Owner>,
     initial_folder_id: Option<SyncId>,
@@ -451,7 +447,6 @@ impl WorkflowView {
             initial_folder_id: None,
             revision_ts: None,
             command_display_data: WorkflowCommandDisplayData::new_empty(),
-            auth_state: AuthStateProvider::as_ref(ctx).get().clone(),
             ai_client,
             pending_argument_editor_row: None,
             show_enum_creation_dialog: false,
@@ -2604,46 +2599,14 @@ impl WorkflowView {
                             environment_variables: None,
                         };
 
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::AutoGenerateMetadataSuccess,
-                            ctx
-                        );
+                        send_telemetry_from_ctx!(TelemetryEvent::AutoGenerateMetadataSuccess, ctx);
 
                         pane.populate_missing_field_with_suggestion(workflow, ctx);
                         ctx.notify();
                     }
                     Err(err) => {
                         let message = err.user_facing_message();
-                        if let GeneratedCommandMetadataError::RateLimited = err {
-                            let current_user_id = pane.auth_state.user_id().unwrap_or_default();
-                            if let Some(team) = UserWorkspaces::as_ref(ctx).team_for_view(ctx) {
-                                let current_user_email =
-                                    pane.auth_state.user_email().unwrap_or_default();
-                                let has_admin_permissions = team.has_admin_permissions(&current_user_email);
-                                if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
-                                    if has_admin_permissions {
-                                        pane.display_upgrade_error(Some(team.uid), current_user_id, ctx);
-                                    } else {
-                                        pane.display_error_toast(
-                                            "Looks like you're out of AI credits. Contact a team admin to upgrade for more credits.".to_string(),
-                                            ctx,
-                                        );
-                                    }
-                                } else {
-                                    pane.display_error_toast(
-                                        message.clone(),
-                                        ctx,
-                                    );
-                                }
-                            } else {
-                                pane.display_upgrade_error(None, current_user_id, ctx);
-                            }
-                        } else {
-                            pane.display_error_toast(
-                                message.clone(),
-                                ctx,
-                            );
-                        }
+                        pane.display_error_toast(message.clone(), ctx);
 
                         send_telemetry_from_ctx!(
                             TelemetryEvent::AutoGenerateMetadataError {
@@ -2660,41 +2623,12 @@ impl WorkflowView {
                 AIRequestUsageModel::handle(ctx).update(ctx, |request_usage_model, ctx| {
                     request_usage_model.refresh_request_usage_async(ctx);
                 });
-            }
+            },
         );
 
         self.ai_metadata_assist_state = AiAssistState::RequestInFlight;
         self.disable_editors(ctx);
         ctx.notify();
-    }
-
-    fn display_upgrade_error(
-        &mut self,
-        team_uid: Option<ServerId>,
-        user_id: UserUid,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let upgrade_link = team_uid
-            .map(UserWorkspaces::upgrade_link_for_team)
-            .unwrap_or_else(|| UserWorkspaces::upgrade_link(user_id));
-
-        let window_id = ctx.window_id();
-        let toast_link = if self.auth_state.is_anonymous_or_logged_out() {
-            ToastLink::new("Upgrade for more credits.".into())
-                .with_onclick_action(WorkspaceAction::AttemptLoginGatedAIUpgrade)
-        } else {
-            ToastLink::new("Upgrade for more credits.".into()).with_href(upgrade_link)
-        };
-
-        crate::workspace::ToastStack::handle(ctx).update(ctx, |stack, ctx| {
-            stack.add_ephemeral_toast(
-                DismissibleToast::error("Looks like you're out of AI credits.".into())
-                    .with_link(toast_link),
-                window_id,
-                ctx,
-            );
-            ctx.notify();
-        });
     }
 
     // Populate only the missing field in the workflow editor with the generated suggestion from AI.

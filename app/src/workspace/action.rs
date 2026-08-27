@@ -509,7 +509,6 @@ pub enum WorkspaceAction {
         zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
     },
     OpenCloudAgentSetupGuide,
-    AttemptLoginGatedAIUpgrade,
     /// Open the modal explaining Prompt Suggestions aren't available on the Free plan.
     OpenPromptSuggestionsUnavailableModal,
     /// Dismisses the Wayland crash recovery banner and opens a link to our docs page with more
@@ -1117,7 +1116,6 @@ impl WorkspaceAction {
             | RunCommand { .. }
             | InsertInInput { .. }
             | InsertForkSlashCommand
-            | AttemptLoginGatedAIUpgrade
             | UndoTrash(_)
             | OpenFilePath { .. }
             | ViewObjectInWarpDrive(_)

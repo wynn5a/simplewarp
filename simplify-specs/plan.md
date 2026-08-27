@@ -1552,6 +1552,92 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    15 files changed, 2,456 lines removed against 24 added. Disk stayed well within bounds
    (target/ 9.3 GB, 40 GB free). Not re-run in the app.
 
+3p. **The three loose ends 3o flagged and left standing — DONE, plus one more found along
+   the way.** All three were closed this round, in order of size.
+
+   **`AuthManagerEvent::CreateAnonymousUserFailed`/`SkippedLogin` — DELETED.** Whole-repo
+   `grep -rn "ctx.emit(AuthManagerEvent::"` confirmed neither variant is ever constructed
+   (their only emitter was the deleted `AuthView::handle_login_later`, per 3o). Removed both
+   declarations and simplified the two `|`-grouped catch-all match arms in
+   `ai/connected_self_hosted_workers.rs` and `ai/mcp/templatable_manager/native.rs` that named
+   them.
+
+   **`experiments::login_layer` (`AuthFlowInstructions`) — DELETED.** An A/B-test definition
+   for "explicitly instruct users to go to their browser to continue authenticating" — dead
+   the moment `AuthView` (3o) went, since its `get_group()` was never called from anywhere
+   once the auth UI it gated was gone. Confirmed via `grep -rn "AuthFlowInstructions::"`
+   returning zero callers outside its own file. Deleted `login_layer.rs` outright (module
+   declaration, re-export, and its entry in the `LAYERS` registration vec in
+   `experiments/mod.rs`) rather than leaving an inert layer in a list that exists specifically
+   to enumerate live experiments. The generic experiment framework itself (`Layer`,
+   `Experiment<T>`, `LAYERS`) is untouched — three other real experiments still use it.
+
+   **`WorkspaceAction::AttemptLoginGatedAIUpgrade` — DELETED, via the same "trace to the
+   root, not the button" approach as every round since 3l.** 3o flagged this as a live dispatch
+   site and stopped there. Tracing further: its only two callers
+   (`WorkflowModal::issue_request` in `drive/workflows/ai_assist.rs` and the near-duplicate
+   `WorkflowView::issue_request`/`WorkflowPane` in `workflows/workflow_view.rs`) both gate the
+   whole "you're out of AI credits, upgrade?" branch on
+   `GeneratedCommandMetadataError::RateLimited`. `grep -rn "fn generate_metadata_for_command"`
+   found exactly one implementor of that trait method in the whole workspace — the local-only
+   stub in `server/server_api/ai.rs`, which unconditionally returns `Err(...::Other)`. The
+   `From<GenerateMetadataForCommandFailureType>` conversion that could theoretically produce
+   `RateLimited` is only reachable from a real network response, which this stub never
+   produces. So `RateLimited` can never occur in this fork — the entire team/admin-permission
+   branch nested under it (checking `UserWorkspaces::team_for_view`, `has_admin_permissions`,
+   `can_upgrade_to_higher_tier_plan`) was dead in both files, same "provably dead but not
+   compiler-dead" shape as `is_anonymous_or_logged_out()` always being `true` (3h). Collapsed
+   both `Err(err) => { ... }` blocks down to their one live line (`emit
+   WorkflowModalEvent::AiAssistError`/`pane.display_error_toast`, unconditionally). That, in
+   turn, let the compiler's own dead-code cascade take it from there in one more pass:
+   `WorkflowModalEvent::AiAssistUpgradeError` (unconstructed → variant deleted, handler in
+   `workspace/view.rs` deleted), `WorkflowView::display_upgrade_error` (uncalled → deleted),
+   `WorkspaceAction::AttemptLoginGatedAIUpgrade` (nothing left to dispatch it → variant and its
+   `handle_action` arm deleted), and the now-write-only `WorkflowView.auth_state` field
+   (nothing left reading it → field and its one constructor assignment deleted). Left
+   `GeneratedCommandMetadataError::RateLimited` itself in place — the enum is `Serialize`d into
+   telemetry (`serde_json::json!(err)`) regardless of variant, so it costs nothing to keep, and
+   deleting it would mean also hand-editing the `From` impl for no behavioral gain.
+
+   **One more found opportunistically, unrelated to the AI-upgrade thread:**
+   `server/graphql/mod.rs` re-exported `get_user_facing_error_message` alongside
+   `GraphQLError`, but every real caller (`settings_view/platform/*.rs`,
+   `ai/agent_sdk/api_key.rs`, `warp_server_client/src/auth/mod.rs`) already calls it via the
+   fully-qualified `warp_graphql::client::get_user_facing_error_message` path, not the
+   re-export — this warning was pre-existing debt from 3o's `auth_manager.rs` trim, just never
+   surfaced until this round's first clean `--all-targets` build. Dropped the re-export,
+   kept `GraphQLError` (genuinely still re-exported and used by two files).
+
+   **Traced and confirmed NOT dead — left alone:** `app/src/auth/login_error_modal.rs`'s
+   `LoginErrorModal` shows the same "never constructed" warning as everything else this round,
+   but its one call site (`auth/web_handoff.rs`) is behind `wasm_bindgen`/wasm-only code —
+   a different, real build target (the web/host-embedded terminal), not something this
+   native-`simplewarp`-bin build exercises. Not part of the local-only/DNS-blocked dead-code
+   pattern this whole thread has been finding; left untouched.
+
+   **Noticed, not acted on — flagged for a future round, not a quick fix:** a full
+   `--all-targets` build (this session's first with `DEVELOPER_DIR` set, see the build
+   prerequisites note) surfaced ~25 "irrefutable `if let` pattern" warnings in `root_view.rs`,
+   all matching on `AuthOnboardingState::Terminal(..)`. On this non-wasm build target that
+   enum only has one variant (`WebImport` is `#[cfg(target_family = "wasm")]`, since 3l), so
+   every match against it is provably exhaustive already. Collapsing the enum away on native
+   builds would mean restructuring `RootView.auth_onboarding_state`'s type per-target (it's
+   genuinely two-variant on wasm) and touching ~20 call sites across `root_view.rs` — a real
+   simplification, but a refactor of live, working, correctly-compiling code rather than a
+   dead-code deletion, and higher blast radius than anything else this thread has done
+   unattended. Left for a dedicated round with the user present to review the diff.
+
+   Acceptance: `cargo check --no-default-features --features simplewarp --bin simplewarp
+   --all-targets` and `cargo check -p warp --bin warp-oss` both clean (0 errors). `cargo
+   clippy -p warp --lib --all-targets --no-default-features --features simplewarp` clean (0
+   errors). `./script/format --check` clean (after one `./script/format` pass for reflow).
+   `cargo nextest run -p warp --lib --no-default-features --features simplewarp
+   --no-fail-fast`: 5984/5992 pass, the same 8 pre-existing failures as every prior round in
+   this thread (3l/3n/3o), 0 new. 11 files changed. Disk stayed well within bounds (target/
+   7.2 GB, 39 GB free). Not re-run in the app. This closes out every loose end 3o named; the
+   `AuthOnboardingState` refactor and the still-untouched `app/src/workspaces/` module (3m)
+   are the two remaining threads, both deliberately deferred pending explicit go-ahead.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

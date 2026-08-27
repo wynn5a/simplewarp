@@ -8,11 +8,9 @@ use warpui::{SingletonEntity, ViewContext};
 use super::arguments::ArgumentsState;
 use super::modal::{AiAssistState, WorkflowModal, WorkflowModalEvent};
 use crate::ai::AIRequestUsageModel;
-use crate::auth::AuthStateProvider;
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::workflows::workflow::{Argument, Workflow};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 /// Generated command metadata from server.
 #[derive(Debug)]
@@ -108,7 +106,7 @@ impl WorkflowModal {
                                 name: parameter.name,
                                 description: Some(parameter.description),
                                 default_value: Some(parameter.default_value),
-                                arg_type: Default::default()
+                                arg_type: Default::default(),
                             })
                             .collect_vec();
 
@@ -125,38 +123,14 @@ impl WorkflowModal {
                             environment_variables: None,
                         };
 
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::AutoGenerateMetadataSuccess,
-                            ctx
-                        );
+                        send_telemetry_from_ctx!(TelemetryEvent::AutoGenerateMetadataSuccess, ctx);
 
                         modal.populate_missing_field_with_suggestion(workflow, ctx);
                         ctx.notify();
                     }
                     Err(err) => {
                         let message = err.user_facing_message();
-                        if let GeneratedCommandMetadataError::RateLimited = err {
-                            let auth_state = AuthStateProvider::as_ref(ctx).get();
-                            let current_user_id = auth_state.user_id().unwrap_or_default();
-                            if let Some(team) = UserWorkspaces::as_ref(ctx).team_for_view(ctx) {
-                                let current_user_email =
-                                    auth_state.user_email().unwrap_or_default();
-                                let has_admin_permissions = team.has_admin_permissions(&current_user_email);
-                                if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
-                                    if has_admin_permissions {
-                                        ctx.emit(WorkflowModalEvent::AiAssistUpgradeError(Some(team.uid), current_user_id));
-                                    } else {
-                                        ctx.emit(WorkflowModalEvent::AiAssistError("Looks like you're out of AI credits. Contact a team admin to upgrade for more credits.".to_string()));
-                                    }
-                                } else {
-                                    ctx.emit(WorkflowModalEvent::AiAssistError(message.clone()));
-                                }
-                            } else {
-                                ctx.emit(WorkflowModalEvent::AiAssistUpgradeError(None, current_user_id));
-                            }
-                        } else {
-                            ctx.emit(WorkflowModalEvent::AiAssistError(message.clone()));
-                        }
+                        ctx.emit(WorkflowModalEvent::AiAssistError(message.clone()));
 
                         send_telemetry_from_ctx!(
                             TelemetryEvent::AutoGenerateMetadataError {
@@ -173,7 +147,7 @@ impl WorkflowModal {
                 AIRequestUsageModel::handle(ctx).update(ctx, |request_usage_model, ctx| {
                     request_usage_model.refresh_request_usage_async(ctx);
                 });
-            }
+            },
         );
 
         self.ai_metadata_assist_state = AiAssistState::RequestInFlight;

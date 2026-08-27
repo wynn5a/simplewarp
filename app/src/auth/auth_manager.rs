@@ -52,10 +52,6 @@ pub enum AuthManagerEvent {
     AuthComplete,
     /// Failed to authenticate a user, due to a particular `UserAuthenticationError`.
     AuthFailed(UserAuthenticationError),
-    /// Failed to create an anonymous user.
-    CreateAnonymousUserFailed,
-    /// The user chose to skip login entirely (no Firebase user created).
-    SkippedLogin,
     /// The user now needs to reauthenticate. If the user needs to reauth, an `AuthFailed`
     /// event might be triggered instead, but there are some code paths where we don't
     /// refresh the entire user, only their token, which is when this event might be emitted.

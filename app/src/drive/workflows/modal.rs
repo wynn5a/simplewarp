@@ -32,7 +32,6 @@ use super::workflow_arg_selector::{
 };
 use super::workflow_arg_type_helpers::{self, ArgumentEditorRowIndex};
 use crate::appearance::Appearance;
-use crate::auth::UserUid;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{
     CloudObjectEventEntrypoint, DriveObjectType, ObjectType, Owner, Revision,
@@ -47,7 +46,7 @@ use crate::editor::{
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::ids::{ClientId, ServerId, SyncId};
+use crate::server::ids::{ClientId, SyncId};
 use crate::server::server_api::ai::AIClient;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::ui_components::blended_colors;
@@ -173,7 +172,6 @@ pub enum WorkflowModalEvent {
     Close,
     UpdatedWorkflow(SyncId),
     AiAssistError(String),
-    AiAssistUpgradeError(Option<ServerId>, UserUid),
 }
 
 /// A grouping of various error states the modal can be in. Any of these being
