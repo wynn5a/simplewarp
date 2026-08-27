@@ -1191,6 +1191,45 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    same standard before touching `root_view.rs`, the same lesson 3h paid for by getting 6 of 11
    files wrong on a first pass.
 
+3j. **`needs_sso_link_view.rs` — DONE, the one piece of 3i that didn't need the channel
+   question answered first.** Every other 3i finding (`LoginSlide`, `PostAuthOnboarding`,
+   `PasteAuthTokenModal`, the account-first cluster) is entangled with `Onboarding`, whose
+   reachability depends on `FeatureFlag::AgentOnboarding` — off for `simplewarp` but still in
+   the `default` cargo feature set, so `warp-oss`/`stable`/`dev`/`preview` (built from the same
+   shared `root_view.rs`) can still reach it. Touching those means deciding whether this fork
+   still cares about those channels' behavior, which 3i correctly declined to decide
+   unilaterally. `NeedsSsoLink` has no such dependency: its only entry point,
+   `RootView::show_needs_sso_link_view`, fires exclusively from `handle_auth_manager_event`'s
+   `AuthManagerEvent::AuthComplete` arm, and — per 3i's trace — that event's one emission site
+   in the whole workspace sits behind a warp-server/Firebase round-trip that 3e's unconditional
+   `local_only_error()` stub kills in **every** feature set, `default` included. So `NeedsSsoLink`
+   is dead the same way regardless of channel, with no cross-binary judgment call needed.
+
+   Deleted: `app/src/auth/needs_sso_link_view.rs` (103 lines) and its `mod` declaration;
+   `AuthOnboardingState::NeedsSsoLink`, `RootView::needs_sso_link_view` and its construction,
+   `RootView::show_needs_sso_link_view`, `AuthOnboardingState::show_needs_sso_link_view`,
+   `AuthOnboardingState::complete_sso_link`, and every match arm across `log_out`, `focus`,
+   `render`, `show_web_handoff_view` (wasm), and `handle_auth_manager_event`'s `AuthComplete` arm
+   that existed only to enter or exit that state. `handle_auth_manager_event`'s
+   `resumed_sso_context`/`show_needs_sso_link_view` branch is gone with it; the remaining
+   `account_first_context` chain is otherwise unchanged. `pending_account_first_sso_login` is
+   left in place (still declared, still reset in a few places) since it belongs to the deferred
+   account-first cluster and is never set to `Some` again now — an inert but harmless leftover,
+   not touched further to avoid re-opening the channel question 3i deferred.
+
+   `login_error_modal.rs`/`web_handoff.rs` stay, as 3h and 3i both found: wasm-only, a different
+   product line this plan's scope never covers.
+
+   Acceptance: `cargo check -p warp --lib --all-targets`, `cargo clippy -p warp --lib
+   --all-targets`, `cargo check --no-default-features --features simplewarp --bin simplewarp`,
+   and `cargo check -p warp --bin warp-oss` all clean (confirms the deletion holds across both
+   the `simplewarp` and `default` feature sets, not just the one this plan targets).
+   `./script/format --check` clean. `cargo nextest run -p warp --lib`: **5999 pass, 0 fail, 4
+   skipped** — exactly one fewer than the prior 6000-pass baseline, matching the one test deleted
+   (`test_show_needs_sso_link_view_blocks_pre_terminal_onboarding_states`, which existed solely
+   to pin `show_needs_sso_link_view`'s three-states-converge-on-`NeedsSsoLink` behavior). Not
+   re-run in the app — none of this was reachable UI to begin with.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

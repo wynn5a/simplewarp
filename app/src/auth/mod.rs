@@ -7,7 +7,6 @@ mod auth_view_shared_helpers;
 mod login_error_modal;
 mod login_failure_notification;
 pub mod login_slide;
-pub mod needs_sso_link_view;
 pub mod paste_auth_token_modal;
 mod user_properties;
 pub use warp_server_auth::{auth_state, credentials, user, user_uid};
