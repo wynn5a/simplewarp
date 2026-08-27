@@ -1638,6 +1638,52 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `AuthOnboardingState` refactor and the still-untouched `app/src/workspaces/` module (3m)
    are the two remaining threads, both deliberately deferred pending explicit go-ahead.
 
+3q. **Two more test-only-covered billing/onboarding leftovers — DONE, found via 3p's clean
+   `--all-targets` build's remaining warning list, not by searching further.**
+
+   **`pricing::onboarding_credit_pack_options` — DELETED.** Converted the server's add-on
+   credit-pack pricing into display options "shown on the onboarding offer slide" (its own doc
+   comment). That offer slide is `onboarding::agent_onboarding_view`/`slides::offer_slide` —
+   a whole separate crate, still alive and heavily used *within itself* (`CreditPackOption` is
+   real there), but `grep -rn "AgentOnboardingView\|offer_slide"` against `app/src` returned
+   nothing: the app never wires that crate's credit-pack UI up at all, consistent with the
+   onboarding cluster 3h–3k already deleted. The function's only callers left were five of its
+   own six tests. Deleted the function and its `use onboarding::CreditPackOption` import from
+   `pricing/mod.rs`, and trimmed `pricing_tests.rs` down to the one surviving test
+   (`promotion_message_is_exposed_verbatim`, which exercises `PricingInfoModel` directly, not
+   this function). `PricingInfoModel` itself, `AddonCreditsOption`, and the `onboarding` crate
+   are all untouched — genuinely still live elsewhere.
+
+   **`uri::url_reports_checkout_success`/`CHECKOUT_SUCCESSFUL_PARAM` — DELETED.** Parsed the
+   `checkoutSuccessful=true` query param a web Stripe-checkout confirmation page would append
+   to the desktop hand-off deeplink. Its own test's doc comment named the purpose: "so
+   onboarding can advance without opening a settings page" — the same deleted onboarding flow
+   as above. Zero production callers (`grep -rn` confirmed), only its own regression test
+   (`test_url_reports_checkout_success`, REV-1952). Deleted the const, the function, and the
+   test; `ChannelState`/`Url` imports in `uri_tests.rs` are still needed by other tests in the
+   file (`use super::*` covers the rest, nothing to trim there).
+
+   **Traced and confirmed NOT dead — left alone:** `AuthManagerEvent::MintCustomTokenFailed`'s
+   payload field ("field is never read") is a live event on a live code path (JWT/custom-token
+   minting, still real) — its two `|`-grouped matchers just don't inspect the specific error
+   value, they react to the event firing at all. Not part of this thread's pattern (nothing
+   here is unreachable), so left as-is; a clippy nit, not dead code.
+   `ai/agent_sdk/driver/terminal.rs::ShareSessionError::Failed` is agent-session-sharing
+   infrastructure, adjacent to the deliberately-paused `app/src/workspaces/` (3m) scope, not
+   the login/account/quota-UI thread — not investigated further this round.
+   `root_view.rs::AuthOnboardingTarget`'s "never used" warning is the same
+   `#[cfg(target_family = "wasm")]`-only shape as `LoginErrorModal` (3p): real on the wasm
+   target, invisible on this native build. Folded into the already-deferred
+   `AuthOnboardingState` refactor note from 3p, not a separate item.
+
+   Acceptance: same four checks as every round in this thread, all clean — `cargo check` both
+   feature sets (0 errors), `cargo clippy -p warp --lib --all-targets --no-default-features
+   --features simplewarp` (0 errors), `./script/format --check` (clean after one format pass),
+   `cargo nextest run -p warp --lib --no-default-features --features simplewarp
+   --no-fail-fast`: 5978/5986 pass (6 fewer total tests than 3p's 5992, from the 6 deleted
+   pricing tests), same 8 pre-existing failures, 0 new. 4 files changed. Disk: target/ 9.2 GB,
+   37 GB free.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 
