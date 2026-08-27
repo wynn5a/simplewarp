@@ -1417,6 +1417,68 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    join-a-team-via-link flow may be smaller and worth checking first) and trace its construction
    sites fully before deleting.
 
+3n. **The Drive/Teams "please log in" nag no longer shows the dead-end sign-up modal — DONE.**
+   Scoped to what's safe and root-cause without re-opening the deferred `workspaces/` item: found
+   the single function every "you need an account for this" trigger converges on
+   (`Workspace::open_require_login_modal`) and fixed it there, rather than touching the ~6 call
+   sites (Team* drive/notebook actions, the Teams and Account settings pages, a Drive share
+   dialog) that call into it. It now shows a small toast — "SimpleWarp is a local-only build;
+   sign-in and team features aren't available" — instead of focusing the full-screen `AuthView`
+   sign-up modal, which could never complete anyway (3l: every network path is DNS-blocked).
+   None of those ~6 call sites, `AuthManager::attempt_login_gated_feature`, or the `Team*`
+   action-gating logic itself needed to change — same shape as fixing `log_out` once in 3l
+   instead of editing every place that could reach `Auth`.
+
+   Two more nags fixed alongside it, found while tracing every path into the modal:
+
+   - **`terminal::view::action::TerminalAction::AttemptLoginGatedFeature` — deleted, DONE.**
+     A leftover from the pre-4c/4d billing UI ("Upgrade AI Usage"), with zero construction sites
+     anywhere in the workspace (confirmed by a whole-repo grep, not just `app/src/`) — the
+     button that used to dispatch it went with `buy_credits_banner.rs` in 4c. Removed the
+     variant, its `Display` arm, and its two now-dead match arms in `terminal/view.rs`
+     (`accessibility_content`'s grouping and the handler itself), plus the two imports
+     (`AuthManager`, `AuthViewVariant`) that were only there for it.
+   - **A real bug, not just cosmetic: `Workspace::run_workflow_in_active_input` was blocking
+     every agent-mode workflow for every user — DONE.** Its comment said "View-only sessions
+     should not be able to run workflows" (session sharing's viewer mode, deleted in 4e), but
+     the actual condition it guarded was `self.auth_state.is_anonymous_or_logged_out()` — always
+     `true` in this fork (3h) — with no relation to viewing left. So every attempt to run an
+     agent-mode workflow hit the sign-up nag and `return`ed before running anything, unlike
+     every other AI feature Phase 3 made local-first. Deleted the stale guard; workflows run
+     unconditionally now, same as the rest of the app.
+
+   **Deliberately not chased further, and why.** `open_require_login_modal` no longer focuses
+   `Workspace::require_login_modal`, so that `ViewHandle<AuthView>` field, its construction
+   (`build_require_login_modal`), its event handler (`handle_require_login_modal_event`), and
+   its conditional render block are now fully inert — confirmed by the post-fix `cargo check`,
+   which newly flags `AuthView::set_variant`/`AuthViewBody::set_variant` as unused. Two call
+   sites (`LeftPanelEvent::SignInRequested`'s handler, `initiate_user_signup`) still poke this
+   now-invisible view directly (`start_sign_in`, `skip_to_browser_open_step`) — harmless (no
+   user-visible effect) but not yet deleted. Left standing on purpose: removing
+   `require_login_modal` itself cascades into the actual "Sign In"/"Sign Up" entry points
+   (`LeftPanelAction::SignIn`, `initiate_user_signup`, `AuthManager::initiate_anonymous_user_linking`,
+   `sign_up_url`) and their rendering in `left_panel.rs`, which is a second, separable round —
+   the nag itself (this round's target) is gone either way.
+
+   `AuthViewVariant::HitDriveObjectLimitCloseable` (`AuthManager::anonymous_user_hit_drive_object_limit`)
+   was traced too and left untouched: it already can never fire, for a reason independent of this
+   round's fix — `is_anonymous_user_feature_gated()` reads `self.user`, which never populates in
+   this fork (same "the round-trip that would set it is DNS-blocked" root cause as 3i/3l), so the
+   `&&`-guarded emit is unreachable in practice already, just not compiler-provably. No code
+   changed for it; not worth touching since it produces no user-visible nag today.
+
+   Acceptance: `cargo check --no-default-features --features simplewarp --bin simplewarp`,
+   `cargo check -p warp --bin warp-oss`, and `cargo clippy -p warp --lib --all-targets
+   --no-default-features --features simplewarp` all clean (0 errors). `./script/format --check`
+   clean. `cargo nextest run -p warp --lib --no-default-features --features simplewarp
+   --no-fail-fast`: 5984/5992 pass, the same 8 pre-existing failures as 3l (`cloud_preferences_syncer`'s
+   six, `workspace::view::tests`'s two) — one of which,
+   `test_tools_panel_preferences_activate_after_signup_and_ai_enablement`, also asserts
+   `is_require_login_modal_open` after `SignInRequested` and will need that assertion updated
+   whenever its pre-existing, unrelated failure is fixed; not touched here since it was already
+   failing before this round for a different reason. Disk stayed well within bounds throughout
+   (target/ 8.4 GB, 42 GB free). Not re-run in the app.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 
