@@ -1732,12 +1732,20 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `byo_endpoint_policy` stays on the tier struct, written by the GraphQL conversion and read by
    nothing. It goes with `graphql`.
 
-   **`warp_server_client` next, and it is not a clean cut.** 17 files, 3,651 lines, 23 files
-   referencing it. Its `base_client` had two users and one is now gone, but the crate is four
-   separate things: `iap` (839 lines of identity-token minting), `auth` (845, the session and
-   token layer that `app/src/auth/` is built on), `base_client` (417), and `network_logging`
-   (164, which backs the in-app network log view). The `auth` half is entangled with step 3, so
-   the tractable slice is `iap` plus `base_client`, not the crate.
+   **`warp_server_client` next, and it is not a clean cut.** At the time this was written the
+   crate looked like four separate things: `iap` (839 lines of identity-token minting), `auth`
+   (845, the session and token layer that `app/src/auth/` is built on), `base_client` (417),
+   and `network_logging` (164, which backs the in-app network log view) — with `iap` plus
+   `base_client` named as the tractable slice. **`iap` is gone as of 4b**, which covered "six
+   crates" without naming this one specifically; checked directly (`grep -rn "IapConfig\|iap::"`
+   across the workspace, zero hits) rather than assumed. That leaves `base_client` as the only
+   candidate slice, and it is not tractable on its own: `graphql_helpers::send_graphql_request`
+   (a live function, not the stubbed `app/src/server::ServerApi` wrapper of the same name 3e
+   built) and `public_api::get_public_api` both take a `&BaseClient`, and `auth/mod.rs` calls
+   `send_graphql_request` directly for real login/session-refresh GraphQL operations — the same
+   `app/src/auth/` entanglement 3h–3q have been tracing, not a separate crate-level cut. The
+   crate stays whole until that thread's own deferred `AuthOnboardingState` refactor (3p) or the
+   still-untouched `app/src/workspaces/` module (3m) gets an attended round.
 
 4b. **The Identity-Aware Proxy layer — DONE.** ~2,100 lines across six crates. IAP fronted the
    *staging* warp-server, reachable only through `WarpServerConfig::iap_config`. **No channel
@@ -2070,6 +2078,39 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `./script/format --check` clean. `cargo nextest run -p warp --lib`: **6015 pass, 0 fail** —
    better than 4h/4i's recorded 6007/6015 baseline; the 8 tests noted there as pre-existing
    failures did not reproduce this run. Not re-run in the app — none of this was reachable UI.
+
+4k. **The two orphans 3k deferred — DONE, and nothing else new.** ~20 lines. 3k's "left for a
+   future clippy sweep" note named `Workspace::open_vertical_tabs_panel_if_enabled`
+   (`workspace/view.rs`) and `OnboardingTutorial::intention` (`workspace/view/onboarding.rs`)
+   as genuinely zero-caller back then; a fresh `cargo clippy -p warp --lib --all-targets
+   --no-default-features --features simplewarp` confirmed both still have none — not even a
+   test — and deleted both.
+
+   `intention`'s own body pattern-matches `OnboardingTutorial::NoProject { intention }` etc.,
+   which binds a local variable of the same name as the method it's inside — easy to
+   misread as a self-call. It isn't one; the method's only "callers" a naive grep turns up are
+   that field-destructuring syntax in unrelated functions, not `.intention()` invocations. The
+   same field name, method name, and enum-field-shorthand collision that made 4j warn about
+   trusting `git log -S` output at face value.
+
+   **Checked and confirmed to bundle correctly with `AuthOnboardingTarget`, not a third orphan:**
+   `AuthOnboardingTarget::to_workspace` (`root_view.rs`) still shows the same "never used"
+   warning as its enum, and a first pass read that as a second dead orphan alongside the two
+   above. It isn't — `AuthOnboardingState::complete_web_import`, `#[cfg(target_family =
+   "wasm")]`, calls it at `root_view.rs:2534`. An unqualified `grep -rn "AuthOnboardingTarget"`
+   missed the call because the compound pattern's alternation didn't line up with this shell's
+   quoting; a second, narrower `grep -rn "\.to_workspace("` found it. **A "confirmed dead"
+   result from one grep pass is only as good as the pattern — re-run a narrower, unambiguous
+   search before deleting anything the type's own doc comment or a sibling round already called
+   live.** 3k's original bundling of the enum with this method was correct; left both alone.
+
+   Acceptance: `cargo check` (both feature sets, `--all-targets`, `-p integration`), `cargo
+   clippy -p warp --lib --all-targets --no-default-features --features simplewarp` (0 errors,
+   40 warnings — down from 49, all of it the `tear_down_cloud_mode_setup_phase` cluster and
+   pre-existing style lints), and `./script/format --check` all clean. `cargo nextest run -p
+   warp --lib --no-default-features --features simplewarp --no-fail-fast`: 5978/5986 pass, the
+   same 8 pre-existing failures as every round in this thread, 0 new. 2 files changed, 21 lines
+   removed. Not re-run in the app — neither deletion was reachable UI.
 
 5. The `FeatureFlag` variants that are no longer in use. **29 removed: 16 in the first sweep, 2
    with step 3g, and 11 in a second sweep. More remain behind the module deletions above.**

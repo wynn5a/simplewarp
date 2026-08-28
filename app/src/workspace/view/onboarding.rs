@@ -32,17 +32,6 @@ pub enum OnboardingTutorial {
     },
 }
 
-impl OnboardingTutorial {
-    /// Extracts the onboarding intention from any tutorial variant.
-    pub(crate) fn intention(&self) -> OnboardingIntention {
-        match self {
-            OnboardingTutorial::NoProject { intention }
-            | OnboardingTutorial::Project { intention, .. }
-            | OnboardingTutorial::InitProject { intention, .. } => *intention,
-        }
-    }
-}
-
 impl From<SelectedSettings> for OnboardingTutorial {
     fn from(settings: SelectedSettings) -> Self {
         match settings {

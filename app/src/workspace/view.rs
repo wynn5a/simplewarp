@@ -2266,16 +2266,6 @@ impl Workspace {
     ) {
     }
 
-    /// Opens the vertical tabs panel if the setting was enabled.
-    /// Called from the onboarding flow before the session config modal is shown.
-    pub(crate) fn open_vertical_tabs_panel_if_enabled(&mut self, ctx: &mut ViewContext<Self>) {
-        if FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(ctx).use_vertical_tabs {
-            self.vertical_tabs_panel_open = true;
-            self.sync_window_button_visibility(ctx);
-            ctx.notify();
-        }
-    }
-
     fn show_hoa_onboarding_flow(&mut self, ctx: &mut ViewContext<Self>) {
         // Mark as completed immediately so the flow is never shown again,
         // even if the user quits mid-flow.
