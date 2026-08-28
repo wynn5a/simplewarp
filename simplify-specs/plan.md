@@ -1762,6 +1762,62 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    pre-existing failures as every round in this thread, 0 new. 5 files changed, 864 lines
    deleted, 241 added.
 
+3s. **The Warp Drive "join a discoverable team" section — DELETED, the smaller first cut into
+   `app/src/workspaces/` (3m) that round scoped down to rather than attempted whole.** ~180
+   lines in `app/src/drive/index.rs`, plus two dead getters in `user_workspaces.rs`.
+
+   3m's own note named the starting point: "`joinable_teams`/the join-a-team-via-link flow may
+   be smaller and worth checking first." Traced it the same way 3m traced `workspaces`/
+   `current_workspace_uid`: `UserWorkspaces.joinable_teams` starts `Default::default()` (empty)
+   from a local SQLite read a fresh install never populates, and every path that could ever
+   refill it — `TeamClient::get_discoverable_teams`, `::workspaces_metadata` (feeding
+   `on_team_left`/`on_workspaces_updated`) — is already stubbed to `local_only_error()` by 3e/3f.
+   Same two independent reasons, same conclusion: `joinable_teams` is provably always `vec![]`
+   in this fork, so `total_teammates_in_joinable_teams()` is provably always `0` and
+   `num_joinable_teams()` is provably always `0`.
+
+   **Traced that fact through every call site, not just one.** `drive/index.rs` had three:
+   the `if total_teammates_in_joinable_teams() > 0 { insert JoinTeam section } else { insert
+   CreateATeam }` guard building the sidebar's section list (always took the `else`), the
+   `JoinTeam` section header's teammate-count string (unreachable once the section is never
+   inserted), and a *second*, independent condition in `render_create_team_section` deciding
+   the "Create team" button's style (`Accent` when `== 0`, `Secondary` otherwise) — always
+   `Accent`. Missing that third site would have left a genuinely dead `else` branch standing
+   right next to the deletion, the same "provably dead but not compiler-dead" shape 3h/3l/3p
+   named repeatedly in this thread.
+
+   **What went:** `DriveIndexSection::JoinTeam` (never constructed anywhere once its one
+   insert site collapsed — confirmed with `grep -rn "DriveIndexSection::JoinTeam"` before
+   touching it, same as every enum-variant deletion in this thread), its three match arms
+   (section header, trash-index gate, render dispatch), the two `matches!` guards in
+   `render_section` that existed only to hide it in the trash index and from anonymous users,
+   `render_join_discoverable_team_section` (the whole "View team(s) to join / Or" widget,
+   ~65 lines), `MouseStateHandles.join_team_button_mouse_state`, and
+   `UserWorkspaces::{total_teammates_in_joinable_teams, num_joinable_teams}` (zero remaining
+   callers once the three `drive/index.rs` sites above were gone — confirmed by grep, not
+   assumed).
+
+   **What deliberately stayed, and why this is a small cut, not the whole `3m` item.**
+   `joinable_teams`, `update_joinable_teams`, `DiscoverableTeam`, `get_discoverable_teams`, and
+   `UserWorkspacesEvent::{FetchDiscoverableTeamsSuccess, FetchDiscoverableTeamsRejected}` are
+   untouched: `settings_view/teams_page.rs` (4,697 lines, the same file 3m flagged as "not a
+   quick first cut") has its own independent "discoverable teams" list
+   (`DiscoverableTeamState`, fed by the same `FetchDiscoverableTeamsSuccess` event) that is
+   *also* provably always empty by the identical reasoning above — but touching it means
+   tracing that file's own consumers, which is exactly the 10x-surface-area, dedicated-round
+   work 3m deferred. This round stayed inside `drive/index.rs`, the one self-contained surface
+   3m pointed at.
+
+   Acceptance: `cargo check` (both feature sets, `--all-targets`, `-p integration`) clean (0
+   errors, same 8 pre-existing warnings as 3r). `cargo clippy -p warp --lib --all-targets
+   --no-default-features --features simplewarp` clean (0 errors). `./script/format --check`
+   clean, no reformatting needed. `cargo nextest run -p warp --lib --no-default-features
+   --features simplewarp --no-fail-fast`: 5978/5986 pass — identical count to 3r, same 8
+   pre-existing failures, 0 new, 0 tests lost (no test named the deleted section directly).
+   Built and launched `./target/debug/simplewarp`, the exact `DriveIndex::render`/
+   `render_create_team_section` path this touched — clean startup, no panics. 2 files changed,
+   171 lines deleted, 31 added.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

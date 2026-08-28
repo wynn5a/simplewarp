@@ -908,17 +908,6 @@ impl UserWorkspaces {
         }
     }
 
-    pub fn total_teammates_in_joinable_teams(&self) -> i64 {
-        self.joinable_teams
-            .iter()
-            .map(|team| team.num_members)
-            .sum()
-    }
-
-    pub fn num_joinable_teams(&self) -> usize {
-        self.joinable_teams.len()
-    }
-
     pub fn spaces_for_window(&self, window_id: WindowId, ctx: &AppContext) -> Vec<Space> {
         if AuthStateProvider::as_ref(ctx)
             .get()

@@ -229,7 +229,6 @@ struct RenderedWarpDriveItemAndChildren {
 pub enum DriveIndexSection {
     Space(Space),
     CreateATeam,
-    JoinTeam,
 }
 
 /// Which "you've run out of <object>s on your plan" banner a dismiss action
@@ -490,7 +489,6 @@ struct MouseStateHandles {
     retry_button_mouse_state: MouseStateHandle,
     trash_row_mouse_state: MouseStateHandle,
     exit_trash_button_mouse_state: MouseStateHandle,
-    join_team_button_mouse_state: MouseStateHandle,
     create_team_button_mouse_state: MouseStateHandle,
     shared_object_limit_hit_banner_button_mouse_state: MouseStateHandle,
     shared_object_limit_hit_banner_close_mouse_state: MouseStateHandle,
@@ -662,16 +660,7 @@ impl DriveIndex {
             .collect::<Vec<_>>();
 
         if !user_workspaces.as_ref(ctx).has_teams() {
-            if user_workspaces
-                .as_ref(ctx)
-                .total_teammates_in_joinable_teams()
-                > 0
-            {
-                sections.insert(0, DriveIndexSection::JoinTeam);
-                sections.insert(1, DriveIndexSection::CreateATeam);
-            } else {
-                sections.insert(0, DriveIndexSection::CreateATeam);
-            }
+            sections.insert(0, DriveIndexSection::CreateATeam);
         }
 
         // Item UI state is attached by index, not by id, so this is re-initialized whenever there's any type of change
@@ -1724,19 +1713,6 @@ impl DriveIndex {
                     None
                 }
             }
-            (DriveIndexVariant::MainIndex, DriveIndexSection::JoinTeam) => {
-                if self.is_online(app) {
-                    let join_teams_text = format!(
-                        "Collaborate with {} of your teammates already on Warp.",
-                        UserWorkspaces::handle(app)
-                            .as_ref(app)
-                            .total_teammates_in_joinable_teams()
-                    );
-                    Some(self.render_team_section_header(join_teams_text, appearance))
-                } else {
-                    None
-                }
-            }
             (DriveIndexVariant::Trash, DriveIndexSection::Space(space)) => {
                 let title_font_color = self
                     .font_color_based_on_focused_state(appearance, WarpDriveItemId::Space(space));
@@ -1750,7 +1726,6 @@ impl DriveIndex {
                 ))
             }
             (DriveIndexVariant::Trash, DriveIndexSection::CreateATeam) => None,
-            (DriveIndexVariant::Trash, DriveIndexSection::JoinTeam) => None,
         };
 
         if let Some(header) = rendered_header {
@@ -2129,132 +2104,42 @@ impl DriveIndex {
     fn render_create_team_section(
         &self,
         appearance: &Appearance,
-        app: &AppContext,
+        _app: &AppContext,
     ) -> Box<dyn Element> {
         let button_text = "Create team".to_owned();
-        let create_button = if UserWorkspaces::as_ref(app).total_teammates_in_joinable_teams() == 0
-        {
-            appearance
-                .ui_builder()
-                .button(
-                    ButtonVariant::Accent,
-                    self.mouse_state_handles
-                        .create_team_button_mouse_state
-                        .clone(),
-                )
-                .with_style(UiComponentStyles {
-                    font_color: Some(
-                        appearance
-                            .theme()
-                            .main_text_color(appearance.theme().accent())
-                            .into_solid(),
-                    ),
-                    font_weight: Some(Weight::Medium),
-                    height: Some(38.),
-                    font_size: Some(14.),
-                    ..Default::default()
-                })
-                .with_centered_text_label(button_text)
-                .build()
-                .with_cursor(Cursor::PointingHand)
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(DriveIndexAction::OpenTeamSettingsPage)
-                })
-                .finish()
-        } else {
-            appearance
-                .ui_builder()
-                .button(
-                    ButtonVariant::Secondary,
-                    self.mouse_state_handles
-                        .create_team_button_mouse_state
-                        .clone(),
-                )
-                .with_style(UiComponentStyles {
-                    font_weight: Some(Weight::Medium),
-                    height: Some(38.),
-                    font_size: Some(14.),
-                    ..Default::default()
-                })
-                .with_centered_text_label(button_text)
-                .build()
-                .with_cursor(Cursor::PointingHand)
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(DriveIndexAction::OpenTeamSettingsPage)
-                })
-                .finish()
-        };
+        let create_button = appearance
+            .ui_builder()
+            .button(
+                ButtonVariant::Accent,
+                self.mouse_state_handles
+                    .create_team_button_mouse_state
+                    .clone(),
+            )
+            .with_style(UiComponentStyles {
+                font_color: Some(
+                    appearance
+                        .theme()
+                        .main_text_color(appearance.theme().accent())
+                        .into_solid(),
+                ),
+                font_weight: Some(Weight::Medium),
+                height: Some(38.),
+                font_size: Some(14.),
+                ..Default::default()
+            })
+            .with_centered_text_label(button_text)
+            .build()
+            .with_cursor(Cursor::PointingHand)
+            .on_click(move |ctx, _, _| {
+                ctx.dispatch_typed_action(DriveIndexAction::OpenTeamSettingsPage)
+            })
+            .finish();
 
         Container::new(create_button)
             .with_margin_top(16.)
             .with_margin_left(INDEX_CONTENT_MARGIN_LEFT)
             .with_margin_right(INDEX_CONTENT_MARGIN_LEFT)
             .with_margin_bottom(20.)
-            .finish()
-    }
-
-    fn render_join_discoverable_team_section(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let text = if UserWorkspaces::as_ref(app).num_joinable_teams() > 1 {
-            "View teams to join"
-        } else {
-            "View team to join"
-        };
-
-        let join_button = Container::new(
-            appearance
-                .ui_builder()
-                .button(
-                    ButtonVariant::Accent,
-                    self.mouse_state_handles
-                        .join_team_button_mouse_state
-                        .clone(),
-                )
-                .with_style(UiComponentStyles {
-                    font_color: Some(
-                        appearance
-                            .theme()
-                            .main_text_color(appearance.theme().accent())
-                            .into_solid(),
-                    ),
-                    font_weight: Some(Weight::Medium),
-                    height: Some(38.),
-                    font_size: Some(14.),
-                    ..Default::default()
-                })
-                .with_centered_text_label(text.to_owned())
-                .build()
-                .with_cursor(Cursor::PointingHand)
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(DriveIndexAction::OpenTeamSettingsPage)
-                })
-                .finish(),
-        )
-        .with_margin_top(16.)
-        .finish();
-
-        let or_text = Container::new(
-            Text::new_inline("Or", appearance.ui_font_family(), ITEM_FONT_SIZE)
-                .with_color(appearance.theme().nonactive_ui_text_color().into())
-                .with_style(Properties::default().weight(Weight::Medium))
-                .finish(),
-        )
-        .with_margin_top(14.)
-        .finish();
-
-        let or_row = Flex::row()
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_main_axis_alignment(MainAxisAlignment::Center)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(or_text)
-            .finish();
-
-        Container::new(Flex::column().with_children([join_button, or_row]).finish())
-            .with_margin_left(INDEX_CONTENT_MARGIN_LEFT)
-            .with_margin_right(INDEX_CONTENT_MARGIN_LEFT)
             .finish()
     }
 
@@ -2269,17 +2154,9 @@ impl DriveIndex {
     ) -> Option<impl Iterator<Item = Box<dyn Element>> + use<>> {
         let mut rendered_space = vec![];
 
-        // Do not render "Create team" or "Join team" sections in the trash index
-        if (matches!(section, DriveIndexSection::CreateATeam)
-            || matches!(section, DriveIndexSection::JoinTeam))
+        // Do not render "Create team" sections in the trash index
+        if matches!(section, DriveIndexSection::CreateATeam)
             && matches!(self.index_variant, DriveIndexVariant::Trash)
-        {
-            return None;
-        }
-
-        // Do not render "Join team" sections for anonymous users
-        if matches!(section, DriveIndexSection::JoinTeam)
-            && self.auth_state.is_anonymous_or_logged_out()
         {
             return None;
         }
@@ -2355,12 +2232,6 @@ impl DriveIndex {
                     DriveIndexSection::CreateATeam => {
                         if self.is_online(app) {
                             rendered_space.push(self.render_create_team_section(appearance, app));
-                        }
-                    }
-                    DriveIndexSection::JoinTeam => {
-                        if self.is_online(app) {
-                            rendered_space
-                                .push(self.render_join_discoverable_team_section(appearance, app));
                         }
                     }
                 }
