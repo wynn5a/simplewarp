@@ -1973,6 +1973,46 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    dead weight. Built `./target/debug/simplewarp` and launched it — clean startup, spawned
    its terminal-server child normally, no panics.
 
+3w. **Same "grep every `pub fn` for zero callers" sweep, run over `settings_view/` instead
+   of `workspaces/`.** 2 files, 39 deletions.
+
+   Not a cloud-tracing round — `settings_view/` is 53 files, 60k lines, and most of it (AI
+   settings, environments, MCP servers) has nothing to do with auth/teams/billing. Ran the
+   same mechanical check as 3v anyway: every `pub fn` in the 37 non-test files, grepped
+   whole-repo, flagged zero-callers-outside-definition. Excluded `#[test] pub fn` hits (two
+   in `teams_page_tests.rs`) — those are discovered by the test harness, not called, so the
+   sweep's premise doesn't apply to them.
+
+   Two real finds, both dead **builder-style setters nobody used because the one place that
+   would've used them sets the fields directly instead**:
+
+   - `update_environment_form.rs`: `set_show_footer_cancel_button`, `set_field_max_width`,
+     `set_field_spacing`, `set_description_height`, `set_show_repo_helper_text`,
+     `set_show_share_with_team_controls` — six setters on `UpdateEnvironmentForm`, each just
+     `self.field = value; ctx.notify();`. The only place configuring those same fields,
+     `configure_for_orchestration_modal`, assigns them directly (`self.show_footer_cancel_button
+     = true;` etc.) instead of calling its own type's setters, since it already has field
+     access from inside the same `impl` block.
+   - `custom_router_view.rs`: `router()` and `update_router()` on `CustomRouterView` — both
+     already carried `#[allow(dead_code)]`, i.e. someone had already found them dead and
+     silenced the warning instead of deleting them (the 3g/4 pattern of admission-not-removal).
+     `CustomRouterView` itself is alive (constructed in `warp_agent_page.rs`), just these two
+     accessor/mutator methods on it were never called.
+
+   Smaller haul than 3v (8 methods vs. 20) — `settings_view/` isn't primarily cloud-adjacent,
+   so most of its dead-code surface was already gone by the time this thread reached it, or
+   was never cloud-shaped to begin with. Confirms the sweep generalizes as a mechanical check
+   to run over any module, not something specific to `workspaces/`.
+
+   Acceptance: `cargo check` (both feature sets, `--all-targets`, `-p integration`) clean (0
+   errors, same pre-existing warnings, no new unused-import fallout). `cargo clippy
+   --all-targets --no-default-features --features simplewarp` clean (0 errors).
+   `./script/format` needed one pass (stray blank line), `--check` clean after. `cargo
+   nextest run -p warp --no-default-features --features simplewarp --no-fail-fast`: 5986
+   run, 5978 passed, 8 failed (identical baseline), 4 skipped — 0 tests lost. Built
+   `./target/debug/simplewarp` and launched it — clean startup, spawned its terminal-server
+   child normally, no panics.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

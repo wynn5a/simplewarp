@@ -104,17 +104,6 @@ impl CustomRouterView {
             delete_button,
         }
     }
-
-    #[allow(dead_code)]
-    pub fn router(&self) -> &CustomModelRouter {
-        &self.router
-    }
-
-    #[allow(dead_code)]
-    pub fn update_router(&mut self, router: CustomModelRouter, ctx: &mut ViewContext<Self>) {
-        self.router = router;
-        ctx.notify();
-    }
 }
 
 impl Entity for CustomRouterView {

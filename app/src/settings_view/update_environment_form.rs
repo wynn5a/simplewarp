@@ -712,34 +712,6 @@ impl UpdateEnvironmentForm {
         ctx.notify();
     }
 
-    pub fn set_show_footer_cancel_button(&mut self, show: bool, ctx: &mut ViewContext<Self>) {
-        self.show_footer_cancel_button = show;
-        ctx.notify();
-    }
-
-    pub fn set_field_max_width(&mut self, width: f32, ctx: &mut ViewContext<Self>) {
-        self.field_max_width = width;
-        ctx.notify();
-    }
-    pub fn set_field_spacing(&mut self, spacing: f32, ctx: &mut ViewContext<Self>) {
-        self.field_spacing = spacing;
-        ctx.notify();
-    }
-
-    pub fn set_description_height(&mut self, height: f32, ctx: &mut ViewContext<Self>) {
-        self.description_height = height;
-        ctx.notify();
-    }
-
-    pub fn set_show_repo_helper_text(&mut self, show: bool, ctx: &mut ViewContext<Self>) {
-        self.show_repo_helper_text = show;
-        ctx.notify();
-    }
-
-    pub fn set_show_share_with_team_controls(&mut self, show: bool, ctx: &mut ViewContext<Self>) {
-        self.show_share_with_team_controls = show;
-        ctx.notify();
-    }
     pub fn configure_for_orchestration_modal(&mut self, ctx: &mut ViewContext<Self>) {
         self.set_copy(EnvironmentFormCopy::orchestration_modal(), ctx);
         self.show_footer_cancel_button = true;
