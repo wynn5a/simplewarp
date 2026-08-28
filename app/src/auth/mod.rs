@@ -2,12 +2,7 @@ pub mod auth_manager;
 mod auth_override_warning_body;
 pub mod auth_override_warning_modal;
 pub mod auth_view_modal;
-mod login_error_modal;
 mod user_properties;
-pub use warp_server_auth::{auth_state, credentials, user, user_uid};
-#[cfg(target_family = "wasm")]
-pub mod web_handoff;
-
 use ::settings::{Setting, SettingsManager, ToggleableSetting};
 use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 pub use auth_manager::AuthManager;
@@ -17,6 +12,7 @@ pub use user_uid::UserUid;
 use warp_core::channel::ChannelState;
 use warp_core::user_preferences::GetUserPreferences as _;
 use warp_errors::{report_error, report_if_error};
+pub use warp_server_auth::{auth_state, credentials, user, user_uid};
 use warpui::modals::{AlertDialogWithCallbacks, ModalButton};
 use warpui::{AppContext, SingletonEntity};
 

@@ -1684,6 +1684,84 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    pricing tests), same 8 pre-existing failures, 0 new. 4 files changed. Disk: target/ 9.2 GB,
    37 GB free.
 
+3r. **The wasm/web-embedded-terminal login-handoff surface — DELETED, on explicit go-ahead,
+   closing out 3p/3q's `AuthOnboardingTarget`/`AuthOnboardingState` deferral.** ~1,050 lines
+   across 5 files, plus a ~620-line net simplification of `root_view.rs`.
+
+   3k through 3q all treated `AuthOnboardingState::WebImport`/`AuthOnboardingTarget`/
+   `LoginErrorModal` as real-but-unverifiable: genuine `#[cfg(target_family = "wasm")]` code,
+   kept because "a different, real build target" this fork's `cargo check` never exercises.
+   Re-examined instead of re-deferred this round, because the question is a scope call, not a
+   mechanical one: does `wynn5a/simplewarp` still ship a web/host-embedded-terminal build?
+   Two things settled it. First, `.github/workflows/ci.yml`'s `wasm-lint` job (`cargo clippy
+   --target wasm32-unknown-unknown -- -D warnings`) is inherited scaffolding this fork's own
+   CI never runs — `gh run list` against `wynn5a/simplewarp` returns zero runs, ever. Second,
+   the whole surface exists to import a Firebase login session from a host webpage
+   (`WebHandoffView::import_user`, `platform::wasm::user_handoff`) — a cloud/login feature,
+   the exact category this fork's Decisions table rules out everywhere else. Same reasoning
+   3k already used for the `stable`/`preview`/`dev`/`local` channel binaries: upstream
+   `warpdotdev/warp` scaffolding this fork inherited, not a surface it ships. Confirmed with
+   the user this changes nothing about the native `simplewarp` build or `cargo run` before
+   deleting anything — `#[cfg(target_family = "wasm")]` code is compiled out entirely on
+   `aarch64-apple-darwin`.
+
+   **Deleted outright:** `app/src/auth/web_handoff.rs` (`WebHandoffView`, `WebHandoffEvent`,
+   `HandoffState`) and `app/src/auth/login_error_modal.rs` (`LoginErrorModal` — its one call
+   site, kept alive through 3p/3q specifically because it looked wasm-live, was `web_handoff.rs`
+   itself). `platform::wasm::user_handoff`/`AuthHandoffError`/its `mod ffi` — `web_handoff.rs`
+   was their only caller; `platform::wasm::init` and the `WarpEvent`/`emit_event` re-export stay,
+   genuinely used elsewhere for non-auth wasm plumbing (`app/src/appearance.rs`,
+   `uri/browser_url_handler.rs`, five more).
+
+   **Collapsed in `root_view.rs`:** `AuthOnboardingState` (`WebImport`/`Terminal`) and
+   `AuthOnboardingTarget` are gone; `RootView.auth_onboarding_state: AuthOnboardingState`
+   became `RootView.workspace: ViewHandle<Workspace>` directly, since `Terminal` was the only
+   variant a native build could ever construct. Every one of the ~25 `if let
+   AuthOnboardingState::Terminal(x) = &self.auth_onboarding_state { ... } else { log::warn!
+   ("Auth not complete...") }` sites 3p flagged as irrefutable-on-native collapsed to direct
+   `self.workspace` use, dropping the dead `else` arm at each one — the "Auth not complete"
+   branch could never fire once `WebImport` was the only other variant and it's gone.
+   `AuthOnboardingState::log_out`/`show_web_handoff_view`/`complete_web_import` (impls) folded
+   into `RootView::log_out`/deleted outright; `handle_web_handoff_event` deleted with its
+   subscription in `RootView::new`.
+
+   **One cascade the wasm-scoping check didn't cover on its own: `RootViewEvent`.** Its single
+   variant, `AuthOnboardingStateChanged`, existed only to announce a `WebImport`↔`Terminal`
+   transition — and `grep -rn "AuthOnboardingStateChanged\|subscribe_to_view(&.*root_view"`
+   found zero subscribers anywhere, on either target. A write-only event over a state that no
+   longer has two states to transition between: deleted the enum, `type Event = RootViewEvent`
+   became `type Event = ()` (an established pattern — three other views in `app/src` already
+   use it), and all four `ctx.emit(...)` call sites went with it.
+
+   **A second cascade the same collapse exposed: `RootView`'s own traffic-light rendering.**
+   `traffic_light_data()`'s own comment said it: "The workspace view will handle rendering of
+   the traffic lights" — confirmed by `grep -rl "traffic_lights::"`, which found
+   `workspace/view.rs` has its own independent call into the same shared
+   `util::traffic_lights` module. `RootView`'s copy existed only to draw traffic lights during
+   the pre-workspace `WebImport` state; `if matches!(self.auth_onboarding_state,
+   AuthOnboardingState::Terminal(_)) { return None; }` meant it always returned `None` once
+   `Terminal` was the only state, which made the `if let Some(traffic_light_data) = ...`
+   block in `render()`, the `mouse_states`/`window_id` fields, and four now-single-purpose
+   imports (`ChildAnchor`, `OffsetPositioning`, `ParentAnchor`, `ParentOffsetBounds`) all
+   provably dead in the same pass. `util::traffic_lights` itself is untouched — still live for
+   `workspace/view.rs`.
+
+   Verified the app itself, not just the checks: built and launched `./target/debug/simplewarp`
+   with no args (the exact `RootView::new` → `workspace_args.create_workspace(ctx)` path this
+   round rewrote) — it bootstrapped a shell, ran prompt hooks, and indexed the repo with no
+   panics or errors in `~/Library/Logs/simplewarp.log`, then shut down cleanly.
+
+   Acceptance: `cargo check` (both feature sets, `--all-targets`, `-p integration`) all clean
+   (0 errors). `cargo clippy -p warp --lib --all-targets --no-default-features --features
+   simplewarp`: 15 warnings, down from 40 before this round — every one of the ~25 removed
+   was an irrefutable-pattern/unreachable-pattern warning from this file; the 15 that remain
+   are the already-deferred `tear_down_cloud_mode_setup_phase` cluster plus pre-existing,
+   unrelated style lints. `./script/format --check` clean (after one format pass — it
+   re-sorted a `use` line alphabetically). `cargo nextest run -p warp --lib
+   --no-default-features --features simplewarp --no-fail-fast`: 5978/5986 pass, same 8
+   pre-existing failures as every round in this thread, 0 new. 5 files changed, 864 lines
+   deleted, 241 added.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

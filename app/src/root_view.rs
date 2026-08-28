@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::sync::mpsc::SyncSender;
 
 use anyhow::Result;
-use cfg_if::cfg_if;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
@@ -17,9 +16,7 @@ use warp_core::context_flag::ContextFlag;
 use warp_core::safe_error;
 use warp_core::user_preferences::GetUserPreferences as _;
 use warp_errors::report_error;
-use warpui::elements::{
-    Border, ChildAnchor, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Stack,
-};
+use warpui::elements::{Border, ParentElement, Stack};
 use warpui::keymap::{EditableBinding, FixedBinding};
 use warpui::platform::{WindowBounds, WindowStyle};
 use warpui::presenter::ChildView;
@@ -39,8 +36,6 @@ use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::AuthRedirectPayload;
-#[cfg(target_family = "wasm")]
-use crate::auth::web_handoff::{WebHandoffEvent, WebHandoffView};
 use crate::autoupdate::{AutoupdateState, AutoupdateStateEvent, RequestType, UpdateReady};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{ObjectType, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
@@ -65,7 +60,6 @@ use crate::terminal::view::{TerminalAction, cell_size_and_padding};
 use crate::themes::theme::{AnsiColorIdentifier, Blend, Fill};
 use crate::uri::{OpenMCPSettingsArgs, OpenSettingsArgs};
 use crate::util::bindings::{self, is_binding_pty_compliant};
-use crate::util::traffic_lights::{TrafficLightData, TrafficLightMouseStates, traffic_light_data};
 use crate::view_components::DismissibleToast;
 use crate::window_settings::WindowSettings;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceAction, WorkspaceRegistry};
@@ -846,23 +840,21 @@ fn create_environment(arg: &CreateEnvironmentArg, ctx: &mut AppContext) {
     );
 
     root_handle.update(ctx, |root_view, ctx| {
-        if let AuthOnboardingState::Terminal(workspace_handle) = &root_view.auth_onboarding_state {
-            workspace_handle.update(ctx, |workspace, ctx| {
-                workspace
-                    .active_tab_pane_group()
-                    .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title("Create Environment", ctx);
+        root_view.workspace.update(ctx, |workspace, ctx| {
+            workspace
+                .active_tab_pane_group()
+                .update(ctx, |pane_group, ctx| {
+                    pane_group.set_title("Create Environment", ctx);
 
-                        if let Some(terminal_view) = pane_group.active_session_view(ctx) {
-                            terminal_view.update(ctx, |_, ctx| {
-                                ctx.dispatch_typed_action_deferred(
-                                    TerminalAction::SetupCloudEnvironment(repos.clone()),
-                                );
-                            });
-                        }
-                    });
-            });
-        }
+                    if let Some(terminal_view) = pane_group.active_session_view(ctx) {
+                        terminal_view.update(ctx, |_, ctx| {
+                            ctx.dispatch_typed_action_deferred(
+                                TerminalAction::SetupCloudEnvironment(repos.clone()),
+                            );
+                        });
+                    }
+                });
+        });
     });
 
     ctx.windows().show_window_and_focus_app(window_id);
@@ -879,23 +871,21 @@ fn create_environment_and_run(arg: &CreateEnvironmentArg, ctx: &mut AppContext) 
     );
 
     root_handle.update(ctx, |root_view, ctx| {
-        if let AuthOnboardingState::Terminal(workspace_handle) = &root_view.auth_onboarding_state {
-            workspace_handle.update(ctx, |workspace, ctx| {
-                workspace
-                    .active_tab_pane_group()
-                    .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title("Create Environment", ctx);
+        root_view.workspace.update(ctx, |workspace, ctx| {
+            workspace
+                .active_tab_pane_group()
+                .update(ctx, |pane_group, ctx| {
+                    pane_group.set_title("Create Environment", ctx);
 
-                        if let Some(terminal_view) = pane_group.active_session_view(ctx) {
-                            terminal_view.update(ctx, |_, ctx| {
-                                ctx.dispatch_typed_action_deferred(
-                                    TerminalAction::SetupCloudEnvironmentAndStart(repos.clone()),
-                                );
-                            });
-                        }
-                    });
-            });
-        }
+                    if let Some(terminal_view) = pane_group.active_session_view(ctx) {
+                        terminal_view.update(ctx, |_, ctx| {
+                            ctx.dispatch_typed_action_deferred(
+                                TerminalAction::SetupCloudEnvironmentAndStart(repos.clone()),
+                            );
+                        });
+                    }
+                });
+        });
     });
 
     ctx.windows().show_window_and_focus_app(window_id);
@@ -906,33 +896,25 @@ fn open_team_settings_with_email_invite_in_new_window(
 ) {
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
-        if let AuthOnboardingState::Terminal(workspace_view_handle) =
-            &root_view.auth_onboarding_state
-        {
-            let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-            let email_invite = arg.invite_email.clone();
-            workspace_view_handle.update(ctx, |_, ctx| {
-                let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                    workspace.show_team_settings_page_with_email_invite(email_invite.as_ref(), ctx)
-                });
+        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
+        let email_invite = arg.invite_email.clone();
+        root_view.workspace.update(ctx, |_, ctx| {
+            let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
+                workspace.show_team_settings_page_with_email_invite(email_invite.as_ref(), ctx)
             });
-        }
+        });
     });
 }
 
 fn open_settings_page_in_new_window(section: &SettingsSection, ctx: &mut AppContext) {
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
-        if let AuthOnboardingState::Terminal(workspace_view_handle) =
-            &root_view.auth_onboarding_state
-        {
-            let window_id = ctx.window_id();
-            ctx.dispatch_typed_action_for_view(
-                window_id,
-                workspace_view_handle.id(),
-                &WorkspaceAction::ShowSettingsPage(*section),
-            );
-        }
+        let window_id = ctx.window_id();
+        ctx.dispatch_typed_action_for_view(
+            window_id,
+            root_view.workspace.id(),
+            &WorkspaceAction::ShowSettingsPage(*section),
+        );
     });
 }
 
@@ -955,12 +937,8 @@ fn open_settings_in_new_window(args: &OpenSettingsArgs, ctx: &mut AppContext) {
     let action = workspace_action_for_open_settings(args);
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
-        if let AuthOnboardingState::Terminal(workspace_view_handle) =
-            &root_view.auth_onboarding_state
-        {
-            let window_id = ctx.window_id();
-            ctx.dispatch_typed_action_for_view(window_id, workspace_view_handle.id(), &action);
-        }
+        let window_id = ctx.window_id();
+        ctx.dispatch_typed_action_for_view(window_id, root_view.workspace.id(), &action);
     });
 }
 
@@ -970,20 +948,16 @@ fn open_mcp_settings_in_new_window(args: &OpenMCPSettingsArgs, ctx: &mut AppCont
     let autoinstall = args.autoinstall.clone();
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
-        if let AuthOnboardingState::Terminal(workspace_view_handle) =
-            &root_view.auth_onboarding_state
-        {
-            let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-            workspace_view_handle.update(ctx, |_, ctx| {
-                let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                    workspace.open_mcp_servers_page(
-                        MCPServersSettingsPage::List,
-                        autoinstall.as_deref(),
-                        ctx,
-                    )
-                });
+        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
+        root_view.workspace.update(ctx, |_, ctx| {
+            let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
+                workspace.open_mcp_servers_page(
+                    MCPServersSettingsPage::List,
+                    autoinstall.as_deref(),
+                    ctx,
+                )
             });
-        }
+        });
     });
 }
 
@@ -991,16 +965,12 @@ fn open_mcp_settings_in_new_window(args: &OpenMCPSettingsArgs, ctx: &mut AppCont
 fn open_codex_in_new_window(_: &(), ctx: &mut AppContext) {
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
-        if let AuthOnboardingState::Terminal(workspace_view_handle) =
-            &root_view.auth_onboarding_state
-        {
-            let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-            workspace_view_handle.update(ctx, |_, ctx| {
-                let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                    workspace.open_codex_modal(ctx)
-                });
+        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
+        root_view.workspace.update(ctx, |_, ctx| {
+            let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
+                workspace.open_codex_modal(ctx)
             });
-        }
+        });
     });
 }
 
@@ -1009,13 +979,9 @@ fn open_linear_issue_work_in_new_window(args: &LinearIssueWork, ctx: &mut AppCon
     let (_, root_handle) = open_new_window_get_handles(None, ctx);
     let args = args.clone();
     root_handle.update(ctx, |root_view, ctx| {
-        if let AuthOnboardingState::Terminal(workspace_view_handle) =
-            &root_view.auth_onboarding_state
-        {
-            workspace_view_handle.update(ctx, |workspace, ctx| {
-                workspace.open_linear_issue_work(&args, ctx);
-            });
-        }
+        root_view.workspace.update(ctx, |workspace, ctx| {
+            workspace.open_linear_issue_work(&args, ctx);
+        });
     });
 }
 
@@ -1137,13 +1103,9 @@ fn open_new_tab_insert_subshell_command_and_bootstrap_if_supported(
     let root_view_handle = match root_view_handle {
         Some(root_view_handle) => {
             root_view_handle.update(ctx, |root_view, ctx| {
-                if let AuthOnboardingState::Terminal(workspace_view_handle) =
-                    &root_view.auth_onboarding_state
-                {
-                    workspace_view_handle.update(ctx, |workspace, ctx| {
-                        workspace.add_terminal_tab(false /* hide_homepage */, ctx);
-                    });
-                }
+                root_view.workspace.update(ctx, |workspace, ctx| {
+                    workspace.add_terminal_tab(false /* hide_homepage */, ctx);
+                });
             });
             root_view_handle
         }
@@ -1580,14 +1542,6 @@ struct WorkspaceArgs {
     workspace_setting: NewWorkspaceSource,
 }
 
-// Some onboarding states can either contain a ref to an existing terminal view
-// if it exists or, if it doesn't, the args needed to create a new empty one.
-#[derive(Clone)]
-enum AuthOnboardingTarget {
-    Workspace(Box<WorkspaceArgs>),
-    Terminal(ViewHandle<Workspace>),
-}
-
 /// User preferences key to track whether the user has completed the onboarding slides locally
 /// (before login). This is needed because the server-side `is_onboarded` flag requires
 /// authentication.
@@ -1602,27 +1556,11 @@ pub(crate) fn has_completed_local_onboarding(ctx: &AppContext) -> bool {
         .unwrap_or(false)
 }
 
-/// Whether auth and onboarding have completed and we should render the `Workspace`.
-enum AuthOnboardingState {
-    /// The client is importing auth state from the host application.
-    #[cfg(target_family = "wasm")]
-    WebImport(AuthOnboardingTarget),
-    Terminal(ViewHandle<Workspace>),
-}
-
 pub struct RootView {
-    auth_onboarding_state: AuthOnboardingState,
+    workspace: ViewHandle<Workspace>,
     server_time: Option<Arc<ServerTime>>,
-    #[cfg(target_family = "wasm")]
-    web_handoff_view: ViewHandle<WebHandoffView>,
     pub server_api: Arc<ServerApi>,
     pub model_event_sender: Option<SyncSender<ModelEvent>>,
-    mouse_states: TrafficLightMouseStates,
-    /// The window ID is needed because the "maximize" button needs to change its icon based on
-    /// whether or not the current window is maximized. Ideally the window ID could just be fetched
-    /// in the [`Self::render`] method, but there is no [`ViewContext`] available there. So, we
-    /// need to store it in a field instead.
-    window_id: WindowId,
 }
 
 impl RootView {
@@ -1651,38 +1589,15 @@ impl RootView {
         };
 
         // SimpleWarp is local-only and never shows a login screen: startup always lands
-        // directly in the workspace (wasm still imports auth state from the host app).
-        #[cfg(target_family = "wasm")]
-        let auth_onboarding_state =
-            AuthOnboardingState::WebImport(AuthOnboardingTarget::Workspace(workspace_args.into()));
-        #[cfg(not(target_family = "wasm"))]
-        let auth_onboarding_state =
-            AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx));
-
-        #[cfg(target_family = "wasm")]
-        let web_handoff_view = {
-            let view = ctx.add_view(WebHandoffView::new);
-            ctx.subscribe_to_view(&view, Self::handle_web_handoff_event);
-            view
-        };
+        // directly in the workspace.
+        let workspace = workspace_args.create_workspace(ctx);
 
         let root_view = Self {
-            auth_onboarding_state,
+            workspace,
             server_time: None,
-            #[cfg(target_family = "wasm")]
-            web_handoff_view,
             server_api: server_api.clone(),
             model_event_sender,
-            mouse_states: Default::default(),
-            window_id: ctx.window_id(),
         };
-
-        #[cfg(target_family = "wasm")]
-        if let AuthOnboardingState::WebImport(_) = &root_view.auth_onboarding_state {
-            root_view
-                .web_handoff_view
-                .update(ctx, |view, ctx| view.import_user(ctx));
-        }
 
         let autoupdate_handle = AutoupdateState::handle(ctx);
         ctx.subscribe_to_model(&autoupdate_handle, |root_view, _handle, evt, ctx| {
@@ -1703,21 +1618,13 @@ impl RootView {
         root_view
     }
 
-    /// Starts the autoupdate polling loop, but only if we are already in the `Terminal` state
-    /// (i.e. onboarding has completed or was not shown). Safe to call unconditionally — it is
-    /// a no-op when still in a pre-terminal state.
     fn start_autoupdate_polling(&self, ctx: &mut ViewContext<Self>) {
-        if matches!(self.auth_onboarding_state, AuthOnboardingState::Terminal(_)) {
-            AutoupdateState::handle(ctx).update(ctx, |state, ctx| state.start_polling(ctx));
-        }
+        AutoupdateState::handle(ctx).update(ctx, |state, ctx| state.start_polling(ctx));
     }
 
     /// Used for integration tests.
     pub fn workspace_view(&self) -> Option<&ViewHandle<Workspace>> {
-        match &self.auth_onboarding_state {
-            AuthOnboardingState::Terminal(workspace) => Some(workspace),
-            _ => None,
-        }
+        Some(&self.workspace)
     }
 
     fn polling_update_check_complete(
@@ -1747,12 +1654,10 @@ impl RootView {
             let server_time = Arc::new(server_time);
             self.server_time = Some(server_time.clone());
 
-            if let AuthOnboardingState::Terminal(workspace) = &self.auth_onboarding_state {
-                workspace.update(ctx, |workspace, ctx| {
-                    workspace.set_server_time(server_time);
-                    ctx.notify();
-                })
-            }
+            self.workspace.update(ctx, |workspace, ctx| {
+                workspace.set_server_time(server_time);
+                ctx.notify();
+            })
         } else {
             report_error!(anyhow::anyhow!(
                 "Error fetching server time {:?}",
@@ -1761,23 +1666,30 @@ impl RootView {
         }
     }
 
-    // Switch to Auth Screen while destroying Workspace.
+    /// "Logging out" in a local-only build has no account to sign out of: it just resets the
+    /// local workspace to a fresh, empty one. There is no login screen to send the user to.
     fn log_out(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
-        self.auth_onboarding_state.log_out(ctx);
+        self.workspace.update(ctx, |workspace, ctx| {
+            workspace.on_log_out(ctx);
+        });
+
+        let global_resource_handles = GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
+        let workspace_setting = NewWorkspaceSource::Empty {
+            previous_active_window: None,
+            shell: None,
+        };
+        let workspace_args = WorkspaceArgs {
+            global_resource_handles,
+            server_time: None,
+            workspace_setting,
+        };
+
+        // Destroy the old workspace view handle and create a fresh one in its place.
+        self.workspace = workspace_args.create_workspace(ctx);
+
         ctx.focus_self();
         ctx.notify();
         true
-    }
-
-    /// Hand off the authenticated user from the host web application.
-    #[cfg(target_family = "wasm")]
-    fn web_handoff(&mut self, ctx: &mut ViewContext<Self>) {
-        log::debug!("Starting handoff from host application");
-        self.web_handoff_view
-            .update(ctx, |view, ctx| view.import_user(ctx));
-        self.auth_onboarding_state.show_web_handoff_view();
-        ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-        ctx.notify();
     }
 
     fn close_window(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
@@ -1824,11 +1736,9 @@ impl RootView {
         ctx.windows().show_window_and_focus_app(window_id);
 
         // Focus the appropriate tab/pane.
-        if let AuthOnboardingState::Terminal(workspace) = &self.auth_onboarding_state {
-            workspace.update(ctx, |view, ctx| {
-                view.focus_pane(*pane_view_locator, ctx);
-            });
-        }
+        self.workspace.update(ctx, |view, ctx| {
+            view.focus_pane(*pane_view_locator, ctx);
+        });
         true
     }
 
@@ -1838,11 +1748,9 @@ impl RootView {
         ctx: &mut ViewContext<Self>,
     ) -> bool {
         ctx.windows().show_window_and_focus_app(ctx.window_id());
-        if let AuthOnboardingState::Terminal(workspace) = &self.auth_onboarding_state {
-            workspace.update(ctx, |view, ctx| {
-                view.activate_tab_by_pane_group_id(*pane_group_id, ctx);
-            });
-        }
+        self.workspace.update(ctx, |view, ctx| {
+            view.activate_tab_by_pane_group_id(*pane_group_id, ctx);
+        });
         true
     }
 
@@ -1878,23 +1786,19 @@ impl RootView {
     #[allow(clippy::ptr_arg)]
     fn add_session_at_path(&mut self, path: &PathBuf, ctx: &mut ViewContext<Self>) -> bool {
         let window_id = ctx.window_id();
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            handle.update(ctx, |view, ctx| {
-                view.add_tab_with_pane_layout(
-                    PanesLayout::SingleTerminal(Box::new(
-                        NewTerminalOptions::default()
-                            .with_initial_directory_opt(path_if_directory(path).map(Into::into)),
-                    )),
-                    Arc::new(HashMap::new()),
-                    None,
-                    ctx,
-                );
-                ctx.windows().show_window_and_focus_app(window_id);
-                ctx.notify();
-            })
-        } else {
-            log::warn!("Auth not complete before trying to add new session at path");
-        }
+        self.workspace.update(ctx, |view, ctx| {
+            view.add_tab_with_pane_layout(
+                PanesLayout::SingleTerminal(Box::new(
+                    NewTerminalOptions::default()
+                        .with_initial_directory_opt(path_if_directory(path).map(Into::into)),
+                )),
+                Arc::new(HashMap::new()),
+                None,
+                ctx,
+            );
+            ctx.windows().show_window_and_focus_app(window_id);
+            ctx.notify();
+        });
         true
     }
 
@@ -1903,15 +1807,10 @@ impl RootView {
         arg: &OpenTeamsSettingsModalArgs,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            handle.update(ctx, |workspace, ctx| {
-                workspace.show_team_settings_page_with_email_invite(arg.invite_email.as_ref(), ctx)
-            });
-            return true;
-        } else {
-            log::warn!("Auth not complete before trying to open settings pane");
-        }
-        false
+        self.workspace.update(ctx, |workspace, ctx| {
+            workspace.show_team_settings_page_with_email_invite(arg.invite_email.as_ref(), ctx)
+        });
+        true
     }
 
     pub fn open_warp_drive_object_in_existing_window(
@@ -1919,36 +1818,32 @@ impl RootView {
         arg: &OpenWarpDriveObjectArgs,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        if let AuthOnboardingState::Terminal(_handle) = &self.auth_onboarding_state {
-            let cloud_model = CloudModel::as_ref(ctx);
+        let cloud_model = CloudModel::as_ref(ctx);
 
-            // No warp-server connection exists in this build (see `LOCAL_ONLY_MESSAGE` in
-            // `server/server_api.rs`), so an object identified by `ServerId` can never be synced
-            // into `CloudModel` here — every `warp://drive/...` link is a dead end. Fail fast and
-            // legibly for every object type instead of routing Notebook/Workflow into a pane that
-            // silently never loads (Folder/EnvVarCollection already guarded against this below;
-            // this hoists the same guard above the match so it applies uniformly).
-            if cloud_model.get_by_uid(&arg.server_id.uid()).is_none() {
-                display_object_missing_error_in_window(ctx.window_id(), ctx);
-                return false;
-            }
-
-            // Every arm below used to route into the Warp Drive left-panel tab, which no longer
-            // exists (see `simplify-specs/plan.md`, Phase 4 Track A). The guard above already
-            // makes this function unreachable in practice, since a `ServerId`-keyed object can
-            // never resolve with no warp-server connection — so there is nothing left to route to
-            // for any object type.
-            log::info!(
-                "Object type {:?} not supported for opening via link",
-                arg.object_type
-            );
-
-            let window_id = ctx.window_id();
-            ctx.windows().show_window_and_focus_app(window_id);
-            ctx.notify();
-        } else {
-            log::warn!("Auth not complete before trying to open warp drive object");
+        // No warp-server connection exists in this build (see `LOCAL_ONLY_MESSAGE` in
+        // `server/server_api.rs`), so an object identified by `ServerId` can never be synced
+        // into `CloudModel` here — every `warp://drive/...` link is a dead end. Fail fast and
+        // legibly for every object type instead of routing Notebook/Workflow into a pane that
+        // silently never loads (Folder/EnvVarCollection already guarded against this below;
+        // this hoists the same guard above the match so it applies uniformly).
+        if cloud_model.get_by_uid(&arg.server_id.uid()).is_none() {
+            display_object_missing_error_in_window(ctx.window_id(), ctx);
+            return false;
         }
+
+        // Every arm below used to route into the Warp Drive left-panel tab, which no longer
+        // exists (see `simplify-specs/plan.md`, Phase 4 Track A). The guard above already
+        // makes this function unreachable in practice, since a `ServerId`-keyed object can
+        // never resolve with no warp-server connection — so there is nothing left to route to
+        // for any object type.
+        log::info!(
+            "Object type {:?} not supported for opening via link",
+            arg.object_type
+        );
+
+        let window_id = ctx.window_id();
+        ctx.windows().show_window_and_focus_app(window_id);
+        ctx.notify();
         true
     }
 
@@ -1960,18 +1855,13 @@ impl RootView {
         conversation_id: &ServerConversationToken,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            handle.update(ctx, |workspace, ctx| {
-                workspace.open_cloud_conversation_from_server_token(conversation_id.clone(), ctx);
-            });
-            let window_id = ctx.window_id();
-            ctx.windows().show_window_and_focus_app(window_id);
-            ctx.notify();
-            true
-        } else {
-            log::warn!("Auth not complete before trying to open conversation viewer");
-            false
-        }
+        self.workspace.update(ctx, |workspace, ctx| {
+            workspace.open_cloud_conversation_from_server_token(conversation_id.clone(), ctx);
+        });
+        let window_id = ctx.window_id();
+        ctx.windows().show_window_and_focus_app(window_id);
+        ctx.notify();
+        true
     }
 
     /// Adds a tab and starts the guided `/create-environment` setup flow.
@@ -1980,39 +1870,34 @@ impl RootView {
         arg: &CreateEnvironmentArg,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            let repos = arg.repos.clone();
+        let repos = arg.repos.clone();
 
-            handle.update(ctx, |workspace, ctx| {
-                workspace.add_tab_with_pane_layout(
-                    PanesLayout::SingleTerminal(Box::default()),
-                    Arc::new(HashMap::new()),
-                    None,
-                    ctx,
-                );
+        self.workspace.update(ctx, |workspace, ctx| {
+            workspace.add_tab_with_pane_layout(
+                PanesLayout::SingleTerminal(Box::default()),
+                Arc::new(HashMap::new()),
+                None,
+                ctx,
+            );
 
-                workspace
-                    .active_tab_pane_group()
-                    .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title("Create Environment", ctx);
+            workspace
+                .active_tab_pane_group()
+                .update(ctx, |pane_group, ctx| {
+                    pane_group.set_title("Create Environment", ctx);
 
-                        if let Some(terminal_view) = pane_group.active_session_view(ctx) {
-                            terminal_view.update(ctx, |_, ctx| {
-                                ctx.dispatch_typed_action_deferred(
-                                    TerminalAction::SetupCloudEnvironment(repos.clone()),
-                                );
-                            });
-                        }
-                    });
-            });
-            let window_id = ctx.window_id();
-            ctx.windows().show_window_and_focus_app(window_id);
-            ctx.notify();
-            true
-        } else {
-            log::warn!("Auth not complete before trying to create environment");
-            false
-        }
+                    if let Some(terminal_view) = pane_group.active_session_view(ctx) {
+                        terminal_view.update(ctx, |_, ctx| {
+                            ctx.dispatch_typed_action_deferred(
+                                TerminalAction::SetupCloudEnvironment(repos.clone()),
+                            );
+                        });
+                    }
+                });
+        });
+        let window_id = ctx.window_id();
+        ctx.windows().show_window_and_focus_app(window_id);
+        ctx.notify();
+        true
     }
 
     /// Adds a tab and starts the guided `/create-environment` setup flow immediately.
@@ -2021,14 +1906,9 @@ impl RootView {
         arg: &CreateEnvironmentArg,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state else {
-            log::warn!("Auth not complete before trying to create environment");
-            return false;
-        };
-
         let repos = arg.repos.clone();
 
-        handle.update(ctx, |workspace, ctx| {
+        self.workspace.update(ctx, |workspace, ctx| {
             workspace.add_tab_with_pane_layout(
                 PanesLayout::SingleTerminal(Box::default()),
                 Arc::new(HashMap::new()),
@@ -2060,16 +1940,12 @@ impl RootView {
     }
 
     pub fn add_file_pane(&mut self, path: &PathBuf, ctx: &mut ViewContext<Self>) -> bool {
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            handle.update(ctx, |workspace, ctx| {
-                workspace.add_tab_for_file_notebook(Some(path.to_owned()), ctx);
-            });
-            let window_id = ctx.window_id();
-            ctx.windows().show_window_and_focus_app(window_id);
-            ctx.notify();
-        } else {
-            log::warn!("Auth not complete before trying to open file pane");
-        }
+        self.workspace.update(ctx, |workspace, ctx| {
+            workspace.add_tab_for_file_notebook(Some(path.to_owned()), ctx);
+        });
+        let window_id = ctx.window_id();
+        ctx.windows().show_window_and_focus_app(window_id);
+        ctx.notify();
         true
     }
 
@@ -2082,18 +1958,14 @@ impl RootView {
         ctx: &mut ViewContext<Self>,
     ) -> bool {
         let window_id = ctx.window_id();
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            handle.update(ctx, |workspace, ctx| {
-                workspace.insert_subshell_command_and_bootstrap_if_supported(
-                    &arg.command,
-                    arg.shell_type,
-                    ctx,
-                );
-                ctx.windows().show_window_and_focus_app(window_id);
-            })
-        } else {
-            log::warn!("Auth not complete before trying to fill input");
-        }
+        self.workspace.update(ctx, |workspace, ctx| {
+            workspace.insert_subshell_command_and_bootstrap_if_supported(
+                &arg.command,
+                arg.shell_type,
+                ctx,
+            );
+            ctx.windows().show_window_and_focus_app(window_id);
+        });
         true
     }
 
@@ -2102,16 +1974,12 @@ impl RootView {
     pub fn handle_team_intent_link_action(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
         // Force-open warp drive.
         let window_id = ctx.window_id();
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            ctx.dispatch_typed_action_for_view(
-                window_id,
-                handle.id(),
-                &WorkspaceAction::OpenWarpDrive,
-            );
-            ctx.windows().show_window_and_focus_app(window_id);
-        } else {
-            report_error!("Auth not complete before trying to open warp drive");
-        }
+        ctx.dispatch_typed_action_for_view(
+            window_id,
+            self.workspace.id(),
+            &WorkspaceAction::OpenWarpDrive,
+        );
+        ctx.windows().show_window_and_focus_app(window_id);
 
         // Use the team tester model to notify relevant subscribers to refresh their data.
         TeamTesterStatus::handle(ctx).update(ctx, |model, ctx| {
@@ -2122,16 +1990,12 @@ impl RootView {
 
     pub fn open_team_settings_page(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
         let window_id = ctx.window_id();
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            ctx.dispatch_typed_action_for_view(
-                window_id,
-                handle.id(),
-                &WorkspaceAction::ShowSettingsPage(SettingsSection::Teams),
-            );
-            ctx.windows().show_window_and_focus_app(window_id);
-        } else {
-            report_error!("Auth not complete before trying to open team settings page");
-        }
+        ctx.dispatch_typed_action_for_view(
+            window_id,
+            self.workspace.id(),
+            &WorkspaceAction::ShowSettingsPage(SettingsSection::Teams),
+        );
+        ctx.windows().show_window_and_focus_app(window_id);
         true
     }
 
@@ -2141,21 +2005,12 @@ impl RootView {
         ctx: &mut ViewContext<Self>,
     ) -> bool {
         let window_id = ctx.window_id();
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            let handle = handle.clone();
-            ctx.dispatch_typed_action_for_view(
-                window_id,
-                handle.id(),
-                &WorkspaceAction::ShowSettingsPage(*section),
-            );
-            ctx.windows().show_window_and_focus_app(window_id);
-            return true;
-        }
-
-        report_error!(
-            "Auth not complete before trying to open settings page",
-            extra: { "section" => ?section }
+        ctx.dispatch_typed_action_for_view(
+            window_id,
+            self.workspace.id(),
+            &WorkspaceAction::ShowSettingsPage(*section),
         );
+        ctx.windows().show_window_and_focus_app(window_id);
         true
     }
 
@@ -2165,13 +2020,9 @@ impl RootView {
         ctx: &mut ViewContext<Self>,
     ) -> bool {
         let window_id = ctx.window_id();
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            let action = workspace_action_for_open_settings(args);
-            ctx.dispatch_typed_action_for_view(window_id, handle.id(), &action);
-            ctx.windows().show_window_and_focus_app(window_id);
-        } else {
-            report_error!("Auth not complete before trying to open settings");
-        }
+        let action = workspace_action_for_open_settings(args);
+        ctx.dispatch_typed_action_for_view(window_id, self.workspace.id(), &action);
+        ctx.windows().show_window_and_focus_app(window_id);
         true
     }
 
@@ -2182,37 +2033,29 @@ impl RootView {
         args: &OpenMCPSettingsArgs,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            let autoinstall = args.autoinstall.clone();
-            let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-            handle.update(ctx, |_, ctx| {
-                let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                    workspace.open_mcp_servers_page(
-                        MCPServersSettingsPage::List,
-                        autoinstall.as_deref(),
-                        ctx,
-                    )
-                });
+        let autoinstall = args.autoinstall.clone();
+        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
+        self.workspace.update(ctx, |_, ctx| {
+            let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
+                workspace.open_mcp_servers_page(
+                    MCPServersSettingsPage::List,
+                    autoinstall.as_deref(),
+                    ctx,
+                )
             });
-            let window_id = ctx.window_id();
-            ctx.windows().show_window_and_focus_app(window_id);
-        } else {
-            report_error!("Auth not complete before trying to open MCP settings page");
-        }
+        });
+        let window_id = ctx.window_id();
+        ctx.windows().show_window_and_focus_app(window_id);
         true
     }
 
     /// Opens the Codex modal in an existing window.
     pub fn open_codex_in_existing_window(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
         let window_id = ctx.window_id();
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            handle.update(ctx, |workspace, ctx| {
-                workspace.open_codex_modal(ctx);
-            });
-            ctx.windows().show_window_and_focus_app(window_id);
-        } else {
-            report_error!("Auth not complete before trying to open Codex modal");
-        }
+        self.workspace.update(ctx, |workspace, ctx| {
+            workspace.open_codex_modal(ctx);
+        });
+        ctx.windows().show_window_and_focus_app(window_id);
         true
     }
 
@@ -2223,15 +2066,11 @@ impl RootView {
         ctx: &mut ViewContext<Self>,
     ) -> bool {
         let window_id = ctx.window_id();
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            let args = args.clone();
-            handle.update(ctx, |workspace, ctx| {
-                workspace.open_linear_issue_work(&args, ctx);
-            });
-            ctx.windows().show_window_and_focus_app(window_id);
-        } else {
-            report_error!("Auth not complete before trying to open Linear issue work");
-        }
+        let args = args.clone();
+        self.workspace.update(ctx, |workspace, ctx| {
+            workspace.open_linear_issue_work(&args, ctx);
+        });
+        ctx.windows().show_window_and_focus_app(window_id);
         true
     }
 
@@ -2256,37 +2095,18 @@ impl RootView {
         match event {
             AuthManagerEvent::AuthComplete => {
                 Self::sync_local_onboarding_to_server(&auth_state, ctx);
-
-                #[cfg(target_family = "wasm")]
-                if let AuthOnboardingState::WebImport(_) = &self.auth_onboarding_state {
-                    self.auth_onboarding_state.complete_web_import(ctx);
-                }
-
                 self.start_autoupdate_polling(ctx);
                 self.focus(ctx);
             }
             AuthManagerEvent::AuthFailed(err) => match err {
                 UserAuthenticationError::DeniedAccessToken(_) => {
-                    // On the web, re-import the token from the host application, which should
-                    // still be valid.
-                    // On native, we show a banner in the app nudging them to do so, but don't
-                    // actually log them out.
-                    // That is handled in the workspace view.
-                    #[cfg(target_family = "wasm")]
-                    self.web_handoff(ctx);
+                    // We show a banner in the app nudging them to reconnect, but don't
+                    // actually log them out. That is handled in the workspace view.
                 }
                 UserAuthenticationError::UserAccountDisabled(_) => {
-                    cfg_if! {
-                        if #[cfg(target_family = "wasm")] {
-                            // On the web, replace the invalid account with the one from the host
-                            // application, which ought to be valid.
-                            self.web_handoff(ctx);
-                        } else {
-                            // On native, force sign them out, as they should not be able to continue
-                            // to use Warp. Instead, they can sign in or up with a valid account.
-                            crate::auth::log_out(ctx);
-                        }
-                    }
+                    // Force sign them out, as they should not be able to continue to use Warp.
+                    // Instead, they can sign in or up with a valid account.
+                    crate::auth::log_out(ctx);
                 }
                 UserAuthenticationError::Unexpected(_) => {
                     report_error!(err);
@@ -2299,51 +2119,8 @@ impl RootView {
         }
     }
 
-    /// This is called when importing authentication state from the host app completes.
-    #[cfg(target_family = "wasm")]
-    fn handle_web_handoff_event(
-        &mut self,
-        _view: ViewHandle<WebHandoffView>,
-        event: &WebHandoffEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            WebHandoffEvent::Unsupported => {
-                log::warn!("Web auth handoff is unavailable");
-                if let AuthOnboardingState::WebImport(target) = &self.auth_onboarding_state {
-                    self.auth_onboarding_state = match target {
-                        AuthOnboardingTarget::Workspace(args) => {
-                            AuthOnboardingState::Terminal(args.clone().create_workspace(ctx))
-                        }
-                        AuthOnboardingTarget::Terminal(view) => {
-                            // If we're in this state, it means that refreshing the user's stored
-                            // token failed _and_ handoff is unavailable. Return to the workspace
-                            // view with an error banner.
-                            AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                                auth_manager.set_needs_reauth(true, ctx);
-                            });
-                            AuthOnboardingState::Terminal(view.clone())
-                        }
-                    };
-                    ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-                } else {
-                    report_error!("Received web handoff event in unexpected state");
-                }
-                self.focus(ctx);
-            }
-        }
-    }
-
     pub fn focus(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        match &self.auth_onboarding_state {
-            #[cfg(target_family = "wasm")]
-            AuthOnboardingState::WebImport(_) => {
-                ctx.focus(&self.web_handoff_view);
-            }
-            AuthOnboardingState::Terminal(workspace) => {
-                ctx.focus(workspace);
-            }
-        }
+        ctx.focus(&self.workspace);
         ctx.notify();
         true
     }
@@ -2386,25 +2163,10 @@ impl RootView {
         }
         true
     }
-
-    fn traffic_light_data(&self, ctx: &AppContext) -> Option<TrafficLightData> {
-        // The workspace view will handle rendering of the traffic lights (so
-        // that they can be hidden when the tab bar is hidden).
-        if matches!(self.auth_onboarding_state, AuthOnboardingState::Terminal(_)) {
-            return None;
-        }
-
-        traffic_light_data(ctx, self.window_id)
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum RootViewEvent {
-    AuthOnboardingStateChanged,
 }
 
 impl Entity for RootView {
-    type Event = RootViewEvent;
+    type Event = ();
 }
 
 impl View for RootView {
@@ -2418,33 +2180,11 @@ impl View for RootView {
         }
     }
 
-    fn render(&self, app: &AppContext) -> Box<dyn Element> {
-        let child = match &self.auth_onboarding_state {
-            #[cfg(target_family = "wasm")]
-            AuthOnboardingState::WebImport(_) => ChildView::new(&self.web_handoff_view).finish(),
-            AuthOnboardingState::Terminal(workspace) => ChildView::new(workspace).finish(),
-        };
+    fn render(&self, _app: &AppContext) -> Box<dyn Element> {
+        let child = ChildView::new(&self.workspace).finish();
 
         let mut stack = Stack::new();
         stack.add_child(child);
-
-        if let Some(traffic_light_data) = self.traffic_light_data(app) {
-            let theme = Appearance::as_ref(app).theme();
-            let fullscreen_state = app
-                .windows()
-                .platform_window(self.window_id)
-                .map(|window| window.fullscreen_state())
-                .unwrap_or_default();
-            stack.add_positioned_child(
-                traffic_light_data.render(fullscreen_state, &self.mouse_states, theme, app),
-                OffsetPositioning::offset_from_parent(
-                    vec2f(0., 0.),
-                    ParentOffsetBounds::WindowByPosition,
-                    ParentAnchor::TopRight,
-                    ChildAnchor::TopRight,
-                ),
-            );
-        }
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "voice_input")] {
@@ -2517,69 +2257,6 @@ impl WorkspaceArgs {
                 ctx,
             )
         })
-    }
-}
-
-impl AuthOnboardingState {
-    #[cfg(target_family = "wasm")]
-    fn show_web_handoff_view(&mut self) {
-        match self {
-            AuthOnboardingState::WebImport(_) => (),
-            AuthOnboardingState::Terminal(view) => {
-                *self = AuthOnboardingState::WebImport(AuthOnboardingTarget::Terminal(view.clone()))
-            }
-        }
-    }
-
-    #[cfg(target_family = "wasm")]
-    fn complete_web_import(&mut self, ctx: &mut ViewContext<RootView>) {
-        if let AuthOnboardingState::WebImport(target) = self {
-            *self = AuthOnboardingState::Terminal(target.to_workspace(ctx));
-            ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-        }
-    }
-
-    /// "Logging out" in a local-only build has no account to sign out of: it just resets the
-    /// local workspace to a fresh, empty one. There is no login screen to send the user to.
-    fn log_out(&mut self, ctx: &mut ViewContext<RootView>) {
-        match self {
-            #[cfg(target_family = "wasm")]
-            AuthOnboardingState::WebImport(_) => {
-                // TODO(ben): Eventually, we could support logout here by logging out of the JS
-                // Firebase client.
-            }
-            AuthOnboardingState::Terminal(workspace) => {
-                // Clean up current workspace before resetting.
-                workspace.update(ctx, |workspace, ctx| {
-                    workspace.on_log_out(ctx);
-                });
-
-                let global_resource_handles =
-                    GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
-                let workspace_setting = NewWorkspaceSource::Empty {
-                    previous_active_window: None,
-                    shell: None,
-                };
-                let workspace_args = WorkspaceArgs {
-                    global_resource_handles,
-                    server_time: None,
-                    workspace_setting,
-                };
-
-                // Destroy the old workspace view handle and create a fresh one in its place.
-                *self = AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx));
-                ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-            }
-        }
-    }
-}
-
-impl AuthOnboardingTarget {
-    fn to_workspace(&self, ctx: &mut ViewContext<RootView>) -> ViewHandle<Workspace> {
-        match self {
-            AuthOnboardingTarget::Terminal(workspace) => workspace.clone(),
-            AuthOnboardingTarget::Workspace(args) => args.clone().create_workspace(ctx),
-        }
     }
 }
 
