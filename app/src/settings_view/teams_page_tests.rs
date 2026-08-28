@@ -238,16 +238,7 @@ fn non_native_workspace_keeps_create_team_ui() {
     let workspace = workspace_with_member(ADMIN_EMAIL, MembershipRole::Admin, false);
 
     assert_eq!(
-        TeamsWidget::page_sections_for(Some(&workspace), Some(ADMIN_EMAIL), true),
-        vec![
-            TeamsPageSection::CreateTeam,
-            TeamsPageSection::JoinTeams {
-                header: OR_JOIN_TEAM_HEADER
-            }
-        ]
-    );
-    assert_eq!(
-        TeamsWidget::page_sections_for(Some(&workspace), Some(ADMIN_EMAIL), false),
+        TeamsWidget::page_sections_for(Some(&workspace), Some(ADMIN_EMAIL)),
         vec![TeamsPageSection::CreateTeam]
     );
 }
@@ -255,7 +246,7 @@ fn non_native_workspace_keeps_create_team_ui() {
 #[test]
 fn unresolved_workspace_keeps_create_team_ui() {
     assert_eq!(
-        TeamsWidget::page_sections_for(None, Some(MEMBER_EMAIL), false),
+        TeamsWidget::page_sections_for(None, Some(MEMBER_EMAIL)),
         vec![TeamsPageSection::CreateTeam]
     );
 }
@@ -265,32 +256,17 @@ fn native_workspace_admin_gets_admin_panel_cta() {
     let workspace = admin_workspace(ADMIN_EMAIL);
 
     assert_eq!(
-        TeamsWidget::page_sections_for(Some(&workspace), Some(ADMIN_EMAIL), true),
-        vec![
-            TeamsPageSection::JoinTeams {
-                header: JOIN_TEAM_HEADER
-            },
-            TeamsPageSection::AdminPanelCta
-        ]
-    );
-    assert_eq!(
-        TeamsWidget::page_sections_for(Some(&workspace), Some(ADMIN_EMAIL), false),
+        TeamsWidget::page_sections_for(Some(&workspace), Some(ADMIN_EMAIL)),
         vec![TeamsPageSection::AdminPanelCta]
     );
 }
 
 #[test]
-fn native_workspace_member_gets_join_or_empty_state() {
+fn native_workspace_member_gets_no_teams_to_join() {
     let workspace = workspace_with_member(MEMBER_EMAIL, MembershipRole::User, true);
 
     assert_eq!(
-        TeamsWidget::page_sections_for(Some(&workspace), Some(MEMBER_EMAIL), true),
-        vec![TeamsPageSection::JoinTeams {
-            header: JOIN_TEAM_HEADER
-        }]
-    );
-    assert_eq!(
-        TeamsWidget::page_sections_for(Some(&workspace), Some(MEMBER_EMAIL), false),
+        TeamsWidget::page_sections_for(Some(&workspace), Some(MEMBER_EMAIL)),
         vec![TeamsPageSection::NoTeamsToJoin]
     );
 }
@@ -300,7 +276,7 @@ fn viewer_missing_from_the_workspace_roster_is_not_an_admin() {
     let workspace = admin_workspace(ADMIN_EMAIL);
 
     assert_eq!(
-        TeamsWidget::page_sections_for(Some(&workspace), None, false),
+        TeamsWidget::page_sections_for(Some(&workspace), None),
         vec![TeamsPageSection::NoTeamsToJoin]
     );
 }

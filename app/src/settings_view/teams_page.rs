@@ -62,7 +62,6 @@ use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::network::NetworkStatus;
 use crate::pricing::PricingInfoModel;
 use crate::send_telemetry_from_ctx;
-use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::ServerId;
 use crate::server::telemetry::TelemetryEvent;
 use crate::themes::theme::Blend;
@@ -73,7 +72,7 @@ use crate::view_components::{
 };
 use crate::word_block_editor::{ChipEditorState, WordBlockEditorView, WordBlockEditorViewEvent};
 use crate::workspace::WorkspaceAction;
-use crate::workspaces::team::{DiscoverableTeam, MembershipRole, Team, TeamDeleteDisabledReason};
+use crate::workspaces::team::{MembershipRole, Team, TeamDeleteDisabledReason};
 use crate::workspaces::update_manager::{TeamUpdateManager, TeamUpdateManagerEvent};
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::workspaces::workspace::{
@@ -86,8 +85,6 @@ const TEAM_NAME_EDITOR_PLACEHOLDER_TEXT: &str = "Team name";
 const CREATE_TEAM_BUTTON_LEFT_PADDING: f32 = 10.;
 const CREATE_TEAM_DESCRIPTION: &str = "When you create a team, you can collaborate on agent-driven development by sharing cloud agent runs, environments, automations, and artifacts. You can also create a shared knowledge store for teammates and agents alike.";
 
-const OR_JOIN_TEAM_HEADER: &str = "Or, join an existing team within your company";
-const JOIN_TEAM_HEADER: &str = "Join an existing team within your company";
 const NO_JOINABLE_TEAMS_HEADER: &str = "There are currently no joinable teams.";
 const NO_TEAMS_TO_JOIN_DESCRIPTION: &str =
     "Contact an admin to join a team to gain access to more features.";
@@ -200,9 +197,6 @@ pub enum TeamsPageAction {
         team_uid: ServerId,
         current_state: bool,
     },
-    JoinTeamWithTeamDiscovery {
-        team_uid: ServerId,
-    },
     ShowTransferOwnershipModal {
         new_owner_email: String,
         new_owner_uid: UserUid,
@@ -241,7 +235,6 @@ impl TeamsPageAction {
                 | ContactSales
                 | ToggleTeamDiscoverabilityBeforeCreation
                 | ToggleTeamDiscoverability { .. }
-                | JoinTeamWithTeamDiscovery { .. }
         )
     }
 }
@@ -266,7 +259,6 @@ impl From<&TeamsPageAction> for LoginGatedFeature {
             ToggleTeamDiscoverability { .. } | ToggleTeamDiscoverabilityBeforeCreation => {
                 "Toggle Team Discoverability"
             }
-            JoinTeamWithTeamDiscovery { .. } => "Join Team With Team Discovery",
             _ => "Unknown reason",
         }
     }
@@ -387,7 +379,6 @@ enum GrowTeamWarningCta {
 enum TeamsPageSection {
     CreateTeam,
     AdminPanelCta,
-    JoinTeams { header: &'static str },
     NoTeamsToJoin,
 }
 
@@ -443,24 +434,10 @@ impl Ord for Item {
     }
 }
 
-#[derive(Clone)]
-struct DiscoverableTeamState {
-    team: DiscoverableTeam,
-    mouse_state_handle: MouseStateHandle,
-}
 #[derive(Copy, Clone)]
 struct TeamInvitationPermissions {
     has_admin_permissions: bool,
     is_workspace_admin: bool,
-}
-
-impl DiscoverableTeamState {
-    pub fn new(team: DiscoverableTeam) -> Self {
-        Self {
-            team,
-            mouse_state_handle: Default::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -496,7 +473,6 @@ pub struct TeamsPageView {
     pending_team_action_confirmation: Option<TeamActionConfirmationTarget>,
     transfer_ownership_modal_state: ModalViewState<Modal<TransferOwnershipConfirmationModal>>,
     clipped_scroll_state: ClippedScrollStateHandle,
-    discoverable_teams_states: Vec<DiscoverableTeamState>,
     rename_team_editor: ViewHandle<ClickableTextInput>,
     checkbox_value: bool,
     member_actions_menu: ViewHandle<Menu<TeamsPageAction>>,
@@ -600,10 +576,6 @@ impl TypedActionView for TeamsPageView {
                 current_state,
             } => {
                 self.set_team_discoverability(*team_uid, !current_state, ctx);
-                ctx.notify();
-            }
-            TeamsPageAction::JoinTeamWithTeamDiscovery { team_uid } => {
-                self.join_team_with_team_discovery(*team_uid, ctx);
                 ctx.notify();
             }
             TeamsPageAction::ShowTransferOwnershipModal {
@@ -867,7 +839,6 @@ impl TeamsPageView {
             show_team_action_confirmation_dialog: false,
             pending_team_action_confirmation: None,
             transfer_ownership_modal_state: ModalViewState::new(transfer_ownership_modal),
-            discoverable_teams_states: Vec::new(),
             rename_team_editor,
             checkbox_value: true,
             member_actions_menu,
@@ -1006,36 +977,6 @@ impl TeamsPageView {
             }
             UserWorkspacesEvent::ToggleTeamDiscoverabilityRejected(err) => {
                 self.show_error("Failed to toggle team discoverability", Some(err), ctx);
-            }
-            UserWorkspacesEvent::JoinTeamWithTeamDiscoverySuccess => {
-                // Force refresh of Warp Drive objects after joining a team
-                UpdateManager::handle(ctx).update(ctx, move |update_manager, ctx| {
-                    update_manager.refresh_updated_objects(ctx);
-                });
-
-                let message = self
-                    .user_workspaces
-                    .as_ref(ctx)
-                    .team_for_view(ctx)
-                    .map_or("Successfully joined team".to_string(), |team| {
-                        format!("Successfully joined {}", team.name)
-                    });
-                self.show_success(message, ctx);
-                ctx.notify();
-            }
-            UserWorkspacesEvent::JoinTeamWithTeamDiscoveryRejected(err) => {
-                self.show_error("Failed to join team", Some(err), ctx);
-            }
-            UserWorkspacesEvent::FetchDiscoverableTeamsSuccess(teams) => {
-                self.discoverable_teams_states = teams
-                    .iter()
-                    .map(|team| DiscoverableTeamState::new(team.clone()))
-                    .collect();
-                ctx.notify();
-            }
-            UserWorkspacesEvent::FetchDiscoverableTeamsRejected(e) => {
-                // Don't show toast, only log to sentry
-                report_error!(e);
             }
             UserWorkspacesEvent::TransferTeamOwnershipSuccess => {
                 self.show_success("Successfully transferred team ownership", ctx);
@@ -1633,13 +1574,6 @@ impl TeamsPageView {
             });
     }
 
-    fn join_team_with_team_discovery(&mut self, team_uid: ServerId, ctx: &mut ViewContext<Self>) {
-        self.user_workspaces
-            .update(ctx, move |user_workspaces, ctx| {
-                user_workspaces.join_team_with_team_discovery(team_uid, ctx);
-            });
-    }
-
     fn delete_team_invite(
         &mut self,
         team_uid: ServerId,
@@ -1728,7 +1662,6 @@ impl TeamsPageView {
         TeamsWidget::page_sections_for(
             self.user_workspaces.as_ref(ctx).current_workspace(),
             self.auth_state.user_email().as_deref(),
-            !self.discoverable_teams_states.is_empty(),
         )
         .contains(&TeamsPageSection::CreateTeam)
     }
@@ -1880,12 +1813,6 @@ impl SettingsPageMeta for TeamsPageView {
         );
         self.update_team_members_state(ctx);
         self.update_approved_domains_state(ctx);
-        if NetworkStatus::as_ref(ctx).is_online() {
-            self.user_workspaces
-                .update(ctx, move |user_workspaces, ctx| {
-                    user_workspaces.fetch_discoverable_teams(ctx);
-                });
-        }
     }
 
     fn should_render(&self, _ctx: &AppContext) -> bool {
@@ -3910,31 +3837,6 @@ impl TeamsWidget {
             .finish()
     }
 
-    fn render_sub_header(&self, text: String, appearance: &Appearance) -> Box<dyn Element> {
-        Align::new(
-            appearance
-                .ui_builder()
-                .span(text)
-                .with_style(UiComponentStyles {
-                    font_family_id: Some(appearance.ui_font_family()),
-                    font_weight: Some(Weight::Light),
-                    font_color: Some(
-                        appearance
-                            .theme()
-                            .active_ui_text_color()
-                            .with_opacity(90)
-                            .into(),
-                    ),
-                    font_size: Some(12.),
-                    ..Default::default()
-                })
-                .build()
-                .finish(),
-        )
-        .left()
-        .finish()
-    }
-
     fn render_subsection_header(&self, text: String, appearance: &Appearance) -> Box<dyn Element> {
         Align::new(
             appearance
@@ -4112,26 +4014,16 @@ impl TeamsWidget {
     fn page_sections_for(
         workspace: Option<&Workspace>,
         email: Option<&str>,
-        join_teams: bool,
     ) -> Vec<TeamsPageSection> {
         let mut sections = Vec::new();
         if !workspace.is_some_and(Workspace::is_native_workspaces_enabled) {
             sections.push(TeamsPageSection::CreateTeam);
-            if join_teams {
-                sections.push(TeamsPageSection::JoinTeams {
-                    header: OR_JOIN_TEAM_HEADER,
-                });
-            }
             return sections;
         }
         let is_workspace_admin = workspace
             .zip(email)
             .is_some_and(|(workspace, email)| workspace.is_workspace_admin(email));
-        if join_teams {
-            sections.push(TeamsPageSection::JoinTeams {
-                header: JOIN_TEAM_HEADER,
-            });
-        } else if !is_workspace_admin {
+        if !is_workspace_admin {
             sections.push(TeamsPageSection::NoTeamsToJoin);
         }
         if is_workspace_admin {
@@ -4149,7 +4041,6 @@ impl TeamsWidget {
         let sections = Self::page_sections_for(
             view.user_workspaces.as_ref(app).current_workspace(),
             view.auth_state.user_email().as_deref(),
-            !view.discoverable_teams_states.is_empty(),
         );
 
         let mut page = Flex::column();
@@ -4175,9 +4066,6 @@ impl TeamsWidget {
                         .with_padding_top(16.)
                         .finish(),
                     );
-                }
-                TeamsPageSection::JoinTeams { header } => {
-                    page.add_child(self.render_join_teams_section(view, appearance, header));
                 }
                 TeamsPageSection::NoTeamsToJoin => {
                     let theme = appearance.theme();
@@ -4206,18 +4094,6 @@ impl TeamsWidget {
         }
 
         page.finish()
-    }
-
-    fn render_join_teams_section(
-        &self,
-        view: &TeamsPageView,
-        appearance: &Appearance,
-        header: &str,
-    ) -> Box<dyn Element> {
-        Flex::column()
-            .with_child(self.render_sub_header_with_subtext_color(appearance, header.to_string()))
-            .with_child(self.render_team_discovery_section(view, appearance))
-            .finish()
     }
 
     fn render_create_team_section(
@@ -4312,78 +4188,6 @@ impl TeamsWidget {
                     .finish(),
             )
             .finish()
-    }
-
-    fn render_team_discovery_section(
-        &self,
-        view: &TeamsPageView,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        let mut team_discovery = Flex::column();
-        // Sort teams so teams accepting invites with most teammates appear on top
-        let mut sorted_teams = view.discoverable_teams_states.clone();
-        sorted_teams.sort_by_key(|team_state| {
-            (
-                !team_state.team.team_accepting_invites,
-                -team_state.team.num_members,
-            )
-        });
-
-        // Render box for each team
-        for team_state in &sorted_teams {
-            team_discovery.add_child(
-                Container::new(self.render_single_team_in_team_discovery(team_state, appearance))
-                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
-                    .with_border(Border::all(1.).with_border_fill(appearance.theme().outline()))
-                    .with_uniform_padding(16.)
-                    .with_margin_top(12.)
-                    .finish(),
-            );
-        }
-        team_discovery.finish()
-    }
-
-    fn render_single_team_in_team_discovery(
-        &self,
-        team_state: &DiscoverableTeamState,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        let mut single_team = Flex::column();
-
-        // Team name
-        single_team.add_child(self.render_sub_header(team_state.team.name.to_string(), appearance));
-
-        // Number of teammates
-        let teammate_string = if team_state.team.num_members == 1 {
-            "1 teammate".to_string()
-        } else {
-            format!("{} teammates", team_state.team.num_members)
-        };
-        single_team.add_child(self.render_sub_text(teammate_string, appearance, None));
-
-        // Call to action
-        single_team.add_child(
-            Container::new(
-                self.render_sub_text(
-                    "Join this team and start collaborating on workflows, notebooks, and more."
-                        .to_string(),
-                    appearance,
-                    None,
-                ),
-            )
-            .with_padding_top(12.)
-            .with_padding_bottom(12.)
-            .finish(),
-        );
-
-        // Join button
-        single_team.add_child(
-            Container::new(self.render_join_team_button(team_state, appearance))
-                .with_padding_top(12.)
-                .finish(),
-        );
-
-        single_team.finish()
     }
 
     fn render_editor(
@@ -4537,50 +4341,6 @@ impl TeamsWidget {
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| ctx.dispatch_typed_action(TeamsPageAction::CreateTeam))
             .finish()
-    }
-
-    fn render_join_team_button(
-        &self,
-        team_state: &DiscoverableTeamState,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        if team_state.team.team_accepting_invites {
-            self.render_button(
-                "Join",
-                ButtonVariant::Accent,
-                team_state.mouse_state_handle.clone(),
-                Some(TeamsPageAction::JoinTeamWithTeamDiscovery {
-                    team_uid: ServerId::from_string_lossy(&team_state.team.team_uid),
-                }),
-                UiComponentStyles {
-                    font_color: Some(
-                        appearance
-                            .theme()
-                            .main_text_color(appearance.theme().accent())
-                            .into_solid(),
-                    ),
-                    font_weight: Some(Weight::Medium),
-                    height: Some(38.),
-                    font_size: Some(14.),
-                    ..Default::default()
-                },
-                appearance,
-            )
-        } else {
-            appearance
-                .ui_builder()
-                .button(ButtonVariant::Accent, team_state.mouse_state_handle.clone())
-                .with_style(UiComponentStyles {
-                    font_weight: Some(Weight::Medium),
-                    height: Some(38.),
-                    font_size: Some(14.),
-                    ..Default::default()
-                })
-                .with_centered_text_label("Contact Admin to request access".to_string())
-                .disabled()
-                .build()
-                .finish()
-        }
     }
 }
 

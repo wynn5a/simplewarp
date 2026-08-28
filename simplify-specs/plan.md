@@ -1818,6 +1818,71 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `render_create_team_section` path this touched — clean startup, no panics. 2 files changed,
    171 lines deleted, 31 added.
 
+3t. **The whole "discoverable teams" feature — DELETED, all the way down, not just the UI
+   3s left standing.** ~365 lines net across 5 files: `settings_view/teams_page.rs` (the
+   Settings → Teams "join a discoverable team" list, its own independent surface from 3s's
+   Warp Drive one), `workspaces/user_workspaces.rs`, `workspaces/update_manager.rs`, and
+   `server/server_api/team.rs`.
+
+   3s deliberately left `joinable_teams`, `DiscoverableTeam`, `get_discoverable_teams`, and
+   the `FetchDiscoverableTeams*` events standing, flagging `teams_page.rs`'s own discoverable-
+   teams list as "provably dead by the same logic" but out of scope for that round. Traced it
+   fully this round: `TeamsWidget::page_sections_for`'s `join_teams: bool` parameter (fed by
+   `!discoverable_teams_states.is_empty()`, always false, same as 3s's `drive/index.rs` guard)
+   meant `TeamsPageSection::JoinTeams` was never returned — collapsing `page_sections_for`
+   down to two parameters made `JoinTeams`, `render_join_teams_section`,
+   `render_team_discovery_section`, `render_single_team_in_team_discovery`,
+   `render_join_team_button`, and `DiscoverableTeamState` all provably dead in one pass, the
+   same cascade shape as every enum-collapse in this thread.
+
+   **Followed the chain past the UI, since nothing else read it once teams_page.rs was gone.**
+   `TeamsPageAction::JoinTeamWithTeamDiscovery` dispatches `UserWorkspaces::
+   join_team_with_team_discovery`, which calls `TeamClient::join_team_with_team_discovery` —
+   already stubbed to `local_only_error()` by 3e/3f, so even before this round the action could
+   never succeed. With the one button that dispatched it gone, the whole chain (the action
+   variant, `TeamsPageView::join_team_with_team_discovery`, `UserWorkspaces::
+   {join_team_with_team_discovery, on_join_team_with_team_discovery}`, and the
+   `JoinTeamWithTeamDiscoverySuccess`/`Rejected` events) had zero remaining callers — deleted.
+   Same for the fetch side: `fetch_discoverable_teams` was called from exactly one place
+   (`on_page_selected`, triggered whenever the Teams settings page opens) and called the now-
+   pointless `get_discoverable_teams()` stub; deleted `fetch_discoverable_teams`,
+   `on_fetch_discoverable_teams`, the `TeamClient::get_discoverable_teams` trait method +
+   stub impl, and the trigger call in `on_page_selected`. `UserWorkspaces.joinable_teams`
+   itself had already lost its only two readers in 3s (`total_teammates_in_joinable_teams`,
+   `num_joinable_teams`), so once `update_joinable_teams`'s last caller (the fetch/join
+   handlers above) went, the field was write-only with nothing left to write meaningfully to
+   — deleted the field, `update_joinable_teams`, and the two `FetchDiscoverableTeams*` events,
+   plus the two `update_manager.rs` call sites that fed it from workspace-metadata responses.
+
+   **Where the line was drawn, deliberately.** `DiscoverableTeam` (the struct itself),
+   `WorkspacesMetadataResponse.joinable_teams: Vec<DiscoverableTeam>` (the wire-format field),
+   and `gql_convert.rs`'s `From<GqlDiscoverableTeamData> for DiscoverableTeam` conversion are
+   untouched — that field sits inside a response struct shared with other still-live fields
+   (`workspaces`, `feature_model_choices`, `user_purchase_policy`), so removing it means
+   restructuring `WorkspacesMetadataResponse`/its GraphQL conversion, not deleting a dead
+   consumer. Parsed-and-discarded costs nothing; the same boundary 3e/3f drew between "stub
+   the transport" and "touch the wire-format types."
+
+   `render_sub_header` (`teams_page.rs`) was a second-order orphan clippy caught only after
+   the first pass compiled clean — its one caller was `render_single_team_in_team_discovery`,
+   gone earlier in this same round. Same "check `--all-targets`, not `--lib`" lesson 3f named:
+   the test file (`teams_page_tests.rs`) had five tests exercising `page_sections_for`'s
+   deleted `join_teams` parameter directly (asserting both the `true` and `false` branches);
+   `cargo check --lib` didn't see them, `clippy --all-targets` did. Rewrote each to assert only
+   the surviving (`false`-equivalent) behavior rather than deleting them, since each still
+   tests a real, live branch of `page_sections_for` (workspace resolution / admin status), not
+   just the removed one.
+
+   Acceptance: `cargo check` (both feature sets, `--all-targets`, `-p integration`) clean (0
+   errors, same 8 pre-existing warnings). `cargo clippy -p warp --lib --all-targets
+   --no-default-features --features simplewarp` clean (0 errors, back to 15 warnings — the
+   same pre-existing set, confirming no fallout). `./script/format --check` clean after one
+   pass (two stray blank lines from the deletions). `cargo nextest run -p warp --lib
+   --no-default-features --features simplewarp --no-fail-fast`: 5978/5986 pass, identical
+   count and same 8 pre-existing failures as 3s — 0 tests lost, since the five affected tests
+   were rewritten rather than deleted. Built and launched `./target/debug/simplewarp` — clean
+   startup, no panics. 5 files changed, 365 deletions, 9 insertions net.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

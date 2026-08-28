@@ -64,10 +64,6 @@ pub enum UserWorkspacesEvent {
     GenerateStripeBillingPortalLinkRejected(anyhow::Error),
     ToggleTeamDiscoverabilitySuccess,
     ToggleTeamDiscoverabilityRejected(anyhow::Error),
-    JoinTeamWithTeamDiscoverySuccess,
-    JoinTeamWithTeamDiscoveryRejected(anyhow::Error),
-    FetchDiscoverableTeamsSuccess(Vec<DiscoverableTeam>),
-    FetchDiscoverableTeamsRejected(anyhow::Error),
     TransferTeamOwnershipSuccess,
     TransferTeamOwnershipRejected(anyhow::Error),
     SetTeamMemberRoleSuccess,
@@ -107,7 +103,6 @@ pub struct UserWorkspaces {
     current_workspace_uid: Tracked<Option<WorkspaceUid>>,
     workspaces: Tracked<Vec<Workspace>>,
     window_team_uids: HashMap<WindowId, Option<ServerId>>,
-    joinable_teams: Vec<DiscoverableTeam>,
     /// The user-level add-on credits purchase policy from the latest
     /// workspaces-metadata response. Teamless (fresh free) users have no
     /// team and their only workspace is the server's placeholder, which is
@@ -160,7 +155,6 @@ impl UserWorkspaces {
             current_workspace_uid: cached_workspaces.first().map(|w| w.uid).into(),
             workspaces: cached_workspaces.into(),
             window_team_uids: Default::default(),
-            joinable_teams: Default::default(),
             user_purchase_policy: None,
             team_client,
             workspace_client,
@@ -205,7 +199,6 @@ impl UserWorkspaces {
             current_workspace_uid: current_workspace_uid.into(),
             workspaces: cached_workspaces.into(),
             window_team_uids: Default::default(),
-            joinable_teams: Default::default(),
             user_purchase_policy: None,
             team_client,
             workspace_client,
@@ -1060,18 +1053,6 @@ impl UserWorkspaces {
         ctx.notify();
     }
 
-    pub fn update_joinable_teams(
-        &mut self,
-        joinable_teams: Vec<DiscoverableTeam>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.joinable_teams.clone_from(&joinable_teams);
-        ctx.emit(UserWorkspacesEvent::FetchDiscoverableTeamsSuccess(
-            joinable_teams,
-        ));
-        ctx.notify();
-    }
-
     // TODO follow up with moving other modifying calls out of UserWorkspaces to TeamUpdateManager
     fn on_workspaces_updated(
         &mut self,
@@ -1087,11 +1068,9 @@ impl UserWorkspaces {
                 }
 
                 let workspaces = response.metadata.workspaces;
-                let joinable_teams = response.metadata.joinable_teams;
 
                 self.set_user_purchase_policy(response.metadata.user_purchase_policy);
                 self.update_workspaces(workspaces.clone(), ctx);
-                self.update_joinable_teams(joinable_teams, ctx);
 
                 // Check if the current workspace is still in the list of workspaces.
                 // If it's not, then set the current workspace to the first workspace in the list.
@@ -1337,55 +1316,6 @@ impl UserWorkspaces {
                     .await
             },
             Self::on_team_discoverability_set,
-        );
-    }
-
-    pub fn on_join_team_with_team_discovery(
-        &mut self,
-        result: Result<WorkspacesMetadataWithPricing>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::JoinTeamWithTeamDiscoveryRejected(err)),
-            Ok(result) => {
-                self.on_workspaces_updated(Ok(result), ctx);
-                ctx.emit(UserWorkspacesEvent::JoinTeamWithTeamDiscoverySuccess);
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn join_team_with_team_discovery(
-        &mut self,
-        team_uid: ServerId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let team_client = self.team_client.clone();
-        let _ = ctx.spawn(
-            async move { team_client.join_team_with_team_discovery(team_uid).await },
-            Self::on_join_team_with_team_discovery,
-        );
-    }
-
-    fn on_fetch_discoverable_teams(
-        &mut self,
-        teams: Result<Vec<DiscoverableTeam>, anyhow::Error>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match teams {
-            Err(e) => ctx.emit(UserWorkspacesEvent::FetchDiscoverableTeamsRejected(e)),
-            Ok(teams) => {
-                self.update_joinable_teams(teams, ctx);
-            }
-        }
-    }
-
-    /// Make request to get list of discoverable teams for a user
-    pub fn fetch_discoverable_teams(&mut self, ctx: &mut ModelContext<Self>) {
-        let team_client = self.team_client.clone();
-        let _ = ctx.spawn(
-            async move { team_client.get_discoverable_teams().await },
-            Self::on_fetch_discoverable_teams,
         );
     }
 

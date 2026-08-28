@@ -7,7 +7,7 @@ use super::ServerApi;
 use crate::auth::UserUid;
 use crate::cloud_object::CloudObjectEventEntrypoint;
 use crate::server::ids::ServerId;
-use crate::workspaces::team::{DiscoverableTeam, MembershipRole};
+use crate::workspaces::team::MembershipRole;
 use crate::workspaces::user_workspaces::{CreateTeamResponse, WorkspacesMetadataWithPricing};
 
 #[cfg_attr(test, automock)]
@@ -54,11 +54,6 @@ pub trait TeamClient: 'static + Send + Sync {
         entrypoint: CloudObjectEventEntrypoint,
     ) -> Result<WorkspacesMetadataWithPricing>;
 
-    async fn join_team_with_team_discovery(
-        &self,
-        team_uid: ServerId,
-    ) -> Result<WorkspacesMetadataWithPricing>;
-
     async fn send_team_invite_email(
         &self,
         team_uid: ServerId,
@@ -70,8 +65,6 @@ pub trait TeamClient: 'static + Send + Sync {
         team_uid: ServerId,
         email: String,
     ) -> Result<WorkspacesMetadataWithPricing>;
-
-    async fn get_discoverable_teams(&self) -> Result<Vec<DiscoverableTeam>>;
 
     async fn rename_team(
         &self,
@@ -158,13 +151,6 @@ impl TeamClient for ServerApi {
         Err(crate::server::server_api::local_only_error())
     }
 
-    async fn join_team_with_team_discovery(
-        &self,
-        _team_uid: ServerId,
-    ) -> Result<WorkspacesMetadataWithPricing> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
     async fn send_team_invite_email(
         &self,
         _team_uid: ServerId,
@@ -178,10 +164,6 @@ impl TeamClient for ServerApi {
         _team_uid: ServerId,
         _email: String,
     ) -> Result<WorkspacesMetadataWithPricing> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn get_discoverable_teams(&self) -> Result<Vec<DiscoverableTeam>, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 
