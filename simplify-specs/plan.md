@@ -1925,6 +1925,54 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `./target/debug/simplewarp` and launched it — clean startup, spawned its terminal-server
    child normally, no panics.
 
+3v. **20 orphaned billing/plan-tier predicate methods on `Workspace`, `BillingMetadata`, and
+   `UserWorkspaces` — not a single feature this time, a pile of leaf helpers nobody called.**
+   2 files, 227 deletions, 6 insertions net.
+
+   Different shape of search from 3r/3s/3t/3u: those traced forward from one stubbed network
+   call to every consumer. This one went the other direction — for every `pub fn` in
+   `workspaces/{user_workspaces,workspace,team}.rs`, grep the whole repo (not just app/src)
+   for its name and flag anything appearing exactly once (the definition, nothing else).
+   19 methods came back at exactly one occurrence, all pure predicates or getters with no
+   side effects: `workspace.rs`'s billing/plan-tier questions (`is_on_build_plan`,
+   `is_on_legacy_paid_plan`, `has_active_subscription`, `has_overages_used`,
+   `has_failed_addon_credit_auto_reload_status`, `is_enterprise_pay_as_you_go_enabled`,
+   `is_enterprise_auto_reload_enabled`, `is_usage_based_pricing_toggleable`, `can_be_deleted`,
+   `are_overages_toggleable`, `are_overages_remaining`, `is_at_addon_credits_monthly_limit`,
+   `would_addon_purchase_reach_limit`, `get_auto_reload_price_cents`) and
+   `user_workspaces.rs`'s (`ai_allowed_for_team`, `is_active_ai_allowed`, `team_spaces`,
+   `team_uids_across_all_workspaces`, `is_at_tier_limit_for_some_warp_drive_objects`,
+   `update_ai_autonomy_policy_flag`). None called each other — deleting the whole batch in
+   one pass didn't orphan anything further, unlike every prior round in this thread.
+
+   These are `pub` items in a lib crate, so the compiler stays silent about them by
+   construction (the 3g/4 lesson again) — nothing here would ever surface as a `dead_code`
+   warning on its own. They read as **leftovers from earlier UI deletions** (billing pages,
+   AI-overages surfaces, build-plan-migration UI cut in phases before this one) that removed
+   the last caller without walking back to the leaf method itself — the inverse failure mode
+   of what 3s/3t/3u kept catching.
+
+   **Two second-order fixes, caught the same way 3f/3t's lesson predicts: `--all-targets`,
+   not `--lib`.** Deleting `ai_allowed_for_team` orphaned the `CustomerType` import (`--lib`
+   caught this one directly); deleting it from `user_workspaces.rs`'s top-level import list
+   broke `user_workspaces_tests.rs`, which pulls `CustomerType` in transitively via
+   `use super::*` and uses it directly in six assertions unrelated to the deleted method —
+   `--lib` didn't see this, `--all-targets` did. Fixed by moving `CustomerType` into the
+   file's existing `#[cfg(test)]` import block instead of dropping it, same fix shape as
+   `AIAutonomyPolicy` (turned out `update_ai_autonomy_policy_flag` itself lived inside a
+   `#[cfg(test)] impl UserWorkspaces` block — a test-only helper with zero test callers,
+   not production code). `HashSet` (workspace.rs) and `Utc`/`AddonCreditAutoReloadStatus`
+   (workspace.rs) went unused the ordinary way, once their sole callers were gone.
+
+   Acceptance: `cargo check` (both feature sets, `--all-targets`, `-p integration`) clean (0
+   errors, same pre-existing warnings). `cargo clippy --all-targets --no-default-features
+   --features simplewarp` clean (0 errors). `./script/format` needed one pass (import
+   re-sort), `--check` clean after. `cargo nextest run -p warp --no-default-features
+   --features simplewarp --no-fail-fast`: 5986 run, 5978 passed, 8 failed (identical to 3u's
+   baseline), 4 skipped — 0 tests lost or changed, since every deleted method was untested
+   dead weight. Built `./target/debug/simplewarp` and launched it — clean startup, spawned
+   its terminal-server child normally, no panics.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

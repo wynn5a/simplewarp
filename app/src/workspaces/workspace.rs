@@ -1,14 +1,13 @@
 use std::cmp::Ordering;
 use std::path::PathBuf;
 
-use chrono::Utc;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use warp_graphql::billing::{AddonCreditAutoReloadStatus, ServiceAgreement, ServiceAgreementType};
 pub use warp_graphql::billing::{
     AiCreditsUsageAndCostSubjectType, AiCreditsUsageAndCostType, AiCreditsUsageBucket,
     AiCreditsUsageSource,
 };
+use warp_graphql::billing::{ServiceAgreement, ServiceAgreementType};
 
 use super::team::{MembershipRole, Team};
 use crate::ai::execution_profiles::{
@@ -118,88 +117,12 @@ impl Workspace {
         }
     }
 
-    pub fn can_be_deleted(&self, current_user_email: &str) -> bool {
-        // Current user needs to be an admin and be the only user remaining
-        self.is_workspace_admin(current_user_email)
-            && self.members.len() == 1
-            && self
-                .members
-                .first()
-                .is_some_and(|m| m.email == current_user_email)
-    }
-
     pub fn is_custom_llm_enabled(&self) -> bool {
         self.settings.llm_settings.enabled
     }
 
-    pub fn are_overages_toggleable(&self) -> bool {
-        self.billing_metadata
-            .tier
-            .usage_based_pricing_policy
-            .is_some_and(|policy| policy.toggleable)
-    }
-
     pub fn are_overages_enabled(&self) -> bool {
         self.settings.usage_based_pricing_settings.enabled
-    }
-
-    pub fn are_overages_remaining(&self) -> bool {
-        if self.settings.usage_based_pricing_settings.enabled
-            && let Some(max_spend_cents) = self
-                .settings
-                .usage_based_pricing_settings
-                .max_monthly_spend_cents
-        {
-            if let Some(ai_overages) = &self.billing_metadata.ai_overages {
-                return ai_overages.current_monthly_request_cost_cents < max_spend_cents as i32;
-            } else {
-                // If they have the setting enabled but no overages usage so far,
-                // that means they have no database entry, so they have overages remaining.
-                return true;
-            }
-        }
-
-        false
-    }
-
-    /// Returns true if the workspace has reached or exceeded its monthly addon credits spend limit.
-    pub fn is_at_addon_credits_monthly_limit(&self) -> bool {
-        if let Some(limit) = self.settings.addon_credits_settings.max_monthly_spend_cents {
-            self.bonus_grants_purchased_this_month.cents_spent >= limit
-        } else {
-            false
-        }
-    }
-
-    /// Returns true if purchasing addon credits at the given price would reach or exceed the monthly limit.
-    pub fn would_addon_purchase_reach_limit(&self, price_cents: i32) -> bool {
-        if let Some(limit) = self.settings.addon_credits_settings.max_monthly_spend_cents {
-            self.bonus_grants_purchased_this_month.cents_spent + price_cents > limit
-        } else {
-            false
-        }
-    }
-
-    /// Returns the price in cents for the selected auto-reload credit denomination,
-    /// including any plan surcharge (premium plans reload at the premium price).
-    /// Returns None if auto-reload is not configured or if the denomination can't be found in pricing options.
-    pub fn get_auto_reload_price_cents(
-        &self,
-        addon_credits_options: &[warp_graphql::billing::AddonCreditsOption],
-    ) -> Option<i32> {
-        let selected_credits = self
-            .settings
-            .addon_credits_settings
-            .selected_auto_reload_credit_denomination?;
-
-        addon_credits_options
-            .iter()
-            .find(|option| option.credits == selected_credits)
-            .map(|option| {
-                option.price_usd_cents_with_premium(
-                    self.billing_metadata.addon_credits_price_premium_bps(),
-                )
-            })
     }
 }
 
@@ -632,14 +555,6 @@ pub struct BillingCycleUsageData {
 }
 
 impl BillingMetadata {
-    /// Returns whether the current tier has a usage-based pricing policy that can be toggled.
-    pub fn is_usage_based_pricing_toggleable(&self) -> bool {
-        self.tier
-            .usage_based_pricing_policy
-            .as_ref()
-            .is_some_and(|policy| policy.toggleable)
-    }
-
     /**
      * Returns whether customer can upgrade to the Build plan based on their current tier.
      */
@@ -709,10 +624,6 @@ impl BillingMetadata {
         BillingMetadata::is_stripe_paid_plan(self.customer_type)
     }
 
-    pub fn is_on_build_plan(&self) -> bool {
-        self.customer_type == CustomerType::Build
-    }
-
     pub fn is_on_build_max_plan(&self) -> bool {
         self.customer_type == CustomerType::BuildMax
     }
@@ -737,22 +648,6 @@ impl BillingMetadata {
         self.customer_type == CustomerType::Free
     }
 
-    pub fn is_on_legacy_paid_plan(&self) -> bool {
-        match self.customer_type {
-            CustomerType::Prosumer
-            | CustomerType::Turbo
-            | CustomerType::Lightspeed
-            | CustomerType::SelfServe => true,
-            CustomerType::Business => self.is_on_legacy_business_plan(),
-            CustomerType::Free
-            | CustomerType::Legacy
-            | CustomerType::Enterprise
-            | CustomerType::Build
-            | CustomerType::BuildMax
-            | CustomerType::Unknown => false,
-        }
-    }
-
     pub fn is_delinquent_due_to_payment_issue(&self) -> bool {
         self.delinquency_status == DelinquencyStatus::PastDue
             || self.delinquency_status == DelinquencyStatus::Unpaid
@@ -761,16 +656,6 @@ impl BillingMetadata {
     // Whether the enterprise customer is our Stable Warp Enterprise team (internal team of Warpers).
     pub fn is_warp_plan(&self) -> bool {
         self.tier.name == "Warp Plan"
-    }
-
-    pub fn has_active_subscription(&self) -> bool {
-        if let Some(newest_service_agreement) = self.service_agreements.first() {
-            let not_expired = Utc::now() < newest_service_agreement.current_period_end.utc();
-            let not_delinquent = !self.is_delinquent_due_to_payment_issue();
-            not_expired && not_delinquent
-        } else {
-            false
-        }
     }
 
     pub fn is_byo_api_key_enabled(&self) -> bool {
@@ -783,35 +668,6 @@ impl BillingMetadata {
         self.tier
             .managed_byok_byoe_policy
             .is_some_and(|policy| policy.enabled)
-    }
-
-    pub fn has_overages_used(&self) -> bool {
-        self.ai_overages
-            .as_ref()
-            .is_some_and(|ai_overages| ai_overages.current_monthly_requests_used > 0)
-    }
-
-    pub fn has_failed_addon_credit_auto_reload_status(&self) -> bool {
-        self.service_agreements
-            .first()
-            .and_then(|sa| sa.addon_credit_auto_reload_status)
-            .is_some_and(|status| matches!(status, AddonCreditAutoReloadStatus::Failed))
-    }
-
-    pub fn is_enterprise_pay_as_you_go_enabled(&self) -> bool {
-        self.customer_type == CustomerType::Enterprise
-            && self
-                .tier
-                .enterprise_pay_as_you_go_policy
-                .is_some_and(|policy| policy.enabled)
-    }
-
-    pub fn is_enterprise_auto_reload_enabled(&self) -> bool {
-        self.customer_type == CustomerType::Enterprise
-            && self
-                .tier
-                .enterprise_credits_auto_reload_policy
-                .is_some_and(|policy| policy.enabled)
     }
 
     /// Whether this plan may purchase add-on credit packs at all, either at

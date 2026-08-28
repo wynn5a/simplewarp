@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -18,8 +18,8 @@ use super::team::{MembershipRole, Team};
 #[cfg(test)]
 use super::workspace::WorkspaceMemberUsageInfo;
 use super::workspace::{
-    AdminEnablementSetting, BillingMetadata, CustomerType, EnterpriseSecretRegex,
-    HostEnablementSetting, UgcCollectionEnablementSetting, Workspace, WorkspaceUid,
+    AdminEnablementSetting, BillingMetadata, EnterpriseSecretRegex, HostEnablementSetting,
+    UgcCollectionEnablementSetting, Workspace, WorkspaceUid,
 };
 use crate::ai::llms::LLMModelHost;
 use crate::auth::{AuthStateProvider, UserUid};
@@ -35,12 +35,12 @@ use crate::server::server_api::{team::MockTeamClient, workspace::MockWorkspaceCl
 use crate::settings::{
     AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
 };
-#[cfg(test)]
-use crate::workspaces::workspace::{AIAutonomyPolicy, WorkspaceMember, WorkspaceSettings};
 use crate::workspaces::workspace::{
     AiAutonomySettings, AiOverages, PurchaseAddOnCreditsPolicy, SandboxedAgentSettings,
     UsageBasedPricingSettings,
 };
+#[cfg(test)]
+use crate::workspaces::workspace::{CustomerType, WorkspaceMember, WorkspaceSettings};
 
 const STRIPE_SUBSCRIPTION_INTERVAL_PAGE_PREFIX: &str = "/upgrade";
 
@@ -364,17 +364,6 @@ impl UserWorkspaces {
             .find(|t| t.uid == team_uid)
     }
 
-    /// The teams [`Self::owner_to_space`] recognizes. An owner naming a team outside this set
-    /// resolves to the shared space instead of that team's space, so a change here remaps
-    /// objects between spaces without any of them changing.
-    pub fn team_uids_across_all_workspaces(&self) -> HashSet<ServerId> {
-        self.workspaces
-            .iter()
-            .flat_map(|workspace| workspace.teams.iter())
-            .map(|team| team.uid)
-            .collect()
-    }
-
     pub fn workspace_from_uid(&self, workspace_uid: WorkspaceUid) -> Option<&Workspace> {
         self.workspaces.iter().find(|w| w.uid == workspace_uid)
     }
@@ -401,14 +390,6 @@ impl UserWorkspaces {
             ObjectType::Folder => false,
             ObjectType::GenericStringObject(_) => false,
         }
-    }
-
-    pub fn is_at_tier_limit_for_some_warp_drive_objects(
-        team_uid: ServerId,
-        ctx: &AppContext,
-    ) -> bool {
-        UserWorkspaces::is_at_tier_limit_for_object_type(team_uid, ObjectType::Notebook, ctx)
-            || UserWorkspaces::is_at_tier_limit_for_object_type(team_uid, ObjectType::Workflow, ctx)
     }
 
     // Checks if the team has capacity for another shared notebook for their current
@@ -584,31 +565,6 @@ impl UserWorkspaces {
         if changed {
             ctx.emit(UserWorkspacesEvent::CurrentWorkspaceChanged);
         }
-    }
-
-    /// Returns `true` if active AI is allowed for the current workspace, based on billing config.
-    ///
-    /// In the future, we should store active AI enablement on the policy directly. For now, we
-    /// proxy whether active AI by checking whether any active AI feature is enabled.
-    pub fn is_active_ai_allowed(&self) -> bool {
-        self.current_workspace().is_none_or(|workspace| {
-            workspace
-                .billing_metadata
-                .tier
-                .warp_ai_policy
-                .is_none_or(|policy| {
-                    policy.is_prompt_suggestions_toggleable
-                        || policy.is_next_command_enabled
-                        || policy.is_code_suggestions_toggleable
-                        || policy.is_git_operations_ai_enabled
-                })
-        })
-    }
-
-    pub fn ai_allowed_for_team(team: Option<&Team>) -> bool {
-        !team.is_some_and(|team| team.billing_metadata.customer_type == CustomerType::Enterprise)
-            || team.is_some_and(|team| team.billing_metadata.is_warp_plan())
-            || ChannelState::channel().is_dogfood()
     }
 
     /// Whether Prompt Suggestions should be toggleable for the current user, based on the active policies.
@@ -882,21 +838,6 @@ impl UserWorkspaces {
                 true
             }
         })
-    }
-
-    // Returns a Vec of the user's active spaces, based on their
-    // team membership.
-    pub fn team_spaces(&self) -> Vec<Space> {
-        if let Some(workspace) = self.current_workspace() {
-            workspace
-                .teams
-                .iter()
-                .map(|team| Space::Team { team_uid: team.uid })
-                .collect()
-        } else {
-            // If the user has no workspace, they have no team spaces.
-            vec![]
-        }
     }
 
     pub fn spaces_for_window(&self, window_id: WindowId, ctx: &AppContext) -> Vec<Space> {
@@ -1850,24 +1791,6 @@ impl UserWorkspaces {
         self.update_current_workspace(
             |workspace| {
                 f(&mut workspace.settings.ai_autonomy_settings);
-            },
-            ctx,
-        );
-    }
-
-    pub fn update_ai_autonomy_policy_flag(&mut self, enabled: bool, ctx: &mut ModelContext<Self>) {
-        self.update_current_workspace(
-            |workspace| {
-                if let Some(team) = workspace.teams.first_mut() {
-                    team.billing_metadata.tier.ai_autonomy_policy = Some(AIAutonomyPolicy {
-                        is_enabled: enabled,
-                        toggleable: true,
-                    });
-                } else {
-                    panic!(
-                        "No team found in current workspace. Did you call setup_test_workspace()?"
-                    );
-                }
             },
             ctx,
         );
