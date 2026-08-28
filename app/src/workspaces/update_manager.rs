@@ -123,7 +123,6 @@ impl TeamUpdateManager {
             Ok(WorkspacesMetadataWithPricing {
                 metadata: WorkspacesMetadataResponse {
                     workspaces: vec![],
-                    joinable_teams: vec![],
                     feature_model_choices: None,
                     user_purchase_policy: None,
                 },

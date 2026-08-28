@@ -1883,6 +1883,48 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    were rewritten rather than deleted. Built and launched `./target/debug/simplewarp` — clean
    startup, no panics. 5 files changed, 365 deletions, 9 insertions net.
 
+3u. **`WorkspacesMetadataResponse.joinable_teams` and `DiscoverableTeam` — the wire-format
+   plumbing 3t deliberately left standing, now dead for real.** 7 files, 43 deletions, 3
+   insertions net.
+
+   3t drew the line at `joinable_teams`/`DiscoverableTeam` because the field lived inside
+   `WorkspacesMetadataResponse`, a struct shared with still-live fields (`workspaces`,
+   `feature_model_choices`, `user_purchase_policy`) — "parsed-and-discarded costs nothing."
+   Checked whether that was still true: grepped every `.joinable_teams` read site. There
+   were none. `update_manager.rs`'s two consumers of `response.metadata` (`on_team_left`,
+   `on_workspaces_updated`) only ever destructured `.workspaces` and `.user_purchase_policy`
+   — the two call sites that fed `joinable_teams` into `UserWorkspaces` were exactly the ones
+   3t deleted. The field had been write-only (constructed, never read) since that round; it
+   just hadn't been traced back to the source.
+
+   Deleted `WorkspacesMetadataResponse.joinable_teams: Vec<DiscoverableTeam>` and its
+   `let joinable_teams = gql_user.discoverable_teams...` assembly in `gql_convert.rs`. With
+   the field gone, `DiscoverableTeam` (`workspaces/team.rs`) had no remaining producer —
+   deleted the struct and its `From<GqlDiscoverableTeamData>` conversion, and the now-unused
+   `GqlDiscoverableTeamData` import. Test fixtures across `update_manager_tests.rs` and
+   `user_workspaces_tests.rs` that built `WorkspacesMetadataResponse { joinable_teams: vec![],
+   .. }` literals lost that line; each still constructs a valid response otherwise.
+
+   **Where the line moved to, this time.** `warp_graphql::user::DiscoverableTeamData` and the
+   `GqlUser.discoverable_teams` GraphQL query field are untouched — that's the actual wire
+   boundary, generated from the schema in a sibling crate, not app-side dead code. The
+   `discoverable_teams: vec![]` fixture field in `user_workspaces_tests.rs`'s `gql_user()`
+   helper stays for the same reason: it satisfies a required field on that external struct,
+   not app logic.
+
+   Also fixed a stale doc comment in `drive/index.rs` — `render_team_section_header` said
+   "Used for 1) create team 2) join discoverable teams sections," the second half untrue
+   since 3s deleted that section.
+
+   Acceptance: `cargo check` (both feature sets, `--all-targets`, `-p integration`) clean (0
+   errors, same pre-existing warnings). `cargo clippy --all-targets --no-default-features
+   --features simplewarp` clean (same pre-existing warnings, no new ones).
+   `./script/format --check` clean, no reformatting needed. `cargo nextest run -p warp
+   --no-default-features --features simplewarp --no-fail-fast`: 5986 run, 5978 passed, 8
+   failed (identical to 3t's baseline), 4 skipped — 0 tests lost. Built
+   `./target/debug/simplewarp` and launched it — clean startup, spawned its terminal-server
+   child normally, no panics.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

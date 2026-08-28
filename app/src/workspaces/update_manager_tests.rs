@@ -93,7 +93,6 @@ fn test_leaving_team_removes_objects() {
             Ok(WorkspacesMetadataWithPricing {
                 metadata: WorkspacesMetadataResponse {
                     workspaces: vec![],
-                    joinable_teams: vec![],
                     feature_model_choices: None,
                     user_purchase_policy: None,
                 },
@@ -162,7 +161,6 @@ fn test_leaving_team_removes_objects() {
                 Ok(WorkspacesMetadataWithPricing {
                     metadata: WorkspacesMetadataResponse {
                         workspaces: vec![],
-                        joinable_teams: vec![],
                         feature_model_choices: None,
                         user_purchase_policy: None,
                     },
@@ -223,7 +221,6 @@ fn test_poll_path_apply_refreshes_user_purchase_policy() {
         // policy.
         let response_with_policy = WorkspacesMetadataResponse {
             workspaces: vec![],
-            joinable_teams: vec![],
             feature_model_choices: None,
             user_purchase_policy: Some(PurchaseAddOnCreditsPolicy {
                 enabled: false,
@@ -247,7 +244,6 @@ fn test_poll_path_apply_refreshes_user_purchase_policy() {
         // it can't go stale.
         let response_without_policy = WorkspacesMetadataResponse {
             workspaces: vec![],
-            joinable_teams: vec![],
             feature_model_choices: None,
             user_purchase_policy: None,
         };

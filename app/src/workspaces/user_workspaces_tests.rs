@@ -216,7 +216,6 @@ fn test_loading_all_spaces_after_switching_from_offline() {
                 Ok(WorkspacesMetadataWithPricing {
                     metadata: WorkspacesMetadataResponse {
                         workspaces: vec![],
-                        joinable_teams: vec![],
                         feature_model_choices: None,
                         user_purchase_policy: None,
                     },
@@ -233,7 +232,6 @@ fn test_loading_all_spaces_after_switching_from_offline() {
                 Ok(WorkspacesMetadataWithPricing {
                     metadata: WorkspacesMetadataResponse {
                         workspaces: vec![workspace.clone()],
-                        joinable_teams: vec![],
                         feature_model_choices: None,
                         user_purchase_policy: None,
                     },
@@ -371,7 +369,6 @@ fn test_aws_bedrock_credentials_respect_user_setting() {
         Ok(WorkspacesMetadataWithPricing {
             metadata: WorkspacesMetadataResponse {
                 workspaces: vec![workspace_for_poll.clone()],
-                joinable_teams: vec![],
                 feature_model_choices: None,
                 user_purchase_policy: None,
             },
@@ -427,7 +424,6 @@ fn test_aws_bedrock_credentials_enforced_by_admin() {
         Ok(WorkspacesMetadataWithPricing {
             metadata: WorkspacesMetadataResponse {
                 workspaces: vec![workspace_for_poll.clone()],
-                joinable_teams: vec![],
                 feature_model_choices: None,
                 user_purchase_policy: None,
             },
@@ -1823,7 +1819,6 @@ fn test_remove_user_from_team_success_emits_success_event_and_refreshes_members(
                 Ok(WorkspacesMetadataWithPricing {
                     metadata: WorkspacesMetadataResponse {
                         workspaces: vec![updated_workspace.clone()],
-                        joinable_teams: vec![],
                         feature_model_choices: None,
                         user_purchase_policy: None,
                     },

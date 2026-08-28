@@ -1298,7 +1298,7 @@ impl DriveIndex {
         }
     }
 
-    /// Used for 1) create team 2) join discoverable teams sections
+    /// Used for the create team section header.
     fn render_team_section_header(
         &self,
         text: String,

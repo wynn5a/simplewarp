@@ -14,7 +14,7 @@ use warpui::{
 
 #[cfg(test)]
 use super::team::TeamVisibility;
-use super::team::{DiscoverableTeam, MembershipRole, Team};
+use super::team::{MembershipRole, Team};
 #[cfg(test)]
 use super::workspace::WorkspaceMemberUsageInfo;
 use super::workspace::{
@@ -118,8 +118,6 @@ pub struct UserWorkspaces {
 pub struct WorkspacesMetadataResponse {
     /// The list of workspaces the user is currently on.
     pub workspaces: Vec<Workspace>,
-    /// The list of discoverable teams that the user can join.
-    pub joinable_teams: Vec<DiscoverableTeam>,
     /// TODO(Tyler): Post-workspaces, move this into the workspace object.
     /// Feature model choices may change from user to user and while the app is open, so we need to periodically update this list.
     /// It makes most sense to fetch this in workspaces which is queried every 10 minutes.
