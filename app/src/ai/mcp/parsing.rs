@@ -190,8 +190,6 @@ pub(crate) fn normalize_codex_toml_to_json(file_contents: &str) -> Result<String
 pub struct ParsedTemplatableMCPServerResult {
     pub templatable_mcp_server: TemplatableMCPServer,
     pub templatable_mcp_server_installation: Option<TemplatableMCPServerInstallation>,
-    #[cfg_attr(target_family = "wasm", expect(dead_code))]
-    pub variable_values: HashMap<String, VariableValue>,
 }
 
 /// Extracts a field from JSON as a HashMap<String, String>.
@@ -362,7 +360,7 @@ impl ParsedTemplatableMCPServerResult {
             true => Some(TemplatableMCPServerInstallation::new(
                 uuid::Uuid::new_v4(),
                 templatable_mcp_server.clone(),
-                variable_values.clone(),
+                variable_values,
             )),
             false => None,
         };
@@ -370,7 +368,6 @@ impl ParsedTemplatableMCPServerResult {
         ParsedTemplatableMCPServerResult {
             templatable_mcp_server,
             templatable_mcp_server_installation,
-            variable_values,
         }
     }
 }

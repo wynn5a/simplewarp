@@ -1,4 +1,3 @@
-pub mod block;
 pub mod cloud_objects;
 pub mod graphql;
 pub mod ids;

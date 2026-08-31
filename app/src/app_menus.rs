@@ -547,18 +547,6 @@ fn make_new_blocks_menu(ctx: &AppContext) -> Menu {
         ctx,
     ));
     items.push(MenuItem::Separator);
-    // Viewing shared blocks needs a Warp account.
-    //
-    // This is not only about a dead menu item. A menu item takes its title from the binding that
-    // carries the same `CustomAction`, and a binding that is disabled is hidden completely — so
-    // with the settings-page bindings gated, `default_name` cannot find the title and its
-    // `debug_assert!` brings the app down on launch.
-    if crate::features::warp_account_available() {
-        items.push(non_updateable_custom_item(
-            CustomAction::ViewSharedBlocks,
-            ctx,
-        ));
-    }
     items.extend([
         updateable_custom_item_without_checkmark(CustomAction::ToggleBookmarkBlock, ctx),
         updateable_custom_item_without_checkmark(CustomAction::FindWithinBlock, ctx),

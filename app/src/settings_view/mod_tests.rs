@@ -126,7 +126,6 @@ const ALL_SECTIONS: &[SettingsSection] = &[
     SettingsSection::Keybindings,
     SettingsSection::Privacy,
     SettingsSection::Scripting,
-    SettingsSection::SharedBlocks,
     SettingsSection::Teams,
     SettingsSection::Warpify,
     SettingsSection::WarpAgent,
@@ -151,7 +150,6 @@ fn all_sections_list_is_exhaustive() {
             | SettingsSection::Keybindings
             | SettingsSection::Privacy
             | SettingsSection::Scripting
-            | SettingsSection::SharedBlocks
             | SettingsSection::Teams
             | SettingsSection::Warpify
             | SettingsSection::WarpAgent
@@ -890,7 +888,6 @@ fn account_pages_map_onto_a_page_this_build_has() {
     for section in [
         SettingsSection::Account,
         SettingsSection::Teams,
-        SettingsSection::SharedBlocks,
         SettingsSection::CloudEnvironments,
         SettingsSection::OzCloudAPIKeys,
     ] {

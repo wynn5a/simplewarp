@@ -6,13 +6,15 @@ use chrono::{DateTime, Utc};
 use cloud_object_client::MockObjectClient;
 use warp_core::settings::macros::define_settings_group;
 use warp_core::settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
+#[cfg(not(feature = "local_only"))]
 use warp_core::user_preferences::GetUserPreferences;
 use warpui::{App, SingletonEntity};
 
-use super::{
-    ClientIdProvider, CloudPreferencesSyncer, ForceCloudToMatchLocal,
-    SETTINGS_FILE_LAST_SYNCED_HASH_KEY, initialize_cloud_preferences_syncer,
-};
+#[cfg(not(feature = "local_only"))]
+use super::SETTINGS_FILE_LAST_SYNCED_HASH_KEY;
+#[cfg(not(feature = "local_only"))]
+use super::initialize_cloud_preferences_syncer;
+use super::{ClientIdProvider, CloudPreferencesSyncer, ForceCloudToMatchLocal};
 use crate::ASSETS;
 use crate::auth::auth_state::AuthState;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
@@ -22,6 +24,7 @@ use crate::cloud_object::{
     Revision, RevisionAndLastEditor, ServerMetadata, ServerObject, ServerPermissions,
     ServerPreference, UniquePer, UpdateCloudObjectResult,
 };
+#[cfg(not(feature = "local_only"))]
 use crate::server::cloud_objects::fake_object_client::FakeObjectClient;
 use crate::server::cloud_objects::test_utils::{
     UpdateManagerStruct, create_update_manager_struct, initialize_app,
@@ -1276,6 +1279,7 @@ fn test_ensure_no_duplicate_cloud_prefs() {
 /// Drains all currently-pending `SyncQueue` futures to completion, then
 /// waits a short timer to give the syncer time to spawn any follow-up
 /// work before the test asserts on cloud state.
+#[cfg(not(feature = "local_only"))]
 async fn drain_sync_queue(app: &mut App) {
     // The syncer spawns futures for bulk creates, updates, and deletes
     // through the sync queue. We drain them in a loop because draining
@@ -1296,12 +1300,14 @@ async fn drain_sync_queue(app: &mut App) {
 /// Writes a fresh `settings.toml` file at the given path and returns
 /// its `file_content_hash` so tests can reason about what value the
 /// syncer will compare against.
+#[cfg(not(feature = "local_only"))]
 fn write_settings_file_with_content(path: &std::path::Path, content: &str) -> String {
     std::fs::write(path, content).expect("write temp settings file");
     warpui_extras::user_preferences::toml_backed::TomlBackedUserPreferences::file_content_hash(path)
         .expect("hash should be Some for non-empty file")
 }
 
+#[cfg(not(feature = "local_only"))]
 fn read_stored_hash(app: &App) -> Option<String> {
     app.read(|ctx| {
         ctx.private_user_preferences()
@@ -1310,6 +1316,7 @@ fn read_stored_hash(app: &App) -> Option<String> {
     })
 }
 
+#[cfg(not(feature = "local_only"))]
 fn write_stored_hash(app: &App, value: &str) {
     app.read(|ctx| {
         ctx.private_user_preferences()

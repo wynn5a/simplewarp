@@ -19,7 +19,6 @@ use chrono::Utc;
 use futures::FutureExt as _;
 use futures::channel::oneshot;
 use futures::future::{self, Either, join_all};
-use handlebars::get_arguments;
 use itertools::Itertools as _;
 use oneshot::{Canceled, Receiver};
 use repo_metadata::local_model::IndexedRepoState;
@@ -76,7 +75,7 @@ use crate::ai::mcp::parsing::{ParsedTemplatableMCPServerResult, normalize_mcp_js
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManagerEvent;
 use crate::ai::mcp::{
     JSONMCPServer, MCPServerState, TemplatableMCPServerInstallation, TemplatableMCPServerManager,
-    VariableType, VariableValue, builtin,
+    builtin,
 };
 use crate::ai::skills::{
     SkillManager, SkillWatcher, filter_skills_by_spec, read_skills_from_directories,
@@ -92,7 +91,6 @@ use crate::server::server_api::ai::{AIClient, TaskStatusUpdate};
 use crate::server::server_api::harness_support::{
     HarnessSupportClient, ResolvePromptAttachedSkill, ResolvePromptRequest,
 };
-use crate::server::server_api::managed_mcp::ManagedMcpClient;
 use crate::terminal::cli_agent_sessions::plugin_manager::{
     CliAgentPluginManager, plugin_manager_for,
 };
@@ -191,37 +189,6 @@ pub(crate) const OZ_MESSAGE_LISTENER_STATE_ROOT_ENV: &str = "OZ_MESSAGE_LISTENER
 const LEGACY_OZ_PARENT_LISTENER_MANAGED_EXTERNALLY_ENV: &str =
     "OZ_PARENT_LISTENER_MANAGED_EXTERNALLY";
 const LEGACY_OZ_PARENT_STATE_ROOT_ENV: &str = "OZ_PARENT_STATE_ROOT";
-
-/// Fixed namespace for [`ephemeral_mcp_installation_id`]. Arbitrary; never reused.
-const EPHEMERAL_MCP_INSTALLATION_NAMESPACE: Uuid = Uuid::from_bytes([
-    0xf9, 0x79, 0x1a, 0x88, 0xff, 0xb7, 0x41, 0x88, 0xa6, 0x39, 0xa7, 0x2d, 0xf2, 0x94, 0x22, 0x3f,
-]);
-
-/// Installation id for an ephemeral MCP server (well-known sentinel or non-local
-/// managed MCP UUID) resolved from a managed MCP client config.
-///
-/// With `task_id` (ambient/cloud runs), the id is deterministic: hashing run id +
-/// spec token + server name means a rebuilt sandbox re-resolves the same server to
-/// the same id. Ids can persist in the model's conversation history across a
-/// rebuild; a random id would go stale and fail as "MCP server not found".
-///
-/// Without `task_id` (local sessions; no rebuilds), ids stay random: hashing only
-/// the spec token would collide across concurrent conversations in the same
-/// process, since `TemplatableMCPServerManager` keys installations by this id
-/// process-wide.
-fn ephemeral_mcp_installation_id(
-    task_id: Option<AmbientAgentTaskId>,
-    spec_token: &str,
-    server_name: &str,
-) -> Uuid {
-    match task_id {
-        Some(task_id) => Uuid::new_v5(
-            &EPHEMERAL_MCP_INSTALLATION_NAMESPACE,
-            format!("{task_id}:{spec_token}:{server_name}").as_bytes(),
-        ),
-        None => Uuid::new_v4(),
-    }
-}
 
 /// IdleTimeoutSender is wrapper around a sender that signals when a run is done after
 /// an idle timeout. Used for both Oz runs and third-party harnesses.
@@ -1299,10 +1266,9 @@ impl AgentDriver {
     async fn resolve_mcp_specs_to_json(
         specs: &[MCPSpec],
         secrets: Arc<HashMap<String, ManagedSecretValue>>,
-        managed_mcp_client: Arc<dyn ManagedMcpClient>,
         foreground: &ModelSpawner<Self>,
     ) -> Result<HashMap<String, JSONMCPServer>, AgentDriverError> {
-        let resolved_specs = Self::resolve_mcp_specs(specs, managed_mcp_client, foreground).await?;
+        let resolved_specs = Self::resolve_mcp_specs(specs, foreground).await?;
 
         let local_uuids = resolved_specs.local_uuids;
         let mut installations = foreground
@@ -1345,34 +1311,24 @@ impl AgentDriver {
     /// are local-first; only non-local UUIDs call managed MCP GraphQL.
     async fn resolve_mcp_specs(
         specs: &[MCPSpec],
-        managed_mcp_client: Arc<dyn ManagedMcpClient>,
         foreground: &ModelSpawner<Self>,
     ) -> Result<ResolvedMcpSpecs, AgentDriverError> {
-        let (local_installed_uuids, task_id) = foreground
-            .spawn(|me, ctx| {
-                let local_installed_uuids = TemplatableMCPServerManager::as_ref(ctx)
+        let local_installed_uuids = foreground
+            .spawn(|_, ctx| {
+                TemplatableMCPServerManager::as_ref(ctx)
                     .get_installed_templatable_servers()
                     .keys()
                     .copied()
-                    .collect::<HashSet<_>>();
-                (local_installed_uuids, me.task_id)
+                    .collect::<HashSet<_>>()
             })
             .await?;
 
-        Self::resolve_mcp_specs_with_local_uuids(
-            specs,
-            &local_installed_uuids,
-            managed_mcp_client,
-            task_id,
-        )
-        .await
+        Self::resolve_mcp_specs_with_local_uuids(specs, &local_installed_uuids).await
     }
 
     async fn resolve_mcp_specs_with_local_uuids(
         specs: &[MCPSpec],
         local_installed_uuids: &HashSet<Uuid>,
-        managed_mcp_client: Arc<dyn ManagedMcpClient>,
-        task_id: Option<AmbientAgentTaskId>,
     ) -> Result<ResolvedMcpSpecs, AgentDriverError> {
         let mut resolved = ResolvedMcpSpecs::default();
 
@@ -1382,62 +1338,22 @@ impl AgentDriver {
                     resolved.local_uuids.push(*uuid);
                 }
                 MCPSpec::Uuid(uuid) => {
-                    let client_config = managed_mcp_client
-                        .create_managed_mcp_client_config(uuid.to_string())
-                        .await
-                        .map_err(|err| AgentDriverError::ManagedMcpResolutionFailed {
-                            uid: *uuid,
-                            message: format!("{err:#}"),
-                        })?;
-                    let installations = Self::installations_from_managed_client_config_json(
-                        &client_config.mcp_config_json,
-                        task_id,
-                        &uuid.to_string(),
-                    )
-                    .map_err(|err| {
-                        AgentDriverError::ManagedMcpResolutionFailed {
-                            uid: *uuid,
-                            message: err.to_string(),
-                        }
-                    })?;
-                    resolved.ephemeral_installations.extend(installations);
+                    // A uuid that is not installed locally could only be resolved by asking the
+                    // server for its managed client config. This build has no server, so the
+                    // spec names a server that cannot be reached.
+                    return Err(AgentDriverError::ManagedMcpResolutionFailed {
+                        uid: *uuid,
+                        message: "managed MCP servers are not available in this build".to_string(),
+                    });
                 }
                 MCPSpec::WellKnown(id) => {
-                    // Backstop for specs created before the flag was disabled
-                    // (e.g. persisted configs): skip rather than resolve.
-                    if !FeatureFlag::WellKnownMcpIds.is_enabled() {
-                        log::warn!(
-                            "Skipping well-known MCP server '{id}': WellKnownMcpIds is disabled"
-                        );
-                        continue;
-                    }
-                    // Well-known MCP ids (e.g. "linear") resolve best-effort:
-                    // the server owns the set of recognized ids, and the
-                    // backing integration may be disconnected or the feature
-                    // disabled between dispatch and run setup — so resolution
-                    // failures skip the server instead of failing the run.
-                    let client_config = match managed_mcp_client
-                        .create_managed_mcp_client_config(id.clone())
-                        .await
-                    {
-                        Ok(client_config) => client_config,
-                        Err(err) => {
-                            log::warn!("Skipping well-known MCP server '{id}': {err:#}");
-                            continue;
-                        }
-                    };
-                    match Self::installations_from_managed_client_config_json(
-                        &client_config.mcp_config_json,
-                        task_id,
-                        id,
-                    ) {
-                        Ok(installations) => {
-                            resolved.ephemeral_installations.extend(installations);
-                        }
-                        Err(err) => {
-                            log::warn!("Skipping well-known MCP server '{id}': {err}");
-                        }
-                    }
+                    // Well-known ids (e.g. "linear") were resolved by the server, which owned the
+                    // set of recognized ids. Resolution was already best-effort — a disconnected
+                    // integration skipped the server rather than failing the run — so with no
+                    // server to ask, every one of them skips.
+                    log::warn!(
+                        "Skipping well-known MCP server '{id}': managed MCP servers are not available in this build"
+                    );
                 }
                 MCPSpec::Json(json_str) => {
                     resolved
@@ -1497,67 +1413,6 @@ impl AgentDriver {
                 result
                     .templatable_mcp_server_installation
                     .ok_or(AgentDriverError::MCPMissingVariables)
-            })
-            .collect()
-    }
-
-    fn installations_from_managed_client_config_json(
-        json_str: &str,
-        task_id: Option<AmbientAgentTaskId>,
-        spec_token: &str,
-    ) -> Result<Vec<TemplatableMCPServerInstallation>, AgentDriverError> {
-        let normalized_json = normalize_mcp_json(json_str)
-            .map_err(|e| AgentDriverError::MCPJsonParseError(e.to_string()))?;
-        let parsed_results = ParsedTemplatableMCPServerResult::from_user_json(&normalized_json)
-            .map_err(|e| AgentDriverError::MCPJsonParseError(e.to_string()))?;
-
-        parsed_results
-            .into_iter()
-            .map(|result| {
-                let ParsedTemplatableMCPServerResult {
-                    mut templatable_mcp_server,
-                    mut variable_values,
-                    ..
-                } = result;
-
-                // Server-rendered literal values (no `{{...}}` ref) must be preserved verbatim.
-                // Drop them from the template's variable list so `apply_secrets` never sees them —
-                // its implicit key-name matching would otherwise let a colliding local secret
-                // (e.g. one named `Authorization`) overwrite a server-issued proxy header.
-                // They stay in `variable_values`, so `resolve_json` still renders them into the
-                // config.
-                templatable_mcp_server
-                    .template
-                    .variables
-                    .retain(|variable| {
-                        let is_literal = variable_values
-                            .get(&variable.key)
-                            .is_some_and(|v| get_arguments(&v.value).is_empty());
-                        !is_literal
-                    });
-
-                // Remaining variables are explicit `{{...}}` placeholders the client fills from
-                // local secrets via `apply_secrets`. Synthesize a placeholder value for any not
-                // captured from env/headers (e.g. command-arg refs like `--token={{API_TOKEN}}`).
-                for variable in templatable_mcp_server.template.variables.iter() {
-                    variable_values
-                        .entry(variable.key.clone())
-                        .or_insert_with(|| VariableValue {
-                            variable_type: VariableType::Text,
-                            value: format!("{{{{{}}}}}", variable.key),
-                        });
-                }
-
-                let installation_id = ephemeral_mcp_installation_id(
-                    task_id,
-                    spec_token,
-                    &templatable_mcp_server.name,
-                );
-                Ok(TemplatableMCPServerInstallation::new(
-                    installation_id,
-                    templatable_mcp_server,
-                    variable_values,
-                ))
             })
             .collect()
     }
@@ -2468,15 +2323,11 @@ impl AgentDriver {
         // For the Oz harness only: set up MCP servers, model overrides, and profile information.
         if matches!(&task.harness, HarnessKind::Oz) {
             let mcp_specs = task.mcp_specs.clone();
-            let managed_mcp_client = foreground
-                .spawn(|_, ctx| ServerApiProvider::as_ref(ctx).get_managed_mcp_client())
-                .await?;
 
             let mcp_startup_result = setup_events
                 .record_result(SetupStep::McpServerStartup, async {
                     let resolved_mcp_specs =
-                        Self::resolve_mcp_specs(&mcp_specs, managed_mcp_client, &foreground)
-                            .await?;
+                        Self::resolve_mcp_specs(&mcp_specs, &foreground).await?;
                     let existing_uuids = resolved_mcp_specs.local_uuids;
                     let mut ephemeral_installations = resolved_mcp_specs.ephemeral_installations;
 
@@ -3292,7 +3143,7 @@ impl AgentDriver {
         harness: &dyn ThirdPartyHarness,
         foreground: &ModelSpawner<Self>,
     ) -> Result<Arc<dyn harness::HarnessRunner>, AgentDriverError> {
-        let (working_dir, task_id, server_api, managed_mcp_client, terminal_driver) = foreground
+        let (working_dir, task_id, server_api, terminal_driver) = foreground
             .spawn(|me, ctx| {
                 if me.harness.is_some() {
                     log::error!(
@@ -3305,7 +3156,6 @@ impl AgentDriver {
                     me.working_dir.clone(),
                     me.task_id,
                     ServerApiProvider::as_ref(ctx).get(),
-                    ServerApiProvider::as_ref(ctx).get_managed_mcp_client(),
                     me.terminal_driver.clone(),
                 ))
             })
@@ -3365,8 +3215,7 @@ impl AgentDriver {
         // Resolve MCP specs into harness-native JSON format.
         let mcp_specs = mcp_specs.to_vec();
         let resolved_mcp_servers =
-            Self::resolve_mcp_specs_to_json(&mcp_specs, secrets, managed_mcp_client, foreground)
-                .await?;
+            Self::resolve_mcp_specs_to_json(&mcp_specs, secrets, foreground).await?;
         if !resolved_mcp_servers.is_empty() {
             log::info!(
                 "Resolved {} MCP server(s) for third-party harness",

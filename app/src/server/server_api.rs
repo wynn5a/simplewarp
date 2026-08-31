@@ -1,10 +1,8 @@
 pub mod ai;
 pub mod auth;
-pub mod block;
 pub mod factory;
 pub mod harness_support;
 pub mod integrations;
-pub mod managed_mcp;
 pub mod managed_secrets;
 pub mod object;
 pub(crate) mod presigned_upload;
@@ -19,12 +17,10 @@ use std::time::Duration;
 use ai::AIClient;
 use anyhow::{Result, anyhow};
 use auth::AuthClient;
-use block::BlockClient;
 use channel_versions::ChannelVersions;
 use chrono::{DateTime, FixedOffset};
 use factory::FactoryClient;
 use instant::Instant;
-use managed_mcp::ManagedMcpClient;
 use object::ObjectClient;
 use serde::{Deserialize, Serialize};
 use team::TeamClient;
@@ -676,10 +672,6 @@ impl ServerApiProvider {
         self.auth_client.clone()
     }
 
-    pub fn get_block_client(&self) -> Arc<dyn BlockClient> {
-        self.server_api.clone()
-    }
-
     pub fn get_workspace_client(&self) -> Arc<dyn WorkspaceClient> {
         self.server_api.clone()
     }
@@ -700,11 +692,6 @@ impl ServerApiProvider {
     }
 
     pub fn get_managed_secrets_client(&self) -> Arc<dyn ManagedSecretsClient> {
-        self.server_api.clone()
-    }
-
-    #[cfg_attr(target_family = "wasm", expect(dead_code))]
-    pub fn get_managed_mcp_client(&self) -> Arc<dyn ManagedMcpClient> {
         self.server_api.clone()
     }
 

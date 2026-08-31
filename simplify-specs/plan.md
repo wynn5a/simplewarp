@@ -2324,6 +2324,76 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    Every earlier round's "8 failed (identical baseline)" acceptance line should now read as
    0 failed; the baseline they were comparing against was a bug, not a floor.
 
+### Phase 4, step 4 — the cloud crates, in order
+
+**The "~147 files" risk note at the top of this document is stale.** After 3e/3f, the *direct*
+importers of each crate are: `warp_server_client` 12 files, `warp_server_auth` 12 (7 of them
+inside `warp_server_client` itself), `firebase` 8 (4 inside those two crates), `warp_graphql` 96,
+`cloud_objects` 139. The first three are a tight cluster that falls over once the first one goes.
+
+**But the direct-import count is not the job.** `warp_server_client` owns `BaseClient`, the
+transport `ServerApi` derefs to, and `ServerApiProvider` — the singleton that hands out ten
+client trait objects — is reached from **126 files**. Every one of those trait impls is already a
+wall (`local_only_error()`), so this is the same delete-a-layer-of-walls-and-their-callers work
+as rounds 3r–3z, at ten times the size. It is a multi-round job, top-down:
+
+1. one client trait at a time — impl, trait, and the callers that only existed to reach it;
+2. then `ServerApi`, `ServerApiProvider`, `BaseClient`;
+3. then the three crates, then `warp_graphql` (which cannot go until the trait signatures do).
+
+Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2), `FactoryClient`
+(52, 7), `BlockClient` (58, 1), `ManagedSecretsClient` (69, 2), `WorkspaceClient` (90, ?),
+`IntegrationsClient` (167, 4), `TeamClient` (216, ?), `ObjectClient` (254, ?),
+`HarnessSupportClient` (458, 8), `AIClient` (2,226 lines, 67 call sites — last).
+
+4l. **`BlockClient` and `ManagedMcpClient`, the two smallest — DONE.** 18 files, 1,613
+   deletions, 64 insertions; 15 tests removed, 4 rewritten.
+
+   **`BlockClient` was one caller deep and that caller was a whole settings page.** Its only
+   consumer was `ShowBlocksView`, the "Shared blocks" page — 807 lines whose two data calls
+   (`blocks_owned_by_user`, `unshare_block`) both return `local_only_error()`. The page was
+   already *hidden* in a `local_only` build (`SettingsSection::needs_warp_account` drops it from
+   the sidebar), so this round is the **delete** step of the plan's gate → hide → delete. Gone
+   with it: the `SettingsSection::SharedBlocks` variant and its Display/slug/from-slug arms, the
+   `SettingsPageViewHandle` variant and its two match arms, the `ViewSharedBlocks` custom action,
+   its menu item, its keybinding, and `server/block.rs` (the 40-line wire type only that page and
+   `server_api/block.rs` used).
+
+   **One live detail the mechanical removal would have broken.** The Scripting page is inserted
+   into the sidebar at the *index of* SharedBlocks (`position(…).unwrap_or(nav_items.len())`), so
+   deleting SharedBlocks would silently have moved Scripting to the bottom of the list. Re-anchored
+   on `Privacy`, the item SharedBlocks sat above.
+
+   **`ManagedMcpClient` was not a wall to delete but a branch to collapse.** It threaded through
+   four functions to reach `resolve_mcp_specs_with_local_uuids`, whose four spec kinds now split
+   cleanly: `Uuid` already installed locally and `Json` are *local* paths and survive untouched;
+   `Uuid` not installed locally could only be resolved by asking the server, so it now fails with
+   `ManagedMcpResolutionFailed` directly; and `WellKnown` was already best-effort — a disconnected
+   integration skipped the server rather than failing the run — so with no server to ask, every
+   one skips. Both outcomes are what the `local_only_error()` call produced anyway; the collapse
+   just stops pretending there is a request. `installations_from_managed_client_config_json`
+   (parser for a *server-supplied* config) and `ephemeral_mcp_installation_id` were orphaned by
+   that and went too, taking `ParsedTemplatableMCPServerResult::variable_values` — a field whose
+   sole reader was the deleted parser, and which already wore `expect(dead_code)` on wasm.
+
+   Of the 6 resolver tests, 4 were **rewritten** rather than deleted — the resolver still
+   dispatches on spec kind, and "a skipped well-known spec does not drop the others" is still a
+   real guarantee. The 2 that asserted a successful server round-trip went, along with the 12
+   tests of the deleted parser and one superseded failure-path test.
+
+   **Fallout from 3aa, caught here rather than there.** Gating those 6 syncer tests orphaned their
+   helpers (`drain_sync_queue`, the hash read/write pair, `FakeObjectClient` and its module) under
+   `local_only` — 11 new warnings that 3aa's acceptance missed because it checked clippy *errors*
+   and the test result, not the warning set. All now carry the same `not(feature = "local_only")`
+   gate. The lesson 3z already recorded, re-learned: compare the warning set, not just the exit code.
+
+   Acceptance: `cargo check --all-targets` (simplewarp) back to the exact 2+1 baseline warnings.
+   Clippy 0 errors, format clean. `cargo nextest run` (simplewarp): **5955 run, 5955 passed, 0
+   failed**. Default features, the tests touched here plus the 8 that 3aa gated: 28 run, 28
+   passed. Built and launched `./target/debug/simplewarp` — alive, no output, no panics.
+
+   The provider is down to 8 client getters.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 
