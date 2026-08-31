@@ -105,15 +105,6 @@ impl ShellHost {
         }
     }
 
-    #[cfg(test)]
-    pub fn from_session_info(session_info: &super::model::session::SessionInfo) -> Self {
-        Self {
-            shell_type: session_info.shell.shell_type(),
-            user: session_info.user.clone(),
-            hostname: session_info.hostname.clone(),
-        }
-    }
-
     pub fn try_from_persisted_block(block: &crate::persistence::model::Block) -> Option<Self> {
         block
             .shell

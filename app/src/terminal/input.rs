@@ -220,7 +220,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, ImageContextOptions, InteractionState,
     MAX_IMAGES_PER_CONVERSATION, PathTransformerFn, PlainTextEditorViewAction,
     Point as BufferPoint, PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys,
-    PropagateHorizontalNavigationKeys, TextColors, TextRun, default_cursor_colors,
+    PropagateHorizontalNavigationKeys, TextRun, default_cursor_colors,
     position_id_for_cached_point, position_id_for_cursor, position_id_for_first_cursor,
 };
 use crate::env_vars::EnvVarCollectionExt;
@@ -6014,10 +6014,6 @@ impl Input {
         self.editor.as_ref(ctx).buffer_text(ctx)
     }
 
-    pub fn buffer_text_number_of_lines(&self, ctx: &AppContext) -> usize {
-        self.buffer_text(ctx).lines().count()
-    }
-
     #[cfg(feature = "integration_tests")]
     pub fn input_suggestions(&self) -> &ViewHandle<InputSuggestions> {
         &self.input_suggestions
@@ -6838,39 +6834,6 @@ impl Input {
         });
     }
 
-    /// Freeze the editor and put it in a loading state.
-    pub fn freeze_input_in_loading_state(&mut self, ctx: &mut ViewContext<Self>) -> String {
-        let buffer_text = self.editor.as_ref(ctx).buffer_text(ctx);
-        self.freeze_input_in_loading_state_with_text(&buffer_text, ctx);
-        buffer_text
-    }
-
-    /// Freeze the editor and render `"{display_text} ◌"` as the loading indicator.
-    /// Shared between the user-initiated viewer submission path (which passes the
-    /// editor's current buffer text) and the queued-prompt drain path (which passes
-    /// the popped prompt text without ever reading from / writing to the user's
-    /// in-progress buffer).
-    fn freeze_input_in_loading_state_with_text(
-        &mut self,
-        buffer_text: &str,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.editor.update(ctx, |editor, ctx| {
-            // Use an ephemeral edit to show the loading state
-            // and disallow edits.
-            // TODO: the ◌ treatment is a stop-gap to rendering an svg
-            // to the right of the buffer text.
-            editor.set_buffer_text_ignoring_undo(&format!("{buffer_text} ◌"), ctx);
-            editor.set_interaction_state(InteractionState::Selectable, ctx);
-
-            // We manually set the text color to appear disabled.
-            // We could use the [`InteractionState::Disabled`] interaction state
-            // but that disallows text selection.
-            let appearance = Appearance::as_ref(ctx);
-            editor.set_text_colors(TextColors::all_hint_color(appearance), ctx);
-        });
-    }
-
     pub fn try_execute_command(&mut self, command: &str, ctx: &mut ViewContext<Self>) -> bool {
         self.try_execute_command_with_options(command, false, ctx)
     }
@@ -7105,41 +7068,6 @@ impl Input {
         // Close the input suggestions menu if it was open.
         self.close_input_suggestions(/*should_focus_input=*/ false, ctx);
         did_execute
-    }
-
-    /// Restores the frozen/loading visual state of the agent input without touching the
-    /// buffer contents.
-    pub fn unfreeze_agent_input(&mut self, ctx: &mut ViewContext<Self>) {
-        self.editor.update(ctx, |editor, ctx| {
-            let appearance: &Appearance = Appearance::as_ref(ctx);
-            editor.set_text_colors(TextColors::from_appearance(appearance), ctx);
-        });
-    }
-
-    /// Restores a VM-down cloud follow-up after an attachment upload fails. Unlike
-    /// [`Self::unfreeze_agent_input`], this path runs on a disconnected cloud pane, so it must
-    /// restore the visible prompt and editable state directly.
-    fn restore_cloud_followup_input_after_upload_failure(
-        &mut self,
-        prompt: &str,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.editor.update(ctx, |editor, ctx| {
-            editor.set_buffer_text(prompt, ctx);
-            editor.set_interaction_state(InteractionState::Editable, ctx);
-            let appearance: &Appearance = Appearance::as_ref(ctx);
-            editor.set_text_colors(TextColors::from_appearance(appearance), ctx);
-        });
-    }
-
-    pub fn reset_after_cloud_followup_submission(&mut self, ctx: &mut ViewContext<Self>) {
-        self.editor.update(ctx, |editor, ctx| {
-            editor.set_interaction_state(InteractionState::Editable, ctx);
-            editor.clear_buffer_and_reset_undo_stack(ctx);
-
-            let appearance: &Appearance = Appearance::as_ref(ctx);
-            editor.set_text_colors(TextColors::from_appearance(appearance), ctx);
-        });
     }
 
     fn clear_selected_env_var_collection(&mut self) {
@@ -8290,21 +8218,6 @@ impl Input {
     pub fn replace_buffer_content(&mut self, content: &str, ctx: &mut ViewContext<Self>) {
         self.editor.update(ctx, |view, ctx| {
             view.set_buffer_text(content, ctx);
-        });
-    }
-
-    // Fill the input buffer with the provided text and auto-select all of the text
-    // (so that it's easy to delete).
-    pub fn prefill_buffer_and_select_all(&mut self, content: &str, ctx: &mut ViewContext<Self>) {
-        let content = content.trim();
-        if content.is_empty() {
-            return;
-        }
-
-        self.editor.update(ctx, |editor, ctx| {
-            editor.clear_autosuggestion(ctx);
-            editor.set_buffer_text_ignoring_undo(content, ctx);
-            editor.handle_action(&EditorAction::SelectAll, ctx);
         });
     }
 
@@ -15254,15 +15167,6 @@ impl Input {
         self.agent_input_footer
             .as_ref(app)
             .displayed_chip_kinds(app)
-    }
-
-    pub fn cli_footer_chip_kinds(
-        &self,
-        app: &AppContext,
-    ) -> Vec<crate::context_chips::ContextChipKind> {
-        self.agent_input_footer
-            .as_ref(app)
-            .cli_display_chip_kinds(app)
     }
 }
 

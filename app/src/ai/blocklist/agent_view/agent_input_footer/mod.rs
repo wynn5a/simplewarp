@@ -2123,17 +2123,6 @@ impl AgentInputFooter {
             collect_chip_kinds(&self.right_display_chips),
         )
     }
-
-    #[cfg(test)]
-    pub fn cli_display_chip_kinds(
-        &self,
-        app: &AppContext,
-    ) -> Vec<crate::context_chips::ContextChipKind> {
-        self.cli_display_chips
-            .iter()
-            .map(|chip| chip.as_ref(app).chip_kind().clone())
-            .collect()
-    }
 }
 
 impl View for AgentInputFooter {

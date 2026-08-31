@@ -119,14 +119,6 @@ impl AltScreenPaddingMode {
             Self::Custom { .. } => Self::MatchBlocklist,
         }
     }
-
-    pub fn telemetry_string(&self) -> String {
-        match self {
-            Self::MatchBlocklist => "MatchBlocklist",
-            Self::Custom { .. } => "Custom",
-        }
-        .to_string()
-    }
 }
 
 define_settings_group!(TerminalSettings, settings: [

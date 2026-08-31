@@ -323,15 +323,6 @@ impl AmbientAgentViewModel {
         self.set_setup_command_group_visibility(group_id, is_visible, ctx);
     }
 
-    /// Tear down the active "Running setup commands…" chip. Idempotent: the inner
-    /// `finish_setup_command_group` no-ops when the group is not running, and
-    /// `set_setup_command_group_visibility(false)` no-ops when already collapsed.
-    pub(crate) fn tear_down_active_setup_command_group(&mut self, ctx: &mut ModelContext<Self>) {
-        let group_id = self.setup_commands_state.current_group_id();
-        self.finish_setup_command_group(group_id, ctx);
-        self.set_setup_command_group_visibility(group_id, false, ctx);
-    }
-
     /// Handles CloudModel events to keep environment_id in sync.
     fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
         match event {

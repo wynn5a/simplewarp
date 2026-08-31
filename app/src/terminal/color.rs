@@ -22,17 +22,6 @@ pub struct Colors {
 }
 
 impl Colors {
-    pub fn with_foreground_background_color(foreground: ColorU, background: ColorU) -> Self {
-        Colors {
-            primary: PrimaryColors {
-                foreground,
-                background,
-                ..Default::default()
-            },
-            ..Default::default()
-        }
-    }
-
     pub fn new(primary: PrimaryColors, normal: NormalColors, bright: BrightColors) -> Self {
         Colors {
             primary,

@@ -9075,45 +9075,6 @@ fn ctrl_enter_inserts_newline_when_submit_on_ctrl_enter_is_false() {
     });
 }
 
-/// `unfreeze_agent_input` must NOT clear the buffer. The buffer is cleared via the CRDT
-/// delete ops emitted by `system_clear_buffer` when `SentRequest` fires; clearing it here
-/// too would make the two paths disagree (see the function doc).
-#[test]
-fn unfreeze_agent_input_does_not_clear_buffer() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        terminal.update(&mut app, |view, _| {
-            view.model.lock().block_list_mut().set_bootstrapped();
-        });
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content("help me write a test", ctx);
-        });
-        assert_eq!(
-            input.read(&app, |i, ctx| i.buffer_text(ctx)),
-            "help me write a test"
-        );
-
-        input.update(&mut app, |input, ctx| {
-            input.unfreeze_agent_input(ctx);
-        });
-
-        // Buffer must be unchanged — clearing is the responsibility of system_clear_buffer
-        // via the SentRequest event, not of this unfreeze function.
-        assert_eq!(
-            input.read(&app, |i, ctx| i.buffer_text(ctx)),
-            "help me write a test",
-            "unfreeze_agent_input must not clear the buffer"
-        );
-    });
-}
-
 #[test]
 fn ctrl_enter_inserts_newline_in_normal_input_after_rich_input_closes() {
     use crate::editor::EnterAction;
@@ -9143,56 +9104,5 @@ fn ctrl_enter_inserts_newline_in_normal_input_after_rich_input_closes() {
                  (the default); got Emit instead"
             );
         });
-    });
-}
-
-/// Directly exercises `restore_cloud_followup_input_after_upload_failure`:
-/// after the editor is frozen into the loading state, calling the restore
-/// function must put the exact original prompt text back and leave the
-/// editor editable.
-#[test]
-fn restore_cloud_followup_input_after_upload_failure_restores_prompt() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        terminal.update(&mut app, |view, _| {
-            view.model.lock().block_list_mut().set_bootstrapped();
-        });
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        // Write a prompt that should survive a failed upload.
-        input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content("cloud follow-up prompt", ctx);
-        });
-
-        // Freeze the editor (simulates the upload-in-progress loading state).
-        input.update(&mut app, |input, ctx| {
-            input.freeze_input_in_loading_state(ctx);
-        });
-        let frozen_text = input.read(&app, |i, ctx| i.buffer_text(ctx));
-        assert!(
-            frozen_text.contains("cloud follow-up prompt"),
-            "frozen text must contain the original prompt; got: {frozen_text:?}"
-        );
-        assert!(
-            frozen_text.contains('◌'),
-            "frozen text must contain the loading indicator '◌'; got: {frozen_text:?}"
-        );
-
-        // Simulate an upload failure restoring the input.
-        input.update(&mut app, |input, ctx| {
-            input.restore_cloud_followup_input_after_upload_failure("cloud follow-up prompt", ctx);
-        });
-
-        // The buffer must be restored to the original prompt without the loading marker.
-        assert_eq!(
-            input.read(&app, |i, ctx| i.buffer_text(ctx)),
-            "cloud follow-up prompt",
-            "restore must set the buffer back to the original prompt after upload failure"
-        );
     });
 }

@@ -2013,6 +2013,94 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `./target/debug/simplewarp` and launched it — clean startup, spawned its terminal-server
    child normally, no panics.
 
+3x. **Same sweep over `terminal/`'s 48 top-level files (66k lines) — plus, for the first
+   time, the compiler's own `dead_code` lint as a second, independent source of candidates.**
+   12 files, 589 deletions, 2 insertions net; 4 tests deleted, 1 test trimmed.
+
+   `drive/` came up completely empty (already thoroughly swept by 3s) — confirms the method
+   doesn't always find something; a clean module is a real result, not a missed search.
+   `terminal/` is too large (314k lines including subdirectories) to sweep whole, so this
+   round scoped to the 48 top-level files only, deliberately leaving the subdirectories
+   (`model/`, `view/`, `input/`, etc.) for a later pass.
+
+   **This module is not cloud-adjacent the way `workspaces/`/`settings_view/` were** — it's
+   the core terminal engine, actively developed, not something this fork is stripping. That
+   changes the risk calculus: a zero-grep-hit `pub fn` here is far more likely to be either
+   (a) ordinary software-entropy leftovers unrelated to this project's mission, or (b) an
+   entry point into a still-substantial live subsystem that just happens to have no *current*
+   caller. Traced every candidate's callees before deleting, and explicitly **skipped two**
+   that the grep sweep alone would have flagged: `Input::process_remote_edits` (CRDT-based
+   remote-block-edit sync — `latest_buffer_operations`, `CrdtOperation`, and
+   `apply_remote_operations` are all still live and tested in `editor/`, so this reads as one
+   orphaned entry point into machinery that still serves other callers, not a dead feature)
+   and `TerminalView::apply_external_input_mode_update` (doc comment says "e.g., session
+   sharing" — grepping that phrase hits 44 files across `ai/agent_sdk/`, `pane_group/`, and
+   more; far too broad and too active to characterize as dead from a name match). Also
+   skipped `TerminalView::set_show_pane_accent_border`: it's the *only* caller of
+   `PaneConfiguration::set_show_accent_border` in `pane_group/pane/mod.rs`, whose
+   `show_accent_border` field is still read at render time and whose update event still has a
+   subscriber — the border-rendering machinery is alive, just permanently inert since nothing
+   currently flips it on. Deleting the setter would mean reaching into another module's live
+   rendering path, not removing an isolated leaf; left it standing rather than deciding that
+   scope question by omission.
+
+   **Second source: `cargo check`'s own `dead_code` lint**, read directly rather than
+   re-derived by grep. `pub(crate)`/private items are exempt from nothing — the compiler
+   already proves them dead with certainty grep can only approximate. One `--lib` warning
+   block named eight `TerminalView` methods at once (`clear_queued_command_in_flight`,
+   `has_queued_command_in_flight`, `maybe_drain_queue_after_promptless_setup`,
+   `ensure_ambient_agent_view_model`, `tear_down_cloud_mode_setup_phase`,
+   `should_suppress_ambient_setup_input_sync`, `tag_agent_in`, `tag_agent_out`), plus
+   `tear_down_active_setup_command_group` in a sibling file — all genuinely dead in a real
+   build. Left three lookalikes alone that appeared only in the `--all-targets` (test) build's
+   warning set, not the plain `--lib` one — `should_show_wasm_conversation_details_panel`,
+   `should_show_wasm_pane_header_details_button`, `is_orchestration_child_live_unavailable_for_test`
+   — meaning something in production code does call them, just from a path that
+   `#[cfg(not(test))]`-gates itself out of the test build; not dead in the shipped binary.
+
+   **Cascades, one layer at a time, same "confirm every downstream consumer" discipline as
+   3s–3u:** `tear_down_cloud_mode_setup_phase` was the only caller of
+   `tear_down_active_setup_command_group`, so both went together. Deleting
+   `ensure_ambient_agent_view_model` orphaned the `Event::AmbientAgentViewModelCreated` variant
+   it was the sole emitter of (zero subscribers) — deleted that too. Deleting
+   `should_suppress_ambient_setup_input_sync` orphaned `SetupCommandState::
+   should_suppress_input_sync_for_current_group`, its only caller — deleted both. Two stale
+   doc-comment references to the deleted `ensure_ambient_agent_view_model` (in
+   `wire_ambient_agent_view_model`'s doc) got cleaned up in the same pass.
+
+   **The one real mistake this round, and the fix.** Assumed "flagged only under `--lib`, not
+   `--all-targets`" meant "provably dead in production" and deleted on that basis without
+   separately checking test files — exactly backwards from the 3f/3t lesson ("verify with
+   `--all-targets`, not `--lib`"), and it bit immediately: `--all-targets` came back with 7
+   compile errors. `maybe_drain_queue_after_promptless_setup`,
+   `should_suppress_input_sync_for_current_group`, and a `restore_cloud_followup_input_after_
+   upload_failure`/`reset_after_cloud_followup_submission`/`freeze_input_in_loading_state`/
+   `unfreeze_agent_input` cluster all had dedicated unit tests calling them directly, with zero
+   production callers for any of them. Since every one of these methods' only caller anywhere
+   was a test built specifically to exercise that one method in isolation — not a shared test
+   helper covering other still-live behavior — deleted the method and its dedicated test
+   together in each case (`restore_cloud_followup_input_after_upload_failure_restores_prompt`,
+   `unfreeze_agent_input_does_not_clear_buffer`, `promptless_setup_complete_drains_queued_
+   prompt`, `promptless_setup_complete_with_initial_prompt_does_not_drain_queue` — 4 tests
+   gone), same call as 3t made for a dead branch's dedicated tests. One test
+   (`setup_command_groups_track_running_group_independently`) mixed assertions about the now-
+   dead method with assertions about still-live `is_running`/`finish_group` behavior — trimmed
+   to keep only the live half, same as 3t's `page_sections_for` rewrites. Chased the resulting
+   second-order orphans the same way: `promptless_cloud_spawn_request` (a test-only fixture
+   builder, orphaned once both tests that used it were gone) and the now-unused `TextColors`
+   import in `input.rs`.
+
+   Acceptance: `cargo check` (both feature sets, `--all-targets`, `-p integration`) clean (0
+   errors; `warp (lib)` warnings dropped from 8 to 5 — exactly the methods deleted from that
+   list — and the three wasm/test-only lookalikes deliberately left in place). `cargo clippy
+   --all-targets --no-default-features --features simplewarp` clean (0 errors).
+   `./script/format` needed one pass (five stray blank lines from the deletions), `--check`
+   clean after. `cargo nextest run -p warp --no-default-features --features simplewarp
+   --no-fail-fast`: 5982 run (4 fewer than 3w's 5986 baseline, matching the 4 deleted tests
+   exactly), 5974 passed, 8 failed (identical pre-existing set), 4 skipped — 0 unexpected
+   losses. Built `./target/debug/simplewarp` and launched it — clean startup, spawned its
+   terminal-server child normally, no panics.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 
