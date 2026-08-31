@@ -450,8 +450,6 @@ pub fn populate_environment_picker<A: OrchestrationControlAction, V: View>(
 /// `loading` renders the picker in its loading state until they arrive.
 pub fn create_runner_picker<A: OrchestrationControlAction, V: View>(
     initial_runner_id: &str,
-    runners: &[(String, String)],
-    loading: bool,
     styles: &UiComponentStyles,
     ctx: &mut ViewContext<V>,
 ) -> ViewHandle<FilterableDropdown<A>> {
@@ -467,7 +465,7 @@ pub fn create_runner_picker<A: OrchestrationControlAction, V: View>(
         dropdown.set_top_bar_max_width(f32::INFINITY);
         dropdown
     });
-    populate_runner_picker(&dropdown_handle, runners, initial_runner_id, loading, ctx);
+    populate_runner_picker(&dropdown_handle, initial_runner_id, ctx);
     dropdown_handle
 }
 
@@ -475,12 +473,10 @@ pub fn create_runner_picker<A: OrchestrationControlAction, V: View>(
 /// environment default" plus the supplied runners).
 pub fn populate_runner_picker<A: OrchestrationControlAction, V: View>(
     dropdown_handle: &ViewHandle<FilterableDropdown<A>>,
-    runners: &[(String, String)],
     current_runner_id: &str,
-    loading: bool,
     ctx: &mut ViewContext<V>,
 ) {
-    let snapshot = build_runner_snapshot(runners.to_vec(), current_runner_id, loading);
+    let snapshot = build_runner_snapshot(current_runner_id);
     let selected_label = selected_row_label(&snapshot);
     dropdown_handle.update(ctx, |dropdown, ctx_dropdown| {
         let items = snapshot

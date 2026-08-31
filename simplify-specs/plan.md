@@ -2394,6 +2394,48 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
 
    The provider is down to 8 client getters.
 
+4m. **`FactoryClient` — the runner surface, all of it — DONE.** 17 files, 1,510 deletions,
+   50 insertions; 5 files removed outright.
+
+   `FactoryClient` is runner CRUD (`getRunners`/`upsertRunner`/`deleteRunner`), and runners are
+   *cloud machines*. Its cargo feature `cloud_agent_runners` is in `default` but **not in
+   `simplewarp`**, so the whole surface was already gated off here — hide → delete again, and a
+   reminder to check the feature set before assuming a caller is live.
+
+   **The `warp runner` CLI subcommand existed only to call it** and went whole: `agent_sdk/runner.rs`
+   (584 lines), `warp_cli/src/runner.rs` (227), the `CliCommand::Runner` variant, its dispatch,
+   its `as_str_for_tracing` arm, and four `CliTelemetryEvent::Runner*` variants with their
+   payload/name/description/enablement arms. `FeatureFlag::CloudAgentRunners` itself **stays** —
+   `ai/agent/api/impl.rs` still reads it.
+
+   **Two collapses rather than leaf removals.** The runner *picker* survives (it is orchestration
+   UI, and `RunAgentsExecutionMode::Remote` is a 175-reference feature that is not this round's
+   business), but nothing can ever populate it again, so the runner-list parameter was threaded
+   out of `create_runner_picker` → `populate_runner_picker` → `build_runner_snapshot`. The
+   snapshot now offers exactly one row, "Use environment default", and a config that still names
+   a `runner_id` selects *nothing* — deliberately, since selecting the default row would
+   misreport a config rather than describe it. Second, `runner_display.rs` (174 lines + 148 of
+   tests) went entirely: with the lookup map permanently empty, `resolve_run_platform` could only
+   ever return `RunPlatform::Default`, so the details panel's platform row is now a direct
+   "Linux · x86-64" with the same precedence check inlined — a run that names a runner hides the
+   row instead of guessing.
+
+   **The round's mistake: a deleted clap subcommand has string-keyed references the compiler
+   cannot see.** `cargo check` was clean and clippy was clean, and then **140 `workspace::view`
+   tests failed at runtime** with `Command 'runner' is undefined` — `mut_subcommand("runner", …)`
+   in `warp_cli/src/lib.rs` and `find_subcommand_mut("runner")` in its tests. Grepping the
+   *variant* name found nothing; only grepping the literal `"runner"` did. Worth remembering for
+   every remaining CLI-facing deletion in this thread: **after removing a `CliCommand` variant,
+   grep the lowercase subcommand string, not just the type.** (The help test was re-pointed at
+   `agent` rather than deleted — its subject is that `WARP_API_KEY` appears in subcommand help,
+   which is still true.)
+
+   Acceptance: `cargo check --all-targets` (simplewarp) back to the 2+1 baseline warnings; clippy
+   0 errors; format clean. `cargo nextest run` (simplewarp): **5939 run, 5939 passed, 0 failed**.
+   Built and launched `./target/debug/simplewarp` — alive, no output, no panics.
+
+   The provider is down to 7 client getters.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

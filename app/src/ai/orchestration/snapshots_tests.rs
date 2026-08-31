@@ -281,29 +281,24 @@ fn environment_snapshot_puts_empty_option_first() {
 // ── Runner ──────────────────────────────────────────────────────
 
 #[test]
-fn runner_snapshot_puts_use_default_first_and_selects() {
-    let snapshot = build_runner_snapshot(
-        vec![
-            ("r-a".to_string(), "Alpha".to_string()),
-            ("r-b".to_string(), "Beta".to_string()),
-        ],
-        "r-b",
-        false,
-    );
+fn runner_snapshot_offers_only_the_use_default_row() {
+    let snapshot = build_runner_snapshot("");
 
+    assert_eq!(snapshot.rows.len(), 1);
     assert_eq!(snapshot.rows[0].id, "");
     assert_eq!(
         snapshot.rows[0].label,
         super::ORCHESTRATION_RUNNER_NONE_LABEL
     );
-    assert_eq!(snapshot.selected_id.as_deref(), Some("r-b"));
+    assert_eq!(snapshot.selected_id.as_deref(), Some(""));
     assert_eq!(snapshot.status, OptionSourceStatus::Ready);
 }
 
 #[test]
-fn runner_snapshot_loading_reports_loading_status() {
-    let snapshot = build_runner_snapshot(vec![], "", true);
-    assert_eq!(snapshot.status, OptionSourceStatus::Loading);
-    // Empty selection maps to the "use environment default" row.
-    assert_eq!(snapshot.selected_id.as_deref(), Some(""));
+fn runner_snapshot_selects_nothing_for_a_config_that_still_names_a_runner() {
+    // The runner cannot be looked up in this build, so selecting the "use environment
+    // default" row would misreport the config rather than describe it.
+    let snapshot = build_runner_snapshot("r-b");
+
+    assert_eq!(snapshot.selected_id, None);
 }

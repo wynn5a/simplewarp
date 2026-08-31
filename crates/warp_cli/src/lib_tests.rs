@@ -103,16 +103,16 @@ fn help_hides_api_key_env_value() {
 
     let mut command = <Args as clap::CommandFactory>::command();
     let top_level_help = command.render_long_help().to_string();
-    let runner_help = command
-        .find_subcommand_mut("runner")
-        .expect("runner subcommand exists")
+    let subcommand_help = command
+        .find_subcommand_mut("agent")
+        .expect("agent subcommand exists")
         .render_long_help()
         .to_string();
     let args = Args::try_parse_from(["warp", "whoami"]).expect("API key env var should parse");
 
     restore_env_var("WARP_API_KEY", previous_api_key);
 
-    for help in [&top_level_help, &runner_help] {
+    for help in [&top_level_help, &subcommand_help] {
         assert!(
             help.contains("WARP_API_KEY"),
             "help should identify the API key environment variable:\n{help}"

@@ -7,7 +7,6 @@ use ai::agent::orchestration_config::OrchestrationConfigStatus;
 use pathfinder_geometry::vector::vec2f;
 use warp_cli::agent::Harness;
 use warp_core::send_telemetry_from_ctx;
-use warp_graphql::queries::get_runners::RunnerSortBy;
 use warpui::elements::{
     ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
     Flex, Hoverable, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
@@ -45,7 +44,6 @@ use crate::ai::harness_availability::{
 };
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
-use crate::server::server_api::ServerApiProvider;
 use crate::ui_components::blended_colors;
 use crate::workspace::WorkspaceAction;
 
@@ -156,10 +154,6 @@ pub struct OrchestrationConfigBlockView {
     /// mode) suppresses the modal on restore while still firing for
     /// live-session enablement.
     user_has_interacted: bool,
-    /// Runners fetched via `getRunners` for the Runner picker: (uid, name).
-    runners: Vec<(String, String)>,
-    /// True while the `getRunners` fetch is in flight.
-    runners_loading: bool,
 }
 
 impl OrchestrationConfigBlockView {
@@ -320,8 +314,6 @@ impl OrchestrationConfigBlockView {
             suppress_refresh: false,
             has_auto_opened_create_modal: false,
             user_has_interacted: false,
-            runners: Vec::new(),
-            runners_loading: false,
         };
         if view.is_approved {
             view.ensure_pickers(ctx);
@@ -683,55 +675,9 @@ impl OrchestrationConfigBlockView {
             RunAgentsExecutionMode::Remote { runner_id, .. } => runner_id.clone(),
             RunAgentsExecutionMode::Local => String::new(),
         };
-        let runner_handle = oc::create_runner_picker(
-            &initial_runner,
-            &self.runners,
-            self.runners_loading,
-            &styles,
-            ctx,
-        );
+        let runner_handle = oc::create_runner_picker(&initial_runner, &styles, ctx);
         runner_handle.update(ctx, |d, c| d.set_use_overlay_layer(true, c));
         self.pickers.runner_picker = Some(runner_handle);
-        self.fetch_runners(ctx);
-    }
-
-    /// Fetches available runners via `getRunners` (name-sorted server-side)
-    /// and repopulates the Runner picker once they resolve.
-    fn fetch_runners(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.runners_loading || !self.runners.is_empty() {
-            return;
-        }
-        self.runners_loading = true;
-        let client = ServerApiProvider::as_ref(ctx).get_factory_client();
-        ctx.spawn(
-            async move { client.get_runners(Some(RunnerSortBy::Name)).await },
-            |me, result, ctx| {
-                me.runners_loading = false;
-                match result {
-                    Ok(runners) => {
-                        me.runners = runners
-                            .into_iter()
-                            .map(|r| (r.uid.inner().to_string(), r.config.name))
-                            .collect();
-                    }
-                    Err(err) => {
-                        log::warn!("Failed to fetch runners for plan-card runner picker: {err}");
-                    }
-                }
-                let current = match &me
-                    .orchestration_edit_state
-                    .orchestration_config_state
-                    .execution_mode
-                {
-                    RunAgentsExecutionMode::Remote { runner_id, .. } => runner_id.clone(),
-                    RunAgentsExecutionMode::Local => String::new(),
-                };
-                if let Some(handle) = me.pickers.runner_picker.clone() {
-                    oc::populate_runner_picker(&handle, &me.runners, &current, false, ctx);
-                }
-                ctx.notify();
-            },
-        );
     }
 
     /// Re-applies the runner picker's selection from the current
@@ -748,7 +694,7 @@ impl OrchestrationConfigBlockView {
             RunAgentsExecutionMode::Local => String::new(),
         };
         if let Some(handle) = self.pickers.runner_picker.clone() {
-            oc::populate_runner_picker(&handle, &self.runners, &current, self.runners_loading, ctx);
+            oc::populate_runner_picker(&handle, &current, ctx);
         }
     }
 }

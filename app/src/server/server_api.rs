@@ -1,6 +1,5 @@
 pub mod ai;
 pub mod auth;
-pub mod factory;
 pub mod harness_support;
 pub mod integrations;
 pub mod managed_secrets;
@@ -19,7 +18,6 @@ use anyhow::{Result, anyhow};
 use auth::AuthClient;
 use channel_versions::ChannelVersions;
 use chrono::{DateTime, FixedOffset};
-use factory::FactoryClient;
 use instant::Instant;
 use object::ObjectClient;
 use serde::{Deserialize, Serialize};
@@ -692,10 +690,6 @@ impl ServerApiProvider {
     }
 
     pub fn get_managed_secrets_client(&self) -> Arc<dyn ManagedSecretsClient> {
-        self.server_api.clone()
-    }
-
-    pub fn get_factory_client(&self) -> Arc<dyn FactoryClient> {
         self.server_api.clone()
     }
 

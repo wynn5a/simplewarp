@@ -588,36 +588,20 @@ fn build_environment_snapshot(envs: Vec<(String, String)>, current: &str) -> Opt
 
 // ── Runner ──────────────────────────────────────────────────────────
 
-/// Builds the runner options: a "Use environment default" clear row plus
-/// the supplied runners (already sorted by name). Runners are not cached
-/// client-side like environments, so the caller fetches them via
-/// `FactoryClient::get_runners` and passes them in along with the current
-/// load state; while `loading` is true the snapshot reports
-/// [`OptionSourceStatus::Loading`] so the picker can show a spinner.
-pub fn build_runner_snapshot(
-    runners: Vec<(String, String)>,
-    current: &str,
-    loading: bool,
-) -> OptionSnapshot {
-    let mut rows = vec![OptionRow::new(
-        String::new(),
-        ORCHESTRATION_RUNNER_NONE_LABEL,
-    )];
-    let mut selected_id = current.is_empty().then(String::new);
-    for (runner_id, runner_name) in runners {
-        if runner_id == current {
-            selected_id = Some(runner_id.clone());
-        }
-        rows.push(OptionRow::new(runner_id, runner_name));
-    }
+/// Builds the runner options: just the "Use environment default" clear row.
+///
+/// Runners came from `FactoryClient::get_runners`, and this build has no server to answer
+/// it, so there is never anything to list. A config that still carries a `runner_id` from
+/// elsewhere selects nothing rather than a wrong row — the runner it names cannot be
+/// looked up here.
+pub fn build_runner_snapshot(current: &str) -> OptionSnapshot {
     OptionSnapshot {
-        rows,
-        selected_id,
-        status: if loading {
-            OptionSourceStatus::Loading
-        } else {
-            OptionSourceStatus::Ready
-        },
+        rows: vec![OptionRow::new(
+            String::new(),
+            ORCHESTRATION_RUNNER_NONE_LABEL,
+        )],
+        selected_id: current.is_empty().then(String::new),
+        status: OptionSourceStatus::Ready,
         footer: None,
     }
 }

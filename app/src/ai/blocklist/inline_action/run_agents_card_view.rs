@@ -12,7 +12,6 @@ use ai::skills::SkillReference;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::send_telemetry_from_ctx;
 use warp_errors::report_error;
-use warp_graphql::queries::get_runners::RunnerSortBy;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, Container, CornerRadius, CrossAxisAlignment, Empty, Flex,
     OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Stack, Text, Wrap,
@@ -60,7 +59,6 @@ use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
 use crate::features::FeatureFlag;
 use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
-use crate::server::server_api::ServerApiProvider;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ButtonSize, KeystrokeSource, NakedTheme};
@@ -264,11 +262,6 @@ pub struct RunAgentsCardView {
     /// One-shot guard: cancelling the auto-popped modal must not re-pop.
     /// Reset on harness / execution-mode change.
     has_auto_opened_create_modal: bool,
-    /// Runners fetched via `getRunners` for the Runner picker: (uid, name).
-    /// Runners aren't cached client-side, so we fetch them lazily.
-    runners: Vec<(String, String)>,
-    /// True while the `getRunners` fetch is in flight.
-    runners_loading: bool,
 }
 
 /// Resolves UI-only interactive defaults on edit state that has
@@ -558,8 +551,6 @@ impl RunAgentsCardView {
             entered_event_emitted: false,
             decision_event_emitted: false,
             has_auto_opened_create_modal: false,
-            runners: Vec::new(),
-            runners_loading: false,
         };
 
         view.ensure_pickers(ctx);
@@ -1012,13 +1003,7 @@ impl RunAgentsCardView {
             RunAgentsExecutionMode::Remote { runner_id, .. } => runner_id.clone(),
             RunAgentsExecutionMode::Local => String::new(),
         };
-        let handle = oc::create_runner_picker(
-            &initial_runner,
-            &self.runners,
-            self.runners_loading,
-            &styles,
-            ctx,
-        );
+        let handle = oc::create_runner_picker(&initial_runner, &styles, ctx);
         handle.update(ctx, |d, _| {
             d.set_orientation(FilterableDropdownOrientation::Up)
         });
@@ -1028,48 +1013,6 @@ impl RunAgentsCardView {
             }
         });
         self.handles.pickers.runner_picker = Some(handle);
-        self.fetch_runners(ctx);
-    }
-
-    /// Fetches available runners via `getRunners` (name-sorted server-side)
-    /// and repopulates the Runner picker once they resolve. Runners are not
-    /// cached client-side (unlike environments), so this lazy fetch backs
-    /// the picker.
-    fn fetch_runners(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.runners_loading || !self.runners.is_empty() {
-            return;
-        }
-        self.runners_loading = true;
-        let client = ServerApiProvider::as_ref(ctx).get_factory_client();
-        ctx.spawn(
-            async move { client.get_runners(Some(RunnerSortBy::Name)).await },
-            |me, result, ctx| {
-                me.runners_loading = false;
-                match result {
-                    Ok(runners) => {
-                        me.runners = runners
-                            .into_iter()
-                            .map(|r| (r.uid.inner().to_string(), r.config.name))
-                            .collect();
-                    }
-                    Err(err) => {
-                        log::warn!("Failed to fetch runners for orchestration picker: {err}");
-                    }
-                }
-                let current = match &me
-                    .orchestration_edit_state
-                    .orchestration_config_state
-                    .execution_mode
-                {
-                    RunAgentsExecutionMode::Remote { runner_id, .. } => runner_id.clone(),
-                    RunAgentsExecutionMode::Local => String::new(),
-                };
-                if let Some(handle) = me.handles.pickers.runner_picker.clone() {
-                    oc::populate_runner_picker(&handle, &me.runners, &current, false, ctx);
-                }
-                ctx.notify();
-            },
-        );
     }
 
     /// Re-applies the runner picker's selection from the current
@@ -1088,7 +1031,7 @@ impl RunAgentsCardView {
             RunAgentsExecutionMode::Local => String::new(),
         };
         if let Some(handle) = self.handles.pickers.runner_picker.clone() {
-            oc::populate_runner_picker(&handle, &self.runners, &current, self.runners_loading, ctx);
+            oc::populate_runner_picker(&handle, &current, ctx);
         }
     }
 
