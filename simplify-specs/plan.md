@@ -2436,6 +2436,47 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
 
    The provider is down to 7 client getters.
 
+4n. **Attempted `HarnessSupportClient`; reverted. The easy clients are gone — everything left
+   on this chain is a feature round.** No code change; this entry is the survey, so the next
+   attempt does not repeat it.
+
+   **The ranking in 4l was by impl size, and impl size is the wrong axis.** Ranking by what a
+   deletion actually costs:
+
+   | Client | Impl | Getter call sites | What it is actually attached to |
+   | --- | --- | --- | --- |
+   | ~~`BlockClient`~~ | 58 | 1 | the Shared blocks settings page — **done, 4l** |
+   | ~~`ManagedMcpClient`~~ | 33 | 2 | four lines of spec resolution — **done, 4l** |
+   | ~~`FactoryClient`~~ | 52 | 7 | the `warp runner` CLI + the runner picker — **done, 4m** |
+   | `WorkspaceClient` | 90 | 1 | `app/src/workspaces/` — 40 uses in `user_workspaces.rs` alone |
+   | `TeamClient` | 216 | 2 | same, plus `TeamUpdateManager` across 19 files |
+   | `ManagedSecretsClient` | 69 | 4 | managed secrets — 30 app files + a 2,013-line crate |
+   | `IntegrationsClient` | 167 | 10 | agent-SDK integrations (Slack/Linear connections) |
+   | `HarnessSupportClient` | 458 | 8 | the cloud-agent harness reporting path — see below |
+   | `ObjectClient` | 254 | 5 | `cloud_object`, already listed as a refactor not a deletion |
+   | `AIClient` | 2,226 | 104 in 49 files | last, by construction |
+
+   A one-call-site getter (`WorkspaceClient`) turned out to be the *most* expensive of the small
+   ones: its single caller is `UserWorkspaces::new`, and `app/src/workspaces/` is what 3m already
+   surveyed and set aside as remote_server-scale.
+
+   **`HarnessSupportClient` looked like a repeat of 4m and is not.** Both its gates are off in
+   `simplewarp` (`agent_harness` and `oz_handoff` are in `default` only), and it has the same
+   CLI-subcommand shape — `warp harness-support` (327 + 133 lines) plus
+   `driver/checkpoint_coordinator.rs` (634 + 869 of tests). Deleting those six files compiled
+   down to **14 files importing `server_api::harness_support`**: `driver/snapshot.rs` (1,916
+   lines, 9 refs), `driver/harness/{mod,claude_code,codex,gemini}.rs`, `artifact_upload.rs`,
+   `presigned_upload.rs`, `server_api/ai.rs`. The client is threaded through the whole
+   third-party-harness snapshot-and-resume path, which is a feature on the scale of 4e's session
+   sharing, inside a 40,574-line `agent_sdk/`. Reverted rather than pushing a half-reasoned diff
+   through fourteen files of live-looking harness code.
+
+   **What this means for the chain.** `warp_server_client` cannot fall until `ServerApi` stops
+   implementing these traits, and each remaining trait is now a planned feature deletion, not a
+   sweep. The cheapest genuine next step is probably `IntegrationsClient` (10 call sites, all in
+   `agent_sdk/` + `settings_view/update_environment_form.rs`); the rest should be scheduled the
+   way 4e was, one feature at a time, rather than treated as client-trait cleanup.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 
