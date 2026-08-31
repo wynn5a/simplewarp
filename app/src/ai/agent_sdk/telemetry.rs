@@ -95,12 +95,6 @@ pub(super) enum CliTelemetryEvent {
     ProviderSetup,
     /// Executing `warp provider list`
     ProviderList,
-    /// Executing `warp integration create`
-    IntegrationCreate,
-    /// Executing `warp integration update`
-    IntegrationUpdate,
-    /// Executing `warp integration list`
-    IntegrationList,
     /// Executing `warp artifact upload`
     ArtifactUpload,
     /// Executing `warp artifact get`
@@ -212,9 +206,6 @@ impl TelemetryEvent for CliTelemetryEvent {
             CliTelemetryEvent::Whoami => None,
             CliTelemetryEvent::ProviderSetup => None,
             CliTelemetryEvent::ProviderList => None,
-            CliTelemetryEvent::IntegrationCreate => None,
-            CliTelemetryEvent::IntegrationUpdate => None,
-            CliTelemetryEvent::IntegrationList => None,
             CliTelemetryEvent::ArtifactUpload => None,
             CliTelemetryEvent::ArtifactGet => None,
             CliTelemetryEvent::ArtifactDownload => None,
@@ -328,9 +319,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::Whoami => "CLI.Execute.Whoami",
             CliTelemetryEventDiscriminants::ProviderSetup => "CLI.Execute.Provider.Setup",
             CliTelemetryEventDiscriminants::ProviderList => "CLI.Execute.Provider.List",
-            CliTelemetryEventDiscriminants::IntegrationCreate => "CLI.Execute.Integration.Create",
-            CliTelemetryEventDiscriminants::IntegrationUpdate => "CLI.Execute.Integration.Update",
-            CliTelemetryEventDiscriminants::IntegrationList => "CLI.Execute.Integration.List",
             CliTelemetryEventDiscriminants::ArtifactUpload => "CLI.Execute.Artifact.Upload",
             CliTelemetryEventDiscriminants::ArtifactGet => "CLI.Execute.Artifact.Get",
             CliTelemetryEventDiscriminants::ArtifactDownload => "CLI.Execute.Artifact.Download",
@@ -458,15 +446,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::Whoami => "Printed current user info from the Warp CLI",
             CliTelemetryEventDiscriminants::ProviderSetup => "Set up a provider via the Warp CLI",
             CliTelemetryEventDiscriminants::ProviderList => "Listed providers from the Warp CLI",
-            CliTelemetryEventDiscriminants::IntegrationCreate => {
-                "Created an integration from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::IntegrationUpdate => {
-                "Updated an integration from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::IntegrationList => {
-                "Listed integrations from the Warp CLI"
-            }
             CliTelemetryEventDiscriminants::ArtifactUpload => {
                 "Uploaded an artifact from the Warp CLI"
             }

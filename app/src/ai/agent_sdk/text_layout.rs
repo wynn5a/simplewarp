@@ -71,27 +71,3 @@ pub fn render_labeled_wrapped_field(label: &str, text: &str, width: usize) -> St
     }
     out
 }
-
-/// Convert an identifier like a slug (e.g. "slack", "github-actions") into a
-/// human-friendly, title-cased name (e.g. "Slack", "Github Actions").
-pub fn title_case_identifier(s: &str) -> String {
-    let mut parts = Vec::new();
-    for part in s.split(|c: char| !c.is_alphanumeric()) {
-        if part.is_empty() {
-            continue;
-        }
-        let mut chars = part.chars();
-        let first = chars
-            .next()
-            .expect("non-empty identifier component must have a first character");
-        let mut word = String::new();
-        word.extend(first.to_uppercase());
-        word.push_str(&chars.as_str().to_lowercase());
-        parts.push(word);
-    }
-    if parts.is_empty() {
-        s.to_string()
-    } else {
-        parts.join(" ")
-    }
-}

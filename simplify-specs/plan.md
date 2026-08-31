@@ -2477,6 +2477,56 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
    `agent_sdk/` + `settings_view/update_environment_form.rs`); the rest should be scheduled the
    way 4e was, one feature at a time, rather than treated as client-trait cleanup.
 
+4o. **The `warp integration` CLI, and three of `IntegrationsClient`'s seven methods — DONE.**
+   14 files, 1,409 deletions, 10 insertions; 3 files removed outright.
+
+   4n called `IntegrationsClient` the cheapest next step. It is — but only its CLI half. The
+   trait's seven methods split into two groups that do not come out together:
+
+   - **The `warp integration` surface (gone).** `create_or_update_simple_integration` and
+     `list_simple_integrations` were reached from exactly one place, `agent_sdk/integration.rs`
+     (529 lines) and its renderer `integration_output.rs` (355). Both calls return
+     `local_only_error()`, so all three of `warp integration create|update|list` were dead.
+     Gone with them: `warp_cli/src/integration.rs` (105), the `CliCommand::Integration` variant,
+     its dispatch and wasm arms, its `as_str_for_tracing` and `is_read_only` arms, three
+     `CliTelemetryEvent::Integration*` variants with their four arms each, the
+     `integration_command` cargo feature and `FeatureFlag::IntegrationCommand`, and six parse
+     tests in `lib_tests.rs`.
+   - **The GitHub/environment half (stays).** `check_user_repo_auth_status` gates the repo
+     arguments of `warp environment` and `warp agent skills`; `get_user_github_info` and
+     `suggest_cloud_environment_image` drive the repo dropdown and the Docker-image suggestion
+     in the Environments settings page — 127 references in `update_environment_form.rs` plus
+     its own test file. That is the cloud-environments feature, a separate round.
+
+   **One collapse, by the 4g/3u "only writer" rule.** `get_integrations_using_environment`
+   answered "is this environment still used by an integration?" before `warp environment
+   update|delete` touched one. With `warp integration` deleted there is no way to create an
+   integration, so the answer is permanently empty and the prompt could never fire — the same
+   deletion, not a second judgement call. `confirm_if_integrations_using_environment` went, and
+   with it the `--force` flag on both subcommands: its documented purpose was "without checking
+   for integration usage", so it had nothing left to skip.
+
+   `title_case_identifier` in `text_layout.rs` was orphaned by `integration_output.rs` and went
+   too — caught by comparing the warning set, per 3z/4l.
+
+   **Known and deliberately left: `ai/agent_management/cloud_setup_guide_view.rs` (742 lines).**
+   Its step 2 tells the user to run `oz integration create slack|linear`, which no longer parses.
+   Step 1 (`/create-environment`, `oz environment create`) was already failing at runtime, so the
+   page was uniformly broken before this round — but it is *also* the zero state of the agent
+   management page (`ViewState::SetupGuide` renders whenever there are no cloud agents, which in
+   this build is always). Deleting it means inventing a new zero state, which is a design call,
+   not a mechanical one. It goes with cloud environments; do not half-edit it first.
+
+   Acceptance: `cargo check --all-targets` and clippy (simplewarp) at the exact pre-round warning
+   baseline — every remaining warning traced to a file this round did not touch. `cargo nextest
+   run` (simplewarp): **5,939 run, 5,939 passed, 0 failed**; `warp_cli` + `warp_features`: 214
+   run, 214 passed. The 4m landmine was checked up front — grepping the literal `"integration"`
+   found `mut_subcommand("integration", …)` and the arg-slice reject block in `warp_cli/lib.rs`,
+   neither of which any grep for the *variant* name reaches.
+
+   The provider still has 7 client getters — `get_integrations_client` stays, because the trait
+   keeps its four GitHub/environment methods. `IntegrationsClient` is down from 7 methods to 4.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

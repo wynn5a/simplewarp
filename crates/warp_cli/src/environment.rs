@@ -54,9 +54,6 @@ pub enum EnvironmentCommand {
     Delete {
         /// ID of the environment to delete
         id: String,
-        /// Force delete without checking for integration usage
-        #[arg(long, default_value_t = false)]
-        force: bool,
     },
     /// Get details of a cloud environment.
     Get {
@@ -95,9 +92,6 @@ pub enum EnvironmentCommand {
         /// Setup command to remove from the list (can be specified multiple times)
         #[arg(long, action = ArgAction::Append)]
         remove_setup_command: Vec<String>,
-        /// Force update without checking for integration usage
-        #[arg(long, default_value_t = false)]
-        force: bool,
     },
 }
 

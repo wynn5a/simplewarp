@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use comfy_table::Cell;
 use cynic::QueryBuilder;
+use inquire::Select;
 use inquire::error::InquireError;
-use inquire::{Confirm, Select};
 use serde::Serialize;
 use warp_cli::GlobalOptions;
 use warp_cli::agent::OutputFormat;
@@ -90,8 +90,8 @@ pub fn run(
             });
             Ok(())
         }
-        EnvironmentCommand::Delete { id, force } => {
-            runner.update(ctx, |runner, ctx| runner.delete(id, force, ctx));
+        EnvironmentCommand::Delete { id } => {
+            runner.update(ctx, |runner, ctx| runner.delete(id, ctx));
             Ok(())
         }
         EnvironmentCommand::Update {
@@ -104,7 +104,6 @@ pub fn run(
             setup_command,
             remove_repo,
             remove_setup_command,
-            force,
         } => {
             let repos = parse_repos(repo)?;
             let remove_repos = parse_repos(remove_repo)?;
@@ -120,7 +119,6 @@ pub fn run(
                     setup_command,
                     remove_repos,
                     remove_setup_command,
-                    force,
                     ctx,
                 )
             });
@@ -770,70 +768,6 @@ impl EnvironmentCommandRunner {
         });
     }
 
-    // Before doing an action like `update` or `delete`, use this function to check whether
-    // they are currently being used in any integrations -- if they are, ask the user to confirm
-    // before running the supplied `on_confirm` function
-    fn confirm_if_integrations_using_environment<F>(
-        id: String,
-        action: &'static str,
-        on_confirm: F,
-        ctx: &mut ModelContext<Self>,
-    ) where
-        F: FnOnce(&mut ModelContext<Self>) + Send + 'static,
-    {
-        let integrations_client = ServerApiProvider::as_ref(ctx).get_integrations_client();
-
-        let check_integrations_future = async move {
-            integrations_client
-                .get_integrations_using_environment(id)
-                .await
-        };
-
-        ctx.spawn(check_integrations_future, move |_, result, ctx| {
-            match result {
-                Ok(output) => {
-                    if !output.provider_names.is_empty() {
-                        let integration_list = output.provider_names.join(", ");
-                        let prompt_message = format!(
-                            "This environment is used in the following integration(s): {integration_list}. Are you sure you want to {action} it?"
-                        );
-
-                        let confirmation = Confirm::new(&prompt_message)
-                            .with_default(false)
-                            .prompt();
-
-                        match confirmation {
-                            Ok(true) => on_confirm(ctx),
-                            Ok(false) | Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                                println!("Environment {action} canceled.");
-                                ctx.terminate_app(
-                                    warpui::platform::TerminationMode::ForceTerminate,
-                                    None,
-                                );
-                            }
-                            Err(err) => {
-                                ctx.terminate_app(
-                                    warpui::platform::TerminationMode::ForceTerminate,
-                                    Some(Err(anyhow::anyhow!("Error prompting for confirmation: {err}"))),
-                                );
-                            }
-                      }
-                    } else {
-                        on_confirm(ctx);
-                    }
-                }
-                Err(_) => {
-                    ctx.terminate_app(
-                        warpui::platform::TerminationMode::ForceTerminate,
-                        Some(Err(anyhow::anyhow!(
-                            "Aborting environment {action} because integration usage could not be determined. Re-run with --force to override."
-                        ))),
-                    );
-                }
-            }
-        });
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn update_environment(
         &mut self,
@@ -846,7 +780,6 @@ impl EnvironmentCommandRunner {
         add_setup_commands: Vec<String>,
         remove_repos: Vec<GithubRepo>,
         remove_setup_commands: Vec<String>,
-        force: bool,
         ctx: &mut ModelContext<Self>,
     ) {
         let initial_sync = UpdateManager::as_ref(ctx)
@@ -911,17 +844,10 @@ impl EnvironmentCommandRunner {
                 Self::auth_repos_then_execute(add_repos, 1, "update", execute_update, ctx);
             };
 
-            // Check if any integrations are using this environment
-            if force {
-                auth_repos_before_update(ctx);
-            } else {
-                Self::confirm_if_integrations_using_environment(
-                    id,
-                    "update",
-                    auth_repos_before_update,
-                    ctx,
-                );
-            }
+            // This used to first ask the server which integrations still referenced the
+            // environment, and prompt before touching one that was in use. `warp integration`
+            // is gone, so nothing can hold a reference and the prompt could never fire.
+            auth_repos_before_update(ctx);
         });
     }
 
@@ -1023,7 +949,7 @@ impl EnvironmentCommandRunner {
         });
     }
 
-    fn delete(&mut self, id: String, force: bool, ctx: &mut ModelContext<Self>) {
+    fn delete(&mut self, id: String, ctx: &mut ModelContext<Self>) {
         let initial_sync = UpdateManager::as_ref(ctx)
             .initial_load_complete()
             .with_timeout(WARP_DRIVE_SYNC_TIMEOUT);
@@ -1061,19 +987,8 @@ impl EnvironmentCommandRunner {
             };
             let type_and_id = environment.cloud_object_type_and_id();
 
-            // Check if any integrations are using this environment
-            if force {
-                Self::execute_delete(type_and_id, ctx);
-            } else {
-                Self::confirm_if_integrations_using_environment(
-                    id,
-                    "delete",
-                    move |ctx| {
-                        Self::execute_delete(type_and_id, ctx);
-                    },
-                    ctx,
-                );
-            }
+            // See `update_environment`: with no integrations there is nothing to warn about.
+            Self::execute_delete(type_and_id, ctx);
         });
     }
 

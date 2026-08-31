@@ -27,7 +27,6 @@ mod date_time;
 pub mod environment;
 pub mod federate;
 pub mod harness_support;
-pub mod integration;
 pub mod json_filter;
 pub mod local_control;
 pub mod mcp;
@@ -224,15 +223,6 @@ impl Args {
                     }
                 }
 
-                if !FeatureFlag::IntegrationCommand.is_enabled() {
-                    let args: Vec<String> = env::args().collect();
-                    if args.len() > 1 && args[1] == "integration" {
-                        eprintln!("error: unrecognized subcommand 'integration'\n");
-                        eprintln!("For more information, try '--help'");
-                        std::process::exit(2);
-                    }
-                }
-
                 if !FeatureFlag::ScheduledAmbientAgents.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "schedule" {
@@ -349,11 +339,6 @@ impl Args {
         // Hide the provider subcommand from help text
         if !FeatureFlag::ProviderCommand.is_enabled() {
             command = command.mut_subcommand("provider", |c| c.hide(true));
-        }
-
-        // Hide the integration subcommand from help text
-        if !FeatureFlag::IntegrationCommand.is_enabled() {
-            command = command.mut_subcommand("integration", |c| c.hide(true));
         }
 
         // Hide the schedule subcommand from help text.
@@ -565,10 +550,6 @@ pub enum CliCommand {
     #[command(subcommand)]
     Provider(crate::provider::ProviderCommand),
 
-    /// Manage integrations.
-    #[command(subcommand)]
-    Integration(crate::integration::IntegrationCommand),
-
     /// Create and manage scheduled Oz agents. Scheduled agents run a user-defined task periodically, according to a cron schedule.
     ///
     /// As a shorthand, the `schedule` command behaves identically to `schedule create`.
@@ -608,7 +589,6 @@ impl CliCommand {
             CliCommand::Logout => "logout",
             CliCommand::Whoami => "whoami",
             CliCommand::Provider(command) => command.as_str_for_tracing(),
-            CliCommand::Integration(command) => command.as_str_for_tracing(),
             CliCommand::Schedule(command) => command.as_str_for_tracing(),
             CliCommand::Secret(command) => command.as_str_for_tracing(),
             CliCommand::Federate(command) => command.as_str_for_tracing(),

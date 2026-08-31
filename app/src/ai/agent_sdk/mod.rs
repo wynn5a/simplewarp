@@ -22,7 +22,6 @@ use warp_cli::artifact::ArtifactCommand;
 use warp_cli::environment::{EnvironmentCommand, ImageCommand};
 use warp_cli::federate::FederateCommand;
 use warp_cli::harness_support::{HarnessSupportCommand, ReportArtifactCommand, TaskStatus};
-use warp_cli::integration::IntegrationCommand;
 use warp_cli::mcp::MCPCommand;
 use warp_cli::memory_store::{MemoryCommand, MemoryStoreCommand};
 use warp_cli::model::ModelCommand;
@@ -88,9 +87,7 @@ mod environment;
 mod federate;
 mod harness_support;
 #[cfg(not(target_family = "wasm"))]
-mod integration;
 #[cfg(not(target_family = "wasm"))]
-mod integration_output;
 mod mcp;
 mod mcp_config;
 mod memory_store;
@@ -164,17 +161,6 @@ fn dispatch_command(
                 return Err(anyhow::anyhow!("invalid value 'provider'"));
             }
             provider::run(ctx, global_options, provider_cmd)
-        }
-        #[cfg(not(target_family = "wasm"))]
-        CliCommand::Integration(integration_cmd) => {
-            if !FeatureFlag::IntegrationCommand.is_enabled() {
-                return Err(anyhow::anyhow!("invalid value 'integration'"));
-            }
-            integration::run(ctx, global_options, integration_cmd)
-        }
-        #[cfg(target_family = "wasm")]
-        CliCommand::Integration(_) => {
-            return Err(anyhow::anyhow!("invalid value 'integration'"));
         }
         CliCommand::Schedule(schedule_cmd) => {
             if !FeatureFlag::ScheduledAmbientAgents.is_enabled() {
@@ -1580,7 +1566,6 @@ fn command_requires_auth(command: &CliCommand) -> bool {
         CliCommand::Logout => false,
         CliCommand::Whoami => true,
         CliCommand::Provider(_) => true,
-        CliCommand::Integration(_) => true,
         CliCommand::Schedule(_) => true,
         CliCommand::Secret(_) => true,
         CliCommand::Federate(_) => true,
@@ -1795,11 +1780,6 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
         CliCommand::Whoami => CliTelemetryEvent::Whoami,
         CliCommand::Provider(ProviderCommand::Setup(_)) => CliTelemetryEvent::ProviderSetup,
         CliCommand::Provider(ProviderCommand::List) => CliTelemetryEvent::ProviderList,
-        CliCommand::Integration(integration_cmd) => match integration_cmd {
-            IntegrationCommand::Create(_) => CliTelemetryEvent::IntegrationCreate,
-            IntegrationCommand::Update(_) => CliTelemetryEvent::IntegrationUpdate,
-            IntegrationCommand::List => CliTelemetryEvent::IntegrationList,
-        },
         CliCommand::Schedule(c) => match c.subcommand() {
             None | Some(ScheduleSubcommand::Create(_)) => CliTelemetryEvent::ScheduleCreate,
             Some(ScheduleSubcommand::List) => CliTelemetryEvent::ScheduleList,
