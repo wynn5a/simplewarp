@@ -2279,6 +2279,51 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    `workspace::view` tools-panel-after-signup), 0 new. Built `./target/debug/simplewarp` and
    launched it: alive and clean, no panics, no error output.
 
+3aa. **The 8 "pre-existing failures" every round since 3u has reported as baseline — GONE.
+   The suite is green.** 2 files, 32 insertions, 0 deletions.
+
+   Eleven rounds recorded "8 failed (identical pre-existing set)" and moved on, treating the
+   number as a constant of the environment. It was not: all 8 have **one** root cause, and it
+   is this fork's own doing. `crate::features::warp_account_available()` is
+   `!cfg!(feature = "local_only")`, and it gates two things the 8 tests depend on:
+
+   - `Workspace::compute_left_panel_views` ANDs it into the Warp Drive tab's visibility, so in
+     a `local_only` build `left_panel_views` can never contain `ToolPanelView::WarpDrive` —
+     `test_tools_panel_warp_drive_toggle_updates_available_views` fails on its *first* assert,
+     and `test_tools_panel_preferences_activate_after_signup_and_ai_enablement` (whose whole
+     subject is account-first onboarding across a signup) fails the same way.
+   - `initialize_cloud_preferences_syncer` ANDs it into `sync_enabled`, so the syncer never
+     applies a cloud value to local. All six `cloud_preferences_syncer` failures are the same
+     assertion in different clothes: "cloud value should have been applied to local".
+
+   Both gates were *added by this project* and both carry a comment explaining why (the
+   toolbelt drops an icon that could only ever show a sign-in wall; the syncer would otherwise
+   warn about a missing personal drive on every launch). The production behaviour is right.
+   The tests were simply never re-pointed at it.
+
+   **Fixed with `#[cfg(not(feature = "local_only"))]` on the 8 tests, mirroring the production
+   gate exactly** — not deleted. These are not dead-feature tests like the ones rounds 3r–3z
+   removed: their subject still exists upstream and in the default feature set, and the
+   hash-comparison logic the six syncer tests cover is real, non-cloud logic worth keeping
+   under test. Rerouting them around the gate was considered and rejected: the syncer's
+   constructor doc says it "is the only entry point used to construct the syncer at app
+   startup; production code in `lib.rs` and end-to-end tests both call it so they exercise the
+   same code path", and calling `CloudPreferencesSyncer::new` directly would skip the very
+   hash computation `test_first_launch_with_no_stored_hash_lets_cloud_win` exists to check.
+
+   **Verified in both directions, because a cfg-gate that hides a real failure is worse than
+   the failure.** `cargo nextest run -p warp --lib` (default features, where the feature
+   exists) with a filter naming all 8: **8 run, 8 passed**. So the gate excludes them only
+   where their premise is false.
+
+   Acceptance: `cargo nextest run -p warp --no-default-features --features simplewarp
+   --no-fail-fast`: **5969 run, 5969 passed, 0 failed, 4 skipped** — the first fully green run
+   in this thread. The 8 gated tests still pass under default features. `cargo clippy
+   --all-targets` (simplewarp): 0 errors. `./script/format` clean.
+
+   Every earlier round's "8 failed (identical baseline)" acceptance line should now read as
+   0 failed; the baseline they were comparing against was a bug, not a floor.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

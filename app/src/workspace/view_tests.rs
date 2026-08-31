@@ -397,6 +397,10 @@ fn test_theme_chooser_does_not_suppress_tab_bar_traffic_light_padding() {
 /// preferences should remain true while unavailable, then take effect
 /// automatically as account and AI availability change—without an off/on
 /// toggle.
+// `Workspace::compute_left_panel_views` gates the Warp Drive tab on
+// `features::warp_account_available()`, so in a `local_only` build the tab this
+// test toggles cannot appear at all.
+#[cfg(not(feature = "local_only"))]
 #[test]
 fn test_tools_panel_preferences_activate_after_signup_and_ai_enablement() {
     let _skip_anon_guard = FeatureFlag::SkipFirebaseAnonymousUser.override_enabled(true);
@@ -4222,6 +4226,10 @@ fn test_pin_tab_on_grouped_tab_extracts_then_pins() {
 /// that tab from the tools panel live, and re-enabling Warp Drive must make it
 /// selectable again (the original report was that Warp Drive could vanish from
 /// the tools panel with no way back).
+// `Workspace::compute_left_panel_views` gates the Warp Drive tab on
+// `features::warp_account_available()`, so in a `local_only` build the tab this
+// test toggles cannot appear at all.
+#[cfg(not(feature = "local_only"))]
 #[test]
 fn test_tools_panel_warp_drive_toggle_updates_available_views() {
     // Force the non-anonymous path so `is_warp_drive_enabled` follows the

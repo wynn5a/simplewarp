@@ -1318,6 +1318,10 @@ fn write_stored_hash(app: &App, value: &str) {
     });
 }
 
+// The syncer only participates in cloud sync when the build has a Warp account
+// (`initialize_cloud_preferences_syncer` ANDs `warp_account_available()` into
+// `sync_enabled`), so a `local_only` build has no cloud for these to sync with.
+#[cfg(not(feature = "local_only"))]
 #[test]
 fn test_force_local_wins_on_startup_uploads_local_to_cloud() {
     App::test(ASSETS, |mut app| async move {
@@ -1409,6 +1413,10 @@ fn test_force_local_wins_on_startup_uploads_local_to_cloud() {
     })
 }
 
+// The syncer only participates in cloud sync when the build has a Warp account
+// (`initialize_cloud_preferences_syncer` ANDs `warp_account_available()` into
+// `sync_enabled`), so a `local_only` build has no cloud for these to sync with.
+#[cfg(not(feature = "local_only"))]
 #[test]
 fn test_no_force_local_when_hashes_match() {
     App::test(ASSETS, |mut app| async move {
@@ -1467,6 +1475,10 @@ fn test_no_force_local_when_hashes_match() {
     })
 }
 
+// The syncer only participates in cloud sync when the build has a Warp account
+// (`initialize_cloud_preferences_syncer` ANDs `warp_account_available()` into
+// `sync_enabled`), so a `local_only` build has no cloud for these to sync with.
+#[cfg(not(feature = "local_only"))]
 #[test]
 fn test_force_local_suppressed_when_file_is_broken() {
     App::test(ASSETS, |mut app| async move {
@@ -1538,6 +1550,10 @@ fn test_force_local_suppressed_when_file_is_broken() {
     })
 }
 
+// The syncer only participates in cloud sync when the build has a Warp account
+// (`initialize_cloud_preferences_syncer` ANDs `warp_account_available()` into
+// `sync_enabled`), so a `local_only` build has no cloud for these to sync with.
+#[cfg(not(feature = "local_only"))]
 #[test]
 fn test_file_missing_with_stored_hash_lets_cloud_win() {
     App::test(ASSETS, |mut app| async move {
@@ -1591,6 +1607,10 @@ fn test_file_missing_with_stored_hash_lets_cloud_win() {
     })
 }
 
+// The syncer only participates in cloud sync when the build has a Warp account
+// (`initialize_cloud_preferences_syncer` ANDs `warp_account_available()` into
+// `sync_enabled`), so a `local_only` build has no cloud for these to sync with.
+#[cfg(not(feature = "local_only"))]
 #[test]
 fn test_first_launch_with_no_stored_hash_lets_cloud_win() {
     App::test(ASSETS, |mut app| async move {
@@ -1647,6 +1667,10 @@ fn test_first_launch_with_no_stored_hash_lets_cloud_win() {
     })
 }
 
+// The syncer only participates in cloud sync when the build has a Warp account
+// (`initialize_cloud_preferences_syncer` ANDs `warp_account_available()` into
+// `sync_enabled`), so a `local_only` build has no cloud for these to sync with.
+#[cfg(not(feature = "local_only"))]
 #[test]
 fn test_offline_ui_change_does_not_update_hash_until_sync_succeeds() {
     App::test(ASSETS, |mut app| async move {
