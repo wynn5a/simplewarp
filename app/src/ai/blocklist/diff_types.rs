@@ -42,32 +42,6 @@ impl FileDiff {
     pub fn file_path(&self) -> String {
         self.base.file_path.clone()
     }
-
-    /// Returns `(lines_added, lines_removed)` described by this diff's op.
-    pub fn line_stats(&self) -> (usize, usize) {
-        match &self.diff_type {
-            DiffType::Create { delta } => (line_count(&delta.insertion), 0),
-            DiffType::Delete { delta } => (
-                0,
-                delta
-                    .replacement_line_range
-                    .end
-                    .saturating_sub(delta.replacement_line_range.start),
-            ),
-            DiffType::Update { deltas, .. } => deltas.iter().fold((0, 0), |(add, rem), delta| {
-                let removed = delta
-                    .replacement_line_range
-                    .end
-                    .saturating_sub(delta.replacement_line_range.start);
-                (add + line_count(&delta.insertion), rem + removed)
-            }),
-        }
-    }
-}
-
-/// Counts lines in `content`, treating non-empty trailing text as its own line.
-fn line_count(content: &str) -> usize {
-    content.lines().count()
 }
 
 /// Whether a code diff targets the local filesystem or a remote host.

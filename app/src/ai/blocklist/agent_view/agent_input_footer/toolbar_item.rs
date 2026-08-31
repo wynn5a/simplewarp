@@ -157,17 +157,6 @@ impl AgentToolbarItemKind {
         }
     }
 
-    pub fn is_context_chip(&self) -> bool {
-        matches!(self, Self::ContextChip(_))
-    }
-
-    pub fn context_chip_kind(&self) -> Option<&ContextChipKind> {
-        match self {
-            Self::ContextChip(kind) => Some(kind),
-            _ => None,
-        }
-    }
-
     /// Default left-side items for the agent view footer.
     pub fn default_left() -> Vec<Self> {
         let mut items = vec![

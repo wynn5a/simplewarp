@@ -277,9 +277,6 @@ pub struct BlocklistAIHistoryModel {
     /// has no bearing on when any [`AIConversation`]s take place for that terminal surface.
     terminal_surface_created_at: HashMap<EntityId, DateTime<Local>>,
 
-    /// A set of terminal surfaces that are shared ambient agent sessions.
-    ambient_agent_terminal_surface_ids: HashSet<EntityId>,
-
     /// A set of terminal surfaces that are read-only conversation transcript viewers.
     /// This is view/UI state (not conversation state) and is used to filter transcript viewer
     /// conversations out of local history and navigation.
@@ -398,25 +395,6 @@ impl BlocklistAIHistoryModel {
         terminal_surface_id: EntityId,
     ) -> impl Iterator<Item = &AIAgentExchange> {
         self.live_conversation_ids_for_terminal_surface
-            .get(&terminal_surface_id)
-            .into_iter()
-            .flat_map(|conversation_ids| {
-                conversation_ids.iter().flat_map(|conversation_id| {
-                    self.conversations_by_id
-                        .get(conversation_id)
-                        .map(|conversation| conversation.root_task_exchanges())
-                })
-            })
-            .flatten()
-    }
-
-    /// Returns a flattened and ordered (oldest first) list of exchanges from conversations
-    /// that were cleared for a terminal surface, but are no longer live/visible.
-    pub fn all_cleared_root_task_exchanges_for_terminal_surface(
-        &self,
-        terminal_surface_id: EntityId,
-    ) -> impl Iterator<Item = &AIAgentExchange> {
-        self.cleared_conversation_ids_for_terminal_surface
             .get(&terminal_surface_id)
             .into_iter()
             .flat_map(|conversation_ids| {
@@ -1060,14 +1038,6 @@ impl BlocklistAIHistoryModel {
             })
     }
 
-    pub fn conversation_status(
-        &self,
-        conversation_id: &AIConversationId,
-    ) -> Option<&ConversationStatus> {
-        self.conversation(conversation_id)
-            .map(|conversation| conversation.status())
-    }
-
     /// Returns the render status of one todo item in the conversation's todo
     /// history (see [`AIConversation::todo_status`]) — a narrow projection
     /// for consumers that don't need the whole `AIConversation`.
@@ -1181,13 +1151,8 @@ impl BlocklistAIHistoryModel {
         )?;
 
         // Append the new user query to the session NLD prompt history so input classification can
-        // match it. Skip shared ambient agent sessions and the synthetic orchestrator prompt.
-        if !is_synthetic_orchestrator_prompt
-            && !self
-                .ambient_agent_terminal_surface_ids
-                .contains(&terminal_surface_id)
-            && let Some((text, start_ts)) = new_prompt
-        {
+        // match it. Skip the synthetic orchestrator prompt.
+        if !is_synthetic_orchestrator_prompt && let Some((text, start_ts)) = new_prompt {
             self.append_session_prompt(text, start_ts);
         }
         Ok(())
@@ -2324,21 +2289,6 @@ impl BlocklistAIHistoryModel {
         }
     }
 
-    /// Returns true if the conversation is live for any terminal surface.
-    pub fn is_conversation_live(&self, conversation_id: AIConversationId) -> bool {
-        self.live_conversation_ids_for_terminal_surface
-            .values()
-            .any(|conversation_ids| conversation_ids.contains(&conversation_id))
-    }
-
-    pub fn mark_terminal_surface_as_ambient_agent_session_view(
-        &mut self,
-        terminal_surface_id: EntityId,
-    ) {
-        self.ambient_agent_terminal_surface_ids
-            .insert(terminal_surface_id);
-    }
-
     pub fn mark_terminal_surface_as_conversation_transcript_viewer(
         &mut self,
         terminal_surface_id: EntityId,
@@ -2376,14 +2326,6 @@ impl BlocklistAIHistoryModel {
             self.live_conversation_ids_for_terminal_surface.iter()
         {
             loaded_conversation_ids.extend(conversation_ids);
-
-            // Skip shared ambient agent sessions
-            if self
-                .ambient_agent_terminal_surface_ids
-                .contains(conversation_terminal_surface_id)
-            {
-                continue;
-            }
 
             let history_order =
                 if terminal_surface_id.is_some_and(|id| id == *conversation_terminal_surface_id) {
@@ -2885,7 +2827,6 @@ impl BlocklistAIHistoryModel {
         self.cleared_conversation_ids_for_terminal_surface.clear();
         self.conversations_by_id.clear();
         self.active_conversation_for_terminal_surface.clear();
-        self.ambient_agent_terminal_surface_ids.clear();
         self.conversation_transcript_viewer_terminal_surface_ids
             .clear();
         self.persisted_queries.clear();

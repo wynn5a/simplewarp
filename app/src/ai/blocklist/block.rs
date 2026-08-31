@@ -108,8 +108,6 @@ use crate::ai::blocklist::block::keyboard_navigable_buttons::{
     KeyboardNavigableButtonBuilder, KeyboardNavigableButtons,
 };
 use crate::ai::blocklist::context_model::AttachmentType;
-#[cfg(feature = "agent_mode_debug")]
-use crate::ai::blocklist::diff_types::FileDiff;
 use crate::ai::blocklist::inline_action::ask_user_question_view::{
     self, AskUserQuestionView, AskUserQuestionViewEvent,
 };
@@ -208,8 +206,7 @@ use crate::workspace::{ForkAIConversationParams, ForkedConversationDestination, 
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{
-    AIAgentTodoList, Appearance, FileEdit, LLMPreferences, PrivacySettings, ToastStack,
-    send_telemetry_from_ctx,
+    AIAgentTodoList, Appearance, FileEdit, PrivacySettings, ToastStack, send_telemetry_from_ctx,
 };
 
 /// The default display name used for the user if they have no associated display name.
@@ -1857,10 +1854,6 @@ impl AIBlock {
         self.spawn_link_detection(ctx);
 
         ctx.notify();
-    }
-
-    pub fn contains_actions(&self) -> bool {
-        !self.requested_action_ids.is_empty()
     }
 
     pub fn contains_action(&self, action_id: &AIAgentActionId) -> bool {
@@ -4562,14 +4555,6 @@ impl AIBlock {
         Some(rich_content_link)
     }
 
-    /// `true` if the AI output in the block finished streaming.
-    ///
-    /// Note that this is different from `is_finished` since user could still have pending
-    /// actions to execute.
-    pub fn is_ai_output_complete(&self, app: &AppContext) -> bool {
-        self.model.status(app).is_complete()
-    }
-
     /// Returns `true` if the block contains any actions that are blocked on user confirmation.
     pub fn is_blocked_on_user_confirmation(&self, app: &AppContext) -> bool {
         self.requested_action_ids
@@ -5619,35 +5604,8 @@ impl AIBlock {
             .find(|view| !view.as_ref(app).is_hidden())
     }
 
-    /// Inspects the state of the AI output stream and determines if we are currently at a point where
-    /// we should render the floating AI control panel. This is purely a UX decision.
-    pub fn should_show_ai_control_panel(&self, app: &AppContext) -> bool {
-        // Returns true if we're not blocked on user input at this moment.
-        // A stream of regular text output is not blocking. Generating a command is not blocking. Generating a code
-        // diff is not blocking. In those cases, we return true. Waiting for a user to accept a requested command
-        // is blocking. So is waiting for them to accept a file read. In those cases, we return false since the action
-        // takes responsiblity for showing a cancel option.
-        self.model
-            .status(app)
-            .output_to_render()
-            .is_none_or(|output| {
-                output.get().actions().last().is_none_or(|action| {
-                    let is_streaming = self.model.status(app).is_streaming();
-                    let status = self.action_model.as_ref(app).get_action_status(&action.id);
-                    is_streaming || status.is_some_and(|status| status.is_running())
-                })
-            })
-    }
-
     pub fn saved_position_id(&self) -> String {
         get_rich_content_position_id(&self.view_id)
-    }
-
-    pub fn get_pending_action_type(&self, app: &AppContext) -> Option<AIAgentActionType> {
-        self.action_model
-            .as_ref(app)
-            .get_pending_action(app)
-            .map(|action| action.action.clone())
     }
 
     pub fn status(&self, app: &AppContext) -> AIBlockOutputStatus {
@@ -5664,41 +5622,6 @@ impl AIBlock {
                     .is_some_and(|status| status.is_running())
                     && requested_command.view.as_ref(app).is_header_expanded()
             })
-    }
-
-    pub fn output_model_display_name(&self, app: &AppContext) -> String {
-        let Some(base_model_id) = self.model.base_model(app) else {
-            log::warn!("No base model found for output model display name");
-            return String::default();
-        };
-
-        // Get the model name from the input metadata.
-        let mut model_name = LLMPreferences::as_ref(app)
-            .get_llm_info(base_model_id)
-            .map(|info| info.display_name.clone())
-            .unwrap_or_default();
-
-        // If the input model is "auto", always display that, otherwise use the actual output model if available.
-        if model_name != "auto" {
-            let model_id = self.model.model_id(app);
-            if let Some(model_id) = model_id
-                && let Some(output_model_name) = LLMPreferences::as_ref(app)
-                    .get_llm_info(&model_id)
-                    .map(|info| info.display_name.clone())
-            {
-                model_name = output_model_name;
-            }
-        }
-        model_name
-    }
-
-    #[cfg(feature = "agent_mode_debug")]
-    pub fn set_diffs(&self, diffs: Vec<FileDiff>, ctx: &mut ViewContext<Self>) {
-        if let Some(edit) = self.requested_edits.values().next() {
-            edit.view.update(ctx, |view, ctx| {
-                view.set_candidate_diffs(diffs, ctx);
-            });
-        }
     }
 
     /// Gets the prompt text for copying

@@ -340,8 +340,7 @@ impl InlineModelSelectorView {
             | CLISubagentEvent::UpdatedControl { .. } => {
                 me.menu_view.update(ctx, |_, ctx| ctx.notify());
             }
-            CLISubagentEvent::UpdatedInstruction { .. }
-            | CLISubagentEvent::UpdatedLastSnapshot
+            CLISubagentEvent::UpdatedLastSnapshot
             | CLISubagentEvent::ToggledHideResponses
             | CLISubagentEvent::ControlHandedBackAfterTransfer => {}
         });

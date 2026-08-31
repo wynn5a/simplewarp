@@ -239,9 +239,6 @@ fn ephemeral_mcp_installation_id(
 struct IdleTimeoutSender<T: Send + 'static> {
     tx_cell: Arc<Mutex<Option<oneshot::Sender<T>>>>,
     generation: Arc<AtomicUsize>,
-    /// Most recent [`Self::arm_refreshable`] call. Held here rather than by the caller so a
-    /// long-lived refresher cannot re-arm with a superseded outcome.
-    pending: Arc<Mutex<Option<(T, Duration)>>>,
 }
 
 // Hand-written so cloning does not require `T: Clone`. Every field is a shared handle, so
@@ -251,7 +248,6 @@ impl<T: Send + 'static> Clone for IdleTimeoutSender<T> {
         Self {
             tx_cell: Arc::clone(&self.tx_cell),
             generation: Arc::clone(&self.generation),
-            pending: Arc::clone(&self.pending),
         }
     }
 }
@@ -261,7 +257,6 @@ impl<T: Send + 'static> IdleTimeoutSender<T> {
         Self {
             tx_cell: Arc::new(Mutex::new(Some(tx))),
             generation: Arc::new(AtomicUsize::new(0)),
-            pending: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -302,13 +297,7 @@ impl<T: Send + 'static> IdleTimeoutSender<T> {
     }
 
     /// Cancel any pending idle timers.
-    ///
-    /// Also drops the recorded [`Self::arm_refreshable`] outcome, so a refresher that outlives the
-    /// cancellation cannot reschedule the exit it was cancelling.
     fn cancel_idle_timeout(&self) {
-        if let Ok(mut pending) = self.pending.lock() {
-            *pending = None;
-        }
         if self.generation.load(Ordering::SeqCst) > 0 {
             self.generation.fetch_add(1, Ordering::SeqCst);
         }
@@ -322,30 +311,6 @@ impl<T: Send + 'static> IdleTimeoutSender<T> {
         } else {
             self.end_run_now(value);
         }
-    }
-}
-
-impl<T: Clone + Send + 'static> IdleTimeoutSender<T> {
-    /// End the run with `value` after `window`, recording both for [`Self::refresh`].
-    ///
-    /// Re-arming replaces the recorded outcome, so a run that fails, resumes, and fails again
-    /// exits reporting its most recent failure.
-    fn arm_refreshable(&self, window: Duration, value: T) {
-        if let Ok(mut pending) = self.pending.lock() {
-            *pending = Some((value.clone(), window));
-        }
-        self.end_run_after(window, value);
-    }
-
-    /// Push an armed deadline out by its original window. Returns that window, or `None` if
-    /// nothing was armed.
-    fn refresh(&self) -> Option<Duration> {
-        let (value, window) = {
-            let pending = self.pending.lock().ok()?;
-            pending.clone()?
-        };
-        self.end_run_after(window, value);
-        Some(window)
     }
 }
 
@@ -521,7 +486,6 @@ pub struct AgentDriver {
 
     // Whether a viewer-input subscription is already refreshing an open debug window. Guards
     // against stacking a second subscription when a run fails, is resumed, and fails again.
-    debug_window_refresh_installed: bool,
 
     // When the debug window's deadline was last published to the server, used to throttle
     // republishing on high-frequency viewer input.
@@ -983,7 +947,6 @@ impl AgentDriver {
             harness: None,
             idle_on_complete,
             idle_on_fail,
-            debug_window_refresh_installed: false,
             last_published_debug_deadline: None,
             restored_conversation_id,
             resume_payload,
@@ -1032,7 +995,6 @@ impl AgentDriver {
             harness: None,
             idle_on_complete: None,
             idle_on_fail: None,
-            debug_window_refresh_installed: false,
             last_published_debug_deadline: None,
             restored_conversation_id: None,
             resume_payload: None,
@@ -2985,7 +2947,7 @@ impl AgentDriver {
     /// session someone is working in is not torn down underneath them.
     ///
     /// Both failure paths route through here so a conversation error and a setup failure behave
-    /// identically. The refresh subscription is installed once per driver.
+    /// identically.
     fn arm_debug_window<T: Clone + Send + 'static>(
         &mut self,
         idle_timeout: IdleTimeoutSender<T>,
@@ -2993,22 +2955,13 @@ impl AgentDriver {
         window: Duration,
         ctx: &mut ModelContext<Self>,
     ) {
-        // Recorded on the timer rather than captured below, so re-arming supersedes it.
-        idle_timeout.arm_refreshable(window, value);
+        idle_timeout.end_run_after(window, value);
 
         // A newly armed window always publishes. The throttle exists for keystroke-level
         // refreshes; letting it suppress this would leave the previous window's deadline on the
         // run, which reads as already-expired and hides that the session is reachable.
         self.last_published_debug_deadline = None;
         self.publish_debug_window_deadline(window, ctx);
-
-        if self.debug_window_refresh_installed {
-            return;
-        }
-        self.debug_window_refresh_installed = true;
-
-        // Without session sharing there is no viewer input to refresh the debug window on.
-        let _ = idle_timeout;
     }
 
     /// Publishes the debug window's current deadline for display on run surfaces.

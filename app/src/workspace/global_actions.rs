@@ -48,10 +48,6 @@ impl ForkedConversationDestination {
         matches!(self, Self::NewTab)
     }
 
-    pub fn is_split_pane(&self) -> bool {
-        matches!(self, Self::SplitPane)
-    }
-
     pub fn is_current_pane(&self) -> bool {
         matches!(self, Self::CurrentPane)
     }

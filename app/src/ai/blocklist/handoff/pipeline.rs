@@ -168,12 +168,6 @@ impl HandoffPrepareInput {
         self
     }
 
-    #[allow(dead_code)]
-    pub fn with_environment_required(mut self, environment_required: bool) -> Self {
-        self.environment_required = environment_required;
-        self
-    }
-
     pub fn with_cancellation_reason(mut self, cancellation_reason: CancellationReason) -> Self {
         self.cancellation_reason = cancellation_reason;
         self

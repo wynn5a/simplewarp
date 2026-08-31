@@ -76,9 +76,6 @@ impl std::error::Error for BootstrapError {}
 /// Describes why an agent's session-sharing request failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ShareSessionError {
-    /// The server rejected the session-sharing request.
-    #[error("{0}")]
-    Failed(String),
     /// This build cannot share a session.
     #[error("Session sharing is not available in this build.")]
     Disabled,

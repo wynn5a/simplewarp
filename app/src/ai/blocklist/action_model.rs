@@ -22,8 +22,6 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use ai::document::DEFAULT_PLANNING_DOCUMENT_TITLE;
-use chrono::Local;
 pub use execute::{
     AskUserQuestionExecutor, EditAcceptAndContinueClickedEvent, EditAcceptClickedEvent,
     EditResolvedEvent, EditStats, NewConversationDecision, PromptSuggestionExecutor,
@@ -57,12 +55,10 @@ use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
     AIAgentActionType, AIAgentActionTypeDiscriminants, AIAgentExchange, AIAgentInput,
-    CancellationOutcome, CancellationReason, CreateDocumentsResult, EditDocumentsResult,
-    RequestCommandOutputResult,
+    CancellationOutcome, CancellationReason, RequestCommandOutputResult,
 };
 use crate::ai::blocklist::action_model::execute::suggest_new_conversation::SuggestNewConversationExecutor;
 use crate::ai::blocklist::telemetry::send_run_agents_completed_telemetry;
-use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
 use crate::terminal::TerminalModel;
 use crate::terminal::model::session::active_session::ActiveSession;
@@ -321,34 +317,6 @@ impl BlocklistAIActionModel {
         self.is_view_only = is_view_only;
     }
 
-    /// Marks an action as remotely executing on the viewer side.
-    /// This is called when a viewer receives a CommandExecutionStarted event from the sharer,
-    /// allowing the viewer's UI to show the action as running even though it's not executing locally.
-    pub fn mark_action_as_remotely_executing(
-        &mut self,
-        action_id: &AIAgentActionId,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // Only applicable for viewers
-        if !self.is_view_only {
-            return;
-        }
-
-        // Remove the action from pending_actions for the specific conversation
-        // so that we can correctly show the command as running.
-        if let Some(pending_actions) = self.pending_actions.get_mut(&conversation_id) {
-            pending_actions.retain(|a| &a.id != action_id);
-        }
-
-        self.add_running_action(
-            conversation_id,
-            action_id.clone(),
-            RunningActionPhase::Serial,
-        );
-        ctx.emit(BlocklistAIActionEvent::ExecutingAction(action_id.clone()));
-    }
-
     /// Returns true if the action model is operating in view-only mode (used for shared-session viewers).
     pub fn is_view_only(&self) -> bool {
         self.is_view_only
@@ -460,11 +428,6 @@ impl BlocklistAIActionModel {
         }
     }
 
-    /// Clears action results restored from a previous conversation transcript.
-    pub fn clear_restored_action_results(&mut self) {
-        self.past_action_results.clear();
-    }
-
     fn try_to_execute_available_actions(
         &mut self,
         conversation_id: AIConversationId,
@@ -542,14 +505,6 @@ impl BlocklistAIActionModel {
         self.blocked_action_for_conversation(&conversation_id)
     }
 
-    /// Returns a pending action by its ID, searching across all conversations.
-    pub fn get_pending_action_by_id(&self, action_id: &AIAgentActionId) -> Option<&AIAgentAction> {
-        self.pending_actions
-            .values()
-            .flat_map(|queue| queue.iter())
-            .find(|action| &action.id == action_id)
-    }
-
     /// Returns the next pending or running action ID, for the active conversation, if any.
     pub fn get_pending_or_running_action_id<'a>(
         &'a self,
@@ -579,14 +534,6 @@ impl BlocklistAIActionModel {
             .get(&conversation_id)
             .and_then(RunningActions::first_action_id)
             .and_then(|action_id| self.executor.as_ref(app).async_executing_action(action_id))
-    }
-
-    /// Returns whether there is a pending or running action for the active conversation.
-    pub fn has_unfinished_actions(&self, app: &AppContext) -> bool {
-        let Some(conversation_id) = self.active_conversation_id(app) else {
-            return false;
-        };
-        self.has_unfinished_actions_for_conversation(conversation_id)
     }
 
     pub fn has_unfinished_actions_for_conversation(
@@ -1009,34 +956,6 @@ impl BlocklistAIActionModel {
         self.try_to_execute_available_actions(conversation_id, ctx);
     }
 
-    /// Apply a finished action result to the conversation.
-    /// This is used in agent session sharing to apply finished action results
-    /// received from the action stream.
-    pub fn apply_finished_action_result(
-        &mut self,
-        conversation_id: AIConversationId,
-        mut action_result: AIAgentActionResult,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let action_id = action_result.id.clone();
-        if let Some(queue) = self.pending_actions.get_mut(&conversation_id)
-            && let Some(idx) = queue.iter().position(|a| a.id == action_id)
-        {
-            queue.remove(idx);
-        }
-
-        // For shared session viewers, take in any document action results
-        // and apply the associated actions to the local document version
-        // (or create a new document if the given doc does not exist).
-        self.maybe_sync_view_only_documents_with_local_model(
-            conversation_id,
-            &mut action_result,
-            ctx,
-        );
-
-        self.handle_action_result(conversation_id, Arc::new(action_result), None, ctx);
-    }
-
     /// Cancels a running or pending action by id with the given reason.
     /// Public because both frontends' permission cards route Reject here.
     pub fn cancel_action_with_id(
@@ -1384,86 +1303,6 @@ impl BlocklistAIActionModel {
             }
         } else {
             self.try_to_execute_available_actions(conversation_id, ctx);
-        }
-    }
-
-    /// In shared-session viewer (view-only) mode, ensure document-related action results
-    /// are backed by documents in the local `AIDocumentModel` and that their
-    /// `DocumentContext` versions match. For CreateDocuments, restore missing documents
-    /// (using titles from the original action); for EditDocuments, apply edits to local
-    /// documents and align versions, so headers and "View" buttons stay accurate.
-    fn maybe_sync_view_only_documents_with_local_model(
-        &self,
-        conversation_id: AIConversationId,
-        result: &mut AIAgentActionResult,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if !self.is_view_only {
-            return;
-        }
-
-        match &mut result.result {
-            AIAgentActionResultType::CreateDocuments(CreateDocumentsResult::Success {
-                created_documents,
-            }) => {
-                let history = BlocklistAIHistoryModel::handle(ctx);
-                let Some(conversation) = history.as_ref(ctx).conversation(&conversation_id) else {
-                    return;
-                };
-                let titles = conversation.get_document_titles_for_action(&result.id);
-
-                let doc_model = AIDocumentModel::handle(ctx);
-                doc_model.update(ctx, |doc_model, doc_ctx| {
-                    for (index, doc_context) in created_documents.iter_mut().enumerate() {
-                        // If a user is re-opening a shared session that they previously closed in the current warp session,
-                        // we should delete the previously created document so that the verseion history doesn't get messed up.
-                        doc_model.delete_document(&doc_context.document_id);
-
-                        let title = titles
-                            .as_ref()
-                            .and_then(|t| t.get(index))
-                            .cloned()
-                            .unwrap_or_else(|| DEFAULT_PLANNING_DOCUMENT_TITLE.to_string());
-
-                        doc_model.restore_document(
-                            doc_context.document_id,
-                            conversation_id,
-                            &title,
-                            doc_context.content.clone(),
-                            Local::now(),
-                            doc_ctx,
-                        );
-                    }
-                });
-            }
-            AIAgentActionResultType::EditDocuments(EditDocumentsResult::Success {
-                updated_documents,
-            }) => {
-                let doc_model = AIDocumentModel::handle(ctx);
-                doc_model.update(ctx, |doc_model, doc_ctx| {
-                    for doc_context in updated_documents.iter_mut() {
-                        if doc_model
-                            .get_current_document(&doc_context.document_id)
-                            .is_none()
-                        {
-                            // You can't make edits to a doc that does not exist.
-                            continue;
-                        }
-
-                        if let Some(new_version) = doc_model.restore_document_edit(
-                            &doc_context.document_id,
-                            doc_context.content.clone(),
-                            Local::now(),
-                            doc_ctx,
-                        ) {
-                            // Align the header's version with the locally restored doc
-                            // so the viewer sees the correct bumped version.
-                            doc_context.document_version = new_version;
-                        }
-                    }
-                });
-            }
-            _ => {}
         }
     }
 }

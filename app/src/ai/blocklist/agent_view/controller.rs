@@ -469,18 +469,6 @@ impl AgentViewController {
         Ok(())
     }
 
-    /// If set, indicates the user attempted to exit an in-progress conversation and we are
-    /// waiting for a second exit attempt to confirm cancelling/exiting.
-    pub fn pending_exit_confirmation_conversation_id(&self) -> Option<AIConversationId> {
-        match self.pending_confirmation.as_ref() {
-            Some(PendingConfirmation::Exit {
-                conversation_id,
-                expires_at,
-            }) if *expires_at > Instant::now() => Some(*conversation_id),
-            _ => None,
-        }
-    }
-
     pub fn clear_pending_exit_confirmation(&mut self, ctx: &mut ModelContext<Self>) {
         self.clear_exit_confirmation(ctx);
     }

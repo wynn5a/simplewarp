@@ -928,28 +928,6 @@ impl BlocklistAIController {
         );
     }
 
-    /// Sends the first submission of a previously queued user prompt into a new conversation.
-    /// Same as [`Self::send_user_query_in_new_conversation`] but marks the emitted
-    /// `SentRequest` event so UI subscribers (e.g. the input editor) know not to treat
-    /// this as a direct user submission and therefore not clear the input buffer.
-    pub fn send_queued_user_query_in_new_conversation(
-        &mut self,
-        query: String,
-        static_query_type: Option<StaticQueryType>,
-        entrypoint_type: EntrypointType,
-        queued_query_id: QueuedQueryId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.send_user_query_in_new_conversation_internal(
-            query,
-            static_query_type,
-            entrypoint_type,
-            /*is_queued_prompt*/ true,
-            Some(queued_query_id),
-            ctx,
-        );
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn send_user_query_in_new_conversation_internal(
         &mut self,
@@ -1080,26 +1058,6 @@ impl BlocklistAIController {
             EntrypointType::UserInitiated,
             /*is_queued_prompt*/ true,
             Some(queued_query_id),
-            ctx,
-        );
-    }
-
-    /// Sends the given user query to the AI model, with additional referenced attachments.
-    pub fn send_user_query_in_conversation_with_attachments(
-        &mut self,
-        query: String,
-        conversation_id: AIConversationId,
-        additional_attachments: HashMap<String, AIAgentAttachment>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.send_user_query_in_conversation_internal(
-            query,
-            conversation_id,
-            false, // skip_running_command_detection
-            additional_attachments,
-            EntrypointType::UserInitiated,
-            /*is_queued_prompt*/ false,
-            /*queued_query_id*/ None,
             ctx,
         );
     }
@@ -1346,18 +1304,6 @@ impl BlocklistAIController {
         } else {
             self.send_slash_command_request(request, ctx);
         }
-    }
-
-    /// Resolves and sends a skill invocation for surfaces that do not need intermediate UI work.
-    pub fn send_invoke_skill_request(
-        &mut self,
-        reference: SkillReference,
-        user_query: Option<String>,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<(), ActiveSkillLookupError> {
-        let skill = self.resolve_skill_for_invocation(&reference, ctx)?;
-        self.send_resolved_skill_invocation(skill, user_query, None, None, ctx);
-        Ok(())
     }
 
     /// Same as [`Self::send_slash_command_request`] but marks the emitted `SentRequest`

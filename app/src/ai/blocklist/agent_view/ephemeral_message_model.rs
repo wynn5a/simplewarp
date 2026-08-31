@@ -7,8 +7,6 @@ use warpui::{Entity, ModelContext};
 use super::agent_message_bar::AgentMessageArgs;
 use crate::terminal::input::message_bar::{Message, MessageProvider};
 
-const DEFAULT_MESSAGE_DURATION: Duration = Duration::from_millis(1500);
-
 pub struct EphemeralMessage {
     /// Optional id that may be used to identify the message.
     id: Option<Cow<'static, str>>,
@@ -40,11 +38,6 @@ impl EphemeralMessage {
 
     pub fn with_id(mut self, id: impl Into<Cow<'static, str>>) -> Self {
         self.id = Some(id.into());
-        self
-    }
-
-    pub fn with_duration(mut self, duration: Duration) -> Self {
-        self.dismissal = DismissalStrategy::Timer(duration);
         self
     }
 
@@ -101,20 +94,6 @@ impl EphemeralMessageModel {
         }
 
         ctx.emit(EphemeralMessageModelEvent::MessageChanged);
-    }
-
-    pub fn show_info_ephemeral_message(
-        &mut self,
-        message: impl Into<Cow<'static, str>>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.show_ephemeral_message(
-            EphemeralMessage::new(
-                Message::from_text(message),
-                DismissalStrategy::Timer(DEFAULT_MESSAGE_DURATION),
-            ),
-            ctx,
-        );
     }
 
     /// Dismisses the current message if it is not timer-based.

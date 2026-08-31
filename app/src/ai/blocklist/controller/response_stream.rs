@@ -8,7 +8,6 @@ use uuid::Uuid;
 use warp_errors::report_error;
 #[cfg(not(target_family = "wasm"))]
 use warp_multi_agent_api as maa_api;
-use warp_multi_agent_api::response_event;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::agent::api::{self, ConvertToAPITypeError, generate_multi_agent_output};
@@ -75,13 +74,6 @@ fn recovery_action(
 pub struct ResponseStreamId(String);
 
 impl ResponseStreamId {
-    pub fn for_shared_session(init_event: &response_event::StreamInit) -> Self {
-        // Make the stream ID unique per viewing by appending a local UUID
-        // This prevents collisions when replaying the same conversation multiple times
-        // (either on close-and-reopen or when viewing the same shared session from multiple terminals)
-        Self(format!("{}-{}", init_event.request_id, Uuid::new_v4()))
-    }
-
     #[cfg(test)]
     pub fn new_for_test() -> Self {
         Self(Uuid::new_v4().to_string())

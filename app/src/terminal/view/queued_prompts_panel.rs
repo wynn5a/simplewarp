@@ -468,9 +468,7 @@ impl QueuedPromptsPanelView {
             | CLISubagentEvent::ControlHandedBackAfterTransfer => {
                 self.update_send_now_availability(ctx);
             }
-            CLISubagentEvent::UpdatedInstruction { .. }
-            | CLISubagentEvent::UpdatedLastSnapshot
-            | CLISubagentEvent::ToggledHideResponses => {}
+            CLISubagentEvent::UpdatedLastSnapshot | CLISubagentEvent::ToggledHideResponses => {}
         }
     }
 

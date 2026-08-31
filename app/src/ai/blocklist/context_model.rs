@@ -50,14 +50,6 @@ pub enum AttachmentType {
     File,
 }
 
-/// Lightweight metadata for rendering a pending attachment without cloning its payload.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PendingAttachmentSummary {
-    pub index: usize,
-    pub attachment_type: AttachmentType,
-    pub file_name: String,
-}
-
 /// A pending attachment — either an image (base64 in memory) or a file (path reference).
 #[derive(Clone, Debug)]
 pub enum PendingAttachment {
@@ -284,19 +276,6 @@ impl BlocklistAIContextModel {
     /// Returns all pending attachments (images and files) for the next query.
     pub fn pending_attachments(&self) -> &[PendingAttachment] {
         &self.pending_attachments
-    }
-
-    /// Returns lightweight metadata for all pending attachments.
-    pub fn pending_attachment_summaries(&self) -> Vec<PendingAttachmentSummary> {
-        self.pending_attachments
-            .iter()
-            .enumerate()
-            .map(|(index, attachment)| PendingAttachmentSummary {
-                index,
-                attachment_type: attachment.attachment_type(),
-                file_name: attachment.file_name().to_owned(),
-            })
-            .collect()
     }
 
     /// Returns only the pending images for the next query.
@@ -606,20 +585,6 @@ impl BlocklistAIContextModel {
         }
     }
 
-    pub fn remove_pending_image(&mut self, index: usize, ctx: &mut ModelContext<Self>) {
-        // Find the nth image in the combined list and remove it.
-        let position = self
-            .pending_attachments
-            .iter()
-            .enumerate()
-            .filter(|(_, a)| matches!(a, PendingAttachment::Image(_)))
-            .nth(index)
-            .map(|(i, _)| i);
-        if let Some(pos) = position {
-            self.remove_pending_attachment(pos, ctx);
-        }
-    }
-
     /// Returns the number of images removed
     pub fn remove_last_pending_images(
         &mut self,
@@ -776,16 +741,6 @@ impl BlocklistAIContextModel {
             return None;
         }
         Some(conversation.status().clone())
-    }
-
-    /// Returns true if there are any blocks that can be used as AI context.
-    pub fn can_attach_blocks(&self) -> bool {
-        let terminal_model = self.terminal_model.lock();
-        terminal_model
-            .block_list()
-            .blocks()
-            .iter()
-            .any(|block| block.can_be_ai_context(terminal_model.block_list().transcript_scope()))
     }
 
     /// Register a diff hunk attachment that can be referenced in future queries

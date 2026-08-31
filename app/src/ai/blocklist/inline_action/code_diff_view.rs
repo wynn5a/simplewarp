@@ -2393,15 +2393,6 @@ impl CodeDiffView {
         SavePosition::new(container.finish(), &self.position_id_for_inline_speedbump()).finish()
     }
 
-    pub fn primary_file_path(&self, app: &AppContext) -> Option<String> {
-        let first = self.pending_diffs.first()?;
-        first
-            .diff_view
-            .as_ref(app)
-            .file_path()
-            .map(|p| p.to_string())
-    }
-
     /// Returns the primary file location as a `LocalOrRemotePath`,
     /// using `diff_session_type` to correctly identify remote files.
     pub fn primary_file_location(&self, app: &AppContext) -> Option<LocalOrRemotePath> {

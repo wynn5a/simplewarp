@@ -26,13 +26,6 @@ pub fn classify_driver_error(error: &AgentDriverError) -> (AgentTaskState, TaskS
         ),
         AgentDriverError::ShareSessionFailed { error: share_err } => {
             let message = match share_err {
-                ShareSessionError::Failed(reason) => {
-                    // The reason string comes from the session-sharing layer and is aimed at
-                    // interactive users (e.g. "try sharing again"). Provide a cloud-agent-
-                    // appropriate message instead of wrapping it, which would produce
-                    // repetitive "try again" text.
-                    format!("Failed to share agent session: {reason}")
-                }
                 ShareSessionError::Disabled => {
                     "Session sharing is not enabled for your account. This is likely because \
                      an administrator has disabled session sharing for your team. Please \

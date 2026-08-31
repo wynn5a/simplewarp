@@ -604,27 +604,6 @@ impl QueuedQueryModel {
     /// Removes the row `query_id` from `conversation_id`'s queue after it has been fired. In the
     /// edit-mode auto-fire path, the caller first restores the row's committed text and
     /// attachments to the input, then calls this to drop the row and clear edit state.
-    /// Restores a fired row when submission fails after the row was removed.
-    pub(crate) fn restore_fired_row(
-        &mut self,
-        conversation_id: AIConversationId,
-        insert_index: usize,
-        query: QueuedQuery,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let state = self.queues.entry(conversation_id).or_default();
-        let query_id = query.id;
-        if state.queue.iter().any(|queued| queued.id == query_id) {
-            return;
-        }
-        let insert_index = insert_index.min(state.queue.len());
-        state.queue.insert(insert_index, query);
-        ctx.emit(QueuedQueryEvent::Appended {
-            conversation_id,
-            query_id,
-        });
-    }
-
     pub fn remove_fired_row(
         &mut self,
         conversation_id: AIConversationId,

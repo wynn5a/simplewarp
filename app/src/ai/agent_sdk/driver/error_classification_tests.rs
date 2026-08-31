@@ -258,15 +258,6 @@ fn share_session_timeout_gets_internal_error() {
     assert!(update.message.contains("timed out"));
 }
 
-#[test]
-fn share_session_failed_includes_reason() {
-    let (state, update) = classify_driver_error(&AgentDriverError::ShareSessionFailed {
-        error: ShareSessionError::Failed("server rejected".into()),
-    });
-    assert_eq!(state, AgentTaskState::Error);
-    assert!(update.message.contains("server rejected"));
-}
-
 // --- Conversation-level outcomes ---
 
 #[test]

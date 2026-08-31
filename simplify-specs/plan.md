@@ -2190,6 +2190,95 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    terminal session stayed stable (not just clean startup) — no panics, terminal-server child
    spawned normally.
 
+3z. **Same sweep over `ai/blocklist/` (123k lines, 100+ files) and `workspace/` (68k lines,
+   70 files), plus the compiler's `dead_code` lint as the second source again.** 27 files,
+   851 deletions, 10 insertions net; 5 tests deleted.
+
+   `workspace/` came back nearly empty — 5 grep candidates, 2 of which were false positives
+   (see below), for 4 real deletions. `ai/blocklist/` is where the haul was, and it was
+   overwhelmingly one shape: **the session-sharing / shared-viewer leftovers that 4e's
+   41k-line deletion left standing on the AI side.** `ResponseStreamId::for_shared_session`
+   ("when viewing the same shared session from multiple terminals"), `BlocklistAIActionModel::
+   {mark_action_as_remotely_executing, apply_finished_action_result}` and the private
+   `maybe_sync_view_only_documents_with_local_model` they exclusively drove (all three
+   documented as "agent session sharing" and all three early-returning on `!self.is_view_only`),
+   `AIHistoryModel::mark_terminal_surface_as_ambient_agent_session_view`, and — from the
+   compiler, not the grep — the `IdleTimeoutSender` "debug window refresh" mechanism in
+   `agent_sdk/driver.rs`. The rest is ordinary entropy: builder setters whose one would-be
+   caller assigns the fields directly (3w's exact pattern, twice: `CTAButton::with_telemetry`,
+   `PendingHandoff::with_environment_required`, both already wearing `#[allow(dead_code)]`),
+   thin `send_*` wrappers on `BlocklistAIController` whose `_internal` stayed alive through a
+   sibling, and a long tail of leaf getters sitting next to the still-live sibling doing the
+   real work (`contains_actions` next to `contains_action`, `has_unfinished_actions` next to
+   `has_unfinished_actions_for_conversation`, `get_pending_action_by_id` next to
+   `get_pending_action`).
+
+   **Three full collapses rather than leaf removals**, where the dead item was the shape's
+   only entry point:
+
+   - `CTAButton::open_url` was the only constructor of `CTAButtonAction::OpenUrl`, so the
+     variant, its `Clone` arm, and both `ctx.open_url(&url)` match arms in `launch_modal/mod.rs`
+     went with it — the 4g "deletion in disguise" shape. `telemetry_event` went the same way:
+     the field was `#[allow(dead_code)]`, its only writer was the dead `with_telemetry`, and
+     no reader existed, so the field and its four `None` initializers went too.
+   - `mark_terminal_surface_as_ambient_agent_session_view` was the only writer of
+     `ambient_agent_terminal_surface_ids`, whose two readers were both "Skip shared ambient
+     agent sessions" guards — permanently no-ops once the writer is gone. Deleted the field
+     and collapsed both guards rather than leaving an always-empty set behind (3u's
+     `joinable_teams` precedent).
+   - `CLISubagentTarget` — the whole read-only snapshot type — was produced only by
+     `target_for_block_in_model`, itself reached only by `active_target` and `target_for_block`,
+     both dead, and nothing anywhere consumed the type. Its `latest_instruction` field's only
+     writers (`set_latest_instruction`, `restore_latest_instruction`) were dead too, which
+     made `CLISubagentEvent::UpdatedInstruction` unemittable; deleted the variant and its four
+     one-line no-op `|`-chain arms across `terminal/{view.rs, input/models/view.rs,
+     view/queued_prompts_panel.rs}`. Reaching into `terminal/` was the scope call here, and it
+     went the opposite way from 3x's `set_show_pane_accent_border`: there the machinery was
+     live and only the trigger inert, here the machinery itself was the dead thing.
+
+   **A new blind spot in the counting heuristic, hit three times: a function passed as a
+   value, not called.** `Self::handle_network_status_event` in a subscription registration,
+   `diff_type.map(changed_lines_from_op)`, and `.is_some_and(UserTakeOverReason::is_stop)` all
+   have zero `name(` call-syntax hits and so were flagged, and all three are live. Alongside
+   3y's method-name-collides-with-field-name case, that's two ways the mechanical count lies —
+   both caught only by reading every candidate's grep output rather than trusting the counter.
+
+   **The round's mistake, and it was the same one 3x recorded.** Concluded `arm_refreshable`
+   was test-only from a `grep | head -10` whose real production caller was below the cut,
+   deleted it, and the compiler said so immediately. The *reading* was salvageable, though:
+   its one caller, `arm_debug_window`, ends in `if self.debug_window_refresh_installed { … }`
+   guarding a block whose entire body is `let _ = idle_timeout;` under the comment "Without
+   session sharing there is no viewer input to refresh the debug window on" — a stub someone
+   already knew was inert. So `arm_refreshable`'s call site became a plain `end_run_after`,
+   and the `pending` field, `refresh`, the flag, and the stub all went. Signal worth keeping:
+   the compiler flagging *one* method of a pair is not evidence the sibling is dead, and a
+   truncated grep is not a caller search.
+
+   **Deliberately left standing: `BlocklistAIActionModel::set_view_only`.** It is
+   zero-caller and it is the only writer of `is_view_only` — but `is_view_only` has readers in
+   four files (`action_model.rs` ×3, `block.rs`, `inline_action/code_diff_view.rs`,
+   `inline_action/requested_command.rs`), so collapsing it is a whole-feature removal of
+   shared-session viewer mode, not a leaf. That is the next round's work, and doing half of it
+   would leave exactly the "leftover boolean keeps the old shape compiling" state 4e warned
+   about.
+
+   5 tests deleted, all of them tests *of* the deleted subject with no production caller (3y's
+   distinguishing question): `restore_fired_row_reinserts_removed_row_for_retry`, the three
+   `debug_window_refresh_*` / `cancelling_the_idle_timeout_*` tests, and
+   `share_session_failed_includes_reason` — the last surfaced only by `--all-targets`, the
+   `--lib` build having called the same code clean.
+
+   Acceptance: `cargo check` (`--lib` and `--all-targets`, `simplewarp` feature set) clean —
+   0 errors, and the warning set back to the exact pre-round baseline (`auth_manager`'s
+   never-read field, `reset_unknown` which 3y kept on purpose, and the three
+   `--all-targets`-only `wasm`/orchestration lookalikes 3x correctly left alone). Four rounds
+   of unused-import fallout from the deletions were cleaned as they appeared. `cargo clippy
+   --all-targets`: 0 errors. `./script/format` clean. `cargo nextest run -p warp
+   --no-default-features --features simplewarp --no-fail-fast`: 5977 run, 5969 passed, 8
+   failed, 4 skipped — the same 8 pre-existing failures (six `cloud_preferences_syncer`, two
+   `workspace::view` tools-panel-after-signup), 0 new. Built `./target/debug/simplewarp` and
+   launched it: alive and clean, no panics, no error output.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

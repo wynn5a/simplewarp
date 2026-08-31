@@ -14049,10 +14049,6 @@ impl Workspace {
         self.current_workspace_state.is_theme_creator_modal_open
     }
 
-    pub fn is_theme_deletion_modal_open(&self) -> bool {
-        self.current_workspace_state.is_theme_deletion_modal_open
-    }
-
     pub fn is_palette_open(&self) -> bool {
         self.current_workspace_state.is_palette_open
             || self.current_workspace_state.is_ctrl_tab_palette_open
@@ -26445,13 +26441,6 @@ impl Workspace {
             draggable_state,
             vertical_tabs_panel_open,
         })
-    }
-
-    pub fn get_tab_transfer_info(&self, index: usize, ctx: &AppContext) -> Option<TransferredTab> {
-        if self.tabs.len() <= 1 {
-            return None;
-        }
-        self.tab_transfer_info_at_index(index, ctx)
     }
 
     pub fn get_tab_transfer_info_for_attach(
