@@ -347,22 +347,6 @@ impl BlockList {
         self.selection.as_ref()
     }
 
-    /// Returns the start and end points of the current text selection in the block list, if any,
-    /// and whether the selection was reversed.
-    /// Note that the `start` is always before `end`.
-    pub fn text_selection_range(
-        &self,
-        semantic_selection: &SemanticSelection,
-        inverted_blocklist: bool,
-    ) -> Option<(WithinBlock<Point>, WithinBlock<Point>, bool)> {
-        let selection_range = self.expand_selection(semantic_selection, inverted_blocklist)?;
-        Some((
-            selection_range.start().within_grid_point,
-            selection_range.end().within_grid_point,
-            selection_range.is_reversed(),
-        ))
-    }
-
     /// Returns the range of cells that the selection spans, which represent what is rendered
     /// as a highlighted selection
     pub fn renderable_selection(

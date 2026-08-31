@@ -2101,6 +2101,95 @@ curl -LsSf https://get.nexte.st/latest/mac -o /tmp/nextest.tar.gz && tar zxf /tm
    losses. Built `./target/debug/simplewarp` and launched it — clean startup, spawned its
    terminal-server child normally, no panics.
 
+3y. **Same sweep over `terminal/`'s subdirectories — `model/`, `view/`, `input/` (87k lines,
+   198 files) — where "core, actively-developed engine" made false positives a real risk, not
+   a theoretical one.** 21 files, 721 deletions, 4 insertions net.
+
+   `drive/` (3x) had come up empty; these three subdirectories came back with 51 grep
+   candidates plus one compiler-flagged item (`BlockLifecycleCoordinator::reset_unknown`) —
+   the largest single-round haul in this thread. Two shapes of finding:
+
+   **Genuinely cloud-shaped dead code**, same story as every round back to 3r — leftovers
+   from features this fork doesn't have a backend for: `Block::is_scrollback_block_for_shared_
+   session` ("so viewers can restore the active prompt" — collaborative session viewing, not
+   the ambient-agent "session sharing" concept 3x correctly left alone), `AmbientAgentViewModel::
+   {reset_for_new_cloud_prompt, should_show_followup_progress}`, `TerminalModel::{is_receiving_
+   agent_conversation_replay, set_is_receiving_agent_conversation_replay}` (a getter/setter/field
+   trio that survived the mechanical count *because the method name collides with its own field
+   name* — grepping the identifier hits the field declaration, its initializer, and the method
+   body, pushing the raw count over the sweep's threshold even with zero real callers; caught
+   only by separately checking for the `.method()` call syntax specifically — a blind spot in
+   the counting heuristic worth remembering for any future sweep), `Input::reset_after_cloud_
+   followup_submission` (its already-compiler-flagged sibling `restore_cloud_followup_input_
+   after_upload_failure` came along with it — the rest of that cluster is the round's mistake,
+   see below), and `terminal/input/slash_commands/mod.rs::record_autodetection_toggle_from_
+   slash_command`, an orphan left behind by the `warp_tui` crate deletion (phase 4, item 1,
+   done several sessions ago) that nobody had swept back for until now.
+
+   **Ordinary software entropy, unrelated to this fork's mission** — the majority of the haul.
+   A "find in block" sub-feature (`bottommost_match`, `topmost_match`, `GridIndex`,
+   `calculate_filtered_output_grid_matches`, `set_filtered_output_grid_matches`,
+   `reset_output_grid_matches`, `number_of_command_grid_matches`, `number_of_prompt_and_
+   command_grid_matches`, `active_or_prev_row`) superseded by a newer implementation
+   (`terminal/find/`'s `BlockFindRenderData`) that computes matches a different way, leaving
+   the old per-`Block` filtering machinery to just sit there. A `scan_block_for_secrets` /
+   `scan_full_block_for_secrets` / `for_each_block_grid`'s-sibling-call / `BlockGrid::
+   scan_full_grid_for_secrets` chain, three levels deep, that turned out to have a live cousin
+   (`GridHandler::scan_full_grid_for_secrets`, called independently from a constructor) at the
+   bottom — confirmed each link stayed alive or died on its own merits rather than assuming the
+   whole chain shared one fate. Plus a long tail of one-off leaf getters/setters/constructors
+   with a still-live sibling doing the real work next to them (`is_any_session_remote` /
+   `is_session_remote` next to the still-used `is_local()`, `command_and_output_with_secret_
+   obfuscated` next to still-used `command_with_secrets_obfuscated`, `to_within_block_point`
+   next to a still-widely-used `WithinBlock` type, etc.) and `block_onboarding/util.rs::
+   render_input_row` — a "create team" inline-row renderer for the onboarding block, dead
+   because team creation itself is cloud-gated, with `CREATE_BUTTON_WIDTH` (private, sole use)
+   going with it while `render_skip_button`/`name` (still called directly from `onboarding_
+   prompt_block.rs`) stayed untouched.
+
+   **Two lines deliberately not crossed**, decided the same way 3x drew its boundaries:
+   `contains`/`contains_cell` on `SelectionRange` (`model/selection.rs`) — `contains_cell`
+   was a confirmed-dead flagged candidate and got deleted, but whether its sibling `contains`
+   is now *also* orphaned couldn't be verified: `contains` is too generic a word for grep to
+   distinguish real callers from every other type's same-named method in the codebase (`Range`,
+   `HashSet`, etc.). Left it standing rather than guess. And `Blocks::set_should_hide_output_
+   grid`, deleted alongside its more clearly-boundaried sibling `should_hide_command_grid`
+   setter — but its own getter, `should_hide_output_grid()`, was confirmed to have other live
+   readers, so this one field permanently defaults to `false` now rather than going fully dark
+   (same "leftover always-false branch" shape as 3u's `joinable_teams`, scoped narrower this
+   time since only the mutator side was provably dead).
+
+   **The mistake, caught before it shipped.** Deleted `Input::{freeze_input_in_loading_state,
+   freeze_input_in_loading_state_with_text}` and `Input::unfreeze_agent_input` as part of the
+   cloud-followup cluster on the same zero-production-caller basis as the round's other finds
+   — but `--all-targets` immediately surfaced two dedicated tests
+   (`restore_cloud_followup_input_after_upload_failure_restores_prompt`,
+   `unfreeze_agent_input_does_not_clear_buffer`) exercising exactly this code, each testing the
+   method in isolation with zero production caller for any of it — same shape as 3x's four
+   test-only orphans, so deleted each test alongside its method rather than restoring the
+   method. Separately, `BlockLifecycleCoordinator::reset_unknown` (compiler-flagged, sourced
+   independently of the grep sweep) looked like the same pattern but wasn't: its two callers in
+   `terminal_model_tests.rs` (`command_finished_recovers_unknown_started_block_with_real_exit_
+   code`, `recovery_advances_finished_active_block_without_republishing_completion`) use it as
+   test **setup** to force a specific starting state before exercising real, still-live
+   `FeatureFlag::TerminalLifecycleRecovery` recovery behavior — not a dedicated test *of*
+   `reset_unknown` itself. Restored it rather than deleting the method or the tests. The
+   distinguishing question, going forward: is the test *about* this function, or does it just
+   *use* this function to set up a test about something else?
+
+   Acceptance: `cargo check` (both feature sets, `--all-targets`, `-p integration`) clean (0
+   errors; `warp (lib)` warnings unchanged at 5, `reset_unknown` present exactly once as
+   expected — `--lib` only, since its only callers are tests). `cargo clippy --all-targets
+   --no-default-features --features simplewarp` clean (0 errors). `./script/format` needed one
+   pass (six stray blank lines), `--check` clean after. `cargo nextest run -p warp
+   --no-default-features --features simplewarp --no-fail-fast`: 5982 run, identical to 3x's
+   baseline — the two tests caught by the mistake-and-fix above were deleted in the same round
+   they were added to the diff, so the net test count never moved. 5974 passed, 8 failed
+   (identical pre-existing set), 4 skipped. Built
+   `./target/debug/simplewarp`, launched it, and left it running long enough to confirm a live
+   terminal session stayed stable (not just clean startup) — no panics, terminal-server child
+   spawned normally.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

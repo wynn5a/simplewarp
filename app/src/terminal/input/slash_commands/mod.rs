@@ -50,7 +50,7 @@ use crate::search::slash_command_menu::static_commands::commands::COMMAND_REGIST
 use crate::search::slash_command_menu::static_commands::{Availability, SlashCommandKind};
 use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
 use crate::server::ids::SyncId;
-use crate::server::telemetry::{AgentModeAutoDetectionSettingOrigin, SlashCommandAcceptedDetails};
+use crate::server::telemetry::SlashCommandAcceptedDetails;
 use crate::settings::AISettings;
 use crate::tab::SelectedTabColor;
 use crate::terminal::input::decorations::InputBackgroundJobOptions;
@@ -68,7 +68,6 @@ use crate::terminal::model::session::Session;
 use crate::terminal::view::TerminalAction;
 use crate::ui_components::color_dot;
 use crate::view_components::DismissibleToast;
-use crate::workflows::command_parser::compute_workflow_display_data;
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
 use crate::workspace::{ForkedConversationDestination, ToastStack, WorkspaceAction};
 
@@ -143,24 +142,6 @@ pub fn record_static_slash_command_accepted(
     );
 }
 
-/// Records an input auto-detection setting toggle triggered from a TUI slash
-/// command (`/natural-language-detection`).
-///
-/// Mirrors the `SettingsPage` and `Banner` origins used by the GUI toggle paths,
-/// but reports the toggle as originating from a TUI slash command.
-pub fn record_autodetection_toggle_from_slash_command(
-    is_autodetection_enabled: bool,
-    ctx: &mut AppContext,
-) {
-    send_telemetry_from_ctx!(
-        TelemetryEvent::AgentModeToggleAutoDetectionSetting {
-            is_autodetection_enabled,
-            origin: AgentModeAutoDetectionSettingOrigin::SlashCommand,
-        },
-        ctx
-    );
-}
-
 /// Records a saved prompt accepted from either the GUI or TUI slash menu.
 pub fn record_saved_prompt_accepted(is_in_agent_view: bool, ctx: &mut AppContext) {
     send_telemetry_from_ctx!(
@@ -170,13 +151,6 @@ pub fn record_saved_prompt_accepted(is_in_agent_view: bool, ctx: &mut AppContext
         },
         ctx
     );
-}
-
-pub fn saved_prompt_text_for_id(id: &SyncId, ctx: &AppContext) -> Option<String> {
-    let workflow = CloudModel::as_ref(ctx).get_workflow(id)?;
-    workflow.model().data.is_agent_mode_workflow().then(|| {
-        compute_workflow_display_data(&workflow.model().data).command_with_replaced_arguments
-    })
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

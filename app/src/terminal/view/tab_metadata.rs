@@ -62,13 +62,6 @@ impl TerminalView {
         })
     }
 
-    pub fn terminal_title_text(&self) -> String {
-        if !self.terminal_title.trim().is_empty() {
-            return self.terminal_title.clone();
-        }
-        self.terminal_title_from_shell()
-    }
-
     pub fn current_pull_request_url(&self, ctx: &AppContext) -> Option<String> {
         self.current_prompt
             .as_ref(ctx)

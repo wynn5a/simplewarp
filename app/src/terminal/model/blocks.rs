@@ -957,18 +957,6 @@ impl BlockList {
         self.insert_inline_banner_before_block(self.active_block_index(), banner, Some(height))
     }
 
-    /// Appends an inline banner to the blocklist.
-    ///
-    /// If there is no long-running command, the banner is inserted after the last non-hidden block.
-    /// If there is a long-running block, the banner will be inserted after that block.
-    pub fn append_inline_banner_after_long_running(&mut self, banner: InlineBannerItem) {
-        if self.active_block().is_active_and_long_running() {
-            self.insert_inline_banner_after_block(self.active_block_index(), banner)
-        } else {
-            self.insert_inline_banner_before_block(self.active_block_index(), banner, None)
-        }
-    }
-
     pub fn append_subshell_separator(
         &mut self,
         separator_id: SeparatorId,
@@ -1296,15 +1284,6 @@ impl BlockList {
             return Some(is_visible);
         }
         None
-    }
-
-    pub fn unhide_block(&mut self, block_id: &BlockId) {
-        if let Some(block) = self.mut_block_from_id(block_id) {
-            block.unhide();
-
-            // Force a re-draw since the blocklist has changed.
-            self.event_proxy.send_wakeup_event();
-        }
     }
 
     pub fn is_executing_oz_environment_startup_commands(&self) -> bool {
@@ -1679,8 +1658,6 @@ impl BlockList {
         self.update_blocks_and_sumtree(None, None, |_| {}, |_| {});
     }
 
-    pub fn refresh_block_heights_for_passive_code_diff(&mut self) {}
-
     /// Associates the given blocks with a conversation, making them visible in that conversation's agent view.
     /// Returns a Vec of (block_id, visibility) for blocks that were found.
     pub fn associate_blocks_with_conversation<'a>(
@@ -1922,13 +1899,6 @@ impl BlockList {
                     .is_some_and(|action_id| action_id == id)
             })
         })
-    }
-
-    /// Scans the block at `block_index` for secrets.
-    pub fn scan_block_for_secrets(&mut self, block_index: BlockIndex) {
-        if let Some(block) = self.blocks.get_mut(block_index.0) {
-            block.scan_full_block_for_secrets();
-        }
     }
 
     pub fn block_heights(&self) -> &SumTree<BlockHeightItem> {
@@ -2710,22 +2680,6 @@ impl BlockList {
         self.bootstrap_stage == BootstrapStage::ScriptExecution
     }
 
-    #[cfg(test)]
-    pub fn create_new_block_with_local_status(
-        &mut self,
-        block_id: BlockId,
-        bootstrap_stage: BootstrapStage,
-        prompt_metadata: Option<PromptMetadata>,
-        restored_block_was_local: bool,
-    ) {
-        self.create_new_block(
-            block_id,
-            bootstrap_stage,
-            prompt_metadata,
-            Some(restored_block_was_local),
-        );
-    }
-
     /// If prompt metadata is provided, then we delegate the precmd
     /// message to the block. In normal execution, we don't have
     /// this data here because it comes from a different hook dedicated
@@ -2817,17 +2771,6 @@ impl BlockList {
         self.active_block_mut()
             .set_obfuscate_secrets(obfuscate_secrets);
         for block in self.blocks.iter_mut() {
-            block.set_obfuscate_secrets(obfuscate_secrets);
-        }
-    }
-
-    /// Sets whether the grids of the specified block should be obfuscated.
-    pub fn set_obfuscate_secrets_for_block(
-        &mut self,
-        block_index: BlockIndex,
-        obfuscate_secrets: ObfuscateSecrets,
-    ) {
-        if let Some(block) = self.blocks.get_mut(block_index.0) {
             block.set_obfuscate_secrets(obfuscate_secrets);
         }
     }
@@ -3585,23 +3528,6 @@ impl BlockList {
         item: &RemovableBlocklistItem,
     ) -> Option<&TotalIndex> {
         self.removable_blocklist_item_positions.get(item)
-    }
-
-    /// Returns the current absolute row range for one rich-content view.
-    pub fn rich_content_row_range(&self, view_id: EntityId) -> Option<Range<usize>> {
-        let index = self
-            .removable_blocklist_item_positions
-            .get(&RemovableBlocklistItem::RichContent(view_id))?;
-        let mut cursor = self
-            .block_heights
-            .cursor::<TotalIndex, BlockHeightSummary>();
-        cursor.seek(index, SeekBias::Right);
-        let BlockHeightItem::RichContent(item) = cursor.item()? else {
-            return None;
-        };
-        let start = cursor.start().height.as_f64().floor().max(0.0) as usize;
-        let height = item.last_laid_out_height.as_f64().ceil().max(0.0) as usize;
-        Some(start..start.saturating_add(height))
     }
 
     pub fn get_previous_block_height_item(

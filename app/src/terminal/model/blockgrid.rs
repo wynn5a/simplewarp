@@ -209,15 +209,6 @@ impl BlockGrid {
         )))
     }
 
-    /// Returns the visible cursor position in displayed-grid coordinates as
-    /// `(column, row)`. A cursor hidden below trimmed content is omitted.
-    pub fn visible_cursor_display_position(&self) -> Option<(usize, usize)> {
-        match self.cursor_display_point()? {
-            CursorDisplayPoint::Visible(point) => Some((point.col, point.row)),
-            CursorDisplayPoint::HiddenCache(_) => None,
-        }
-    }
-
     /// Determine whether the block is currently empty
     ///
     /// Note: Depending on the state of the block, it can be _currently_ empty even when it has
@@ -287,10 +278,6 @@ impl BlockGrid {
 
         self.should_scan_for_secrets = obfuscate_secrets;
         self.grid_handler.set_obfuscate_secrets(obfuscate_secrets);
-    }
-
-    pub(super) fn scan_full_grid_for_secrets(&mut self) {
-        self.grid_handler.scan_full_grid_for_secrets();
     }
 
     /// Mark the grid as finished and update the length of the grid accordingly. Once finished, the

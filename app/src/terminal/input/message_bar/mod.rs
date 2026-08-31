@@ -78,10 +78,6 @@ impl Message {
             item.set_color(color);
         }
     }
-
-    pub fn take_items(self) -> Vec<MessageItem> {
-        self.items
-    }
 }
 
 pub type ClickHandler = Arc<dyn Fn(&mut EventContext) + 'static>;

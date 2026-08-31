@@ -124,9 +124,4 @@ impl TerminalView {
     pub fn find_model(&self) -> &ModelHandle<TerminalFindModel> {
         &self.find_model
     }
-
-    #[cfg(test)]
-    pub fn rich_content_view_count_for_test(&self) -> usize {
-        self.rich_content_views.len()
-    }
 }

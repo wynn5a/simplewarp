@@ -1787,26 +1787,6 @@ impl GridHandler {
         self.ansi_handler_state.dirty_cells_range = cursor_point_offset..cursor_point_offset;
     }
 
-    /// Returns `true` if the row has trailing whitespace or empty cells starting from `col`,
-    /// inclusive.
-    #[inline]
-    pub fn row_has_trailing_whitespace(&self, row: usize, col: usize) -> bool {
-        if row >= self.grid.total_rows() {
-            return false;
-        }
-
-        let mut cursor =
-            self.grapheme_cursor_from(Point::new(row, col), grapheme_cursor::Wrap::None);
-        while let Some(item) = cursor.current_item() {
-            if !item.content_char().is_whitespace() {
-                return false;
-            }
-
-            cursor.move_forward()
-        }
-        true
-    }
-
     /// Returns the index of the last row in the grid which received any output
     /// from the PTY.
     pub fn max_content_row(&self) -> usize {

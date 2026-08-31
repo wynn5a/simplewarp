@@ -118,20 +118,6 @@ impl InputSuggestionsModeModel {
         )
     }
 
-    pub fn is_static_workflow_enum_suggestions(&self) -> bool {
-        matches!(
-            self.mode,
-            InputSuggestionsMode::StaticWorkflowEnumSuggestions { .. }
-        )
-    }
-
-    pub fn is_dynamic_workflow_enum_suggestions(&self) -> bool {
-        matches!(
-            self.mode,
-            InputSuggestionsMode::DynamicWorkflowEnumSuggestions { .. }
-        )
-    }
-
     pub fn is_ai_context_menu(&self) -> bool {
         matches!(self.mode, InputSuggestionsMode::AIContextMenu { .. })
     }

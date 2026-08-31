@@ -557,10 +557,6 @@ impl HeaderGrid {
             .unwrap_or(0)
     }
 
-    pub fn command_to_string_with_max_rows(&self, max_rows: Option<usize>) -> String {
-        self.command_to_string_internal(false, max_rows, RespectObfuscatedSecrets::Yes, false)
-    }
-
     pub fn prompt_start_blockgrid_point(&self) -> BlockGridPoint {
         BlockGridPoint::PromptAndCommand(self.prompt_and_command_grid.start_point())
     }

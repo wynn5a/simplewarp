@@ -192,30 +192,6 @@ impl InlineHistoryMenuView {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new_with_tab_configs(
-        terminal_view_id: EntityId,
-        active_session: ModelHandle<ActiveSession>,
-        input_suggestions_model: &ModelHandle<InputSuggestionsModeModel>,
-        agent_view_controller: ModelHandle<AgentViewController>,
-        positioner: &ModelHandle<InlineMenuPositioner>,
-        buffer_model: ModelHandle<InputBufferModel>,
-        tab_configs: Vec<InlineMenuTabConfig<HistoryTab>>,
-        ctx: &mut ViewContext<Self>,
-    ) -> Self {
-        Self::new_inner(
-            terminal_view_id,
-            active_session,
-            input_suggestions_model,
-            agent_view_controller,
-            positioner,
-            buffer_model,
-            tab_configs,
-            /* caller_supplied_tabs */ true,
-            ctx,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
     fn new_inner(
         terminal_view_id: EntityId,
         active_session: ModelHandle<ActiveSession>,

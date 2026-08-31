@@ -234,15 +234,6 @@ impl GridStorage {
         self.raw = Storage::with_rows(rows, is_sequential, visible_rows);
     }
 
-    /// Update the size of the scrollback history.
-    pub fn update_history(&mut self, history_size: usize) {
-        let current_history_size = self.history_size();
-        if current_history_size > history_size {
-            self.raw.shrink_lines(current_history_size - history_size);
-        }
-        self.max_scroll_limit = history_size;
-    }
-
     fn increase_scroll_limit(&mut self, count: usize) {
         let count = min(count, self.max_scroll_limit - self.history_size());
         if count != 0 {
@@ -489,11 +480,6 @@ impl GridStorage {
     /// The number of rows in the grid up until the cursor.
     fn rows_to_cursor(&self) -> usize {
         self.cursor.point.row.0 + self.history_size()
-    }
-
-    /// The number of visible rows in the grid up until the cursor.
-    pub fn visible_rows_to_cursor(&self) -> usize {
-        self.cursor.point.row.0
     }
 
     /// The number of columns in the grid up until the cursor.

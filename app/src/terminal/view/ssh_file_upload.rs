@@ -119,17 +119,6 @@ impl FileUpload {
         !self.uploads.is_empty()
     }
 
-    /// Returns whether this session has any uploads in progress.
-    /// This does not include failed uploads or completed uploads.
-    pub fn has_in_progress_upload(&self) -> bool {
-        self.uploads.iter().any(|(_id, upload_info)| {
-            matches!(
-                upload_info.status,
-                FileUploadStatus::Started | FileUploadStatus::AwaitingPassword
-            )
-        })
-    }
-
     pub fn generate_upload_id(&mut self) -> FileUploadId {
         let count = self.count;
         self.count += 1;

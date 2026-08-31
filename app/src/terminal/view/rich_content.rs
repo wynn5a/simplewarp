@@ -160,10 +160,6 @@ impl RichContent {
         )
     }
 
-    pub fn is_agent_view_entry(&self) -> bool {
-        matches!(self.metadata, Some(RichContentMetadata::AgentViewEntry(_)))
-    }
-
     pub fn is_inline_agent_view_header(&self) -> bool {
         matches!(
             self.metadata,
@@ -184,13 +180,6 @@ impl RichContent {
 
     pub fn is_init_step(&self) -> bool {
         matches!(self.metadata, Some(RichContentMetadata::InitStep { .. }))
-    }
-
-    pub fn init_step_kind(&self) -> Option<InitStepKind> {
-        match &self.metadata {
-            Some(RichContentMetadata::InitStep { step_kind, .. }) => Some(*step_kind),
-            _ => None,
-        }
     }
 
     pub fn init_step_block_handle(&self) -> Option<&ViewHandle<InitStepBlock>> {

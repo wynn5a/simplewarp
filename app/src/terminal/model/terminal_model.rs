@@ -48,7 +48,6 @@ use super::session::{BootstrapSessionType, InBandCommandOutputReceiver, SessionI
 use super::{Secret, SecretHandle};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::SerializedBlockListItem;
-use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::block_filter::BlockFilterQuery;
 use crate::terminal::block_list_element::GridType;
 use crate::terminal::event::{
@@ -269,10 +268,6 @@ impl<T> WithinBlock<T> {
             grid: self.grid,
         }
     }
-
-    pub fn is_within_this_block(&self, index: BlockIndex) -> bool {
-        self.block_index == index
-    }
 }
 
 impl<T: Copy> WithinBlock<RangeInclusive<T>> {
@@ -482,11 +477,6 @@ pub struct TerminalModel {
     /// If Some, this terminal is displaying a read-only conversation transcript.
     /// Tracks both the loading state and the type of conversation being viewed.
     conversation_transcript_viewer_status: Option<ConversationTranscriptViewerStatus>,
-
-    /// Whether this viewer is currently receiving historical agent conversation replay.
-    /// Used to suppress live-conversation-specific actions (e.g. tombstone insertion)
-    /// until the replay is complete.
-    is_receiving_agent_conversation_replay: bool,
 
     /// When some, the TerminalModel emits the event [Event::DetectedEndOfSshLogin]. This
     /// event is emitted either as the initial check or the confirmation check.
@@ -1064,7 +1054,6 @@ impl TerminalModel {
             obfuscate_secrets,
             is_dummy_cloud_mode_session,
             conversation_transcript_viewer_status: None,
-            is_receiving_agent_conversation_replay: false,
             notify_on_end_of_ssh_login: None,
             is_receiving_hook: IsReceivingHook::No,
             image_id_to_metadata: HashMap::new(),
@@ -1109,16 +1098,6 @@ impl TerminalModel {
             shell_state,
             false,
         )
-    }
-
-    /// Whether the session sharing server is currently replaying
-    /// conversation events (for conversation reconstruction).
-    pub fn is_receiving_agent_conversation_replay(&self) -> bool {
-        self.is_receiving_agent_conversation_replay
-    }
-
-    pub fn set_is_receiving_agent_conversation_replay(&mut self, value: bool) {
-        self.is_receiving_agent_conversation_replay = value;
     }
 
     pub fn is_dummy_cloud_mode_session(&self) -> bool {
@@ -1200,13 +1179,6 @@ impl TerminalModel {
 
     pub fn is_conversation_transcript_viewer(&self) -> bool {
         self.conversation_transcript_viewer_status.is_some()
-    }
-
-    pub fn is_loading_conversation_transcript(&self) -> bool {
-        matches!(
-            self.conversation_transcript_viewer_status,
-            Some(ConversationTranscriptViewerStatus::Loading)
-        )
     }
 
     pub fn conversation_transcript_viewer_status(
@@ -1682,17 +1654,6 @@ impl TerminalModel {
             return self.alt_screen().is_mode_set(mode);
         }
         self.block_list().active_block().is_mode_set(mode)
-    }
-
-    pub fn get_shell(&self) -> Option<AvailableShell> {
-        match &self.shell_launch_state {
-            ShellLaunchState::DeterminingShell {
-                available_shell, ..
-            } => available_shell.clone(),
-            ShellLaunchState::ShellSpawned {
-                available_shell, ..
-            } => available_shell.clone(),
-        }
     }
 
     /// Resize terminal to new dimensions.
