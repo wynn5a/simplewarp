@@ -983,7 +983,6 @@ pub enum Event {
     OpenViewMCPPane,
     OpenAddMCPPane,
     OpenProjectRulesPane,
-    OpenEnvironmentManagementPane,
     OpenFilesPalette {
         source: PaletteSource,
     },
@@ -1025,15 +1024,9 @@ pub enum Event {
     ScrollToExchange {
         exchange_id: AIAgentExchangeId,
     },
-    /// Trigger environment setup flow with optional repository arguments
-    TriggerEnvironmentSetup {
-        repos: Vec<String>,
-    },
     RegisterPluginListener(CLIAgent),
     #[cfg(not(target_family = "wasm"))]
     OpenPluginInstructionsPane(CLIAgent, PluginModalKind),
-    OpenHandoffEnvironmentCreationModal,
-    OpenCloudModeV2EnvironmentCreationModal,
 }
 
 pub enum InputState {
@@ -2551,8 +2544,7 @@ impl Input {
                 AgentInputFooterEvent::ModelSelectorOpened => {
                     me.close_overlays(false, ctx);
                 }
-                AgentInputFooterEvent::ModelSelectorClosed
-                | AgentInputFooterEvent::EnvironmentSelectorClosed => {
+                AgentInputFooterEvent::ModelSelectorClosed => {
                     me.focus_input_box(ctx);
                 }
                 AgentInputFooterEvent::ToggleInlineModelSelector { initial_tab } => {
@@ -2584,9 +2576,6 @@ impl Input {
                     ctx.dispatch_typed_action(&TerminalAction::PromptContextMenu {
                         position_offset_from_prompt: offset,
                     });
-                }
-                AgentInputFooterEvent::OpenEnvironmentManagementPane => {
-                    ctx.emit(Event::OpenEnvironmentManagementPane);
                 }
                 AgentInputFooterEvent::PluginInstalled(agent) => {
                     ctx.emit(Event::RegisterPluginListener(*agent));
@@ -3933,12 +3922,6 @@ impl Input {
         harness_selector.update(ctx, |selector, ctx| selector.open_menu(ctx));
     }
 
-    pub(super) fn open_v2_environment_selector(&mut self, ctx: &mut ViewContext<Self>) {
-        self.agent_input_footer
-            .clone()
-            .update(ctx, |footer, ctx| footer.open_v2_environment_selector(ctx));
-    }
-
     /// Restores the `&` handoff compose draft after a workspace failure.
     #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
     pub(crate) fn restore_cloud_handoff_draft(
@@ -4041,11 +4024,6 @@ impl Input {
                 }
             },
         );
-    }
-
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub(crate) fn handoff_entry_point(&self, ctx: &AppContext) -> HandoffEntryPoint {
-        self.handoff_compose_state.as_ref(ctx).entry_point()
     }
 
     #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
@@ -4288,8 +4266,10 @@ impl Input {
                 return true;
             }
 
+            // Handing off to the cloud needs an environment to hand off to. This build has
+            // no server to sync one from and no way to create one, so the list is always
+            // empty; the modal this used to open could not have produced one either.
             if CloudAmbientAgentEnvironment::get_all(ctx).is_empty() {
-                ctx.emit(Event::OpenHandoffEnvironmentCreationModal);
                 return true;
             }
 
@@ -4308,8 +4288,8 @@ impl Input {
             return true;
         }
 
+        // See above: no environment, no handoff.
         if CloudAmbientAgentEnvironment::get_all(ctx).is_empty() {
-            ctx.emit(Event::OpenHandoffEnvironmentCreationModal);
             return true;
         }
 
@@ -6004,10 +5984,6 @@ impl Input {
 
     pub fn editor(&self) -> &ViewHandle<EditorView> {
         &self.editor
-    }
-
-    pub(crate) fn ai_context_model(&self) -> &ModelHandle<BlocklistAIContextModel> {
-        &self.ai_context_model
     }
 
     pub fn buffer_text(&self, ctx: &AppContext) -> String {
@@ -12588,12 +12564,14 @@ impl Input {
                 if self.is_cloud_mode_input_v2_composing(ctx)
                     && let Some(ambient_agent_view_model) = self.ambient_agent_view_model()
                 {
-                    let needs_env_modal = ambient_agent_view_model
+                    // A cloud run needs an environment. None can exist in this build, so
+                    // the submit stops here rather than opening a creation modal that
+                    // could not have created one.
+                    if ambient_agent_view_model
                         .as_ref(ctx)
                         .selected_environment_id()
-                        .is_none();
-                    if needs_env_modal {
-                        ctx.emit(Event::OpenCloudModeV2EnvironmentCreationModal);
+                        .is_none()
+                    {
                         return;
                     }
                 }
@@ -14875,16 +14853,11 @@ impl View for Input {
         let is_v2_harness_selector_open = self
             .harness_selector()
             .is_some_and(|view| view.as_ref(app).is_menu_open());
-        let is_v2_environment_selector_open = self
-            .agent_input_footer
-            .as_ref(app)
-            .is_v2_environment_selector_open(app);
         if is_profile_model_selector_open
             || is_agent_footer_model_selector_open
             || is_v2_model_selector_open
             || is_v2_host_selector_open
             || is_v2_harness_selector_open
-            || is_v2_environment_selector_open
         {
             ctx.set.insert("ProfileModelSelectorOpen");
         }

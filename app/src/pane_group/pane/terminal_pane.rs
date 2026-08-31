@@ -993,10 +993,6 @@ fn handle_terminal_view_event(
                 group.terminal_with_open_summarization_dialog = is_open.then_some(terminal_pane_id);
                 ctx.notify();
             }
-            Event::EnvironmentSetupModeSelectorToggled { is_open } => {
-                group.pane_with_open_environment_setup_mode_selector = is_open.then_some(pane_id);
-                ctx.notify();
-            }
             Event::AuthSecretDeleteConfirmationDialogToggled { is_open } => {
                 group.pane_with_open_auth_secret_delete_confirmation_dialog =
                     is_open.then_some(pane_id);
@@ -1103,9 +1099,6 @@ fn handle_terminal_view_event(
                 ctx.emit(crate::pane_group::Event::OpenAddPromptPane {
                     initial_content: initial_content.clone(),
                 });
-            }
-            Event::OpenEnvironmentManagementPane => {
-                ctx.emit(crate::pane_group::Event::OpenEnvironmentManagementPane);
             }
             #[cfg(feature = "local_fs")]
             Event::FileRenamed { old_path, new_path } => {

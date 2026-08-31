@@ -46,22 +46,6 @@ pub const ADD_MCP: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub static CREATE_ENVIRONMENT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/create-environment",
-    description: "Create an Oz environment (Docker image + repos) via guided setup",
-    kind: SlashCommandKind::CreateEnvironment,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/dataflow.svg",
-    },
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: Some(
-        Argument::optional()
-            .with_hint_text("<optional repo paths or GitHub URLs>")
-            .with_execute_on_selection(),
-    ),
-});
-
 pub const CREATE_DOCKER_SANDBOX: StaticCommand = StaticCommand {
     name: "/docker-sandbox",
     description: "Create a new docker sandbox terminal session",
@@ -398,20 +382,6 @@ pub static HARNESS: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     kind: SlashCommandKind::Harness,
     supported_surfaces: SlashCommandSurfaces::GuiOnly {
         icon_path: "bundled/svg/warp-3.svg",
-    },
-    availability: Availability::AGENT_VIEW
-        | Availability::AI_ENABLED
-        | Availability::CLOUD_MODE_V2_COMPOSER,
-    auto_enter_ai_mode: true,
-    argument: None,
-});
-
-pub static ENVIRONMENT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/environment",
-    description: "Switch the cloud agent environment",
-    kind: SlashCommandKind::Environment,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/globe-04.svg",
     },
     availability: Availability::AGENT_VIEW
         | Availability::AI_ENABLED
@@ -759,10 +729,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
 
     commands.push(OPEN_CODE_REVIEW);
 
-    if FeatureFlag::CreateEnvironmentSlashCommand.is_enabled() {
-        commands.push(CREATE_ENVIRONMENT.clone());
-    }
-
     if FeatureFlag::CreateProjectFlow.is_enabled() {
         commands.push(CREATE_NEW_PROJECT.clone());
     }
@@ -830,7 +796,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
     if FeatureFlag::CloudModeInputV2.is_enabled() {
         commands.push(HOST.clone());
         commands.push(HARNESS.clone());
-        commands.push(ENVIRONMENT.clone());
     }
 
     commands

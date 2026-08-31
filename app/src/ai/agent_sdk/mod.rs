@@ -19,7 +19,6 @@ use warp_cli::agent::{
 };
 use warp_cli::api_key::ApiKeyCommand;
 use warp_cli::artifact::ArtifactCommand;
-use warp_cli::environment::{EnvironmentCommand, ImageCommand};
 use warp_cli::federate::FederateCommand;
 use warp_cli::harness_support::{HarnessSupportCommand, ReportArtifactCommand, TaskStatus};
 use warp_cli::mcp::MCPCommand;
@@ -83,7 +82,6 @@ pub(crate) mod artifact_upload;
 mod common;
 mod config_file;
 pub(crate) mod driver;
-mod environment;
 mod federate;
 mod harness_support;
 #[cfg(not(target_family = "wasm"))]
@@ -92,7 +90,6 @@ mod mcp;
 mod mcp_config;
 mod memory_store;
 mod model;
-mod oauth_flow;
 pub mod output;
 mod profiles;
 mod provider;
@@ -140,12 +137,6 @@ fn dispatch_command(
 ) -> anyhow::Result<()> {
     match command {
         CliCommand::Agent(agent_cmd) => run_agent(ctx, global_options, agent_cmd),
-        CliCommand::Environment(environment_cmd) => {
-            if !FeatureFlag::CloudEnvironments.is_enabled() {
-                return Err(anyhow::anyhow!("invalid value 'environment'"));
-            }
-            environment::run(ctx, global_options, environment_cmd)
-        }
         CliCommand::MCP(mcp_cmd) => mcp::run(ctx, global_options, mcp_cmd),
         CliCommand::Run(task_cmd) => run_task(ctx, global_options, task_cmd),
         CliCommand::Model(model_cmd) => model::run(ctx, global_options, model_cmd),
@@ -1540,14 +1531,6 @@ fn command_requires_auth(command: &CliCommand) -> bool {
             AgentCommand::Delete(_) => true,
             AgentCommand::Skills(_) => true,
         },
-        CliCommand::Environment(environment_cmd) => match environment_cmd {
-            EnvironmentCommand::List => true,
-            EnvironmentCommand::Create { .. } => true,
-            EnvironmentCommand::Delete { .. } => true,
-            EnvironmentCommand::Update { .. } => true,
-            EnvironmentCommand::Get { .. } => true,
-            EnvironmentCommand::Image(ImageCommand::List) => true,
-        },
         CliCommand::MCP(mcp_cmd) => match mcp_cmd {
             MCPCommand::List => true,
         },
@@ -1718,22 +1701,6 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
         CliCommand::Agent(AgentCommand::Update(_)) => CliTelemetryEvent::AgentUpdate,
         CliCommand::Agent(AgentCommand::Delete(_)) => CliTelemetryEvent::AgentDelete,
         CliCommand::Agent(AgentCommand::Skills(_)) => CliTelemetryEvent::AgentSkills,
-        CliCommand::Environment(EnvironmentCommand::List) => CliTelemetryEvent::EnvironmentList,
-        CliCommand::Environment(EnvironmentCommand::Create { .. }) => {
-            CliTelemetryEvent::EnvironmentCreate
-        }
-        CliCommand::Environment(EnvironmentCommand::Delete { .. }) => {
-            CliTelemetryEvent::EnvironmentDelete
-        }
-        CliCommand::Environment(EnvironmentCommand::Update { .. }) => {
-            CliTelemetryEvent::EnvironmentUpdate
-        }
-        CliCommand::Environment(EnvironmentCommand::Get { .. }) => {
-            CliTelemetryEvent::EnvironmentGet
-        }
-        CliCommand::Environment(EnvironmentCommand::Image(ImageCommand::List)) => {
-            CliTelemetryEvent::EnvironmentImageList
-        }
         CliCommand::MCP(MCPCommand::List) => CliTelemetryEvent::MCPList,
         CliCommand::Run(TaskCommand::List(_)) => CliTelemetryEvent::TaskList,
         CliCommand::Run(TaskCommand::Get(args)) => {

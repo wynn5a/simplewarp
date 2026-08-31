@@ -1,7 +1,6 @@
 pub mod ai;
 pub mod auth;
 pub mod harness_support;
-pub mod integrations;
 pub mod managed_secrets;
 pub mod object;
 pub(crate) mod presigned_upload;
@@ -682,10 +681,6 @@ impl ServerApiProvider {
     }
 
     pub fn get_cloud_objects_client(&self) -> Arc<dyn ObjectClient> {
-        self.server_api.clone()
-    }
-
-    pub fn get_integrations_client(&self) -> Arc<dyn integrations::IntegrationsClient> {
         self.server_api.clone()
     }
 

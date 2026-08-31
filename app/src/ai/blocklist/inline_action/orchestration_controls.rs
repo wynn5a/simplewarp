@@ -12,9 +12,9 @@ use pathfinder_geometry::vector::{Vector2F, vec2f};
 use warp_cli::agent::Harness;
 use warp_core::ui::theme::Fill;
 use warpui::elements::{
-    Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
-    Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
-    Point, Radius, Text,
+    ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Expanded, Flex,
+    Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Point, Radius,
+    Text,
 };
 use warpui::event::DispatchedEvent;
 use warpui::platform::Cursor;
@@ -45,7 +45,6 @@ pub use crate::ai::orchestration::{
 use crate::appearance::Appearance;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::ui_components::blended_colors;
-use crate::ui_components::icons::Icon;
 use crate::view_components::FilterableDropdown;
 use crate::view_components::dropdown::{
     Dropdown, DropdownAction, DropdownItemAction, DropdownStyle,
@@ -86,7 +85,6 @@ pub trait OrchestrationControlAction: DropdownItemAction + Clone {
     fn model_changed(model_id: String) -> Self;
     fn harness_changed(harness_type: String) -> Self;
     fn environment_changed(environment_id: String) -> Self;
-    fn create_environment_requested() -> Self;
     /// Runner UID selected in the Runner dropdown; empty clears the
     /// override ("Use environment default").
     fn runner_changed(runner_id: String) -> Self;
@@ -384,7 +382,6 @@ pub fn create_environment_picker<A: OrchestrationControlAction, V: View>(
 ) -> ViewHandle<FilterableDropdown<A>> {
     let initial_env = initial_env_id.to_string();
     let styles = *styles;
-    let footer_mouse_state = MouseStateHandle::default();
     let dropdown_handle = ctx.add_typed_action_view(move |ctx_dropdown| {
         let mut dropdown = FilterableDropdown::<A>::new(ctx_dropdown);
         dropdown.set_use_overlay_layer(false, ctx_dropdown);
@@ -395,13 +392,6 @@ pub fn create_environment_picker<A: OrchestrationControlAction, V: View>(
         dropdown.set_top_bar_height(ORCHESTRATION_PICKER_HEIGHT, ctx_dropdown);
         dropdown.set_top_bar_max_width(f32::INFINITY);
         dropdown
-    });
-    dropdown_handle.update(ctx, |dropdown, ctx_dropdown| {
-        let footer_mouse_state = footer_mouse_state.clone();
-        dropdown.set_footer(
-            move |app| render_new_environment_footer::<A>(footer_mouse_state.clone(), app),
-            ctx_dropdown,
-        );
     });
     populate_environment_picker(&dropdown_handle, &initial_env, ctx);
     dropdown_handle
@@ -495,55 +485,6 @@ pub fn populate_runner_picker<A: OrchestrationControlAction, V: View>(
     });
 }
 
-fn render_new_environment_footer<A: OrchestrationControlAction>(
-    mouse_state: MouseStateHandle,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-    let is_hovered = mouse_state.lock().unwrap().is_hovered();
-    let bg = if is_hovered {
-        theme.surface_3()
-    } else {
-        theme.surface_2()
-    };
-    let font_family = appearance.ui_font_family();
-    let font_size = appearance.ui_font_size();
-    let text_color = theme.active_ui_text_color();
-    let icon_size = font_size;
-    let mouse_state = mouse_state.clone();
-
-    Hoverable::new(mouse_state, move |_| {
-        Container::new(
-            Flex::row()
-                .with_main_axis_size(MainAxisSize::Max)
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_spacing(8.)
-                .with_child(
-                    ConstrainedBox::new(Icon::Plus.to_warpui_icon(text_color).finish())
-                        .with_width(icon_size)
-                        .with_height(icon_size)
-                        .finish(),
-                )
-                .with_child(
-                    Text::new_inline("New environment", font_family, font_size)
-                        .with_color(text_color.into())
-                        .finish(),
-                )
-                .finish(),
-        )
-        .with_horizontal_padding(12.)
-        .with_vertical_padding(8.)
-        .with_background(bg)
-        .with_border(Border::top(1.).with_border_fill(theme.outline()))
-        .finish()
-    })
-    .on_click(|ctx, _, _| {
-        ctx.dispatch_typed_action(A::create_environment_requested());
-    })
-    .with_cursor(Cursor::PointingHand)
-    .finish()
-}
 /// Repopulates the host picker rows from [`host_snapshot`] (workspace
 /// default, connected workers, recent custom slug), then sets the
 /// current selection to `initial_host`.

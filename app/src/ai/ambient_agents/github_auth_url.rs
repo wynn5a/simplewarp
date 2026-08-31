@@ -4,14 +4,12 @@ use crate::ChannelState;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GithubAuthRedirectTarget {
-    SettingsEnvironments,
     FocusCloudMode,
 }
 
 impl GithubAuthRedirectTarget {
     fn next_path(self) -> &'static str {
         match self {
-            Self::SettingsEnvironments => "settings/environments",
             Self::FocusCloudMode => "action/focus_cloud_mode",
         }
     }
@@ -42,14 +40,6 @@ pub fn auth_url_with_next(
     let scheme = oauth_next_scheme();
     build_auth_url_with_next(base_auth_url, target, &scheme, auth_source)
 }
-pub fn settings_environments_auth_url_with_next(base_auth_url: &str) -> String {
-    auth_url_with_next(
-        base_auth_url,
-        GithubAuthRedirectTarget::SettingsEnvironments,
-        AuthSource::Settings,
-    )
-}
-
 pub fn cloud_setup_auth_url_with_next(base_auth_url: &str) -> String {
     auth_url_with_next(
         base_auth_url,
@@ -129,16 +119,6 @@ fn build_next_url(
             url.set_query(None);
 
             match target {
-                GithubAuthRedirectTarget::SettingsEnvironments => {
-                    url.set_path("/settings/environments");
-                    {
-                        let mut pairs = url.query_pairs_mut();
-                        pairs.append_pair("oauth", "github");
-                        if matches!(auth_source, AuthSource::CloudSetup) {
-                            pairs.append_pair("source", crate::uri::CLOUD_SETUP_SOURCE);
-                        }
-                    }
-                }
                 GithubAuthRedirectTarget::FocusCloudMode => {
                     url.set_path("/action/focus_cloud_mode");
                 }

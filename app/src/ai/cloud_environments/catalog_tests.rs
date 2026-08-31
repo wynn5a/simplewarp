@@ -131,7 +131,6 @@ fn default_resolution_preserves_each_gui_consumer_name_tie_breaker() {
         let catalog = app.add_singleton_model(CloudEnvironmentCatalog::new);
 
         catalog.read(&app, |catalog, ctx| {
-            assert_eq!(catalog.default_environment_id(ctx), Some(lowercase_id));
             assert_eq!(
                 catalog.orchestration_default_environment_id(ctx),
                 Some(uppercase_id)

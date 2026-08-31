@@ -32,7 +32,6 @@ use crate::ai::ambient_agents::scheduled::{
     CloudScheduledAmbientAgentModel, ScheduledAmbientAgent,
 };
 use crate::ai::blocklist::BlocklistAIHistoryModel;
-use crate::ai::cloud_environments::{AmbientAgentEnvironment, CloudAmbientAgentEnvironmentModel};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::execution_profiles::{AIExecutionProfile, CloudAIExecutionProfileModel};
 use crate::ai::facts::{AIFact, CloudAIFactModel};
@@ -1970,21 +1969,6 @@ impl UpdateManager {
         );
     }
 
-    pub fn update_ambient_agent_environment(
-        &mut self,
-        environment: AmbientAgentEnvironment,
-        environment_id: SyncId,
-        revision_ts: Option<Revision>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.update_object(
-            CloudAmbientAgentEnvironmentModel::new(environment),
-            environment_id,
-            revision_ts,
-            ctx,
-        );
-    }
-
     pub fn update_notebook_data(
         &mut self,
         data: Arc<String>,
@@ -3202,47 +3186,6 @@ impl UpdateManager {
             initiated_by,
             ctx,
         );
-    }
-
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub fn create_ambient_agent_environment(
-        &mut self,
-        ambient_agent_environment: AmbientAgentEnvironment,
-        client_id: ClientId,
-        owner: Owner,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.create_object(
-            CloudAmbientAgentEnvironmentModel::new(ambient_agent_environment),
-            owner,
-            client_id,
-            Default::default(),
-            false,
-            None,
-            // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
-            // This can be changed to InitiatedBy::System if this action was automatically kicked off by the system and we do not want a user facing toast.
-            InitiatedBy::User,
-            ctx,
-        )
-    }
-
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub fn create_ambient_agent_environment_online(
-        &mut self,
-        ambient_agent_environment: AmbientAgentEnvironment,
-        client_id: ClientId,
-        owner: Owner,
-        ctx: &mut ModelContext<Self>,
-    ) -> impl Future<Output = anyhow::Result<ServerId>> + use<> {
-        self.create_object_online(
-            CloudAmbientAgentEnvironmentModel::new(ambient_agent_environment),
-            owner,
-            client_id,
-            Default::default(),
-            false,
-            None,
-            ctx,
-        )
     }
 
     #[cfg_attr(target_family = "wasm", allow(dead_code))]

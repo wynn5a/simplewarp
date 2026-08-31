@@ -73,7 +73,7 @@ use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryT
 use crate::view_components::dropdown::DropdownAction;
 use crate::view_components::{
     Dropdown, DropdownItem, FilterableDropdown, SubmittableTextInput, SubmittableTextInputEvent,
-    WarningBoxConfig, render_warning_box,
+    render_warning_box,
 };
 use crate::workspaces::user_workspaces::UserWorkspacesEvent;
 use crate::{TelemetryEvent, UserWorkspaces, send_telemetry_from_ctx};
@@ -2100,7 +2100,7 @@ impl AgentsWidget {
             .should_show_long_context_pricing_warning(view.dragged_context_window_value, app)
         {
             column.add_child(render_warning_box(
-                WarningBoxConfig::formatted_title(long_context_pricing_warning_title()),
+                long_context_pricing_warning_title(),
                 appearance,
             ));
         }

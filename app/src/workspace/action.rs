@@ -508,7 +508,6 @@ pub enum WorkspaceAction {
         /// The type of zero state prompt suggestion to start with (optional).
         zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
     },
-    OpenCloudAgentSetupGuide,
     /// Open the modal explaining Prompt Suggestions aren't available on the Free plan.
     OpenPromptSuggestionsUnavailableModal,
     /// Dismisses the Wayland crash recovery banner and opens a link to our docs page with more
@@ -523,7 +522,6 @@ pub enum WorkspaceAction {
     OpenAIFactCollection,
     OpenMCPServerCollection,
     /// Open the Environment Management pane in Create mode.
-    OpenEnvironmentManagementPane,
     ToggleAIDocumentPane {
         document_id: AIDocumentId,
         document_version: AIDocumentVersion,
@@ -632,10 +630,6 @@ pub enum WorkspaceAction {
         conversation_id: AIConversationId,
         trigger: AutoCloudHandoffTrigger,
     },
-    /// Show the environment creation modal during `&` handoff compose when no
-    /// environments exist.
-    ShowHandoffEnvironmentCreationModal,
-    ShowCloudModeV2EnvironmentCreationModal,
     /// Open the workspace modal for creating a new managed auth secret.
     /// Dispatched by orchestration card pickers' "New API key…" item.
     OpenCreateAuthSecretModal {
@@ -1033,7 +1027,6 @@ impl WorkspaceAction {
             | ToggleUserMenu
             | ClickedAIAssistantIcon
             | ToggleAIAssistant
-            | OpenCloudAgentSetupGuide
             | OpenPromptSuggestionsUnavailableModal
             | ToggleKeybindingsPage
             | ShowCommandSearch(_)
@@ -1171,8 +1164,6 @@ impl WorkspaceAction {
             | FixSettingsWithOz { .. }
             | OpenLocalToCloudHandoffPane { .. }
             | AutoHandoffActiveAgentToCloud { .. }
-            | ShowHandoffEnvironmentCreationModal
-            | ShowCloudModeV2EnvironmentCreationModal
             | OpenCreateAuthSecretModal { .. }
             | OpenNetworkLogPane
             | OpenNewWindowForTeam { .. }
@@ -1214,7 +1205,6 @@ impl WorkspaceAction {
             FileRenamed { .. } => false, // File rename doesn't change workspace state
             #[cfg(feature = "local_fs")]
             FileDeleted { .. } => false, // File deletion doesn't change workspace state
-            OpenEnvironmentManagementPane => false,
             #[cfg(target_os = "linux")]
             DismissWaylandCrashRecoveryBannerAndOpenLink => false,
             #[cfg(target_family = "wasm")]

@@ -83,22 +83,8 @@ impl HandoffComposeState {
         }
         ctx.emit(HandoffComposeStateEvent::EnvironmentSelected);
     }
-
-    pub(crate) fn ensure_default_environment_id(
-        &mut self,
-        environment_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if self.selected_environment_id.is_none() {
-            self.set_environment_id(Some(environment_id), false, ctx);
-        }
-    }
 }
 
 impl Entity for HandoffComposeState {
     type Event = HandoffComposeStateEvent;
 }
-
-#[cfg(test)]
-#[path = "handoff_compose_tests.rs"]
-mod tests;

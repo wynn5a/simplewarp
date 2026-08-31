@@ -203,17 +203,6 @@ impl Args {
             } else {
                 use clap::FromArgMatches as _;
 
-                // Check for disabled commands before parsing to prevent help from showing (e.g.
-                // `warp environment` should not return help text)
-                if !FeatureFlag::CloudEnvironments.is_enabled() {
-                    let args: Vec<String> = env::args().collect();
-                    if args.len() > 1 && args[1] == "environment" {
-                        eprintln!("error: unrecognized subcommand 'environment'\n");
-                        eprintln!("For more information, try '--help'");
-                        std::process::exit(2);
-                    }
-                }
-
                 if !FeatureFlag::ProviderCommand.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "provider" {
@@ -289,9 +278,11 @@ impl Args {
     pub fn clap_command() -> clap::Command {
         let mut command = <Args as CommandFactory>::command();
 
-        // Hide the environment subcommands and --environment flags from help text
+        // The `warp environment` subcommand is gone with cloud environments. The
+        // `--environment` flag on `agent run`/`run-cloud` stays (those commands still accept an
+        // environment id) but is hidden from help, since nothing in this build can list or
+        // create one.
         if !FeatureFlag::CloudEnvironments.is_enabled() {
-            command = command.mut_subcommand("environment", |c| c.hide(true));
             command = command.mut_subcommand("agent", |agent_cmd| {
                 agent_cmd
                     .mut_subcommand("run", |run_cmd| {
@@ -517,10 +508,6 @@ pub enum CliCommand {
     #[command(subcommand)]
     Agent(crate::agent::AgentCommand),
 
-    /// Manage cloud environments.
-    #[command(subcommand)]
-    Environment(crate::environment::EnvironmentCommand),
-
     /// Manage MCP servers.
     #[command(subcommand)]
     MCP(crate::mcp::MCPCommand),
@@ -581,7 +568,6 @@ impl CliCommand {
     pub fn as_str_for_tracing(&self) -> &'static str {
         match self {
             CliCommand::Agent(command) => command.as_str_for_tracing(),
-            CliCommand::Environment(command) => command.as_str_for_tracing(),
             CliCommand::MCP(command) => command.as_str_for_tracing(),
             CliCommand::Run(command) => command.as_str_for_tracing(),
             CliCommand::Model(command) => command.as_str_for_tracing(),

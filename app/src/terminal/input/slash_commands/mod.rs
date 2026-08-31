@@ -632,19 +632,6 @@ impl Input {
 
                 ctx.dispatch_typed_action(&WorkspaceAction::SetActiveTabColor(color));
             }
-            SlashCommandKind::CreateEnvironment => {
-                // If the user included args after the slash command, treat them as repo paths/URLs.
-                let repos = argument
-                    .map(|arg| {
-                        arg.split_whitespace()
-                            .filter(|s| !s.is_empty())
-                            .map(|s| s.to_string())
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-                ctx.emit(Event::TriggerEnvironmentSetup { repos });
-            }
             SlashCommandKind::CreateNewProject => {
                 if argument.is_none_or(|args| args.is_empty()) {
                     show_error_toast(
@@ -892,17 +879,6 @@ impl Input {
                 });
                 self.clear_buffer_and_reset_undo_stack(ctx);
                 self.open_v2_harness_selector(ctx);
-                return true;
-            }
-            SlashCommandKind::Environment => {
-                if !self.is_cloud_mode_input_v2_composing(ctx) {
-                    return false;
-                }
-                self.suggestions_mode_model.update(ctx, |model, ctx| {
-                    model.set_mode(InputSuggestionsMode::Closed, ctx);
-                });
-                self.clear_buffer_and_reset_undo_stack(ctx);
-                self.open_v2_environment_selector(ctx);
                 return true;
             }
             SlashCommandKind::Model => {

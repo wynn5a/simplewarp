@@ -2527,6 +2527,83 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
    The provider still has 7 client getters — `get_integrations_client` stays, because the trait
    keeps its four GitHub/environment methods. `IntegrationsClient` is down from 7 methods to 4.
 
+4p. **Cloud environments: the whole management surface, and `IntegrationsClient` with it — DONE.**
+   76 files, 16,892 deletions, 155 insertions; 22 files removed outright. The largest round in
+   this project so far, and the first one taken as a *feature*, the way 4n said the rest of the
+   chain would have to be.
+
+   **Why this closes the chain step.** `IntegrationsClient`'s four surviving methods were all
+   attached to environments: `get_user_github_info` and `suggest_cloud_environment_image` drove
+   the Environments settings form, `check_user_repo_auth_status` and `poll_oauth_connect_status`
+   gated the repo arguments of `warp environment` and `warp agent skills`. Deleting the feature
+   deleted all four, so the trait, its impl, `server_api/integrations.rs` and
+   `get_integrations_client` are gone. **The provider is down to 6 client getters.**
+
+   **The proof that made every collapse safe.** `CloudAmbientAgentEnvironment` is a *cloud
+   object*: it only ever enters the store through `cloud_objects` sync, and creating one needs
+   `owner_for_new_environment`, which needs `AuthStateProvider::user_id()`. In a build with no
+   account that is always `None` and the store is permanently empty. Every `get_all`/`get_by_id`
+   in the ~20 surviving lookup sites therefore answers empty by construction — the same "only
+   writer" argument as 4g/3u, applied to a whole feature.
+
+   **Deleted outright (22 files):** the settings surface — `environments_page` (2,094 + 1,480 of
+   tests + a 141-line button), `update_environment_form` (3,573 + 1,307), the agent-assisted
+   modal (767 + 365), the delete-confirmation dialog, the handoff creation modal; the entry
+   points — `cloud_setup_guide_view` (742), `terminal/view/init_environment/` (673),
+   `create_environment_modal` (109 + 84), the footer `environment_selector` (520),
+   `environment_management_pane`, `ambient_agent/first_time_setup` (374); the CLI —
+   `agent_sdk/environment.rs` (1,114), `oauth_flow.rs`, `warp_cli/src/environment.rs` (trimmed to
+   the two shared `--environment` arg groups that `warp agent` and `warp schedule` still use);
+   and `server_api/integrations.rs` plus `settings_view/telemetry.rs`, whose only variant was
+   `EnvironmentsPageOpened`.
+
+   **Two judgement calls worth naming.**
+
+   - *The agent-management zero state.* `ViewState::SetupGuide` was the page's zero state — it
+     rendered the oz onboarding guide whenever there were no conversations, which in this build
+     is always. Deleting the guide meant the page needed *something*, so the state became
+     `ViewState::Empty` with a body built from the same vocabulary as `render_no_results_view`
+     two functions down (icon + label, centred). The header already showed the "New agent"
+     button in this state, so it survives unchanged. This is the only place in the round where
+     new UI was written rather than removed; it is ~20 lines and copies an existing pattern.
+   - *`WarningBoxConfig` collapsed to one argument.* The Environments page was the only caller
+     that used the builder's description, icon override, max width, or action button. With it
+     gone both remaining callers pass a formatted title and nothing else, so the config struct,
+     its five builder methods, `WarningBoxTitle::Text`, and `WarningBoxButtonConfig` went and
+     `render_warning_box` now takes the title directly — 255 lines to 80.
+
+   **Collapses rather than deletions.** The `&` handoff and cloud-mode-v2 submit paths both used
+   to open a creation modal when no environment existed; they now stop, which is the same
+   observable outcome minus a modal that could not have created one. The orchestration
+   environment picker survives (it is orchestration UI, same call as 4m's runner picker) but its
+   "New environment" footer and the `create_environment_requested` trait method went with the
+   modal. The `--environment` flag on `agent run`/`run-cloud` stays and stays hidden.
+
+   **The 4m landmine, hit for real this time.** `cargo check` and clippy were both clean and
+   140 tests then failed at runtime with ``Command `environment` is undefined``:
+   `mut_subcommand("environment", …)` in `warp_cli/src/lib.rs`, plus an arg-slice reject block
+   above it. Grepping the *variant* name finds neither. The pre-round grep for the literal was
+   done for `"integration"` in 4o and **not** repeated for `"environment"` here. Do it every
+   time, for every deleted subcommand name, before running the suite.
+
+   **A near-miss worth recording.** A helper that deleted "from marker to next marker" was used
+   to remove `active_init_environment_block`; its end marker was 2,100 lines further down, so it
+   would have silently swallowed the whole span. The script asserted on a later edit and aborted
+   before writing, which is the only reason the file survived. Bulk edits must delete by matched
+   brace depth or by verified line range — never by "next marker I can think of".
+
+   Acceptance: `cargo check` and clippy (simplewarp, `--all-targets`) back to the exact pre-round
+   warning baseline — 3 lib warnings plus the same 11 clippy lints, every one traced to a file
+   this round did not touch. `cargo nextest run` (simplewarp): **5,850 run, 5,850 passed, 0
+   failed**; `warp_cli` + `warp_features`: 209 run, 209 passed. Format clean.
+
+   **What is deliberately left.** `CloudAmbientAgentEnvironment` itself and
+   `ai/cloud_environments/` (410 lines) plus `cloud_object_models/cloud_environment.rs` (289)
+   stay, together with the ~20 lookup sites that now provably answer empty — the model is a
+   `cloud_objects` participant and comes out with that layer, not before it. `ambient_agent/`
+   (8,889 lines: auth secrets, harness/host/model selectors, the loading screen) is the
+   *cloud agent mode* UI — adjacent to this feature, not part of it, and its own round.
+
 4. The crates: `firebase`, `warp_server_client`, `warp_server_auth`, `graphql`,
    `cloud_object_*`, ~~`warp_multi_agent_client`~~.
 

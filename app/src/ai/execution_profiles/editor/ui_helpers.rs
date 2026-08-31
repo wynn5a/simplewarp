@@ -21,8 +21,7 @@ use crate::editor::EditorView;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::view_components::{
-    Dropdown, DropdownItemAction, FilterableDropdown, SubmittableTextInput, WarningBoxConfig,
-    render_warning_box,
+    Dropdown, DropdownItemAction, FilterableDropdown, SubmittableTextInput, render_warning_box,
 };
 use crate::{Appearance, TemplatableMCPServerManager};
 
@@ -203,10 +202,7 @@ fn render_info_section(
     Container::new(description).with_margin_bottom(12.).finish()
 }
 fn render_long_context_pricing_warning(appearance: &Appearance) -> Box<dyn Element> {
-    render_warning_box(
-        WarningBoxConfig::formatted_title(long_context_pricing_warning_title()),
-        appearance,
-    )
+    render_warning_box(long_context_pricing_warning_title(), appearance)
 }
 
 fn render_permission_row<T: DropdownItemAction>(

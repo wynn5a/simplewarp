@@ -70,13 +70,6 @@ impl CloudEnvironmentCatalog {
     }
 
     /// Returns the saved environment when it still exists, otherwise the
-    /// most-recent environment.
-    pub fn default_environment_id(&self, ctx: &AppContext) -> Option<SyncId> {
-        self.saved_environment_id(ctx)
-            .or_else(|| self.environments.first().map(|environment| environment.id))
-    }
-
-    /// Returns the saved environment when it still exists, otherwise the
     /// orchestration GUI's case-sensitive name fallback.
     pub fn orchestration_default_environment_id(&self, ctx: &AppContext) -> Option<SyncId> {
         self.saved_environment_id(ctx)

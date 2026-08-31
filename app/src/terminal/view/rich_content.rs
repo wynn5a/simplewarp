@@ -15,7 +15,6 @@ use crate::terminal::model::blocks::{RemovableBlocklistItem, RichContentItem};
 use crate::terminal::model::rich_content::RichContentType;
 use crate::terminal::model::terminal_model::BlockIndex;
 use crate::terminal::view::ambient_agent::AmbientAgentEntryBlock;
-use crate::terminal::view::init_environment::InitEnvironmentBlock;
 use crate::terminal::view::ssh_remote_server_choice_view::SshRemoteServerChoiceView;
 use crate::terminal::view::ssh_remote_server_failed_banner::SshRemoteServerFailedBanner;
 use crate::terminal::view::ssh_tmux_deprecation_banner::SshTmuxDeprecationBanner;
@@ -222,9 +221,6 @@ pub enum RichContentMetadata {
     InitStep {
         step_kind: InitStepKind,
         block_handle: ViewHandle<InitStepBlock>,
-    },
-    InitEnvironment {
-        block_handle: ViewHandle<InitEnvironmentBlock>,
     },
     EnvVarCollectionBlock {
         env_var_collection_block_handle: ViewHandle<EnvVarCollectionBlock>,

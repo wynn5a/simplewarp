@@ -1,6 +1,5 @@
 pub(super) mod chips;
 pub mod editor;
-mod environment_selector;
 pub mod toolbar_item;
 
 #[cfg(not(target_family = "wasm"))]
@@ -47,9 +46,6 @@ use warpui::{
     ViewHandle,
 };
 
-pub(crate) use self::environment_selector::{
-    EnvironmentSelector, EnvironmentSelectorEvent, EnvironmentSelectorTarget,
-};
 use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::blocklist::agent_view::is_in_cloud_context;
@@ -186,8 +182,6 @@ pub struct AgentInputFooter {
     /// remote VM, one when the next follow-up will start a new cloud VM. See
     /// [`AIQueryRouting`].
     model_selector: ViewHandle<ProfileModelSelector>,
-    environment_selector: Option<ViewHandle<EnvironmentSelector>>,
-    handoff_environment_selector: ViewHandle<EnvironmentSelector>,
     prompt_alert: ViewHandle<PromptAlertView>,
     ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
     handoff_compose_state: ModelHandle<HandoffComposeState>,
@@ -257,7 +251,7 @@ impl AgentInputFooter {
     pub fn set_ambient_agent_view_model(
         &mut self,
         ambient_agent_view_model: ModelHandle<AmbientAgentViewModel>,
-        menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
+        _menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
         ctx: &mut ViewContext<Self>,
     ) {
         if self.ambient_agent_view_model.is_some() {
@@ -273,27 +267,6 @@ impl AgentInputFooter {
         self.model_selector.update(ctx, |selector, ctx| {
             selector.set_ambient_agent_view_model(selector_model, ctx);
         });
-
-        // Build the environment selector now that the model exists (mirrors `new`).
-        let environment_selector = ctx.add_typed_action_view(|ctx| {
-            EnvironmentSelector::new(
-                menu_positioning_provider.clone(),
-                EnvironmentSelectorTarget::CloudPane(ambient_agent_view_model.clone()),
-                ctx,
-            )
-        });
-        ctx.subscribe_to_view(&environment_selector, |_, _, event, ctx| match event {
-            EnvironmentSelectorEvent::MenuVisibilityChanged { open } => {
-                ctx.emit(AgentInputFooterEvent::ToggledChipMenu { open: *open });
-                if !*open {
-                    ctx.emit(AgentInputFooterEvent::EnvironmentSelectorClosed);
-                }
-            }
-            EnvironmentSelectorEvent::OpenEnvironmentManagementPane => {
-                ctx.emit(AgentInputFooterEvent::OpenEnvironmentManagementPane);
-            }
-        });
-        self.environment_selector = Some(environment_selector);
 
         // Push the model into the V2 model selector chip, which was built with `None` at
         // construction. Uses the `ModelSelector` setter so construction and lazy attach wire it
@@ -666,41 +639,9 @@ impl AgentInputFooter {
             me.handle_profile_model_selector_event(event, ctx);
         });
 
-        // Built by the ambient setter (construction + lazy viewer path share that single point).
-        let environment_selector: Option<ViewHandle<EnvironmentSelector>> = None;
-
-        let handoff_environment_selector = ctx.add_typed_action_view(|ctx| {
-            EnvironmentSelector::new(
-                menu_positioning_provider.clone(),
-                EnvironmentSelectorTarget::Handoff(handoff_compose_state.clone()),
-                ctx,
-            )
-        });
-
-        ctx.subscribe_to_view(
-            &handoff_environment_selector,
-            |_, _, event, ctx| match event {
-                EnvironmentSelectorEvent::MenuVisibilityChanged { open } => {
-                    ctx.emit(AgentInputFooterEvent::ToggledChipMenu { open: *open });
-                    if !*open {
-                        ctx.emit(AgentInputFooterEvent::EnvironmentSelectorClosed);
-                    }
-                }
-                EnvironmentSelectorEvent::OpenEnvironmentManagementPane => {
-                    ctx.emit(AgentInputFooterEvent::OpenEnvironmentManagementPane);
-                }
-            },
-        );
-
         ctx.subscribe_to_model(
             &handoff_compose_state,
-            |me, handoff_compose_state, _, ctx| {
-                if !handoff_compose_state.as_ref(ctx).is_active() {
-                    me.handoff_environment_selector
-                        .update(ctx, |selector, ctx| {
-                            selector.set_menu_visibility(false, ctx)
-                        });
-                }
+            |_me, _handoff_compose_state, _, ctx| {
                 ctx.notify();
             },
         );
@@ -851,8 +792,6 @@ impl AgentInputFooter {
             plugin_chip_ready: false,
             context_window_button,
             model_selector: profile_model_selector_full,
-            environment_selector,
-            handoff_environment_selector,
             prompt_alert,
             terminal_model,
             handoff_compose_state,
@@ -910,18 +849,6 @@ impl AgentInputFooter {
         }
     }
 
-    pub fn is_v2_environment_selector_open(&self, app: &AppContext) -> bool {
-        self.environment_selector
-            .as_ref()
-            .is_some_and(|s| s.as_ref(app).is_menu_open())
-    }
-
-    pub fn open_v2_environment_selector(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(selector) = self.environment_selector.clone() {
-            selector.update(ctx, |s, ctx| s.open_menu(ctx));
-        }
-    }
-
     fn should_render_cloud_mode_v2(&self, app: &AppContext) -> bool {
         FeatureFlag::CloudModeInputV2.is_enabled()
             && FeatureFlag::CloudMode.is_enabled()
@@ -941,14 +868,10 @@ impl AgentInputFooter {
         #[cfg(not(feature = "voice_input"))]
         let _ = app;
 
-        let mut left = Flex::row()
+        let left = Flex::row()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(CLOUD_MODE_V2_FOOTER_GAP);
-        if let Some(environment_selector) = self.environment_selector.as_ref() {
-            left = left.with_child(ChildView::new(environment_selector).finish());
-        }
-
         let mut right = Flex::row()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -1580,18 +1503,8 @@ impl AgentInputFooter {
     }
 
     pub fn has_open_chip_menu(&self, app: &AppContext) -> bool {
-        let has_open_display_chip = self
-            .all_display_chips()
-            .any(|chip| chip.as_ref(app).display_chip_kind().has_open_menu());
-
-        let has_open_env_selector = self
-            .environment_selector
-            .as_ref()
-            .is_some_and(|selector| selector.as_ref(app).is_menu_open());
-        let has_open_handoff_env_selector =
-            self.handoff_environment_selector.as_ref(app).is_menu_open();
-
-        has_open_display_chip || has_open_env_selector || has_open_handoff_env_selector
+        self.all_display_chips()
+            .any(|chip| chip.as_ref(app).display_chip_kind().has_open_menu())
     }
 
     pub fn is_model_selector_open(&self, app: &AppContext) -> bool {
@@ -2150,23 +2063,6 @@ impl View for AgentInputFooter {
             .with_run_spacing(4.)
             .with_spacing(4.);
 
-        let is_ambient_agent = FeatureFlag::CloudMode.is_enabled()
-            && self
-                .ambient_agent_view_model
-                .as_ref()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model.as_ref(app).is_ambient_agent()
-                });
-        if is_ambient_agent {
-            if let Some(environment_selector) = self.environment_selector.as_ref() {
-                left_buttons =
-                    left_buttons.with_child(ChildView::new(environment_selector).finish());
-            }
-        } else if self.handoff_compose_state.as_ref(app).is_active() {
-            left_buttons = left_buttons
-                .with_child(ChildView::new(&self.handoff_environment_selector).finish());
-        }
-
         let terminal_model = self.terminal_model.lock();
         let is_cloud_context = super::is_in_cloud_context(&terminal_model);
 
@@ -2470,7 +2366,6 @@ pub enum AgentInputFooterEvent {
     TryExecuteChipCommand(PromptChipShellCommand),
     ModelSelectorOpened,
     ModelSelectorClosed,
-    EnvironmentSelectorClosed,
     ToggleInlineModelSelector {
         initial_tab: InlineModelSelectorTab,
     },
@@ -2483,7 +2378,6 @@ pub enum AgentInputFooterEvent {
     ShowContextMenu {
         position: Vector2F,
     },
-    OpenEnvironmentManagementPane,
     PluginInstalled(CLIAgent),
     #[cfg(not(target_family = "wasm"))]
     OpenPluginInstructionsPane(CLIAgent, PluginModalKind),

@@ -1199,7 +1199,7 @@ fn save_pane_state(
         }
         LeafContents::GetStarted => GET_STARTED_PANE_KIND,
         LeafContents::AIDocument(_) => AI_DOCUMENT_PANE_KIND,
-        LeafContents::EnvironmentManagement(_) | LeafContents::NetworkLog => {
+        LeafContents::NetworkLog => {
             // These pane types are filtered out before this function is
             // called; see `LeafContents::is_persisted` and the skip in
             // `save_app_state`. Reaching this arm would mean a `pane_nodes`
@@ -1350,9 +1350,6 @@ fn save_pane_state(
             diesel::insert_into(schema::workflow_panes::dsl::workflow_panes)
                 .values(workflow)
                 .execute(conn)?;
-        }
-        LeafContents::EnvironmentManagement(_) => {
-            // Unreachable: filtered by `is_persisted` in `save_app_state`.
         }
         LeafContents::Settings(settings_pane_snapshot) => {
             let current_page = match settings_pane_snapshot {

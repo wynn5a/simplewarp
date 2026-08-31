@@ -812,32 +812,6 @@ impl TerminalView {
         Align::new(screen).finish()
     }
 
-    /// Handles events from the first-time cloud agent setup view.
-    pub(in crate::terminal::view) fn handle_first_time_cloud_agent_setup_event(
-        &mut self,
-        event: &super::FirstTimeCloudAgentSetupViewEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            super::FirstTimeCloudAgentSetupViewEvent::Cancelled => {
-                // Exit agent view (pops from nav stack)
-                self.exit_agent_view(ctx);
-            }
-            super::FirstTimeCloudAgentSetupViewEvent::EnvironmentCreated => {
-                // Set the environment on the ambient agent view model
-                if let Some(ambient_agent_view_model) = self.ambient_agent_view_model.as_ref() {
-                    ambient_agent_view_model.update(ctx, |model, ctx| {
-                        // Transition from Setup to Composing
-                        model.enter_composing_from_setup(ctx);
-                    });
-                }
-
-                // Focus the input box so user can start typing
-                self.focus_input_box(ctx);
-            }
-        }
-    }
-
     /// Fetches task data and updates the conversation details panel.
     ///
     /// Prefers cloud `AmbientAgentTask` data when this terminal view has an

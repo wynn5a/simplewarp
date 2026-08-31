@@ -33,18 +33,6 @@ pub(super) enum CliTelemetryEvent {
     AgentDelete,
     /// Executing `warp agent skills`
     AgentSkills,
-    /// Executing `warp environment list`
-    EnvironmentList,
-    /// Executing `warp environment create`
-    EnvironmentCreate,
-    /// Executing `warp environment delete`
-    EnvironmentDelete,
-    /// Executing `warp environment update`
-    EnvironmentUpdate,
-    /// Executing `warp environment get`
-    EnvironmentGet,
-    /// Executing `warp environment image list`
-    EnvironmentImageList,
     /// Executing `warp mcp list`
     MCPList,
     /// Executing `warp model list`
@@ -173,12 +161,6 @@ impl TelemetryEvent for CliTelemetryEvent {
             CliTelemetryEvent::AgentUpdate => None,
             CliTelemetryEvent::AgentDelete => None,
             CliTelemetryEvent::AgentSkills => None,
-            CliTelemetryEvent::EnvironmentList => None,
-            CliTelemetryEvent::EnvironmentCreate => None,
-            CliTelemetryEvent::EnvironmentDelete => None,
-            CliTelemetryEvent::EnvironmentUpdate => None,
-            CliTelemetryEvent::EnvironmentGet => None,
-            CliTelemetryEvent::EnvironmentImageList => None,
             CliTelemetryEvent::MCPList => None,
             CliTelemetryEvent::ModelList => None,
             CliTelemetryEvent::MemoryStoreList => None,
@@ -266,14 +248,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::AgentUpdate => "CLI.Execute.Agent.Update",
             CliTelemetryEventDiscriminants::AgentDelete => "CLI.Execute.Agent.Delete",
             CliTelemetryEventDiscriminants::AgentSkills => "CLI.Execute.Agent.Skills",
-            CliTelemetryEventDiscriminants::EnvironmentList => "CLI.Execute.Environment.List",
-            CliTelemetryEventDiscriminants::EnvironmentCreate => "CLI.Execute.Environment.Create",
-            CliTelemetryEventDiscriminants::EnvironmentDelete => "CLI.Execute.Environment.Delete",
-            CliTelemetryEventDiscriminants::EnvironmentUpdate => "CLI.Execute.Environment.Update",
-            CliTelemetryEventDiscriminants::EnvironmentGet => "CLI.Execute.Environment.Get",
-            CliTelemetryEventDiscriminants::EnvironmentImageList => {
-                "CLI.Execute.Environment.Image.List"
-            }
             CliTelemetryEventDiscriminants::MCPList => "CLI.Execute.MCP.List",
             CliTelemetryEventDiscriminants::ModelList => "CLI.Execute.Model.List",
             CliTelemetryEventDiscriminants::MemoryStoreList => "CLI.Execute.MemoryStore.List",
@@ -371,24 +345,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::AgentUpdate => "Updated an agent from the Warp CLI",
             CliTelemetryEventDiscriminants::AgentDelete => "Deleted an agent from the Warp CLI",
             CliTelemetryEventDiscriminants::AgentSkills => "Listed agent skills from the Warp CLI",
-            CliTelemetryEventDiscriminants::EnvironmentList => {
-                "Listed cloud environments from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::EnvironmentCreate => {
-                "Created a cloud environment from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::EnvironmentDelete => {
-                "Deleted a cloud environment from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::EnvironmentUpdate => {
-                "Updated a cloud environment from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::EnvironmentGet => {
-                "Got cloud environment details from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::EnvironmentImageList => {
-                "Listed available base images from the Warp CLI"
-            }
             CliTelemetryEventDiscriminants::MCPList => "Listed MCP servers from the Warp CLI",
             CliTelemetryEventDiscriminants::ModelList => "Listed models from the Warp CLI",
             CliTelemetryEventDiscriminants::MemoryStoreList => {

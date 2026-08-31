@@ -360,17 +360,9 @@ impl UriHost {
 
                         // Open settings page unless auth was initiated from cloud setup
                         // (cloud setup users should stay on their current page)
-                        let source = query_string.get("source").map(|s| s.as_ref());
-                        let skip_settings = source == Some(CLOUD_SETUP_SOURCE);
-                        if !skip_settings {
-                            dispatch_action_in_new_or_existing_window(
-                                primary_window_id,
-                                "root_view:open_settings_page_in_existing_window",
-                                "root_view:open_settings_page_in_new_window",
-                                &SettingsSection::CloudEnvironments,
-                                ctx,
-                            );
-                        }
+                        // This used to land the user on Settings > Environments, the page
+                        // that consumed the GitHub connection. That page is gone with cloud
+                        // environments, so the redirect just completes the auth.
                     }
                     Some("mcp") => {
                         // warp://settings/mcp?autoinstall=<name> auto-installs a gallery MCP server.
@@ -884,12 +876,8 @@ enum Action {
     },
     Docker,
     OpenRepo,
-    CloudAgentSetup,
     NewCloudAgentConversation,
     NewAgentConversation,
-    CreateEnvironment {
-        repos: Vec<String>,
-    },
     FocusCloudMode,
     AutoHandoffToCloud {
         trigger: AutoCloudHandoffTrigger,
@@ -907,17 +895,8 @@ impl Action {
             }
             "/docker/open_subshell" => Ok(Self::Docker),
             "/open-repo" => Ok(Self::OpenRepo),
-            "/cloud_agent_setup" => Ok(Self::CloudAgentSetup),
             "/new_cloud_agent_conversation" => Ok(Self::NewCloudAgentConversation),
             "/new_agent_conversation" => Ok(Self::NewAgentConversation),
-            "/create_environment" => {
-                let repos = url
-                    .query_pairs()
-                    .filter_map(|(k, v)| (k == "repo").then(|| v.into_owned()))
-                    .collect::<Vec<_>>();
-
-                Ok(Self::CreateEnvironment { repos })
-            }
             "/focus_cloud_mode" => Ok(Self::FocusCloudMode),
             "/auto_handoff_to_cloud" | "/auto-handoff-to-cloud" => Ok(Self::AutoHandoffToCloud {
                 trigger: parse_auto_handoff_trigger(url),
@@ -995,36 +974,6 @@ impl Action {
                     }
                 }
             }
-            Action::CloudAgentSetup => {
-                let window_id =
-                    primary_window_id.or_else(|| Some(open_new_window_get_handles(None, ctx).0));
-
-                let Some(window_id) = window_id else {
-                    log::warn!("unable to determine window for cloud agent setup action");
-                    return;
-                };
-
-                let Some(mut workspaces) = ctx.views_of_type::<Workspace>(window_id) else {
-                    log::warn!(
-                        "no workspace found in window {window_id} for cloud agent setup action"
-                    );
-                    return;
-                };
-
-                match workspaces.pop() {
-                    Some(workspace) => {
-                        workspace.update(ctx, |workspace, ctx| {
-                            workspace
-                                .handle_action(&WorkspaceAction::OpenCloudAgentSetupGuide, ctx);
-                        });
-                    }
-                    _ => {
-                        log::warn!(
-                            "no workspace views in window {window_id} for cloud agent setup action"
-                        );
-                    }
-                }
-            }
             Action::NewCloudAgentConversation => {
                 let Some(window_id) = primary_window_id else {
                     open_new_with_workspace_source(NewWorkspaceSource::AmbientAgent, ctx);
@@ -1070,30 +1019,6 @@ impl Action {
                 workspace.update(ctx, |workspace, ctx| {
                     workspace.handle_action(&WorkspaceAction::AddAgentTab, ctx);
                 });
-            }
-            Action::CreateEnvironment { repos } => {
-                use crate::root_view::CreateEnvironmentArg;
-
-                let arg = CreateEnvironmentArg {
-                    repos: repos.clone(),
-                };
-
-                let primary_window_and_view = primary_window_id.and_then(|window_id| {
-                    ctx.root_view_id(window_id)
-                        .map(|view_id| (window_id, view_id))
-                });
-
-                if let Some((primary_window_id, root_view_id)) = primary_window_and_view {
-                    ctx.dispatch_action(
-                        primary_window_id,
-                        &[root_view_id],
-                        "root_view:create_environment_in_existing_window",
-                        &arg,
-                        log::Level::Info,
-                    );
-                } else {
-                    ctx.dispatch_global_action("root_view:create_environment", &arg);
-                }
             }
             Action::FocusCloudMode => {
                 let active_agent_views = ActiveAgentViewsModel::as_ref(ctx);
@@ -1141,13 +1066,8 @@ impl Action {
                 GitHubAuthNotifier::handle(ctx).update(ctx, |notifier, ctx| {
                     notifier.notify_auth_completed(ctx);
                 });
-                dispatch_action_in_new_or_existing_window(
-                    primary_window_id,
-                    "root_view:open_settings_page_in_existing_window",
-                    "root_view:open_settings_page_in_new_window",
-                    &SettingsSection::CloudEnvironments,
-                    ctx,
-                );
+                // See the settings redirect above: the Environments page this used to open
+                // no longer exists, so notifying is all there is to do.
             }
             Action::AutoHandoffToCloud { trigger } => {
                 trigger_auto_handoff_to_cloud(*trigger, ctx);
@@ -1162,9 +1082,7 @@ impl Action {
         match self {
             Self::Docker
             | Self::OpenFileEditor { .. }
-            | Self::CreateEnvironment { .. }
             | Self::OpenRepo
-            | Self::CloudAgentSetup
             | Self::NewCloudAgentConversation
             | Self::NewAgentConversation
             | Self::FocusCloudMode
@@ -1582,13 +1500,6 @@ fn find_cloud_mode_terminal_in_workspace(
         let Some(ambient_terminal_id) = ambient_terminal_id else {
             continue;
         };
-
-        let has_environment_management_pane = pane_group
-            .pane_ids()
-            .any(|pane_id| pane_id.is_environment_management_pane());
-        if has_environment_management_pane {
-            return Some(ambient_terminal_id);
-        }
 
         if fallback_ambient_terminal_id.is_none() {
             fallback_ambient_terminal_id = Some(ambient_terminal_id);
