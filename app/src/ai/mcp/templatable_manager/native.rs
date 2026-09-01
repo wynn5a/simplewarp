@@ -366,7 +366,7 @@ impl TemplatableMCPServerManager {
                 AuthManagerEvent::AuthFailed(_) | AuthManagerEvent::NeedsReauth => {
                     me.sync_builtin_servers(false, ctx)
                 }
-                AuthManagerEvent::AttemptedLoginGatedFeature { .. }
+                AuthManagerEvent::AttemptedLoginGatedFeature
                 | AuthManagerEvent::LoginOverrideDetected(_)
                 | AuthManagerEvent::MintCustomTokenFailed
                 | AuthManagerEvent::ReceivedDeviceAuthorizationCode { .. } => {}

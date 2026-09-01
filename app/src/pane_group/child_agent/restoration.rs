@@ -513,22 +513,20 @@ impl PaneGroup {
                 self.materialize_child_pane(child_conversation, ctx);
                 return;
             }
-        } else {
-            if child_conversation.is_remote_child() {
-                let Some(task_id) = child_conversation.task_id() else {
-                    log::warn!(
-                        "Cannot restore remote child conversation {child_id:?} without a task ID"
-                    );
-                    return;
-                };
-                self.hydrate_task_backed_hidden_child_pane(
-                    child_conversation,
-                    parent_pane_id,
-                    task_id,
-                    ctx,
+        } else if child_conversation.is_remote_child() {
+            let Some(task_id) = child_conversation.task_id() else {
+                log::warn!(
+                    "Cannot restore remote child conversation {child_id:?} without a task ID"
                 );
                 return;
-            }
+            };
+            self.hydrate_task_backed_hidden_child_pane(
+                child_conversation,
+                parent_pane_id,
+                task_id,
+                ctx,
+            );
+            return;
         }
 
         let child_task_context =

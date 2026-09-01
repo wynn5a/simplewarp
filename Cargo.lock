@@ -17258,18 +17258,3 @@ dependencies = [
  "syn 2.0.117",
  "winnow 0.7.12",
 ]
-
-[[patch.unused]]
-name = "tink-core"
-version = "0.3.0"
-source = "git+https://github.com/warpdotdev/tink-rust?rev=54b9ac9af93b0c08b446a7bc0582836c9403a71b#54b9ac9af93b0c08b446a7bc0582836c9403a71b"
-
-[[patch.unused]]
-name = "tink-hybrid"
-version = "0.3.0"
-source = "git+https://github.com/warpdotdev/tink-rust?rev=54b9ac9af93b0c08b446a7bc0582836c9403a71b#54b9ac9af93b0c08b446a7bc0582836c9403a71b"
-
-[[patch.unused]]
-name = "tink-proto"
-version = "0.3.0"
-source = "git+https://github.com/warpdotdev/tink-rust?rev=54b9ac9af93b0c08b446a7bc0582836c9403a71b#54b9ac9af93b0c08b446a7bc0582836c9403a71b"

@@ -676,7 +676,6 @@ impl PaneGroup {
     ) {
         self.apply_existing_ambient_task_to_pane(pane_id, child_id, task_id, ctx);
         if !task_is_terminal {
-            return;
         }
     }
 

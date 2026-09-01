@@ -227,7 +227,6 @@ impl LocalAgentTaskSyncModel {
                         .server_conversation_token()
                         .map(|token| token.as_str().to_string()),
                     status_message,
-                    ..LocalTaskUpdate::default()
                 })
             })
         else {
