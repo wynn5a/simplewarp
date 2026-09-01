@@ -25,7 +25,6 @@ pub mod completions;
 pub mod config_file;
 mod date_time;
 pub mod environment;
-pub mod federate;
 pub mod harness_support;
 pub mod json_filter;
 pub mod local_control;
@@ -34,7 +33,6 @@ pub mod memory_store;
 pub mod model;
 pub mod provider;
 pub mod schedule;
-pub mod secret;
 pub mod share;
 pub mod task;
 pub const OZ_RUN_ID_ENV: &str = "OZ_RUN_ID";
@@ -221,24 +219,6 @@ impl Args {
                     }
                 }
 
-                if !FeatureFlag::WarpManagedSecrets.is_enabled() {
-                    let args: Vec<String> = env::args().collect();
-                    if args.len() > 1 && args[1] == "secret" {
-                        eprintln!("error: unrecognized subcommand 'secret'\n");
-                        eprintln!("For more information, try '--help'");
-                        std::process::exit(2);
-                    }
-                }
-
-                if !FeatureFlag::OzIdentityFederation.is_enabled() {
-                    let args: Vec<String> = env::args().collect();
-                    if args.len() > 1 && args[1] == "federate" {
-                        eprintln!("error: unrecognized subcommand 'federate'\n");
-                        eprintln!("For more information, try '--help'");
-                        std::process::exit(2);
-                    }
-                }
-
                 if !FeatureFlag::ArtifactCommand.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "artifact" {
@@ -335,16 +315,6 @@ impl Args {
         // Hide the schedule subcommand from help text.
         if !FeatureFlag::ScheduledAmbientAgents.is_enabled() {
             command = command.mut_subcommand("schedule", |c| c.hide(true));
-        }
-
-        // Hide the secret subcommand from help text.
-        if !FeatureFlag::WarpManagedSecrets.is_enabled() {
-            command = command.mut_subcommand("secret", |c| c.hide(true));
-        }
-
-        // Hide the federate subcommand from help text.
-        if !FeatureFlag::OzIdentityFederation.is_enabled() {
-            command = command.mut_subcommand("federate", |c| c.hide(true));
         }
 
         // Hide the harness-support subcommand from help text.
@@ -542,14 +512,6 @@ pub enum CliCommand {
     /// As a shorthand, the `schedule` command behaves identically to `schedule create`.
     Schedule(crate::schedule::ScheduleCommand),
 
-    /// Manage secrets.
-    #[command(subcommand)]
-    Secret(crate::secret::SecretCommand),
-
-    /// Issue and manage federated identity tokens.
-    #[command(subcommand)]
-    Federate(crate::federate::FederateCommand),
-
     /// Support commands for agent harnesses to integrate with Oz.
     #[command(hide = true)]
     HarnessSupport(crate::harness_support::HarnessSupportArgs),
@@ -576,8 +538,6 @@ impl CliCommand {
             CliCommand::Whoami => "whoami",
             CliCommand::Provider(command) => command.as_str_for_tracing(),
             CliCommand::Schedule(command) => command.as_str_for_tracing(),
-            CliCommand::Secret(command) => command.as_str_for_tracing(),
-            CliCommand::Federate(command) => command.as_str_for_tracing(),
             CliCommand::HarnessSupport(args) => args.command.as_str_for_tracing(),
             CliCommand::Artifact(command) => command.as_str_for_tracing(),
             CliCommand::ApiKey(command) => command.as_str_for_tracing(),

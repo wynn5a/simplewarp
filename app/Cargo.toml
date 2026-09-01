@@ -595,7 +595,6 @@ default = [
     "ambient_agents_command_line",
     "ambient_agents_image_upload",
     "scheduled_ambient_agents",
-    "warp_managed_secrets",
     "v4a_file_diffs",
     "classic_completions",
     "force_classic_completions",
@@ -617,7 +616,6 @@ default = [
     "agent_mode_computer_use",
     "background_computer_use",
     "oz_platform_skills",
-    "oz_identity_federation",
     "sync_ambient_plans",
     "conversation_artifacts",
     "agent_view",
@@ -1090,7 +1088,6 @@ revert_to_checkpoints = []
 rewind_slash_command = []
 agent_view = []
 agent_view_block_context = ["agent_view"]
-warp_managed_secrets = []
 v4a_file_diffs = []
 agent_tips = []
 agent_toolbar_editor = ["agent_view"]
@@ -1113,7 +1110,6 @@ inline_model_selector = ["agent_view"]
 inline_profile_selector = ["agent_view"]
 restore_prompt_on_inline_model_selector_search = []
 oz_platform_skills = []
-oz_identity_federation = []
 oz_launch_modal = []
 open_warp_launch_modal = []
 orchestration_launch_modal = []

@@ -1,13 +1,13 @@
 //! Agent SDK entry points for invoking Agent-related functionality from the app.
 //! For now this provides a simple runner that echoes the received command.
 
+use std::collections::HashMap;
 use std::fmt::Write;
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use ai::api_keys::{ApiKeyManager, AwsCredentialsRefreshStrategy};
 use anyhow::Context;
 pub use driver::AgentDriver;
 use driver::AgentDriverError;
@@ -19,14 +19,12 @@ use warp_cli::agent::{
 };
 use warp_cli::api_key::ApiKeyCommand;
 use warp_cli::artifact::ArtifactCommand;
-use warp_cli::federate::FederateCommand;
 use warp_cli::harness_support::{HarnessSupportCommand, ReportArtifactCommand, TaskStatus};
 use warp_cli::mcp::MCPCommand;
 use warp_cli::memory_store::{MemoryCommand, MemoryStoreCommand};
 use warp_cli::model::ModelCommand;
 use warp_cli::provider::ProviderCommand;
 use warp_cli::schedule::ScheduleSubcommand;
-use warp_cli::secret::SecretCommand;
 use warp_cli::share::ShareRequest;
 use warp_cli::task::{MessageCommand, TaskCommand};
 use warp_cli::{CliCommand, GlobalOptions, OZ_HARNESS_ENV};
@@ -36,7 +34,6 @@ use warp_graphql::object_permissions::OwnerType;
 use warp_isolation_platform::IsolationPlatformError;
 #[cfg(not(target_family = "wasm"))]
 use warp_logging::log_file_path;
-use warp_managed_secrets::ManagedSecretManager;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelSpawner, SingletonEntity};
 
@@ -54,8 +51,6 @@ use crate::ai::agent_sdk::setup_observability::{
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::ambient_agents::task::HarnessConfig;
 use crate::ai::attachment_utils::attachments_download_dir;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::aws_credentials::refresh_aws_credentials;
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::llms::LLMId;
 use crate::ai::skills::{
@@ -82,7 +77,6 @@ pub(crate) mod artifact_upload;
 mod common;
 mod config_file;
 pub(crate) mod driver;
-mod federate;
 mod harness_support;
 #[cfg(not(target_family = "wasm"))]
 #[cfg(not(target_family = "wasm"))]
@@ -95,7 +89,6 @@ mod profiles;
 mod provider;
 pub(crate) mod retry;
 mod schedule;
-mod secret;
 pub(crate) mod setup_observability;
 mod telemetry;
 #[cfg(test)]
@@ -158,18 +151,6 @@ fn dispatch_command(
                 return Err(anyhow::anyhow!("invalid value 'schedule'"));
             }
             schedule::run(ctx, global_options, schedule_cmd)
-        }
-        CliCommand::Secret(secret_cmd) => {
-            if !FeatureFlag::WarpManagedSecrets.is_enabled() {
-                return Err(anyhow::anyhow!("invalid value 'secret'"));
-            }
-            secret::run(ctx, global_options, secret_cmd)
-        }
-        CliCommand::Federate(federate_cmd) => {
-            if !FeatureFlag::OzIdentityFederation.is_enabled() {
-                return Err(anyhow::anyhow!("invalid value 'federate'"));
-            }
-            federate::run(ctx, global_options, federate_cmd)
         }
         CliCommand::HarnessSupport(args) => {
             if !FeatureFlag::AgentHarness.is_enabled() {
@@ -648,8 +629,6 @@ impl AgentDriverRunner {
         let result: Result<(), AgentDriverError> = async {
             // Pull relevant variables out of args before moving it into the closure.
             let share_requests = args.share.share.clone();
-            let bedrock_inference_role = args.bedrock_inference_role.clone();
-            let bedrock_role_region = args.bedrock_role_region.clone();
             let has_task_id = args.task_id.is_some();
             let args_harness = args.harness;
             // `--conversation` path (user-invoked local resume): validate before any task side
@@ -686,43 +665,6 @@ impl AgentDriverRunner {
             // necessarily uses the same harness, so no extra conversation-metadata roundtrip is
             // needed here. Just merge the task's linked conversation id into the resume target.
             let resume_conversation_id = resume_conversation_id.or(task_conversation_id);
-
-            let bedrock_task_id = driver_options.task_id.map(|id| id.to_string());
-
-            #[cfg(not(target_family = "wasm"))]
-            if let Some(role_arn) = bedrock_inference_role {
-                // clap's `requires` constraint enforces this at parse time, so a missing
-                // region here means a caller is constructing `RunAgentArgs` directly
-                // without the flag. Fail loudly so callers don't silently fall back to a
-                // hard-coded STS region.
-                let role_region = bedrock_role_region.ok_or_else(|| {
-                    AgentDriverError::AwsBedrockCredentialsFailed(
-                        "--bedrock-role-region is required when --bedrock-inference-role is set"
-                            .to_string(),
-                    )
-                })?;
-                // Set the OIDC strategy on the UI thread and kick off the refresh; the
-                // returned future resolves when credentials are committed to the model.
-                let refresh_future = foreground
-                    .spawn(move |_, ctx| {
-                        ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
-                            // From here on, refresh credentials via OIDC federation only.
-                            manager.set_aws_credentials_refresh_strategy(
-                                AwsCredentialsRefreshStrategy::OidcManaged {
-                                    task_id: bedrock_task_id,
-                                    role_arn,
-                                    region: role_region,
-                                },
-                            );
-                            refresh_aws_credentials(manager, ctx)
-                        })
-                    })
-                    .await?;
-
-                refresh_future
-                    .await
-                    .map_err(AgentDriverError::AwsBedrockCredentialsFailed)?;
-            }
 
             match &task.harness {
                 HarnessKind::Unsupported(harness) => {
@@ -1023,7 +965,6 @@ impl AgentDriverRunner {
                     idle_on_fail: args.idle_on_fail.map(|d| d.into()),
                     secrets: Default::default(),
                     resume: None,
-                    cloud_providers: Vec::new(),
                     environment: None,
                     additional_source_repos: Vec::new(),
                     selected_harness: args.harness,
@@ -1154,19 +1095,15 @@ impl AgentDriverRunner {
         driver_options: &mut AgentDriverOptions,
         task: &mut Task,
     ) -> Result<Option<String>, AgentDriverError> {
-        let (task_secrets, ai_client, server_api) = foreground
+        let (ai_client, server_api) = foreground
             .spawn({
-                let task_id_str = task_id_str.clone();
                 move |_, ctx| {
-                    let task_secrets = ManagedSecretManager::handle(ctx)
-                        .as_ref(ctx)
-                        .get_task_secrets(task_id_str);
                     let ai_client = ServerApiProvider::handle(ctx)
                         .as_ref(ctx)
                         .get_ai_client()
                         .clone();
                     let server_api = ServerApiProvider::handle(ctx).as_ref(ctx).get();
-                    (task_secrets, ai_client, server_api)
+                    (ai_client, server_api)
                 }
             })
             .await?;
@@ -1219,8 +1156,7 @@ impl AgentDriverRunner {
             .await
         };
 
-        let (secrets_result, attachments_result, task_metadata_result, handoff_snapshot_result) = futures::join!(
-            task_secrets,
+        let (attachments_result, task_metadata_result, handoff_snapshot_result) = futures::join!(
             driver::attachments::fetch_and_download_attachments(
                 ai_client.clone(),
                 server_api.clone(),
@@ -1252,24 +1188,8 @@ impl AgentDriverRunner {
             }
         }
 
-        let secrets = match secrets_result {
-            Ok(secrets) => secrets,
-            Err(err) => {
-                // Ignore errors due to running in a non-isolated environment.
-                // Otherwise, fail fast - we should not start the driver without secrets
-                // in an environment where they should be available.
-                if err
-                    .downcast_ref::<IsolationPlatformError>()
-                    .is_some_and(|err| {
-                        matches!(err, IsolationPlatformError::NoIsolationPlatformDetected)
-                    })
-                {
-                    Default::default()
-                } else {
-                    return Err(AgentDriverError::SecretsFetchFailed(err));
-                }
-            }
-        };
+        // There is no server to fetch task secrets from in this build, so this is always empty.
+        let secrets = HashMap::new();
         let (
             parent_run_id,
             task_conversation_id,
@@ -1444,16 +1364,6 @@ impl AgentDriverRunner {
             })
             .await??;
 
-        if FeatureFlag::OzIdentityFederation.is_enabled() {
-            let run_id = driver_options
-                .task_id
-                .map(|id| id.to_string())
-                .unwrap_or_else(|| "local".to_string());
-            driver_options.cloud_providers =
-                driver::cloud_provider::load_providers(&environment.providers, &run_id)
-                    .map_err(AgentDriverError::CloudProviderSetupFailed)?;
-        }
-
         driver_options.environment = Some(environment);
         Ok(())
     }
@@ -1550,8 +1460,6 @@ fn command_requires_auth(command: &CliCommand) -> bool {
         CliCommand::Whoami => true,
         CliCommand::Provider(_) => true,
         CliCommand::Schedule(_) => true,
-        CliCommand::Secret(_) => true,
-        CliCommand::Federate(_) => true,
         CliCommand::HarnessSupport(_) => true,
         CliCommand::Artifact(_) => true,
         CliCommand::ApiKey(_) => true,
@@ -1755,16 +1663,6 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
             Some(ScheduleSubcommand::Unpause(_)) => CliTelemetryEvent::ScheduleUnpause,
             Some(ScheduleSubcommand::Update(_)) => CliTelemetryEvent::ScheduleUpdate,
             Some(ScheduleSubcommand::Delete(_)) => CliTelemetryEvent::ScheduleDelete,
-        },
-        CliCommand::Secret(secret_cmd) => match secret_cmd {
-            SecretCommand::Create(_) => CliTelemetryEvent::SecretCreate,
-            SecretCommand::Delete(_) => CliTelemetryEvent::SecretDelete,
-            SecretCommand::Update(_) => CliTelemetryEvent::SecretUpdate,
-            SecretCommand::List(_) => CliTelemetryEvent::SecretList,
-        },
-        CliCommand::Federate(federate_cmd) => match federate_cmd {
-            FederateCommand::IssueToken(_) => CliTelemetryEvent::FederateIssueToken,
-            FederateCommand::IssueGcpToken(_) => CliTelemetryEvent::FederateIssueGcpToken,
         },
         CliCommand::HarnessSupport(args) => match &args.command {
             HarnessSupportCommand::Ping => CliTelemetryEvent::HarnessSupportPing,

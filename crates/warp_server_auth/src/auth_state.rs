@@ -578,13 +578,6 @@ impl AuthState {
     }
 }
 
-// Adapter for the [`warp_managed_secrets`] crate, which needs to access the current user.
-impl warp_managed_secrets::ActorProvider for AuthState {
-    fn actor_uid(&self) -> Option<String> {
-        self.user_id().map(|uid| uid.as_string())
-    }
-}
-
 /// AuthStateProvider is a singleton model which provides a reference to the global AuthState.
 pub struct AuthStateProvider {
     auth_state: Arc<AuthState>,

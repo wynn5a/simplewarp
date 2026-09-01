@@ -5,12 +5,8 @@ use ai::api_keys::{
     GeapMintBinding, GeapRefreshOutcome, LoadGeapCredentialsError,
 };
 use futures::channel::oneshot;
-use serde::{Deserialize, Serialize};
-use vec1::vec1;
 use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
-use warp_managed_secrets::ManagedSecretManager;
-use warp_managed_secrets::client::{IdentityTokenOptions, TaskIdentityToken};
 use warpui::r#async::Timer;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
@@ -18,21 +14,9 @@ use crate::auth::AuthStateProvider;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 
-const GEAP_IDENTITY_TOKEN_DURATION: Duration = Duration::from_secs(60 * 60);
-
 /// Floor on the proactive refresh timer delay so a near-expired store
 /// cannot spin mint -> store -> re-mint as a hot loop;
 const GEAP_MIN_TIMER_DELAY: Duration = Duration::from_secs(60);
-
-const STS_TOKEN_URL: &str = "https://sts.googleapis.com/v1/token";
-const IAM_GENERATE_ACCESS_TOKEN_URL: &str = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/{sa_email}:generateAccessToken";
-const CLOUD_PLATFORM_SCOPE: &str = "https://www.googleapis.com/auth/cloud-platform";
-const TOKEN_EXCHANGE_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:token-exchange";
-const ID_TOKEN_TYPE: &str = "urn:ietf:params:oauth:token-type:id_token";
-const ACCESS_TOKEN_TYPE: &str = "urn:ietf:params:oauth:token-type:access_token";
-const SA_ACCESS_TOKEN_LIFETIME: &str = "3600s";
-
-const GEAP_MINT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum GeapPolicy {
@@ -231,26 +215,15 @@ fn refresh_geap_credentials_with_options(
     manager.install_geap_refresh_waiter(waiter);
     manager.set_geap_credentials_state(GeapCredentialsState::Refreshing { previous }, ctx);
 
-    // Leg 1: every mint — initial or re-mint, timer/trigger/forced — starts
-    // with a brand-new Warp OIDC JWT, consumed exactly once by the STS
-    // exchange below and never cached across mints.
-    let token_future = ManagedSecretManager::handle(ctx)
-        .as_ref(ctx)
-        .issue_task_identity_token(IdentityTokenOptions {
-            audience: minted_for.audience.clone(),
-            requested_duration: GEAP_IDENTITY_TOKEN_DURATION,
-            subject_template: vec1!["principal".to_string()],
-        });
-    let binding = minted_for.clone();
+    // GeapPolicy::Mintable is only ever constructed when Gemini Enterprise is enabled
+    // (see `current_geap_policy`), and that flag is never on in this build. There is no
+    // identity-token issuer to mint from, so this always fails the same way a real mint
+    // failure would be reported.
     let _ = ctx.spawn(
         async move {
-            let identity_token =
-                token_future
-                    .await
-                    .map_err(|err| LoadGeapCredentialsError::MintIdentityToken {
-                        detail: format!("{err:#}"),
-                    })?;
-            exchange_identity_token_for_geap_credentials(identity_token, &binding).await
+            Err(LoadGeapCredentialsError::MintIdentityToken {
+                detail: "No identity token issuer is available".to_string(),
+            })
         },
         move |manager, result, ctx| apply_geap_mint_result(manager, result, minted_for, force, ctx),
     );
@@ -406,164 +379,6 @@ fn geap_refresh_timer_delay(expires_at: SystemTime, now: SystemTime) -> Duration
         .duration_since(now)
         .unwrap_or(Duration::ZERO)
         .max(GEAP_MIN_TIMER_DELAY)
-}
-
-#[derive(Serialize)]
-struct StsTokenExchangeRequest<'a> {
-    grant_type: &'a str,
-    audience: &'a str,
-    scope: &'a str,
-    requested_token_type: &'a str,
-    subject_token: &'a str,
-    subject_token_type: &'a str,
-}
-
-#[derive(Debug, Deserialize)]
-struct StsTokenExchangeResponse {
-    access_token: String,
-    #[serde(default)]
-    expires_in: Option<u64>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct GenerateAccessTokenRequest {
-    scope: Vec<String>,
-    lifetime: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GenerateAccessTokenResponse {
-    access_token: String,
-    expire_time: String,
-}
-
-/// Legs 2 and 3 of the mint: exchanges the Warp OIDC JWT at Google STS for a
-/// federated token, then (when configured) impersonates the workspace's
-/// service account for the final ~1h access token.
-async fn exchange_identity_token_for_geap_credentials(
-    identity_token: TaskIdentityToken,
-    binding: &GeapMintBinding,
-) -> Result<GeapCredentials, LoadGeapCredentialsError> {
-    // STS token exchange.
-    let response = http_client::Client::new()
-        .post(STS_TOKEN_URL)
-        .form(&StsTokenExchangeRequest {
-            grant_type: TOKEN_EXCHANGE_GRANT_TYPE,
-            audience: &binding.audience,
-            scope: CLOUD_PLATFORM_SCOPE,
-            requested_token_type: ACCESS_TOKEN_TYPE,
-            subject_token: &identity_token.token,
-            subject_token_type: ID_TOKEN_TYPE,
-        })
-        .timeout(GEAP_MINT_REQUEST_TIMEOUT)
-        .send()
-        .await
-        .map_err(|err| LoadGeapCredentialsError::ExchangeToken {
-            status: None,
-            detail: format!("request failed: {err:#}"),
-        })?;
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        return Err(LoadGeapCredentialsError::ExchangeToken {
-            status: Some(status.as_u16()),
-            detail: body,
-        });
-    }
-    let sts_response: StsTokenExchangeResponse =
-        response
-            .json()
-            .await
-            .map_err(|err| LoadGeapCredentialsError::ExchangeToken {
-                status: None,
-                detail: format!("failed to parse the STS response: {err:#}"),
-            })?;
-    log::info!(
-        "GEAP: STS exchange succeeded (audience={})",
-        binding.audience
-    );
-
-    let federated_expires_at = sts_expires_at(
-        sts_response.expires_in,
-        SystemTime::from(identity_token.expires_at),
-        SystemTime::now(),
-    );
-
-    let GeapFederation::ServiceAccount { email: sa_email } = &binding.federation else {
-        // DirectWif: no impersonation — the federated STS token is used directly.
-        return Ok(GeapCredentials::new(
-            sts_response.access_token,
-            Some(federated_expires_at),
-        ));
-    };
-
-    // Leg 3: SA impersonation. IAM authorizes this only if the pool identity
-    // holds `roles/iam.workloadIdentityUser` on the SA — the customer's
-    // control point for who may become the SA.
-    let url = IAM_GENERATE_ACCESS_TOKEN_URL.replace("{sa_email}", sa_email);
-    let response = http_client::Client::new()
-        .post(&url)
-        .bearer_auth(&sts_response.access_token)
-        .json(&GenerateAccessTokenRequest {
-            scope: vec![CLOUD_PLATFORM_SCOPE.to_string()],
-            lifetime: SA_ACCESS_TOKEN_LIFETIME.to_string(),
-        })
-        .timeout(GEAP_MINT_REQUEST_TIMEOUT)
-        .send()
-        .await
-        .map_err(|err| LoadGeapCredentialsError::ImpersonateServiceAccount {
-            status: None,
-            detail: format!("request failed: {err:#}"),
-        })?;
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        return Err(LoadGeapCredentialsError::ImpersonateServiceAccount {
-            status: Some(status.as_u16()),
-            detail: body,
-        });
-    }
-    let impersonation: GenerateAccessTokenResponse = response.json().await.map_err(|err| {
-        LoadGeapCredentialsError::ImpersonateServiceAccount {
-            status: None,
-            detail: format!("failed to parse the impersonation response: {err:#}"),
-        }
-    })?;
-    let expires_at =
-        parse_generate_access_token_expiry(&impersonation.expire_time).map_err(|detail| {
-            LoadGeapCredentialsError::ImpersonateServiceAccount {
-                status: None,
-                detail,
-            }
-        })?;
-    log::info!(
-        "GEAP: service account impersonation succeeded (audience={})",
-        binding.audience
-    );
-    Ok(GeapCredentials::new(
-        impersonation.access_token,
-        Some(expires_at),
-    ))
-}
-
-fn sts_expires_at(
-    expires_in: Option<u64>,
-    jwt_expires_at: SystemTime,
-    now: SystemTime,
-) -> SystemTime {
-    expires_in
-        .and_then(|secs| now.checked_add(Duration::from_secs(secs)))
-        .unwrap_or(jwt_expires_at)
-}
-
-fn parse_generate_access_token_expiry(expire_time: &str) -> Result<SystemTime, String> {
-    chrono::DateTime::parse_from_rfc3339(expire_time)
-        .map(SystemTime::from)
-        .map_err(|err| {
-            format!("invalid expireTime `{expire_time}` in the impersonation response: {err}")
-        })
 }
 
 #[cfg(test)]

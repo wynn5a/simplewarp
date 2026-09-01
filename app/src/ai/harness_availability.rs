@@ -7,17 +7,14 @@ use warp_cli::agent::Harness;
 use warp_core::features::FeatureFlag;
 use warp_core::user_preferences::GetUserPreferences;
 use warp_errors::report_error;
+use warp_managed_secrets::ManagedSecretValue;
 use warp_managed_secrets::client::SecretOwner;
-use warp_managed_secrets::{ManagedSecretManager, ManagedSecretValue};
-use warpui::{Entity, ModelContext, RequestState, SingletonEntity};
+use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::harness_display;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
-use crate::server::retry_strategies::{
-    OUT_OF_BAND_REQUEST_RETRY_STRATEGY, is_transient_graphql_or_http_error,
-};
 use crate::server::server_api::ServerApiProvider;
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 
@@ -194,61 +191,25 @@ impl HarnessAvailabilityModel {
         }
     }
 
+    /// There is no server to ask for harness auth secrets in this build, so this always
+    /// resolves to `Failed` immediately rather than round-tripping through a client that
+    /// could only ever answer with an error.
     fn fetch_auth_secrets(&mut self, harness: Harness, ctx: &mut ModelContext<Self>) {
-        let Some(agent_harness) = harness_to_graphql_harness(harness) else {
+        if harness_to_graphql_harness(harness).is_none() {
             return;
-        };
+        }
 
         if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
             return;
         }
 
-        self.auth_secrets
-            .insert(harness, AuthSecretFetchState::Loading);
-        self.auth_secret_retry_after.remove(&harness);
-
-        let api = ServerApiProvider::as_ref(ctx).get_managed_secrets_client();
-        ctx.spawn_with_retry_on_error_when(
-            move || {
-                let api = api.clone();
-                let agent_harness = agent_harness.clone();
-                async move { api.list_harness_auth_secrets(agent_harness).await }
-            },
-            OUT_OF_BAND_REQUEST_RETRY_STRATEGY,
-            is_transient_graphql_or_http_error,
-            move |me,
-                  result: RequestState<Vec<warp_graphql::managed_secrets::ManagedSecret>>,
-                  ctx| match result {
-                RequestState::RequestSucceeded(secrets) => {
-                    let entries = secrets
-                        .into_iter()
-                        .map(|s| AuthSecretEntry {
-                            owner: secret_owner_from_space(&s.owner),
-                            name: s.name,
-                        })
-                        .collect();
-                    me.auth_secrets
-                        .insert(harness, AuthSecretFetchState::Loaded(entries));
-                    me.auth_secret_retry_after.remove(&harness);
-                    ctx.emit(HarnessAvailabilityEvent::AuthSecretsLoaded);
-                }
-                RequestState::RequestFailedRetryPending(e) => {
-                    log::warn!("Failed to fetch harness auth secrets; retrying: {e:#}");
-                }
-                RequestState::RequestFailed(e) => {
-                    let msg = e.to_string();
-                    report_error!(e.context("Failed to fetch harness auth secrets"));
-                    me.auth_secrets
-                        .insert(harness, AuthSecretFetchState::Failed(msg));
-                    me.auth_secret_retry_after
-                        .insert(harness, Instant::now() + AUTH_SECRET_FETCH_FAILURE_COOLDOWN);
-                    // Notify subscribers so they can drop any
-                    // "Loading…" placeholder rendered during the
-                    // in-flight fetch and surface the error state.
-                    ctx.emit(HarnessAvailabilityEvent::AuthSecretsFetchFailed);
-                }
-            },
+        self.auth_secrets.insert(
+            harness,
+            AuthSecretFetchState::Failed("Auth secrets are not available".to_string()),
         );
+        self.auth_secret_retry_after
+            .insert(harness, Instant::now() + AUTH_SECRET_FETCH_FAILURE_COOLDOWN);
+        ctx.emit(HarnessAvailabilityEvent::AuthSecretsFetchFailed);
     }
 
     fn can_retry_auth_secret_fetch(&self, harness: Harness) -> bool {
@@ -263,44 +224,26 @@ impl HarnessAvailabilityModel {
         self.auth_secret_retry_after.remove(&harness);
     }
 
+    /// There is no server to create a managed secret against in this build, so this
+    /// always fails immediately rather than round-tripping through a client that could
+    /// only ever answer with an error.
     pub fn create_auth_secret(
         &mut self,
         harness: Harness,
-        name: String,
-        value: ManagedSecretValue,
-        owner: SecretOwner,
+        _name: String,
+        _value: ManagedSecretValue,
+        _owner: SecretOwner,
         ctx: &mut ModelContext<Self>,
     ) {
-        let manager = ManagedSecretManager::handle(ctx);
-        let create_future = manager.as_ref(ctx).create_secret(owner, name, value, None);
-        ctx.spawn(create_future, move |me, result, ctx| match result {
-            Ok(secret) => {
-                let entry = AuthSecretEntry {
-                    name: secret.name.clone(),
-                    owner: secret_owner_from_space(&secret.owner),
-                };
-                match me.auth_secrets.get_mut(&harness) {
-                    Some(AuthSecretFetchState::Loaded(entries)) => {
-                        entries.push(entry);
-                    }
-                    _ => {
-                        me.auth_secrets
-                            .insert(harness, AuthSecretFetchState::Loaded(vec![entry]));
-                    }
-                }
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretCreated {
-                    harness,
-                    name: secret.name,
-                });
-            }
-            Err(e) => {
-                let msg = e.to_string();
-                report_error!(e.context("Failed to create harness auth secret"));
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretCreationFailed { error: msg });
-            }
+        let _ = harness;
+        ctx.emit(HarnessAvailabilityEvent::AuthSecretCreationFailed {
+            error: "Auth secrets are not available".to_string(),
         });
     }
 
+    /// There is no server to delete a managed secret against in this build, so this
+    /// always fails immediately rather than round-tripping through a client that could
+    /// only ever answer with an error.
     pub fn delete_auth_secret(
         &mut self,
         harness: Harness,
@@ -308,33 +251,11 @@ impl HarnessAvailabilityModel {
         owner: SecretOwner,
         ctx: &mut ModelContext<Self>,
     ) {
-        let manager = ManagedSecretManager::handle(ctx);
-        let delete_future = manager
-            .as_ref(ctx)
-            .delete_secret(owner.clone(), name.clone());
-        ctx.spawn(delete_future, move |me, result, ctx| match result {
-            Ok(()) => {
-                if let Some(AuthSecretFetchState::Loaded(entries)) =
-                    me.auth_secrets.get_mut(&harness)
-                {
-                    remove_deleted_auth_secret_entry(entries, &name, &owner);
-                }
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretDeleted {
-                    harness,
-                    name,
-                    owner,
-                });
-            }
-            Err(e) => {
-                let msg = e.to_string();
-                report_error!(e.context("Failed to delete harness auth secret"));
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretDeletionFailed {
-                    harness,
-                    name,
-                    owner,
-                    error: msg,
-                });
-            }
+        ctx.emit(HarnessAvailabilityEvent::AuthSecretDeletionFailed {
+            harness,
+            name,
+            owner,
+            error: "Auth secrets are not available".to_string(),
         });
     }
 
@@ -403,22 +324,6 @@ fn normalize_harness_display_names(
         .collect()
 }
 
-fn secret_owner_from_space(space: &warp_graphql::object::Space) -> SecretOwner {
-    match space.type_ {
-        warp_graphql::object::SpaceType::Team => SecretOwner::Team {
-            team_uid: space.uid.clone().into_inner(),
-        },
-        warp_graphql::object::SpaceType::User => SecretOwner::CurrentUser,
-    }
-}
-
-fn remove_deleted_auth_secret_entry(
-    entries: &mut Vec<AuthSecretEntry>,
-    name: &str,
-    owner: &SecretOwner,
-) {
-    entries.retain(|entry| entry.name.as_str() != name || &entry.owner != owner);
-}
 fn harness_to_graphql_harness(harness: Harness) -> Option<warp_graphql::ai::AgentHarness> {
     match harness {
         Harness::Oz => Some(warp_graphql::ai::AgentHarness::Oz),

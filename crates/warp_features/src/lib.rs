@@ -467,9 +467,6 @@ pub enum FeatureFlag {
     /// Enables starting cloud mode from a local session.
     CloudModeFromLocalSession,
 
-    /// Enables Warp Managed Secrets functionality.
-    WarpManagedSecrets,
-
     /// Enables support for AM file diffs backed by the V4A patch format.
     V4AFileDiffs,
 
@@ -545,8 +542,6 @@ pub enum FeatureFlag {
     /// Skills are loaded from `.agents/skills/`, `.warp/skills/`, `.claude/skills/`, and `.codex/skills/`
     /// directories to provide base prompts for agent runs.
     OzPlatformSkills,
-    /// Enables Oz identity federation commands.
-    OzIdentityFederation,
 
     /// Enables image upload for ambient agents.
     AmbientAgentsImageUpload,

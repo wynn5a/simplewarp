@@ -124,7 +124,6 @@ fn make_manager_with_grok(keys: ApiKeys, grok_tokens: Option<GrokTokens>) -> Api
         #[cfg(not(target_family = "wasm"))]
         geap_last_mint_failure: None,
         aws_credentials_state: AwsCredentialsState::Missing,
-        aws_credentials_refresh_strategy: AwsCredentialsRefreshStrategy::default(),
         geap_credentials_state: GeapCredentialsState::Missing,
         secure_storage_write_version: 0,
         grok_secure_storage_write_version: 0,

@@ -72,14 +72,6 @@ pub fn classify_driver_error(error: &AgentDriverError) -> (AgentTaskState, TaskS
                 ),
             )
         }
-        AgentDriverError::CloudProviderSetupFailed(err) => (
-            AgentTaskState::Error,
-            TaskStatusUpdate::with_error_code(
-                format!("Error configuring cloud access: {err:#}"),
-                PlatformErrorCode::InternalError,
-            ),
-        ),
-
         // --- User-side errors (task → FAILED) ---
         AgentDriverError::MCPServerNotFound(uuid) => (
             AgentTaskState::Failed,
@@ -243,25 +235,11 @@ pub fn classify_driver_error(error: &AgentDriverError) -> (AgentTaskState, TaskS
                 PlatformErrorCode::InternalError,
             ),
         ),
-        AgentDriverError::SecretsFetchFailed(err) => (
-            AgentTaskState::Error,
-            TaskStatusUpdate::with_error_code(
-                format!("Failed to fetch task secrets: {err}"),
-                PlatformErrorCode::InternalError,
-            ),
-        ),
         AgentDriverError::TaskMetadataFetchFailed(err) => (
             AgentTaskState::Error,
             TaskStatusUpdate::with_error_code(
                 format!("Failed to fetch task metadata: {err}"),
                 PlatformErrorCode::InternalError,
-            ),
-        ),
-        AgentDriverError::AwsBedrockCredentialsFailed(msg) => (
-            AgentTaskState::Failed,
-            TaskStatusUpdate::with_error_code(
-                format!("Failed to initialize AWS Bedrock credentials: {msg}"),
-                PlatformErrorCode::EnvironmentSetupFailed,
             ),
         ),
         AgentDriverError::ConversationLoadFailed(msg) => (

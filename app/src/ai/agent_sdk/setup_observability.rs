@@ -185,7 +185,6 @@ pub(crate) enum SetupStep {
     EnvironmentResolution,
     SkillRepoClone,
     TerminalBootstrap,
-    CloudProviderSetup,
     McpServerStartup,
     AgentProfileConfiguration,
     ProfileMcpServerStartup,
@@ -238,9 +237,6 @@ impl SetupStep {
             }
             Self::TerminalBootstrap => {
                 span_and_name!("setup_terminal_bootstrap")
-            }
-            Self::CloudProviderSetup => {
-                span_and_name!("setup_cloud_provider_setup")
             }
             Self::McpServerStartup => {
                 span_and_name!("setup_mcp_server_startup")

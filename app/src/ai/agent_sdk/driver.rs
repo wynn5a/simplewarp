@@ -9,7 +9,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
 
-use ai::api_keys::{ApiKeyManager, AwsCredentialsRefreshStrategy};
 use ai::skills::{
     ParsedSkill, SKILL_PROVIDER_DEFINITIONS, parse_skills_dirs_env, read_skills_for_skills_dirs,
     resolve_skills_dirs,
@@ -54,7 +53,6 @@ use crate::ai::ambient_agents::task::HarnessModelConfig;
 use crate::ai::ambient_agents::{
     AmbientAgentTaskId, AmbientConversationStatus, conversation_output_status_from_conversation,
 };
-use crate::ai::bedrock_credentials;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::local_agent_task_sync_model::LocalAgentTaskSyncModel;
 use crate::ai::blocklist::orchestration_event_streamer::{
@@ -104,7 +102,6 @@ pub(crate) mod attachments;
 #[cfg(feature = "local_fs")]
 pub(crate) mod cache_setup;
 mod checkpoint_coordinator;
-pub(crate) mod cloud_provider;
 pub(crate) mod environment;
 mod error_classification;
 pub(crate) mod git_credentials;
@@ -118,19 +115,12 @@ use environment::PrepareEnvironmentError;
 pub(crate) use snapshot::upload_snapshot_for_handoff;
 use terminal::TerminalDriverEvent;
 
-/// Races `run_future` against optional background credential refresh loops,
-/// dropping the loops automatically when `run_future` resolves.
-///
-/// Both refresh loops run forever when active; they are dropped when
-/// `futures::select!` picks the `run_future` arm. This consolidates the
-/// otherwise-repeated 4-arm `match (git, bedrock)` pattern that would
-/// otherwise appear once per harness type.
+/// Races `run_future` against the optional background git-credential refresh loop, dropping it
+/// automatically when `run_future` resolves.
 async fn with_credential_refreshes<F, T>(
     run_future: F,
     git_task_id: Option<String>,
     ai_client: Arc<dyn AIClient>,
-    oidc_strategy: Option<(String, String, String)>,
-    foreground: &ModelSpawner<AgentDriver>,
 ) -> T
 where
     F: Future<Output = T>,
@@ -143,22 +133,11 @@ where
     }
     .fuse();
 
-    let bedrock_refresh = async move {
-        match oidc_strategy {
-            Some((task_id, role_arn, region)) => {
-                bedrock_credentials::refresh_loop(task_id, role_arn, region, foreground).await
-            }
-            None => future::pending::<()>().await,
-        }
-    }
-    .fuse();
-
     let run_future = run_future.fuse();
-    futures::pin_mut!(run_future, git_refresh, bedrock_refresh);
+    futures::pin_mut!(run_future, git_refresh);
     futures::select! {
         result = run_future => result,
         _ = git_refresh => unreachable!("git credentials refresh loop resolved unexpectedly"),
-        _ = bedrock_refresh => unreachable!("Bedrock credentials refresh loop resolved unexpectedly"),
     }
 }
 
@@ -382,8 +361,6 @@ pub struct AgentDriverOptions {
     /// determines which harness-specific path is taken (Oz transcript restore vs.
     /// third-party-harness payload rehydration).
     pub resume: Option<ResumeOptions>,
-    /// Cloud providers to configure within the agent's session.
-    pub cloud_providers: Vec<Box<dyn cloud_provider::CloudProvider>>,
     /// Resolved environment configuration, if any.
     pub environment: Option<AmbientAgentEnvironment>,
     /// Additional per-task repositories supplied by the server, such as a webhook's
@@ -464,9 +441,6 @@ pub struct AgentDriver {
     /// If set, a third-party-harness conversation to resume. Consumed when
     /// preparing the harness runner and cleared afterward.
     resume_payload: Option<ResumePayload>,
-
-    /// Cloud providers set up within this driver session.
-    cloud_providers: Vec<Box<dyn cloud_provider::CloudProvider>>,
 
     /// Resolved environment configuration.
     environment: Option<AmbientAgentEnvironment>,
@@ -617,8 +591,6 @@ pub enum AgentDriverError {
     EnvironmentNotFound(String),
     #[error("Environment setup failed: {0}")]
     EnvironmentSetupFailed(String),
-    #[error("Cloud provider setup failed")]
-    CloudProviderSetupFailed(#[from] cloud_provider::CloudProviderSetupError),
     #[error("Could not resolve working directory {}", path.display())]
     InvalidWorkingDirectory {
         path: PathBuf,
@@ -648,14 +620,10 @@ pub enum AgentDriverError {
     ConfigBuildFailed(#[source] anyhow::Error),
     #[error("Failed to resolve server-side prompt")]
     PromptResolutionFailed(#[source] anyhow::Error),
-    #[error("Failed to fetch task secrets")]
-    SecretsFetchFailed(#[source] anyhow::Error),
     #[error("Failed to fetch task metadata")]
     TaskMetadataFetchFailed(#[source] anyhow::Error),
     #[error("Failed to load conversation: {0}")]
     ConversationLoadFailed(String),
-    #[error("Failed to initialize AWS Bedrock credentials: {0}")]
-    AwsBedrockCredentialsFailed(String),
     #[error(
         "Conversation {conversation_id} was produced by the {expected} harness, but --harness {got} was requested. \
          Re-run with --harness {expected} (or omit --harness to match) to continue this conversation."
@@ -757,7 +725,6 @@ impl AgentDriver {
             idle_on_fail,
             secrets,
             resume,
-            cloud_providers,
             environment,
             additional_source_repos,
             selected_harness,
@@ -808,8 +775,6 @@ impl AgentDriver {
 
         let mut env_vars = build_secret_env_vars(&secrets);
 
-        // Inject cloud provider env vars.
-        cloud_provider::collect_env_vars(&cloud_providers, &mut env_vars)?;
         // Clone before consuming for env vars; the field on `Self` is
         // also needed at register time.
         let parent_run_id_for_self = parent_run_id.clone();
@@ -917,7 +882,6 @@ impl AgentDriver {
             last_published_debug_deadline: None,
             restored_conversation_id,
             resume_payload,
-            cloud_providers,
             environment,
             additional_source_repos,
             snapshot_disabled: snapshot_disabled_value,
@@ -965,7 +929,6 @@ impl AgentDriver {
             last_published_debug_deadline: None,
             restored_conversation_id: None,
             resume_payload: None,
-            cloud_providers: Vec::new(),
             environment: None,
             additional_source_repos: Vec::new(),
             snapshot_disabled: false,
@@ -2264,12 +2227,7 @@ impl AgentDriver {
         );
 
         let setup_span = tracing::info_span!("agent_run_setup", tags.cloud_agent = true);
-        let (
-            setup_events,
-            task_id_for_refresh,
-            ai_client_for_refresh,
-            oidc_strategy_for_refresh,
-        ) = async {
+        let (setup_events, task_id_for_refresh, ai_client_for_refresh) = async {
             let setup_events = foreground
             .spawn(|me, ctx| {
                 let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client().clone();
@@ -2309,15 +2267,6 @@ impl AgentDriver {
                     .await
                     .map_err(|error| AgentDriverError::BootstrapFailed { error })
             })
-            .await?;
-
-        // Once the terminal session is bootstrapped, perform cloud provider setup before spawning MCP servers.
-        // MCP servers *may* rely on cloud provider credentials.
-        setup_events
-            .record_result(
-                SetupStep::CloudProviderSetup,
-                Self::setup_cloud_providers(&foreground),
-            )
             .await?;
 
         // For the Oz harness only: set up MCP servers, model overrides, and profile information.
@@ -2627,7 +2576,7 @@ impl AgentDriver {
                 .await;
         }
 
-        let (task_id_for_refresh, ai_client_for_refresh, oidc_strategy_for_refresh) = foreground
+        let (task_id_for_refresh, ai_client_for_refresh) = foreground
             .spawn(|me, ctx| {
                 let task_id = if FeatureFlag::GitCredentialRefresh.is_enabled() {
                     me.task_id.map(|id| id.to_string())
@@ -2635,31 +2584,11 @@ impl AgentDriver {
                     None
                 };
                 let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client().clone();
-                // Capture OidcManaged strategy parameters for the proactive Bedrock credential
-                // refresh loop. Only populated when Bedrock OIDC inference is configured.
-                let oidc_strategy = match ApiKeyManager::handle(ctx)
-                    .as_ref(ctx)
-                    .aws_credentials_refresh_strategy()
-                {
-                    AwsCredentialsRefreshStrategy::OidcManaged {
-                        task_id,
-                        role_arn,
-                        region,
-                    } => task_id
-                        .as_ref()
-                        .map(|tid| (tid.clone(), role_arn.clone(), region.clone())),
-                    AwsCredentialsRefreshStrategy::LocalChain => None,
-                };
-                (task_id, ai_client, oidc_strategy)
+                (task_id, ai_client)
             })
             .await?;
 
-            Ok::<_, AgentDriverError>((
-                setup_events,
-                task_id_for_refresh,
-                ai_client_for_refresh,
-                oidc_strategy_for_refresh,
-            ))
+            Ok::<_, AgentDriverError>((setup_events, task_id_for_refresh, ai_client_for_refresh))
         }
         .instrument(setup_span)
         .await?;
@@ -2683,8 +2612,6 @@ impl AgentDriver {
                     },
                     task_id_for_refresh,
                     ai_client_for_refresh,
-                    oidc_strategy_for_refresh,
-                    &foreground,
                 )
                 .await?;
 
@@ -2736,8 +2663,6 @@ impl AgentDriver {
                     ),
                     task_id_for_refresh,
                     ai_client_for_refresh,
-                    oidc_strategy_for_refresh,
-                    &foreground,
                 )
                 .await
             }
@@ -4040,64 +3965,16 @@ impl AgentDriver {
         }
     }
 
-    /// Set up each cloud provider in sequence.
-    async fn setup_cloud_providers(spawner: &ModelSpawner<Self>) -> Result<(), AgentDriverError> {
-        let (mut providers, terminal_spawner) = spawner
-            .spawn(|me, ctx| {
-                let terminal_spawner = me.terminal_driver.update(ctx, |_, ctx| ctx.spawner());
-                // Temporarily take all cloud providers so we can move them onto the background thread.
-                //
-                // Since the Vec of cloud providers is owned by the AgentDriver model, which is
-                // itself owned by the UI framework, we can only mutate them in-place on the UI thread.
-                // So that `CloudProvider::setup` can be `async` _and_ take `&mut self`, the
-                // `setup_cloud_providers` future takes ownership of all the providers, and then moves
-                // them back to the UI thread. This is somewhat similar to how views and models are removed
-                // from the UI framework temporarily while being mutated.
-                let providers = std::mem::take(&mut me.cloud_providers);
-                (providers, terminal_spawner)
-            })
-            .await?;
-
-        let mut result = Ok(());
-
-        for provider in providers.iter_mut() {
-            let provider_result = provider.setup(terminal_spawner.clone()).await;
-            if provider_result.is_err() {
-                result = provider_result;
-                break;
-            }
-        }
-
-        // Restore the cloud providers.
-        spawner
-            .spawn(move |me, _| {
-                me.cloud_providers = providers;
-            })
-            .await?;
-
-        result?;
-        Ok(())
-    }
-
     /// Perform cleanup after the agent has finished running.
     async fn cleanup(spawner: ModelSpawner<Self>) {
-        let Ok((providers, task_id)) = spawner
-            .spawn(|me, _| (std::mem::take(&mut me.cloud_providers), me.task_id))
-            .await
-        else {
-            report_error!("Unable to retrieve cloud providers for cleanup");
+        let Ok(task_id) = spawner.spawn(|me, _| me.task_id).await else {
+            report_error!("Unable to retrieve task ID for cleanup");
             return;
         };
 
         log::info!(
             "Ambient agent lifecycle: event=driver_cleanup_started task_id={task_id:?} next=terminal_process_exit"
         );
-
-        for provider in providers {
-            if let Err(err) = provider.cleanup().await {
-                report_error!(anyhow!(err).context("Unable to clean up cloud provider"));
-            }
-        }
     }
 
     /// Invoke the end-of-run snapshot upload pipeline if the feature flag is enabled and this

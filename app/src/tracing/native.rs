@@ -45,7 +45,7 @@
 //! best-effort cleanup that should continue after an unrelated panic.
 
 use std::borrow::Cow;
-use std::sync::{Arc, Mutex, OnceLock, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, SystemTime};
 
 use anyhow::{Context as _, anyhow};
@@ -65,11 +65,8 @@ use tracing::subscriber;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt as _;
 use url::{Host, Url};
-use warp_managed_secrets::client::ManagedSecretsClient;
-use warpui::AppContext;
-
 use super::Initialization;
-use super::cloud_agent_auth::{self, AuthContext};
+use super::cloud_agent_auth::AuthContext;
 use crate::channel::ChannelState;
 use crate::tracing::install_no_subscriber;
 
@@ -82,13 +79,6 @@ const CLOUD_AGENT_OTLP_ENDPOINT: &str = "WARP_CLOUD_AGENT_OTLP_ENDPOINT";
 const OTEL_SERVICE_NAME: &str = "OTEL_SERVICE_NAME";
 /// The minimum interval between local export failure diagnostics.
 const EXPORT_FAILURE_LOG_INTERVAL: Duration = Duration::from_secs(60);
-
-/// Process-global authentication context for cloud-agent OTLP export.
-///
-/// The exporter is built once during [`init`], while the stored context later starts dynamic
-/// credential refresh after authenticated application services become available, and this static
-/// remains unset for processes that did not opt in.
-static AUTH_CONTEXT: OnceLock<AuthContext> = OnceLock::new();
 
 /// Installs the native tracing subscriber and optional cloud-agent OTLP exporter.
 ///
@@ -129,7 +119,6 @@ pub fn init() -> anyhow::Result<Initialization> {
             });
         }
     };
-    let _ = AUTH_CONTEXT.set(auth_context);
 
     let active_spans = ActiveSpanRegistry::default();
     let tracer =
@@ -193,16 +182,6 @@ fn build_provider(
         })
         .with_resource(resource)
         .build())
-}
-
-/// Starts the single refresh coordinator after the authenticated server client exists.
-///
-/// Processes that did not opt in with both an endpoint and valid dispatch credential have no
-/// retained [`AUTH_CONTEXT`] and remain no-ops here.
-pub(super) fn start_auth_refresh(client: Arc<dyn ManagedSecretsClient>, ctx: &mut AppContext) {
-    if let Some(auth_context) = AUTH_CONTEXT.get() {
-        cloud_agent_auth::start_refresh_coordinator(auth_context.clone(), client, ctx);
-    }
 }
 
 /// Converts the configured OTLP base URL into the HTTP/protobuf traces endpoint.

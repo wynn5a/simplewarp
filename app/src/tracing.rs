@@ -22,19 +22,6 @@ pub fn init() -> anyhow::Result<Initialization> {
     native::init()
 }
 
-#[cfg(not(target_family = "wasm"))]
-/// Starts cloud-agent trace credential refresh after authenticated application services exist.
-///
-/// The exporter and dispatch credential are initialized earlier by [`init`]. This later lifecycle
-/// hook supplies the authenticated managed-secrets client needed to mint replacements without
-/// broadening tracing initialization to ordinary application processes.
-pub fn start_auth_refresh(
-    client: std::sync::Arc<dyn warp_managed_secrets::client::ManagedSecretsClient>,
-    ctx: &mut warpui::AppContext,
-) {
-    native::start_auth_refresh(client, ctx);
-}
-
 fn install_no_subscriber() -> anyhow::Result<()> {
     // Configure the global tracing subscriber to not care about any spans or
     // events.

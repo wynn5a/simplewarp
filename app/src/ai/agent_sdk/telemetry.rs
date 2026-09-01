@@ -109,18 +109,6 @@ pub(super) enum CliTelemetryEvent {
     ScheduleUpdate,
     /// Executing `warp schedule delete`
     ScheduleDelete,
-    /// Executing `warp secret create`
-    SecretCreate,
-    /// Executing `warp secret delete`
-    SecretDelete,
-    /// Executing `warp secret update`
-    SecretUpdate,
-    /// Executing `warp secret list`
-    SecretList,
-    /// Executing `warp federate issue-token`
-    FederateIssueToken,
-    /// Executing `warp federate issue-gcp-token`
-    FederateIssueGcpToken,
     /// Executing `warp harness-support ping`
     HarnessSupportPing,
     /// Executing `warp harness-support report-artifact`
@@ -201,12 +189,6 @@ impl TelemetryEvent for CliTelemetryEvent {
             CliTelemetryEvent::ScheduleUnpause => None,
             CliTelemetryEvent::ScheduleUpdate => None,
             CliTelemetryEvent::ScheduleDelete => None,
-            CliTelemetryEvent::SecretCreate => None,
-            CliTelemetryEvent::SecretDelete => None,
-            CliTelemetryEvent::SecretUpdate => None,
-            CliTelemetryEvent::SecretList => None,
-            CliTelemetryEvent::FederateIssueToken => None,
-            CliTelemetryEvent::FederateIssueGcpToken => None,
             CliTelemetryEvent::HarnessSupportPing => None,
             CliTelemetryEvent::HarnessSupportReportArtifact { artifact_type } => {
                 Some(json!({ "artifact_type": artifact_type }))
@@ -306,14 +288,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::ScheduleUnpause => "CLI.Execute.Schedule.Unpause",
             CliTelemetryEventDiscriminants::ScheduleUpdate => "CLI.Execute.Schedule.Update",
             CliTelemetryEventDiscriminants::ScheduleDelete => "CLI.Execute.Schedule.Delete",
-            CliTelemetryEventDiscriminants::SecretCreate => "CLI.Execute.Secret.Create",
-            CliTelemetryEventDiscriminants::SecretDelete => "CLI.Execute.Secret.Delete",
-            CliTelemetryEventDiscriminants::SecretUpdate => "CLI.Execute.Secret.Update",
-            CliTelemetryEventDiscriminants::SecretList => "CLI.Execute.Secret.List",
-            CliTelemetryEventDiscriminants::FederateIssueToken => "CLI.Execute.Federate.IssueToken",
-            CliTelemetryEventDiscriminants::FederateIssueGcpToken => {
-                "CLI.Execute.Federate.IssueGcpToken"
-            }
             CliTelemetryEventDiscriminants::HarnessSupportPing => "CLI.Execute.HarnessSupport.Ping",
             CliTelemetryEventDiscriminants::HarnessSupportReportArtifact => {
                 "CLI.Execute.HarnessSupport.ReportArtifact"
@@ -435,16 +409,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::ScheduleDelete => {
                 "Deleted a scheduled agent from the Warp CLI"
             }
-            CliTelemetryEventDiscriminants::SecretCreate => "Created a secret from the Warp CLI",
-            CliTelemetryEventDiscriminants::SecretDelete => "Deleted a secret from the Warp CLI",
-            CliTelemetryEventDiscriminants::SecretUpdate => "Updated a secret from the Warp CLI",
-            CliTelemetryEventDiscriminants::SecretList => "Listed secrets from the Warp CLI",
-            CliTelemetryEventDiscriminants::FederateIssueToken => {
-                "Issued a federated identity token from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::FederateIssueGcpToken => {
-                "Issued a GCP federated identity token from the Warp CLI"
-            }
             CliTelemetryEventDiscriminants::HarnessSupportPing => {
                 "Pinged harness-support from the Warp CLI"
             }
@@ -465,9 +429,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
 
     fn enablement_state(&self) -> EnablementState {
         match self {
-            Self::FederateIssueToken | Self::FederateIssueGcpToken => {
-                EnablementState::Flag(FeatureFlag::OzIdentityFederation)
-            }
             Self::HarnessSupportPing
             | Self::HarnessSupportReportArtifact
             | Self::HarnessSupportNotifyUser

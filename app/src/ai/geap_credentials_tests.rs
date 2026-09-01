@@ -3,7 +3,6 @@ use std::time::{Duration, SystemTime};
 
 use ai::api_keys::ApiKeyManager;
 use settings::{PrivatePreferences, PublicPreferences};
-use warp_managed_secrets::ManagedSecretManager;
 use warpui::{AddSingletonModel, App};
 use warpui_extras::user_preferences;
 
@@ -60,54 +59,6 @@ fn mint_binding_from_parts_uses_direct_wif_without_sa() {
     let binding = geap_mint_binding_from_parts("user-1".into(), Some(TEST_AUDIENCE), None)
         .expect("audience present");
     assert_eq!(binding.federation, GeapFederation::DirectWif);
-}
-
-#[test]
-fn sts_expires_at_prefers_expires_in_and_falls_back_to_jwt_expiry() {
-    let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
-    let jwt_expires_at = now + Duration::from_secs(900);
-
-    // STS reported a lifetime: absolute expiry is now + expires_in.
-    assert_eq!(
-        sts_expires_at(Some(3600), jwt_expires_at, now),
-        now + Duration::from_secs(3600)
-    );
-    // STS omitted it (allowed by RFC 8693): fall back to the JWT's own
-    // expiry as a conservative bound.
-    assert_eq!(sts_expires_at(None, jwt_expires_at, now), jwt_expires_at);
-}
-
-#[test]
-fn impersonation_expiry_parses_rfc3339() {
-    let parsed = parse_generate_access_token_expiry("2026-06-11T15:01:23Z").unwrap();
-    assert!(parsed > SystemTime::UNIX_EPOCH);
-}
-
-#[test]
-fn impersonation_expiry_rejects_invalid_timestamps() {
-    let err = parse_generate_access_token_expiry("not-a-timestamp").unwrap_err();
-    assert!(err.contains("invalid expireTime"));
-}
-
-#[test]
-fn impersonation_response_parses_camel_case() {
-    let response: GenerateAccessTokenResponse =
-        serde_json::from_str(r#"{"accessToken":"ya29.token","expireTime":"2026-06-11T15:01:23Z"}"#)
-            .unwrap();
-    assert_eq!(response.access_token, "ya29.token");
-    assert_eq!(response.expire_time, "2026-06-11T15:01:23Z");
-}
-
-#[test]
-fn sts_response_parses_with_and_without_expires_in() {
-    let with: StsTokenExchangeResponse =
-        serde_json::from_str(r#"{"access_token":"fed-token","expires_in":3599}"#).unwrap();
-    assert_eq!(with.access_token, "fed-token");
-    assert_eq!(with.expires_in, Some(3599));
-
-    let without: StsTokenExchangeResponse =
-        serde_json::from_str(r#"{"access_token":"fed-token"}"#).unwrap();
-    assert_eq!(without.expires_in, None);
 }
 
 #[test]
@@ -191,8 +142,8 @@ fn workspace_with_geap_host(enabled: bool) -> Workspace {
 }
 
 /// Registers the minimal singleton set the refresh path touches: workspace
-/// policy (gate), auth (uid), settings (member toggle), the secret manager
-/// (leg 1 mint), and the `ApiKeyManager` under test.
+/// policy (gate), auth (uid), settings (member toggle), and the
+/// `ApiKeyManager` under test.
 fn initialize_app(app: &mut App, workspaces: Vec<Workspace>) {
     app.add_singleton_model(|_| {
         PublicPreferences::new(Box::<user_preferences::in_memory::InMemoryPreferences>::default())
@@ -202,7 +153,6 @@ fn initialize_app(app: &mut App, workspaces: Vec<Workspace>) {
     });
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     let auth_state_provider = crate::auth::AuthStateProvider::new_for_test();
-    let auth_state = auth_state_provider.get().clone();
     app.add_singleton_model(|_| auth_state_provider);
     app.add_singleton_model(crate::settings::AISettings::new_with_defaults);
     app.add_singleton_model(|ctx| {
@@ -211,12 +161,6 @@ fn initialize_app(app: &mut App, workspaces: Vec<Workspace>) {
             Arc::new(MockWorkspaceClient::new()),
             workspaces,
             ctx,
-        )
-    });
-    app.add_singleton_model(|ctx| {
-        ManagedSecretManager::new(
-            ServerApiProvider::as_ref(ctx).get_managed_secrets_client(),
-            auth_state,
         )
     });
     app.update(|ctx| {

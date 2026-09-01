@@ -1,7 +1,6 @@
 pub mod ai;
 pub mod auth;
 pub mod harness_support;
-pub mod managed_secrets;
 pub mod object;
 pub(crate) mod presigned_upload;
 pub mod team;
@@ -24,7 +23,6 @@ use team::TeamClient;
 use warp_core::context_flag::ContextFlag;
 use warp_core::telemetry::TelemetryEvent;
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
-use warp_managed_secrets::client::ManagedSecretsClient;
 use warp_server_client::auth::{AuthClientImpl, AuthEvent};
 use warp_server_client::base_client::{
     AuthenticatedGraphqlConfig, BaseClient, GraphqlRoutingConfig,
@@ -681,10 +679,6 @@ impl ServerApiProvider {
     }
 
     pub fn get_cloud_objects_client(&self) -> Arc<dyn ObjectClient> {
-        self.server_api.clone()
-    }
-
-    pub fn get_managed_secrets_client(&self) -> Arc<dyn ManagedSecretsClient> {
         self.server_api.clone()
     }
 
