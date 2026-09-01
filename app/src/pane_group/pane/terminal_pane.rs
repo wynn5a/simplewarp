@@ -951,7 +951,7 @@ fn handle_terminal_view_event(
             } => {
                 ctx.emit(pane_group::Event::OpenCodeReviewPaneAndScrollToComment {
                     open_code_review: open_code_review.clone(),
-                    comment: comment.clone(),
+                    comment: Box::new(comment.clone()),
                     diff_mode: diff_mode.clone(),
                 });
             }

@@ -699,7 +699,7 @@ pub enum Event {
     },
     OpenCodeReviewPaneAndScrollToComment {
         open_code_review: CodeReviewPanelArg,
-        comment: AttachedReviewComment,
+        comment: Box<AttachedReviewComment>,
         diff_mode: DiffMode,
     },
     ImportAllCodeReviewComments {
