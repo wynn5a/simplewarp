@@ -2044,6 +2044,7 @@ impl BlockListElement {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_block_background(
         cell_size: Vector2F,
         grid_origin: Vector2F,
