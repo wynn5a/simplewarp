@@ -1565,9 +1565,6 @@ pub enum Event {
     SummarizationCancelDialogToggled {
         is_open: bool,
     },
-    AuthSecretDeleteConfirmationDialogToggled {
-        is_open: bool,
-    },
     CtrlD,
     ShutdownPty,
     // TODO: break this event down into higher-level events that hide the
@@ -20549,9 +20546,6 @@ impl TerminalView {
                     is_auto_open: false,
                 });
             }
-            InputEvent::AuthSecretDeleteConfirmationDialogToggled { is_open } => {
-                ctx.emit(Event::AuthSecretDeleteConfirmationDialogToggled { is_open: *is_open });
-            }
             InputEvent::ShowToast { message, flavor } => {
                 ctx.emit(Event::ShowToast {
                     message: message.clone(),
@@ -21728,15 +21722,6 @@ impl TerminalView {
             .find(|rc| !rc.is_usage_footer() && !rc.is_pending_user_query())
             .and_then(|rich_content| rich_content.ai_block_metadata())
             .map(|ai_metadata| ai_metadata.ai_block_handle.clone())
-    }
-
-    pub fn auth_secret_delete_confirmation_dialog_element(
-        &self,
-        ctx: &AppContext,
-    ) -> Option<Box<dyn Element>> {
-        self.input
-            .as_ref(ctx)
-            .auth_secret_delete_confirmation_dialog_element(ctx)
     }
 
     pub fn summarization_cancel_dialog_handle(

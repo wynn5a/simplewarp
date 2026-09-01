@@ -66,12 +66,6 @@ pub enum HarnessAvailabilityEvent {
     AuthSecretCreationFailed {
         error: String,
     },
-    AuthSecretDeletionFailed {
-        harness: Harness,
-        name: String,
-        owner: SecretOwner,
-        error: String,
-    },
 }
 
 pub struct HarnessAvailabilityModel {
@@ -217,24 +211,6 @@ impl HarnessAvailabilityModel {
     ) {
         let _ = harness;
         ctx.emit(HarnessAvailabilityEvent::AuthSecretCreationFailed {
-            error: "Auth secrets are not available".to_string(),
-        });
-    }
-
-    /// There is no server to delete a managed secret against in this build, so this
-    /// always fails immediately rather than round-tripping through a client that could
-    /// only ever answer with an error.
-    pub fn delete_auth_secret(
-        &mut self,
-        harness: Harness,
-        name: String,
-        owner: SecretOwner,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        ctx.emit(HarnessAvailabilityEvent::AuthSecretDeletionFailed {
-            harness,
-            name,
-            owner,
             error: "Auth secrets are not available".to_string(),
         });
     }

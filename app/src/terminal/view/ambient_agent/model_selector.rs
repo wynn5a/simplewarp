@@ -191,8 +191,7 @@ impl ModelSelector {
                     me.refresh_menu(ctx);
                 }
                 HarnessAvailabilityEvent::AuthSecretCreationFailed { .. }
-                | HarnessAvailabilityEvent::AuthSecretsFetchFailed
-                | HarnessAvailabilityEvent::AuthSecretDeletionFailed { .. } => {}
+                | HarnessAvailabilityEvent::AuthSecretsFetchFailed => {}
             },
         );
 

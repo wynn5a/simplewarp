@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use pathfinder_geometry::vector::vec2f;
@@ -8,7 +7,6 @@ use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_if_error;
-use warp_managed_secrets::client::SecretOwner;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, OffsetPositioning, ParentAnchor, ParentElement as _,
     ParentOffsetBounds, Stack,
@@ -25,16 +23,10 @@ use crate::ai::harness_availability::{
 };
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields, MenuVariant};
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
-use crate::terminal::view::ambient_agent::delete_auth_secret_confirmation_dialog::{
-    DeleteAuthSecretConfirmationDialog, DeleteAuthSecretConfirmationDialogEvent,
-    PendingAuthSecretDeletion,
-};
 use crate::terminal::view::ambient_agent::host_selector::NakedHeaderButtonTheme;
 use crate::terminal::view::ambient_agent::{AmbientAgentViewModel, AmbientAgentViewModelEvent};
 use crate::ui_components::icons::Icon;
-use crate::view_components::DismissibleToast;
 use crate::view_components::action_button::{ActionButton, ButtonSize};
-use crate::workspace::ToastStack;
 
 const HEADER_FONT_SIZE: f32 = 12.;
 
@@ -63,7 +55,6 @@ const NO_SECRET_LABEL: &str = "Inherit key from environment";
 const NEW_ITEM_LABEL: &str = "New";
 
 const MAIN_MENU_SAVE_POSITION_ID: &str = "auth_secret_selector_main_menu";
-type PendingDeleteKey = (Harness, String, SecretOwner);
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AuthSecretSelectorAction {
@@ -72,28 +63,21 @@ pub enum AuthSecretSelectorAction {
     ClearSecret,
     OpenNewTypeSidecar,
     SelectNewType(usize),
-    DeleteSecret { name: String, owner: SecretOwner },
 }
 
 pub enum AuthSecretSelectorEvent {
     MenuVisibilityChanged { open: bool },
     NewTypeSelected { harness: Harness, type_index: usize },
-    DeleteConfirmationDialogToggled { is_open: bool },
 }
 
 pub struct AuthSecretSelector {
     button: ViewHandle<ActionButton>,
     menu: ViewHandle<Menu<AuthSecretSelectorAction>>,
     new_type_sidecar: ViewHandle<Menu<AuthSecretSelectorAction>>,
-    delete_confirmation_dialog: ViewHandle<DeleteAuthSecretConfirmationDialog>,
     is_menu_open: bool,
     is_new_type_sidecar_open: bool,
     menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
     ambient_agent_model: ModelHandle<AmbientAgentViewModel>,
-    /// Secrets with an in-flight delete request, keyed by harness, name,
-    /// and owner. This disables only the matching X affordance while that
-    /// exact request is pending.
-    pending_deletes: HashSet<PendingDeleteKey>,
 }
 
 impl AuthSecretSelector {
@@ -143,12 +127,6 @@ impl AuthSecretSelector {
             MenuEvent::ItemSelected | MenuEvent::ItemHovered => {}
         });
 
-        let delete_confirmation_dialog =
-            ctx.add_typed_action_view(DeleteAuthSecretConfirmationDialog::new);
-        ctx.subscribe_to_view(&delete_confirmation_dialog, |me, _, event, ctx| {
-            me.handle_delete_confirmation_event(event, ctx);
-        });
-
         ctx.subscribe_to_model(&ambient_agent_model, |me, _, event, ctx| match event {
             AmbientAgentViewModelEvent::HarnessSelected => {
                 // When the harness changes, try to restore the saved auth secret.
@@ -171,20 +149,6 @@ impl AuthSecretSelector {
                     me.refresh_menu(ctx);
                     me.refresh_button(ctx);
                 }
-                HarnessAvailabilityEvent::AuthSecretDeletionFailed {
-                    harness,
-                    name,
-                    owner,
-                    error,
-                } => {
-                    me.handle_secret_deletion_failed(
-                        *harness,
-                        name.clone(),
-                        owner.clone(),
-                        error.clone(),
-                        ctx,
-                    );
-                }
                 HarnessAvailabilityEvent::Changed
                 | HarnessAvailabilityEvent::AuthSecretCreationFailed { .. } => {}
             },
@@ -199,12 +163,10 @@ impl AuthSecretSelector {
             button,
             menu,
             new_type_sidecar,
-            delete_confirmation_dialog,
             is_menu_open: false,
             is_new_type_sidecar_open: false,
             menu_positioning_provider,
             ambient_agent_model,
-            pending_deletes: HashSet::new(),
         };
         me.maybe_restore_auth_secret_from_settings(ctx);
         me.refresh_button(ctx);
@@ -244,10 +206,6 @@ impl AuthSecretSelector {
 
     pub fn select_previous(&self, ctx: &mut ViewContext<Self>) {
         self.menu.update(ctx, |menu, ctx| menu.select_previous(ctx));
-    }
-
-    pub(crate) fn delete_confirmation_dialog_element(&self) -> Box<dyn Element> {
-        ChildView::new(&self.delete_confirmation_dialog).finish()
     }
 
     fn set_menu_visibility(&mut self, is_open: bool, ctx: &mut ViewContext<Self>) {
@@ -353,81 +311,6 @@ impl AuthSecretSelector {
         });
     }
 
-    fn handle_secret_deletion_failed(
-        &mut self,
-        harness: Harness,
-        name: String,
-        owner: SecretOwner,
-        error: String,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let removed_pending = self.pending_deletes.remove(&(harness, name.clone(), owner));
-        let active_harness = self.ambient_agent_model.as_ref(ctx).selected_harness();
-        if harness == active_harness {
-            self.refresh_menu(ctx);
-        }
-        // Show a toast only when the failed delete was ours; avoids
-        // double-toasting if another surface also tried to delete.
-        if removed_pending {
-            let window_id = ctx.window_id();
-            let message = format!("Failed to delete API key '{name}': {error}");
-            ToastStack::handle(ctx).update(ctx, |ts, ctx| {
-                ts.add_ephemeral_toast(DismissibleToast::error(message), window_id, ctx);
-            });
-        }
-        ctx.notify();
-    }
-
-    fn handle_delete_confirmation_event(
-        &mut self,
-        event: &DeleteAuthSecretConfirmationDialogEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            DeleteAuthSecretConfirmationDialogEvent::Cancel => {
-                self.delete_confirmation_dialog
-                    .update(ctx, |dialog, ctx| dialog.hide(ctx));
-                ctx.emit(AuthSecretSelectorEvent::DeleteConfirmationDialogToggled {
-                    is_open: false,
-                });
-            }
-            DeleteAuthSecretConfirmationDialogEvent::Confirm(pending_deletion) => {
-                let pending_deletion = pending_deletion.clone();
-                self.delete_confirmation_dialog
-                    .update(ctx, |dialog, ctx| dialog.hide(ctx));
-                ctx.emit(AuthSecretSelectorEvent::DeleteConfirmationDialogToggled {
-                    is_open: false,
-                });
-                self.start_secret_delete(pending_deletion, ctx);
-            }
-        }
-    }
-
-    fn start_secret_delete(
-        &mut self,
-        pending_deletion: PendingAuthSecretDeletion,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let PendingAuthSecretDeletion {
-            harness,
-            name,
-            owner,
-        } = pending_deletion;
-
-        if !self
-            .pending_deletes
-            .insert((harness, name.clone(), owner.clone()))
-        {
-            return;
-        }
-
-        HarnessAvailabilityModel::handle(ctx).update(ctx, |model, ctx| {
-            model.delete_auth_secret(harness, name, owner, ctx);
-        });
-        // Re-render so the X for the pending row becomes
-        // disabled.
-        self.refresh_menu(ctx);
-    }
     fn refresh_sidecar(&mut self, ctx: &mut ViewContext<Self>) {
         let appearance = Appearance::as_ref(ctx);
         let theme = appearance.theme();
@@ -642,21 +525,6 @@ impl TypedActionView for AuthSecretSelector {
                     harness,
                     type_index,
                 });
-            }
-            AuthSecretSelectorAction::DeleteSecret { name, owner } => {
-                let pending_deletion = PendingAuthSecretDeletion {
-                    harness: self.ambient_agent_model.as_ref(ctx).selected_harness(),
-                    name: name.clone(),
-                    owner: owner.clone(),
-                };
-                self.set_menu_visibility(false, ctx);
-                self.delete_confirmation_dialog.update(ctx, |dialog, ctx| {
-                    dialog.show(pending_deletion, ctx);
-                });
-                ctx.emit(AuthSecretSelectorEvent::DeleteConfirmationDialogToggled {
-                    is_open: true,
-                });
-                ctx.notify();
             }
         }
     }

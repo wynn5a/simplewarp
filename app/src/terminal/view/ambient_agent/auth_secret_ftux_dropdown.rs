@@ -124,8 +124,7 @@ impl AuthSecretFtuxDropdown {
                     ctx.notify();
                 }
                 HarnessAvailabilityEvent::Changed
-                | HarnessAvailabilityEvent::AuthSecretCreationFailed { .. }
-                | HarnessAvailabilityEvent::AuthSecretDeletionFailed { .. } => {}
+                | HarnessAvailabilityEvent::AuthSecretCreationFailed { .. } => {}
             },
         );
 

@@ -2,7 +2,6 @@ mod auth_secret_ftux_dropdown;
 mod auth_secret_ftux_view;
 pub(crate) mod auth_secret_selector;
 mod block;
-mod delete_auth_secret_confirmation_dialog;
 mod footer;
 mod harness_selector;
 mod host_selector;
