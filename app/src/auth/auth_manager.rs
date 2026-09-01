@@ -30,9 +30,7 @@ use crate::autoupdate::AutoupdateState;
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApi;
-use crate::server::server_api::auth::{
-    AuthClient, FetchUserResult, MintCustomTokenError, UserAuthenticationError,
-};
+use crate::server::server_api::auth::{AuthClient, FetchUserResult, UserAuthenticationError};
 use crate::server::telemetry::AnonymousUserSignupEntrypoint;
 use crate::settings::PrivacySettings;
 use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
@@ -62,7 +60,7 @@ pub enum AuthManagerEvent {
     // Holds an auth payload from the received browser intent.
     LoginOverrideDetected(AuthRedirectPayload),
     /// Failed to mint a new custom token for an anonymous user.
-    MintCustomTokenFailed(MintCustomTokenError),
+    MintCustomTokenFailed,
     /// Received a device authorization code as part of the device auth flow.
     ReceivedDeviceAuthorizationCode {
         #[cfg_attr(target_family = "wasm", allow(unused))]
@@ -685,8 +683,8 @@ impl AuthManager {
                             ctx.open_url(&login_options_url);
                         }
                     }
-                    Err(e) => {
-                        ctx.emit(AuthManagerEvent::MintCustomTokenFailed(e));
+                    Err(_) => {
+                        ctx.emit(AuthManagerEvent::MintCustomTokenFailed);
                     }
                 }
             },
