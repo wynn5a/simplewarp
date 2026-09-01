@@ -6,9 +6,7 @@ use super::materialization::{ChildPaneMaterialization, decide_child_pane_materia
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::agent_conversations_model::AgentConversationsModel;
-use crate::ai::ambient_agents::{
-    AmbientAgentLiveSessionState, AmbientAgentTask, AmbientAgentTaskId,
-};
+use crate::ai::ambient_agents::{AmbientAgentTask, AmbientAgentTaskId};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::history_model::CloudConversationData;
@@ -25,18 +23,13 @@ use crate::terminal::view::load_ai_conversation::{
 /// disabled. See [`decide_remote_child_hydration_action`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::pane_group) enum RemoteChildHydrationAction {
-    /// No live session but a server conversation token is available;
-    /// `task_is_terminal` controls whether the post-merge step inserts a
-    /// conversation-ended tombstone (only terminal runs do).
+    /// A server conversation token is available to load a transcript for.
     LoadTranscript {
         server_token: ServerConversationToken,
-        task_is_terminal: bool,
     },
     /// Neither live nor cloud transcript available; fall through to
-    /// `attach_ambient_session_and_maybe_tombstone`. `task_is_terminal`
-    /// gates the tombstone so an `ActiveUnattachable` run with no server
-    /// token isn't visually marked as ended.
-    Fallback { task_is_terminal: bool },
+    /// attaching the (possibly empty) ambient session.
+    Fallback,
 }
 
 /// Pure decision function backing [`PaneGroup::hydrate_task_backed_hidden_child_pane`].
@@ -44,11 +37,6 @@ pub(in crate::pane_group) enum RemoteChildHydrationAction {
 pub(in crate::pane_group) fn decide_remote_child_hydration_action(
     task: &AmbientAgentTask,
 ) -> RemoteChildHydrationAction {
-    let task_is_terminal = matches!(
-        task.active_live_session_state(),
-        AmbientAgentLiveSessionState::Inactive
-    );
-
     // Empty/whitespace tokens would drive a no-op cloud fetch followed by
     // a misleading tombstone; route them to `Fallback` instead.
     let server_token = task
@@ -58,11 +46,8 @@ pub(in crate::pane_group) fn decide_remote_child_hydration_action(
         .map(|t| ServerConversationToken::new(t.to_string()));
 
     match server_token {
-        Some(server_token) => RemoteChildHydrationAction::LoadTranscript {
-            server_token,
-            task_is_terminal,
-        },
-        None => RemoteChildHydrationAction::Fallback { task_is_terminal },
+        Some(server_token) => RemoteChildHydrationAction::LoadTranscript { server_token },
+        None => RemoteChildHydrationAction::Fallback,
     }
 }
 
@@ -544,45 +529,31 @@ impl PaneGroup {
         };
 
         match decide_remote_child_hydration_action(&task) {
-            RemoteChildHydrationAction::LoadTranscript {
-                server_token,
-                task_is_terminal,
-            } => {
+            RemoteChildHydrationAction::LoadTranscript { server_token } => {
                 self.hydrate_remote_child_transcript_in_place(
                     pane_id,
                     child_id,
                     task_id,
                     server_token,
-                    task_is_terminal,
                     ctx,
                 );
             }
-            RemoteChildHydrationAction::Fallback { task_is_terminal } => {
+            RemoteChildHydrationAction::Fallback => {
                 // No live session, no server token: attach to the
-                // (possibly empty) ambient session, then insert the
-                // conversation-ended tombstone iff the run is terminal so
-                // an `ActiveUnattachable` child isn't visually ended.
-                self.attach_ambient_session_and_maybe_tombstone(
-                    pane_id,
-                    child_id,
-                    task_id,
-                    task_is_terminal,
-                    ctx,
-                );
+                // (possibly empty) ambient session.
+                self.apply_existing_ambient_task_to_pane(pane_id, child_id, task_id, ctx);
             }
         }
     }
 
     /// Fetches the cloud transcript for a restored hidden child pane when
-    /// `OrchestrationUnifiedStack` is disabled. `task_is_terminal` gates
-    /// the conversation-ended tombstone in the post-match step.
+    /// `OrchestrationUnifiedStack` is disabled.
     fn hydrate_remote_child_transcript_in_place(
         &mut self,
         pane_id: PaneId,
         child_id: AIConversationId,
         task_id: AmbientAgentTaskId,
         server_token: ServerConversationToken,
-        task_is_terminal: bool,
         ctx: &mut ViewContext<Self>,
     ) {
         let history_handle = BlocklistAIHistoryModel::handle(ctx);
@@ -651,32 +622,9 @@ impl PaneGroup {
                 }
             }
 
-            // Uniform post-match step so the `task_is_terminal` gate
-            // applies to all three branches above.
-            group.attach_ambient_session_and_maybe_tombstone(
-                pane_id,
-                child_id,
-                task_id,
-                task_is_terminal,
-                ctx,
-            );
+            // Uniform post-match step across all three branches above.
+            group.apply_existing_ambient_task_to_pane(pane_id, child_id, task_id, ctx);
         });
-    }
-
-    /// Post-match step for `hydrate_remote_child_transcript_in_place` when
-    /// `OrchestrationUnifiedStack` is disabled: attaches the live ambient
-    /// session and conditionally inserts the conversation-ended tombstone.
-    fn attach_ambient_session_and_maybe_tombstone(
-        &mut self,
-        pane_id: PaneId,
-        child_id: AIConversationId,
-        task_id: AmbientAgentTaskId,
-        task_is_terminal: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.apply_existing_ambient_task_to_pane(pane_id, child_id, task_id, ctx);
-        if !task_is_terminal {
-        }
     }
 
     /// Drains entries from `pending_remote_child_hydrations` for which task
