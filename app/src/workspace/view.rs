@@ -202,7 +202,6 @@ use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, FORK_PREFIX, PendingAttachment, PendingQueryState, QueuedQueryOrigin,
     SerializedBlockListItem, SlashCommandRequest,
 };
-use crate::ai::cloud_agent_settings::CloudAgentSettings;
 #[cfg(target_family = "wasm")]
 use crate::ai::conversation_details_panel::ConversationDetailsPanel;
 use crate::ai::conversation_utils;
@@ -14194,8 +14193,9 @@ impl Workspace {
     }
 
     /// Opens the workspace-level blocking modal for creating a new managed
-    /// auth secret. Persists the new secret on success and dismisses the
-    /// modal; cards adopt it via `HarnessAvailabilityEvent::AuthSecretCreated`.
+    /// auth secret. Dismisses on Cancel/Skip; stays open on Failed (the view
+    /// already toasts) since there is no server to succeed against in this
+    /// build.
     fn show_create_auth_secret_modal(&mut self, harness: Harness, ctx: &mut ViewContext<Self>) {
         let body = ctx.add_typed_action_view(|ctx| {
             AuthSecretFtuxView::new(harness, ctx)
@@ -14203,18 +14203,6 @@ impl Workspace {
                 .with_compact_mode(ctx)
         });
         ctx.subscribe_to_view(&body, |me, _, event, ctx| match event {
-            AuthSecretFtuxViewEvent::SecretSelected { harness, name }
-            | AuthSecretFtuxViewEvent::Created { harness, name } => {
-                let harness = *harness;
-                let name = name.clone();
-                CloudAgentSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    settings.mark_harness_auth_ftux_completed(harness, ctx);
-                    let mut map = settings.last_selected_auth_secret.value().clone();
-                    map.insert(harness.config_name().to_string(), name);
-                    let _ = settings.last_selected_auth_secret.set_value(map, ctx);
-                });
-                me.dismiss_create_auth_secret_modal(ctx);
-            }
             AuthSecretFtuxViewEvent::Cancelled | AuthSecretFtuxViewEvent::Skipped { .. } => {
                 me.dismiss_create_auth_secret_modal(ctx);
             }

@@ -2209,24 +2209,9 @@ impl Input {
             }
         });
 
-        // Cloud-mode side effects on FTUX events: update the pane's harness auth secret, persist
-        // `last_selected_auth_secret`, mark FTUX completed.
+        // Cloud-mode side effects on FTUX events: reset to Oz on Cancel, mark FTUX completed on Skip.
         let vm_for_events = view_model.clone();
         ctx.subscribe_to_view(&ftux_view, move |_me, _, event, ctx| match event {
-            AuthSecretFtuxViewEvent::SecretSelected { harness, name }
-            | AuthSecretFtuxViewEvent::Created { harness, name } => {
-                let harness = *harness;
-                let name = name.clone();
-                vm_for_events.update(ctx, |model, ctx| {
-                    model.set_harness_auth_secret_name(Some(name.clone()), ctx);
-                });
-                CloudAgentSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    settings.mark_harness_auth_ftux_completed(harness, ctx);
-                    let mut map = settings.last_selected_auth_secret.value().clone();
-                    map.insert(harness.config_name().to_string(), name);
-                    let _ = settings.last_selected_auth_secret.set_value(map, ctx);
-                });
-            }
             AuthSecretFtuxViewEvent::Cancelled => {
                 vm_for_events.update(ctx, |model, ctx| {
                     model.set_harness(Harness::Oz, ctx);

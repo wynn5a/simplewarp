@@ -49,14 +49,12 @@ const MENU_MAX_HEIGHT: f32 = 300.;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum FtuxDropdownAction {
-    SelectSecret(String),
     SelectNewType(usize),
     ClearDisplayLabel,
     Skip,
 }
 
 pub enum FtuxDropdownEvent {
-    SecretSelected(String),
     NewTypeSelected { harness: Harness, type_index: usize },
     Opened,
     Closed,
@@ -478,10 +476,6 @@ impl TypedActionView for AuthSecretFtuxDropdown {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
-            FtuxDropdownAction::SelectSecret(name) => {
-                ctx.emit(FtuxDropdownEvent::SecretSelected(name.clone()));
-                self.set_menu_visibility(false, ctx);
-            }
             FtuxDropdownAction::SelectNewType(type_index) => {
                 ctx.emit(FtuxDropdownEvent::NewTypeSelected {
                     harness: self.harness,

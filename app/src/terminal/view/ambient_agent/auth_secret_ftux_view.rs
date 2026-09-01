@@ -85,10 +85,6 @@ pub enum AuthSecretFtuxAction {
 /// same view can be embedded in cloud mode or in a workspace-level modal.
 #[derive(Debug, Clone)]
 pub enum AuthSecretFtuxViewEvent {
-    /// User picked an existing secret from the in-view dropdown.
-    SecretSelected { harness: Harness, name: String },
-    /// User created a new secret via the form.
-    Created { harness: Harness, name: String },
     /// User dismissed the form via Cancel.
     Cancelled,
     /// User skipped via the in-dropdown "Skip" item.
@@ -160,19 +156,6 @@ impl AuthSecretFtuxView {
                 HarnessAvailabilityModel::handle(ctx).update(ctx, |model, ctx| {
                     model.ensure_auth_secrets_fetched(harness, ctx);
                 });
-            }
-        });
-
-        ctx.subscribe_to_view(&ftux_dropdown, |me, _, event, ctx| {
-            if let FtuxDropdownEvent::SecretSelected(name) = event {
-                me.clear_all_editor_buffers(ctx);
-                me.creation_state = None;
-                me.field_editors.clear();
-                ctx.emit(AuthSecretFtuxViewEvent::SecretSelected {
-                    harness: me.harness,
-                    name: name.clone(),
-                });
-                ctx.notify();
             }
         });
 
