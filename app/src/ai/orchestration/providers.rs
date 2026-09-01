@@ -193,15 +193,8 @@ pub fn resolve_default_auth_secret_for_harness(
 
     let availability = HarnessAvailabilityModel::as_ref(ctx);
     match availability.auth_secrets_for(harness) {
-        AuthSecretFetchState::Loaded(secrets) => {
-            // Drop the persisted name if the secret was deleted server-side.
-            persisted.filter(|name| secrets.iter().any(|s| s.name == *name))
-        }
-        // Pre-fetch: optimistically show the persisted name; the
-        // `AuthSecretsLoaded` subscription will re-resolve.
-        AuthSecretFetchState::NotFetched
-        | AuthSecretFetchState::Loading
-        | AuthSecretFetchState::Failed(_) => persisted,
+        // Pre-fetch: optimistically show the persisted name.
+        AuthSecretFetchState::NotFetched | AuthSecretFetchState::Failed(_) => persisted,
     }
 }
 

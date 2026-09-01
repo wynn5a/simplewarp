@@ -426,12 +426,7 @@ pub fn api_key_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> O
         return OptionSnapshot::ready(Vec::new(), None);
     }
     let names = match HarnessAvailabilityModel::as_ref(ctx).auth_secrets_for(harness) {
-        AuthSecretFetchState::Loaded(secrets) => {
-            AuthSecretNamesInput::Loaded(secrets.iter().map(|s| s.name.clone()).collect())
-        }
-        AuthSecretFetchState::NotFetched | AuthSecretFetchState::Loading => {
-            AuthSecretNamesInput::NotLoaded
-        }
+        AuthSecretFetchState::NotFetched => AuthSecretNamesInput::NotLoaded,
         AuthSecretFetchState::Failed(_) => AuthSecretNamesInput::Failed,
     };
     let supports_create_new = !auth_secret_types_for_harness(harness).is_empty();

@@ -195,21 +195,6 @@ impl AuthSecretFtuxView {
         ctx.subscribe_to_model(
             &HarnessAvailabilityModel::handle(ctx),
             |me, _, event, ctx| match event {
-                HarnessAvailabilityEvent::AuthSecretCreated { harness, name } => {
-                    // Only consume the event when it matches the request
-                    // *this* view actually fired. Without the harness/name
-                    // match a concurrent FTUX view's success would close
-                    // us (or worse, emit a Created event the host then
-                    // routes to the wrong modal).
-                    let is_ours = me.creation_state.as_ref().is_some_and(|state| {
-                        state.is_saving
-                            && state.harness == *harness
-                            && state.pending_name.as_deref() == Some(name.as_str())
-                    });
-                    if is_ours {
-                        me.handle_secret_created(*harness, name.clone(), ctx);
-                    }
-                }
                 HarnessAvailabilityEvent::AuthSecretCreationFailed { error } => {
                     // Only react if *we* are mid-save; otherwise this
                     // failure belongs to another FTUX view's request.
@@ -235,9 +220,7 @@ impl AuthSecretFtuxView {
                     }
                 }
                 HarnessAvailabilityEvent::Changed
-                | HarnessAvailabilityEvent::AuthSecretsLoaded
                 | HarnessAvailabilityEvent::AuthSecretsFetchFailed
-                | HarnessAvailabilityEvent::AuthSecretDeleted { .. }
                 | HarnessAvailabilityEvent::AuthSecretDeletionFailed { .. } => {}
             },
         );
@@ -717,22 +700,6 @@ impl AuthSecretFtuxView {
                 editor.system_clear_buffer(true, ctx);
             });
         }
-    }
-
-    fn handle_secret_created(
-        &mut self,
-        harness: Harness,
-        name: String,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let window_id = ctx.window_id();
-        let message = format!("API key '{name}' saved.");
-        ToastStack::handle(ctx).update(ctx, |ts, ctx| {
-            ts.add_ephemeral_toast(DismissibleToast::default(message), window_id, ctx);
-        });
-        self.clear_creation_state(ctx);
-        ctx.emit(AuthSecretFtuxViewEvent::Created { harness, name });
-        ctx.notify();
     }
 
     fn render_description(&self, app: &AppContext) -> Box<dyn Element> {

@@ -63,18 +63,14 @@ impl OrchestrationConfigState {
     /// This is the frontend-neutral core of the GUI's
     /// `repopulate_all_pickers`.
     pub fn revalidate_after_catalog_change(&mut self, ctx: &AppContext) {
-        let loaded_secret_names = Harness::parse_orchestration_harness(&self.harness_type)
-            .filter(|harness| *harness != Harness::Oz)
-            .and_then(|harness| {
-                match HarnessAvailabilityModel::as_ref(ctx).auth_secrets_for(harness) {
-                    AuthSecretFetchState::Loaded(secrets) => {
-                        Some(secrets.iter().map(|s| s.name.clone()).collect::<Vec<_>>())
+        let loaded_secret_names: Option<Vec<String>> =
+            Harness::parse_orchestration_harness(&self.harness_type)
+                .filter(|harness| *harness != Harness::Oz)
+                .and_then(|harness| {
+                    match HarnessAvailabilityModel::as_ref(ctx).auth_secrets_for(harness) {
+                        AuthSecretFetchState::NotFetched | AuthSecretFetchState::Failed(_) => None,
                     }
-                    AuthSecretFetchState::NotFetched
-                    | AuthSecretFetchState::Loading
-                    | AuthSecretFetchState::Failed(_) => None,
-                }
-            });
+                });
         let reseeded_selection = resolve_auth_secret_selection_for_harness(&self.harness_type, ctx);
         self.revalidate_after_catalog_change_core(
             loaded_secret_names.as_deref(),

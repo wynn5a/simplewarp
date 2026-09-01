@@ -121,10 +121,7 @@ impl AuthSecretFtuxDropdown {
         ctx.subscribe_to_model(
             &HarnessAvailabilityModel::handle(ctx),
             |me, _, event, ctx| match event {
-                HarnessAvailabilityEvent::AuthSecretsLoaded
-                | HarnessAvailabilityEvent::AuthSecretCreated { .. }
-                | HarnessAvailabilityEvent::AuthSecretDeleted { .. }
-                | HarnessAvailabilityEvent::AuthSecretsFetchFailed => {
+                HarnessAvailabilityEvent::AuthSecretsFetchFailed => {
                     me.refresh_menu(ctx);
                     ctx.notify();
                 }
@@ -284,19 +281,8 @@ impl AuthSecretFtuxDropdown {
     fn matching_secret_count(&self, app: &AppContext) -> usize {
         let harness = self.harness;
         let availability = HarnessAvailabilityModel::as_ref(app);
-        let query = self.search_query.trim().to_lowercase();
         match availability.auth_secrets_for(harness) {
-            AuthSecretFetchState::Loaded(secrets) => {
-                if query.is_empty() {
-                    secrets.len()
-                } else {
-                    secrets
-                        .iter()
-                        .filter(|s| s.name.to_lowercase().contains(&query))
-                        .count()
-                }
-            }
-            _ => 0,
+            AuthSecretFetchState::NotFetched | AuthSecretFetchState::Failed(_) => 0,
         }
     }
 
@@ -309,12 +295,9 @@ impl AuthSecretFtuxDropdown {
 
         let harness = self.harness;
         let availability = HarnessAvailabilityModel::as_ref(ctx);
-        let query = self.search_query.trim().to_lowercase();
         let compact = self.compact_mode;
 
         let mut items: Vec<MenuItem<FtuxDropdownAction>> = Vec::new();
-
-        let no_results_text_color = internal_colors::text_sub(theme, theme.surface_2());
 
         if compact {
             // Compact (modal) mode: only render "+ New …" entries.
@@ -336,40 +319,7 @@ impl AuthSecretFtuxDropdown {
         }
 
         match availability.auth_secrets_for(harness) {
-            AuthSecretFetchState::Loaded(secrets) => {
-                let mut matched = false;
-                for secret in secrets {
-                    if !query.is_empty() && !secret.name.to_lowercase().contains(&query) {
-                        continue;
-                    }
-                    matched = true;
-                    items.push(MenuItem::Item(
-                        MenuItemFields::new(secret.name.clone())
-                            .with_font_size_override(FONT_SIZE)
-                            .with_padding_override(
-                                MENU_ITEM_VERTICAL_PADDING,
-                                MENU_HORIZONTAL_PADDING,
-                            )
-                            .with_override_hover_background_color(hover_background)
-                            .with_on_select_action(FtuxDropdownAction::SelectSecret(
-                                secret.name.clone(),
-                            )),
-                    ));
-                }
-                if !matched {
-                    items.push(MenuItem::Item(
-                        MenuItemFields::new("No secrets found")
-                            .with_font_size_override(FONT_SIZE)
-                            .with_padding_override(
-                                MENU_ITEM_VERTICAL_PADDING,
-                                MENU_HORIZONTAL_PADDING,
-                            )
-                            .with_override_text_color(no_results_text_color)
-                            .with_no_interaction_on_hover(),
-                    ));
-                }
-            }
-            AuthSecretFetchState::NotFetched | AuthSecretFetchState::Loading => {
+            AuthSecretFetchState::NotFetched => {
                 items.push(MenuItem::Item(
                     MenuItemFields::new("Loading…")
                         .with_font_size_override(FONT_SIZE)

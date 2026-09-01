@@ -53,36 +53,18 @@ fn default_harnesses() -> Vec<HarnessAvailability> {
 #[derive(Debug, Clone)]
 pub enum AuthSecretFetchState {
     NotFetched,
-    Loading,
-    Loaded(Vec<AuthSecretEntry>),
     Failed(#[allow(dead_code)] String),
-}
-
-#[derive(Debug, Clone)]
-pub struct AuthSecretEntry {
-    pub name: String,
-    pub owner: SecretOwner,
 }
 
 pub enum HarnessAvailabilityEvent {
     Changed,
-    AuthSecretsLoaded,
     /// Emitted when a lazy auth-secrets fetch fails. Subscribers should
     /// re-render so any "Loading…" placeholders can transition to an
     /// error state — without this signal the picker would otherwise be
     /// stuck on the loading placeholder until the next refetch.
     AuthSecretsFetchFailed,
-    AuthSecretCreated {
-        harness: Harness,
-        name: String,
-    },
     AuthSecretCreationFailed {
         error: String,
-    },
-    AuthSecretDeleted {
-        harness: Harness,
-        name: String,
-        owner: SecretOwner,
     },
     AuthSecretDeletionFailed {
         harness: Harness,
@@ -185,9 +167,7 @@ impl HarnessAvailabilityModel {
             AuthSecretFetchState::Failed(_) if self.can_retry_auth_secret_fetch(harness) => {
                 self.fetch_auth_secrets(harness, ctx);
             }
-            AuthSecretFetchState::Failed(_)
-            | AuthSecretFetchState::Loading
-            | AuthSecretFetchState::Loaded(_) => {}
+            AuthSecretFetchState::Failed(_) => {}
         }
     }
 

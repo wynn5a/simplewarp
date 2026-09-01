@@ -23,8 +23,7 @@ pub use providers::{
     resolve_default_host_slug,
 };
 pub(crate) use providers::{
-    can_execute_with_auth_secret, persist_auth_secret_selection,
-    populate_default_auth_secret_for_execution,
+    can_execute_with_auth_secret, populate_default_auth_secret_for_execution,
 };
 pub(crate) use remote_child::should_disable_snapshot;
 #[allow(unused_imports)]
