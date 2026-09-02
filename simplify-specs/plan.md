@@ -3159,6 +3159,22 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             client-side credential at all (the subscription was the only xAI auth; there is no
             pasted xAI key), so the variant, its `GrokLogo` icon, and
             `ProviderCredentialTelemetryProvider::Xai` are a dead provider — a small follow-up.
+      - [x] **Three more constant-false flag verticals are gone** (4aa–4ac, 2026-09-02, ~3,100
+            lines): `LLMProvider::Xai` (credential-less after 4z), the Codex Warp plugin manager
+            (`CodexPlugin`/`CodexNotifications`; Codex OSC 9 detection kept), and the first slice
+            of `HOANotifications` — the HOA onboarding flow (`HOAOnboardingFlow`), the
+            OpenCode/Gemini plugin managers (`OpenCodeNotifications`/`GeminiNotifications`), and
+            the `WARP_CLI_AGENT_PROTOCOL_VERSION` PTY export. **Method**: the `simplewarp`
+            feature set omits 49 `default` cargo features, each mapping to one `FeatureFlag`
+            that is constant-false but still compiled; rank them by `FeatureFlag::X` site count
+            and delete the vertical behind each. Remaining top targets: `SharedWithMe` (40
+            sites), `OpenWarpNewSettingsModes` (38), the rest of `HOANotifications` (mailbox,
+            toast stack, `AgentNotificationsModel` mailbox path, `show_agent_notifications`
+            setting, and the `HeaderToolbarItemKind::NotificationsMailbox` variant — a
+            **persisted** enum, so deleting it needs a serde fallback for old configs),
+            `CloudMode` (+5 sub-flags), `AccountFirstOnboarding`, `AgentManagementView`
+            (the 4,400-line `ai/agent_management` module, minus the live `telemetry.rs` and
+            `details_action_buttons.rs`).
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), now including
             the remainder of `drive`. The remaining dead `FeatureFlag` variants fall out of those
