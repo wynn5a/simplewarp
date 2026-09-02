@@ -9,34 +9,26 @@ pub enum LLMProvider {
     OpenAI,
     Anthropic,
     Google,
-    Xai,
     Unknown,
 }
 
 impl LLMProvider {
-    pub const API_KEY_PROVIDERS: [Self; 4] =
-        [Self::OpenAI, Self::Anthropic, Self::Google, Self::Xai];
-    pub const API_KEY_PROVIDER_VALUE_NAME: &'static str = "openai|anthropic|google|grok";
+    pub const API_KEY_PROVIDERS: [Self; 3] = [Self::OpenAI, Self::Anthropic, Self::Google];
 
     pub fn icon(self) -> Option<Icon> {
         match self {
             Self::OpenAI => Some(Icon::OpenAILogo),
             Self::Anthropic => Some(Icon::ClaudeLogo),
             Self::Google => Some(Icon::GeminiLogo),
-            Self::Xai => Some(Icon::GrokLogo),
             Self::Unknown => None,
         }
     }
-    pub fn supports_pasted_api_key(self) -> bool {
-        matches!(self, Self::OpenAI | Self::Anthropic | Self::Google)
-    }
-
     pub fn api_key_placeholder(self) -> Option<&'static str> {
         match self {
             Self::OpenAI => Some("sk-..."),
             Self::Anthropic => Some("sk-ant-..."),
             Self::Google => Some("AIzaSy..."),
-            Self::Xai | Self::Unknown => None,
+            Self::Unknown => None,
         }
     }
 
@@ -45,28 +37,7 @@ impl LLMProvider {
             Self::OpenAI => "OpenAI",
             Self::Anthropic => "Anthropic",
             Self::Google => "Google",
-            Self::Xai => "xAI",
             Self::Unknown => "this provider",
-        }
-    }
-
-    pub fn api_key_slug(self) -> Option<&'static str> {
-        match self {
-            Self::OpenAI => Some("openai"),
-            Self::Anthropic => Some("anthropic"),
-            Self::Google => Some("google"),
-            Self::Xai => Some("grok"),
-            Self::Unknown => None,
-        }
-    }
-
-    pub fn from_api_key_slug(value: &str) -> Result<Self, String> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "openai" | "open-ai" => Ok(Self::OpenAI),
-            "anthropic" => Ok(Self::Anthropic),
-            "google" => Ok(Self::Google),
-            "grok" | "xai" | "x-ai" => Ok(Self::Xai),
-            _ => Err("provider must be one of: anthropic, openai, google, grok".to_owned()),
         }
     }
 
@@ -75,7 +46,7 @@ impl LLMProvider {
             Self::OpenAI => keys.openai.as_deref(),
             Self::Anthropic => keys.anthropic.as_deref(),
             Self::Google => keys.google.as_deref(),
-            Self::Xai | Self::Unknown => None,
+            Self::Unknown => None,
         }
     }
 
@@ -84,7 +55,7 @@ impl LLMProvider {
             Self::OpenAI => keys.openai = key,
             Self::Anthropic => keys.anthropic = key,
             Self::Google => keys.google = key,
-            Self::Xai | Self::Unknown => return false,
+            Self::Unknown => return false,
         }
         true
     }
@@ -98,8 +69,11 @@ impl From<warp_graphql::queries::get_feature_model_choices::LlmProvider> for LLM
                 Self::Anthropic
             }
             warp_graphql::queries::get_feature_model_choices::LlmProvider::Google => Self::Google,
-            warp_graphql::queries::get_feature_model_choices::LlmProvider::Xai => Self::Xai,
-            warp_graphql::queries::get_feature_model_choices::LlmProvider::Unknown => Self::Unknown,
+            // xAI has no client-side credential (the Grok subscription OAuth was removed).
+            warp_graphql::queries::get_feature_model_choices::LlmProvider::Xai
+            | warp_graphql::queries::get_feature_model_choices::LlmProvider::Unknown => {
+                Self::Unknown
+            }
             warp_graphql::queries::get_feature_model_choices::LlmProvider::Other(value) => {
                 report_error!(
                     "Invalid LlmProvider; update client GraphQL types",
@@ -118,8 +92,8 @@ impl From<warp_graphql::workspace::LlmProvider> for LLMProvider {
             warp_graphql::workspace::LlmProvider::Openai => Self::OpenAI,
             warp_graphql::workspace::LlmProvider::Anthropic => Self::Anthropic,
             warp_graphql::workspace::LlmProvider::Google => Self::Google,
-            warp_graphql::workspace::LlmProvider::Xai => Self::Xai,
-            warp_graphql::workspace::LlmProvider::Unknown => Self::Unknown,
+            warp_graphql::workspace::LlmProvider::Xai
+            | warp_graphql::workspace::LlmProvider::Unknown => Self::Unknown,
             warp_graphql::workspace::LlmProvider::Other(value) => {
                 report_error!(
                     "Invalid LlmProvider; update client GraphQL types",

@@ -1,26 +1,10 @@
 use super::LLMProvider;
 
 #[test]
-fn api_key_provider_help_matches_the_canonical_provider_list() {
-    assert_eq!(
-        LLMProvider::API_KEY_PROVIDERS
-            .into_iter()
-            .map(|provider| provider.api_key_slug().unwrap())
-            .collect::<Vec<_>>()
-            .join("|"),
-        LLMProvider::API_KEY_PROVIDER_VALUE_NAME
-    );
-}
-
-#[test]
-fn only_pasted_key_providers_report_pasted_key_support() {
+fn every_api_key_provider_has_a_key_slot() {
+    let mut keys = crate::api_keys::ApiKeys::default();
     for provider in LLMProvider::API_KEY_PROVIDERS {
-        assert_eq!(
-            provider.supports_pasted_api_key(),
-            matches!(
-                provider,
-                LLMProvider::OpenAI | LLMProvider::Anthropic | LLMProvider::Google
-            )
-        );
+        assert!(provider.set_api_key(&mut keys, Some("k".into())));
+        assert_eq!(provider.api_key(&keys), Some("k"));
     }
 }

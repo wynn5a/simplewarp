@@ -19,23 +19,6 @@ fn make_manager(keys: ApiKeys) -> ApiKeyManager {
 }
 
 #[test]
-fn llm_provider_parses_supported_api_key_provider_names() {
-    assert_eq!(
-        LLMProvider::from_api_key_slug("anthropic"),
-        Ok(LLMProvider::Anthropic)
-    );
-    assert_eq!(
-        LLMProvider::from_api_key_slug("open-ai"),
-        Ok(LLMProvider::OpenAI)
-    );
-    assert_eq!(
-        LLMProvider::from_api_key_slug("google"),
-        Ok(LLMProvider::Google)
-    );
-    assert_eq!(LLMProvider::from_api_key_slug("grok"), Ok(LLMProvider::Xai));
-}
-
-#[test]
 fn persisted_provider_api_key_updates_request_state() {
     warpui_core::App::test((), |mut app| async move {
         app.update(|ctx| {
@@ -88,14 +71,6 @@ fn persisted_provider_api_key_can_be_cleared() {
         });
     });
 }
-#[test]
-fn llm_provider_rejects_unsupported_api_key_provider() {
-    assert_eq!(
-        LLMProvider::from_api_key_slug("openrouter"),
-        Err("provider must be one of: anthropic, openai, google, grok".to_owned())
-    );
-}
-
 #[test]
 fn custom_model_providers_preserves_configured_schema() {
     let mut endpoint = endpoint_with_keys(

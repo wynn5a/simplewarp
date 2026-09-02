@@ -193,7 +193,6 @@ fn provider_telemetry_provider(
         LLMProvider::OpenAI => Some(ProviderCredentialTelemetryProvider::OpenAi),
         LLMProvider::Anthropic => Some(ProviderCredentialTelemetryProvider::Anthropic),
         LLMProvider::Google => Some(ProviderCredentialTelemetryProvider::Google),
-        LLMProvider::Xai => Some(ProviderCredentialTelemetryProvider::Xai),
         LLMProvider::Unknown => None,
     }
 }

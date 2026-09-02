@@ -55,7 +55,6 @@ pub(crate) enum ProviderCredentialTelemetryProvider {
     OpenAi,
     Anthropic,
     Google,
-    Xai,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]

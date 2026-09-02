@@ -34,8 +34,6 @@ pub fn is_using_api_key_for_provider(provider: &LLMProvider, app: &AppContext) -
         LLMProvider::OpenAI => manager.keys().openai.is_some(),
         LLMProvider::Anthropic => manager.keys().anthropic.is_some(),
         LLMProvider::Google => manager.keys().google.is_some(),
-        // No client-side xAI credential exists (the Grok subscription OAuth was removed).
-        LLMProvider::Xai => false,
         LLMProvider::Unknown => false,
     }
 }
