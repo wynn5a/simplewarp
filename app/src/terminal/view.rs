@@ -12373,7 +12373,9 @@ impl TerminalView {
             return;
         }
 
-        if notification.agent == CLIAgent::Codex && !FeatureFlag::CodexPlugin.is_enabled() {
+        // Codex has no structured plugin integration; it is handled by the OSC 9
+        // fallback in `CodexSessionHandler`.
+        if notification.agent == CLIAgent::Codex {
             return;
         }
 

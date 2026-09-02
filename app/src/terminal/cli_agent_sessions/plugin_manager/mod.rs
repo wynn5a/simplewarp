@@ -1,5 +1,4 @@
 pub(crate) mod claude;
-pub(crate) mod codex;
 pub(crate) mod gemini;
 pub(crate) mod opencode;
 
@@ -10,7 +9,6 @@ use std::{fmt, io};
 
 use async_trait::async_trait;
 use claude::ClaudeCodePluginManager;
-use codex::CodexPluginManager;
 use gemini::GeminiPluginManager;
 use opencode::OpenCodePluginManager;
 
@@ -264,16 +262,6 @@ pub(crate) fn plugin_manager_for_with_shell(
                 && FeatureFlag::HOANotifications.is_enabled() =>
         {
             Some(Box::new(OpenCodePluginManager))
-        }
-        CLIAgent::Codex
-            if FeatureFlag::CodexNotifications.is_enabled()
-                && FeatureFlag::HOANotifications.is_enabled() =>
-        {
-            Some(Box::new(CodexPluginManager::new(
-                shell_path,
-                shell_type,
-                path_env_var,
-            )))
         }
         CLIAgent::Gemini
             if FeatureFlag::GeminiNotifications.is_enabled()

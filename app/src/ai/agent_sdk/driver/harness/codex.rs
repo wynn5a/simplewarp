@@ -12,7 +12,6 @@ use serde_json::{Map, Value};
 use tempfile::NamedTempFile;
 use uuid::Uuid;
 use warp_cli::agent::Harness;
-use warp_core::features::FeatureFlag;
 use warp_core::safe_info;
 use warp_errors::report_error;
 use warp_managed_secrets::ManagedSecretValue;
@@ -92,10 +91,6 @@ impl ThirdPartyHarness for CodexHarness {
             // Keep this last so more specific patterns can be matched first.
             "\"type\": \"invalid_request_error\"",
         ]
-    }
-
-    fn requires_verified_platform_plugin(&self) -> bool {
-        FeatureFlag::CodexPlugin.is_enabled()
     }
 
     /// Fetch the codex transcript for the current task's conversation and wrap it into a

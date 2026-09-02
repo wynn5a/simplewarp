@@ -1,7 +1,6 @@
 use warpui::{EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use super::{CLIAgentEvent, CLIAgentSessionsModel};
-use crate::features::FeatureFlag;
 use crate::terminal::CLIAgent;
 use crate::terminal::cli_agent_sessions::event::{
     CLIAgentEventPayload, CLIAgentEventSource, CLIAgentEventType, parse_event,
@@ -139,13 +138,9 @@ impl CLIAgentSessionHandler for CodexSessionHandler {
         body: &str,
         plugin_already_active: bool,
     ) -> Option<CLIAgentEvent> {
-        if let Some(event) = parse_event(title, body) {
-            if event.agent == CLIAgent::Codex {
-                if !FeatureFlag::CodexPlugin.is_enabled() {
-                    return None;
-                }
-                return Some(event);
-            }
+        // Structured plugin events are never accepted for Codex: the Codex Warp
+        // plugin integration was removed, so only the OSC 9 fallback remains.
+        if parse_event(title, body).is_some() {
             return None;
         }
         // OSC 9 notifications have no title. Skip OSC 9 once the rich plugin is
