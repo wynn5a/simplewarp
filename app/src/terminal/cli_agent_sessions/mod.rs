@@ -110,10 +110,6 @@ pub enum CLIAgentInputEntrypoint {
 }
 
 impl CLIAgentSessionContext {
-    pub(crate) fn display_title(&self) -> Option<String> {
-        self.latest_user_prompt().or_else(|| self.title_like_text())
-    }
-
     pub(crate) fn latest_user_prompt(&self) -> Option<String> {
         self.query
             .as_deref()

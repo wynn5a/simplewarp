@@ -25,7 +25,7 @@ struct ActiveAgentViewHandles {
 #[derive(Clone)]
 pub enum ActiveAgentViewsEvent {
     /// A conversation was closed (exited from the agent view or its pane was removed).
-    ConversationClosed { conversation_id: AIConversationId },
+    ConversationClosed,
     /// A conversation was entered within a terminal view.
     TerminalViewFocused,
     /// An ambient agent session was opened in a tab.
@@ -211,9 +211,7 @@ impl ActiveAgentViewsModel {
                 model.update_focused_conversation_for_terminal(terminal_view_id, None);
                 unregister_agent_event_consumer(*conversation_id, terminal_view_id, ctx);
                 // Emit so subscribers can move this conversation to the Past section.
-                ctx.emit(ActiveAgentViewsEvent::ConversationClosed {
-                    conversation_id: *conversation_id,
-                });
+                ctx.emit(ActiveAgentViewsEvent::ConversationClosed);
             }
             _ => {}
         });
@@ -248,7 +246,7 @@ impl ActiveAgentViewsModel {
                 // The pane-close path bypasses exit_agent_view_internal, so
                 // unregister the streamer consumer here.
                 unregister_agent_event_consumer(conversation_id, terminal_pane_id, ctx);
-                ctx.emit(ActiveAgentViewsEvent::ConversationClosed { conversation_id });
+                ctx.emit(ActiveAgentViewsEvent::ConversationClosed);
             }
         }
     }

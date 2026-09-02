@@ -1215,7 +1215,6 @@ fn summary_search_fragments_include_hidden_overflow_values() {
                 pull_request_url: Some("https://github.com/acme/repo-d/pull/789".to_string()),
             },
         ],
-        has_unread_activity: false,
     };
 
     let fragments = summary_search_text_fragments(&summary, Some("Custom tab"));

@@ -379,17 +379,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
     );
-    toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "in-app agent notifications",
-            builder(SettingsAction::FeaturesPageToggle(
-                FeaturesPageAction::ToggleAgentInAppNotifications,
-            )),
-            context,
-            flags::AGENT_IN_APP_NOTIFICATIONS_FLAG,
-        )
-        .with_enabled(|| FeatureFlag::HOANotifications.is_enabled()),
-    );
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
@@ -777,7 +766,6 @@ pub enum FeaturesPageAction {
     ToggleAgentTaskCompletedNotifications,
     ToggleNeedsAttentionNotifications,
     ToggleNotificationSound,
-    SetNotificationToastDuration,
     ToggleShowWarningBeforeQuitting,
     ToggleLoginItem,
     ToggleQuitOnLastWindowClosed,
@@ -804,7 +792,6 @@ pub enum FeaturesPageAction {
     ToggleAutoOpenCodeReviewPane,
     ToggleShowTerminalInputMessageLine,
     TogglePreserveInputFocusOnBlockSelection,
-    ToggleAgentInAppNotifications,
     MakeWarpDefaultTerminal,
     SetCodeEditorLineNumberMode(CodeEditorLineNumberMode),
 }
@@ -1312,17 +1299,6 @@ impl FeaturesPageAction {
                     value: to_string(*settings.preserve_input_focus_on_block_selection),
                 }
             }
-            Self::SetNotificationToastDuration => TelemetryEvent::FeaturesPageAction {
-                action: "SetNotificationToastDuration".to_string(),
-                value: format!(
-                    "{}s",
-                    *SessionSettings::as_ref(ctx).notification_toast_duration_secs
-                ),
-            },
-            Self::ToggleAgentInAppNotifications => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleAgentInAppNotifications".to_string(),
-                value: to_string(*AISettings::as_ref(ctx).show_agent_notifications),
-            },
             Self::ToggleAsyncFind => TelemetryEvent::FeaturesPageAction {
                 action: "ToggleAsyncFind".to_string(),
                 value: to_string(*TerminalSettings::as_ref(ctx).async_find_enabled),
@@ -1346,7 +1322,6 @@ struct MouseStateHandles {
     long_running_notifications_checkbox: MouseStateHandle,
     agent_task_completed_notifications_checkbox: MouseStateHandle,
     agent_needs_attention_notifications_checkbox: MouseStateHandle,
-    agent_in_app_notifications_switch: SwitchStateHandle,
     #[cfg(target_os = "macos")]
     notification_sound_checkbox: MouseStateHandle,
     change_keybinding: MouseStateHandle,
@@ -1381,7 +1356,6 @@ pub struct FeaturesPageView {
     quake_mode_height_editor: ViewHandle<EditorView>,
 
     notifications_long_running_threshold_editor: ViewHandle<EditorView>,
-    notification_toast_duration_editor: ViewHandle<EditorView>,
 
     #[cfg(feature = "local_tty")]
     working_directory_view: ViewHandle<features::WorkingDirectoryView>,
@@ -1799,12 +1773,6 @@ impl TypedActionView for FeaturesPageView {
                 });
                 ctx.notify();
             }
-            ToggleAgentInAppNotifications => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(settings.show_agent_notifications.toggle_and_save_value(ctx));
-                });
-                ctx.notify();
-            }
             ToggleCompletionsOpenWhileTyping => {
                 InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
                     report_if_error!(
@@ -2112,27 +2080,6 @@ impl TypedActionView for FeaturesPageView {
                     );
                 });
             }
-            SetNotificationToastDuration => {
-                let user_input = self
-                    .notification_toast_duration_editor
-                    .as_ref(ctx)
-                    .buffer_text(ctx);
-
-                if let Ok(duration_secs) = user_input.parse::<u64>()
-                    && duration_secs > 0
-                {
-                    SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
-                        if let Err(e) = settings
-                            .notification_toast_duration_secs
-                            .set_value(duration_secs, ctx)
-                        {
-                            report_error!(
-                                e.context("Error persisting notification toast duration")
-                            );
-                        }
-                    });
-                }
-            }
             MakeWarpDefaultTerminal => {
                 DefaultTerminal::handle(ctx).update(ctx, |default_terminal, ctx| {
                     default_terminal.make_warp_default(ctx);
@@ -2252,18 +2199,6 @@ impl FeaturesPageView {
                                         .notifications
                                         .long_running_threshold
                                         .as_secs_f32()
-                                ),
-                                ctx,
-                            );
-                        });
-                }
-                SessionSettingsChangedEvent::NotificationToastDurationSecs { .. } => {
-                    me.notification_toast_duration_editor
-                        .update(ctx, |editor, ctx| {
-                            editor.set_buffer_text(
-                                &format!(
-                                    "{}",
-                                    *SessionSettings::as_ref(ctx).notification_toast_duration_secs
                                 ),
                                 ctx,
                             );
@@ -2600,26 +2535,6 @@ impl FeaturesPageView {
             );
         });
 
-        let notification_toast_duration_editor = ctx.add_typed_action_view(|ctx| {
-            let options = SingleLineEditorOptions {
-                text: TextOptions {
-                    font_size_override: Some(appearance_handle.as_ref(ctx).ui_font_size() - 2.),
-                    ..Default::default()
-                },
-                ..Default::default()
-            };
-            EditorView::single_line(options, ctx)
-        });
-        notification_toast_duration_editor.update(ctx, |editor, ctx| {
-            editor.set_buffer_text(
-                &format!(
-                    "{}",
-                    *SessionSettings::as_ref(ctx).notification_toast_duration_secs
-                ),
-                ctx,
-            );
-        });
-
         ctx.subscribe_to_model(&GPUState::handle(ctx), |me, _, event, ctx| {
             if matches!(event, GPUStateEvent::LowPowerGPUAvailable) {
                 me.page = Self::build_page(ctx);
@@ -2654,7 +2569,6 @@ impl FeaturesPageView {
             quake_mode_height_editor: height_editor,
 
             notifications_long_running_threshold_editor,
-            notification_toast_duration_editor,
 
             #[cfg(feature = "local_tty")]
             working_directory_view,
@@ -5255,88 +5169,6 @@ impl SettingsWidget for DesktopNotificationsWidget {
             ];
 
             column.add_child(render_group(toggles, appearance));
-        }
-
-        if FeatureFlag::HOANotifications.is_enabled() {
-            let ai_settings = AISettings::as_ref(app);
-            let show_agent_notifications = *ai_settings.show_agent_notifications;
-            column.add_child(render_body_item::<FeaturesPageAction>(
-                "Show in-app agent notifications".into(),
-                None,
-                LocalOnlyIconState::Hidden,
-                ToggleState::Enabled,
-                appearance,
-                ui_builder
-                    .switch(
-                        view.button_mouse_states
-                            .agent_in_app_notifications_switch
-                            .clone(),
-                    )
-                    .check(show_agent_notifications)
-                    .build()
-                    .on_click(move |ctx, _, _| {
-                        ctx.dispatch_typed_action(
-                            FeaturesPageAction::ToggleAgentInAppNotifications,
-                        );
-                    })
-                    .finish(),
-                None,
-            ));
-
-            if show_agent_notifications {
-                let theme = appearance.theme();
-                let font_size = appearance.ui_font_size() - 2.;
-                let font_color = theme.active_ui_text_color();
-
-                let editor_style = UiComponentStyles {
-                    width: Some(appearance.ui_font_size() * 3.),
-                    height: Some(appearance.ui_font_size() * 2.),
-                    padding: Some(Coords::uniform(5.)),
-                    background: Some(theme.surface_2().into()),
-                    ..Default::default()
-                };
-
-                let toast_duration_row = Flex::row()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_child(
-                        Text::new_inline(
-                            "Toast notifications stay visible for",
-                            appearance.ui_font_family(),
-                            font_size,
-                        )
-                        .with_color(font_color.into())
-                        .finish(),
-                    )
-                    .with_child(
-                        Container::new(
-                            Dismiss::new(
-                                appearance
-                                    .ui_builder()
-                                    .text_input(view.notification_toast_duration_editor.clone())
-                                    .with_style(editor_style)
-                                    .build()
-                                    .finish(),
-                            )
-                            .on_dismiss(|ctx, _app| {
-                                ctx.dispatch_typed_action(
-                                    FeaturesPageAction::SetNotificationToastDuration,
-                                )
-                            })
-                            .finish(),
-                        )
-                        .with_margin_right(NOTIFICATION_EDITOR_MARGIN)
-                        .with_margin_left(NOTIFICATION_EDITOR_MARGIN)
-                        .finish(),
-                    )
-                    .with_child(
-                        Text::new_inline("seconds", appearance.ui_font_family(), font_size)
-                            .with_color(font_color.into())
-                            .finish(),
-                    )
-                    .finish();
-
-                column.add_child(render_group(vec![toast_duration_row], appearance));
-            }
         }
 
         column.finish()

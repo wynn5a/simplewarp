@@ -74,7 +74,9 @@ impl HeaderToolbarItemKind {
                     && !is_web_anonymous_user
             }
             Self::CodeReview => cfg!(feature = "local_fs"),
-            Self::NotificationsMailbox => FeatureFlag::HOANotifications.is_enabled(),
+            // The notifications mailbox was removed. The variant stays so persisted
+            // toolbar configs that name it keep deserializing.
+            Self::NotificationsMailbox => false,
         }
     }
 
@@ -86,7 +88,6 @@ impl HeaderToolbarItemKind {
         }
         match self {
             Self::CodeReview => *TabSettings::as_ref(app).show_code_review_button.value(),
-            Self::NotificationsMailbox => *AISettings::as_ref(app).show_agent_notifications,
             _ => true,
         }
     }

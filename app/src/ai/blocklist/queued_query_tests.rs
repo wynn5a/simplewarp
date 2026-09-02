@@ -870,48 +870,6 @@ fn clear_conversations_for_terminal_surface_drops_every_listed_conversation() {
 }
 
 #[test]
-fn has_autofireable_prompt_is_false_for_an_empty_queue() {
-    with_model(|app, model, _events| {
-        let conv = AIConversationId::new();
-        model.read(&app, |m, _| assert!(!m.has_autofireable_prompt(conv)));
-    });
-}
-
-#[test]
-fn has_autofireable_prompt_is_true_for_a_queued_prompt() {
-    with_model(|mut app, model, _events| {
-        let conv = AIConversationId::new();
-        append_user(&model, &mut app, conv, "follow up");
-        model.read(&app, |m, _| assert!(m.has_autofireable_prompt(conv)));
-    });
-}
-
-#[test]
-fn has_autofireable_prompt_is_false_when_only_a_locked_head_is_queued() {
-    // A locked initial Cloud Mode head never auto-fires on finish, so it must not count.
-    with_model(|mut app, model, _events| {
-        let conv = AIConversationId::new();
-        model.update(&mut app, |m, ctx| {
-            m.append(conv, initial_cloud_mode_query("initial"), ctx)
-        });
-        model.read(&app, |m, _| assert!(!m.has_autofireable_prompt(conv)));
-    });
-}
-
-#[test]
-fn has_autofireable_prompt_is_false_when_a_locked_head_precedes_a_prompt() {
-    // The head row gates auto-fire; a locked head blocks the trailing prompt from firing.
-    with_model(|mut app, model, _events| {
-        let conv = AIConversationId::new();
-        model.update(&mut app, |m, ctx| {
-            m.append(conv, initial_cloud_mode_query("initial"), ctx)
-        });
-        append_user(&model, &mut app, conv, "follow up");
-        model.read(&app, |m, _| assert!(!m.has_autofireable_prompt(conv)));
-    });
-}
-
-#[test]
 fn unlock_pending_lrc_rows_transitions_origin_and_enables_autofire() {
     with_model(|mut app, model, events| {
         let conv = AIConversationId::new();
@@ -922,11 +880,8 @@ fn unlock_pending_lrc_rows_transitions_origin_and_enables_autofire() {
                 ctx,
             )
         });
-        // Row is locked — peek_autofire returns None and has_autofireable_prompt is false.
-        model.read(&app, |m, _| {
-            assert!(m.peek_autofire(conv).is_none());
-            assert!(!m.has_autofireable_prompt(conv));
-        });
+        // Row is locked — peek_autofire returns None.
+        model.read(&app, |m, _| assert!(m.peek_autofire(conv).is_none()));
         events.borrow_mut().clear();
 
         model.update(&mut app, |m, ctx| m.unlock_pending_lrc_rows(conv, ctx));
@@ -936,7 +891,7 @@ fn unlock_pending_lrc_rows_transitions_origin_and_enables_autofire() {
             let queue = m.queue(conv);
             assert_eq!(queue[0].id(), pending_id);
             assert_eq!(queue[0].origin(), QueuedQueryOrigin::LrcAutoQueue);
-            assert!(m.has_autofireable_prompt(conv));
+            assert!(m.peek_autofire(conv).is_some());
         });
         let evts = events.borrow();
         assert!(matches!(

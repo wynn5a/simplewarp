@@ -757,9 +757,6 @@ pub enum WorkspaceAction {
     /// Take a process sample of the app (equivalent to Activity Monitor > Sample Process).
     #[cfg(target_os = "macos")]
     SampleProcess,
-    ToggleNotificationMailbox {
-        select_first: bool,
-    },
     ToggleAgentManagementView,
     ViewAgentRunsForEnvironment {
         environment_id: String,
@@ -1134,7 +1131,6 @@ impl WorkspaceAction {
             | OpenGlobalSearch
             | ToggleConversationListView
             | OpenConversationListView
-            | ToggleNotificationMailbox { .. }
             | ToggleAgentManagementView
             | OpenAgentManagementView
             | ViewAgentRunsForEnvironment { .. }

@@ -30,17 +30,6 @@ impl ArtifactButtonsRow {
         }
     }
 
-    pub fn with_theme(
-        artifacts: &[Artifact],
-        theme: Arc<dyn ActionButtonTheme>,
-        ctx: &mut ViewContext<Self>,
-    ) -> Self {
-        Self {
-            buttons: collect_buttons(artifacts, &theme, ctx),
-            theme,
-        }
-    }
-
     pub fn update_artifacts(&mut self, artifacts: &[Artifact], ctx: &mut ViewContext<Self>) {
         self.buttons = collect_buttons(artifacts, &self.theme, ctx);
         ctx.notify();

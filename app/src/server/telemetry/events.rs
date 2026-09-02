@@ -19,7 +19,6 @@ use crate::ai::agent::{
     AIAgentActionId, AIAgentExchangeId, AIAgentInput as FullAIAgentInput, AIIdentifiers,
     EntrypointType, PassiveSuggestionTrigger, ServerOutputId, SuggestedLoggingId,
 };
-use crate::ai::agent_management::notifications::NotificationSourceAgent;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::{
@@ -481,15 +480,6 @@ pub enum NotificationAgentVariant {
     Oz,
     /// A CLI agent (e.g., Claude Code, Gemini CLI, etc.).
     CLIAgent(CLIAgentType),
-}
-
-impl From<NotificationSourceAgent> for NotificationAgentVariant {
-    fn from(agent: NotificationSourceAgent) -> Self {
-        match agent {
-            NotificationSourceAgent::Oz { .. } => Self::Oz,
-            NotificationSourceAgent::CLI { agent, .. } => Self::CLIAgent(agent.into()),
-        }
-    }
 }
 
 /// The action taken on a plugin chip (for telemetry purposes).
@@ -2626,11 +2616,6 @@ pub enum TelemetryEvent {
         /// The CLI agent whose plugin was detected.
         cli_agent: CLIAgentType,
     },
-    /// Emitted when an agent notification is shown (toast or mailbox notification).
-    AgentNotificationShown {
-        /// Which agent variant produced the notification.
-        agent_variant: NotificationAgentVariant,
-    },
     /// Emitted when the user toggles the CLI agent footer setting.
     ToggleCLIAgentToolbarSetting {
         /// Whether the setting is enabled or disabled.
@@ -4487,9 +4472,6 @@ impl TelemetryEvent {
             TelemetryEvent::CLIAgentPluginDetected { cli_agent } => Some(json!({
                 "agent_name": cli_agent,
             })),
-            TelemetryEvent::AgentNotificationShown { agent_variant } => Some(json!({
-                "agent_variant": agent_variant,
-            })),
             TelemetryEvent::ToggleCLIAgentToolbarSetting { is_enabled } => Some(json!({
                 "is_enabled": is_enabled,
             })),
@@ -4980,7 +4962,6 @@ impl TelemetryEvent {
             | TelemetryEvent::CLIAgentPluginOperationSucceeded { .. }
             | TelemetryEvent::CLIAgentPluginOperationFailed { .. }
             | TelemetryEvent::CLIAgentPluginDetected { .. }
-            | TelemetryEvent::AgentNotificationShown { .. }
             | TelemetryEvent::CLIAgentRichInputOpened { .. }
             | TelemetryEvent::CLIAgentRichInputClosed { .. }
             | TelemetryEvent::CLIAgentRichInputSubmitted { .. }
@@ -5500,9 +5481,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 EnablementState::Flag(FeatureFlag::HOANotifications)
             }
             Self::CLIAgentPluginDetected { .. } => EnablementState::Always,
-            Self::AgentNotificationShown { .. } => {
-                EnablementState::Flag(FeatureFlag::HOANotifications)
-            }
             Self::CLIAgentRichInputOpened { .. }
             | Self::CLIAgentRichInputClosed { .. }
             | Self::CLIAgentRichInputSubmitted { .. } => {
@@ -6037,7 +6015,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CLIAgentPluginOperationSucceeded { .. } => "CLIAgentPlugin.OperationSucceeded",
             Self::CLIAgentPluginOperationFailed { .. } => "CLIAgentPlugin.OperationFailed",
             Self::CLIAgentPluginDetected { .. } => "CLIAgentPlugin.Detected",
-            Self::AgentNotificationShown { .. } => "AgentNotification.Shown",
             Self::CLIAgentRichInputOpened { .. } => "CLIAgentRichInput.Opened",
             Self::CLIAgentRichInputClosed { .. } => "CLIAgentRichInput.Closed",
             Self::CLIAgentRichInputSubmitted { .. } => "CLIAgentRichInput.Submitted",
@@ -6818,9 +6795,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CLIAgentPluginOperationFailed { .. } => "Auto plugin install or update failed",
             Self::CLIAgentPluginDetected { .. } => {
                 "A CLI agent plugin was detected via a SessionStart event"
-            }
-            Self::AgentNotificationShown { .. } => {
-                "An agent notification was shown to the user (toast or mailbox)"
             }
             Self::CLIAgentRichInputOpened { .. } => "User opened CLI agent Rich Input",
             Self::CLIAgentRichInputClosed { .. } => "CLI agent Rich Input was closed",
