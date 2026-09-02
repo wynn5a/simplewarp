@@ -124,7 +124,6 @@ impl TeamUpdateManager {
                 metadata: WorkspacesMetadataResponse {
                     workspaces: vec![],
                     feature_model_choices: None,
-                    user_purchase_policy: None,
                 },
                 pricing_info: None,
             })
@@ -348,10 +347,8 @@ impl TeamUpdateManager {
                 }
 
                 let workspaces = response.metadata.workspaces;
-                let user_purchase_policy = response.metadata.user_purchase_policy;
 
                 UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
-                    user_workspaces.set_user_purchase_policy(user_purchase_policy);
                     user_workspaces.update_workspaces(workspaces.clone(), ctx);
                 });
 
@@ -466,10 +463,8 @@ impl TeamUpdateManager {
         match result {
             Ok(user_workspaces_access) => {
                 let workspaces = user_workspaces_access.workspaces;
-                let user_purchase_policy = user_workspaces_access.user_purchase_policy;
 
                 UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
-                    user_workspaces.set_user_purchase_policy(user_purchase_policy);
                     user_workspaces.update_workspaces(workspaces.clone(), ctx);
                 });
 

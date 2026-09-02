@@ -87,11 +87,6 @@ pub trait TeamClient: 'static + Send + Sync {
         discoverable: bool,
     ) -> Result<WorkspacesMetadataWithPricing>;
 
-    async fn transfer_team_ownership(
-        &self,
-        new_owner_email: String,
-    ) -> Result<WorkspacesMetadataWithPricing>;
-
     async fn set_team_member_role(
         &self,
         user_uid: UserUid,
@@ -194,13 +189,6 @@ impl TeamClient for ServerApi {
         &self,
         _team_uid: ServerId,
         _new_value: bool,
-    ) -> Result<WorkspacesMetadataWithPricing> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn transfer_team_ownership(
-        &self,
-        _new_owner_email: String,
     ) -> Result<WorkspacesMetadataWithPricing> {
         Err(crate::server::server_api::local_only_error())
     }

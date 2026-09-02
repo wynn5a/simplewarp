@@ -1438,21 +1438,10 @@ impl From<GqlUser> for WorkspacesMetadataResponse {
             })
             .collect();
 
-        // A teamless user's only workspace is the placeholder filtered out
-        // above, so the user-level policy is the only place their add-on
-        // credits purchase policy — gating and premium pricing alike —
-        // survives (see
-        // [`crate::workspaces::user_workspaces::UserWorkspaces::purchase_policy`]).
-        let user_purchase_policy = gql_user
-            .billing_metadata
-            .and_then(|billing_metadata| billing_metadata.tier.purchase_add_on_credits_policy)
-            .map(Into::into);
-
         // TODO(skambashi) refactor to return back workspaces, and not teams
         WorkspacesMetadataResponse {
             workspaces,
             feature_model_choices,
-            user_purchase_policy,
         }
     }
 }

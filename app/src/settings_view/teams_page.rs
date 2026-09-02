@@ -914,7 +914,7 @@ impl TeamsPageView {
                 ctx.emit(TeamsPageViewEvent::TeamsChanged);
             }
             UserWorkspacesEvent::CurrentWorkspaceChanged
-            | UserWorkspacesEvent::WindowTeamChanged { .. } => {
+            | UserWorkspacesEvent::WindowTeamChanged => {
                 // A workspace selection change always emits `TeamsChanged` too,
                 // which already refreshes this page.
             }
@@ -978,13 +978,6 @@ impl TeamsPageView {
             UserWorkspacesEvent::ToggleTeamDiscoverabilityRejected(err) => {
                 self.show_error("Failed to toggle team discoverability", Some(err), ctx);
             }
-            UserWorkspacesEvent::TransferTeamOwnershipSuccess => {
-                self.show_success("Successfully transferred team ownership", ctx);
-                ctx.notify();
-            }
-            UserWorkspacesEvent::TransferTeamOwnershipRejected(err) => {
-                self.show_error("Failed to transfer team ownership", Some(err), ctx);
-            }
             UserWorkspacesEvent::SetTeamMemberRoleSuccess => {
                 self.update_team_members_state(ctx);
                 self.show_success("Successfully updated team member role", ctx);
@@ -1011,15 +1004,6 @@ impl TeamsPageView {
             }
             UserWorkspacesEvent::AiOveragesUpdated => {
                 // AI overages update doesn't affect teams page display
-            }
-            UserWorkspacesEvent::PurchaseAddonCreditsSuccess => {
-                // Addon credits purchase success is handled in billing_and_usage_page
-            }
-            UserWorkspacesEvent::PurchaseAddonCreditsCheckoutRequired { .. } => {
-                // Checkout handoff is handled by the surface that initiated the purchase
-            }
-            UserWorkspacesEvent::PurchaseAddonCreditsRejected(_) => {
-                // Addon credits purchase rejection is handled in billing_and_usage_page
             }
             UserWorkspacesEvent::CodebaseContextEnablementChanged => {}
             UserWorkspacesEvent::SunsettedToBuildDataUpdated => {

@@ -90,7 +90,10 @@ pub fn join_a_workspace() -> TestStep {
         })
         .add_assertion(move |app, _| {
             UserWorkspaces::handle(app).read(app, |user_workspaces, _| {
-                async_assert!(user_workspaces.has_workspaces(), "user is on a workspace")
+                async_assert!(
+                    !user_workspaces.workspaces().is_empty(),
+                    "user is on a workspace"
+                )
             })
         })
 }
