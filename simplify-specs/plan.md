@@ -3196,6 +3196,21 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             and `ClaudeCodePluginManager` (driver.rs, local_harness_launch.rs,
             terminal/view.rs). `PluginInstallError`'s Display now includes the command log,
             so the driver's warn line keeps the detail the chip used to write to a file.
+      - [x] **The SharedWithMe flag is folded away** (4af, 2026-09-02, ~1,800 lines): ~50
+            `!flag || permission` guards across Drive, notebooks, workflows and env-var
+            collections now take their flag-off branch; the "Remove" (leave shared object)
+            action and its `UpdateManager::leave_object` path, `CloudObject::can_leave`,
+            `CloudModel::has_directly_shared_objects`, the bincode guest / link-sharing codec in
+            `cloud_object_persistence`, `CloudObjectGuest`/`CloudLinkSharing::from_server` and 16
+            flag-on tests are gone. `owner_to_space` maps User to Personal and Team to Team.
+            **Kept**: `Space::Shared` (20+ live matches, web-anonymous path) and the guest /
+            link-sharing columns and struct fields (written empty). Lead: the sharing UI that
+            still reads `guests` / `anyone_with_link` is a future slice.
+      - [x] **The dead team-billing surface is gone** (4ag, 2026-09-02, ~950 lines): 4af made
+            rustc surface `UserWorkspaces` items with no non-test callers: team ownership
+            transfer, add-on credits purchase, usage-based pricing update, billing / upgrade
+            links, per-window team setter, purchase-policy and billing-metadata accessors, and
+            their `TeamClient` / `WorkspaceClient` trait methods, events and 19 tests.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), now including
             the remainder of `drive`. The remaining dead `FeatureFlag` variants fall out of those
