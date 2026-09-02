@@ -548,8 +548,6 @@ pub struct WarpAgentPageView {
     orchestration_message_display_mode_dropdown: ViewHandle<Dropdown<WarpAgentPageAction>>,
     default_prompt_submission_mode_dropdown: ViewHandle<Dropdown<WarpAgentPageAction>>,
     lrc_submission_mode_dropdown: ViewHandle<Dropdown<WarpAgentPageAction>>,
-    #[cfg(feature = "local_fs")]
-    conversation_layout_dropdown: ViewHandle<Dropdown<WarpAgentPageAction>>,
 
     // Custom model router views (gated on FeatureFlag::CustomModelRouters)
     #[cfg(feature = "local_fs")]
@@ -986,39 +984,6 @@ impl WarpAgentPageView {
             AgentToolbarInlineEditor::new(AgentToolbarEditorMode::AgentView, ctx)
         });
 
-        #[cfg(feature = "local_fs")]
-        let conversation_layout_dropdown = ctx.add_typed_action_view(|ctx| {
-            use crate::util::file::external_editor::settings::OpenConversationPreference;
-
-            let mut dropdown = Dropdown::new(ctx);
-            dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
-            dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
-
-            let items = vec![
-                DropdownItem::new(
-                    "New Tab",
-                    WarpAgentPageAction::SetConversationLayout(OpenConversationPreference::NewTab),
-                ),
-                DropdownItem::new(
-                    "Split Pane",
-                    WarpAgentPageAction::SetConversationLayout(
-                        OpenConversationPreference::SplitPane,
-                    ),
-                ),
-            ];
-            dropdown.set_items(items, ctx);
-
-            let current = *crate::util::file::external_editor::EditorSettings::as_ref(ctx)
-                .open_conversation_layout_preference;
-            match current {
-                OpenConversationPreference::NewTab => dropdown.set_selected_by_name("New Tab", ctx),
-                OpenConversationPreference::SplitPane => {
-                    dropdown.set_selected_by_name("Split Pane", ctx)
-                }
-            };
-            dropdown
-        });
-
         // Subscribe to WarpConfig to refresh router views when files change.
         #[cfg(feature = "local_fs")]
         ctx.subscribe_to_model(
@@ -1043,8 +1008,6 @@ impl WarpAgentPageView {
             orchestration_message_display_mode_dropdown,
             default_prompt_submission_mode_dropdown,
             lrc_submission_mode_dropdown,
-            #[cfg(feature = "local_fs")]
-            conversation_layout_dropdown,
             #[cfg(feature = "local_fs")]
             router_views,
             #[cfg(feature = "local_fs")]
@@ -1783,8 +1746,6 @@ pub enum WarpAgentPageAction {
     // Custom inference
     OpenAddCustomEndpointModal,
     OpenEditCustomEndpointModal(usize),
-    #[cfg(feature = "local_fs")]
-    SetConversationLayout(crate::util::file::external_editor::settings::OpenConversationPreference),
     ToggleCloudHandoff,
     ToggleAmpersandHandoff,
     ToggleAutoHandoffOnSleep,
@@ -2219,27 +2180,6 @@ impl TypedActionView for WarpAgentPageView {
                             .toggle_and_save_value(ctx)
                     );
                 });
-                ctx.notify();
-            }
-            #[cfg(feature = "local_fs")]
-            WarpAgentPageAction::SetConversationLayout(layout) => {
-                crate::util::file::external_editor::EditorSettings::handle(ctx).update(
-                    ctx,
-                    |settings, ctx| {
-                        report_if_error!(
-                            settings
-                                .open_conversation_layout_preference
-                                .set_value(*layout, ctx)
-                        );
-                    },
-                );
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::FeaturesPageAction {
-                        action: "SetConversationLayout".to_string(),
-                        value: format!("{layout:?}")
-                    },
-                    ctx
-                );
                 ctx.notify();
             }
             WarpAgentPageAction::ToggleShowConversationHistory => {
@@ -3433,28 +3373,6 @@ impl SettingsWidget for OtherAIWidget {
             (!is_any_ai_enabled).then(|| appearance.theme().disabled_ui_text_color()),
             &view.orchestration_message_display_mode_dropdown,
         ));
-
-        // TODO: OpenConversationLayoutPreference should not depend on local_fs, but it lives under the external editor settings
-        // which does require local_fs. It was a mistake to put it there, but now we keep it there for backward compatibility.
-        #[cfg(feature = "local_fs")]
-        if FeatureFlag::OpenWarpNewSettingsModes.is_enabled() {
-            use crate::util::file::external_editor::settings::OpenConversationLayoutPreference;
-
-            column.add_child(render_dropdown_item(
-                appearance,
-                "Preferred layout when opening existing agent conversations",
-                None,
-                None,
-                LocalOnlyIconState::for_setting(
-                    OpenConversationLayoutPreference::storage_key(),
-                    OpenConversationLayoutPreference::sync_to_cloud(),
-                    &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                    app,
-                ),
-                (!is_any_ai_enabled).then(|| appearance.theme().disabled_ui_text_color()),
-                &view.conversation_layout_dropdown,
-            ));
-        }
 
         column.finish()
     }

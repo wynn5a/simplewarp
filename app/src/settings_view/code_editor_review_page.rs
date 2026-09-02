@@ -5,23 +5,15 @@ use warp_core::settings::ToggleableSetting as _;
 use warp_errors::report_if_error;
 use warpui::elements::Element;
 #[cfg(feature = "local_fs")]
-use warpui::elements::{ChildView, Empty};
-use warpui::keymap::ContextPredicate;
+use warpui::elements::Empty;
 use warpui::ui_components::components::UiComponent;
 use warpui::ui_components::switch::SwitchStateHandle;
-use warpui::{
-    Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
-};
+use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle};
 
-#[cfg(feature = "local_fs")]
-use super::features::external_editor::ExternalEditorView;
 use super::settings_page::{
     MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, render_body_item,
 };
-use super::{
-    LocalOnlyIconState, SettingsAction, SettingsSection, ToggleSettingActionPair, ToggleState,
-    flags,
-};
+use super::{LocalOnlyIconState, SettingsSection, ToggleState};
 use crate::appearance::Appearance;
 use crate::settings::CodeSettings;
 use crate::terminal::general_settings::GeneralSettings;
@@ -32,26 +24,12 @@ const PAGE_TITLE: &str = "Editor and Code Review";
 
 pub struct EditorAndCodeReviewPageView {
     page: PageType<Self>,
-    #[cfg(feature = "local_fs")]
-    external_editor_view: Option<ViewHandle<ExternalEditorView>>,
 }
 
 impl EditorAndCodeReviewPageView {
-    pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        // `ctx` is only needed to build the external editor child view, which
-        // does not exist without a local filesystem.
-        #[cfg(not(feature = "local_fs"))]
-        let _ = &ctx;
-
-        #[cfg(feature = "local_fs")]
-        let external_editor_view = FeatureFlag::OpenWarpNewSettingsModes
-            .is_enabled()
-            .then(|| ctx.add_typed_action_view(ExternalEditorView::new));
-
+    pub fn new(_ctx: &mut ViewContext<Self>) -> Self {
         Self {
             page: Self::build_page(),
-            #[cfg(feature = "local_fs")]
-            external_editor_view,
         }
     }
 
@@ -193,7 +171,6 @@ impl SettingsPageMeta for EditorAndCodeReviewPageView {
 
     fn should_render(&self, _ctx: &AppContext) -> bool {
         FeatureFlag::FullSourceCodeEmbedding.is_enabled()
-            || FeatureFlag::OpenWarpNewSettingsModes.is_enabled()
     }
 
     fn scroll_to_widget(&mut self, widget_id: &'static str) {
@@ -211,70 +188,6 @@ impl From<ViewHandle<EditorAndCodeReviewPageView>> for SettingsPageViewHandle {
     }
 }
 
-pub fn init_actions_from_parent_view<T: Action + Clone>(
-    app: &mut AppContext,
-    context: &ContextPredicate,
-    builder: fn(SettingsAction) -> T,
-) {
-    if !FeatureFlag::OpenWarpNewSettingsModes.is_enabled() {
-        return;
-    }
-
-    ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
-        vec![
-            ToggleSettingActionPair::new(
-                "auto open code review panel",
-                builder(SettingsAction::EditorAndCodeReview(
-                    EditorAndCodeReviewPageAction::ToggleAutoOpenCodeReviewPane,
-                )),
-                context,
-                flags::AUTO_OPEN_CODE_REVIEW_PANE_FLAG,
-            ),
-            ToggleSettingActionPair::new(
-                "code review button",
-                builder(SettingsAction::EditorAndCodeReview(
-                    EditorAndCodeReviewPageAction::ToggleCodeReviewPanel,
-                )),
-                context,
-                flags::SHOW_CODE_REVIEW_BUTTON_FLAG,
-            ),
-            ToggleSettingActionPair::new(
-                "diff stats on code review button",
-                builder(SettingsAction::EditorAndCodeReview(
-                    EditorAndCodeReviewPageAction::ToggleShowCodeReviewDiffStats,
-                )),
-                context,
-                flags::SHOW_CODE_REVIEW_DIFF_STATS_FLAG,
-            ),
-            ToggleSettingActionPair::new(
-                "project explorer",
-                builder(SettingsAction::EditorAndCodeReview(
-                    EditorAndCodeReviewPageAction::ToggleProjectExplorer,
-                )),
-                context,
-                flags::SHOW_PROJECT_EXPLORER,
-            ),
-            ToggleSettingActionPair::new(
-                "global file search",
-                builder(SettingsAction::EditorAndCodeReview(
-                    EditorAndCodeReviewPageAction::ToggleGlobalSearch,
-                )),
-                context,
-                flags::SHOW_GLOBAL_SEARCH,
-            ),
-            ToggleSettingActionPair::new(
-                "show hidden files in project explorer",
-                builder(SettingsAction::EditorAndCodeReview(
-                    EditorAndCodeReviewPageAction::ToggleShowHiddenFiles,
-                )),
-                context,
-                flags::SHOW_HIDDEN_FILES,
-            ),
-        ],
-        app,
-    );
-}
-
 #[cfg(feature = "local_fs")]
 struct ExternalEditorCodeWidget;
 
@@ -288,15 +201,11 @@ impl SettingsWidget for ExternalEditorCodeWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _view: &Self::View,
         _appearance: &Appearance,
         _app: &AppContext,
     ) -> Box<dyn Element> {
-        if let Some(editor_view) = &view.external_editor_view {
-            ChildView::new(editor_view).finish()
-        } else {
-            Empty::new().finish()
-        }
+        Empty::new().finish()
     }
 }
 

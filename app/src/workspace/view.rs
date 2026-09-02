@@ -19475,9 +19475,7 @@ impl Workspace {
             );
         }
 
-        if crate::features::warp_account_available()
-            && self.auth_state.is_anonymous_or_logged_out()
-            && !FeatureFlag::OpenWarpNewSettingsModes.is_enabled()
+        if crate::features::warp_account_available() && self.auth_state.is_anonymous_or_logged_out()
         {
             if is_web_anonymous_user {
                 target.add_child(

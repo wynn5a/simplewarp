@@ -660,7 +660,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     knowledge_page::init_actions_from_parent_view(app, context, builder);
     cli_agents_page::init_actions_from_parent_view(app, context, builder);
     code_indexing_page::init_actions_from_parent_view(app, context, builder);
-    code_editor_review_page::init_actions_from_parent_view(app, context, builder);
 
     if ChannelState::enable_debug_features() || cfg!(windows) {
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(

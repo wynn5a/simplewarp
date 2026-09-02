@@ -319,29 +319,27 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ),
     );
 
-    if !FeatureFlag::OpenWarpNewSettingsModes.is_enabled() {
-        toggle_binding_pairs.push(
-            ToggleSettingActionPair::custom(
-                SettingActionPairDescriptions::new(
-                    "Show code review button in tab bar",
-                    "Hide code review button in tab bar",
-                ),
-                builder(SettingsAction::AppearancePageToggle(
-                    AppearancePageAction::ToggleShowCodeReviewButton,
-                )),
-                SettingActionPairContexts::new(
-                    context.to_owned() & !id!(flags::SHOW_CODE_REVIEW_BUTTON_FLAG),
-                    context.to_owned() & id!(flags::SHOW_CODE_REVIEW_BUTTON_FLAG),
-                ),
-                None,
-            )
-            .is_supported_on_current_platform(
-                TabSettings::as_ref(app)
-                    .show_code_review_button
-                    .is_supported_on_current_platform(),
+    toggle_binding_pairs.push(
+        ToggleSettingActionPair::custom(
+            SettingActionPairDescriptions::new(
+                "Show code review button in tab bar",
+                "Hide code review button in tab bar",
             ),
-        );
-    }
+            builder(SettingsAction::AppearancePageToggle(
+                AppearancePageAction::ToggleShowCodeReviewButton,
+            )),
+            SettingActionPairContexts::new(
+                context.to_owned() & !id!(flags::SHOW_CODE_REVIEW_BUTTON_FLAG),
+                context.to_owned() & id!(flags::SHOW_CODE_REVIEW_BUTTON_FLAG),
+            ),
+            None,
+        )
+        .is_supported_on_current_platform(
+            TabSettings::as_ref(app)
+                .show_code_review_button
+                .is_supported_on_current_platform(),
+        ),
+    );
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
@@ -1526,9 +1524,7 @@ impl AppearanceSettingsPageView {
         let tab_settings = TabSettings::as_ref(ctx);
         let mut tab_settings_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> =
             vec![Box::new(TabIndicatorWidget::default())];
-        if !FeatureFlag::OpenWarpNewSettingsModes.is_enabled() {
-            tab_settings_widgets.push(Box::new(CodeReviewButtonWidget::default()));
-        }
+        tab_settings_widgets.push(Box::new(CodeReviewButtonWidget::default()));
         if FeatureFlag::FullScreenZenMode.is_enabled()
             && tab_settings
                 .workspace_decoration_visibility

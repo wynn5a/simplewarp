@@ -1,30 +1,21 @@
 use std::future::Future;
 
-use ai::api_keys::ApiKeyManager;
 use settings::Setting as _;
 use warp_core::features::FeatureFlag;
-use warp_core::send_telemetry_from_ctx;
 use warp_util::sync::Condition;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity, WindowId};
 
 use super::view::feature_intro_modal::{FEATURE_INTROS, FeatureIntroId};
-use super::view::free_ai_removal_modal::{
-    FreeAiRemovalModalTelemetryEvent, FreeAiRemovalModalVariant,
-};
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
-use crate::ai::{AIRequestUsageModel, AIRequestUsageModelEvent};
+use crate::auth::AuthManager;
 use crate::auth::auth_manager::AuthManagerEvent;
-use crate::auth::{AuthManager, AuthStateProvider};
 use crate::channel::{Channel, ChannelState};
-use crate::root_view::has_completed_local_onboarding;
 use crate::settings::cloud_preferences_syncer::{
     CloudPreferencesSyncer, CloudPreferencesSyncerEvent,
 };
 use crate::settings::{AISettings, CodeSettings};
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::session_settings::{AgentToolbarChipSelection, SessionSettings};
-use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::workspaces::workspace::CustomerType;
 
 /// A generic model for managing one-time modals that should be shown to users only once.
 ///
@@ -59,10 +50,6 @@ pub struct OneTimeModalModel {
     /// cloud-synced settings, so event-driven re-checks must wait for the initial
     /// cloud preferences load to avoid acting on stale values.
     has_completed_initial_modal_checks: bool,
-    /// Whether `UserWorkspaces` has emitted `TeamsChanged`, meaning workspace billing
-    /// data reflects more than the local cache and "no workspace" can be trusted to
-    /// mean a solo (Free) user rather than not-yet-loaded data.
-    has_fetched_workspaces: bool,
     /// The window ID where the currently open one-time modal should be displayed.
     /// This is captured when a modal is first opened and ensures the modal stays on that window.
     target_window_id: Option<WindowId>,
@@ -80,22 +67,10 @@ impl OneTimeModalModel {
                         // When sunsetted_to_build_ts is updated, check if we should show the modal
                         me.check_and_trigger_build_plan_migration_modal(ctx);
                     }
-                    UserWorkspacesEvent::TeamsChanged => {
-                        me.has_fetched_workspaces = true;
-                        me.maybe_recheck_free_ai_removal_modal(ctx);
-                    }
                     _ => {}
                 }
             },
         );
-
-        // The base-credit allowance that gates the free-AI-removal notice loads
-        // asynchronously, so re-evaluate the notice whenever request usage updates.
-        ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |me, _, event, ctx| {
-            if let AIRequestUsageModelEvent::RequestUsageUpdated = event {
-                me.maybe_recheck_free_ai_removal_modal(ctx);
-            }
-        });
 
         // Subscribe to auth manager events to automatically trigger modal when user becomes onboarded
         ctx.subscribe_to_model(&AuthManager::handle(ctx), |_, _, event, ctx| {
@@ -175,7 +150,6 @@ impl OneTimeModalModel {
             is_free_ai_removal_modal_open: false,
             active_feature_intro: None,
             has_completed_initial_modal_checks: false,
-            has_fetched_workspaces: false,
             target_window_id: None,
         }
     }
@@ -232,16 +206,9 @@ impl OneTimeModalModel {
         if !self.set_active_feature_intro(None, ctx) {
             return;
         }
-        // Feature intros sit ahead of build-plan in the startup queue and also
-        // suppress free-AI rechecks while open. Resume those deferred paths so
-        // lower-priority notices are not lost for the rest of the session.
-        self.resume_modal_checks_after_feature_intro(ctx);
-    }
-
-    fn resume_modal_checks_after_feature_intro(&mut self, ctx: &mut ModelContext<Self>) {
-        if self.check_and_trigger_free_ai_removal_modal(ctx) {
-            return;
-        }
+        // Feature intros sit ahead of build-plan in the startup queue. Resume
+        // that deferred path so lower-priority notices are not lost for the
+        // rest of the session.
         self.check_and_trigger_build_plan_migration_modal(ctx);
     }
 
@@ -476,10 +443,6 @@ impl OneTimeModalModel {
             return;
         }
 
-        if self.check_and_trigger_free_ai_removal_modal(ctx) {
-            return;
-        }
-
         if self.check_and_trigger_feature_intro_modal(ctx) {
             return;
         }
@@ -512,84 +475,6 @@ impl OneTimeModalModel {
             return true;
         }
         false
-    }
-
-    /// Re-evaluates the free-AI-removal notice outside the initial startup check, e.g.
-    /// when workspace billing data arrives after startup.
-    fn maybe_recheck_free_ai_removal_modal(&mut self, ctx: &mut ModelContext<Self>) {
-        if !self.has_completed_initial_modal_checks
-            || self.is_any_modal_open()
-            || self.active_feature_intro.is_some()
-        {
-            return;
-        }
-        self.check_and_trigger_free_ai_removal_modal(ctx);
-    }
-
-    fn check_and_trigger_free_ai_removal_modal(&mut self, ctx: &mut ModelContext<Self>) -> bool {
-        // Gated on the OpenWarpNewSettingsModes rollout flag (the server experiment
-        // that previously gated this was removed in C1).
-        if !FeatureFlag::OpenWarpNewSettingsModes.is_enabled() {
-            return false;
-        }
-
-        if *AISettings::as_ref(ctx).did_check_to_trigger_free_ai_removal_modal {
-            return false;
-        }
-
-        // Anonymous users have no BYOK or upgrade path; leave them unmarked so the
-        // decision is made after they sign in.
-        if AuthStateProvider::as_ref(ctx)
-            .get()
-            .is_anonymous_or_logged_out()
-        {
-            return false;
-        }
-
-        let customer_type = UserWorkspaces::as_ref(ctx)
-            .current_workspace()
-            .map(|workspace| workspace.billing_metadata.customer_type);
-        let is_warp_ai_enabled = *AISettings::as_ref(ctx).is_any_ai_enabled;
-        let has_byok_or_byoe = ApiKeyManager::as_ref(ctx).has_any_key();
-        let completed_new_onboarding = has_completed_local_onboarding(ctx);
-        let has_zero_base_credits = AIRequestUsageModel::as_ref(ctx).request_limit() == 0;
-
-        let decision = free_ai_removal_modal_decision(
-            customer_type,
-            is_warp_ai_enabled,
-            has_byok_or_byoe,
-            completed_new_onboarding,
-            has_zero_base_credits,
-            self.has_fetched_workspaces,
-        );
-        if decision == FreeAiRemovalModalDecision::Defer {
-            return false;
-        }
-
-        AISettings::handle(ctx).update(ctx, |settings, ctx| {
-            if let Err(e) = settings
-                .did_check_to_trigger_free_ai_removal_modal
-                .set_value(true, ctx)
-            {
-                log::warn!("Failed to mark free AI removal modal as seen: {e}");
-            }
-        });
-
-        if decision == FreeAiRemovalModalDecision::MarkSeenSilently {
-            return false;
-        }
-
-        let should_show = !matches!(ChannelState::channel(), Channel::Integration);
-        if should_show {
-            send_telemetry_from_ctx!(
-                FreeAiRemovalModalTelemetryEvent::Shown {
-                    variant: FreeAiRemovalModalVariant::Notice,
-                },
-                ctx
-            );
-        }
-        self.set_free_ai_removal_modal_open(should_show, ctx);
-        should_show
     }
 
     fn check_and_trigger_oz_launch_modal(&mut self, ctx: &mut ModelContext<Self>) -> bool {
@@ -873,49 +758,6 @@ pub fn mark_free_ai_removal_notice_seen(app: &mut AppContext) {
             log::warn!("Failed to mark free AI removal notice as seen: {e}");
         }
     });
-}
-
-/// The outcome of evaluating the free-AI-removal notice conditions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FreeAiRemovalModalDecision {
-    /// Show the modal and write the seen marker.
-    Show,
-    /// Write the seen marker without showing the modal.
-    MarkSeenSilently,
-    /// Not enough data to decide; re-evaluate on the next billing/experiments update.
-    Defer,
-}
-
-fn free_ai_removal_modal_decision(
-    customer_type: Option<CustomerType>,
-    is_warp_ai_enabled: bool,
-    has_byok_or_byoe: bool,
-    completed_new_onboarding: bool,
-    has_zero_base_credits: bool,
-    workspaces_fetched: bool,
-) -> FreeAiRemovalModalDecision {
-    if !is_warp_ai_enabled || has_byok_or_byoe || completed_new_onboarding {
-        return FreeAiRemovalModalDecision::MarkSeenSilently;
-    }
-    // Restrict to a Free (or confirmed solo) user; anyone else is paid (silently
-    // marked) or not-yet-known (deferred).
-    match customer_type {
-        Some(CustomerType::Free) => {}
-        // A missing workspace usually means billing data hasn't loaded yet; only treat
-        // it as a solo Free user once a server fetch has confirmed there is none, so a
-        // paid user's modal decision never runs against absent data.
-        None if workspaces_fetched => {}
-        None | Some(CustomerType::Unknown) => return FreeAiRemovalModalDecision::Defer,
-        Some(_) => return FreeAiRemovalModalDecision::MarkSeenSilently,
-    }
-    // Some ICPs still receive base AI credits on the Free plan; don't spook them with
-    // the notice. Only show once the base allowance is gone, and defer (rather than
-    // mark seen) otherwise so it re-evaluates if the allowance later drops to zero.
-    if has_zero_base_credits {
-        FreeAiRemovalModalDecision::Show
-    } else {
-        FreeAiRemovalModalDecision::Defer
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
