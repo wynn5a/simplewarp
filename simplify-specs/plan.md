@@ -3175,6 +3175,23 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             `CloudMode` (+5 sub-flags), `AccountFirstOnboarding`, `AgentManagementView`
             (the 4,400-line `ai/agent_management` module, minus the live `telemetry.rs` and
             `details_action_buttons.rs`).
+      - [x] **The agent notifications mailbox is gone** (4ad, 2026-09-02, ~3,430 lines): the
+            `ai/agent_management/notifications` module, the mailbox half of
+            `AgentNotificationsModel` (now only the legacy `ConversationNeedsAttention` toast
+            emitter), the workspace mailbox/toast-stack views and actions, the vertical-tabs
+            unread dots, the features-page toggle and toast-duration editor, and the
+            `AgentNotificationShown` telemetry. **Kept by decision**:
+            `HeaderToolbarItemKind::NotificationsMailbox` (persisted enum; `is_supported()` is
+            false) and the `show_agent_notifications` / `notification_toast_duration_secs`
+            settings (persisted; nothing reads them). `FeatureFlag::HOANotifications` itself
+            survives for one more slice: the plugin-install chip in
+            `agent_input_footer` (`plugin_chip_kind` returns `None` under it), which drags along
+            the `OpenPluginInstructionsPane` event chain (footer → input.rs → terminal/view.rs →
+            terminal_pane.rs → pane_group → workspace/view.rs → `plugin_instructions_block`),
+            the four `CLIAgentPlugin*` telemetry events, and the chip-dismissal accessors on
+            `AISettings` (the two dismissal maps are persisted; keep the settings, drop the
+            accessors). `ClaudeCodePluginManager` and `plugin_manager_for` stay: driver.rs,
+            local_harness_launch.rs and terminal/view.rs use them outside the chip.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), now including
             the remainder of `drive`. The remaining dead `FeatureFlag` variants fall out of those
