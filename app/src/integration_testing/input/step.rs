@@ -40,7 +40,6 @@ pub fn open_cli_agent_rich_input(tab_index: usize) -> TestStep {
                             remote_host: None,
                             plugin_version: None,
                             draft_text: None,
-                            custom_command_prefix: None,
                             received_rich_notification: false,
                         },
                         ctx,

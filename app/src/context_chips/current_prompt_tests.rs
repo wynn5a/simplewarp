@@ -648,7 +648,6 @@ fn test_cli_agent_footer_chips_require_a_visible_supported_footer() {
             plugin_version: None,
             remote_host: None,
             draft_text: None,
-            custom_command_prefix: None,
             received_rich_notification: false,
         };
 

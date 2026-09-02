@@ -277,7 +277,6 @@ fn apply_event_preserves_input_session() {
         remote_host: None,
         plugin_version: None,
         draft_text: None,
-        custom_command_prefix: None,
         received_rich_notification: false,
     };
 
@@ -301,93 +300,6 @@ fn apply_event_preserves_input_session() {
 }
 
 #[test]
-fn is_remote_returns_true_when_remote_host_is_set() {
-    let session = CLIAgentSession {
-        agent: CLIAgent::Claude,
-        status: CLIAgentSessionStatus::InProgress,
-        session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
-        listener: None,
-        plugin_version: None,
-        draft_text: None,
-        remote_host: Some("user@devbox".to_owned()),
-        custom_command_prefix: None,
-        received_rich_notification: false,
-    };
-    assert!(session.is_remote());
-}
-
-#[test]
-fn is_remote_returns_false_when_remote_host_is_none() {
-    let session = CLIAgentSession {
-        agent: CLIAgent::Claude,
-        status: CLIAgentSessionStatus::InProgress,
-        session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
-        listener: None,
-        remote_host: None,
-        plugin_version: None,
-        draft_text: None,
-        custom_command_prefix: None,
-        received_rich_notification: false,
-    };
-    assert!(!session.is_remote());
-}
-
-#[test]
-fn local_failure_is_shared_across_local_sessions() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, None);
-
-    assert!(model.has_plugin_auto_failed(CLIAgent::Claude, &None));
-}
-
-#[test]
-fn local_failure_does_not_affect_remote_host() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, None);
-
-    let remote = Some("user@devbox".to_owned());
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Claude, &remote));
-}
-
-#[test]
-fn remote_failure_does_not_affect_local() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, Some("user@devbox".to_owned()));
-
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Claude, &None));
-}
-
-#[test]
-fn remote_failures_are_independent_per_host() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    let host_a = Some("user@host-a".to_owned());
-    let host_b = Some("user@host-b".to_owned());
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, host_a.clone());
-
-    assert!(model.has_plugin_auto_failed(CLIAgent::Claude, &host_a));
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Claude, &host_b));
-}
-
-#[test]
-fn failure_tracking_is_independent_per_agent() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, None);
-
-    assert!(model.has_plugin_auto_failed(CLIAgent::Claude, &None));
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Gemini, &None));
-}
-
-#[test]
 fn session_start_sets_plugin_version() {
     let mut session = CLIAgentSession {
         agent: CLIAgent::Claude,
@@ -399,7 +311,6 @@ fn session_start_sets_plugin_version() {
         plugin_version: None,
         draft_text: None,
         remote_host: None,
-        custom_command_prefix: None,
         received_rich_notification: false,
     };
 
@@ -433,7 +344,6 @@ fn session_start_without_plugin_version_leaves_none() {
         plugin_version: None,
         draft_text: None,
         remote_host: None,
-        custom_command_prefix: None,
         received_rich_notification: false,
     };
 
@@ -466,7 +376,6 @@ fn codex_session_not_rich_until_rich_notification() {
         plugin_version: None,
         remote_host: None,
         draft_text: None,
-        custom_command_prefix: None,
         received_rich_notification: false,
     };
     assert!(!session.supports_rich_status());
@@ -488,7 +397,6 @@ fn non_codex_session_rich_after_rich_notification() {
         plugin_version: None,
         remote_host: None,
         draft_text: None,
-        custom_command_prefix: None,
         received_rich_notification: false,
     };
     // No listener and no rich notification yet.
@@ -519,7 +427,6 @@ fn blocked_claude_session_with_permission_state() -> CLIAgentSession {
         plugin_version: None,
         draft_text: None,
         remote_host: None,
-        custom_command_prefix: None,
         received_rich_notification: false,
     }
 }
@@ -666,7 +573,6 @@ fn permission_request_still_populates_summary_and_tool_fields() {
         plugin_version: None,
         draft_text: None,
         remote_host: None,
-        custom_command_prefix: None,
         received_rich_notification: false,
     };
 
@@ -726,7 +632,6 @@ fn cli_agent_session(
         plugin_version: None,
         remote_host: None,
         draft_text: None,
-        custom_command_prefix: None,
         received_rich_notification,
     }
 }

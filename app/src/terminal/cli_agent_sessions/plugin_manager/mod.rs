@@ -12,41 +12,12 @@ use crate::terminal::CLIAgent;
 use crate::terminal::model::session::LocalCommandExecutor;
 use crate::terminal::shell::ShellType;
 
-/// Distinguishes whether the plugin instructions modal should show install or update steps.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PluginModalKind {
-    Install,
-    Update,
-}
-
-/// A single step in the plugin install/update instructions pane.
-pub(crate) struct PluginInstructionStep {
-    pub description: &'static str,
-    pub command: &'static str,
-    /// When true, the code block shows a "Run" button that inserts the command into the terminal.
-    /// Defaults-by-convention to `true`; set to `false` for steps that are not runnable
-    /// (e.g. config file snippets).
-    pub executable: bool,
-    /// Optional URL rendered as a clickable "Learn more" link after the description.
-    /// When set with an empty `command`, the code block is omitted entirely.
-    pub link: Option<&'static str>,
-}
-
-/// All content needed to render the plugin instructions pane for a given agent.
-pub(crate) struct PluginInstructions {
-    pub title: &'static str,
-    pub subtitle: &'static str,
-    pub steps: &'static [PluginInstructionStep],
-    /// Displayed after the steps in the same style as the subtitle, one per paragraph.
-    pub post_install_notes: &'static [&'static str],
-}
-
 /// Error returned when plugin installation fails.
-/// Carries both a short user-facing message (for the toast) and a detailed
-/// command log (for the log file the user can inspect).
+/// Carries a short message and the detailed command log; `Display` prints
+/// both so the app log shows what was attempted.
 #[derive(Debug)]
 pub(crate) struct PluginInstallError {
-    /// Short description shown in the toast notification.
+    /// Short description of the failure.
     pub message: String,
     /// Detailed log of every command/step that was attempted.
     pub log: String,
@@ -54,7 +25,11 @@ pub(crate) struct PluginInstallError {
 
 impl fmt::Display for PluginInstallError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
+        f.write_str(&self.message)?;
+        if !self.log.is_empty() {
+            write!(f, "\n{}", self.log)?;
+        }
+        Ok(())
     }
 }
 
@@ -62,10 +37,9 @@ impl std::error::Error for PluginInstallError {}
 
 impl From<io::Error> for PluginInstallError {
     fn from(err: io::Error) -> Self {
-        let msg = err.to_string();
         Self {
-            message: msg.clone(),
-            log: msg,
+            message: err.to_string(),
+            log: String::new(),
         }
     }
 }
@@ -190,28 +164,6 @@ pub(crate) trait CliAgentPluginManager: Send + Sync {
             log: String::new(),
         })
     }
-
-    /// Toast message shown after a successful auto-install.
-    fn install_success_message(&self) -> &'static str {
-        "Warp plugin installed. Please restart the session to activate."
-    }
-
-    /// Toast message shown after a successful auto-update.
-    fn update_success_message(&self) -> &'static str {
-        "Warp plugin updated. Please restart the session to activate."
-    }
-
-    /// Manual installation instructions for the modal UI.
-    fn install_instructions(&self) -> &'static PluginInstructions;
-
-    /// Whether this agent supports version-based update checking.
-    /// When `false`, the update chip is never shown; only the install chip appears.
-    fn supports_update(&self) -> bool {
-        true
-    }
-
-    /// Manual update instructions for the modal UI.
-    fn update_instructions(&self) -> &'static PluginInstructions;
 
     /// Install the Oz platform plugin for this CLI agent, if one exists,
     /// which provides skills that third-party harnesses can use to interact with

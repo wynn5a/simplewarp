@@ -869,10 +869,6 @@ fn handle_terminal_view_event(
             Event::OpenSettings(section) => {
                 ctx.emit(pane_group::Event::OpenSettings(*section));
             }
-            #[cfg(not(target_family = "wasm"))]
-            Event::OpenPluginInstructionsPane(agent, kind) => {
-                ctx.emit(pane_group::Event::OpenPluginInstructionsPane(*agent, *kind));
-            }
             Event::AskAIAssistant(ask_type) => {
                 ctx.emit(pane_group::Event::AskAIAssistant(ask_type.to_owned()))
             }

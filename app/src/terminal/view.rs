@@ -36,7 +36,6 @@ mod pane_impl;
 mod passive_suggestions;
 mod pending_user_query;
 #[cfg(not(target_family = "wasm"))]
-pub(crate) mod plugin_instructions_block;
 pub mod rich_content;
 mod shell_terminated_banner;
 pub mod ssh_file_upload;
@@ -372,7 +371,7 @@ use crate::terminal::cli_agent_sessions::event::{
 };
 use crate::terminal::cli_agent_sessions::listener::{CLIAgentSessionListener, is_agent_supported};
 #[cfg(not(target_family = "wasm"))]
-use crate::terminal::cli_agent_sessions::plugin_manager::{PluginModalKind, plugin_manager_for};
+use crate::terminal::cli_agent_sessions::plugin_manager::plugin_manager_for;
 use crate::terminal::cli_agent_sessions::{
     CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentRichInputCloseReason, CLIAgentSession,
     CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
@@ -1714,8 +1713,6 @@ pub enum Event {
     OpenAgentProfileEditor {
         profile_id: ExecutionProfileId,
     },
-    #[cfg(not(target_family = "wasm"))]
-    OpenPluginInstructionsPane(CLIAgent, PluginModalKind),
     ShowToast {
         message: String,
         flavor: ToastFlavor,
@@ -11237,7 +11234,7 @@ impl TerminalView {
                                     CLIAgentSessionsModel::handle(ctx).update(
                                         ctx,
                                         |sessions_model, ctx| match detection {
-                                            Some((agent, ref custom_command_prefix))
+                                            Some((agent, _))
                                                 if !sessions_model
                                                     .session(view_id)
                                                     .is_some_and(|s| s.agent == agent) =>
@@ -11261,8 +11258,6 @@ impl TerminalView {
                                                         plugin_version: None,
                                                         remote_host,
                                                         draft_text: None,
-                                                        custom_command_prefix:
-                                                            custom_command_prefix.clone(),
                                                         received_rich_notification: false,
                                                     },
                                                     ctx,
@@ -12823,13 +12818,6 @@ impl TerminalView {
             && !is_anonymous_or_logged_out;
         let is_launch_modal_open = OneTimeModalModel::as_ref(ctx).is_oz_launch_modal_open();
 
-        let has_plugin_instructions_block = self.rich_content_views.iter().any(|rc| {
-            matches!(
-                rc.metadata(),
-                Some(RichContentMetadata::PluginInstructionsBlock)
-            )
-        });
-
         if FeatureFlag::AgentView.is_enabled()
             && TerminalSettings::as_ref(ctx).should_show_zero_state_block(ctx)
             && !self.model.lock().block_list().is_restored_session()
@@ -12837,7 +12825,6 @@ impl TerminalView {
             && self.onboarding_callout_view.is_none()
             && !is_launch_modal_open
             && !is_subshell_or_ssh
-            && !has_plugin_instructions_block
         {
             let agent_view_zero_state = ctx.add_typed_action_view(|ctx| {
                 TerminalViewZeroStateBlock::new(
@@ -14115,22 +14102,6 @@ impl TerminalView {
         }
 
         self.update_input_prompt_suggestions_banner_state(ctx);
-        ctx.notify();
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn remove_plugin_instructions_block(
-        &mut self,
-        block_handle: ViewHandle<plugin_instructions_block::PluginInstructionsBlock>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let block_id = block_handle.id();
-        self.rich_content_views
-            .retain(|rich_content| rich_content.view_id() != block_id);
-        self.model
-            .lock()
-            .block_list_mut()
-            .remove_rich_content(block_id);
         ctx.notify();
     }
 
@@ -20556,13 +20527,6 @@ impl TerminalView {
             }
             InputEvent::ScrollToExchange { exchange_id } => {
                 self.scroll_to_exchange(*exchange_id, ctx);
-            }
-            InputEvent::RegisterPluginListener(agent) => {
-                self.register_cli_agent_listener_without_session_start_event(*agent, ctx);
-            }
-            #[cfg(not(target_family = "wasm"))]
-            InputEvent::OpenPluginInstructionsPane(agent, kind) => {
-                ctx.emit(Event::OpenPluginInstructionsPane(*agent, *kind));
             }
         }
     }

@@ -2,13 +2,7 @@ pub(super) mod chips;
 pub mod editor;
 pub mod toolbar_item;
 
-#[cfg(not(target_family = "wasm"))]
-use std::env;
-#[cfg(not(target_family = "wasm"))]
-use std::path::PathBuf;
 use std::sync::Arc;
-#[cfg(not(target_family = "wasm"))]
-use std::time::Duration;
 
 use ai::document::{AIDocumentId, AIDocumentVersion};
 use chrono::{DateTime, Local};
@@ -18,8 +12,6 @@ use pathfinder_geometry::vector::{Vector2F, vec2f};
 #[cfg(feature = "voice_input")]
 use settings::Setting;
 use settings::ToggleableSetting;
-#[cfg(not(target_family = "wasm"))]
-use tokio::fs;
 use toolbar_item::AgentToolbarItemKind;
 #[cfg(feature = "voice_input")]
 use voice_input::{
@@ -31,7 +23,7 @@ use warp_core::ui::color::blend::Blend;
 use warp_core::ui::color::contrast::MinimumAllowedContrast;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
-#[cfg(any(not(target_family = "wasm"), feature = "voice_input"))]
+#[cfg(feature = "voice_input")]
 use warp_errors::report_error;
 use warp_errors::report_if_error;
 use warpui::r#async::{SpawnedFutureHandle, Timer};
@@ -64,28 +56,17 @@ use crate::network::NetworkStatus;
 use crate::send_telemetry_from_ctx;
 #[cfg(feature = "voice_input")]
 use crate::server::server_api::TranscribeError;
-#[cfg(not(target_family = "wasm"))]
-use crate::server::telemetry::PluginChipTelemetryAction;
-use crate::server::telemetry::{PluginChipTelemetryKind, TelemetryEvent};
+use crate::server::telemetry::TelemetryEvent;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
     PrivacySettingsChangedEvent,
 };
 use crate::settings_view::SettingsSection;
-#[cfg(not(target_family = "wasm"))]
-use crate::terminal::ShellLaunchData;
-#[cfg(not(target_family = "wasm"))]
-use crate::terminal::cli_agent_sessions::plugin_manager::{
-    CliAgentPluginManager, PluginInstallError, PluginModalKind, compare_versions,
-    plugin_manager_for, plugin_manager_for_with_shell,
-};
 use crate::terminal::cli_agent_sessions::{
     CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
 };
 use crate::terminal::input::models::InlineModelSelectorTab;
 use crate::terminal::input::{HandoffComposeState, MenuPositioningProvider};
-#[cfg(not(target_family = "wasm"))]
-use crate::terminal::local_shell::LocalShellState;
 use crate::terminal::profile_model_selector::{ProfileModelSelector, ProfileModelSelectorEvent};
 use crate::terminal::session_settings::{
     SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection,
@@ -98,10 +79,8 @@ use crate::terminal::view::init::OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING;
 use crate::terminal::{CLIAgent, TerminalModel};
 use crate::ui_components::icons::Icon;
 use crate::view_components::DismissibleToast;
-#[cfg(not(target_family = "wasm"))]
-use crate::view_components::ToastLink;
 use crate::view_components::action_button::{
-    ActionButton, ActionButtonTheme, AdjoinedSide, ButtonSize, KeystrokeSource, TooltipAlignment,
+    ActionButton, ActionButtonTheme, ButtonSize, KeystrokeSource, TooltipAlignment,
 };
 use crate::workspace::ToastStack;
 #[cfg(not(target_family = "wasm"))]
@@ -118,36 +97,6 @@ const FAST_FORWARD_LOCKED_TOOLTIP: &str =
     "Fast forward is always enabled for cloud agent conversations";
 
 const CLOUD_MODE_V2_FOOTER_GAP: f32 = 4.;
-
-/// How long to wait after session creation before showing the install chip.
-/// Gives the plugin time to connect and send its `SessionStart` event.
-#[cfg(not(target_family = "wasm"))]
-const PLUGIN_CHIP_DEBOUNCE: Duration = Duration::from_secs(3);
-
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PluginChipKind {
-    Install,
-    Update,
-}
-
-impl From<PluginChipKind> for PluginChipTelemetryKind {
-    fn from(kind: PluginChipKind) -> Self {
-        match kind {
-            PluginChipKind::Install => PluginChipTelemetryKind::Install,
-            PluginChipKind::Update => PluginChipTelemetryKind::Update,
-        }
-    }
-}
-
-/// Builds a composite key for per-agent, per-host plugin chip dismissal.
-/// Returns `"<agent_prefix>"` for local sessions or `"<agent_prefix>@<host>"` for remote.
-fn plugin_chip_key(agent_prefix: &str, remote_host: &Option<String>) -> String {
-    match remote_host {
-        Some(host) => format!("{agent_prefix}@{host}"),
-        None => agent_prefix.to_owned(),
-    }
-}
 
 fn is_conversation_transcript_context(
     terminal_view_id: EntityId,
@@ -201,17 +150,6 @@ pub struct AgentInputFooter {
     // CLI agent-specific buttons (rendered when a CLI agent session is active).
     rich_input_button: ViewHandle<ActionButton>,
     settings_button: ViewHandle<ActionButton>,
-    install_plugin_button: ViewHandle<ActionButton>,
-    plugin_instructions_button: ViewHandle<ActionButton>,
-    update_plugin_button: ViewHandle<ActionButton>,
-    update_instructions_button: ViewHandle<ActionButton>,
-    dismiss_plugin_chip_button: ViewHandle<ActionButton>,
-    plugin_operation_in_progress: bool,
-    /// When `true`, the install chip is allowed to render.
-    /// Starts `false` and is set to `true` after a debounce timer fires,
-    /// giving the plugin time to connect before we prompt installation.
-    /// Reset to `false` when a listener connects.
-    plugin_chip_ready: bool,
 
     // Fast-forward (auto-approve) toggle button shown in the agent view footer.
     fast_forward_button: ViewHandle<ActionButton>,
@@ -457,72 +395,6 @@ impl AgentInputFooter {
                 })
         });
 
-        let install_plugin_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Enable notifications", InstallPluginButtonTheme)
-                .with_icon(Icon::Download)
-                .with_tooltip(
-                    "Install the Warp plugin to enable rich agent notifications within Warp",
-                )
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_adjoined_side(AdjoinedSide::Right)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::InstallPlugin);
-                })
-        });
-
-        let plugin_instructions_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Notifications setup instructions", InstallPluginButtonTheme)
-                .with_icon(Icon::Info)
-                .with_tooltip("View instructions to install the Warp plugin")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_adjoined_side(AdjoinedSide::Right)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        AgentInputFooterAction::OpenPluginInstallInstructionsPane,
-                    );
-                })
-        });
-
-        let update_plugin_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Update Warp plugin", InstallPluginButtonTheme)
-                .with_icon(Icon::Download)
-                .with_tooltip("A new version of the Warp plugin is available")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_adjoined_side(AdjoinedSide::Right)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::UpdatePlugin);
-                })
-        });
-
-        let update_instructions_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Plugin update instructions", InstallPluginButtonTheme)
-                .with_icon(Icon::Info)
-                .with_tooltip("View instructions to update the Warp plugin")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_adjoined_side(AdjoinedSide::Right)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        AgentInputFooterAction::OpenPluginUpdateInstructionsPane,
-                    );
-                })
-        });
-
-        let dismiss_plugin_chip_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("", InstallPluginButtonTheme)
-                .with_icon(Icon::X)
-                .with_size(cli_button_size)
-                .with_tooltip("Dismiss")
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_adjoined_side(AdjoinedSide::Left)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::DismissPluginChip);
-                })
-        });
-
         // Toggle rich input button label when CLI input session opens/closes.
         // Also reset CLI voice state if the session ends while voice is active.
         ctx.subscribe_to_model(
@@ -532,50 +404,9 @@ impl AgentInputFooter {
                     return;
                 }
 
-                // Reset the debounce when a session ends so the next
-                // session gets a fresh debounce window.
+                #[cfg(feature = "voice_input")]
                 if let CLIAgentSessionsModelEvent::Ended { .. } = event {
-                    #[cfg(feature = "voice_input")]
                     me.stop_cli_voice_and_reset(ctx);
-                    me.plugin_chip_ready = false;
-                }
-
-                // When a structured plugin connects, the plugin is verified
-                // installed — hide the chip. Codex's OSC 9 fallback is not a
-                // structured plugin, so its chip stays until the plugin connects.
-                if CLIAgentSessionsModel::as_ref(ctx)
-                    .session(me.terminal_view_id)
-                    .is_some_and(|s| s.supports_rich_status())
-                {
-                    me.plugin_chip_ready = false;
-                }
-
-                // When a session starts, update the install chip label and
-                // start a debounce timer for non-auto-install agents.
-                #[cfg(not(target_family = "wasm"))]
-                if let CLIAgentSessionsModelEvent::Started { .. } = event
-                    && let Some(agent) = me.cli_agent(ctx)
-                {
-                    let label = format!("Enable {} notifications", agent.display_name());
-                    me.install_plugin_button.update(ctx, |button, ctx| {
-                        button.set_label(label, ctx);
-                    });
-                    if let Some(manager) = plugin_manager_for(agent)
-                        && !manager.can_auto_install()
-                    {
-                        ctx.spawn(
-                            Timer::after(PLUGIN_CHIP_DEBOUNCE),
-                            |me, _, ctx: &mut ViewContext<Self>| {
-                                let suppress = CLIAgentSessionsModel::as_ref(ctx)
-                                    .session(me.terminal_view_id)
-                                    .is_some_and(|s| s.supports_rich_status());
-                                if !suppress {
-                                    me.plugin_chip_ready = true;
-                                    ctx.notify();
-                                }
-                            },
-                        );
-                    }
                 }
 
                 let CLIAgentSessionsModelEvent::InputSessionChanged {
@@ -783,13 +614,6 @@ impl AgentInputFooter {
             file_explorer_button,
             rich_input_button,
             settings_button,
-            install_plugin_button,
-            plugin_instructions_button,
-            update_plugin_button,
-            update_instructions_button,
-            dismiss_plugin_chip_button,
-            plugin_operation_in_progress: false,
-            plugin_chip_ready: false,
             context_window_button,
             model_selector: profile_model_selector_full,
             prompt_alert,
@@ -983,351 +807,6 @@ impl AgentInputFooter {
         );
     }
 
-    /// Which plugin chip to show, if any.
-    fn plugin_chip_kind(&self, app: &AppContext) -> Option<PluginChipKind> {
-        #[cfg(target_family = "wasm")]
-        {
-            let _ = (app, self.plugin_operation_in_progress);
-            None
-        }
-        #[cfg(not(target_family = "wasm"))]
-        {
-            if self.plugin_operation_in_progress || !FeatureFlag::HOANotifications.is_enabled() {
-                return None;
-            }
-
-            let ai_settings = AISettings::as_ref(app);
-            if !*ai_settings.show_agent_notifications {
-                return None;
-            }
-
-            let session = CLIAgentSessionsModel::as_ref(app).session(self.terminal_view_id)?;
-
-            let manager = plugin_manager_for(session.agent)?;
-            let min_version = manager.minimum_plugin_version();
-            let chip_key = plugin_chip_key(session.agent.command_prefix(), &session.remote_host);
-            // If a structured plugin is connected and this agent supports
-            // version-based updates, check the reported version.
-            if session.supports_rich_status() && manager.supports_update() {
-                let needs_update = match &session.plugin_version {
-                    // No version reported = pre-versioning plugin, definitely outdated.
-                    None => true,
-                    Some(v) => compare_versions(v, min_version).is_lt(),
-                };
-                if !needs_update {
-                    return None;
-                }
-                // Check update chip dismissal.
-                let dismissed_version = ai_settings.plugin_update_chip_dismissed_version(&chip_key);
-                if !dismissed_version.is_empty()
-                    && compare_versions(dismissed_version, min_version).is_ge()
-                {
-                    return None;
-                }
-                return Some(PluginChipKind::Update);
-            }
-
-            // For agents without auto-install, wait for the debounce timer
-            // before showing the install chip.
-            if !manager.can_auto_install() && !self.plugin_chip_ready {
-                return None;
-            }
-
-            let install_chip_dismissed = ai_settings.is_plugin_install_chip_dismissed(&chip_key);
-
-            // For remote sessions, we can't check the filesystem.
-            if session.is_remote() {
-                return (!install_chip_dismissed).then_some(PluginChipKind::Install);
-            }
-
-            if manager.is_installed() {
-                // Installed but no listener yet. Check the on-disk version as a fallback
-                // — the plugin may be too old to send structured events.
-                if manager.needs_update() {
-                    let dismissed_version =
-                        ai_settings.plugin_update_chip_dismissed_version(&chip_key);
-                    if !dismissed_version.is_empty()
-                        && compare_versions(dismissed_version, min_version).is_ge()
-                    {
-                        return None;
-                    }
-                    return Some(PluginChipKind::Update);
-                }
-                // Up to date on disk — wait for the listener to connect.
-                return None;
-            }
-
-            // Not installed locally.
-            (!install_chip_dismissed).then_some(PluginChipKind::Install)
-        }
-    }
-
-    /// Whether the chip should open the manual instructions modal instead of auto-operating.
-    fn should_use_manual_mode(&self, app: &AppContext) -> bool {
-        let sessions_model = CLIAgentSessionsModel::as_ref(app);
-        let session = match sessions_model.session(self.terminal_view_id) {
-            Some(s) => s,
-            None => return false,
-        };
-
-        // Custom toolbar commands always use manual mode because the user's
-        // binary may differ from the agent's standard CLI tool.
-        if session.custom_command_prefix.is_some() {
-            return true;
-        }
-
-        #[cfg(not(target_family = "wasm"))]
-        if let Some(manager) = plugin_manager_for(session.agent)
-            && !manager.can_auto_install()
-        {
-            return true;
-        }
-        if session.is_remote() {
-            return true;
-        }
-        // Docker sandbox sessions run inside a container; our auto-install
-        // path operates on the host's shell config and would install the
-        // plugin in the wrong place. Fall back to the manual-instructions
-        // modal so the user can paste the install command into the sandbox
-        // PTY and install inside the container.
-        //
-        // `ShellLaunchData` is only available on native builds; wasm builds
-        // can't produce a `DockerSandbox` variant either way.
-        #[cfg(not(target_family = "wasm"))]
-        {
-            let shell_data = {
-                let model = self.terminal_model.lock();
-                model.active_shell_launch_data().cloned()
-            };
-            if matches!(shell_data, Some(ShellLaunchData::DockerSandbox { .. })) {
-                return true;
-            }
-        }
-        sessions_model.has_plugin_auto_failed(session.agent, &session.remote_host)
-    }
-
-    /// Records that the auto plugin operation could not start, shows an error toast,
-    /// and re-renders so the chip switches to manual-instructions mode.
-    #[cfg(not(target_family = "wasm"))]
-    fn record_plugin_auto_failure_and_notify(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(agent) = self.cli_agent(ctx) {
-            let remote_host = CLIAgentSessionsModel::as_ref(ctx)
-                .session(self.terminal_view_id)
-                .and_then(|s| s.remote_host.clone());
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |model, _| {
-                model.record_plugin_auto_failure(agent, remote_host);
-            });
-        }
-        let window_id = ctx.window_id();
-        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            toast_stack.add_ephemeral_toast(
-                DismissibleToast::error(
-                    "Could not automatically install plugin. \
-                     Please click the chip again for manual installation steps."
-                        .to_owned(),
-                ),
-                window_id,
-                ctx,
-            );
-        });
-        ctx.notify();
-    }
-
-    /// Shared handler for both install and update plugin operations.
-    /// `progress_toast` is shown while the operation runs; `success_toast` on success.
-    #[cfg(not(target_family = "wasm"))]
-    fn handle_plugin_operation<F, Fut>(
-        &mut self,
-        progress_toast: &str,
-        error_label: &str,
-        success_toast: &str,
-        operation_kind: PluginChipTelemetryKind,
-        operation: F,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool
-    where
-        F: FnOnce(Box<dyn CliAgentPluginManager>) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = Result<(), PluginInstallError>> + Send + 'static,
-    {
-        let Some(agent) = self.cli_agent(ctx) else {
-            return false;
-        };
-        let shell_data = {
-            let model = self.terminal_model.lock();
-            model.active_shell_launch_data().cloned()
-        };
-        let (shell_path, shell_type) = match shell_data {
-            Some(ShellLaunchData::Executable {
-                executable_path,
-                shell_type,
-            })
-            | Some(ShellLaunchData::MSYS2 {
-                executable_path,
-                shell_type,
-            }) => (Some(executable_path), Some(shell_type)),
-            // Shell not yet resolved (e.g. still bootstrapping).
-            None => (None, None),
-            // WSL is not supported for auto-install.
-            Some(ShellLaunchData::WSL { .. }) => return false,
-            // Auto-install isn't supported for Docker sandbox sessions — the
-            // install would run against the *host's* shell config, not the
-            // container's. `should_use_manual_mode` already routes sandbox
-            // sessions to the manual-instructions modal, so this arm is a
-            // defensive fallthrough; users can still install the plugin by
-            // pasting the command into the sandbox PTY themselves.
-            //
-            // TODO(advait): Add native auto-install support for sandboxes,
-            // e.g. by routing the install through the session's in-band
-            // executor so it runs inside the container and targets the
-            // container's shell / package layout. A common use case will be
-            // running a 3p harness (e.g. Claude Code) inside a sandbox and
-            // needing the Warp plugin to integrate with it.
-            Some(ShellLaunchData::DockerSandbox { .. }) => return false,
-        };
-
-        // Await the interactive PATH so nvm-installed tools like `claude`
-        // are on PATH, matching how LSP operations capture the PATH.
-        let path_future = LocalShellState::handle(ctx).update(ctx, |shell_state, ctx| {
-            shell_state.get_interactive_path_env_var(ctx)
-        });
-
-        self.plugin_operation_in_progress = true;
-        ctx.notify();
-
-        let window_id = ctx.window_id();
-        let toast_id = "cli-agent-plugin-operation".to_owned();
-
-        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            toast_stack.add_persistent_toast(
-                DismissibleToast::default(progress_toast.to_owned())
-                    .with_object_id(toast_id.clone()),
-                window_id,
-                ctx,
-            );
-        });
-
-        let toast_id_for_callback = toast_id.clone();
-        let error_label = error_label.to_owned();
-        let success_toast = success_toast.to_owned();
-        ctx.spawn(
-            async move {
-                let path_env_var = path_future.await;
-                let Some(manager) =
-                    plugin_manager_for_with_shell(agent, shell_path, shell_type, path_env_var)
-                else {
-                    return Err((
-                        PluginInstallError {
-                            message: "No plugin manager available".to_owned(),
-                            log: String::new(),
-                        },
-                        None,
-                    ));
-                };
-
-                match operation(manager).await {
-                    Ok(()) => Ok(()),
-                    Err(err) => {
-                        let log_path = write_install_log(agent, &err).await;
-                        Err((err, log_path))
-                    }
-                }
-            },
-            move |me, result, ctx| {
-                me.plugin_operation_in_progress = false;
-
-                if result.is_ok() {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::CLIAgentPluginOperationSucceeded {
-                            cli_agent: agent.into(),
-                            operation: operation_kind,
-                        },
-                        ctx
-                    );
-                    ctx.emit(AgentInputFooterEvent::PluginInstalled(agent));
-                } else {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::CLIAgentPluginOperationFailed {
-                            cli_agent: agent.into(),
-                            operation: operation_kind,
-                        },
-                        ctx
-                    );
-                }
-
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = match result {
-                        Ok(()) => DismissibleToast::success(success_toast.clone()),
-                        Err((err, log_path)) => {
-                            let remote_host = CLIAgentSessionsModel::as_ref(ctx)
-                                .session(me.terminal_view_id)
-                                .and_then(|s| s.remote_host.clone());
-                            CLIAgentSessionsModel::handle(ctx).update(ctx, |model, _| {
-                                model.record_plugin_auto_failure(agent, remote_host);
-                            });
-                            log::error!("Failed plugin operation log: {}", err.log);
-                            let mut toast =
-                                DismissibleToast::error(format!("{error_label}: {err}"));
-                            report_error!(
-                                anyhow::Error::new(err).context("Failed plugin operation"),
-                                extra: { "agent" => ?agent }
-                            );
-                            if let Some(log_path) = log_path {
-                                toast = toast.with_link(
-                                    ToastLink::new("See logs for details".to_owned())
-                                        .with_onclick_action(WorkspaceAction::OpenFilePath {
-                                            path: log_path,
-                                        }),
-                                );
-                            }
-                            toast
-                        }
-                    };
-                    toast_stack.add_ephemeral_toast(
-                        toast.with_object_id(toast_id_for_callback),
-                        window_id,
-                        ctx,
-                    );
-                });
-                ctx.notify();
-            },
-        );
-        true
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    fn handle_install_plugin(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let success_msg = self
-            .cli_agent(ctx)
-            .and_then(plugin_manager_for)
-            .map(|m| m.install_success_message())
-            .unwrap_or("Warp plugin installed. Please restart the session to activate.");
-        self.handle_plugin_operation(
-            "Installing Warp plugin...",
-            "Failed to install Warp plugin",
-            success_msg,
-            PluginChipTelemetryKind::Install,
-            |manager| async move { manager.install().await },
-            ctx,
-        )
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    fn handle_update_plugin(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let success_msg = self
-            .cli_agent(ctx)
-            .and_then(plugin_manager_for)
-            .map(|m| m.update_success_message())
-            .unwrap_or("Warp plugin updated. Please restart the session to activate.");
-        self.handle_plugin_operation(
-            "Updating Warp plugin...",
-            "Failed to update Warp plugin",
-            success_msg,
-            PluginChipTelemetryKind::Update,
-            |manager| async move { manager.update().await },
-            ctx,
-        )
-    }
-
     fn cli_display_chip(
         &self,
         chip_kind: ContextChipKind,
@@ -1437,30 +916,6 @@ impl AgentInputFooter {
                 .with_padding_right(8.)
                 .finish(),
             );
-        }
-
-        if let Some(chip_kind) = self.plugin_chip_kind(app) {
-            let manual = self.should_use_manual_mode(app);
-            let chip = match (chip_kind, manual) {
-                (PluginChipKind::Install, false) => {
-                    ChildView::new(&self.install_plugin_button).finish()
-                }
-                (PluginChipKind::Install, true) => {
-                    ChildView::new(&self.plugin_instructions_button).finish()
-                }
-                (PluginChipKind::Update, false) => {
-                    ChildView::new(&self.update_plugin_button).finish()
-                }
-                (PluginChipKind::Update, true) => {
-                    ChildView::new(&self.update_instructions_button).finish()
-                }
-            };
-            let chip_with_dismiss = Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(chip)
-                .with_child(ChildView::new(&self.dismiss_plugin_chip_button).finish())
-                .finish();
-            left_buttons.add_child(chip_with_dismiss);
         }
 
         for item in &left_items {
@@ -2128,11 +1583,6 @@ pub enum AgentInputFooterAction {
     ToggleFileExplorer,
     ToggleRichInput,
     ToggleAutodetectionSetting,
-    InstallPlugin,
-    UpdatePlugin,
-    OpenPluginInstallInstructionsPane,
-    OpenPluginUpdateInstructionsPane,
-    DismissPluginChip,
     OpenCodingAgentSettings,
     /// User clicked the "Hand off to cloud" footer chip. The terminal `Input`
     /// subscriber decides whether to dispatch the immediate empty-prompt
@@ -2215,108 +1665,6 @@ impl TypedActionView for AgentInputFooter {
                     );
                 });
             }
-            AgentInputFooterAction::InstallPlugin => {
-                #[cfg(not(target_family = "wasm"))]
-                {
-                    if let Some(agent) = self.cli_agent(ctx) {
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::CLIAgentPluginChipClicked {
-                                cli_agent: agent.into(),
-                                action: PluginChipTelemetryAction::Install,
-                            },
-                            ctx
-                        );
-                    }
-                    if !self.handle_install_plugin(ctx) {
-                        self.record_plugin_auto_failure_and_notify(ctx);
-                    }
-                }
-            }
-            AgentInputFooterAction::UpdatePlugin => {
-                #[cfg(not(target_family = "wasm"))]
-                {
-                    if let Some(agent) = self.cli_agent(ctx) {
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::CLIAgentPluginChipClicked {
-                                cli_agent: agent.into(),
-                                action: PluginChipTelemetryAction::Update,
-                            },
-                            ctx
-                        );
-                    }
-                    if !self.handle_update_plugin(ctx) {
-                        self.record_plugin_auto_failure_and_notify(ctx);
-                    }
-                }
-            }
-            AgentInputFooterAction::OpenPluginInstallInstructionsPane => {
-                #[cfg(not(target_family = "wasm"))]
-                if let Some(agent) = self.cli_agent(ctx) {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::CLIAgentPluginChipClicked {
-                            cli_agent: agent.into(),
-                            action: PluginChipTelemetryAction::InstallInstructions,
-                        },
-                        ctx
-                    );
-                    ctx.emit(AgentInputFooterEvent::OpenPluginInstructionsPane(
-                        agent,
-                        PluginModalKind::Install,
-                    ));
-                }
-            }
-            AgentInputFooterAction::OpenPluginUpdateInstructionsPane => {
-                #[cfg(not(target_family = "wasm"))]
-                if let Some(agent) = self.cli_agent(ctx) {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::CLIAgentPluginChipClicked {
-                            cli_agent: agent.into(),
-                            action: PluginChipTelemetryAction::UpdateInstructions,
-                        },
-                        ctx
-                    );
-                    ctx.emit(AgentInputFooterEvent::OpenPluginInstructionsPane(
-                        agent,
-                        PluginModalKind::Update,
-                    ));
-                }
-            }
-            AgentInputFooterAction::DismissPluginChip => {
-                let chip_kind = self.plugin_chip_kind(ctx);
-                let is_update = matches!(chip_kind, Some(PluginChipKind::Update));
-                if let Some(agent) = self.cli_agent(ctx)
-                    && let Some(kind) = chip_kind
-                {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::CLIAgentPluginChipDismissed {
-                            cli_agent: agent.into(),
-                            chip_kind: kind.into(),
-                        },
-                        ctx
-                    );
-                }
-                let session = CLIAgentSessionsModel::as_ref(ctx)
-                    .session(self.terminal_view_id)
-                    .cloned();
-                if let Some(session) = session {
-                    let chip_key =
-                        plugin_chip_key(session.agent.command_prefix(), &session.remote_host);
-                    if is_update {
-                        #[cfg(not(target_family = "wasm"))]
-                        if let Some(manager) = plugin_manager_for(session.agent) {
-                            let version = manager.minimum_plugin_version().to_owned();
-                            AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                                settings.dismiss_plugin_update_chip(&chip_key, version, ctx);
-                            });
-                        }
-                    } else {
-                        AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                            settings.dismiss_plugin_install_chip(&chip_key, ctx);
-                        });
-                    }
-                }
-                ctx.notify();
-            }
             AgentInputFooterAction::OpenCodingAgentSettings => {
                 #[cfg(not(target_family = "wasm"))]
                 ctx.dispatch_typed_action_deferred(WorkspaceAction::ScrollToSettingsWidget {
@@ -2378,9 +1726,6 @@ pub enum AgentInputFooterEvent {
     ShowContextMenu {
         position: Vector2F,
     },
-    PluginInstalled(CLIAgent),
-    #[cfg(not(target_family = "wasm"))]
-    OpenPluginInstructionsPane(CLIAgent, PluginModalKind),
     /// Local-to-cloud handoff chip clicked. The terminal `Input` subscriber
     /// either dispatches the immediate empty-prompt handoff (empty buffer +
     /// source conversation with content) or activates `&` compose mode
@@ -2479,56 +1824,6 @@ impl ActionButtonTheme for ActiveMicButtonTheme {
     fn font_properties(&self) -> Option<warpui::fonts::Properties> {
         AgentInputButtonTheme.font_properties()
     }
-}
-
-/// Green-accented theme for the "Install Warp plugin" chip.
-struct InstallPluginButtonTheme;
-
-impl ActionButtonTheme for InstallPluginButtonTheme {
-    fn background(&self, hovered: bool, appearance: &Appearance) -> Option<Fill> {
-        let green = appearance.theme().ansi_fg_green();
-        let base = appearance.theme().surface_1();
-        Some(if hovered {
-            base.blend(&Fill::Solid(green).with_opacity(30))
-        } else {
-            base.blend(&Fill::Solid(green).with_opacity(15))
-        })
-    }
-
-    fn text_color(
-        &self,
-        _hovered: bool,
-        _background: Option<Fill>,
-        appearance: &Appearance,
-    ) -> ColorU {
-        appearance.theme().ansi_fg_green()
-    }
-
-    fn border(&self, appearance: &Appearance) -> Option<ColorU> {
-        let green = appearance.theme().ansi_fg_green();
-        Some(ColorU::new(green.r, green.g, green.b, 80))
-    }
-
-    fn should_opt_out_of_contrast_adjustment(&self) -> bool {
-        true
-    }
-}
-
-/// Writes the detailed plugin installation log to a temp file.
-/// Returns the log file path on success, or `None` if writing failed.
-#[cfg(not(target_family = "wasm"))]
-async fn write_install_log(agent: CLIAgent, err: &PluginInstallError) -> Option<PathBuf> {
-    let log_path = env::temp_dir().join("warp-plugin-install.log");
-    let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
-    let contents = format!(
-        "Warp plugin installation — {agent:?}\n\
-         {now}\n\
-         \n\
-         {log}",
-        log = err.log,
-    );
-    fs::write(&log_path, contents).await.ok()?;
-    Some(log_path)
 }
 
 /// Keeps the auto-approve chip's muted text semantics while using the shared opaque chip fill.

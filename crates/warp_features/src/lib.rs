@@ -670,9 +670,6 @@ pub enum FeatureFlag {
     ///   block snapshot from the server.
     OzHandoff,
 
-    /// Enables the upgraded CLI agent session tracking and notifications infrastructure.
-    HOANotifications,
-
     /// When enabled, the "Skip for now" login flow does not create a Firebase
     /// anonymous user. The user remains fully logged out (no credentials) and
     /// login-gated features are disabled until they sign in.

@@ -263,7 +263,6 @@ use crate::suggestions::ignored_suggestions_model::{
 };
 use crate::terminal::CLIAgent;
 #[cfg(not(target_family = "wasm"))]
-use crate::terminal::cli_agent_sessions::plugin_manager::PluginModalKind;
 use crate::terminal::cli_agent_sessions::{
     CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
 };
@@ -1021,9 +1020,6 @@ pub enum Event {
     ScrollToExchange {
         exchange_id: AIAgentExchangeId,
     },
-    RegisterPluginListener(CLIAgent),
-    #[cfg(not(target_family = "wasm"))]
-    OpenPluginInstructionsPane(CLIAgent, PluginModalKind),
 }
 
 pub enum InputState {
@@ -2555,13 +2551,6 @@ impl Input {
                     ctx.dispatch_typed_action(&TerminalAction::PromptContextMenu {
                         position_offset_from_prompt: offset,
                     });
-                }
-                AgentInputFooterEvent::PluginInstalled(agent) => {
-                    ctx.emit(Event::RegisterPluginListener(*agent));
-                }
-                #[cfg(not(target_family = "wasm"))]
-                AgentInputFooterEvent::OpenPluginInstructionsPane(agent, kind) => {
-                    ctx.emit(Event::OpenPluginInstructionsPane(*agent, *kind));
                 }
                 AgentInputFooterEvent::HandoffChipClicked => {
                     #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]

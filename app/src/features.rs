@@ -423,8 +423,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::OzHandoff,
         #[cfg(feature = "handoff_local_cloud")]
         FeatureFlag::HandoffLocalCloud,
-        #[cfg(feature = "hoa_notifications")]
-        FeatureFlag::HOANotifications,
         #[cfg(feature = "cli_agent_rich_input")]
         FeatureFlag::CLIAgentRichInput,
         #[cfg(feature = "transfer_control_tool")]

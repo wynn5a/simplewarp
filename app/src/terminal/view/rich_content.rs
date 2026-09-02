@@ -247,7 +247,6 @@ pub enum RichContentMetadata {
     InlineAgentViewHeader,
     AgentViewZeroState,
     TerminalViewZeroState,
-    PluginInstructionsBlock,
     PendingUserQuery {
         pending_user_query_block_handle: ViewHandle<PendingUserQueryBlock>,
     },

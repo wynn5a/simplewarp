@@ -356,7 +356,6 @@ use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::available_shells::AvailableShells;
 use crate::terminal::block_list_viewport::InputMode;
 #[cfg(not(target_family = "wasm"))]
-use crate::terminal::cli_agent_sessions::plugin_manager::{PluginModalKind, plugin_manager_for};
 use crate::terminal::cli_agent_sessions::{CLIAgentSessionsModel, CLIAgentSessionsModelEvent};
 use crate::terminal::general_settings::GeneralSettings;
 #[cfg(not(target_family = "wasm"))]
@@ -14676,10 +14675,6 @@ impl Workspace {
             pane_group::Event::OpenSettings(section) => {
                 self.show_settings_with_section(Some(*section), ctx);
             }
-            #[cfg(not(target_family = "wasm"))]
-            pane_group::Event::OpenPluginInstructionsPane(agent, kind) => {
-                self.open_plugin_instructions_pane(*agent, *kind, ctx);
-            }
             pane_group::Event::AskAIAssistant(ask_type) => self.ask_ai_assistant(ask_type, ctx),
             pane_group::Event::SyncInput(input_type) => {
                 self.process_sync_event_for_all_synced_pane_groups(input_type, ctx);
@@ -17648,85 +17643,6 @@ impl Workspace {
                 send_telemetry_from_ctx!(TelemetryEvent::CodexModalUseCodexClicked, ctx);
             }
         }
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    fn open_plugin_instructions_pane(
-        &mut self,
-        agent: crate::terminal::CLIAgent,
-        kind: PluginModalKind,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        use crate::terminal::model::rich_content::RichContentType;
-        use crate::terminal::view::plugin_instructions_block::{
-            PluginInstructionsBlock, PluginInstructionsBlockEvent,
-        };
-        use crate::terminal::view::rich_content::{
-            RichContentInsertionPosition, RichContentMetadata,
-        };
-
-        let Some(manager) = plugin_manager_for(agent) else {
-            return;
-        };
-
-        let instructions = match kind {
-            PluginModalKind::Install => manager.install_instructions(),
-            PluginModalKind::Update => manager.update_instructions(),
-        };
-
-        // Read session metadata from the originating terminal before creating the instructions pane.
-        let active_view = self
-            .active_tab_pane_group()
-            .as_ref(ctx)
-            .active_session_view(ctx);
-
-        let is_remote_session = active_view
-            .as_ref()
-            .and_then(|view| view.as_ref(ctx).active_session_is_local(ctx))
-            .is_some_and(|is_local| !is_local);
-
-        let custom_command_prefix = active_view.and_then(|view| {
-            CLIAgentSessionsModel::as_ref(ctx)
-                .session(view.id())
-                .and_then(|s| s.custom_command_prefix.clone())
-        });
-
-        self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-            let pane_id = pane_group.add_terminal_pane_ignoring_default_session_mode(
-                pane_group::Direction::Right,
-                None,
-                ctx,
-            );
-
-            if let Some(terminal_view) = pane_group.terminal_view_from_pane_id(pane_id, ctx) {
-                terminal_view.update(ctx, |view, ctx| {
-                    let custom_command_prefix = custom_command_prefix.clone();
-                    let block = ctx.add_typed_action_view(|ctx| {
-                        PluginInstructionsBlock::new(
-                            instructions,
-                            agent,
-                            custom_command_prefix,
-                            is_remote_session,
-                            ctx,
-                        )
-                    });
-                    ctx.subscribe_to_view(&block, |view, block, event, ctx| match event {
-                        PluginInstructionsBlockEvent::Close => {
-                            view.remove_plugin_instructions_block(block.clone(), ctx);
-                        }
-                    });
-                    view.insert_rich_content(
-                        Some(RichContentType::PluginInstructionsBlock),
-                        block,
-                        Some(RichContentMetadata::PluginInstructionsBlock),
-                        RichContentInsertionPosition::Append {
-                            insert_below_long_running_block: false,
-                        },
-                        ctx,
-                    );
-                });
-            }
-        });
     }
 
     /// Opens the Codex modal.

@@ -653,7 +653,6 @@ default = [
     "agent_toolbar_editor",
     "configurable_toolbar",
     "transfer_control_tool",
-    "hoa_notifications",
     "cli_agent_rich_input",
     "vertical_tabs",
     "vertical_tabs_summary_mode",
@@ -1130,7 +1129,6 @@ warp_control_cli = []
 agent_harness = []
 oz_handoff = []
 handoff_local_cloud = []
-hoa_notifications = []
 transfer_control_tool = []
 skip_firebase_anonymous_user = []
 custom_model_routers = []

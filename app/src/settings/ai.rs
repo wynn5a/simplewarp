@@ -2429,46 +2429,6 @@ impl AISettings {
         map.insert(key.to_owned(), true);
         report_if_error!(self.seen_feature_intro_ids.set_value(map, ctx));
     }
-
-    /// Whether the plugin install chip was dismissed for the given agent/host.
-    pub fn is_plugin_install_chip_dismissed(&self, key: &str) -> bool {
-        self.plugin_install_chip_dismissed_map
-            .get(key)
-            .copied()
-            .unwrap_or(false)
-    }
-
-    /// Mark the plugin install chip as dismissed for the given agent/host.
-    pub fn dismiss_plugin_install_chip(&mut self, key: &str, ctx: &mut ModelContext<Self>) {
-        let mut map = self.plugin_install_chip_dismissed_map.clone();
-        map.insert(key.to_owned(), true);
-        report_if_error!(self.plugin_install_chip_dismissed_map.set_value(map, ctx));
-    }
-
-    /// Returns the minimum plugin version for which the update chip was dismissed
-    /// for the given agent/host, or an empty string if not dismissed.
-    pub fn plugin_update_chip_dismissed_version(&self, key: &str) -> &str {
-        self.plugin_update_chip_dismissed_for_version_map
-            .get(key)
-            .map(String::as_str)
-            .unwrap_or("")
-    }
-
-    /// Record that the user dismissed the update chip for the given agent/host at
-    /// the specified minimum version.
-    pub fn dismiss_plugin_update_chip(
-        &mut self,
-        key: &str,
-        version: String,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let mut map = self.plugin_update_chip_dismissed_for_version_map.clone();
-        map.insert(key.to_owned(), version);
-        report_if_error!(
-            self.plugin_update_chip_dismissed_for_version_map
-                .set_value(map, ctx)
-        );
-    }
 }
 
 /// Singleton model that caches compiled regexes for the `cli_agent_footer_enabled_commands`

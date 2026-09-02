@@ -5,7 +5,6 @@ use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use itertools::Itertools;
 use warp_core::channel::ChannelState;
 use warp_core::cli_agent_protocol::WARP_CLIENT_VERSION_ENV;
-use warp_core::features::FeatureFlag;
 use windows::Win32::System::Environment::ExpandEnvironmentStringsW;
 use windows::core::{HSTRING, PCWSTR};
 use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RegType};

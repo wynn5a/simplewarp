@@ -1,9 +1,7 @@
 use super::*;
 
 #[test]
-fn wsl_env_allowlist_includes_client_version_without_notifications_flag() {
-    let _guard = FeatureFlag::HOANotifications.override_enabled(false);
-
+fn wsl_env_allowlist_without_initial_working_dir() {
     let wslenv = wsl_env_allowlist(false).to_string_lossy().into_owned();
 
     assert_eq!(
@@ -25,9 +23,7 @@ fn wsl_env_allowlist_includes_client_version_without_notifications_flag() {
 }
 
 #[test]
-fn wsl_env_allowlist_includes_cli_agent_protocol_when_notifications_flag_is_enabled() {
-    let _guard = FeatureFlag::HOANotifications.override_enabled(true);
-
+fn wsl_env_allowlist_with_initial_working_dir() {
     let wslenv = wsl_env_allowlist(true).to_string_lossy().into_owned();
 
     assert_eq!(

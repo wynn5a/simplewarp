@@ -98,7 +98,6 @@ use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 #[cfg(not(target_family = "wasm"))]
-use crate::terminal::cli_agent_sessions::plugin_manager::PluginModalKind;
 use crate::terminal::focus_env::add_session_focus_env_vars;
 use crate::terminal::general_settings::{GeneralSettings, GeneralSettingsChangedEvent};
 #[cfg(feature = "local_tty")]
@@ -717,8 +716,6 @@ pub enum Event {
     ShowCloudAgentCapacityModal {
         variant: crate::workspace::view::cloud_agent_capacity_modal::CloudAgentCapacityModalVariant,
     },
-    #[cfg(not(target_family = "wasm"))]
-    OpenPluginInstructionsPane(crate::terminal::CLIAgent, PluginModalKind),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
