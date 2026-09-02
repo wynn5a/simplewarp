@@ -1,21 +1,7 @@
 use serde_json::json;
-use warp_core::features::FeatureFlag;
 use warp_core::telemetry::TelemetryEvent;
 
 use super::{ACCOUNT_FIRST_FLOW_VERSION, OnboardingEvent};
-
-#[test]
-fn account_first_started_payload_includes_flow_metadata() {
-    let _account_first_onboarding = FeatureFlag::AccountFirstOnboarding.override_enabled(true);
-
-    assert_eq!(
-        OnboardingEvent::OnboardingStarted.payload(),
-        Some(json!({
-            "flow_version": ACCOUNT_FIRST_FLOW_VERSION,
-            "entrypoint": "native_app",
-        }))
-    );
-}
 
 #[test]
 fn account_first_lifecycle_payloads_include_flow_and_classification() {
@@ -97,8 +83,6 @@ fn offer_action_payload_includes_account_class() {
 /// its slide view, confirmed action, upgrade, and completion events.
 #[test]
 fn choose_how_to_start_funnel_payloads_include_experiment_arm() {
-    let _account_first_onboarding = FeatureFlag::AccountFirstOnboarding.override_enabled(true);
-
     assert_eq!(
         OnboardingEvent::SlideViewed {
             slide_name: "choose_how_to_start".to_string(),
@@ -107,7 +91,6 @@ fn choose_how_to_start_funnel_payloads_include_experiment_arm() {
         .payload(),
         Some(json!({
             "slide_name": "choose_how_to_start",
-            "flow_version": ACCOUNT_FIRST_FLOW_VERSION,
             "experiment_arm": "experiment",
         }))
     );
@@ -145,8 +128,6 @@ fn choose_how_to_start_funnel_payloads_include_experiment_arm() {
 /// than emitting `null`, so non-offer payloads stay unchanged.
 #[test]
 fn experiment_arm_key_absent_when_unset() {
-    let _account_first_onboarding = FeatureFlag::AccountFirstOnboarding.override_enabled(true);
-
     let slide_view = OnboardingEvent::SlideViewed {
         slide_name: "customize".to_string(),
         experiment_arm: None,
@@ -162,38 +143,7 @@ fn experiment_arm_key_absent_when_unset() {
 }
 
 #[test]
-fn account_first_slide_and_setting_payloads_include_flow_version() {
-    let _account_first_onboarding = FeatureFlag::AccountFirstOnboarding.override_enabled(true);
-
-    assert_eq!(
-        OnboardingEvent::SlideViewed {
-            slide_name: "customize".to_string(),
-            experiment_arm: None,
-        }
-        .payload(),
-        Some(json!({
-            "slide_name": "customize",
-            "flow_version": ACCOUNT_FIRST_FLOW_VERSION,
-        }))
-    );
-    assert_eq!(
-        OnboardingEvent::SettingChanged {
-            setting: "theme".to_string(),
-            value: "Dark".to_string(),
-        }
-        .payload(),
-        Some(json!({
-            "setting": "theme",
-            "value": "Dark",
-            "flow_version": ACCOUNT_FIRST_FLOW_VERSION,
-        }))
-    );
-}
-
-#[test]
 fn stable_slide_payload_does_not_include_flow_version() {
-    let _account_first_onboarding = FeatureFlag::AccountFirstOnboarding.override_enabled(false);
-
     assert_eq!(OnboardingEvent::OnboardingStarted.payload(), None);
     assert_eq!(
         OnboardingEvent::SlideViewed {
@@ -205,6 +155,13 @@ fn stable_slide_payload_does_not_include_flow_version() {
             "slide_name": "intro",
         }))
     );
+    let setting_changed = OnboardingEvent::SettingChanged {
+        setting: "theme".to_string(),
+        value: "Dark".to_string(),
+    }
+    .payload()
+    .expect("setting change has a payload");
+    assert!(!setting_changed.as_object().unwrap().contains_key("flow_version"));
 }
 
 #[test]

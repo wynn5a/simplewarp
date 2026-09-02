@@ -1,25 +1,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use strum_macros::{EnumDiscriminants, EnumIter};
-use warp_core::features::FeatureFlag;
 use warp_core::telemetry::{EnablementState, TelemetryEvent, TelemetryEventDesc};
 
 pub const ACCOUNT_FIRST_FLOW_VERSION: &str = "account_first_v1";
-
-fn flow_version() -> Option<&'static str> {
-    FeatureFlag::AccountFirstOnboarding
-        .is_enabled()
-        .then_some(ACCOUNT_FIRST_FLOW_VERSION)
-}
-
-fn with_flow_version(mut payload: Value) -> Value {
-    if let Some(flow_version) = flow_version()
-        && let Some(object) = payload.as_object_mut()
-    {
-        object.insert("flow_version".to_string(), json!(flow_version));
-    }
-    payload
-}
 
 /// Adds the REV-1939 `experiment_arm` key to a payload when the event carries
 /// an arm. Absent (rather than `null`) for events outside the arm experiment.
@@ -146,38 +130,33 @@ impl TelemetryEvent for OnboardingEvent {
 
     fn payload(&self) -> Option<Value> {
         match self {
-            OnboardingEvent::OnboardingStarted => flow_version().map(|flow_version| {
-                json!({
-                    "flow_version": flow_version,
-                    "entrypoint": "native_app",
-                })
-            }),
+            OnboardingEvent::OnboardingStarted => None,
             OnboardingEvent::SlideViewed {
                 slide_name,
                 experiment_arm,
             } => Some(with_experiment_arm(
-                with_flow_version(json!({
+                json!({
                     "slide_name": slide_name,
-                })),
+                }),
                 experiment_arm,
             )),
-            OnboardingEvent::SettingChanged { setting, value } => Some(with_flow_version(json!({
+            OnboardingEvent::SettingChanged { setting, value } => Some(json!({
                 "setting": setting,
                 "value": value,
-            }))),
+            })),
             OnboardingEvent::OnboardingSlidesCompleted {
                 intention,
                 model,
                 autonomy,
                 has_project_path,
                 ai_access,
-            } => Some(with_flow_version(json!({
+            } => Some(json!({
                 "intention": intention,
                 "model": model,
                 "autonomy": autonomy,
                 "has_project_path": has_project_path,
                 "ai_access": ai_access,
-            }))),
+            })),
             OnboardingEvent::GetStartedClicked => None,
             OnboardingEvent::FolderSelectionStarted => None,
             OnboardingEvent::FolderSelected => None,
