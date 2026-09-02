@@ -82,7 +82,7 @@ use crate::settings::AISettings;
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
-use crate::sharing::{ContentEditability, ShareableObject, SharingAccessLevel};
+use crate::sharing::{ContentEditability, ShareableObject};
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::ui_components::breadcrumb::{BreadcrumbState, render_breadcrumbs};
 use crate::ui_components::buttons::{accent_icon_button, icon_button};
@@ -875,16 +875,6 @@ impl WorkflowView {
 
     pub fn is_team_workflow(&self) -> bool {
         matches!(self.owner, Some(Owner::Team { .. }))
-    }
-
-    /// The current user's access level for this workflow.
-    fn access_level(&self, app: &AppContext) -> SharingAccessLevel {
-        CloudViewModel::as_ref(app).access_level(&self.workflow_id.uid(), app)
-    }
-
-    /// Whether or not the current user is allowed to edit this workflow.
-    fn editability(&self, app: &AppContext) -> ContentEditability {
-        CloudViewModel::as_ref(app).object_editability(&self.workflow_id.uid(), app)
     }
 
     pub fn pane_configuration(&self) -> &ModelHandle<PaneConfiguration> {
@@ -2869,11 +2859,7 @@ impl View for WorkflowView {
             .finish(),
         );
 
-        let editability = if FeatureFlag::SharedWithMe.is_enabled() {
-            self.editability(app)
-        } else {
-            ContentEditability::Editable
-        };
+        let editability = ContentEditability::Editable;
         let mode_toggleable = match (ContextFlag::RunWorkflow.is_enabled(), editability) {
             // If logging in would allow editing, show the toggle for discoverability.
             (_, ContentEditability::RequiresLogin) => true,
@@ -3123,10 +3109,7 @@ impl BackingView for WorkflowView {
         }
 
         // Add "Trash" to menu
-        let access_level = self.access_level(ctx);
-        if self.is_online(ctx)
-            && (!FeatureFlag::SharedWithMe.is_enabled() || access_level.can_trash())
-        {
+        if self.is_online(ctx) {
             menu_items.push(
                 MenuItemFields::new("Trash")
                     .with_on_select_action(WorkflowAction::Trash)

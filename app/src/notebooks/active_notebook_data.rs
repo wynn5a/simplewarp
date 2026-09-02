@@ -11,7 +11,7 @@ use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
 use crate::server::ids::{ClientId, SyncId};
-use crate::sharing::{ContentEditability, SharingAccessLevel};
+use crate::sharing::SharingAccessLevel;
 
 #[derive(Default, Clone)]
 pub enum ActiveNotebook {
@@ -353,16 +353,6 @@ impl ActiveNotebookData {
                 CloudViewModel::as_ref(app).access_level(&object_id.uid(), app)
             }
             ActiveNotebook::None | ActiveNotebook::NewNotebook(_) => SharingAccessLevel::Full,
-        }
-    }
-
-    /// Whether or not the current user can edit the notebook.
-    pub fn editability(&self, app: &AppContext) -> ContentEditability {
-        match &self.active_notebook {
-            ActiveNotebook::CommittedNotebook(object_id) => {
-                CloudViewModel::as_ref(app).object_editability(&object_id.uid(), app)
-            }
-            ActiveNotebook::None | ActiveNotebook::NewNotebook(_) => ContentEditability::Editable,
         }
     }
 }

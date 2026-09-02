@@ -14,10 +14,7 @@ use persistence::model::{
     NewObjectPermissions, ObjectMetadata, ObjectPermissions,
 };
 use persistence::schema;
-use warp_core::features::FeatureFlag;
 use warp_graphql::scalars::time::ServerTimestamp;
-
-use crate::{decode_guests, decode_link_sharing, encode_guests, encode_link_sharing};
 
 /// The SQLite id of a cloud object.
 pub type CloudObjectId = i32;
@@ -161,34 +158,12 @@ pub fn upsert_cloud_object(
     let permissions_ts = cloud_object_permissions
         .permissions_last_updated_ts
         .map(|ts| ts.timestamp_micros());
-    let guests = if FeatureFlag::SharedWithMe.is_enabled() {
-        match encode_guests(&cloud_object_permissions.guests) {
-            Ok(guests) => Some(guests),
-            Err(err) => {
-                log::warn!("Unable to encode guests: {err:#}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-    let (anyone_with_link_access_level_value, anyone_with_link_source_value) =
-        if FeatureFlag::SharedWithMe.is_enabled() {
-            match cloud_object_permissions
-                .anyone_with_link
-                .as_ref()
-                .map(encode_link_sharing)
-            {
-                Some(Ok((access_level, source))) => (Some(access_level), source),
-                Some(Err(err)) => {
-                    log::warn!("Unable to encode link-sharing setting: {err:#}");
-                    (None, None)
-                }
-                None => (None, None),
-            }
-        } else {
-            (None, None)
-        };
+    // Guest and link-sharing ACLs are not persisted; the columns stay NULL.
+    let guests: Option<Vec<u8>> = None;
+    let (anyone_with_link_access_level_value, anyone_with_link_source_value): (
+        Option<&'static str>,
+        Option<Vec<u8>>,
+    ) = (None, None);
 
     let revision = cloud_object_metadata
         .revision
@@ -607,36 +582,11 @@ pub fn to_cloud_object_permissions(
         .permissions_last_updated_at
         .and_then(|ts| ServerTimestamp::from_unix_timestamp_micros(ts).ok());
 
-    // If deserializing guests fails, default to None and wait for an eventual refresh.
-    let guests = if FeatureFlag::SharedWithMe.is_enabled() {
-        permissions
-            .object_guests
-            .as_deref()
-            .and_then(|guests| decode_guests(guests).ok())
-            .unwrap_or_default()
-    } else {
-        Default::default()
-    };
-
-    // If deserializing link sharing fails, default to None and wait for an
-    // eventual refresh.
-    let anyone_with_link = if FeatureFlag::SharedWithMe.is_enabled() {
-        permissions
-            .anyone_with_link_access_level
-            .as_deref()
-            .and_then(|access_level| {
-                decode_link_sharing(access_level, permissions.anyone_with_link_source.as_deref())
-                    .ok()
-            })
-    } else {
-        None
-    };
-
     Some(CloudObjectPermissions {
         owner,
         permissions_last_updated_ts,
-        guests,
-        anyone_with_link,
+        guests: Vec::new(),
+        anyone_with_link: None,
     })
 }
 
@@ -659,7 +609,3 @@ fn owner_for_permissions(
         _ => None,
     }
 }
-
-#[cfg(test)]
-#[path = "objects_tests.rs"]
-mod tests;

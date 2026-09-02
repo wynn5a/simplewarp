@@ -80,8 +80,8 @@ use crate::settings::SharedObjectLimitBannerSettings;
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
+use crate::sharing::ShareableObject;
 use crate::sharing::dialog::{SharingDialog, SharingDialogEvent};
-use crate::sharing::{ContentEditability, ShareableObject};
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::{highlight, icon_button};
 use crate::ui_components::icons::{ICON_DIMENSIONS, Icon};
@@ -168,7 +168,6 @@ const INDEX_AGENT_MODE_WORKFLOW_LABEL: &str = "New prompt";
 const INDEX_ENV_VAR_COLLECTION_LABEL: &str = "New environment variables";
 
 const IMPORT_LABEL: &str = "Import";
-const REMOVE_LABEL: &str = "Remove";
 const OFFLINE_BANNER_TEXT: &str = "You are offline. Some files will be read only.";
 
 pub const DRIVE_INDEX_VIEW_POSITION_ID: &str = "drive_index_view_id";
@@ -287,9 +286,6 @@ pub enum DriveIndexAction {
     MoveObject {
         cloud_object_type_and_id: CloudObjectTypeAndId,
         new_space: Space,
-    },
-    LeaveSharedObject {
-        cloud_object_type_and_id: CloudObjectTypeAndId,
     },
     OpenCloudObjectNamingDialog {
         space: Space,
@@ -3177,24 +3173,6 @@ impl DriveIndex {
         ctx.notify();
     }
 
-    fn leave_object(
-        &mut self,
-        cloud_object_type_and_id: &CloudObjectTypeAndId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(server_id) = cloud_object_type_and_id.server_id() else {
-            return;
-        };
-
-        UpdateManager::handle(ctx).update(ctx, move |update_manager, ctx| {
-            update_manager.leave_object(server_id, ctx);
-        });
-
-        // Reflect the removed objects.
-        self.initialize_section_states(ctx);
-        ctx.notify();
-    }
-
     /// If the given space is tied to a section in warp drive, ensures that that section is open.
     fn open_section_of_space(&mut self, space: Space) {
         if let Some(target_section) = self
@@ -4252,14 +4230,14 @@ impl DriveIndex {
         };
         let can_move_or_trash = self.online_only_operation_allowed(cloud_object_type_and_id, app);
         let cloud_view_model = CloudViewModel::as_ref(app);
-        let access_level = cloud_view_model.access_level(&cloud_object_type_and_id.uid(), app);
+        let _access_level = cloud_view_model.access_level(&cloud_object_type_and_id.uid(), app);
         let editability = cloud_view_model.object_editability(&cloud_object_type_and_id.uid(), app);
         let object = CloudModel::as_ref(app).get_by_uid(&cloud_object_type_and_id.uid());
 
         if let CloudObjectTypeAndId::Folder(folder_id) = cloud_object_type_and_id {
             if let SyncId::ServerId(_) = folder_id {
                 if self.is_online(app) {
-                    if !FeatureFlag::SharedWithMe.is_enabled() || editability.can_edit() {
+                    {
                         menu_items.push(
                             MenuItemFields::new(INDEX_FOLDER_LABEL)
                                 .with_on_select_action(DriveIndexAction::create_object(
@@ -4320,7 +4298,7 @@ impl DriveIndex {
 
                         menu_items.push(MenuItem::Separator);
                     }
-                    if !FeatureFlag::SharedWithMe.is_enabled() || editability.can_edit() {
+                    {
                         menu_items.push(
                             MenuItemFields::new("Rename")
                                 .with_on_select_action(
@@ -4360,7 +4338,7 @@ impl DriveIndex {
                     }
                 }
 
-                if !FeatureFlag::SharedWithMe.is_enabled() || editability.can_edit() {
+                {
                     menu_items.push(
                         MenuItemFields::new(IMPORT_LABEL)
                             .with_on_select_action(DriveIndexAction::OpenImportModal {
@@ -4379,20 +4357,6 @@ impl DriveIndex {
                         .with_icon(Icon::ListCollapsed)
                         .into_item(),
                 );
-
-                if let Some(object) = object
-                    && FeatureFlag::SharedWithMe.is_enabled()
-                    && object.can_leave(app)
-                {
-                    menu_items.push(
-                        MenuItemFields::new(REMOVE_LABEL)
-                            .with_on_select_action(DriveIndexAction::LeaveSharedObject {
-                                cloud_object_type_and_id: *cloud_object_type_and_id,
-                            })
-                            .with_icon(Icon::Minus)
-                            .into_item(),
-                    )
-                }
             }
         } else {
             if let Some(object) = object {
@@ -4440,26 +4404,20 @@ impl DriveIndex {
                     }
                     if let Some(_workflow) = workflow {
                         menu_items.push(
-                            Self::pane_menu_item(
-                                editability,
-                                !ContextFlag::RunWorkflow.is_enabled(),
-                            )
-                            .with_on_select_action(DriveIndexAction::OpenWorkflowInPane {
-                                cloud_object_type_and_id: object.cloud_object_type_and_id(),
-                                open_mode: if (FeatureFlag::SharedWithMe.is_enabled()
-                                    && !editability.can_edit())
-                                    || !ContextFlag::RunWorkflow.is_enabled()
-                                {
-                                    WorkflowViewMode::View
-                                } else {
-                                    WorkflowViewMode::Edit
-                                },
-                            })
-                            .into_item(),
+                            Self::pane_menu_item(!ContextFlag::RunWorkflow.is_enabled())
+                                .with_on_select_action(DriveIndexAction::OpenWorkflowInPane {
+                                    cloud_object_type_and_id: object.cloud_object_type_and_id(),
+                                    open_mode: if !ContextFlag::RunWorkflow.is_enabled() {
+                                        WorkflowViewMode::View
+                                    } else {
+                                        WorkflowViewMode::Edit
+                                    },
+                                })
+                                .into_item(),
                         );
                     } else if env_var_collection.is_some() {
                         menu_items.push(
-                            Self::pane_menu_item(editability, false)
+                            Self::pane_menu_item(false)
                                 .with_on_select_action(DriveIndexAction::OpenObject(
                                     object.cloud_object_type_and_id(),
                                 ))
@@ -4531,10 +4489,7 @@ impl DriveIndex {
             // TODO: move this out of the -else- branch. Right now, we don't support bulk actions.
             match space {
                 Space::Personal => {
-                    if can_move_or_trash
-                        && (!FeatureFlag::SharedWithMe.is_enabled()
-                            || access_level.can_move_drive())
-                    {
+                    if can_move_or_trash {
                         menu_items.extend(self.sections.iter().filter_map(|section| {
                             if let DriveIndexSection::Space(space) = section {
                                 match space {
@@ -4632,23 +4587,10 @@ impl DriveIndex {
                             .into_item(),
                     )
                 }
-
-                if FeatureFlag::SharedWithMe.is_enabled() && object.can_leave(app) {
-                    menu_items.push(
-                        MenuItemFields::new(REMOVE_LABEL)
-                            .with_on_select_action(DriveIndexAction::LeaveSharedObject {
-                                cloud_object_type_and_id: *cloud_object_type_and_id,
-                            })
-                            .with_icon(Icon::Minus)
-                            .into_item(),
-                    )
-                }
             }
         }
 
-        if can_move_or_trash
-            && (!FeatureFlag::SharedWithMe.is_enabled() || access_level.can_trash())
-        {
+        if can_move_or_trash {
             menu_items.push(
                 MenuItemFields::new("Trash")
                     .with_on_select_action(DriveIndexAction::TrashObject {
@@ -4666,11 +4608,8 @@ impl DriveIndex {
     /// on whether the object is editable or not.
     ///
     /// If `prefer_open` is `true`, the item defaults to view/open mode rather than edit mode.
-    fn pane_menu_item(
-        editability: ContentEditability,
-        prefer_open: bool,
-    ) -> MenuItemFields<DriveIndexAction> {
-        if (FeatureFlag::SharedWithMe.is_enabled() && !editability.can_edit()) || prefer_open {
+    fn pane_menu_item(prefer_open: bool) -> MenuItemFields<DriveIndexAction> {
+        if prefer_open {
             MenuItemFields::new("Open").with_icon(Icon::Eye)
         } else {
             MenuItemFields::new("Edit").with_icon(Icon::Rename)
@@ -4688,7 +4627,7 @@ impl DriveIndex {
             return menu_items;
         };
 
-        let access_level =
+        let _access_level =
             CloudViewModel::as_ref(app).access_level(&cloud_object_type_and_id.uid(), app);
         let cloud_model = CloudModel::as_ref(app);
         let object = cloud_model.get_by_uid(&cloud_object_type_and_id.uid());
@@ -4717,7 +4656,7 @@ impl DriveIndex {
         }
 
         if self.online_only_operation_allowed(cloud_object_type_and_id, app) {
-            if !FeatureFlag::SharedWithMe.is_enabled() || access_level.can_trash() {
+            {
                 menu_items.push(
                     MenuItemFields::new("Restore")
                         .with_on_select_action(DriveIndexAction::UntrashObject {
@@ -4727,7 +4666,7 @@ impl DriveIndex {
                         .into_item(),
                 );
             }
-            if !FeatureFlag::SharedWithMe.is_enabled() || access_level.can_delete() {
+            {
                 menu_items.push(
                     MenuItemFields::new("Delete forever")
                         .with_on_select_action(DriveIndexAction::DeleteObject {
@@ -5312,11 +5251,6 @@ impl TypedActionView for DriveIndex {
                 }
 
                 ctx.notify();
-            }
-            DriveIndexAction::LeaveSharedObject {
-                cloud_object_type_and_id,
-            } => {
-                self.leave_object(cloud_object_type_and_id, ctx);
             }
             DriveIndexAction::CloseCloudObjectNamingDialog => {
                 self.cloud_object_naming_dialog.close(ctx);

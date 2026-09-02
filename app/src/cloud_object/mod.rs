@@ -11,7 +11,6 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use url::Url;
 use warp_core::channel::Channel;
-use warp_core::features::FeatureFlag;
 use warp_graphql::queries::get_updated_cloud_objects::UpdatedObjectInput;
 use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{AppContext, SingletonEntity};
@@ -188,18 +187,6 @@ pub trait CloudObject: Debug {
         UserWorkspaces::as_ref(app).owner_to_space(self.permissions().owner, app)
     }
 
-    /// Whether or not this object can be "left". For shared objects, this removes all ACLs for the
-    /// current user. Only top-level items in the shared space can be left.
-    fn can_leave(&self, app: &AppContext) -> bool {
-        if self.space(app) == Space::Shared {
-            self.metadata()
-                .folder_id
-                .is_none_or(|parent| CloudModel::as_ref(app).get_folder(&parent).is_none())
-        } else {
-            false
-        }
-    }
-
     /// Returns the name of the containing "object" for this object.
     /// This could be a folder, or in the case of top-level objects,
     /// the name of the space it belongs to.
@@ -298,10 +285,9 @@ pub trait CloudObject: Debug {
                 match parent {
                     Some(parent) => parent.is_trashed_internal(cloud_model, ancestors),
                     None => {
-                        // If the object has a parent, but the parent is not in CloudModel, assume
-                        // the object is shared, but not its parent. For backwards compatibility,
-                        // if sharing is disabled, default to trashed rather than untrashed.
-                        !FeatureFlag::SharedWithMe.is_enabled()
+                        // If the object has a parent, but the parent is not in CloudModel,
+                        // treat the object as trashed.
+                        true
                     }
                 }
             }

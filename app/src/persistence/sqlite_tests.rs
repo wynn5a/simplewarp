@@ -3,12 +3,9 @@ use std::sync::Arc;
 
 use ai::workspace::WorkspaceMetadata;
 use chrono::Utc;
-use cloud_object_persistence::to_cloud_object_permissions;
 use diesel::connection::SimpleConnection;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
-use warp_core::features::FeatureFlag;
-use warp_graphql::scalars::time::ServerTimestamp;
 
 use super::{
     app_database_file_path, database_file_path_for_current_scope, database_file_path_for_scope,
@@ -19,10 +16,9 @@ use crate::app_state::{
     AppState, CodePaneSnapShot, CodePaneTabSnapshot, LeafContents, LeafSnapshot, PaneNodeSnapshot,
     TabGroupSnapshot, TabSnapshot, TerminalPaneSnapshot, WindowSnapshot,
 };
-use crate::cloud_object::{CloudObjectPermissions, Owner};
+use crate::cloud_object::Owner;
 use crate::code::editor_management::CodeSource;
 use crate::notebooks::{CloudNotebook, CloudNotebookModel};
-use crate::persistence::model::ObjectPermissions;
 use crate::persistence::{BlockCompleted, ModelEvent, PersistedDataScope, PersistenceScope};
 use crate::server::ids::{ClientId, ServerId};
 use crate::tab::SelectedTabColor;
@@ -869,43 +865,6 @@ fn test_path_encode_decode() {
     assert_encode_then_decode_preserves_original_path(PathBuf::from("/temp/ñoñàscii/temp.txt"));
     assert_encode_then_decode_preserves_original_path(PathBuf::from("/temp/hindi/हिन्दी"));
     assert_encode_then_decode_preserves_original_path(PathBuf::from("/temp/cjk/狗没有耐心"));
-}
-
-#[test]
-fn test_deserialize_corrupted_guests() {
-    let _ = FeatureFlag::SharedWithMe.override_enabled(true);
-    // Use a hardcoded timestamp to ensure this test works on systems with more-than-microsecond
-    // precision.
-    let permissions_ts_micros = 123456;
-    let permissions_ts =
-        ServerTimestamp::from_unix_timestamp_micros(permissions_ts_micros).unwrap();
-
-    let db_permissions = ObjectPermissions {
-        id: 42,
-        object_metadata_id: 10,
-        subject_type: "TEAM".to_string(),
-        subject_id: Some("7".to_string()),
-        subject_uid: "team_uid12345678912345".to_string(),
-        permissions_last_updated_at: Some(permissions_ts_micros),
-        // This is not a valid set of encoded object guests.
-        object_guests: Some(vec![1, 2, 3]),
-        anyone_with_link_access_level: None,
-        anyone_with_link_source: None,
-    };
-
-    // The overall permissions should successfully convert, minus the object guests.
-    let cloud_permissions = to_cloud_object_permissions(&db_permissions, None);
-    assert_eq!(
-        cloud_permissions,
-        Some(CloudObjectPermissions {
-            owner: Owner::Team {
-                team_uid: crate::server::ids::ServerId::from_string_lossy("team_uid12345678912345"),
-            },
-            permissions_last_updated_ts: Some(permissions_ts),
-            anyone_with_link: None,
-            guests: vec![],
-        })
-    );
 }
 
 // Regression: GH#10083. The macOS green-tile button could leave a 1px-wide

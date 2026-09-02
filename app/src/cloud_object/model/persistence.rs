@@ -4,14 +4,12 @@ use std::sync::mpsc::SyncSender;
 use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 use rand::Rng;
-use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use super::generic_string_model::GenericStringObjectId;
 use crate::ai::execution_profiles::CloudAIExecutionProfile;
-use crate::auth::AuthStateProvider;
 use crate::cloud_object::folders::{CloudFolder, CloudFolderModel};
 use crate::cloud_object::{
     CloudModelType, CloudObject, CloudObjectLocation, CloudObjectPermissions, GenericCloudObject,
@@ -31,7 +29,6 @@ use crate::settings::cloud_preferences::{CloudPreference, CloudPreferenceModel};
 use crate::workflows::workflow::Workflow;
 use crate::workflows::workflow_enum::{CloudWorkflowEnum, CloudWorkflowEnumModel, WorkflowEnum};
 use crate::workflows::{CloudWorkflow, CloudWorkflowModel};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 // Equivalent to 24 hours
 const MIN_MINUTES_UNTIL_NEXT_FORCE_REFRESH: i64 = 1440;
@@ -1120,22 +1117,6 @@ impl CloudModel {
             .any(|(_, object)| !object.metadata().is_welcome_object)
     }
 
-    /// Whether or not there are any objects directly shared with the user.
-    ///
-    /// This takes a reference to [`UserWorkspaces`] to prevent circular model references.
-    pub fn has_directly_shared_objects(
-        &self,
-        user_workspaces: &UserWorkspaces,
-        app: &AppContext,
-    ) -> bool {
-        let user_uid = AuthStateProvider::as_ref(app).get().user_id();
-        self.objects_by_id.values().any(|object| {
-            // We can't use CloudObject::is_in_space, because that reborrows UserWorkspaces.
-            user_workspaces.owner_to_space(object.permissions().owner, app) == Space::Shared
-                && user_uid.is_some_and(|uid| object.permissions().has_direct_user_access(uid))
-        })
-    }
-
     pub fn get_folder_by_uid(&self, uid: &str) -> Option<&CloudFolder> {
         self.objects_by_id.get(uid).and_then(|object| object.into())
     }
@@ -1490,7 +1471,7 @@ impl CloudModel {
                     }
                 }
             }
-            None => !FeatureFlag::SharedWithMe.is_enabled(),
+            None => true,
         };
 
         cache.insert(uid.to_owned(), result);

@@ -1,5 +1,4 @@
 use pathfinder_geometry::vector::{Vector2F, vec2f};
-use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
@@ -1195,7 +1194,7 @@ impl EnvVarCollectionView {
                         ),
                     });
 
-                if !FeatureFlag::SharedWithMe.is_enabled() || editability.can_edit() {
+                {
                     row_contents.add_child(
                         Container::new(
                             icon_button(
@@ -1328,13 +1327,11 @@ impl View for EnvVarCollectionView {
                 .with_main_axis_size(MainAxisSize::Max)
                 .with_main_axis_alignment(MainAxisAlignment::End)
                 .with_cross_axis_alignment(CrossAxisAlignment::Center);
-            if !FeatureFlag::SharedWithMe.is_enabled() || editability.can_edit() {
-                buttons_row.add_child(
-                    Container::new(self.render_save_button(appearance, app))
-                        .with_margin_left(BUTTON_SPACING)
-                        .finish(),
-                )
-            }
+            buttons_row.add_child(
+                Container::new(self.render_save_button(appearance, app))
+                    .with_margin_left(BUTTON_SPACING)
+                    .finish(),
+            );
 
             content.add_child(
                 Align::new(

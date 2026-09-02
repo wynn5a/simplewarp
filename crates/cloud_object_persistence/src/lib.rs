@@ -1,19 +1,15 @@
 //! This crate defines shared SQLite persistence infrastructure for Warp cloud objects.
 //!
 //! It owns model-agnostic persistence helpers for object metadata, permissions, refresh
-//! scheduling, guest and link-sharing encoding, callback-based object upsert and delete
+//! scheduling, callback-based object upsert and delete
 //! operations, and generic string object table access.
 //!
 //! It should not depend on `cloud_object_models`; model-specific read and write adapters
 //! should live with the corresponding model modules.
 
-mod encoded_permissions;
 mod objects;
 mod refresh;
 
-pub use encoded_permissions::{
-    decode_guests, decode_link_sharing, encode_guests, encode_link_sharing,
-};
 pub use objects::{
     CloudObjectId, CloudObjectReadContext, CreateCloudObjectFn, DeleteCloudObjectFn,
     GenericStringObjectPersistenceData, GenericStringObjectRow, UpdateCloudObjectFn,

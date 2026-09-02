@@ -7,7 +7,6 @@ use chrono::{DateTime, Utc};
 use derivative::Derivative;
 use pathfinder_geometry::vector::vec2f;
 use serde::{Deserialize, Serialize};
-use warp_core::features::FeatureFlag;
 use warp_core::ui::Icon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
@@ -21,7 +20,7 @@ use warpui_core::elements::{
 use warpui_core::ui_components::components::UiComponent;
 
 use crate::auth::UserUid;
-use crate::drive::sharing::{SharingAccessLevel, Subject, TeamKind, UserKind};
+use crate::drive::sharing::{SharingAccessLevel, Subject};
 use crate::ids::{FolderId, ServerId, SyncId};
 
 mod creation;
@@ -459,29 +458,12 @@ pub struct CloudObjectPermissions {
 
 impl CloudObjectPermissions {
     pub fn new_from_server(server_permissions: ServerPermissions) -> Self {
-        let guests = if FeatureFlag::SharedWithMe.is_enabled() {
-            server_permissions
-                .guests
-                .into_iter()
-                .map(CloudObjectGuest::from_server)
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        let anyone_with_link = if FeatureFlag::SharedWithMe.is_enabled() {
-            server_permissions
-                .anyone_link_sharing
-                .map(CloudLinkSharing::from_server)
-        } else {
-            None
-        };
-
+        // Guest and link-sharing ACLs from the server are ignored.
         Self {
             owner: server_permissions.space,
             permissions_last_updated_ts: Some(server_permissions.permissions_last_updated_ts),
-            guests,
-            anyone_with_link,
+            guests: Vec::new(),
+            anyone_with_link: None,
         }
     }
 
@@ -507,16 +489,6 @@ impl CloudObjectPermissions {
     pub fn update_from_new_permissions_ts(&mut self, server_permissions: ServerPermissions) {
         self.owner = server_permissions.space;
         self.permissions_last_updated_ts = Some(server_permissions.permissions_last_updated_ts);
-        if FeatureFlag::SharedWithMe.is_enabled() {
-            self.guests = server_permissions
-                .guests
-                .into_iter()
-                .map(CloudObjectGuest::from_server)
-                .collect();
-            self.anyone_with_link = server_permissions
-                .anyone_link_sharing
-                .map(CloudLinkSharing::from_server);
-        }
     }
 }
 
@@ -528,39 +500,12 @@ pub struct CloudLinkSharing {
     pub source: Option<ServerObjectContainer>,
 }
 
-impl CloudLinkSharing {
-    pub fn from_server(server_link_sharing: ServerLinkSharing) -> Self {
-        Self {
-            access_level: server_link_sharing.access_level.into(),
-            source: server_link_sharing.source,
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct CloudObjectGuest {
     pub subject: Subject,
     pub access_level: SharingAccessLevel,
     /// If this guest was added to a container object, the `source` identifies that object.
     pub source: Option<ServerObjectContainer>,
-}
-
-impl CloudObjectGuest {
-    pub fn from_server(server_guest: ServerObjectGuest) -> Self {
-        let subject = match server_guest.subject {
-            ServerGuestSubject::User { firebase_uid } => {
-                Subject::User(UserKind::Account(UserUid::new(&firebase_uid)))
-            }
-            ServerGuestSubject::PendingUser { email } => Subject::PendingUser { email },
-            ServerGuestSubject::Team { team_uid } => Subject::Team(TeamKind::Team { team_uid }),
-        };
-
-        Self {
-            subject,
-            access_level: server_guest.access_level.into(),
-            source: server_guest.source,
-        }
-    }
 }
 
 #[derive(Clone, Debug)]

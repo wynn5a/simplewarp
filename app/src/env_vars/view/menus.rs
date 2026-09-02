@@ -17,7 +17,7 @@ use crate::ui_components::icons::Icon;
 use crate::util::bindings::{
     CustomAction, keybinding_name_to_display_string, trigger_to_keystroke,
 };
-use crate::{AppContext, CloudModel, FeatureFlag};
+use crate::{AppContext, CloudModel};
 
 const PANE_MENU_WIDTH: f32 = 200.;
 
@@ -360,7 +360,7 @@ impl EnvVarCollectionView {
         let mut menu_items = Vec::new();
 
         let active_collection_data = self.active_env_var_collection_data.as_ref(ctx);
-        let access_level = active_collection_data.access_level(ctx);
+        let _access_level = active_collection_data.access_level(ctx);
         let space = active_collection_data.space(ctx);
 
         if !active_collection_data.is_on_server()
@@ -390,9 +390,7 @@ impl EnvVarCollectionView {
         }
 
         // Add "Trash" to menu
-        if self.is_online(ctx)
-            && (!FeatureFlag::SharedWithMe.is_enabled() || access_level.can_trash())
-        {
+        if self.is_online(ctx) {
             menu_items.push(
                 MenuItemFields::new("Trash")
                     .with_on_select_action(EnvVarCollectionAction::Trash)
