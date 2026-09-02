@@ -3215,6 +3215,60 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), now including
             the remainder of `drive`. The remaining dead `FeatureFlag` variants fall out of those
             (5), together with the ~85 items 4e left dead but standing.
+      - [x] **The `OpenWarpNewSettingsModes` app-side guards are folded** (4ah, 2026-09-02,
+            ~520 net lines): the editor/code-review page's dead `ExternalEditorView` child view
+            and its always-early-returning `init_actions_from_parent_view`, the
+            "preferred conversation layout" dropdown on the AI settings page (field, action
+            variant, handler, render block — the underlying `open_conversation_layout_preference`
+            setting stays, it's still read in `workspace/view.rs`), five `should_render` /
+            widget-push guards across `code_indexing_page`, `features_page` and
+            `appearance_page` folded to their flag-off branch, and the anonymous-sign-up-banner
+            guard clause in `workspace/view.rs` / `terminal/view.rs`. Also deleted the
+            `OneTimeModalModel` free-AI-removal auto-trigger chain
+            (`check_and_trigger_free_ai_removal_modal`, `maybe_recheck_free_ai_removal_modal`,
+            the `has_fetched_workspaces` field, the `AIRequestUsageModel` subscription) since it
+            never fired — its first line was the same dead flag check — which in turn left
+            `free_ai_removal_modal_decision` and its 13-case test matrix with no caller;
+            deleted both. **Kept**: `is_free_ai_removal_modal_open` / `force_open_free_ai_removal_modal`
+            and the `Notice`-variant modal view, reachable via the debug-only force-open menu
+            action; the `did_check_to_trigger_free_ai_removal_modal` setting, now write-only.
+            **Untouched, confirmed independent**: the `PromptSuggestions` variant of the same
+            shared `FreeAiRemovalModal` view, which is a live, unrelated feature. Only
+            `OpenWarpNewSettingsModes` moved; `AccountFirstOnboarding` and all of
+            `crates/onboarding/` (six slide files, `model.rs`'s three-way branching, telemetry,
+            ~19 flag-on-only tests) are a separate, riskier round — not done yet.
+      - [x] **`crates/onboarding`'s `model.rs`/`telemetry.rs` flag branches are folded** (4ai,
+            2026-09-02, ~1,250 net lines): both flags' checks in `model.rs`'s `settings`/
+            `set_models`/`send_completion_telemetry`/`complete`/`back`/`next`/`set_step`/
+            `progress` collapsed to their legacy arm; `is_ai_enabled` simplified to a constant
+            `true`; `ai_setup_flow_active` and `send_account_first_action` deleted (zero callers
+            once folded). `telemetry.rs`'s `flow_version`/`with_flow_version` deleted (both
+            permanent no-ops), fixing up 4 event-payload arms including one
+            (`OnboardingSlidesCompleted`) the initial plan missed. 16 of 18 flag-gated
+            `model_tests.rs` tests deleted outright (tested only the vanishing branches), 2 kept
+            with the vestigial `override_enabled` line dropped; same pattern for 2 of 5
+            `telemetry_tests.rs` tests, with one replacement assertion added to the surviving
+            default-case test to avoid a coverage gap. **Scope explicitly narrowed mid-round**:
+            research found `crates/onboarding`'s `model`/`agent_onboarding_view` modules are
+            Rust-private (`mod`, not `pub mod`) — the whole slide-wizard state machine is
+            unreachable from the real app, only from the crate's own opt-in preview binary — and
+            `app/src/settings/onboarding.rs`'s `apply_onboarding_settings`/
+            `apply_account_first_onboarding_settings` have zero production callers anywhere.
+            User decision: don't resolve "is the wizard subsystem reachable at all" this round;
+            treat `OnboardingStateModel` as a live state machine in its own right and only fold
+            its two flags. **Left deliberately untouched** (still live source, referenced by
+            out-of-scope slide files under their own copy of the same flags):
+            `NoAiConfirmationSource` and its confirm/cancel/dismiss methods, `AiSetupChoice`/
+            `AiAccessChoice`, and the `OnboardingStep::{AiSetup,AiAccess,Customize,ThirdParty}`
+            variants — folding `back`/`next` did make `OnboardingStep::ThirdParty` provably
+            unconstructed (new `cargo check` warning), confirming it was already unreachable in
+            production before this round; left as documented debt rather than chased into the
+            slide files. **Next candidates, in order of clean-up value**: the 6 onboarding slide
+            files + `agent_onboarding_view.rs` (its `account_first` fold alone would delete the
+            entire dead `preload_onboarding_images` function and orphan 3 `VISUAL_IMAGE_PATHS`
+            consts), then a dedicated investigation into whether `app/src/settings/onboarding.rs`
+            and the wizard's `SelectedSettings`-consuming pipeline are dead code independent of
+            these flags.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
