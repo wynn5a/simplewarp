@@ -3183,15 +3183,19 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             `AgentNotificationShown` telemetry. **Kept by decision**:
             `HeaderToolbarItemKind::NotificationsMailbox` (persisted enum; `is_supported()` is
             false) and the `show_agent_notifications` / `notification_toast_duration_secs`
-            settings (persisted; nothing reads them). `FeatureFlag::HOANotifications` itself
-            survives for one more slice: the plugin-install chip in
-            `agent_input_footer` (`plugin_chip_kind` returns `None` under it), which drags along
-            the `OpenPluginInstructionsPane` event chain (footer → input.rs → terminal/view.rs →
-            terminal_pane.rs → pane_group → workspace/view.rs → `plugin_instructions_block`),
-            the four `CLIAgentPlugin*` telemetry events, and the chip-dismissal accessors on
-            `AISettings` (the two dismissal maps are persisted; keep the settings, drop the
-            accessors). `ClaudeCodePluginManager` and `plugin_manager_for` stay: driver.rs,
-            local_harness_launch.rs and terminal/view.rs use them outside the chip.
+            settings (persisted; nothing reads them).
+      - [x] **The plugin-install chip and `FeatureFlag::HOANotifications` are gone** (4ae,
+            2026-09-02, ~1,610 lines): the footer's "Enable notifications" / "Update Warp
+            plugin" chip (buttons, debounce, auto install/update, dismissal), the
+            `OpenPluginInstructionsPane` chain from footer to workspace and the
+            `plugin_instructions_block` module, `PluginModalKind` / `PluginInstructions`,
+            `CLIAgentSessionsModel`'s auto-failure tracking, the four `CLIAgentPlugin*` chip
+            telemetry events, the `AISettings` chip-dismissal accessors, and the
+            `hoa_notifications` cargo feature. **Kept by decision**: the two persisted
+            chip-dismissal maps on `AISettings`. **Kept because live**: `plugin_manager_for`
+            and `ClaudeCodePluginManager` (driver.rs, local_harness_launch.rs,
+            terminal/view.rs). `PluginInstallError`'s Display now includes the command log,
+            so the driver's warn line keeps the detail the chip used to write to a file.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), now including
             the remainder of `drive`. The remaining dead `FeatureFlag` variants fall out of those
