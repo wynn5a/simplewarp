@@ -673,14 +673,6 @@ pub enum FeatureFlag {
     /// Enables the upgraded CLI agent session tracking and notifications infrastructure.
     HOANotifications,
 
-    /// Enables the install/update chip for the OpenCode Warp plugin.
-    /// Requires HOANotifications to also be enabled.
-    OpenCodeNotifications,
-
-    /// Enables the install/update chip for the Gemini CLI Warp extension.
-    /// Requires HOANotifications to also be enabled.
-    GeminiNotifications,
-
     /// When enabled, the "Skip for now" login flow does not create a Firebase
     /// anonymous user. The user remains fully logged out (no credentials) and
     /// login-gated features are disabled until they sign in.
@@ -703,10 +695,6 @@ pub enum FeatureFlag {
 
     /// Enables conversation retrieval via the CLI (oz run conversation get, oz run get --conversation).
     ConversationApi,
-
-    /// Guided onboarding flow for existing users introducing HOA features
-    /// (vertical tabs, agent inbox, tab configs).
-    HOAOnboardingFlow,
 
     /// Enables commit, push, and create-PR actions in the code review panel.
     GitOperationsInCodeReview,
@@ -892,7 +880,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::EditableMarkdownMermaid,
     FeatureFlag::CodeReviewScrollPreservation,
     FeatureFlag::RememberFastForwardState,
-    FeatureFlag::GeminiNotifications,
     FeatureFlag::LocalDockerSandbox,
     #[cfg(not(windows))]
     FeatureFlag::SshRemoteServer,

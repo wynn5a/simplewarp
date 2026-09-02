@@ -44,7 +44,6 @@ fn wsl_env_allowlist_includes_cli_agent_protocol_when_notifications_flag_is_enab
             format!("{TERMINAL_SESSION_UUID_ENV}/u"),
             format!("{FOCUS_URL_ENV}/u"),
             format!("{PROMPT_NODE_VERSION_ENABLED_NAME}/u"),
-            format!("{WARP_CLI_AGENT_PROTOCOL_VERSION_ENV}/u"),
             format!("{INITIAL_WORKING_DIR_NAME}/pu"),
         ],
     );

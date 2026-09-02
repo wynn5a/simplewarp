@@ -1,6 +1,4 @@
 pub(crate) mod claude;
-pub(crate) mod gemini;
-pub(crate) mod opencode;
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -9,10 +7,7 @@ use std::{fmt, io};
 
 use async_trait::async_trait;
 use claude::ClaudeCodePluginManager;
-use gemini::GeminiPluginManager;
-use opencode::OpenCodePluginManager;
 
-use crate::features::FeatureFlag;
 use crate::terminal::CLIAgent;
 use crate::terminal::model::session::LocalCommandExecutor;
 use crate::terminal::shell::ShellType;
@@ -257,22 +252,6 @@ pub(crate) fn plugin_manager_for_with_shell(
             shell_type,
             path_env_var,
         ))),
-        CLIAgent::OpenCode
-            if FeatureFlag::OpenCodeNotifications.is_enabled()
-                && FeatureFlag::HOANotifications.is_enabled() =>
-        {
-            Some(Box::new(OpenCodePluginManager))
-        }
-        CLIAgent::Gemini
-            if FeatureFlag::GeminiNotifications.is_enabled()
-                && FeatureFlag::HOANotifications.is_enabled() =>
-        {
-            Some(Box::new(GeminiPluginManager::new(
-                shell_path,
-                shell_type,
-                path_env_var,
-            )))
-        }
         CLIAgent::OpenCode
         | CLIAgent::Codex
         | CLIAgent::Gemini

@@ -425,8 +425,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::HandoffLocalCloud,
         #[cfg(feature = "hoa_notifications")]
         FeatureFlag::HOANotifications,
-        #[cfg(feature = "open_code_notifications")]
-        FeatureFlag::OpenCodeNotifications,
         #[cfg(feature = "cli_agent_rich_input")]
         FeatureFlag::CLIAgentRichInput,
         #[cfg(feature = "transfer_control_tool")]
@@ -439,8 +437,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::GPTConfigurableContextWindow,
         #[cfg(feature = "skip_firebase_anonymous_user")]
         FeatureFlag::SkipFirebaseAnonymousUser,
-        #[cfg(feature = "hoa_onboarding_flow")]
-        FeatureFlag::HOAOnboardingFlow,
         #[cfg(feature = "git_operations_in_code_review")]
         FeatureFlag::GitOperationsInCodeReview,
         #[cfg(feature = "hoa_remote_control")]

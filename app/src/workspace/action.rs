@@ -806,9 +806,6 @@ pub enum WorkspaceAction {
     DismissSessionConfigTabConfigChip,
     /// Dismiss the non-blocking feature-intro popover without requiring it to hold focus.
     DismissFeatureIntroModal,
-    /// Start the HOA onboarding flow (for debugging)
-    #[cfg(debug_assertions)]
-    ShowHoaOnboardingFlow,
     /// Open the "New worktree" modal for creating a reusable worktree tab config.
     OpenNewWorktreeModal,
     /// Open the native folder picker for the repo field in the new-worktree modal.
@@ -1168,8 +1165,6 @@ impl WorkspaceAction {
             | OpenNetworkLogPane
             | OpenNewWindowForTeam { .. }
             | ShowTeamSwitcherMenu => false,
-            #[cfg(debug_assertions)]
-            ShowHoaOnboardingFlow => false,
             #[cfg(target_family = "wasm")]
             ToggleConversationTranscriptDetailsPanel => false,
             #[cfg(debug_assertions)]
