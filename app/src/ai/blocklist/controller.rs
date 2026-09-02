@@ -2336,9 +2336,7 @@ impl BlocklistAIController {
 
         // Safety net: re-arm the Gemini Enterprise (GEAP) credential refresh
         // chain if it was parked or never armed, so upcoming requests can
-        // authenticate. The connected Grok subscription's request-time OAuth
-        // refresh is handled in the response stream's send path
-        // (`ResponseStream::spawn_request`).
+        // authenticate.
         #[cfg(not(target_family = "wasm"))]
         {
             use ::ai::api_keys::ApiKeyManager;

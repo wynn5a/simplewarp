@@ -62,7 +62,6 @@ pub(crate) enum ProviderCredentialTelemetryProvider {
 #[serde(rename_all = "snake_case")]
 pub(crate) enum ProviderCredentialTelemetryKind {
     PastedKey,
-    Oauth,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]

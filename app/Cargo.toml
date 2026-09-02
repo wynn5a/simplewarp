@@ -476,7 +476,6 @@ ai_resume_button = []
 autoupdate = []
 figma_detection = []
 bundled_skills = []
-supergrok = []
 gemini_enterprise = []
 agent_mode = []
 agent_mode_computer_use = []
@@ -684,7 +683,6 @@ default = [
     "remote_codebase_indexing",
     "solo_user_byok",
     "custom_model_routers",
-    "supergrok",
     "gemini_enterprise",
     "remote_code_review",
     "git_operations_in_code_review",

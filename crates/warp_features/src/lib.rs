@@ -776,10 +776,6 @@ pub enum FeatureFlag {
     /// are protected from reordering.
     PinnedTabs,
 
-    /// Gates the SuperGrok feature, which lets users
-    /// connect a Grok subscription instead of pasting an API key.
-    SuperGrok,
-
     /// Gates Gemini Enterprise (GEAP) BYOLLM, which lets users
     /// route eliglible models to GEAP instead of Warp-managed inference.
     GeminiEnterprise,

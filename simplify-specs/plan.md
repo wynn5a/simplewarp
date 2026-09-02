@@ -3145,6 +3145,20 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             `import/`, `export/` — turned out load-bearing for local-object selection tracking,
             focus, and undo-trash, not just cloud UI, so it stays with `cloud_object` (3) as a
             refactor rather than a deletion.
+      - [x] **The SuperGrok subscription OAuth is gone** (4z, 2026-09-02): ~1,150 lines. The
+            `supergrok` cargo feature was in `default` only, so `FeatureFlag::SuperGrok` was
+            constant-false in this build and the whole vertical was unreachable: the
+            `crates/ai/src/grok_subscription` module (loopback PKCE server + token refresh),
+            `GrokTokens` and its secure-storage read/write on `ApiKeyManager`, the Connect/
+            Disconnect row and paste-the-code editor on the Warp Agent settings page, the
+            request-time token refresh branch in `ResponseStream::spawn_request`,
+            `AIApiError::GrokSubscriptionTokenRefreshFailed`, two telemetry events, and four
+            `crates/ai` deps only it used (`base64`, `rand`, `http_client`, `serde_urlencoded`).
+            The proto field `grok_oauth_access_token` on the request `ApiKeys` stays (external
+            crate) and is sent empty. **Lead left behind:** `LLMProvider::Xai` now has no
+            client-side credential at all (the subscription was the only xAI auth; there is no
+            pasted xAI key), so the variant, its `GrokLogo` icon, and
+            `ProviderCredentialTelemetryProvider::Xai` are a dead provider — a small follow-up.
       - [ ] **The other cloud crates remain** (4), and so do the three modules that are refactors
             rather than deletions: `remote_server`, `auth`, and `cloud_object` (3), now including
             the remainder of `drive`. The remaining dead `FeatureFlag` variants fall out of those

@@ -463,8 +463,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::RemoteCodeReview,
         #[cfg(feature = "custom_model_routers")]
         FeatureFlag::CustomModelRouters,
-        #[cfg(feature = "supergrok")]
-        FeatureFlag::SuperGrok,
         #[cfg(feature = "gemini_enterprise")]
         FeatureFlag::GeminiEnterprise,
         #[cfg(feature = "nld_prompt_history_match")]

@@ -4,8 +4,8 @@
 //! The credential itself lives in [`ApiKeyManager`] (the request-building
 //! source of truth). This module owns the GEAP-specific value types plus the
 //! state transitions, request-time single-flight coordination, and mint-failure
-//! cooldown that operate on them, mirroring how [`crate::grok_subscription`]
-//! keeps the Grok lifecycle out of [`crate::api_keys`].
+//! cooldown that operate on them, keeping the GEAP lifecycle out of
+//! [`crate::api_keys`].
 //!
 //! The network-facing mint lives in the app layer, which has the workspace
 //! settings and Warp OIDC access this crate cannot see. It drives this state
