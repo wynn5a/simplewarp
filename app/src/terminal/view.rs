@@ -326,8 +326,8 @@ use crate::server::telemetry::{
     self, AgentModeAttachContextMethod, AgentModeEntrypoint, AgentModeRewindEntrypoint,
     AnonymousUserSignupEntrypoint, BootstrappingInfo, InteractionSource, NotificationAgentVariant,
     NotificationsTurnedOnSource, PaletteSource, PromptSuggestionViewType,
-    SaveAsWorkflowModalSource, SecretInteraction, SharingDialogSource, SlowBootstrapInfo,
-    TelemetryEvent, ToggleBlockFilterSource, WorkflowTelemetryMetadata,
+    SaveAsWorkflowModalSource, SecretInteraction, SlowBootstrapInfo, TelemetryEvent,
+    ToggleBlockFilterSource, WorkflowTelemetryMetadata,
 };
 use crate::session_management::{CommandContext, SessionNavigationPromptElements};
 use crate::settings::ai::FocusedTerminalInfo;
@@ -345,7 +345,6 @@ use crate::settings::{
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::settings_view::{SettingsSection, flags};
-use crate::sharing::ShareableObject;
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::alias::{AliasedCommand, check_for_alias_async};
 use crate::terminal::alt_screen::alt_screen_element::AltScreenElement;
@@ -1241,20 +1240,12 @@ pub enum ContextMenuAction {
     CopyServerRequestId {
         request_id: ServerConversationToken,
     },
-    // Copy the share link for a conversation in the blocklist.
-    CopyConversationShareLink {
-        conversation_id: AIConversationId,
-    },
     // Copy the text of a conversation in the blocklist.
     CopyConversationText {
         conversation_id: AIConversationId,
     },
     // Fork a conversation in the blocklist into a new pane.
     ForkAIConversation {
-        conversation_id: AIConversationId,
-    },
-    /// Opens the sharing dialog for a conversation from the AI block context menu
-    OpenConversationShareDialog {
         conversation_id: AIConversationId,
     },
     /// Copy the AI block prompt text
@@ -1364,10 +1355,8 @@ impl fmt::Debug for ContextMenuAction {
             CopyExternalDebuggingId { .. } => f.write_str("CopyExternalDebuggingId"),
             CopyConversationId { .. } => f.write_str("CopyConversationId"),
             CopyServerRequestId { .. } => f.write_str("CopyServerRequestId"),
-            CopyConversationShareLink { .. } => f.write_str("CopyConversationShareLink"),
             CopyConversationText { .. } => f.write_str("CopyConversationText"),
             ForkAIConversation { .. } => f.write_str("ForkAIConversation"),
-            OpenConversationShareDialog { .. } => f.write_str("OpenConversationShareDialog"),
             ForkAIConversationFromBlock { .. } => f.write_str("ForkAIConversationFromBlock"),
             ForkAIConversationFromExactExchange { .. } => {
                 f.write_str("ForkAIConversationFromExactExchange")
@@ -3055,12 +3044,7 @@ impl TerminalView {
                     // Delete the conversation if it's unmodified, new, has no init steps,
                     // and isn't a child agent in an orchestration tree.
                     if !was_modified && was_new && !has_init_steps && !is_child_agent {
-                        conversation_utils::remove_conversation(
-                            *conversation_id,
-                            me.view_id,
-                            false, // Empty new conversations were never synced to the cloud.
-                            ctx,
-                        );
+                        conversation_utils::remove_conversation(*conversation_id, me.view_id, ctx);
                     }
 
                     // This handles the case where the user has taken over control but the command is still in progress.
@@ -10501,7 +10485,7 @@ impl TerminalView {
             ai_block.cleanup_block(ctx);
         });
         let conversation_id = passive_block.as_ref(ctx).conversation_id();
-        conversation_utils::remove_conversation(conversation_id, self.view_id, true, ctx);
+        conversation_utils::remove_conversation(conversation_id, self.view_id, ctx);
         self.rich_content_views.remove(rich_content_idx);
         self.model
             .lock()
@@ -15834,7 +15818,6 @@ impl TerminalView {
                         // Add the common copying actions
                         items.extend(self.ai_block_copying_menu_items(
                             *rich_content_view_id,
-                            ai_metadata.conversation_id,
                             hovered_link.clone(),
                             &model,
                             ctx,
@@ -23447,24 +23430,11 @@ impl TerminalView {
                     request_id.as_str().to_string(),
                 ));
             }
-            CopyConversationShareLink { conversation_id } => {
-                if let Some(link) = ShareableObject::AIConversation(*conversation_id).link(ctx) {
-                    ctx.clipboard().write(ClipboardContent::plain_text(link));
-                }
-            }
             CopyConversationText { conversation_id } => {
                 self.copy_conversation_text(*conversation_id, ctx);
             }
             ForkAIConversation { conversation_id } => {
                 self.fork_ai_conversation(*conversation_id, None, ctx);
-            }
-            OpenConversationShareDialog { conversation_id } => {
-                // Set the shareable object and open the sharing dialog via the pane header
-                let shareable_object = ShareableObject::AIConversation(*conversation_id);
-                self.pane_configuration.update(ctx, |pane_config, ctx| {
-                    pane_config.set_shareable_object(Some(shareable_object), ctx);
-                    pane_config.toggle_sharing_dialog(SharingDialogSource::AIBlockContextMenu, ctx);
-                });
             }
             CopyAgentCommand { ai_block_view_id } => {
                 for rich_content in self.rich_content_views.iter() {

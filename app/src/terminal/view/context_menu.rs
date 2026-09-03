@@ -5,7 +5,7 @@ use super::{
     BlocklistAIHistoryModel, CONTEXT_MENU_WIDTH, ChannelState, ClipboardContent, ContextMenuAction,
     ContextMenuState, ContextMenuType, EntityId, FeatureFlag, ForkAIConversationParams,
     ForkFromExchange, ForkedConversationDestination, MenuItem, MenuItemFields, RichContentLink,
-    ServerConversationToken, ServerOutputId, ShareableObject, TerminalAction, TerminalModel,
+    ServerConversationToken, ServerOutputId, TerminalAction, TerminalModel,
     TerminalView, Tip, TipHint, Vector2F, ViewContext, fork_label_for_query,
     mark_feature_used_and_write_to_user_defaults,
 };
@@ -14,7 +14,6 @@ impl TerminalView {
     pub(super) fn ai_block_copying_menu_items(
         &self,
         ai_block_view_id: EntityId,
-        ai_conversation_id: AIConversationId,
         hovered_link: Option<RichContentLink>,
         model: &TerminalModel,
         ctx: &mut ViewContext<Self>,
@@ -127,30 +126,6 @@ impl TerminalView {
                 .into_item(),
         );
         items.push(MenuItem::Separator);
-
-        if FeatureFlag::CloudConversations.is_enabled() {
-            let history_model = BlocklistAIHistoryModel::as_ref(ctx);
-            if history_model.can_conversation_be_shared(&ai_conversation_id) {
-                items.push(
-                    MenuItemFields::new("Copy share link")
-                        .with_on_select_action(TerminalAction::ContextMenu(
-                            ContextMenuAction::CopyConversationShareLink {
-                                conversation_id: ai_conversation_id,
-                            },
-                        ))
-                        .into_item(),
-                );
-                items.push(
-                    MenuItemFields::new("Share conversation")
-                        .with_on_select_action(TerminalAction::ContextMenu(
-                            ContextMenuAction::OpenConversationShareDialog {
-                                conversation_id: ai_conversation_id,
-                            },
-                        ))
-                        .into_item(),
-                );
-            }
-        }
 
         items.push(
             MenuItemFields::new("Copy conversation text")
@@ -310,20 +285,6 @@ impl TerminalView {
     ) -> Vec<MenuItem<TerminalAction>> {
         let mut items = Vec::new();
 
-        if FeatureFlag::CloudConversations.is_enabled()
-            && ShareableObject::AIConversation(conversation_id)
-                .link(ctx)
-                .is_some()
-        {
-            items.push(
-                MenuItemFields::new("Copy share link")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::CopyConversationShareLink { conversation_id },
-                    ))
-                    .into_item(),
-            );
-        }
-
         items.push(
             MenuItemFields::new("Copy conversation text")
                 .with_on_select_action(TerminalAction::ContextMenu(
@@ -390,13 +351,7 @@ impl TerminalView {
     ) {
         let mut menu_items = {
             let model = self.model.lock();
-            self.ai_block_copying_menu_items(
-                ai_block_view_id,
-                ai_conversation_id,
-                None,
-                &model,
-                ctx,
-            )
+            self.ai_block_copying_menu_items(ai_block_view_id, None, &model, ctx)
         };
 
         if !cfg!(target_family = "wasm") {

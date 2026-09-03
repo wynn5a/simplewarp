@@ -13,7 +13,6 @@ use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp_cli::agent::Harness;
-use warp_core::features::FeatureFlag;
 use warp_multi_agent_api::client_action::{Action, StartNewConversation};
 use warp_multi_agent_api::message::tool_call::Tool;
 use warp_multi_agent_api::response_event::stream_finished::{
@@ -45,7 +44,6 @@ use crate::persistence::ModelEvent;
 use crate::persistence::model::{AgentConversation, AgentConversationData};
 #[cfg(feature = "local_fs")]
 use crate::persistence::{database_file_path_for_current_scope, establish_ro_connection};
-use crate::server::server_api::ServerApiProvider;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::view::blocklist_filter;
 use crate::ui_components::icons::Icon;
@@ -2003,49 +2001,6 @@ impl BlocklistAIHistoryModel {
         };
         if let Err(e) = conversation.mark_request_completed(stream_id, terminal_surface_id, ctx) {
             log::warn!("Failed to mark exchange as completed: {e}");
-        }
-
-        // If this conversation doesn't have server metadata yet, and it has a server conversation token,
-        // fetch the metadata from the server.
-        let should_fetch_metadata = FeatureFlag::CloudConversations.is_enabled()
-            && conversation.server_metadata().is_none()
-            && conversation.server_conversation_token().is_some();
-
-        if should_fetch_metadata {
-            let server_token = conversation
-                .server_conversation_token()
-                .unwrap()
-                .as_str()
-                .to_string();
-
-            let server_api = ServerApiProvider::as_ref(ctx).get_ai_client();
-            ctx.spawn(
-                async move {
-                    server_api
-                        .list_ai_conversation_metadata(Some(vec![server_token]))
-                        .await
-                },
-                move |model, result, ctx| match result {
-                    Ok(mut metadata_list) if !metadata_list.is_empty() => {
-                        if let Some(metadata) = metadata_list.pop() {
-                            model.set_server_metadata_for_conversation(
-                                conversation_id,
-                                metadata,
-                                ctx,
-                            );
-                        }
-                    }
-                    Ok(_) => {
-                        log::warn!("No metadata returned for conversation {}", conversation_id);
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to fetch metadata for conversation {}: {e:#}",
-                            conversation_id
-                        );
-                    }
-                },
-            );
         }
     }
 

@@ -8,7 +8,6 @@ use std::sync::Arc;
 use futures::FutureExt;
 use itertools::Itertools as _;
 use persistence::model::AgentConversationRecord;
-use warp_core::features::FeatureFlag;
 use warpui::{AppContext, SingletonEntity};
 
 use super::{
@@ -16,12 +15,7 @@ use super::{
     agent_id_key_from_persisted_data,
 };
 use crate::ai::agent::api::ServerConversationToken;
-use crate::ai::agent::api::convert_conversation::{
-    RestorationMode, convert_conversation_data_to_ai_conversation,
-};
-use crate::ai::agent::conversation::{
-    AIAgentHarness, AIConversation, AIConversationId, ServerAIConversationMetadata,
-};
+use crate::ai::agent::conversation::{AIConversation, AIConversationId, ServerAIConversationMetadata};
 #[cfg(feature = "local_fs")]
 use crate::persistence::agent::read_agent_conversation_by_id;
 use crate::persistence::model::{
@@ -104,88 +98,15 @@ pub fn convert_persisted_conversation_to_ai_conversation_with_metadata(
 
 /// Loads a conversation from the server asynchronously.
 /// This is a free-floating function that can be called without a model reference.
+///
+/// Cloud conversation storage requires a Warp account/server, which this build never has
+/// (see `FeatureFlag::CloudConversations`), so this always returns `None`.
 pub async fn load_conversation_from_server(
-    conversation_id: AIConversationId,
-    server_conversation_token: ServerConversationToken,
-    server_api: Arc<dyn AIClient>,
+    _conversation_id: AIConversationId,
+    _server_conversation_token: ServerConversationToken,
+    _server_api: Arc<dyn AIClient>,
 ) -> Option<CloudConversationData> {
-    if !FeatureFlag::CloudConversations.is_enabled() {
-        return None;
-    }
-
-    log::info!(
-        "Loading full conversation data for {conversation_id} from server using token {}",
-        server_conversation_token.as_str()
-    );
-
-    match server_api
-        .get_ai_conversation(server_conversation_token.clone())
-        .await
-    {
-        Ok((conversation_data, server_metadata)) => {
-            match server_metadata.harness {
-                AIAgentHarness::Oz => {
-                    // Convert Oz conversations to an AIConversation.
-                    match convert_conversation_data_to_ai_conversation(
-                        conversation_id,
-                        &conversation_data,
-                        server_metadata,
-                        RestorationMode::Continue,
-                    ) {
-                        Some(conversation) => {
-                            log::info!("Loaded Oz conversation {conversation_id} from server");
-                            Some(CloudConversationData::Oz(Box::new(conversation)))
-                        }
-                        None => {
-                            log::warn!(
-                                "Failed to convert Oz server conversation data for {conversation_id}"
-                            );
-                            None
-                        }
-                    }
-                }
-                AIAgentHarness::ClaudeCode | AIAgentHarness::Gemini | AIAgentHarness::Codex => {
-                    if !FeatureFlag::AgentHarness.is_enabled() {
-                        log::warn!(
-                            "Ignoring non-Oz conversation {conversation_id}: AgentHarness flag is disabled"
-                        );
-                        return None;
-                    }
-                    // Fetch snapshot data for third-party harness conversations.
-                    match server_api
-                        .get_block_snapshot(server_conversation_token)
-                        .await
-                    {
-                        Ok(block) => {
-                            log::info!("Loaded CLI agent block snapshot for {conversation_id}");
-                            Some(CloudConversationData::CLIAgent(Box::new(
-                                CLIAgentConversation {
-                                    metadata: server_metadata,
-                                    block,
-                                },
-                            )))
-                        }
-                        Err(e) => {
-                            log::warn!(
-                                "Failed to fetch block snapshot for {conversation_id}: {e:#}"
-                            );
-                            None
-                        }
-                    }
-                }
-                AIAgentHarness::Unknown => {
-                    log::warn!(
-                        "Ignoring conversation {conversation_id}: server reported an unknown harness; this client may be out of date"
-                    );
-                    None
-                }
-            }
-        }
-        Err(e) => {
-            log::warn!("Failed to load conversation {conversation_id} from server: {e:#}");
-            None
-        }
-    }
+    None
 }
 
 /// Boxes a future with the right type for the platform.

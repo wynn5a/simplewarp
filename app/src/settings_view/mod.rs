@@ -506,9 +506,6 @@ pub mod flags {
     pub const SETTINGS_SYNC_FLAG: &str = "settings_sync";
     pub const SAFE_MODE_FLAG: &str = "safe_mode";
     pub const CRASH_REPORTING_FLAG: &str = "crash_reporting";
-    pub const CLOUD_CONVERSATION_STORAGE_FLAG: &str = "Cloud_Conversation_Storage_Enabled";
-    pub const CLOUD_CONVERSATION_STORAGE_EDITABLE_FLAG: &str =
-        "Cloud_Conversation_Storage_Editable";
     pub const DIM_INACTIVE_PANES_FLAG: &str = "Dim_Inactive_Panes";
     pub const OPEN_WINDOWS_AT_CUSTOM_SIZE_FLAG: &str = "Open_Windows_At_Custom_Size";
     pub const WINDOW_BLUR_TEXTURE_FLAG: &str = "Window_Blur_Texture";
