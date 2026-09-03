@@ -2112,10 +2112,7 @@ fn render_tab_group_internal(
             (*pane_id, ms)
         })
         .collect();
-    let is_active = tab_index == workspace.active_tab_index
-        && !workspace
-            .current_workspace_state
-            .is_agent_management_view_open;
+    let is_active = tab_index == workspace.active_tab_index;
     let has_top_border = tab_index > 0;
     let is_first_tab = tab_index == 0;
     let is_last_tab = tab_index + 1 == workspace.tabs.len();

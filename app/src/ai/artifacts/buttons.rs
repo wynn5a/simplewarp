@@ -34,10 +34,6 @@ impl ArtifactButtonsRow {
         self.buttons = collect_buttons(artifacts, &self.theme, ctx);
         ctx.notify();
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.buttons.is_empty()
-    }
 }
 
 pub enum ArtifactButtonsRowEvent {

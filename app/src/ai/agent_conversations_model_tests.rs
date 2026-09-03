@@ -17,9 +17,9 @@ use super::query::{DEFAULT_RESULT_COUNT, MAX_SEARCH_RESULTS};
 use super::{
     AgentConversationsModel, AgentConversationsModelEvent, AgentManagementFilters,
     AgentRunDisplayStatus, ArtifactFilter, ConversationMetadata, ConversationUpdateKind,
-    EnvironmentFilter, HarnessFilter, InitialConversationLoadState, MAX_PERSONAL_TASKS,
-    MAX_TEAM_TASKS, OwnerFilter, RtcTaskRefreshThrottleState, StatusFilter, TaskFetchError,
-    TaskFetchState, query_conversation_entries, record_earliest_rtc_task_refresh_timestamp,
+    EnvironmentFilter, HarnessFilter, InitialConversationLoadState, OwnerFilter,
+    RtcTaskRefreshThrottleState, StatusFilter, TaskFetchError, TaskFetchState,
+    query_conversation_entries, record_earliest_rtc_task_refresh_timestamp,
 };
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::api::ServerConversationToken;
@@ -684,7 +684,6 @@ fn local_conversation_sync_finishes_initial_load_without_starting_cloud_load() {
         model.update(&mut app, |model, ctx| model.sync_conversations(ctx));
 
         model.read(&app, |model, _| {
-            assert!(!model.is_loading());
             assert_eq!(
                 model.initial_load_state,
                 InitialConversationLoadState::WaitingForCloud
@@ -1155,10 +1154,6 @@ fn test_get_entries_excludes_conversation_shadowed_by_child_task() {
                 model.get_entries(&all_owner_filters(), ctx).is_empty(),
                 "a conversation shadowed by a child task must be hidden with it"
             );
-            assert!(
-                !model.has_items(ctx),
-                "a conversation shadowed by a child task must not count as a visible item"
-            );
         });
     });
 }
@@ -1185,37 +1180,6 @@ fn test_conversation_metadata_child_predicate_matches_conversation() {
         child_metadata.is_child_agent_conversation(),
         child.is_child_agent_conversation()
     );
-}
-
-#[test]
-fn test_has_items_ignores_child_agent_tasks() {
-    App::test((), |mut app| async move {
-        add_entry_projection_test_models(&mut app);
-        let now = Utc::now();
-
-        // A model containing only a child task produces no visible entries, so
-        // `has_items` must report empty (matching `get_entries`).
-        let mut child_only = create_test_model();
-        let mut child_task = create_test_task(&make_uuid(9101), "user-a", now);
-        child_task.parent_run_id = Some(make_uuid(9100));
-        child_only.tasks.insert(child_task.task_id, child_task);
-
-        // A model with a normal (non-child) task has visible items.
-        let mut with_parent = create_test_model();
-        let parent_task = create_test_task(&make_uuid(9102), "user-a", now);
-        with_parent.tasks.insert(parent_task.task_id, parent_task);
-
-        app.update(|ctx| {
-            assert!(
-                !child_only.has_items(ctx),
-                "a child-only model should be treated as empty"
-            );
-            assert!(
-                with_parent.has_items(ctx),
-                "a model with a non-child task should have items"
-            );
-        });
-    });
 }
 
 #[test]
@@ -1728,183 +1692,7 @@ fn test_resolve_open_action_opens_metadata_only_cloud_conversation_by_server_tok
 }
 
 #[test]
-fn test_resolve_copy_link_prefers_active_session_link() {
-    App::test((), |mut app| async move {
-        add_entry_projection_test_models(&mut app);
-
-        let now = Utc::now();
-        let session_link = "https://example.com/session/active";
-        let mut task = create_test_task(&make_uuid(8300), "user-a", now);
-        task.state = AmbientAgentTaskState::InProgress;
-        task.session_id = Some(make_uuid(8301));
-        task.session_link = Some(session_link.to_string());
-        task.conversation_id = Some("session-backed-token".to_string());
-        task.is_sandbox_running = true;
-        let task_id = task.task_id;
-
-        app.add_singleton_model(|_| {
-            let mut model = create_test_model();
-            model.tasks.insert(task_id, task);
-            model
-        });
-
-        app.update(|ctx| {
-            let link = AgentConversationsModel::resolve_copy_link(
-                AgentConversationNavigationSubject::Entry(AgentConversationEntryId::AmbientRun(
-                    task_id,
-                )),
-                ctx,
-            );
-
-            assert_eq!(link.as_deref(), Some(session_link));
-        });
-    });
-}
-
-#[test]
-fn test_resolve_copy_link_prefers_session_link_for_retained_failed_task() {
-    App::test((), |mut app| async move {
-        add_entry_projection_test_models(&mut app);
-
-        let session_id = make_uuid(8304);
-        let session_link = format!("https://example.com/session/{session_id}");
-        let mut task = create_test_task(&make_uuid(8305), "user-a", Utc::now());
-        task.state = AmbientAgentTaskState::Error;
-        task.session_link = Some(session_link.clone());
-        task.conversation_id = Some("retained-error-token".to_string());
-        task.is_sandbox_running = true;
-        let task_id = task.task_id;
-
-        app.add_singleton_model(|_| {
-            let mut model = create_test_model();
-            model.tasks.insert(task_id, task);
-            model
-        });
-
-        app.update(|ctx| {
-            let link = AgentConversationsModel::resolve_copy_link(
-                AgentConversationNavigationSubject::Entry(AgentConversationEntryId::AmbientRun(
-                    task_id,
-                )),
-                ctx,
-            );
-
-            assert_eq!(link.as_deref(), Some(session_link.as_str()));
-        });
-    });
-}
-
-#[test]
-fn test_resolve_copy_link_uses_conversation_link_for_ended_failed_task() {
-    App::test((), |mut app| async move {
-        add_entry_projection_test_models(&mut app);
-
-        let session_id = make_uuid(8306);
-        let token = "ended-failed-copy-token";
-        let mut task = create_test_task(&make_uuid(8307), "user-a", Utc::now());
-        task.state = AmbientAgentTaskState::Failed;
-        task.session_link = Some(format!("https://example.com/session/{session_id}"));
-        task.conversation_id = Some(token.to_string());
-        task.is_sandbox_running = false;
-        let task_id = task.task_id;
-
-        app.add_singleton_model(|_| {
-            let mut model = create_test_model();
-            model.tasks.insert(task_id, task);
-            model
-        });
-
-        app.update(|ctx| {
-            let link = AgentConversationsModel::resolve_copy_link(
-                AgentConversationNavigationSubject::Entry(AgentConversationEntryId::AmbientRun(
-                    task_id,
-                )),
-                ctx,
-            );
-
-            assert_eq!(
-                link,
-                Some(ServerConversationToken::new(token.to_string()).conversation_link())
-            );
-        });
-    });
-}
-
-#[test]
-fn test_resolve_copy_link_uses_cloud_conversation_link_for_inactive_task() {
-    App::test((), |mut app| async move {
-        add_entry_projection_test_models(&mut app);
-
-        let token = "inactive-task-token";
-        let mut task = create_test_task(&make_uuid(8302), "user-a", Utc::now());
-        task.conversation_id = Some(token.to_string());
-        let task_id = task.task_id;
-
-        app.add_singleton_model(|_| {
-            let mut model = create_test_model();
-            model.tasks.insert(task_id, task);
-            model
-        });
-
-        app.update(|ctx| {
-            let link = AgentConversationsModel::resolve_copy_link(
-                AgentConversationNavigationSubject::Entry(AgentConversationEntryId::AmbientRun(
-                    task_id,
-                )),
-                ctx,
-            );
-
-            assert_eq!(
-                link,
-                Some(ServerConversationToken::new(token.to_string()).conversation_link())
-            );
-
-            let entry = AgentConversationsModel::as_ref(ctx)
-                .get_entry_by_id(&AgentConversationEntryId::AmbientRun(task_id), ctx)
-                .expect("task entry should exist");
-            assert!(entry.capabilities.can_copy_link);
-        });
-    });
-}
-
-#[test]
-fn test_resolve_copy_link_returns_none_for_local_only_unsynced_conversation() {
-    App::test((), |mut app| async move {
-        add_entry_projection_test_models(&mut app);
-
-        let conversation_id = AIConversationId::new();
-        app.add_singleton_model(|_| {
-            let mut model = create_test_model();
-            model.conversations.insert(
-                conversation_id,
-                create_test_conversation_metadata(conversation_id, "Local only"),
-            );
-            model
-        });
-
-        app.update(|ctx| {
-            let link = AgentConversationsModel::resolve_copy_link(
-                AgentConversationNavigationSubject::Entry(AgentConversationEntryId::Conversation(
-                    conversation_id,
-                )),
-                ctx,
-            );
-
-            assert_eq!(link, None);
-
-            let entry = AgentConversationsModel::as_ref(ctx)
-                .get_entry_by_id(
-                    &AgentConversationEntryId::Conversation(conversation_id),
-                    ctx,
-                )
-                .expect("conversation entry should exist");
-            assert!(!entry.capabilities.can_copy_link);
-        });
-    });
-}
-
-#[test]
-fn test_server_token_assignment_updates_copy_link_resolution() {
+fn test_server_token_assignment_emits_conversation_updated() {
     App::test((), |mut app| async move {
         let _interactive_management_guard =
             FeatureFlag::InteractiveConversationManagementView.override_enabled(true);
@@ -1958,14 +1746,6 @@ fn test_server_token_assignment_updates_copy_link_resolution() {
                     saw_conversation_updated.store(true, Ordering::SeqCst);
                 }
             });
-
-            let link = AgentConversationsModel::resolve_copy_link(
-                AgentConversationNavigationSubject::Entry(AgentConversationEntryId::Conversation(
-                    conversation_id,
-                )),
-                ctx,
-            );
-            assert_eq!(link, None);
         });
 
         let token = "assigned-token-after-entry-build";
@@ -1983,19 +1763,8 @@ fn test_server_token_assignment_updates_copy_link_resolution() {
             );
         });
 
-        app.update(|ctx| {
+        app.update(|_ctx| {
             assert!(saw_conversation_updated.load(Ordering::SeqCst));
-
-            let link = AgentConversationsModel::resolve_copy_link(
-                AgentConversationNavigationSubject::Entry(AgentConversationEntryId::Conversation(
-                    conversation_id,
-                )),
-                ctx,
-            );
-            assert_eq!(
-                link,
-                Some(ServerConversationToken::new(token.to_string()).conversation_link())
-            );
         });
     });
 }
@@ -2058,226 +1827,6 @@ fn test_resolve_open_action_follows_the_registered_terminal_view() {
             assert!(action.is_none());
         });
     });
-}
-
-#[test]
-fn test_resolve_copy_link_uses_attached_synced_conversation_for_task_without_token() {
-    App::test((), |mut app| async move {
-        add_entry_projection_test_models(&mut app);
-
-        let conversation_id = AIConversationId::new();
-        let token = "attached-conversation-token";
-        let task_id = make_uuid(8303);
-        let conversation = create_restored_conversation(
-            conversation_id,
-            "root-task",
-            AgentConversationData {
-                server_conversation_token: Some(token.to_string()),
-                conversation_usage_metadata: None,
-                reverted_action_ids: None,
-                forked_from_server_conversation_token: None,
-                artifacts_json: None,
-                parent_agent_id: None,
-                agent_name: None,
-                orchestration_harness_type: None,
-                parent_conversation_id: None,
-                is_remote_child: false,
-                root_task_is_optimistic: None,
-                run_id: Some(task_id.clone()),
-                autoexecute_override: None,
-                last_event_sequence: None,
-                pinned: false,
-            },
-        );
-
-        BlocklistAIHistoryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.restore_conversations(EntityId::new(), vec![conversation], ctx);
-        });
-
-        let mut task = create_test_task(&task_id, "user-a", Utc::now());
-        task.conversation_id = None;
-        let task_id = task.task_id;
-
-        app.add_singleton_model(|_| {
-            let mut model = create_test_model();
-            model.tasks.insert(task_id, task);
-            model.conversations.insert(
-                conversation_id,
-                create_test_conversation_metadata(conversation_id, "Conversation"),
-            );
-            model
-        });
-
-        app.update(|ctx| {
-            let link = AgentConversationsModel::resolve_copy_link(
-                AgentConversationNavigationSubject::Entry(AgentConversationEntryId::AmbientRun(
-                    task_id,
-                )),
-                ctx,
-            );
-
-            assert_eq!(
-                link,
-                Some(ServerConversationToken::new(token.to_string()).conversation_link())
-            );
-
-            let entry = AgentConversationsModel::as_ref(ctx)
-                .get_entry_by_id(&AgentConversationEntryId::AmbientRun(task_id), ctx)
-                .expect("task entry should exist");
-            assert!(entry.capabilities.can_copy_link);
-            assert_eq!(entry.identity.local_conversation_id, Some(conversation_id));
-        });
-    });
-}
-
-#[test]
-fn test_eviction_protects_personal_from_team_overflow() {
-    // Add 50 old personal tasks + 600 new team tasks
-    // After eviction: all 50 personal remain, only 300 team remain
-    let current_user = "user-personal";
-    let team_user = "user-team";
-    let now = Utc::now();
-
-    let mut model = create_test_model();
-
-    // Add 50 old personal tasks
-    for i in 0..50 {
-        let task = create_test_task(&make_uuid(i), current_user, now - Duration::days(30));
-        model.tasks.insert(task.task_id, task);
-    }
-
-    // Add 600 new team tasks
-    for i in 50..650 {
-        let task = create_test_task(&make_uuid(i), team_user, now - Duration::hours(i as i64));
-        model.tasks.insert(task.task_id, task);
-    }
-
-    model.enforce_task_cap(current_user);
-
-    // Count personal vs team
-    let personal_count = model
-        .tasks
-        .values()
-        .filter(|t| t.creator.as_ref().is_some_and(|c| c.uid == current_user))
-        .count();
-    let team_count = model.tasks.len() - personal_count;
-
-    // All 50 personal tasks should remain
-    assert_eq!(personal_count, 50, "all personal tasks should remain");
-    // Team tasks should be capped at MAX_TEAM_TASKS
-    assert_eq!(team_count, MAX_TEAM_TASKS, "team tasks should be capped");
-}
-
-#[test]
-fn test_eviction_caps_each_group_independently() {
-    // Add 250 personal + 350 team
-    // After eviction: 200 personal + 300 team
-    let current_user = "user-personal";
-    let team_user = "user-team";
-    let now = Utc::now();
-
-    let mut model = create_test_model();
-
-    // Add 250 personal tasks
-    for i in 0..250 {
-        let task = create_test_task(&make_uuid(i), current_user, now - Duration::hours(i as i64));
-        model.tasks.insert(task.task_id, task);
-    }
-
-    // Add 350 team tasks
-    for i in 250..600 {
-        let task = create_test_task(&make_uuid(i), team_user, now - Duration::hours(i as i64));
-        model.tasks.insert(task.task_id, task);
-    }
-
-    model.enforce_task_cap(current_user);
-
-    // Count personal vs team
-    let personal_count = model
-        .tasks
-        .values()
-        .filter(|t| t.creator.as_ref().is_some_and(|c| c.uid == current_user))
-        .count();
-    let team_count = model.tasks.len() - personal_count;
-
-    // Personal capped at MAX_PERSONAL_TASKS
-    assert_eq!(
-        personal_count, MAX_PERSONAL_TASKS,
-        "personal tasks should be capped"
-    );
-    // Team capped at MAX_TEAM_TASKS
-    assert_eq!(team_count, MAX_TEAM_TASKS, "team tasks should be capped");
-}
-
-#[test]
-fn test_eviction_removes_oldest_within_group() {
-    let current_user = "user-personal";
-    let now = Utc::now();
-
-    let mut model = create_test_model();
-
-    // Add 250 personal tasks with different timestamps
-    // Newer tasks have lower index (i.e., index 0 is newest)
-    for i in 0..250 {
-        let task = create_test_task(&make_uuid(i), current_user, now - Duration::hours(i as i64));
-        model.tasks.insert(task.task_id, task);
-    }
-
-    // Add 350 team tasks (to trigger eviction)
-    let team_user = "user-team";
-    for i in 250..600 {
-        let task = create_test_task(&make_uuid(i), team_user, now - Duration::hours(i as i64));
-        model.tasks.insert(task.task_id, task);
-    }
-
-    model.enforce_task_cap(current_user);
-
-    // The 200 newest personal tasks should remain (indices 0-199)
-    for i in 0..MAX_PERSONAL_TASKS {
-        let task_id: AmbientAgentTaskId = make_uuid(i).parse().unwrap();
-        assert!(
-            model.tasks.contains_key(&task_id),
-            "newest personal task {i} should remain"
-        );
-    }
-
-    // The oldest personal tasks should be evicted (indices 200-249)
-    for i in MAX_PERSONAL_TASKS..250 {
-        let task_id: AmbientAgentTaskId = make_uuid(i).parse().unwrap();
-        assert!(
-            !model.tasks.contains_key(&task_id),
-            "oldest personal task {i} should be evicted"
-        );
-    }
-}
-
-#[test]
-fn test_eviction_noop_when_under_cap() {
-    let current_user = "user-personal";
-    let team_user = "user-team";
-    let now = Utc::now();
-
-    let mut model = create_test_model();
-
-    // Add 100 personal + 100 team (well under cap)
-    for i in 0..100 {
-        let task = create_test_task(&make_uuid(i), current_user, now - Duration::hours(i as i64));
-        model.tasks.insert(task.task_id, task);
-    }
-    for i in 100..200 {
-        let task = create_test_task(&make_uuid(i), team_user, now - Duration::hours(i as i64));
-        model.tasks.insert(task.task_id, task);
-    }
-
-    let original_count = model.tasks.len();
-    model.enforce_task_cap(current_user);
-
-    // No tasks should be evicted
-    assert_eq!(
-        model.tasks.len(),
-        original_count,
-        "no tasks should be evicted when under cap"
-    );
 }
 
 #[test]

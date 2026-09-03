@@ -71,7 +71,7 @@ impl AmbientAgentEntryBlock {
             | AgentConversationsModelEvent::NewTasksReceived
             | AgentConversationsModelEvent::TasksUpdated
             | AgentConversationsModelEvent::ConversationUpdated { .. } => ctx.notify(),
-            AgentConversationsModelEvent::ConversationArtifactsUpdated { .. } => {}
+            AgentConversationsModelEvent::ConversationArtifactsUpdated => {}
         });
 
         Self {

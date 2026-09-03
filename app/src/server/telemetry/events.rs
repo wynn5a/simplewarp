@@ -2500,14 +2500,6 @@ pub enum TelemetryEvent {
         block_id: BlockId,
         user_took_over: bool,
     },
-    /// Emitted when the user toggles the Agent Management View.
-    AgentManagementViewToggled {
-        is_open: bool,
-    },
-    /// Emitted when the user opens a session from the Agent Management View.
-    AgentManagementViewOpenedSession,
-    /// Emitted when the user copies a session link from the Agent Management View.
-    AgentManagementViewCopiedSessionLink,
     /// Detected that Warp is running in an isolated sandbox.
     DetectedIsolationPlatform {
         platform: warp_isolation_platform::IsolationPlatformType,
@@ -4352,11 +4344,6 @@ impl TelemetryEvent {
                 "block_id": block_id,
                 "user_took_over": user_took_over,
             })),
-            TelemetryEvent::AgentManagementViewToggled { is_open } => Some(json!({
-                "is_open": is_open,
-            })),
-            TelemetryEvent::AgentManagementViewOpenedSession => None,
-            TelemetryEvent::AgentManagementViewCopiedSessionLink => None,
             TelemetryEvent::DetectedIsolationPlatform { platform } => Some(json!({
                 "platform": platform,
             })),
@@ -4872,9 +4859,6 @@ impl TelemetryEvent {
             | TelemetryEvent::CLISubagentInputDismissed { .. }
             | TelemetryEvent::CLISubagentActionExecuted { .. }
             | TelemetryEvent::CLISubagentActionRejected { .. }
-            | TelemetryEvent::AgentManagementViewToggled { .. }
-            | TelemetryEvent::AgentManagementViewOpenedSession
-            | TelemetryEvent::AgentManagementViewCopiedSessionLink
             | TelemetryEvent::DetectedIsolationPlatform { .. }
             | TelemetryEvent::AgentTipShown { .. }
             | TelemetryEvent::AgentTipClicked { .. }
@@ -5385,11 +5369,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             | Self::CLISubagentInputDismissed { .. }
             | Self::CLISubagentActionExecuted { .. }
             | Self::CLISubagentActionRejected { .. } => EnablementState::Always,
-            Self::AgentManagementViewToggled { .. }
-            | Self::AgentManagementViewOpenedSession
-            | Self::AgentManagementViewCopiedSessionLink => {
-                EnablementState::Flag(FeatureFlag::AgentManagementView)
-            }
             Self::DetectedIsolationPlatform { .. } => EnablementState::Always,
             Self::AgentExitedShellProcess { .. } => EnablementState::Always,
             Self::CLIAgentToolbarVoiceInputUsed { .. } => EnablementState::Always,
@@ -5912,11 +5891,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CLISubagentInputDismissed { .. } => "CLI Subagent Input Dismissed",
             Self::CLISubagentActionExecuted { .. } => "CLI Subagent Action Executed",
             Self::CLISubagentActionRejected { .. } => "CLI Subagent Action Rejected",
-            Self::AgentManagementViewToggled { .. } => "Agent Management View Toggled",
-            Self::AgentManagementViewOpenedSession => "Agent Management View Opened Session",
-            Self::AgentManagementViewCopiedSessionLink => {
-                "Agent Management View Copied Session Link"
-            }
             Self::DetectedIsolationPlatform { .. } => "Isolation.DetectedIsolationPlatform",
             Self::AgentTipShown => "AgentTip Shown",
             Self::AgentTipClicked => "AgentTip Clicked",
@@ -6669,15 +6643,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::CLISubagentActionRejected { .. } => {
                 "User rejected a blocked action from the CLI subagent"
-            }
-            Self::AgentManagementViewToggled { .. } => {
-                "User toggled the Agent Management View open or closed"
-            }
-            Self::AgentManagementViewOpenedSession => {
-                "User opened a session from the Agent Management View"
-            }
-            Self::AgentManagementViewCopiedSessionLink => {
-                "User copied a session link from the Agent Management View"
             }
             Self::DetectedIsolationPlatform { .. } => {
                 "Detected that Warp is running in an isolated sandbox"

@@ -53,7 +53,7 @@ impl ConversationListViewModel {
                     }
                 }
                 // Artifact updates don't affect the conversation list
-                AgentConversationsModelEvent::ConversationArtifactsUpdated { .. } => {}
+                AgentConversationsModelEvent::ConversationArtifactsUpdated => {}
             }
         });
 

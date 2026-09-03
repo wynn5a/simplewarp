@@ -85,7 +85,7 @@ pub enum AgentDetailsButtonEvent {
     Open,
     CancelTask { task_id: AmbientAgentTaskId },
     ForkConversation { conversation_id: AIConversationId },
-    ViewDetails { item_id: AgentConversationEntryId },
+    ViewDetails,
     CopyLink { link: String },
 }
 
@@ -257,8 +257,8 @@ impl TypedActionView for ConversationActionButtonsRow {
                 }
             }
             AgentDetailsAction::ViewDetails => {
-                if let Some(item_id) = &self.config.view_details_item_id {
-                    ctx.emit(AgentDetailsButtonEvent::ViewDetails { item_id: *item_id });
+                if self.config.view_details_item_id.is_some() {
+                    ctx.emit(AgentDetailsButtonEvent::ViewDetails);
                 }
             }
             AgentDetailsAction::CopyLink => {

@@ -17,8 +17,8 @@ use warpui::{
 };
 
 use super::dropdown::{
-    DROPDOWN_PADDING, DropdownAction, DropdownItem, DropdownItemAction, MenuHeaderTextFormatter,
-    TOP_MENU_BAR_HEIGHT, TOP_MENU_BAR_MAX_WIDTH,
+    DROPDOWN_PADDING, DropdownAction, DropdownItem, DropdownItemAction, TOP_MENU_BAR_HEIGHT,
+    TOP_MENU_BAR_MAX_WIDTH,
 };
 use crate::appearance::Appearance;
 use crate::editor::{
@@ -58,7 +58,6 @@ pub struct FilterableDropdown<A: DropdownItemAction = ()> {
     button_variant: ButtonVariant,
     style_override: Option<UiComponentStyles>,
     hovered_style_override: Option<UiComponentStyles>,
-    menu_header_text_override: Option<MenuHeaderTextFormatter>,
     /// Optional placeholder shown in the closed top bar when no item is
     /// selected. Setting a placeholder also opts the dropdown into allowing an
     /// empty selection: `set_filtered_items` will not auto-highlight the first
@@ -135,7 +134,6 @@ where
             button_variant: ButtonVariant::Outlined,
             style_override: None,
             hovered_style_override: None,
-            menu_header_text_override: None,
             placeholder: None,
             has_pinned_footer: false,
             menu_width: None,
@@ -168,13 +166,6 @@ where
     pub fn set_vertical_margin(&mut self, vertical_margin: f32, ctx: &mut ViewContext<Self>) {
         self.vertical_margin = vertical_margin;
         ctx.notify();
-    }
-
-    pub fn set_menu_header_text_override<F>(&mut self, formatter: F)
-    where
-        F: Fn(&str) -> String + 'static,
-    {
-        self.menu_header_text_override = Some(Box::new(formatter));
     }
 
     /// Sets placeholder text shown (greyed) in the closed top bar when no item
@@ -455,13 +446,7 @@ where
             Some(header) => (header.to_string(), None, false),
             None => match self.selected_item.clone() {
                 Some(MenuItem::Item(fields)) => {
-                    let label = fields.label();
-                    let text = if let Some(formatter) = &self.menu_header_text_override {
-                        formatter(label)
-                    } else {
-                        label.to_string()
-                    };
-                    (text, fields.override_font_family(), false)
+                    (fields.label().to_string(), fields.override_font_family(), false)
                 }
                 _ => match &self.placeholder {
                     Some(placeholder) => (placeholder.clone(), None, true),

@@ -43,14 +43,11 @@ use crate::ai::blocklist::orchestration_topology::orchestration_aware_conversati
 use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, ConversationStatusUpdate,
 };
-use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
-use crate::cloud_object::CloudObjectLookup as _;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::server::cloud_objects::update_manager::{UpdateManager, UpdateManagerEvent};
-use crate::server::ids::{ServerId, SyncId};
 use crate::server::retry_strategies::{
     OUT_OF_BAND_REQUEST_RETRY_STRATEGY, PERIODIC_POLL_RETRY_STRATEGY, is_transient_http_error,
 };
@@ -136,16 +133,6 @@ enum InitialConversationLoadState {
 }
 
 impl InitialConversationLoadState {
-    fn is_loading_local(self) -> bool {
-        match self {
-            InitialConversationLoadState::LoadingLocal => true,
-            InitialConversationLoadState::WaitingForCloud
-            | InitialConversationLoadState::LoadingCloud
-            | InitialConversationLoadState::Loaded
-            | InitialConversationLoadState::CloudFailed => false,
-        }
-    }
-
     fn can_start_cloud_load(self) -> bool {
         match self {
             InitialConversationLoadState::WaitingForCloud => true,
@@ -196,13 +183,6 @@ fn record_earliest_rtc_task_refresh_timestamp(
     }
 }
 
-/// Protected eviction: we'll always keep at least 200 personal tasks in the model.
-/// This is so that whenever we evict stale tasks, we do not evict relevant, recent personal tasks
-/// (e.g. if I load in 500 team Slack tasks from today, we should _not_ evict my personal conversation
-/// from yesterday).
-const MAX_PERSONAL_TASKS: usize = 200;
-const MAX_TEAM_TASKS: usize = 300;
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SessionStatus {
     Available,
@@ -217,25 +197,6 @@ pub enum StatusFilter {
     Working,
     Done,
     Failed,
-}
-
-impl StatusFilter {
-    /// Returns `true` if a status transition from `prev_bucket` to `new_bucket` flips
-    /// whether an item is included by this filter. `All` matches every bucket so it
-    /// is never crossed; the other variants are crossed when exactly one of the buckets
-    /// equals this filter.
-    pub(crate) fn is_membership_crossed(
-        self,
-        prev_bucket: StatusFilter,
-        new_bucket: StatusFilter,
-    ) -> bool {
-        match self {
-            StatusFilter::All => false,
-            StatusFilter::Working | StatusFilter::Done | StatusFilter::Failed => {
-                (prev_bucket == self) != (new_bucket == self)
-            }
-        }
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
@@ -656,7 +617,7 @@ pub enum AgentConversationsModelEvent {
     /// Conversation status data was updated
     ConversationUpdated { kind: ConversationUpdateKind },
     /// Conversation artifacts were updated (plans, PRs, etc.)
-    ConversationArtifactsUpdated { conversation_id: AIConversationId },
+    ConversationArtifactsUpdated,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -744,10 +705,6 @@ impl AgentConversationsModel {
             model.initial_load_state = InitialConversationLoadState::Loaded;
         }
         model
-    }
-
-    pub fn is_loading(&self) -> bool {
-        self.initial_load_state.is_loading_local()
     }
 
     /// Returns whether cloud conversation metadata failed to load.
@@ -1271,11 +1228,6 @@ impl AgentConversationsModel {
         }
     }
 
-    /// Returns whether the unfiltered conversation list contains any entries.
-    pub fn has_items(&self, app: &AppContext) -> bool {
-        !self.unfiltered_entries(app).is_empty()
-    }
-
     /// Returns an iterator over all ambient agent tasks.
     pub fn tasks_iter(&self) -> impl Iterator<Item = &AmbientAgentTask> {
         self.tasks.values()
@@ -1417,22 +1369,6 @@ impl AgentConversationsModel {
         }
     }
 
-    pub fn resolve_copy_link(
-        subject: AgentConversationNavigationSubject,
-        app: &AppContext,
-    ) -> Option<String> {
-        let model = Self::as_ref(app);
-        match subject {
-            AgentConversationNavigationSubject::Entry(id) => model
-                .get_entry_by_id(&id, app)
-                .and_then(|entry| model.resolve_entry_copy_link(&entry)),
-            AgentConversationNavigationSubject::ServerToken(server_token) => model
-                .entry_for_server_token(&server_token, app)
-                .and_then(|entry| model.resolve_entry_copy_link(&entry))
-                .or_else(|| Some(server_token.conversation_link())),
-        }
-    }
-
     fn resolve_entry_open_action(
         &self,
         entry: &AgentConversationEntry,
@@ -1521,28 +1457,6 @@ impl AgentConversationsModel {
                 conversation_id: token.clone(),
                 ambient_agent_task_id: entry.identity.ambient_agent_task_id,
             })
-    }
-
-    fn resolve_entry_copy_link(&self, entry: &AgentConversationEntry) -> Option<String> {
-        if let Some(task_id) = entry.identity.ambient_agent_task_id
-            && let Some(session_link) = self.tasks.get(&task_id).and_then(|task| {
-                task.has_active_execution()
-                    .then(|| {
-                        task.active_run_execution()
-                            .session_link
-                            .map(ToString::to_string)
-                    })
-                    .flatten()
-            })
-        {
-            return Some(session_link);
-        }
-
-        entry
-            .identity
-            .server_conversation_token
-            .as_ref()
-            .map(ServerConversationToken::conversation_link)
     }
 
     fn entry_for_server_token(
@@ -1645,9 +1559,7 @@ impl AgentConversationsModel {
                         ctx.emit(AgentConversationsModelEvent::TasksUpdated);
                     }
                 }
-                ctx.emit(AgentConversationsModelEvent::ConversationArtifactsUpdated {
-                    conversation_id: *conversation_id,
-                });
+                ctx.emit(AgentConversationsModelEvent::ConversationArtifactsUpdated);
             }
             BlocklistAIHistoryEvent::UpdatedConversationTitle {
                 conversation_id,
@@ -1864,221 +1776,6 @@ impl AgentConversationsModel {
                 }
             },
         );
-    }
-
-    /// Returns all (name, uid) pairs for creators of tasks in the model.
-    ///
-    /// We use this function to populate the available creator filter list
-    /// based on the tasks we have.
-    pub fn get_all_creators(&self, app: &AppContext) -> Vec<(String, String)> {
-        let mut creators: Vec<(String, String)> = self
-            .tasks
-            .values()
-            .filter_map(|task| {
-                let name = entry::task_creator_name(task, app)?;
-                let uid = entry::task_creator_uid(task)?;
-                Some((name, uid))
-            })
-            .collect();
-
-        // Include the current user since they may have local conversations
-        let auth_state = AuthStateProvider::as_ref(app).get();
-        if let (Some(name), Some(uid)) = (auth_state.display_name(), auth_state.user_id()) {
-            creators.push((name, uid.to_string()));
-        }
-
-        creators.sort_by(|a, b| a.0.cmp(&b.0));
-        creators.dedup_by(|a, b| a.0 == b.0);
-
-        creators
-    }
-
-    /// Returns a mapping of environment IDs to display names.
-    ///
-    /// When multiple environments share the same name, each is disambiguated
-    /// as "<name> (<id>)".
-    pub fn get_all_environment_ids_and_names(&self, ctx: &AppContext) -> HashMap<String, String> {
-        let mut envs = HashMap::<String, String>::new();
-
-        for task in self.tasks.values() {
-            let Some(environment_id) = task
-                .agent_config_snapshot
-                .as_ref()
-                .and_then(|s| s.environment_id.as_deref())
-            else {
-                continue;
-            };
-
-            let Some(server_id) = ServerId::try_from(environment_id).ok() else {
-                continue;
-            };
-            let sync_id = SyncId::ServerId(server_id);
-            let Some(env) = CloudAmbientAgentEnvironment::get_by_id(&sync_id, ctx) else {
-                continue;
-            };
-            let env_model = &env.model().string_model;
-            envs.insert(environment_id.to_string(), env_model.name.clone());
-        }
-
-        // Disambiguate duplicate names by appending the environment ID.
-        let mut name_counts = HashMap::<String, usize>::new();
-        for name in envs.values() {
-            *name_counts.entry(name.clone()).or_default() += 1;
-        }
-        for (id, name) in &mut envs {
-            if name_counts.get(name.as_str()).copied().unwrap_or(0) > 1 {
-                *name = format!("{name} ({id})");
-            }
-        }
-
-        envs
-    }
-
-    /// Converts AgentManagementFilters to TaskListFilter for server API calls.
-    pub fn build_task_list_filter(
-        &self,
-        filters: &AgentManagementFilters,
-        current_user_uid: &str,
-    ) -> TaskListFilter {
-        let states = match filters.status {
-            StatusFilter::All => None,
-            StatusFilter::Working => Some(vec![
-                AmbientAgentTaskState::Queued,
-                AmbientAgentTaskState::Pending,
-                AmbientAgentTaskState::Claimed,
-                AmbientAgentTaskState::InProgress,
-            ]),
-            StatusFilter::Done => Some(vec![
-                AmbientAgentTaskState::Succeeded,
-                AmbientAgentTaskState::InProgress,
-            ]),
-            StatusFilter::Failed => Some(vec![
-                AmbientAgentTaskState::InProgress,
-                AmbientAgentTaskState::Failed,
-                AmbientAgentTaskState::Error,
-                AmbientAgentTaskState::Blocked,
-                AmbientAgentTaskState::Cancelled,
-                AmbientAgentTaskState::Unknown,
-            ]),
-        };
-
-        let source = match &filters.source {
-            SourceFilter::All => None,
-            SourceFilter::Specific(s) => Some(s.clone()),
-        };
-
-        let now = Utc::now();
-        let created_after = match filters.created_on {
-            CreatedOnFilter::All => None,
-            CreatedOnFilter::Last24Hours => Some(now - chrono::Duration::hours(24)),
-            CreatedOnFilter::Past3Days => Some(now - chrono::Duration::days(3)),
-            CreatedOnFilter::LastWeek => Some(now - chrono::Duration::days(7)),
-        };
-
-        let creator_uid = match filters.owners {
-            OwnerFilter::PersonalOnly => Some(current_user_uid.to_string()),
-            OwnerFilter::All => match &filters.creator {
-                CreatorFilter::All => None,
-                CreatorFilter::Specific { uid, .. } => Some(uid.clone()),
-            },
-        };
-
-        let environment_id = match &filters.environment {
-            EnvironmentFilter::All | EnvironmentFilter::NoEnvironment => None,
-            EnvironmentFilter::Specific(id) => Some(id.clone()),
-        };
-
-        TaskListFilter {
-            creator_uid,
-            states,
-            source,
-            created_after,
-            environment_id,
-            ..TaskListFilter::default()
-        }
-    }
-
-    /// Fetches tasks matching the given filters from the server, merges them into the model,
-    /// and enforces the task cap. Called when user changes filters in AgentManagementView.
-    pub fn fetch_tasks_for_filters(
-        &mut self,
-        filters: &AgentManagementFilters,
-        current_user_uid: &str,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let ai_client = ServerApiProvider::handle(ctx).as_ref(ctx).get_ai_client();
-        let task_filter = self.build_task_list_filter(filters, current_user_uid);
-        let current_user_uid = current_user_uid.to_string();
-
-        ctx.spawn_with_retry_on_error(
-            move || {
-                let ai_client = ai_client.clone();
-                let task_filter = task_filter.clone();
-                async move {
-                    ai_client
-                        .list_ambient_agent_tasks(INITIAL_TASK_AMOUNT, task_filter)
-                        .await
-                }
-            },
-            OUT_OF_BAND_REQUEST_RETRY_STRATEGY,
-            move |model, result, ctx| {
-                if let RequestState::RequestSucceeded(tasks) = result {
-                    // Merge results into model
-                    let mut has_new_tasks = false;
-                    let mut has_updated_tasks = false;
-
-                    for task in tasks {
-                        let task_id = task.task_id;
-                        match model.tasks.get(&task_id) {
-                            Some(existing_task) => {
-                                if existing_task != &task {
-                                    has_updated_tasks = true;
-                                }
-                            }
-                            None => has_new_tasks = true,
-                        };
-                        model.tasks.insert(task_id, task);
-                    }
-
-                    // Enforce task cap
-                    model.enforce_task_cap(&current_user_uid);
-
-                    // Emit appropriate event
-                    if has_new_tasks {
-                        ctx.emit(AgentConversationsModelEvent::NewTasksReceived);
-                    } else if has_updated_tasks {
-                        ctx.emit(AgentConversationsModelEvent::TasksUpdated);
-                    }
-                } else if let RequestState::RequestFailed(e) = result {
-                    report_error!(e);
-                }
-            },
-        );
-    }
-
-    /// Enforces cap on tasks stored in the model so it doesn't grow without bound.
-    /// We always keep at least 200 personal tasks around so an influx of team tasks
-    /// doesn't result in evicting personal task data.
-    fn enforce_task_cap(&mut self, current_user_uid: &str) {
-        let total_cap = MAX_PERSONAL_TASKS + MAX_TEAM_TASKS;
-        if self.tasks.len() <= total_cap {
-            return;
-        }
-
-        let (mut personal, mut team): (Vec<_>, Vec<_>) =
-            self.tasks.drain().partition(|(_, task)| {
-                task.creator
-                    .as_ref()
-                    .is_some_and(|c| c.uid == current_user_uid)
-            });
-
-        // Sort each by updated_at (newest first), truncate
-        personal.sort_by(|a, b| b.1.updated_at.cmp(&a.1.updated_at));
-        team.sort_by(|a, b| b.1.updated_at.cmp(&a.1.updated_at));
-        personal.truncate(MAX_PERSONAL_TASKS);
-        team.truncate(MAX_TEAM_TASKS);
-
-        self.tasks = personal.into_iter().chain(team).collect();
     }
 
     /// Clears all stored conversation and task data in memory.

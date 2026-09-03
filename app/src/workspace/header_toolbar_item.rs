@@ -2,9 +2,7 @@ use serde::{Deserialize, Serialize};
 use settings::Setting as _;
 use warpui::{AppContext, SingletonEntity};
 
-use crate::auth::AuthStateProvider;
 use crate::features::FeatureFlag;
-use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::workspace::tab_settings::TabSettings;
 
@@ -64,15 +62,9 @@ impl HeaderToolbarItemKind {
                     && *TabSettings::as_ref(app).use_vertical_tabs
             }
             Self::ToolsPanel => true,
-            Self::AgentManagement => {
-                let is_web_anonymous_user = AuthStateProvider::as_ref(app)
-                    .get()
-                    .is_user_web_anonymous_user()
-                    .unwrap_or_default();
-                AISettings::as_ref(app).is_any_ai_enabled(app)
-                    && FeatureFlag::AgentManagementView.is_enabled()
-                    && !is_web_anonymous_user
-            }
+            // The agent management view was removed. The variant stays so persisted
+            // toolbar configs that name it keep deserializing.
+            Self::AgentManagement => false,
             Self::CodeReview => cfg!(feature = "local_fs"),
             // The notifications mailbox was removed. The variant stays so persisted
             // toolbar configs that name it keep deserializing.

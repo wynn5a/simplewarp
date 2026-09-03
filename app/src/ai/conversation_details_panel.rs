@@ -37,9 +37,7 @@ use crate::ai::agent::conversation::{
     AIConversation, AIConversationId, ConversationStatus, StatusColorStyle,
 };
 use crate::ai::agent_conversations_model::entry::PrincipalType;
-use crate::ai::agent_conversations_model::{
-    AgentConversationEntry, AgentRunDisplayStatus, TaskFetchError,
-};
+use crate::ai::agent_conversations_model::{AgentRunDisplayStatus, TaskFetchError};
 use crate::ai::agent_management::details_action_buttons::{
     ActionButtonsConfig, AgentDetailsButtonEvent, ConversationActionButtonsRow,
 };
@@ -434,108 +432,6 @@ impl ConversationDetailsData {
             source_prompt: Some(task.prompt.clone()),
             copy_link_url,
             skill_spec,
-            harness,
-            fetch_error: None,
-        }
-    }
-
-    pub fn from_agent_conversation_entry(
-        entry: &AgentConversationEntry,
-        task: Option<&AmbientAgentTask>,
-        open_action: Option<WorkspaceAction>,
-        copy_link_url: Option<String>,
-    ) -> Self {
-        let creator = entry
-            .display
-            .creator
-            .name
-            .clone()
-            .map(|name| PrincipalInfo::new(name, None));
-        let executor = entry.display.executor.as_ref().and_then(|e| {
-            let display_name = e.name.clone().or_else(|| e.uid.clone())?;
-            Some(PrincipalInfo {
-                display_name,
-                photo_url: None,
-                uid: e.uid.clone(),
-                is_service_account: e.principal_type.is_some_and(|pt| pt.is_service_account()),
-            })
-        });
-        let created_at = Some(entry.display.created_at.with_timezone(&Local));
-        let source_prompt = entry.display.initial_query.clone();
-        let harness = entry.display.harness;
-
-        if let Some(task_id) = entry.identity.ambient_agent_task_id {
-            let error_message = task.and_then(|task| {
-                task.state
-                    .is_failure_like()
-                    .then(|| task.status_message.as_ref().map(|m| m.message.clone()))
-                    .flatten()
-            });
-            // Fall back to the entry's denormalized total when the task record isn't
-            // currently loaded, so the panel stays consistent with the card metadata
-            // (which always reads `entry.display.request_usage`).
-            let credits = task
-                .and_then(AmbientAgentTask::credits_used)
-                .or(entry.display.request_usage);
-            let skill_spec = task
-                .and_then(|task| task.agent_config_snapshot.as_ref())
-                .and_then(|config| config.skill_spec.as_ref())
-                .and_then(|spec_str| SkillSpec::from_str(spec_str).ok());
-
-            return ConversationDetailsData {
-                mode: PanelMode::Task {
-                    task_id: Some(task_id),
-                    directory: entry.display.working_directory.clone(),
-                    display_status: Some(entry.display.status.clone()),
-                    error_message,
-                    environment_id: entry.display.environment_id.clone(),
-                    runner_id: task
-                        .and_then(|task| task.agent_config_snapshot.as_ref())
-                        .and_then(|config| config.runner_id.clone()),
-                    conversation_id: entry
-                        .identity
-                        .server_conversation_token
-                        .as_ref()
-                        .map(|token| token.as_str().to_string()),
-                },
-                title: entry.display.title.clone(),
-                creator,
-                executor,
-                created_at,
-                credits,
-                run_time: task.and_then(AmbientAgentTask::run_time),
-                artifacts: entry.display.artifacts.clone(),
-                open_action,
-                source_prompt,
-                copy_link_url,
-                skill_spec,
-                harness,
-                fetch_error: None,
-            };
-        }
-
-        ConversationDetailsData {
-            mode: PanelMode::Conversation {
-                directory: entry.display.working_directory.clone(),
-                server_conversation_id: entry
-                    .identity
-                    .server_conversation_token
-                    .as_ref()
-                    .map(|token| token.as_str().to_string()),
-                ai_conversation_id: entry.identity.local_conversation_id,
-                status: Some(entry.display.status.to_conversation_status()),
-            },
-            title: entry.display.title.clone(),
-            creator,
-            executor: None,
-            created_at,
-            credits: entry.display.request_usage,
-            run_time: None,
-            artifacts: entry.display.artifacts.clone(),
-            open_action,
-            source_prompt,
-            copy_link_url,
-            skill_spec: None,
             harness,
             fetch_error: None,
         }
@@ -983,7 +879,7 @@ impl ConversationDetailsPanel {
                     destination: ForkedConversationDestination::NewTab,
                 });
             }
-            AgentDetailsButtonEvent::ViewDetails { .. } => {
+            AgentDetailsButtonEvent::ViewDetails => {
                 // ViewDetails not shown in the details panel because we're already viewing it,
                 // only in management view cards
             }

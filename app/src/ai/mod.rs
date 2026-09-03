@@ -77,5 +77,4 @@ pub fn init(app: &mut AppContext) {
     blocklist::suggested_rule_modal::init(app);
     ai_document_view::init(app);
     conversation_details_panel::init(app);
-    agent_management::init(app);
 }
