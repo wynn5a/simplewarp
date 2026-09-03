@@ -6,14 +6,6 @@ authors.workspace = true
 publish.workspace = true
 license.workspace = true
 
-[[bin]]
-name = "onboarding"
-path = "src/bin/main.rs"
-required-features = ["bin"]
-
-[features]
-bin = ["warpui_core/log_named_telemetry_events"]
-
 [dependencies]
 ai.workspace = true
 anyhow.workspace = true

@@ -2,13 +2,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use onboarding::{ProjectOnboardingSettings, SelectedSettings};
 use warp_core::execution_mode::AppExecutionMode;
 use warp_errors::report_error;
 use warpui::{SingletonEntity as _, ViewContext};
 
 use crate::pane_group::{NewTerminalOptions, PanesLayout};
-use crate::settings::AISettings;
 use crate::terminal::view::{
     AgentOnboardingVersion, OnboardingIntention, OnboardingVersion, TerminalAction,
 };
@@ -30,41 +28,6 @@ pub enum OnboardingTutorial {
         path: PathBuf,
         intention: OnboardingIntention,
     },
-}
-
-impl From<SelectedSettings> for OnboardingTutorial {
-    fn from(settings: SelectedSettings) -> Self {
-        match settings {
-            SelectedSettings::AgentDrivenDevelopment {
-                project_settings, ..
-            } => match project_settings {
-                ProjectOnboardingSettings::Project {
-                    selected_local_folder,
-                    initialize_projects_automatically,
-                } => {
-                    let path = PathBuf::from(selected_local_folder);
-                    // When AgentView is enabled, /init comes at the end of the tutorial.
-                    if !FeatureFlag::AgentView.is_enabled() && initialize_projects_automatically {
-                        OnboardingTutorial::InitProject {
-                            path,
-                            intention: OnboardingIntention::AgentDrivenDevelopment,
-                        }
-                    } else {
-                        OnboardingTutorial::Project {
-                            path,
-                            intention: OnboardingIntention::AgentDrivenDevelopment,
-                        }
-                    }
-                }
-                ProjectOnboardingSettings::NoProject => OnboardingTutorial::NoProject {
-                    intention: OnboardingIntention::AgentDrivenDevelopment,
-                },
-            },
-            SelectedSettings::Terminal { .. } => OnboardingTutorial::NoProject {
-                intention: OnboardingIntention::Terminal,
-            },
-        }
-    }
 }
 
 impl Workspace {
@@ -147,14 +110,6 @@ impl Workspace {
         // Onboarding requires a real user to interact with it; skip when running
         // in a headless mode like the SDK/CLI.
         if !AppExecutionMode::as_ref(ctx).can_show_onboarding() {
-            return;
-        }
-
-        // With new onboarding, skip the guided tour when AI is not enabled
-        // (e.g. terminal-intent users or users who disabled AI).
-        if FeatureFlag::OpenWarpNewSettingsModes.is_enabled()
-            && !*AISettings::as_ref(ctx).is_any_ai_enabled
-        {
             return;
         }
 

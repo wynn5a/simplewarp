@@ -482,7 +482,6 @@ agent_mode_computer_use = []
 background_computer_use = []
 agent_mode_debug = []
 agent_onboarding = []
-account_first_onboarding = []
 ask_user_question = []
 async_find = []
 clear_autosuggestion_on_escape = []
@@ -601,7 +600,6 @@ default = [
     "agent_tips",
     "pluggable_notifications",
     "agent_onboarding",
-    "account_first_onboarding",
     "global_search",
     "cloud_conversations",
     "list_skills",
@@ -661,7 +659,6 @@ default = [
     "agent_harness",
     "hoa_remote_control",
     "trim_trailing_blank_lines",
-    "open_warp_new_settings_modes",
     "skip_firebase_anonymous_user",
     "settings_file",
     "directory_tab_colors",
@@ -1116,7 +1113,6 @@ queue_slash_command = []
 queued_prompts_v2 = ["queue_slash_command"]
 inline_menu_headers = []
 directory_tab_colors = []
-open_warp_new_settings_modes = []
 hoa_code_review = []
 vertical_tabs = []
 vertical_tabs_summary_mode = []

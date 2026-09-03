@@ -73,8 +73,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CloudRunners,
         #[cfg(feature = "cloud_agent_runners")]
         FeatureFlag::CloudAgentRunners,
-        #[cfg(feature = "account_first_onboarding")]
-        FeatureFlag::AccountFirstOnboarding,
         #[cfg(feature = "full_screen_zen_mode")]
         FeatureFlag::FullScreenZenMode,
         #[cfg(feature = "minimalist_ui")]
@@ -399,8 +397,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::RestorePromptOnInlineModelSelectorSearch,
         #[cfg(feature = "directory_tab_colors")]
         FeatureFlag::DirectoryTabColors,
-        #[cfg(feature = "open_warp_new_settings_modes")]
-        FeatureFlag::OpenWarpNewSettingsModes,
         #[cfg(feature = "hoa_code_review")]
         FeatureFlag::HoaCodeReview,
         #[cfg(feature = "vertical_tabs")]

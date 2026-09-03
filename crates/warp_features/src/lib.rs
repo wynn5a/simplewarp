@@ -642,10 +642,6 @@ pub enum FeatureFlag {
     /// adopt the configured color when their working directory matches.
     DirectoryTabColors,
 
-    /// Enables the new settings to control visibility of Warp Drive, Code Review Panel,
-    /// and Project Explorer & Global Search features.
-    OpenWarpNewSettingsModes,
-
     /// Enables vertical tab layout as an alternative to the horizontal tab bar.
     VerticalTabs,
 
@@ -791,10 +787,6 @@ pub enum FeatureFlag {
     /// orchestration (`run_agents`) confirmation card and plan-card config
     /// block for choosing a runner when starting remote child agents.
     CloudAgentRunners,
-
-    /// Gates the account-first onboarding flow, including the reordered
-    /// pre-auth slides and post-auth account offer.
-    AccountFirstOnboarding,
 
     /// Accepts well-known non-UUID managed MCP ids (e.g. `"linear"`) as
     /// `warp_id` values in MCP configs and as bare identifiers in CLI
