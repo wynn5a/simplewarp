@@ -3269,6 +3269,38 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             consts), then a dedicated investigation into whether `app/src/settings/onboarding.rs`
             and the wizard's `SelectedSettings`-consuming pipeline are dead code independent of
             these flags.
+      - [x] **The entire onboarding-wizard subsystem is deleted** (4aj, 2026-09-02, ~8,600 net
+            lines): the 4ai reachability lead turned out correct. `AgentOnboardingView` was
+            publicly re-exported and its `init()` was called from `app/src/lib.rs:1737`, but
+            nothing in the app ever constructed an instance — `init()` only registered
+            keybindings scoped to a view that never rendered, reachable only via the crate's own
+            opt-in `onboarding` preview binary. User approved deleting the whole thing rather
+            than continuing to fold guards inside it. Deleted: `agent_onboarding_view.rs`,
+            `model.rs` (`OnboardingStateModel`) + its tests, all 20 files under `slides/`, all 6
+            files under `visuals/`, `components/feature_optout_dialog.rs`, the preview bin
+            (`src/bin/main.rs`, `telemetry_provider.rs`, the `[[bin]]`/`bin` feature in
+            `Cargo.toml`), and `app/src/settings/onboarding.rs` + its tests (every function —
+            `apply_onboarding_settings`, `apply_account_first_onboarding_settings`,
+            `apply_ui_customization_settings`, `apply_agent_settings`,
+            `action_permissions_for_onboarding_autonomy` — had zero production callers). Both
+            `FeatureFlag` variants and their cargo features are now fully deleted. **Confirmed
+            separate, untouched**: `crates/onboarding/src/callout/` (`OnboardingCalloutView`,
+            live via `app/src/terminal/view.rs`) and `OnboardingTutorial` in
+            `app/src/workspace/view/onboarding.rs` (an app-local type, unrelated naming collision
+            with the crate) — only that file's dead `impl From<SelectedSettings>` and one
+            now-permanently-false flag guard in `dispatch_tutorial_when_bootstrapped` were
+            removed, the rest of the file stays. `telemetry.rs`'s `OnboardingEvent` was not fully
+            dead — `callout/model.rs` constructs 3 of its ~20 variants live
+            (`CalloutDisplayed`/`CalloutNext`/`CalloutCompleted`) — so it needed variant-level
+            pruning rather than deletion; replaced `telemetry_tests.rs`'s 5 dead-variant tests
+            with one small test covering the 3 survivors (previously zero coverage of the live
+            path). Two more items orphaned by the deletion and confirmed zero-caller via
+            `cargo check`: `FtueAccountClass` enum + its `as_str`/test (existed only to route
+            account-first signup outcomes) — deleted; `AIExecutionProfilesModel::should_preserve_onboarding_profile`
+            — kept, since it still has a real behavioral test caller
+            (`explicit_local_collection_is_preserved_from_onboarding`), matching the 4ah
+            `request_limit()` precedent for a general accessor with its own test coverage.
+            nextest 5707 green (down from 5720, expected from the test deletions).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
