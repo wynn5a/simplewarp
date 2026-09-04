@@ -44,12 +44,6 @@ pub enum CloudAgentTelemetryEvent {
         /// Error message describing the failure.
         error: String,
     },
-    /// User clicked "Enable" on the auto-handoff sleep prompt.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    SleepPromptEnabled,
-    /// User clicked "Dismiss" on the auto-handoff sleep prompt.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    SleepPromptDismissed,
 }
 
 impl TelemetryEvent for CloudAgentTelemetryEvent {
@@ -65,8 +59,6 @@ impl TelemetryEvent for CloudAgentTelemetryEvent {
             CloudAgentTelemetryEvent::DispatchFailed { error } => Some(json!({
                 "error": error,
             })),
-            CloudAgentTelemetryEvent::SleepPromptEnabled
-            | CloudAgentTelemetryEvent::SleepPromptDismissed => None,
         }
     }
 
@@ -92,8 +84,6 @@ impl TelemetryEventDesc for CloudAgentTelemetryEventDiscriminants {
         match self {
             Self::EnteredCloudMode => "AmbientAgent.CloudMode.Entered",
             Self::DispatchFailed => "AmbientAgent.DispatchFailed",
-            Self::SleepPromptEnabled => "AmbientAgent.Handoff.SleepPrompt.Enabled",
-            Self::SleepPromptDismissed => "AmbientAgent.Handoff.SleepPrompt.Dismissed",
         }
     }
 
@@ -101,12 +91,6 @@ impl TelemetryEventDesc for CloudAgentTelemetryEventDiscriminants {
         match self {
             Self::EnteredCloudMode => "User entered cloud agent view",
             Self::DispatchFailed => "Ambient agent failed to dispatch or encountered an error",
-            Self::SleepPromptEnabled => {
-                "User enabled auto-handoff on sleep from the discoverability prompt"
-            }
-            Self::SleepPromptDismissed => {
-                "User dismissed the auto-handoff sleep discoverability prompt"
-            }
         }
     }
 

@@ -162,9 +162,6 @@ impl HarnessSelector {
 
     /// Programmatically opens the harness selector popover. No-op if already open.
     pub fn open_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.is_locked_to_oz(ctx) {
-            return;
-        }
         self.set_menu_visibility(true, ctx);
     }
 
@@ -190,7 +187,6 @@ impl HarnessSelector {
     }
 
     fn set_menu_visibility(&mut self, is_open: bool, ctx: &mut ViewContext<Self>) {
-        let is_open = is_open && !self.is_locked_to_oz(ctx);
         if self.is_menu_open == is_open {
             return;
         }
@@ -203,14 +199,7 @@ impl HarnessSelector {
         ctx.notify();
     }
 
-    fn is_locked_to_oz(&self, app: &AppContext) -> bool {
-        self.ambient_agent_model
-            .as_ref(app)
-            .is_local_to_cloud_handoff()
-    }
-
     fn refresh_button(&mut self, ctx: &mut ViewContext<Self>) {
-        let is_locked_to_oz = self.is_locked_to_oz(ctx);
         let harness = self.ambient_agent_model.as_ref(ctx).selected_harness();
         let label = HarnessAvailabilityModel::as_ref(ctx)
             .display_name_for(harness)
@@ -219,20 +208,10 @@ impl HarnessSelector {
         self.button.update(ctx, |button, ctx| {
             button.set_label(label, ctx);
             button.set_icon(Some(icon), ctx);
-            button.set_has_menu(!is_locked_to_oz, ctx);
-            button.set_disabled(is_locked_to_oz, ctx);
-            button.set_tooltip(
-                Some(if is_locked_to_oz {
-                    "This conversation is with the Warp Agent, so the cloud handoff will also use Warp"
-                } else {
-                    BUTTON_TOOLTIP
-                }),
-                ctx,
-            );
+            button.set_has_menu(true, ctx);
+            button.set_disabled(false, ctx);
+            button.set_tooltip(Some(BUTTON_TOOLTIP), ctx);
         });
-        if is_locked_to_oz {
-            self.set_menu_visibility(false, ctx);
-        }
     }
 
     fn refresh_menu(&mut self, ctx: &mut ViewContext<Self>) {
@@ -328,18 +307,10 @@ impl TypedActionView for HarnessSelector {
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
             HarnessSelectorAction::ToggleMenu => {
-                if self.is_locked_to_oz(ctx) {
-                    self.set_menu_visibility(false, ctx);
-                    return;
-                }
                 let new_state = !self.is_menu_open;
                 self.set_menu_visibility(new_state, ctx);
             }
             HarnessSelectorAction::SelectHarness(harness) => {
-                if self.is_locked_to_oz(ctx) {
-                    self.set_menu_visibility(false, ctx);
-                    return;
-                }
                 let harness = *harness;
                 self.ambient_agent_model.update(ctx, |model, ctx| {
                     model.set_harness(harness, ctx);

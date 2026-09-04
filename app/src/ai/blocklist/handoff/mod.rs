@@ -1,18 +1,17 @@
 //! Client-side pieces of the local-to-cloud Oz conversation handoff:
 //!
 //! - Payload types (`HandoffLaunchAttachments`, `PendingCloudLaunch`) carry the
-//!   compose/auto-submit request from the input; the pipeline that used to
-//!   consume them (`prepare_handoff`/`execute_handoff`) was removed when
-//!   `FeatureFlag::OzHandoff` was folded permanently off (round 4an, part
-//!   1/2) — the payload types themselves are kept because the still-live
-//!   compose UI (`terminal/input.rs`) still constructs them.
+//!   auto-submit request; the pipeline that used to consume them
+//!   (`prepare_handoff`/`execute_handoff`) and the compose UI that used to
+//!   construct them were both removed when `FeatureFlag::OzHandoff` was folded
+//!   permanently off (round 4an) — the payload types themselves are kept
+//!   because `workspace/view.rs`'s handoff stubs still construct them.
 //! - `snapshot`: gives the (removed) pipeline one local/remote snapshot-upload
 //!   interface. Kept: also used directly by `remote_server::server_model`.
-//! - `touched_repos`: walks the conversation's action history to collect every
-//!   filesystem path the local agent has touched, groups those paths into git
-//!   roots and orphan files, and exposes the env-overlap pick used by the
-//!   handoff pane bootstrap. Kept: `derive_touched_workspace` is used directly
-//!   by `remote_server::handoff_snapshot` (the SSH-remote daemon's own,
+//! - `touched_repos`: walks a flat list of filesystem paths the local agent
+//!   has touched and groups them into git roots and orphan files. Kept:
+//!   `derive_touched_workspace` is used directly by
+//!   `remote_server::handoff_snapshot` (the SSH-remote daemon's own,
 //!   unrelated handoff-snapshot RPC handler).
 
 use super::PendingAttachment;
@@ -22,10 +21,6 @@ use crate::server::server_api::ai::AttachmentInput;
 pub(crate) mod snapshot;
 #[cfg(feature = "local_fs")]
 pub(crate) mod touched_repos;
-
-#[cfg(feature = "local_fs")]
-#[allow(unused_imports)]
-pub use touched_repos::suggest_handoff_environment;
 
 /// Prompt attachments represented for both cloud submission and local restoration.
 #[cfg_attr(target_family = "wasm", allow(dead_code))]

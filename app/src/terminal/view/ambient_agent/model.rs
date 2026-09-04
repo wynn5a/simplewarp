@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-use futures::channel::oneshot;
 use instant::Instant;
 use session_sharing_protocol::common::SessionId;
 use warp_cli::agent::Harness;
@@ -112,13 +110,6 @@ pub enum Status {
     /// The agent was cancelled.
     Cancelled { progress: AgentProgress },
 }
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-enum LocalToCloudHandoffState {
-    Preparing { cancel: oneshot::Sender<()> },
-    Monitoring,
-    Cancelled,
-    Finished,
-}
 
 /// Model to track the state of an ambient agent run.
 pub struct AmbientAgentViewModel {
@@ -183,9 +174,6 @@ pub struct AmbientAgentViewModel {
 
     /// Prompt text for a follow-up that has been submitted but not yet attached to a new session.
     pending_followup_prompt: Option<String>,
-
-    #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-    local_to_cloud_handoff_state: Option<LocalToCloudHandoffState>,
 }
 
 impl AmbientAgentViewModel {
@@ -252,8 +240,6 @@ impl AmbientAgentViewModel {
             active_execution_session_id: None,
             last_ended_execution_session_id: None,
             pending_followup_prompt: None,
-            #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-            local_to_cloud_handoff_state: None,
         }
     }
 
@@ -374,23 +360,10 @@ impl AmbientAgentViewModel {
     }
 
     pub fn selected_harness(&self) -> Harness {
-        if self.is_local_to_cloud_handoff() {
-            Harness::Oz
-        } else {
-            self.harness
-        }
+        self.harness
     }
 
     pub fn set_harness(&mut self, harness: Harness, ctx: &mut ModelContext<Self>) {
-        // for local to cloud handoff, oz is the only option
-        // (we'll need to update this to lock to the correct 3p harness if/when
-        // we implement local -> cloud handoff for non-oz conversations).
-        let harness = if self.is_local_to_cloud_handoff() {
-            Harness::Oz
-        } else {
-            harness
-        };
-
         if self.harness == harness {
             return;
         }
@@ -459,41 +432,6 @@ impl AmbientAgentViewModel {
         CLIAgent::from_harness(self.selected_harness())
     }
 
-    /// True when this pane is a local-to-cloud handoff pane. Set when the handoff opens
-    /// the pane and stays true through and past the spawn.
-    pub(crate) fn is_local_to_cloud_handoff(&self) -> bool {
-        #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-        {
-            self.local_to_cloud_handoff_state.is_some()
-        }
-        #[cfg(not(all(feature = "local_fs", not(target_family = "wasm"))))]
-        {
-            false
-        }
-    }
-
-    #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-    pub(crate) fn begin_local_to_cloud_handoff(
-        &mut self,
-        request: SpawnAgentRequest,
-        cancel: oneshot::Sender<()>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let previous_harness = self.selected_harness();
-        self.local_to_cloud_handoff_state = Some(LocalToCloudHandoffState::Preparing { cancel });
-        self.request = Some(request);
-        self.source = None;
-        self.status = Status::WaitingForSession {
-            progress: AgentProgress::new(),
-            kind: SessionStartupKind::InitialRun,
-        };
-        self.start_progress_timer(ctx);
-        if self.selected_harness() != previous_harness {
-            ctx.emit(AmbientAgentViewModelEvent::HarnessSelected);
-        }
-        ctx.emit(AmbientAgentViewModelEvent::PendingHandoffChanged);
-        ctx.emit(AmbientAgentViewModelEvent::DispatchedAgent);
-    }
     /// Whether the harness CLI has started running. Only meaningful for non-oz runs.
     pub(super) fn harness_command_started(&self) -> bool {
         self.harness_command_started
@@ -1301,19 +1239,6 @@ impl AmbientAgentViewModel {
 
         self.status = Status::Cancelled { progress };
         self.pending_followup_prompt = None;
-        #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-        {
-            self.local_to_cloud_handoff_state = match self.local_to_cloud_handoff_state.take() {
-                Some(LocalToCloudHandoffState::Preparing { cancel }) => {
-                    let _ = cancel.send(());
-                    Some(LocalToCloudHandoffState::Cancelled)
-                }
-                Some(LocalToCloudHandoffState::Monitoring) => {
-                    Some(LocalToCloudHandoffState::Finished)
-                }
-                state => state,
-            };
-        }
 
         ctx.emit(AmbientAgentViewModelEvent::Cancelled);
     }
@@ -1406,14 +1331,6 @@ pub enum AmbientAgentViewModelEvent {
     HarnessCommandStarted {
         block_id: BlockId,
     },
-    /// The pane's `pending_handoff` was updated.
-    PendingHandoffChanged,
-    /// The async handoff snapshot upload failed. The input layer subscribes to
-    /// surface the error as a toast.
-    HandoffSnapshotUploadFailed {
-        error_message: String,
-    },
-
     UpdatedSetupCommandVisibility,
     /// The selected harness auth secret changed.
     AuthSecretSelected,

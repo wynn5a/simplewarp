@@ -66,7 +66,7 @@ use crate::terminal::cli_agent_sessions::{
     CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
 };
 use crate::terminal::input::models::InlineModelSelectorTab;
-use crate::terminal::input::{HandoffComposeState, MenuPositioningProvider};
+use crate::terminal::input::MenuPositioningProvider;
 use crate::terminal::profile_model_selector::{ProfileModelSelector, ProfileModelSelectorEvent};
 use crate::terminal::session_settings::{
     SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection,
@@ -133,7 +133,6 @@ pub struct AgentInputFooter {
     model_selector: ViewHandle<ProfileModelSelector>,
     prompt_alert: ViewHandle<PromptAlertView>,
     ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
-    handoff_compose_state: ModelHandle<HandoffComposeState>,
     left_display_chips: Vec<ViewHandle<DisplayChip>>,
     right_display_chips: Vec<ViewHandle<DisplayChip>>,
     // Separate set of display chips for the CLI agent footer.
@@ -153,11 +152,6 @@ pub struct AgentInputFooter {
 
     // Fast-forward (auto-approve) toggle button shown in the agent view footer.
     fast_forward_button: ViewHandle<ActionButton>,
-
-    // "Hand off to cloud" chip. Visibility is gated on native/local handoff
-    // availability. Per-conversation eligibility is enforced by
-    // `Workspace::start_local_to_cloud_handoff`.
-    handoff_to_cloud_button: ViewHandle<ActionButton>,
 
     // CLI agent voice input state (self-contained, bypasses editor voice flow).
     #[cfg(feature = "voice_input")]
@@ -231,7 +225,6 @@ impl AgentInputFooter {
         ai_input_model: ModelHandle<BlocklistAIInputModel>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
-        handoff_compose_state: ModelHandle<HandoffComposeState>,
         prompt: ModelHandle<PromptType>,
         display_chip_config: DisplayChipConfig,
         ctx: &mut ViewContext<Self>,
@@ -335,20 +328,6 @@ impl AgentInputFooter {
                 .with_disabled_theme(FastForwardLockedTheme)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(TerminalAction::ToggleAutoexecuteMode);
-                })
-        });
-
-        // "Hand off to cloud" chip. On click dispatches the workspace action that
-        // splits a new cloud-mode pane next to the local pane; that pane handles
-        // the rest of the handoff flow when native/local handoff is available.
-        let handoff_to_cloud_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("", AgentInputButtonTheme)
-                .with_icon(Icon::UploadCloud)
-                .with_tooltip("Hand off to cloud (or type &)")
-                .with_size(button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::HandoffChipClicked);
                 })
         });
 
@@ -470,13 +449,6 @@ impl AgentInputFooter {
             me.handle_profile_model_selector_event(event, ctx);
         });
 
-        ctx.subscribe_to_model(
-            &handoff_compose_state,
-            |_me, _handoff_compose_state, _, ctx| {
-                ctx.notify();
-            },
-        );
-
         let prompt_alert = ctx.add_view(PromptAlertView::new);
 
         ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |_, _, _, ctx| {
@@ -489,11 +461,7 @@ impl AgentInputFooter {
             ctx.notify()
         });
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
-            if matches!(
-                event,
-                AISettingsChangedEvent::AIAutoDetectionEnabled { .. }
-                    | AISettingsChangedEvent::ShouldForceDisableCloudHandoff { .. }
-            ) {
+            if matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled { .. }) {
                 ctx.notify()
             }
         });
@@ -618,13 +586,11 @@ impl AgentInputFooter {
             model_selector: profile_model_selector_full,
             prompt_alert,
             terminal_model,
-            handoff_compose_state,
             left_display_chips: vec![],
             right_display_chips: vec![],
             cli_display_chips: vec![],
             display_chip_config,
             fast_forward_button,
-            handoff_to_cloud_button,
             #[cfg(feature = "voice_input")]
             cli_voice_input_lifecycle: VoiceInputLifecycle::default(),
             #[cfg(feature = "voice_input")]
@@ -1367,16 +1333,9 @@ impl AgentInputFooter {
     fn render_toolbar_item(
         &self,
         item: &AgentToolbarItemKind,
-        is_cloud_context: bool,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         if !item.available_in().is_available_for_agent_view() {
-            return None;
-        }
-
-        if self.handoff_compose_state.as_ref(app).is_active()
-            && !item.is_available_during_handoff_compose()
-        {
             return None;
         }
 
@@ -1456,13 +1415,11 @@ impl AgentInputFooter {
             AgentToolbarItemKind::FastForwardToggle => FeatureFlag::FastForwardAutoexecuteButton
                 .is_enabled()
                 .then(|| ChildView::new(&self.fast_forward_button).finish()),
-            AgentToolbarItemKind::HandoffToCloud => {
-                if !AISettings::as_ref(app).is_cloud_handoff_enabled(app) || is_cloud_context {
-                    return None;
-                }
-
-                Some(ChildView::new(&self.handoff_to_cloud_button).finish())
-            }
+            // Local-to-cloud handoff was removed when `FeatureFlag::OzHandoff`
+            // was folded permanently off (round 4an, part 2/2) — it required
+            // a Warp account/server, which this build never has. The variant
+            // stays for persisted-toolbar-layout backwards compatibility.
+            AgentToolbarItemKind::HandoffToCloud => None,
             AgentToolbarItemKind::FileExplorer => item
                 .is_available(app)
                 .then(|| ChildView::new(&self.file_explorer_button).finish()),
@@ -1518,11 +1475,8 @@ impl View for AgentInputFooter {
             .with_run_spacing(4.)
             .with_spacing(4.);
 
-        let terminal_model = self.terminal_model.lock();
-        let is_cloud_context = super::is_in_cloud_context(&terminal_model);
-
         for item in &left_items {
-            if let Some(element) = self.render_toolbar_item(item, is_cloud_context, app) {
+            if let Some(element) = self.render_toolbar_item(item, app) {
                 left_buttons.add_child(element);
             }
         }
@@ -1543,7 +1497,7 @@ impl View for AgentInputFooter {
             );
         } else {
             for item in &right_items {
-                if let Some(element) = self.render_toolbar_item(item, is_cloud_context, app) {
+                if let Some(element) = self.render_toolbar_item(item, app) {
                     right_buttons.add_child(element);
                 }
             }
@@ -1584,10 +1538,6 @@ pub enum AgentInputFooterAction {
     ToggleRichInput,
     ToggleAutodetectionSetting,
     OpenCodingAgentSettings,
-    /// User clicked the "Hand off to cloud" footer chip. The terminal `Input`
-    /// subscriber decides whether to dispatch the immediate empty-prompt
-    /// handoff or enter `&` compose mode based on the current input state.
-    HandoffChipClicked,
     ShowContextMenu {
         position: Vector2F,
     },
@@ -1672,18 +1622,6 @@ impl TypedActionView for AgentInputFooter {
                     widget_id: crate::settings_view::cli_agent_settings_widget_id(),
                 });
             }
-            AgentInputFooterAction::HandoffChipClicked => {
-                if FeatureFlag::OzHandoff.is_enabled()
-                    && FeatureFlag::HandoffLocalCloud.is_enabled()
-                    && cfg!(all(feature = "local_fs", not(target_family = "wasm")))
-                {
-                    // The terminal `Input` subscriber decides what to do with
-                    // the chip click — auto-handoff when the input buffer is
-                    // empty and the source conversation has content, or `&`
-                    // compose mode otherwise (preserving any in-flight prompt).
-                    ctx.emit(AgentInputFooterEvent::HandoffChipClicked);
-                }
-            }
             AgentInputFooterAction::ShowContextMenu { position } => {
                 ctx.emit(AgentInputFooterEvent::ShowContextMenu {
                     position: *position,
@@ -1726,11 +1664,6 @@ pub enum AgentInputFooterEvent {
     ShowContextMenu {
         position: Vector2F,
     },
-    /// Local-to-cloud handoff chip clicked. The terminal `Input` subscriber
-    /// either dispatches the immediate empty-prompt handoff (empty buffer +
-    /// source conversation with content) or activates `&` compose mode
-    /// (preserving any in-flight prompt).
-    HandoffChipClicked,
 }
 
 impl Entity for AgentInputFooter {

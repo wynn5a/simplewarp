@@ -108,14 +108,11 @@ pub fn is_cloud_agent_pre_first_exchange(
         return false;
     };
 
-    // Handoff panes enter agent view with `RestoreExistingConversation` because they restore the
-    // forked conversation, not `CloudAgent`. The `is_local_to_cloud_handoff` flag is the
-    // authoritative "this is a cloud agent pane" signal for that path. Shared-session viewers of
-    // an ambient run (raw link join / attach-to-running) enter agent view via
-    // `SharedSessionSelection` / `ThirdPartyCloudAgent`, so `is_shared_ambient_agent_session()` is
-    // the authoritative signal for that path — e.g. a post-death cloud follow-up spinning up a new
-    // VM must still count as pre-first-exchange so the setup progress + prompt-queuing UI render.
-    if !origin.is_cloud_agent() && !view_model.is_local_to_cloud_handoff() {
+    // Shared-session viewers of an ambient run (raw link join / attach-to-running) enter agent
+    // view via `SharedSessionSelection` / `ThirdPartyCloudAgent`, so `is_shared_ambient_agent_session()`
+    // is the authoritative signal for that path — e.g. a post-death cloud follow-up spinning up a
+    // new VM must still count as pre-first-exchange so the setup progress + prompt-queuing UI render.
+    if !origin.is_cloud_agent() {
         return false;
     }
 

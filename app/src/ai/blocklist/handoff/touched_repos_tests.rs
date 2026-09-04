@@ -1,10 +1,7 @@
 //! Tests for `touched_repos.rs`.
 //!
 //! Only covers `find_git_root`, which actually walks the filesystem against a
-//! temporary directory layout. The pure helpers (`parse_github_repo`,
-//! `pick_handoff_overlap_env`) are exercised end-to-end by the handoff submit
-//! path and don't get standalone tests — their correctness is enforced by
-//! their call sites.
+//! temporary directory layout.
 
 use std::fs;
 

@@ -1,7 +1,5 @@
 mod catalog;
 pub use catalog::CloudEnvironmentCatalog;
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-pub(crate) use catalog::sort_environments_by_recency;
 #[cfg_attr(target_family = "wasm", expect(unused_imports))]
 pub use cloud_object_models::{
     AmbientAgentEnvironment, CloudAmbientAgentEnvironment, CloudAmbientAgentEnvironmentModel,

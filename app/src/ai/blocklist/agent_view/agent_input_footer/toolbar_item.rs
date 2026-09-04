@@ -4,7 +4,7 @@ use warpui::SingletonEntity;
 use super::editor::AgentToolbarEditorMode;
 use crate::context_chips::{ContextChipKind, agent_footer_available_chips, available_chips};
 use crate::features::FeatureFlag;
-use crate::settings::{AISettings, CodeSettings};
+use crate::settings::CodeSettings;
 use crate::ui_components::icons::Icon;
 
 /// Declares which footer(s) a toolbar item is available in.
@@ -121,31 +121,16 @@ impl AgentToolbarItemKind {
         }
     }
 
-    /// Whether this item should remain visible during `&` handoff-compose mode.
-    /// Only items relevant to composing a cloud run are shown.
-    pub(super) fn is_available_during_handoff_compose(&self) -> bool {
-        match self {
-            Self::ContextChip(
-                ContextChipKind::ShellGitBranch | ContextChipKind::GitBranchStatus,
-            ) => true,
-            Self::ModelSelector | Self::VoiceInput | Self::FileAttach => true,
-            Self::ContextChip(_)
-            | Self::NLDToggle
-            | Self::ContextWindowUsage
-            | Self::FastForwardToggle
-            | Self::HandoffToCloud
-            | Self::FileExplorer
-            | Self::RichInput
-            | Self::Settings => false,
-        }
-    }
-
     /// Whether this item should be included in the toolbar given the current app state.
     /// Feature-flag checks live in `all_available()` / `default_*()`. This method
     /// handles runtime conditions that depend on user settings or workspace state.
     pub fn is_available(&self, app: &warpui::AppContext) -> bool {
         match self {
-            Self::HandoffToCloud => AISettings::as_ref(app).is_cloud_handoff_enabled(app),
+            // Local-to-cloud handoff was removed when `FeatureFlag::OzHandoff`
+            // was folded permanently off (round 4an) — it required a Warp
+            // account/server, which this build never has. The variant stays
+            // for persisted-toolbar-layout backwards compatibility.
+            Self::HandoffToCloud => false,
             // Matches the gating on every other project explorer entry point, so the chip
             // cannot open a tool view the rest of the app hides. See
             // `Workspace::compute_left_panel_views` and the `SHOW_PROJECT_EXPLORER`
@@ -179,12 +164,6 @@ impl AgentToolbarItemKind {
             Self::ContextWindowUsage,
             Self::ModelSelector,
         ];
-        if FeatureFlag::OzHandoff.is_enabled()
-            && FeatureFlag::HandoffLocalCloud.is_enabled()
-            && cfg!(all(feature = "local_fs", not(target_family = "wasm")))
-        {
-            items.push(Self::HandoffToCloud);
-        }
         items.push(Self::VoiceInput);
         items.push(Self::FileAttach);
         items
@@ -207,12 +186,6 @@ impl AgentToolbarItemKind {
         ]);
         if FeatureFlag::FastForwardAutoexecuteButton.is_enabled() {
             items.push(Self::FastForwardToggle);
-        }
-        if FeatureFlag::OzHandoff.is_enabled()
-            && FeatureFlag::HandoffLocalCloud.is_enabled()
-            && cfg!(all(feature = "local_fs", not(target_family = "wasm")))
-        {
-            items.push(Self::HandoffToCloud);
         }
         items
     }

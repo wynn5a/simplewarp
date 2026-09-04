@@ -732,12 +732,6 @@ pub enum WorkspaceAction {
     /// Reset the feature intro seen state (for debugging)
     #[cfg(debug_assertions)]
     ResetFeatureIntroModalState,
-    /// Open the auto-handoff sleep modal (for debugging)
-    #[cfg(debug_assertions)]
-    OpenAutoHandoffSleepModal,
-    /// Reset the auto-handoff sleep modal shown state (for debugging)
-    #[cfg(debug_assertions)]
-    ResetAutoHandoffSleepModalState,
     /// Open the Free AI Removal Modal (for debugging)
     #[cfg(debug_assertions)]
     OpenFreeAiRemovalModal,
@@ -1167,8 +1161,6 @@ impl WorkspaceAction {
             | ResetAgentCliLaunchModalState
             | OpenFeatureIntroModal
             | ResetFeatureIntroModalState
-            | OpenAutoHandoffSleepModal
-            | ResetAutoHandoffSleepModalState
             | OpenFreeAiRemovalModal
             | ResetFreeAiRemovalModalState
             | InstallOpenCodeWarpPlugin

@@ -1191,18 +1191,6 @@ impl LLMPreferences {
         }
     }
 
-    /// True when the pane's active Agent Mode model can run in a Warp cloud
-    /// (Oz) agent (see [`Self::is_cloud_runnable_oz_model_id`]).
-    pub(crate) fn is_active_base_model_cloud_runnable(
-        &self,
-        terminal_view_id: EntityId,
-        app: &AppContext,
-    ) -> bool {
-        self.is_cloud_runnable_oz_model_id(
-            &self.get_active_base_model(app, Some(terminal_view_id)).id,
-        )
-    }
-
     /// Footer label for custom endpoint usage keyed by the request config_key.
     /// The synthetic custom LLMInfo already owns alias-or-name display semantics.
     pub fn custom_endpoint_usage_display_label(&self, config_key: &str) -> String {

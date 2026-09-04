@@ -63,12 +63,7 @@ impl Input {
         FeatureFlag::CloudModeInputV2.is_enabled()
             && FeatureFlag::CloudMode.is_enabled()
             && self.ambient_agent_view_model().is_some_and(|model| {
-                let view_model = model.as_ref(app);
-                view_model.is_configuring_ambient_agent()
-                    // The handoff pane intentionally stays on the existing input UI even
-                    // when V2 is on — V2 is for fresh cloud-mode runs only, and handoff has
-                    // its own pre-spawn flow (submit interception).
-                    && !view_model.is_local_to_cloud_handoff()
+                model.as_ref(app).is_configuring_ambient_agent()
             })
     }
 
@@ -198,9 +193,7 @@ impl Input {
         )
         .finish();
 
-        let border_color = if self.handoff_compose_state.as_ref(app).is_active() {
-            appearance.theme().ansi_fg_magenta()
-        } else if !self.ai_input_model.as_ref(app).is_ai_input_enabled()
+        let border_color = if !self.ai_input_model.as_ref(app).is_ai_input_enabled()
             && !self.suggestions_mode_model.as_ref(app).is_slash_commands()
             && !self.slash_command_model.as_ref(app).state().is_detected_command()
             // If NLD, don't color the border if the input is empty, because the current

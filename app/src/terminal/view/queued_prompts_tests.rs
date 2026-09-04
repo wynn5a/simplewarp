@@ -243,7 +243,7 @@ fn dispatched_cloud_followup_uses_locked_queue_row_when_v2_is_enabled() {
 fn cloud_setup_cleanup_events_remove_the_locked_queue_row() {
     // Events that always retire the locked initial Cloud Mode row, regardless of
     // CloudModeSetupV2. The V2 row removal is aligned with the legacy pending-user-query
-    // block removal: these four events removed the legacy block under both V2-off and
+    // block removal: these events removed the legacy block under both V2-off and
     // V2-on, and now do the same for the V2 queue row.
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
@@ -262,9 +262,6 @@ fn cloud_setup_cleanup_events_remove_the_locked_queue_row() {
                 },
                 AmbientAgentViewModelEvent::Cancelled,
                 AmbientAgentViewModelEvent::NeedsGithubAuth,
-                AmbientAgentViewModelEvent::HandoffSnapshotUploadFailed {
-                    error_message: "upload failed".to_owned(),
-                },
             ];
 
             for event in cleanup_events {

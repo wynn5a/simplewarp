@@ -113,8 +113,7 @@ impl TerminalView {
             }
             AmbientAgentViewModelEvent::NeedsGithubAuth
             | AmbientAgentViewModelEvent::Cancelled
-            | AmbientAgentViewModelEvent::HarnessCommandStarted { .. }
-            | AmbientAgentViewModelEvent::HandoffSnapshotUploadFailed { .. } => true,
+            | AmbientAgentViewModelEvent::HarnessCommandStarted { .. } => true,
             _ => false,
         };
         if should_clean_up_pending_cloud_query {
@@ -381,14 +380,6 @@ impl TerminalView {
                 }
 
                 ctx.emit(TerminalViewEvent::TerminalViewStateChanged);
-                ctx.notify();
-            }
-            AmbientAgentViewModelEvent::PendingHandoffChanged => {
-                ctx.notify();
-            }
-            AmbientAgentViewModelEvent::HandoffSnapshotUploadFailed { .. } => {
-                // The toast is surfaced by `Input`'s subscription; this just
-                // triggers a re-render of pane chrome.
                 ctx.notify();
             }
             AmbientAgentViewModelEvent::UpdatedSetupCommandVisibility
