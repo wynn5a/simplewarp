@@ -17,15 +17,11 @@ use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::extract_user_query_mode;
 use crate::ai::ambient_agents::github_auth_notifier::{GitHubAuthEvent, GitHubAuthNotifier};
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-use crate::ai::ambient_agents::spawn::monitor_spawned_task;
 use crate::ai::ambient_agents::spawn::{AmbientAgentEvent, spawn_task, submit_run_followup};
 use crate::ai::ambient_agents::task::{HarnessAuthSecretsConfig, HarnessConfig};
 use crate::ai::ambient_agents::telemetry::CloudAgentTelemetryEvent;
 use crate::ai::ambient_agents::{AgentSource, AmbientAgentTaskId};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-use crate::ai::blocklist::handoff::{HandoffCommitFailure, HandoffCreated, handoff_dispatch_error};
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::execution_profiles::{
     CloudAgentComputerUseState, resolve_cloud_agent_computer_use_state,
@@ -265,17 +261,6 @@ impl AmbientAgentViewModel {
         self.request.as_ref()
     }
 
-    /// The terminal view this model belongs to. Used by the handoff open path
-    /// to seed the source conversation's selected model onto this pane.
-    ///
-    /// Only the local→cloud handoff callers use this, and they are gated to
-    /// non-wasm targets; gate the getter the same way so it isn't flagged as
-    /// dead code on the wasm build.
-    #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-    pub(crate) fn terminal_view_id(&self) -> EntityId {
-        self.terminal_view_id
-    }
-
     pub fn setup_command_state(&self) -> &SetupCommandState {
         &self.setup_commands_state
     }
@@ -509,110 +494,6 @@ impl AmbientAgentViewModel {
         ctx.emit(AmbientAgentViewModelEvent::PendingHandoffChanged);
         ctx.emit(AmbientAgentViewModelEvent::DispatchedAgent);
     }
-    /// `HandoffInitiated.injection_path`. No-op when no handoff context is set.
-    #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-    pub(crate) fn monitor_created_handoff(
-        &mut self,
-        created: HandoffCreated,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match self.local_to_cloud_handoff_state.take() {
-            Some(LocalToCloudHandoffState::Preparing { .. }) => {
-                self.local_to_cloud_handoff_state = Some(LocalToCloudHandoffState::Monitoring);
-            }
-            Some(LocalToCloudHandoffState::Cancelled) => {
-                self.local_to_cloud_handoff_state = Some(LocalToCloudHandoffState::Finished);
-                Self::cancel_spawned_task(created.task_id, ctx);
-                return;
-            }
-            state => {
-                self.local_to_cloud_handoff_state = state;
-                return;
-            }
-        }
-        send_telemetry_from_ctx!(
-            CloudAgentTelemetryEvent::HandoffSnapshotPrepared {
-                derived_workspace_had_content: created.derived_workspace_had_content,
-            },
-            ctx
-        );
-        if created.snapshot_failed {
-            ctx.emit(AmbientAgentViewModelEvent::HandoffSnapshotUploadFailed {
-                error_message: "Workspace changes could not be uploaded; continuing without them."
-                    .to_owned(),
-            });
-        }
-        self.request = Some(created.request);
-        self.source = None;
-        let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
-        let stream = monitor_spawned_task(
-            created.task_id,
-            created.run_id,
-            created.at_capacity,
-            ai_client,
-            None,
-        );
-        ctx.spawn_stream_local(
-            stream,
-            |me, event_result, ctx| me.handle_ambient_agent_event_result(event_result, ctx),
-            |_me, _ctx| {},
-        );
-    }
-
-    #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-    pub(crate) fn handle_handoff_commit_failure(
-        &mut self,
-        failure: HandoffCommitFailure,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match self.local_to_cloud_handoff_state.take() {
-            Some(LocalToCloudHandoffState::Preparing { .. })
-                if !matches!(self.status, Status::Cancelled { .. }) =>
-            {
-                self.local_to_cloud_handoff_state = Some(LocalToCloudHandoffState::Finished);
-            }
-            state => {
-                self.local_to_cloud_handoff_state = state;
-                return;
-            }
-        }
-        let error = handoff_dispatch_error(&failure.issue);
-        send_telemetry_from_ctx!(CloudAgentTelemetryEvent::DispatchFailed { error }, ctx);
-        if let Some(derived_workspace_had_content) = failure.derived_workspace_had_content {
-            send_telemetry_from_ctx!(
-                CloudAgentTelemetryEvent::HandoffSnapshotPrepared {
-                    derived_workspace_had_content,
-                },
-                ctx
-            );
-        }
-        if failure.snapshot_failed {
-            ctx.emit(AmbientAgentViewModelEvent::HandoffSnapshotUploadFailed {
-                error_message: "Workspace changes could not be uploaded; continuing without them."
-                    .to_owned(),
-            });
-        }
-        self.request = failure.request;
-        match failure.issue {
-            CloudAgentStartupIssue::Blocked(CloudAgentStartupBlocker::GitHubAuthRequired {
-                message,
-                auth_url,
-            }) => self.handle_needs_github_auth(auth_url, message, ctx),
-            CloudAgentStartupIssue::Failed(CloudAgentStartupFailure::Capacity { message }) => {
-                self.handle_spawn_error(message, ctx);
-                ctx.emit(AmbientAgentViewModelEvent::ShowCloudAgentCapacityModal);
-            }
-            CloudAgentStartupIssue::Failed(CloudAgentStartupFailure::OutOfCredits { message }) => {
-                self.handle_spawn_error(message, ctx);
-                ctx.emit(AmbientAgentViewModelEvent::ShowAICreditModal);
-            }
-            CloudAgentStartupIssue::Failed(
-                CloudAgentStartupFailure::ServerOverloaded { message }
-                | CloudAgentStartupFailure::Other { message },
-            ) => self.handle_spawn_error(message, ctx),
-        }
-    }
-
     /// Whether the harness CLI has started running. Only meaningful for non-oz runs.
     pub(super) fn harness_command_started(&self) -> bool {
         self.harness_command_started

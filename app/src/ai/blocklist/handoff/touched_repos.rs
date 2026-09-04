@@ -1,12 +1,9 @@
 //! Touched-workspace derivation for local-to-cloud handoff (REMOTE-1486).
 //!
-//! Given an [`AIConversation`] (or the flat list of paths extracted from one) and
+//! Given the flat list of filesystem paths an agent run has touched and
 //! the user's currently-known cloud agent environments, this module produces:
 //!
-//! 1. The flat set of filesystem paths an agent run has touched, walked off the
-//!    conversation's action history and the per-exchange `working_directory`
-//!    (see [`extract_paths_from_conversation`]).
-//! 2. A [`TouchedWorkspace`] enumerating the distinct git repos and orphan files the
+//! 1. A [`TouchedWorkspace`] enumerating the distinct git repos and orphan files the
 //!    local agent has touched. Each repo carries a parsed `repo_id` (`<owner>/<repo>`)
 //!    derived from its `origin` remote URL, fetched via an async `git` invocation so
 //!    derivation never blocks the UI thread.
@@ -25,23 +22,14 @@ use command::Stdio;
 use command::r#async::Command;
 use futures::future::join_all;
 use tokio::fs as tokio_fs;
-use warp_util::standardized_path::StandardizedPath;
 use warpui::AppContext;
 use warpui::r#async::FutureExt as _;
 
-use crate::ai::agent::conversation::AIConversation;
-use crate::ai::agent::{AIAgentAction, AIAgentActionType, AIAgentOutputMessageType};
 use crate::ai::cloud_environments::{
     CloudAmbientAgentEnvironment, GithubRepo, sort_environments_by_recency,
 };
 use crate::cloud_object::CloudObjectLookup as _;
 use crate::server::ids::SyncId;
-
-/// Cap on how many of the conversation's action results we scan for paths,
-/// counted from most-recent backwards. Conversations with more than this many
-/// tool calls only contribute paths from their most recent
-/// [`MAX_TOOL_CALLS_TO_SCAN`].
-pub(crate) const MAX_TOOL_CALLS_TO_SCAN: usize = 500;
 
 /// Soft cap on each git invocation we dispatch. Mirrors the cap used by the cloud-side
 /// snapshot pipeline so individual filesystem hiccups don't stall the modal indefinitely.
@@ -268,178 +256,6 @@ pub(crate) fn pick_handoff_overlap_env(
         }
     }
     best.map(|(env, _)| env.id)
-}
-
-// --- Path extraction from `AIConversation` ---
-//
-// Walks an [`AIConversation`] and collects the filesystem paths the local agent
-// actually wrote to, plus the per-exchange `working_directory`. The output
-// feeds [`derive_touched_workspace`], which groups paths by enclosing `.git`
-// repo and produces the [`TouchedWorkspace`] the orchestrator uploads from.
-//
-// Read-only actions (`ReadFiles`, `Grep`, `FileGlob*`, `SearchCodebase`,
-// `InsertCodeReviewComments`) are intentionally NOT walked. The handoff
-// snapshot uploads orphan-file contents verbatim, so including a read-only
-// reference like `~/.ssh/id_rsa` would leak unrelated local files into the
-// cloud agent. Limiting the walk to writes (`RequestFileEdits`,
-// `UploadArtifact`) keeps the snapshot to files the user knowingly let the
-// agent author. Repos the agent only browsed are still discoverable through
-// the per-exchange cwd, which is captured below.
-//
-// `Path::is_absolute()` paths pass through unchanged; relative paths are
-// resolved against the exchange's `working_directory` (and dropped when there
-// is no cwd to resolve against). Empty entries are dropped.
-//
-// Cost is bounded by walking only the [`MAX_TOOL_CALLS_TO_SCAN`] most recent
-// action results across all exchanges. Older actions are skipped under the
-// assumption that the workspace state the user wants to hand off is dominated
-// by recent work; this keeps very long conversations from paying an unbounded
-// per-handoff scan cost.
-
-/// Collect every filesystem path the agent wrote to in any of the conversation's
-/// write actions (plus the cwd of every exchange that ran shell commands),
-/// capped to the most recent [`MAX_TOOL_CALLS_TO_SCAN`] action results.
-///
-/// Returns [`StandardizedPath`] values — every surviving path has been validated
-/// as absolute via [`StandardizedPath::try_new`], which handles both Unix and
-/// Windows encodings so remote POSIX paths are recognised correctly even on
-/// a Windows client.
-///
-/// The returned vec is deduplicated and may contain both directly-absolute and
-/// resolved-against-`working_directory` paths. Per-path filesystem checks
-/// (does the path exist? does it have a `.git` ancestor?) happen later in
-/// [`derive_touched_workspace`].
-pub(crate) fn extract_paths_from_conversation(
-    conversation: &AIConversation,
-) -> Vec<StandardizedPath> {
-    // Walk exchanges newest-first so we can stop once we've consumed the cap.
-    // Within each exchange we count every `Action` message against the budget
-    // and bail early if we hit it mid-exchange.
-    let mut paths: Vec<StandardizedPath> = Vec::new();
-    let mut seen: HashSet<StandardizedPath> = HashSet::new();
-    let mut tool_calls_remaining = MAX_TOOL_CALLS_TO_SCAN;
-
-    for exchange in conversation.all_exchanges().into_iter().rev() {
-        if tool_calls_remaining == 0 {
-            break;
-        }
-        let cwd = exchange.working_directory.as_deref();
-
-        // Track the per-exchange cwd unconditionally (it doesn't count as a tool
-        // call). Covers `RunShellCommand` cwds without walking action results.
-        if let Some(cwd) = cwd
-            && let Ok(sp) = StandardizedPath::try_new(cwd)
-            && seen.insert(sp.clone())
-        {
-            paths.push(sp);
-        }
-
-        let Some(output) = exchange.output_status.output() else {
-            continue;
-        };
-        let output = output.get();
-        // Walk messages newest-first within the exchange too, so a single long
-        // exchange can't burn the budget on its oldest tool calls before
-        // reaching its most recent edits.
-        for message in output.messages.iter().rev() {
-            let AIAgentOutputMessageType::Action(action) = &message.message else {
-                continue;
-            };
-            if tool_calls_remaining == 0 {
-                break;
-            }
-            tool_calls_remaining -= 1;
-            extract_action_paths(action, cwd, &mut paths, &mut seen);
-        }
-    }
-
-    paths
-}
-
-fn extract_action_paths(
-    action: &AIAgentAction,
-    cwd: Option<&str>,
-    paths: &mut Vec<StandardizedPath>,
-    seen: &mut HashSet<StandardizedPath>,
-) {
-    match &action.action {
-        // Write actions: the agent authored or replaced these files. Safe to
-        // stage as orphan-file content if they fall outside any git repo.
-        AIAgentActionType::RequestFileEdits { file_edits, .. } => {
-            for edit in file_edits {
-                push_resolved(edit.file(), cwd, paths, seen);
-            }
-        }
-        AIAgentActionType::UploadArtifact(req) => {
-            push_resolved(Some(req.file_path.as_str()), cwd, paths, seen);
-        }
-        // Read / search actions are intentionally NOT walked. See module-level
-        // comment: including read-only references would let `ReadFiles` on
-        // something like `~/.ssh/id_rsa` leak into the snapshot upload.
-        AIAgentActionType::ReadFiles(_)
-        | AIAgentActionType::Grep { .. }
-        | AIAgentActionType::FileGlob { .. }
-        | AIAgentActionType::FileGlobV2 { .. }
-        | AIAgentActionType::SearchCodebase(_)
-        | AIAgentActionType::InsertCodeReviewComments { .. }
-        | AIAgentActionType::RequestCommandOutput { .. }
-        | AIAgentActionType::WriteToLongRunningShellCommand { .. }
-        | AIAgentActionType::ReadShellCommandOutput { .. }
-        | AIAgentActionType::ReadMCPResource { .. }
-        | AIAgentActionType::CallMCPTool { .. }
-        | AIAgentActionType::SuggestNewConversation { .. }
-        | AIAgentActionType::SuggestPrompt(_)
-        | AIAgentActionType::InitProject
-        | AIAgentActionType::OpenCodeReview
-        | AIAgentActionType::ReadDocuments(_)
-        | AIAgentActionType::EditDocuments(_)
-        | AIAgentActionType::CreateDocuments(_)
-        | AIAgentActionType::UseComputer(_)
-        | AIAgentActionType::RequestComputerUse(_)
-        | AIAgentActionType::StartRecording { .. }
-        | AIAgentActionType::StopRecording { .. }
-        | AIAgentActionType::ReadSkill(_)
-        | AIAgentActionType::FetchConversation { .. }
-        | AIAgentActionType::SendMessageToAgent { .. }
-        | AIAgentActionType::TransferShellCommandControlToUser { .. }
-        | AIAgentActionType::AskUserQuestion { .. }
-        | AIAgentActionType::RunAgents(_)
-        | AIAgentActionType::WaitForEvents { .. } => {}
-    }
-}
-
-/// Push `raw` into `paths` after resolving it against `cwd` if necessary.
-/// Uses [`StandardizedPath`] for platform-aware absolute-path detection so
-/// POSIX remote paths are handled correctly even on Windows clients.
-/// Empty / `None` entries are ignored.
-fn push_resolved(
-    raw: Option<&str>,
-    cwd: Option<&str>,
-    paths: &mut Vec<StandardizedPath>,
-    seen: &mut HashSet<StandardizedPath>,
-) {
-    let Some(raw) = raw else { return };
-    let raw = raw.trim();
-    if raw.is_empty() {
-        return;
-    }
-    // Try to validate as an absolute path using StandardizedPath, which
-    // correctly handles both Unix and Windows path encodings.
-    let sp = if let Ok(sp) = StandardizedPath::try_new(raw) {
-        sp
-    } else if let Some(cwd) = cwd {
-        // Relative path — resolve against the exchange cwd.
-        let joined = format!("{cwd}/{raw}");
-        match StandardizedPath::try_new(&joined) {
-            Ok(sp) => sp,
-            Err(_) => return,
-        }
-    } else {
-        return;
-    };
-    if seen.insert(sp.clone()) {
-        paths.push(sp);
-    }
 }
 
 #[cfg(test)]

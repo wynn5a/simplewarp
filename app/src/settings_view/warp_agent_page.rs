@@ -1588,7 +1588,6 @@ impl WarpAgentPageView {
         if voice_supported {
             widgets.push(Box::new(VoiceWidget::default()));
         }
-        widgets.push(Box::new(CloudHandoffWidget::default()));
         widgets.push(Box::new(ApiKeysWidget::new(ctx)));
         widgets.push(Box::new(AwsBedrockWidget::new(ctx)));
         widgets.push(Box::new(GeminiEnterpriseWidget::new(ctx)));
@@ -1746,9 +1745,6 @@ pub enum WarpAgentPageAction {
     // Custom inference
     OpenAddCustomEndpointModal,
     OpenEditCustomEndpointModal(usize),
-    ToggleCloudHandoff,
-    ToggleAmpersandHandoff,
-    ToggleAutoHandoffOnSleep,
     ToggleShowConversationHistory,
 }
 
@@ -2201,36 +2197,6 @@ impl TypedActionView for WarpAgentPageView {
             }
             WarpAgentPageAction::OpenEditCustomEndpointModal(index) => {
                 self.show_edit_custom_endpoint_modal(*index, ctx);
-            }
-            WarpAgentPageAction::ToggleCloudHandoff => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .should_force_disable_cloud_handoff
-                            .toggle_and_save_value(ctx)
-                    );
-                });
-                ctx.notify();
-            }
-            WarpAgentPageAction::ToggleAmpersandHandoff => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .should_force_disable_ampersand_handoff
-                            .toggle_and_save_value(ctx)
-                    );
-                });
-                ctx.notify();
-            }
-            WarpAgentPageAction::ToggleAutoHandoffOnSleep => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .auto_handoff_on_sleep_enabled
-                            .toggle_and_save_value(ctx)
-                    );
-                });
-                ctx.notify();
             }
             WarpAgentPageAction::ToggleAgentAttribution => {
                 // The updated value syncs to warp-server automatically via
@@ -3609,171 +3575,6 @@ impl SettingsWidget for CloudAgentComputerUseWidget {
                 app,
             ))
             .finish()
-    }
-}
-
-#[derive(Default)]
-struct CloudHandoffWidget {
-    handoff_toggle: SwitchStateHandle,
-    auto_handoff_on_sleep_toggle: SwitchStateHandle,
-    ampersand_toggle: SwitchStateHandle,
-}
-
-impl SettingsWidget for CloudHandoffWidget {
-    type View = WarpAgentPageView;
-
-    fn search_terms(&self) -> &str {
-        "cloud handoff auto sleep ampersand & move to cloud local"
-    }
-
-    fn should_render(&self, _app: &AppContext) -> bool {
-        FeatureFlag::OzHandoff.is_enabled() && FeatureFlag::HandoffLocalCloud.is_enabled()
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        use crate::settings::PrivacySettings;
-
-        let ai_settings = AISettings::as_ref(app);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
-
-        let privacy = PrivacySettings::as_ref(app);
-        let cloud_convos_off = !privacy.is_cloud_conversation_storage_enabled
-            || matches!(
-                UserWorkspaces::as_ref(app).get_cloud_conversation_storage_enablement_setting(),
-                AdminEnablementSetting::Disable
-            );
-        let is_force_disabled = !is_any_ai_enabled || cloud_convos_off;
-
-        let tooltip_text = if cloud_convos_off {
-            "Cloud handoff requires cloud conversations to be enabled."
-        } else {
-            ""
-        };
-
-        let ui_builder = appearance.ui_builder();
-
-        let handoff_toggle = if is_force_disabled {
-            let mut builder = ui_builder.switch(self.handoff_toggle.clone()).check(false);
-            if !tooltip_text.is_empty() {
-                builder = builder.with_tooltip(TooltipConfig {
-                    text: tooltip_text.to_string(),
-                    styles: ui_builder.default_tool_tip_styles(),
-                });
-            }
-            builder.disable().build().finish()
-        } else {
-            ui_builder
-                .switch(self.handoff_toggle.clone())
-                .check(!*ai_settings.should_force_disable_cloud_handoff)
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(WarpAgentPageAction::ToggleCloudHandoff);
-                })
-                .finish()
-        };
-
-        let handoff_row = build_toggle_element(
-            render_body_item_label::<WarpAgentPageAction>(
-                "Cloud handoff".to_string(),
-                Some(styles::header_font_color(!is_force_disabled, app)),
-                None,
-                LocalOnlyIconState::Hidden,
-                ToggleState::Enabled,
-                appearance,
-            ),
-            handoff_toggle,
-            appearance,
-            None,
-        );
-
-        let mut column = Flex::column()
-            .with_child(render_separator(appearance))
-            .with_child(
-                build_sub_header(
-                    appearance,
-                    "Cloud Handoff",
-                    Some(styles::header_font_color(is_any_ai_enabled, app)),
-                )
-                .with_padding_bottom(HEADER_PADDING)
-                .finish(),
-            )
-            .with_child(handoff_row)
-            .with_child(render_ai_setting_description(
-                "Hand off local agent conversations to a cloud agent.",
-                !is_force_disabled,
-                app,
-            ));
-
-        if ai_settings.is_cloud_handoff_enabled(app) {
-            if ai_settings
-                .auto_handoff_on_sleep_enabled
-                .is_supported_on_current_platform()
-            {
-                let auto_handoff_on_sleep_toggle = ui_builder
-                    .switch(self.auto_handoff_on_sleep_toggle.clone())
-                    .check(*ai_settings.auto_handoff_on_sleep_enabled)
-                    .build()
-                    .on_click(move |ctx, _, _| {
-                        ctx.dispatch_typed_action(WarpAgentPageAction::ToggleAutoHandoffOnSleep);
-                    })
-                    .finish();
-                let auto_handoff_on_sleep_row = build_toggle_element(
-                    render_body_item_label::<WarpAgentPageAction>(
-                        "Auto-handoff before sleep".to_string(),
-                        Some(styles::header_font_color(true, app)),
-                        None,
-                        LocalOnlyIconState::Hidden,
-                        ToggleState::Enabled,
-                        appearance,
-                    ),
-                    auto_handoff_on_sleep_toggle,
-                    appearance,
-                    None,
-                );
-                column.add_child(auto_handoff_on_sleep_row);
-                column.add_child(render_ai_setting_description(
-                    "When macOS is about to sleep, automatically moves the most recently focused running local Warp Agent conversation to Cloud Mode so it can keep working.",
-                    true,
-                    app,
-                ));
-            }
-            let ampersand_toggle = ui_builder
-                .switch(self.ampersand_toggle.clone())
-                .check(!*ai_settings.should_force_disable_ampersand_handoff)
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(WarpAgentPageAction::ToggleAmpersandHandoff);
-                })
-                .finish();
-
-            let ampersand_row = build_toggle_element(
-                render_body_item_label::<WarpAgentPageAction>(
-                    "Use & to trigger handoff".to_string(),
-                    Some(styles::header_font_color(true, app)),
-                    None,
-                    LocalOnlyIconState::Hidden,
-                    ToggleState::Enabled,
-                    appearance,
-                ),
-                ampersand_toggle,
-                appearance,
-                None,
-            );
-
-            column.add_child(ampersand_row);
-            column.add_child(render_ai_setting_description(
-                "Type & as the first character to enter cloud handoff compose mode.",
-                true,
-                app,
-            ));
-        }
-
-        column.finish()
     }
 }
 

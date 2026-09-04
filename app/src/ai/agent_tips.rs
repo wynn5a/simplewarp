@@ -77,8 +77,6 @@ pub enum AgentTipKind {
     Context,
     /// Tips about code editors, file trees, and code review panes
     Code,
-    /// Tips about local-to-cloud handoff
-    Handoff,
 }
 
 static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
@@ -319,13 +317,6 @@ static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
             kind: AgentTipKind::General,
         },
         AgentTip {
-            description: "Type `&` or use the handoff chip to move a local conversation to the cloud.".to_string(),
-            link: None,
-            binding_name: None,
-            action: None,
-            kind: AgentTipKind::Handoff,
-        },
-        AgentTip {
             description: "Enable desktop notifications to get an alert when an agent needs your attention.".to_string(),
             link: Some("https://docs.warp.dev/platform/managing-cloud-agents#in-app-agent-notifications".to_string()),
             binding_name: None,
@@ -409,10 +400,6 @@ impl AITip for AgentTip {
         _current_working_directory: Option<&str>,
         app: &AppContext,
     ) -> bool {
-        // Handoff tips only apply when the feature is available and enabled.
-        if matches!(self.kind, AgentTipKind::Handoff) {
-            return AISettings::as_ref(app).is_cloud_handoff_enabled(app);
-        }
         // Tips whose description references a keybinding placeholder should only be shown
         // when the keybinding is actually configured, so we never display the raw
         // "<keybinding>" string to users.

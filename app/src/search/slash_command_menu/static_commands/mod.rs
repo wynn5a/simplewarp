@@ -65,7 +65,6 @@ pub enum SlashCommandKind {
     RenameConversation,
     SetTabColor,
     Fork,
-    MoveToCloud,
     OpenCodeReview,
     Init,
     OpenProjectRules,

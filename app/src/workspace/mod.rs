@@ -260,12 +260,6 @@ pub fn init(app: &mut AppContext) {
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
-                    "workspace:trigger_auto_handoff_to_cloud",
-                    "[Debug] Trigger Auto-Handoff to Cloud",
-                    WorkspaceAction::TriggerAutoHandoffToCloud,
-                )
-                .with_context_predicate(id!("Workspace")),
-                EditableBinding::new(
                     "workspace:open_free_ai_removal_modal",
                     "[Debug] Open Free AI Removal Modal",
                     WorkspaceAction::OpenFreeAiRemovalModal,

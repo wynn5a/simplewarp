@@ -30,13 +30,9 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::agent_management::telemetry::AgentManagementTelemetryEvent;
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-use crate::ai::ambient_agents::telemetry::HandoffEntryPoint;
 use crate::ai::blocklist::agent_view::{
     AgentViewEntryOrigin, DismissalStrategy, ENTER_OR_EXIT_CONFIRMATION_WINDOW, EphemeralMessage,
 };
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-use crate::ai::blocklist::handoff::PendingCloudLaunch;
 use crate::ai::blocklist::{
     BlocklistAIHistoryModel, InputTypeAutoDetectionSource, PendingAttachment, QueuedQuery,
     QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin, SlashCommandRequest,
@@ -940,55 +936,6 @@ impl Input {
                     ctx.dispatch_typed_action(&TerminalAction::ToggleUsageFooter);
                 }
             }
-            #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-            SlashCommandKind::MoveToCloud => {
-                if !AISettings::as_ref(ctx).is_cloud_handoff_enabled(ctx) {
-                    return false;
-                }
-                if self.block_cloud_handoff_if_model_unsupported(ctx) {
-                    return true;
-                }
-                let prompt = argument
-                    .map(|argument| argument.trim())
-                    .filter(|argument| !argument.is_empty())
-                    .map(str::to_owned);
-                if let Some(prompt) = prompt {
-                    // `/handoff query` auto-submits, same as `& query`.
-                    let attachments = self.collect_cloud_launch_attachments(ctx);
-                    let launch = PendingCloudLaunch {
-                        prompt,
-                        attachments,
-                    };
-                    ctx.dispatch_typed_action_deferred(
-                        WorkspaceAction::OpenLocalToCloudHandoffPane {
-                            launch: Some(launch),
-                            environment_id: None,
-                            entry_point: HandoffEntryPoint::SlashCommand,
-                        },
-                    );
-                } else if self.source_conversation_has_content(ctx) {
-                    // Empty `/handoff` with a non-empty source conversation:
-                    // dispatch the immediate empty-prompt handoff (continue /
-                    // snapshot rehydration); the workspace synthesizes the
-                    // launch and collects attachments.
-                    ctx.dispatch_typed_action_deferred(
-                        WorkspaceAction::OpenLocalToCloudHandoffPane {
-                            launch: None,
-                            environment_id: None,
-                            entry_point: HandoffEntryPoint::SlashCommand,
-                        },
-                    );
-                } else {
-                    // Empty `/handoff` with no source content — surface a toast
-                    // so the user knows why nothing happened. The chip falls
-                    // back to `&` compose mode here; the slash-command flow
-                    // does not because it has no compose-draft state to seed.
-                    show_error_toast(
-                        "Nothing to hand off — start a conversation first.".to_owned(),
-                        ctx,
-                    );
-                }
-            }
             SlashCommandKind::Fork => {
                 let Some(conversation_id) = self
                     .ai_context_model
@@ -1196,8 +1143,6 @@ impl Input {
                 // of handling user queries with specific slash command prefixes.
                 return false;
             }
-            #[cfg(any(not(feature = "local_fs"), target_family = "wasm"))]
-            SlashCommandKind::MoveToCloud => return false,
             #[cfg(target_family = "wasm")]
             SlashCommandKind::ContinueLocally => return false,
         }

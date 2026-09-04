@@ -3882,30 +3882,6 @@ impl Input {
         harness_selector.update(ctx, |selector, ctx| selector.open_menu(ctx));
     }
 
-    /// Restores the `&` handoff compose draft after a workspace failure.
-    #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-    pub(crate) fn restore_cloud_handoff_draft(
-        &mut self,
-        launch: PendingCloudLaunch,
-        environment_id: Option<SyncId>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.activate_cloud_handoff_compose(HandoffEntryPoint::Ampersand, ctx);
-        self.editor.update(ctx, |editor, ctx| {
-            editor.set_buffer_text(&launch.prompt, ctx);
-        });
-        self.ai_context_model.update(ctx, |model, ctx| {
-            for attachment in launch.attachments.display_attachments {
-                model.append_pending_attachments(vec![attachment], ctx);
-            }
-        });
-        if let Some(env_id) = environment_id {
-            self.handoff_compose_state.update(ctx, |state, ctx| {
-                state.set_environment_id(Some(env_id), true, ctx);
-            });
-        }
-    }
-
     fn prefix_mode(&self, ctx: &AppContext) -> InputPrefixMode {
         let is_handoff_active = self.handoff_compose_state.as_ref(ctx).is_active();
         let ai_input_model = self.ai_input_model.as_ref(ctx);

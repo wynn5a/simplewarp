@@ -969,16 +969,6 @@ impl AgentDriverRunner {
                     additional_source_repos: Vec::new(),
                     selected_harness: args.harness,
                     third_party_harness_model_config,
-                    snapshot_disabled: args.snapshot.no_snapshot.then_some(true),
-                    snapshot_upload_timeout: args
-                        .snapshot
-                        .snapshot_upload_timeout
-                        .map(|duration| duration.into()),
-                    snapshot_script_timeout: args
-                        .snapshot
-                        .snapshot_script_timeout
-                        .map(|duration| duration.into()),
-                    checkpoint_interval: None,
                     skip_initial_turn: args.skip_initial_turn,
                     strict_mcp_startup: args.strict_mcp_startup,
                     mcp_startup_timeout: args.mcp_startup_timeout.map(|duration| duration.into()),
@@ -1134,27 +1124,9 @@ impl AgentDriverRunner {
             }
         };
 
-        // Handoff snapshot attachments for follow-up executions are written to
-        // {attachments_dir}/handoff/{uuid} so the server-side rehydration prompt
-        // references resolve to real files.
-        let handoff_snapshot_ai_client = ai_client.clone();
-        let handoff_snapshot_server_api = server_api.clone();
-        let handoff_snapshot_download_dir = attachments_download_dir.clone();
-        let handoff_snapshot = async move {
-            if !FeatureFlag::OzHandoff.is_enabled() {
-                return Ok(None);
-            }
-            let Some(task_id_parsed) = parsed_task_id else {
-                return Ok(None);
-            };
-            driver::attachments::fetch_and_download_handoff_snapshot_attachments(
-                handoff_snapshot_ai_client,
-                handoff_snapshot_server_api.http_client(),
-                task_id_parsed,
-                handoff_snapshot_download_dir,
-            )
-            .await
-        };
+        // Handoff (`FeatureFlag::OzHandoff`) is always off in this build, so there are
+        // never handoff snapshot attachments to fetch.
+        let handoff_snapshot = async { Ok::<Option<String>, anyhow::Error>(None) };
 
         let (attachments_result, task_metadata_result, handoff_snapshot_result) = futures::join!(
             driver::attachments::fetch_and_download_attachments(

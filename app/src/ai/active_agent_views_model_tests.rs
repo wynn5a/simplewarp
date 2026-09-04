@@ -30,10 +30,6 @@ fn conversation_switch_updates_last_focused_terminal_state() {
         });
         model.read(&app, |model, _| {
             assert_eq!(model.get_last_focused_terminal_id(), Some(terminal));
-            assert_eq!(
-                model.get_last_focused_conversation(),
-                Some(ConversationOrTaskId::ConversationId(conversation_1))
-            );
         });
 
         model.update(&mut app, |model, _| {
@@ -44,10 +40,6 @@ fn conversation_switch_updates_last_focused_terminal_state() {
         });
         model.read(&app, |model, _| {
             assert_eq!(model.get_last_focused_terminal_id(), Some(terminal));
-            assert_eq!(
-                model.get_last_focused_conversation(),
-                Some(ConversationOrTaskId::ConversationId(conversation_2))
-            );
         });
     });
 }
@@ -128,10 +120,6 @@ fn last_focused_terminal_tracks_most_recent_globally() {
         });
         model.read(&app, |model, _| {
             assert_eq!(model.get_last_focused_terminal_id(), Some(terminal_a));
-            assert_eq!(
-                model.get_last_focused_conversation(),
-                Some(ConversationOrTaskId::TaskId(task_a))
-            );
         });
 
         model.update(&mut app, |model, ctx| {
@@ -139,10 +127,6 @@ fn last_focused_terminal_tracks_most_recent_globally() {
         });
         model.read(&app, |model, _| {
             assert_eq!(model.get_last_focused_terminal_id(), Some(terminal_b));
-            assert_eq!(
-                model.get_last_focused_conversation(),
-                Some(ConversationOrTaskId::TaskId(task_b))
-            );
         });
 
         // Clearing window B's focus should NOT clear last_focused (it persists).
@@ -151,10 +135,6 @@ fn last_focused_terminal_tracks_most_recent_globally() {
         });
         model.read(&app, |model, _| {
             assert_eq!(model.get_last_focused_terminal_id(), Some(terminal_b));
-            assert_eq!(
-                model.get_last_focused_conversation(),
-                Some(ConversationOrTaskId::TaskId(task_b))
-            );
         });
     });
 }

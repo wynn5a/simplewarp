@@ -738,10 +738,6 @@ pub enum WorkspaceAction {
     /// Reset the auto-handoff sleep modal shown state (for debugging)
     #[cfg(debug_assertions)]
     ResetAutoHandoffSleepModalState,
-    /// Trigger the auto-handoff-to-cloud flow in-process, as if the machine
-    /// were about to sleep (for debugging)
-    #[cfg(debug_assertions)]
-    TriggerAutoHandoffToCloud,
     /// Open the Free AI Removal Modal (for debugging)
     #[cfg(debug_assertions)]
     OpenFreeAiRemovalModal,
@@ -1173,7 +1169,6 @@ impl WorkspaceAction {
             | ResetFeatureIntroModalState
             | OpenAutoHandoffSleepModal
             | ResetAutoHandoffSleepModalState
-            | TriggerAutoHandoffToCloud
             | OpenFreeAiRemovalModal
             | ResetFreeAiRemovalModalState
             | InstallOpenCodeWarpPlugin

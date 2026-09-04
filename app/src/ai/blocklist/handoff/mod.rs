@@ -1,46 +1,28 @@
 //! Client-side pieces of the local-to-cloud Oz conversation handoff:
 //!
 //! - Payload types (`HandoffLaunchAttachments`, `PendingCloudLaunch`) carry the
-//!   compose/auto-submit request from the input into the handoff pipeline.
-//! - `pipeline`: prepares a handoff from shared conversation state, preserves
-//!   the prompt and attachments needed for failure restoration, and executes
-//!   the server fork, frontend materialization, snapshot upload, and cloud run
-//!   spawn in a fixed order.
-//! - `snapshot`: gives the pipeline one local/remote snapshot-upload interface.
+//!   compose/auto-submit request from the input; the pipeline that used to
+//!   consume them (`prepare_handoff`/`execute_handoff`) was removed when
+//!   `FeatureFlag::OzHandoff` was folded permanently off (round 4an, part
+//!   1/2) — the payload types themselves are kept because the still-live
+//!   compose UI (`terminal/input.rs`) still constructs them.
+//! - `snapshot`: gives the (removed) pipeline one local/remote snapshot-upload
+//!   interface. Kept: also used directly by `remote_server::server_model`.
 //! - `touched_repos`: walks the conversation's action history to collect every
 //!   filesystem path the local agent has touched, groups those paths into git
 //!   roots and orphan files, and exposes the env-overlap pick used by the
-//!   handoff pane bootstrap.
-//!
-//! A frontend first calls `prepare_handoff` to enforce source guardrails and
-//! obtain a `PendingHandoff`. It may update the pending environment or model
-//! selection before passing ownership to `execute_handoff`. The execution
-//! pipeline invokes the frontend's materialization callback after selecting or
-//! creating the server conversation fork, then prepares the workspace snapshot
-//! and spawns the cloud run. The resulting outcome contains the state each
-//! frontend needs to monitor the created run or restore failed input.
+//!   handoff pane bootstrap. Kept: `derive_touched_workspace` is used directly
+//!   by `remote_server::handoff_snapshot` (the SSH-remote daemon's own,
+//!   unrelated handoff-snapshot RPC handler).
 
 use super::PendingAttachment;
 use crate::server::server_api::ai::AttachmentInput;
 
 #[cfg(feature = "local_fs")]
-mod pipeline;
-#[cfg(feature = "local_fs")]
 pub(crate) mod snapshot;
 #[cfg(feature = "local_fs")]
 pub(crate) mod touched_repos;
 
-#[cfg(feature = "local_fs")]
-#[allow(unused_imports)]
-pub use pipeline::{
-    HandoffCommitFailure, HandoffCommitOutcome, HandoffCreated, HandoffPrepareError,
-    HandoffPrepareInput, HandoffPresentationSnapshot, HandoffRestoration,
-    HandoffTargetMaterialization, MaterializeHandoffTarget, PendingHandoff, execute_handoff,
-    handoff_dispatch_error, prepare_handoff,
-};
-#[cfg(feature = "local_fs")]
-#[allow(unused_imports)]
-pub use snapshot::SnapshotUploadTarget;
 #[cfg(feature = "local_fs")]
 #[allow(unused_imports)]
 pub use touched_repos::suggest_handoff_environment;

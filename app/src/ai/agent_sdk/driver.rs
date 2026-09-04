@@ -40,9 +40,8 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, ModelSpawner, Single
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
-    AIAgentActionResultType, AIAgentExchange, AIAgentInput, AIAgentOutput, AIAgentOutputStatus,
-    CancellationReason, FinishedAIAgentOutput, RenderableAIError, RequestFileEditsResult,
-    TransientNetworkErrorKind,
+    AIAgentExchange, AIAgentInput, AIAgentOutput, AIAgentOutputStatus, CancellationReason,
+    FinishedAIAgentOutput, RenderableAIError, TransientNetworkErrorKind,
 };
 use crate::ai::agent_sdk::driver::harness::{
     HarnessCleanupDisposition, HarnessKind, HarnessRunner, ResumePayload, SavePoint,
@@ -101,7 +100,6 @@ use crate::terminal::view::ConversationRestorationInNewPaneType;
 pub(crate) mod attachments;
 #[cfg(feature = "local_fs")]
 pub(crate) mod cache_setup;
-mod checkpoint_coordinator;
 pub(crate) mod environment;
 mod error_classification;
 pub(crate) mod git_credentials;
@@ -370,14 +368,6 @@ pub struct AgentDriverOptions {
     pub selected_harness: Harness,
     /// Model config for the selected harness. Only used for non-Oz harnesses.
     pub third_party_harness_model_config: Option<HarnessModelConfig>,
-    /// Whether to skip end-of-run snapshot upload.
-    pub snapshot_disabled: Option<bool>,
-    /// End-of-run snapshot upload timeout override.
-    pub snapshot_upload_timeout: Option<Duration>,
-    /// Declarations script timeout override.
-    pub snapshot_script_timeout: Option<Duration>,
-    /// Periodic checkpoint cadence override. Only used when `FeatureFlag::PeriodicHandoffCheckpoints` is enabled.
-    pub checkpoint_interval: Option<Duration>,
     /// Skip the initial `StartFromAmbientRunPrompt` so the agent waits for a
     /// follow-up instead of hallucinating an empty turn. Sourced from the
     /// `--skip-initial-turn` CLI flag, which the worker emits when the
@@ -447,14 +437,6 @@ pub struct AgentDriver {
     /// Additional per-task repositories supplied by the server.
     additional_source_repos: Vec<SourceRepo>,
 
-    // End-of-run snapshot upload controls.
-    snapshot_disabled: bool,
-    snapshot_upload_timeout: Duration,
-    snapshot_script_timeout: Duration,
-
-    /// Periodic workspace-handoff checkpoint coordinator; `None` unless both handoff flags are enabled and the run has a cloud task id.
-    checkpoint_coordinator: Option<checkpoint_coordinator::CheckpointCoordinatorHandle>,
-
     /// Conversation ID this driver is running. Set at construction for
     /// resumed runs and on `ConversationServerTokenAssigned` for fresh
     /// runs; consumed by `unregister_streamer_consumer` at end of run.
@@ -466,12 +448,6 @@ pub struct AgentDriver {
     /// streamer recognizes the child role in driver-hosted processes.
     parent_run_id: Option<String>,
     third_party_harness_model_config: Option<HarnessModelConfig>,
-
-    /// Async writer that records `file` declarations for paths the agent creates or edits
-    /// via `RequestFileEdits`. `Some` only when `FeatureFlag::OzHandoff` is enabled, the run
-    /// has a cloud task id, and `--no-snapshot` was not set; `None` keeps the observer a
-    /// pure no-op for local and disabled runs.
-    snapshot_file_writer: Option<snapshot::DeclarationsWriterHandle>,
 
     /// Whether the driver should skip dispatching the initial
     /// `StartFromAmbientRunPrompt`. Mirror of `AgentDriverOptions::skip_initial_turn`,
@@ -729,10 +705,6 @@ impl AgentDriver {
             additional_source_repos,
             selected_harness,
             third_party_harness_model_config,
-            snapshot_disabled,
-            snapshot_upload_timeout,
-            snapshot_script_timeout,
-            checkpoint_interval,
             skip_initial_turn,
             strict_mcp_startup,
             mcp_startup_timeout,
@@ -824,51 +796,6 @@ impl AgentDriver {
             run_conversation_id = Some(conv_id);
         }
 
-        // Spawn the async declarations writer only when the snapshot pipeline will actually
-        // read what it produces: feature enabled, cloud task run, and --no-snapshot not set.
-        let snapshot_disabled_value = snapshot_disabled.unwrap_or(false);
-        let snapshot_file_writer = match task_id {
-            Some(id) if FeatureFlag::OzHandoff.is_enabled() && !snapshot_disabled_value => {
-                let background = ctx.background_executor();
-                Some(snapshot::DeclarationsWriterHandle::new(
-                    id,
-                    working_dir.clone(),
-                    &background,
-                ))
-            }
-            _ => None,
-        };
-
-        // Spawn the periodic checkpoint coordinator under the same gates as the
-        // declarations writer above, plus the dedicated rollout flag. `None` keeps
-        // `run_snapshot_upload` on the legacy one-shot upload path unchanged.
-        let checkpoint_coordinator = match task_id {
-            Some(id)
-                if FeatureFlag::OzHandoff.is_enabled()
-                    && FeatureFlag::PeriodicHandoffCheckpoints.is_enabled()
-                    && !snapshot_disabled_value =>
-            {
-                let client = ServerApiProvider::as_ref(ctx).get_harness_support_client();
-                Some(checkpoint_coordinator::CheckpointCoordinatorHandle::new(
-                    client,
-                    id,
-                    working_dir.clone(),
-                    // Shared with the history subscription so every attempt can drain
-                    // queued `file` appends before the declarations script runs, exactly
-                    // as `run_snapshot_upload` does on the legacy path.
-                    snapshot_file_writer.clone(),
-                    ctx.spawner(),
-                    checkpoint_interval
-                        .unwrap_or(checkpoint_coordinator::DEFAULT_CHECKPOINT_INTERVAL),
-                    snapshot_script_timeout
-                        .unwrap_or(snapshot::DEFAULT_DECLARATIONS_SCRIPT_TIMEOUT),
-                    snapshot_upload_timeout.unwrap_or(snapshot::DEFAULT_SNAPSHOT_UPLOAD_TIMEOUT),
-                    ctx.background_executor(),
-                ))
-            }
-            _ => None,
-        };
-
         Ok(Self {
             terminal_driver,
             working_dir,
@@ -884,16 +811,9 @@ impl AgentDriver {
             resume_payload,
             environment,
             additional_source_repos,
-            snapshot_disabled: snapshot_disabled_value,
-            snapshot_upload_timeout: snapshot_upload_timeout
-                .unwrap_or(snapshot::DEFAULT_SNAPSHOT_UPLOAD_TIMEOUT),
-            snapshot_script_timeout: snapshot_script_timeout
-                .unwrap_or(snapshot::DEFAULT_DECLARATIONS_SCRIPT_TIMEOUT),
-            checkpoint_coordinator,
             run_conversation_id,
             parent_run_id: parent_run_id_for_self,
             third_party_harness_model_config,
-            snapshot_file_writer,
             skip_initial_turn,
             strict_mcp_startup,
             mcp_startup_timeout: mcp_startup_timeout.unwrap_or(MCP_SERVER_STARTUP_TIMEOUT),
@@ -931,14 +851,9 @@ impl AgentDriver {
             resume_payload: None,
             environment: None,
             additional_source_repos: Vec::new(),
-            snapshot_disabled: false,
-            snapshot_upload_timeout: snapshot::DEFAULT_SNAPSHOT_UPLOAD_TIMEOUT,
-            snapshot_script_timeout: snapshot::DEFAULT_DECLARATIONS_SCRIPT_TIMEOUT,
-            checkpoint_coordinator: None,
             run_conversation_id: None,
             parent_run_id: None,
             third_party_harness_model_config: None,
-            snapshot_file_writer: None,
             skip_initial_turn: false,
             strict_mcp_startup: false,
             mcp_startup_timeout: MCP_SERVER_STARTUP_TIMEOUT,
@@ -1144,7 +1059,6 @@ impl AgentDriver {
                          (reason={actual_reason:?}): {finalization_result:?}"
                     );
                 }
-                Self::run_snapshot_upload(&foreground).await;
 
                 if tx.send(result).is_err() {
                     report_error!("Caller did not wait for agent driver to finish");
@@ -3488,25 +3402,6 @@ impl AgentDriver {
                         .write_exchange_inputs(exchange)
                         .context("Failed to write exchange inputs"));
 
-                    // Forward any successful file-edit paths from this exchange's inputs to the
-                    // snapshot declarations writer so the end-of-run upload covers files written
-                    // outside any declared repo.
-                    if let Some(writer) = me.snapshot_file_writer.as_ref() {
-                        let mut paths = Vec::new();
-                        for input in &exchange.input {
-                            if let AIAgentInput::ActionResult { result, .. } = input
-                                && let AIAgentActionResultType::RequestFileEdits(
-                                    RequestFileEditsResult::Success { updated_files, .. },
-                                ) = &result.result
-                                {
-                                    for updated in updated_files {
-                                        paths.push(updated.file_context.file_name.clone());
-                                    }
-                                }
-                        }
-                        writer.append(paths);
-                    }
-
                     // Reset the idle timer only if we've already scheduled one.
                     // This handles the case where a follow-up query creates new exchanges after
                     // the conversation has finished and an idle timer was set.
@@ -3977,93 +3872,6 @@ impl AgentDriver {
         );
     }
 
-    /// Invoke the end-of-run snapshot upload pipeline if the feature flag is enabled and this
-    /// driver is associated with a cloud task. Errors are logged internally; this helper always
-    /// returns so cleanup can proceed.
-    #[tracing::instrument(skip_all, fields(tags.cloud_agent = true))]
-    async fn run_snapshot_upload(spawner: &ModelSpawner<Self>) {
-        if !FeatureFlag::OzHandoff.is_enabled() {
-            return;
-        }
-
-        // Snapshot upload is only meaningful for cloud task runs, so short-circuit before
-        // pulling the rest of the context onto this task.
-        let Ok((
-            Some(task_id),
-            snapshot_disabled,
-            upload_timeout,
-            script_timeout,
-            checkpoint_coordinator,
-        )) = spawner
-            .spawn(|me, _| {
-                (
-                    me.task_id,
-                    me.snapshot_disabled,
-                    me.snapshot_upload_timeout,
-                    me.snapshot_script_timeout,
-                    me.checkpoint_coordinator.clone(),
-                )
-            })
-            .await
-        else {
-            return;
-        };
-        if snapshot_disabled {
-            log::info!("Skipping snapshot upload because --no-snapshot was specified");
-            return;
-        }
-
-        // An active coordinator replaces the legacy upload below. Budget must come from
-        // `finalize_budget`: the coordinator's floor is `script_timeout + upload_timeout`,
-        // so a smaller budget silently skips the final attempt.
-        if let Some(coordinator) = checkpoint_coordinator {
-            coordinator
-                .finalize(checkpoint_coordinator::finalize_budget(
-                    script_timeout,
-                    upload_timeout,
-                ))
-                .await;
-            return;
-        }
-
-        let Ok((working_dir, client)) = spawner
-            .spawn(|me, ctx| {
-                let client = ServerApiProvider::as_ref(ctx).get_harness_support_client();
-                (me.working_dir.clone(), client)
-            })
-            .await
-        else {
-            report_error!(
-                "Unable to retrieve snapshot upload context for cleanup",
-                extra: { "task_id" => %task_id }
-            );
-            return;
-        };
-
-        // Drain any pending declarations writes from the history subscription before the
-        // declarations script runs. This guarantees no driver-side `file` append is still in
-        // flight when the bash script appends its `repo` entries.
-        if let Ok(Some(writer)) = spawner.spawn(|me, _| me.snapshot_file_writer.clone()).await {
-            writer.flush().await;
-        }
-
-        // Regenerate the declarations file so the upload pipeline sees the latest workspace
-        // state. The helper swallows its own errors at ERROR level; we just proceed.
-        snapshot::run_declarations_script(&working_dir, &task_id, script_timeout).await;
-
-        // Cap the upload so a pathological slow upload cannot wedge cleanup.
-        // On timeout we surface via report_error! so Sentry captures the incident and on-call
-        // alerting can fire, then let cloud-provider teardown continue.
-        if let Err(TimeoutError) = snapshot::upload_snapshot_from_declarations(client, &task_id)
-            .with_timeout(upload_timeout)
-            .await
-        {
-            report_error!(
-                "Snapshot upload timed out; continuing with cleanup",
-                extra: { "timeout" => ?upload_timeout, "task_id" => %task_id }
-            );
-        }
-    }
 }
 
 /// Build the env-var map for the agent terminal session from managed secrets.
