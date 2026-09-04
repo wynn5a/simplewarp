@@ -25,7 +25,6 @@ use super::user_properties::UserProperties;
 use super::{AuthStateProvider, UserUid};
 use crate::ai::AIRequestUsageModel;
 use crate::ai::llms::LLMPreferences;
-use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::autoupdate::AutoupdateState;
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -436,10 +435,6 @@ impl AuthManager {
 
                 LLMPreferences::handle(ctx).update(ctx, |prefs, ctx| {
                     prefs.update_feature_model_choices(Ok(llms), ctx);
-                });
-
-                PersistedWorkspace::handle(ctx).update(ctx, |index_manager_updater, ctx| {
-                    index_manager_updater.on_user_changed(ctx);
                 });
 
                 if !user.is_user_anonymous() {

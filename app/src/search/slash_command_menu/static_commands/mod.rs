@@ -67,7 +67,6 @@ pub enum SlashCommandKind {
     Fork,
     MoveToCloud,
     OpenCodeReview,
-    Index,
     Init,
     OpenProjectRules,
     OpenMcpServers,

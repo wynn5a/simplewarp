@@ -1,14 +1,11 @@
-use std::path::Path;
 use std::sync::LazyLock;
 use std::time::Duration;
 
-use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 use markdown_parser::FormattedTextFragment;
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::keymap::Keystroke;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
-use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::palette::PaletteMode;
 use crate::server::telemetry::PaletteSource;
 use crate::settings::AISettings;
@@ -407,20 +404,11 @@ impl AITip for AgentTip {
         fragments
     }
 
-    fn is_tip_applicable(&self, current_working_directory: Option<&str>, app: &AppContext) -> bool {
-        // Tips about indexing the repo are only applicable if the current directory is not already indexed.
-        if matches!(self.kind, AgentTipKind::CodebaseContext) {
-            let Some(cwd) = current_working_directory else {
-                return true;
-            };
-            let Some(root) = PersistedWorkspace::as_ref(app).root_for_workspace(Path::new(cwd))
-            else {
-                return true;
-            };
-            return CodebaseIndexManager::as_ref(app)
-                .get_codebase_index_status_for_path(root, app)
-                .is_none();
-        }
+    fn is_tip_applicable(
+        &self,
+        _current_working_directory: Option<&str>,
+        app: &AppContext,
+    ) -> bool {
         // Handoff tips only apply when the feature is available and enabled.
         if matches!(self.kind, AgentTipKind::Handoff) {
             return AISettings::as_ref(app).is_cloud_handoff_enabled(app);

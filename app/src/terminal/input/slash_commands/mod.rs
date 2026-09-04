@@ -803,9 +803,6 @@ impl Input {
                     return true;
                 }
             }
-            SlashCommandKind::Index => {
-                ctx.dispatch_typed_action(&TerminalAction::IndexProjectSpeedbump);
-            }
             SlashCommandKind::Init => {
                 ctx.dispatch_typed_action(&TerminalAction::InitProject);
             }

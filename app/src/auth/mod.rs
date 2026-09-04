@@ -4,7 +4,6 @@ pub mod auth_override_warning_modal;
 pub mod auth_view_modal;
 mod user_properties;
 use ::settings::{Setting, SettingsManager, ToggleableSetting};
-use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 pub use auth_manager::AuthManager;
 pub use auth_state::AuthStateProvider;
 use itertools::Itertools;
@@ -206,10 +205,6 @@ pub fn log_out_and_open_web(app: &mut AppContext) {
 // Log out the user, clears workspace state, stops running processes, and deletes database.
 pub fn log_out(app: &mut AppContext) {
     send_telemetry_sync_from_app_ctx!(TelemetryEvent::LogOut, app);
-
-    CodebaseIndexManager::handle(app).update(app, |index_manager, ctx| {
-        index_manager.reset_codebase_indexing(ctx);
-    });
 
     let global_resource_handles = GlobalResourceHandlesProvider::as_ref(app).get();
 

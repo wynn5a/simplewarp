@@ -51,7 +51,6 @@ use crate::notebooks::notebook::NotebookView;
 use crate::pane_group::{Direction, PaneGroupAction, PaneId};
 use crate::pricing::PricingInfoModel;
 #[cfg(not(target_family = "wasm"))]
-use crate::remote_server::codebase_index_model::RemoteCodebaseIndexModel;
 use crate::server::cloud_objects::listener::Listener;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
@@ -187,8 +186,6 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| IgnoredSuggestionsModel::new(vec![]));
     app.add_singleton_model(|_| crate::code_review::git_repo_model::GitRepoModels::new());
     app.add_singleton_model(remote_server::manager::RemoteServerManager::new);
-    #[cfg(not(target_family = "wasm"))]
-    app.add_singleton_model(RemoteCodebaseIndexModel::new);
 
     #[cfg(feature = "local_fs")]
     app.add_singleton_model(RepoMetadataModel::new);

@@ -1537,8 +1537,6 @@ pub(crate) fn initialize_app(
 
     ctx.add_singleton_model(remote_server::manager::RemoteServerManager::new);
     #[cfg(not(target_family = "wasm"))]
-    ctx.add_singleton_model(remote_server::codebase_index_model::RemoteCodebaseIndexModel::new);
-    #[cfg(not(target_family = "wasm"))]
     remote_server::wire_auth_token_rotation(ctx);
 
     log::info!(

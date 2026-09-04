@@ -24,7 +24,6 @@ use super::{
 use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
-use crate::ai::blocklist::codebase_index_speedbump_banner::CodebaseIndexSpeedbumpBannerAction;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::server::ids::SyncId;
 use crate::server::telemetry::{AgentModeRewindEntrypoint, PaletteSource, ToggleBlockFilterSource};
@@ -313,7 +312,6 @@ pub enum TerminalAction {
     ClearMarkedText,
     HideTelemetryBannerPermanently,
     ShowInitializationBlock,
-    GenerateCodebaseIndex,
     /// This is for debugging, dev only for now
     LoadAgentModeConversation,
     ShowWarpifySettings,
@@ -326,10 +324,8 @@ pub enum TerminalAction {
     OpenAttachmentLightbox {
         index: usize,
     },
-    WriteCodebaseIndex,
     ToggleAutoexecuteMode,
     ToggleQueueNextPrompt,
-    CodebaseIndexSpeedbumpBanner(CodebaseIndexSpeedbumpBannerAction),
     AgentModeSetupSpeedbumpBanner(AgentModeSetupSpeedbumpBannerAction),
     AnonymousUserAISignUpBanner(AnonymousUserLoginBannerAction),
     ResumeConversation,
@@ -342,7 +338,6 @@ pub enum TerminalAction {
     },
     InitProject,
     SummarizeConversation,
-    IndexProjectSpeedbump,
     AddProjectAtCurrentDirectory,
     OpenProjectRulesPane,
     OpenViewMCPPane,
@@ -621,19 +616,14 @@ impl fmt::Debug for TerminalAction {
             ClearMarkedText => write!(f, "ClearMarkedText"),
             HideTelemetryBannerPermanently => write!(f, "HideTelemetryBannerPermanently"),
             ShowInitializationBlock => write!(f, "ShowInitializationBlock"),
-            GenerateCodebaseIndex => write!(f, "GenerateIndexForRepo"),
             LoadAgentModeConversation => write!(f, "LoadAgentModeConversation"),
             ShowWarpifySettings => write!(f, "ShowWarpifySettings"),
             DeleteAttachment { index } => write!(f, "DeleteAttachment({index:?})"),
             OpenAttachmentLightbox { index } => {
                 write!(f, "OpenAttachmentLightbox({index:?})")
             }
-            WriteCodebaseIndex => write!(f, "PersistCodebaseIndex"),
             ToggleAutoexecuteMode => write!(f, "ToggleAutoexecuteMode"),
             ToggleQueueNextPrompt => write!(f, "ToggleQueueNextPrompt"),
-            CodebaseIndexSpeedbumpBanner(action) => {
-                write!(f, "CodebaseIndexSpeedbumpBanner({action:?})")
-            }
             AgentModeSetupSpeedbumpBanner(action) => {
                 write!(f, "AgentModeSetupSpeedbumpBanner({action:?})")
             }
@@ -649,7 +639,6 @@ impl fmt::Debug for TerminalAction {
             CloseTodoPopup => write!(f, "CloseTodoPopup"),
             ToggleCodeReviewPane { .. } => write!(f, "ToggleCodeReviewPane"),
             InitProject => write!(f, "InitProject"),
-            IndexProjectSpeedbump => write!(f, "IndexProject"),
             AddProjectAtCurrentDirectory => write!(f, "AddProjectAtCurrentDirectory"),
             OpenProjectRulesPane => write!(f, "OpenProjectRulesPane"),
             OpenViewMCPPane => write!(f, "OpenViewMCPPane"),

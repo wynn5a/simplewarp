@@ -938,26 +938,7 @@ pub fn init(app: &mut AppContext) {
         .with_group(bindings::BindingGroup::WarpAi.as_str())
         .with_context_predicate(id!(flags::IS_ANY_AI_ENABLED) & id!("Terminal"))
         .with_enabled(|| FeatureFlag::QueueSlashCommand.is_enabled()),
-        EditableBinding::new(
-            "terminal:generate_codebase_index",
-            "[Debug] Generate codebase index",
-            TerminalAction::GenerateCodebaseIndex,
-        )
-        .with_group(bindings::BindingGroup::WarpAi.as_str())
-        .with_context_predicate(id!("Terminal") & !id!("IMEOpen"))
-        .with_enabled(|| {
-            FeatureFlag::FullSourceCodeEmbedding.is_enabled()
-                && ChannelState::enable_debug_features()
-        }),
     ]);
-
-    app.register_editable_bindings([EditableBinding::new(
-        "workspace:write_codebase_index",
-        BindingDescription::new("Write current codebase index snapshot"),
-        TerminalAction::WriteCodebaseIndex,
-    )
-    .with_enabled(|| FeatureFlag::CodebaseIndexPersistence.is_enabled())
-    .with_context_predicate(id!("Workspace"))]);
 
     app.register_editable_bindings([EditableBinding::new(
         "terminal:load_agent_mode_conversation",

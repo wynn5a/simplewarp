@@ -233,20 +233,6 @@ pub const OPEN_CODE_REVIEW: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub const INDEX: StaticCommand = StaticCommand {
-    name: "/index",
-    description: "Index this codebase",
-    kind: SlashCommandKind::Index,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/find-all.svg",
-    },
-    availability: Availability::REPOSITORY
-        .union(Availability::CODEBASE_CONTEXT)
-        .union(Availability::AI_ENABLED),
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-
 pub const INIT: StaticCommand = StaticCommand {
     name: "/init",
     description: "Index this codebase and generate an AGENTS.md file",
@@ -706,7 +692,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         ADD_RULE,
         COST,
         FEEDBACK.clone(),
-        INDEX,
         INIT,
         OPEN_PROJECT_RULES,
         OPEN_MCP_SERVERS,
