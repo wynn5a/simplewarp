@@ -62,3 +62,22 @@ fn ask_user_question_skipped_by_auto_approve_converts_to_skipped_answers() {
         Some(AskUserQuestionAnswer::Skipped(()))
     ));
 }
+
+#[test]
+fn a_command_cancelled_before_execution_still_reports_a_result() {
+    // The wire has no "cancelled" variant for a shell command, but the model must hear that the
+    // call did not run; dropping the result made the agent loop invent one that said it did.
+    let result = api::request::input::tool_call_result::Result::try_from(
+        RequestCommandOutputResult::CancelledBeforeExecution,
+    )
+    .expect("a cancelled command converts");
+
+    let api::request::input::tool_call_result::Result::RunShellCommand(shell) = result else {
+        panic!("expected a shell command result");
+    };
+
+    assert!(matches!(
+        shell.result,
+        Some(api::run_shell_command_result::Result::PermissionDenied(_))
+    ));
+}

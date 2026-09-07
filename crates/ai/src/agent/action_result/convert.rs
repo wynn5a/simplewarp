@@ -75,7 +75,27 @@ impl TryFrom<RequestCommandOutputResult> for api::request::input::tool_call_resu
                 ),
             ),
             RequestCommandOutputResult::CancelledBeforeExecution => {
-                Err(ConvertToAPITypeError::Ignore)
+                // The wire result for a shell command has no "cancelled" variant, so the closest
+                // signal is the one that says the command did not run. Sending nothing (the old
+                // behavior) made the agent loop fill in a placeholder that claimed the call had
+                // already run, so the model could never learn why its command produced no output.
+                Ok(
+                    api::request::input::tool_call_result::Result::RunShellCommand(
+                        #[allow(deprecated)]
+                        api::RunShellCommandResult {
+                            command: String::new(),
+                            output: Default::default(),
+                            exit_code: Default::default(),
+                            result: Some(api::run_shell_command_result::Result::PermissionDenied(
+                                api::PermissionDenied {
+                                    reason: Some(
+                                        api::permission_denied::Reason::DenylistedCommand(()),
+                                    ),
+                                },
+                            )),
+                        },
+                    ),
+                )
             }
             RequestCommandOutputResult::Denylisted { command } =>
             {

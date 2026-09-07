@@ -320,6 +320,35 @@ pub fn tool_use_from_proto(call: &message::ToolCall) -> Option<ToolUse> {
                 "max_matches": glob.max_matches,
             }),
         ),
+        tool_call::Tool::ReadShellCommandOutput(poll) => {
+            let mut arguments = json!({ "command_id": poll.command_id });
+            match poll.delay.as_ref() {
+                Some(tool_call::read_shell_command_output::Delay::Duration(duration)) => {
+                    arguments["max_wait_seconds"] = json!(duration.seconds);
+                }
+                Some(tool_call::read_shell_command_output::Delay::OnCompletion(_)) => {
+                    arguments["wait_for_completion"] = json!(true);
+                }
+                None => {}
+            }
+            ("read_shell_command_output", arguments)
+        }
+        tool_call::Tool::WriteToLongRunningShellCommand(write) => {
+            let mut arguments = json!({
+                "command_id": write.command_id,
+                "input": String::from_utf8_lossy(&write.input),
+            });
+            if let Some(mode) = write.mode.as_ref()
+                && let Some(kind) = mode.mode.as_ref()
+            {
+                arguments["mode"] = json!(match kind {
+                    tool_call::write_to_long_running_shell_command::mode::Mode::Raw(_) => "raw",
+                    tool_call::write_to_long_running_shell_command::mode::Mode::Line(_) => "line",
+                    tool_call::write_to_long_running_shell_command::mode::Mode::Block(_) => "block",
+                });
+            }
+            ("write_to_long_running_shell_command", arguments)
+        }
         // A tool that this crate never offers cannot appear in a local conversation, but a
         // history from a cloud conversation may hold one. Leaving it out keeps the turn list
         // valid; the matching result is rendered as plain text below.
@@ -344,6 +373,8 @@ enum Payload<'a> {
     ApplyDiffs(&'a api::ApplyFileDiffsResult),
     Grep(&'a api::GrepResult),
     FileGlob(&'a api::FileGlobV2Result),
+    ShellPoll(&'a api::ReadShellCommandOutputResult),
+    ShellWrite(&'a api::WriteToLongRunningShellCommandResult),
     Cancelled,
     Unsupported,
 }
@@ -358,6 +389,8 @@ pub fn render_result(result: &message::ToolCallResult) -> ToolResult {
         Some(ProtoResult::ApplyFileDiffs(apply)) => Payload::ApplyDiffs(apply),
         Some(ProtoResult::Grep(grep)) => Payload::Grep(grep),
         Some(ProtoResult::FileGlobV2(glob)) => Payload::FileGlob(glob),
+        Some(ProtoResult::ReadShellCommandOutput(poll)) => Payload::ShellPoll(poll),
+        Some(ProtoResult::WriteToLongRunningShellCommand(write)) => Payload::ShellWrite(write),
         Some(ProtoResult::Cancel(_)) => Payload::Cancelled,
         _ => Payload::Unsupported,
     };
@@ -374,6 +407,8 @@ pub fn render_input_result(result: &api::request::input::ToolCallResult) -> Tool
         Some(InputResult::ApplyFileDiffs(apply)) => Payload::ApplyDiffs(apply),
         Some(InputResult::Grep(grep)) => Payload::Grep(grep),
         Some(InputResult::FileGlobV2(glob)) => Payload::FileGlob(glob),
+        Some(InputResult::ReadShellCommandOutput(poll)) => Payload::ShellPoll(poll),
+        Some(InputResult::WriteToLongRunningShellCommand(write)) => Payload::ShellWrite(write),
         _ => Payload::Unsupported,
     };
     finish(&result.tool_call_id, payload)
@@ -386,6 +421,8 @@ fn finish(tool_call_id: &str, payload: Payload<'_>) -> ToolResult {
         Payload::ApplyDiffs(apply) => render_apply_diffs(apply),
         Payload::Grep(grep) => render_grep(grep),
         Payload::FileGlob(glob) => render_file_glob(glob),
+        Payload::ShellPoll(poll) => render_shell_poll(poll),
+        Payload::ShellWrite(write) => render_shell_write(write),
         Payload::Cancelled => ("The user cancelled this tool call.".to_string(), true),
         Payload::Unsupported => ("The tool returned no readable result.".to_string(), true),
     };
@@ -404,24 +441,17 @@ fn render_shell(shell: &api::RunShellCommandResult) -> (String, bool) {
     use api::run_shell_command_result::Result as ShellResult;
 
     match shell.result.as_ref() {
-        Some(ShellResult::CommandFinished(finished)) => {
-            let text = format!(
-                "exit code: {}\n\n{}",
-                finished.exit_code,
-                truncate(&finished.output)
-            );
-            (text, finished.exit_code != 0)
+        Some(ShellResult::CommandFinished(finished)) => render_finished(finished),
+        Some(ShellResult::LongRunningCommandSnapshot(snapshot)) => {
+            (render_snapshot(snapshot), false)
         }
-        Some(ShellResult::LongRunningCommandSnapshot(snapshot)) => (
-            format!(
-                "The command is still running. Latest output:\n\n{}",
-                truncate(&snapshot.output)
-            ),
-            false,
+        Some(ShellResult::PermissionDenied(_)) => (
+            "The command was not allowed to run. If another command is still running, the \
+             client refuses to start a new one: poll that command with \
+             read_shell_command_output instead."
+                .to_string(),
+            true,
         ),
-        Some(ShellResult::PermissionDenied(_)) => {
-            ("The user did not let this command run.".to_string(), true)
-        }
         None => (
             // Older clients set only the deprecated flat fields.
             format!(
@@ -432,6 +462,61 @@ fn render_shell(shell: &api::RunShellCommandResult) -> (String, bool) {
             shell.exit_code != 0,
         ),
     }
+}
+
+/// Renders a poll of a running command.
+fn render_shell_poll(poll: &api::ReadShellCommandOutputResult) -> (String, bool) {
+    use api::read_shell_command_output_result::Result as PollResult;
+
+    match poll.result.as_ref() {
+        Some(PollResult::CommandFinished(finished)) => render_finished(finished),
+        Some(PollResult::LongRunningCommandSnapshot(snapshot)) => {
+            (render_snapshot(snapshot), false)
+        }
+        Some(PollResult::Error(_)) | None => (
+            "No running command with that id. It may have finished and its output was \
+             already returned; run the next command."
+                .to_string(),
+            true,
+        ),
+    }
+}
+
+/// Renders a write to a running command. The result carries the same shapes as a poll.
+fn render_shell_write(write: &api::WriteToLongRunningShellCommandResult) -> (String, bool) {
+    use api::write_to_long_running_shell_command_result::Result as WriteResult;
+
+    match write.result.as_ref() {
+        Some(WriteResult::CommandFinished(finished)) => render_finished(finished),
+        Some(WriteResult::LongRunningCommandSnapshot(snapshot)) => {
+            (render_snapshot(snapshot), false)
+        }
+        Some(WriteResult::Error(_)) | None => (
+            "The write failed: no running command with that id.".to_string(),
+            true,
+        ),
+    }
+}
+
+/// The text for a command that is still running. The command id is what lets the model poll
+/// again, so it must always be part of the output.
+fn render_snapshot(snapshot: &api::LongRunningShellCommandSnapshot) -> String {
+    format!(
+        "The command is still running (command id: {}). Latest output:\n\n{}",
+        snapshot.command_id,
+        truncate(&snapshot.output)
+    )
+}
+
+fn render_finished(finished: &api::ShellCommandFinished) -> (String, bool) {
+    (
+        format!(
+            "exit code: {}\n\n{}",
+            finished.exit_code,
+            truncate(&finished.output)
+        ),
+        finished.exit_code != 0,
+    )
 }
 
 fn render_read_files(read: &api::ReadFilesResult) -> (String, bool) {

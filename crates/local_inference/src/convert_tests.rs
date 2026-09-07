@@ -245,6 +245,194 @@ fn truncation_never_splits_a_character() {
     assert!(truncated.contains('é'));
 }
 
+fn history_result(result: tool_call_result::Result) -> message::ToolCallResult {
+    message::ToolCallResult {
+        tool_call_id: "call-1".to_string(),
+        result: Some(result),
+        ..Default::default()
+    }
+}
+
+fn input_result(
+    result: api::request::input::tool_call_result::Result,
+) -> api::request::input::ToolCallResult {
+    api::request::input::ToolCallResult {
+        tool_call_id: "call-1".to_string(),
+        result: Some(result),
+    }
+}
+
+fn snapshot_result(command_id: &str, output: &str) -> api::LongRunningShellCommandSnapshot {
+    api::LongRunningShellCommandSnapshot {
+        command_id: command_id.to_string(),
+        output: output.to_string(),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_snapshot_names_the_command_id_so_the_model_can_poll() {
+    let rendered = render_result(&history_result(tool_call_result::Result::RunShellCommand(
+        api::RunShellCommandResult {
+            result: Some(
+                api::run_shell_command_result::Result::LongRunningCommandSnapshot(snapshot_result(
+                    "block-9", "loading",
+                )),
+            ),
+            ..Default::default()
+        },
+    )));
+
+    assert!(!rendered.is_error);
+    assert!(rendered.content.contains("block-9"), "{}", rendered.content);
+    assert!(rendered.content.contains("still running"));
+    assert!(rendered.content.contains("loading"));
+}
+
+#[test]
+fn a_poll_of_a_running_command_carries_its_command_id() {
+    let rendered = render_input_result(&input_result(
+        api::request::input::tool_call_result::Result::ReadShellCommandOutput(
+            api::ReadShellCommandOutputResult {
+                result: Some(
+                    api::read_shell_command_output_result::Result::LongRunningCommandSnapshot(
+                        snapshot_result("block-9", "still installing"),
+                    ),
+                ),
+                ..Default::default()
+            },
+        ),
+    ));
+
+    assert!(!rendered.is_error);
+    assert!(rendered.content.contains("block-9"), "{}", rendered.content);
+    assert!(rendered.content.contains("still installing"));
+}
+
+#[test]
+fn a_finished_poll_reads_like_a_finished_command() {
+    let rendered = render_input_result(&input_result(
+        api::request::input::tool_call_result::Result::ReadShellCommandOutput(
+            api::ReadShellCommandOutputResult {
+                result: Some(
+                    api::read_shell_command_output_result::Result::CommandFinished(
+                        api::ShellCommandFinished {
+                            output: "added 1 package".to_string(),
+                            exit_code: 0,
+                            ..Default::default()
+                        },
+                    ),
+                ),
+                ..Default::default()
+            },
+        ),
+    ));
+
+    assert!(!rendered.is_error);
+    assert!(rendered.content.contains("exit code: 0"));
+    assert!(rendered.content.contains("added 1 package"));
+}
+
+#[test]
+fn a_poll_for_an_unknown_command_is_an_error() {
+    let rendered = render_input_result(&input_result(
+        api::request::input::tool_call_result::Result::ReadShellCommandOutput(
+            api::ReadShellCommandOutputResult {
+                result: Some(api::read_shell_command_output_result::Result::Error(
+                    api::ShellCommandError::default(),
+                )),
+                ..Default::default()
+            },
+        ),
+    ));
+
+    assert!(rendered.is_error);
+}
+
+#[test]
+fn a_write_to_a_running_command_reports_the_output() {
+    let rendered = render_input_result(&input_result(
+        api::request::input::tool_call_result::Result::WriteToLongRunningShellCommand(
+            api::WriteToLongRunningShellCommandResult {
+                result: Some(
+                    api::write_to_long_running_shell_command_result::Result::LongRunningCommandSnapshot(
+                        snapshot_result("block-9", "proceed? y"),
+                    ),
+                ),
+            },
+        ),
+    ));
+
+    assert!(!rendered.is_error);
+    assert!(rendered.content.contains("block-9"), "{}", rendered.content);
+    assert!(rendered.content.contains("proceed? y"));
+}
+
+#[test]
+fn a_denied_command_tells_the_model_how_to_recover() {
+    let rendered = render_result(&history_result(tool_call_result::Result::RunShellCommand(
+        api::RunShellCommandResult {
+            result: Some(api::run_shell_command_result::Result::PermissionDenied(
+                api::PermissionDenied::default(),
+            )),
+            ..Default::default()
+        },
+    )));
+
+    assert!(rendered.is_error);
+    assert!(
+        rendered.content.contains("read_shell_command_output"),
+        "{}",
+        rendered.content
+    );
+}
+
+#[test]
+fn poll_and_write_calls_replay_with_their_arguments() {
+    let poll_call = message::ToolCall {
+        tool_call_id: "call-1".to_string(),
+        tool: Some(tool_call::Tool::ReadShellCommandOutput(
+            tool_call::ReadShellCommandOutput {
+                command_id: "block-9".to_string(),
+                delay: Some(tool_call::read_shell_command_output::Delay::Duration(
+                    prost_types::Duration {
+                        seconds: 30,
+                        nanos: 0,
+                    },
+                )),
+            },
+        )),
+    };
+    let ToolUse {
+        name, arguments, ..
+    } = tool_use_from_proto(&poll_call).expect("a known tool");
+    assert_eq!(name, "read_shell_command_output");
+    assert_eq!(arguments["command_id"], "block-9");
+    assert_eq!(arguments["max_wait_seconds"], 30);
+
+    let write_call = message::ToolCall {
+        tool_call_id: "call-2".to_string(),
+        tool: Some(tool_call::Tool::WriteToLongRunningShellCommand(
+            tool_call::WriteToLongRunningShellCommand {
+                command_id: "block-9".to_string(),
+                input: b"y\n".to_vec(),
+                mode: Some(tool_call::write_to_long_running_shell_command::Mode {
+                    mode: Some(
+                        tool_call::write_to_long_running_shell_command::mode::Mode::Line(()),
+                    ),
+                }),
+            },
+        )),
+    };
+    let ToolUse {
+        name, arguments, ..
+    } = tool_use_from_proto(&write_call).expect("a known tool");
+    assert_eq!(name, "write_to_long_running_shell_command");
+    assert_eq!(arguments["command_id"], "block-9");
+    assert_eq!(arguments["input"], "y\n");
+    assert_eq!(arguments["mode"], "line");
+}
+
 fn reasoning_message(text: &str) -> api::Message {
     message(message::Message::AgentReasoning(message::AgentReasoning {
         reasoning: text.to_string(),

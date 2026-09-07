@@ -9,6 +9,8 @@
 //! - The client renders agent output as Markdown, so the prompt asks for Markdown.
 //! - The client asks the user to approve a command that is not marked read-only, so the prompt
 //!   explains what `is_read_only` decides.
+//! - The client refuses to start a command while another is still running, so the prompt points
+//!   at `read_shell_command_output` instead of `sleep`.
 
 /// The system prompt sent with every request.
 pub const SYSTEM_PROMPT: &str = "\
@@ -32,6 +34,14 @@ read-only, so a wrong mark either wastes the user's time or makes a change they 
 To change a file, use `apply_file_diffs`. The `search` text must match the file exactly, \
 including whitespace and indentation. Read the file first if you are not sure of the exact \
 text. Do not rewrite a whole file to change a few lines.
+
+# Long-running commands
+
+A command that needs more than a moment comes back as still running, with its output so far \
+and a command id. While a command is still running the client refuses to start another one, so \
+never wait by running `sleep` or any other command: it will not be started. Poll the running \
+command with `read_shell_command_output`, giving it the command id and `max_wait_seconds`. \
+To answer a prompt from a running command, write to it with `write_to_long_running_shell_command`.
 
 # Answers
 

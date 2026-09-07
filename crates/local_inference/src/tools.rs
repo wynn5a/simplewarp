@@ -11,12 +11,14 @@ use warp_multi_agent_api::message::tool_call;
 
 /// The tools that this crate can translate. The client may support more; anything outside this
 /// list is left out of the request, so the model never calls a tool that we cannot map.
-pub const SUPPORTED: [api::ToolType; 5] = [
+pub const SUPPORTED: [api::ToolType; 7] = [
     api::ToolType::RunShellCommand,
     api::ToolType::ReadFiles,
     api::ToolType::ApplyFileDiffs,
     api::ToolType::Grep,
     api::ToolType::FileGlobV2,
+    api::ToolType::ReadShellCommandOutput,
+    api::ToolType::WriteToLongRunningShellCommand,
 ];
 
 /// A tool as the provider sees it.
@@ -36,6 +38,8 @@ pub fn wire_name(tool: api::ToolType) -> Option<&'static str> {
         api::ToolType::ApplyFileDiffs => "apply_file_diffs",
         api::ToolType::Grep => "grep",
         api::ToolType::FileGlobV2 => "file_glob",
+        api::ToolType::ReadShellCommandOutput => "read_shell_command_output",
+        api::ToolType::WriteToLongRunningShellCommand => "write_to_long_running_shell_command",
         _ => return None,
     })
 }
@@ -202,6 +206,60 @@ fn schema_for(tool: api::ToolType) -> Option<ToolSchema> {
                 "required": ["patterns"],
             }),
         },
+        api::ToolType::ReadShellCommandOutput => ToolSchema {
+            name: "read_shell_command_output",
+            description: "Read the output of a command that is still running, given the \
+                command id from the still-running result. This is the way to wait for a long \
+                command; the client will not start a new command while one is running.",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "command_id": {
+                        "type": "string",
+                        "description": "The id of the running command, taken from the \
+                            still-running result.",
+                    },
+                    "max_wait_seconds": {
+                        "type": "integer",
+                        "description": "Wait up to this many seconds before returning. Leave \
+                            out to check right away.",
+                    },
+                    "wait_for_completion": {
+                        "type": "boolean",
+                        "description": "True to wait for the command to finish instead of \
+                            returning a snapshot. The client caps how long it waits.",
+                    },
+                },
+                "required": ["command_id"],
+            }),
+        },
+        api::ToolType::WriteToLongRunningShellCommand => ToolSchema {
+            name: "write_to_long_running_shell_command",
+            description: "Write text to a command that is still running, for example to \
+                answer a yes/no prompt. Returns the output after the write.",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "command_id": {
+                        "type": "string",
+                        "description": "The id of the running command, taken from the \
+                            still-running result.",
+                    },
+                    "input": {
+                        "type": "string",
+                        "description": "The text to write.",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["raw", "line", "block"],
+                        "description": "`line` (the default) writes the text and presses \
+                            Enter. `block` writes multi-line text as one paste. `raw` writes \
+                            the exact bytes.",
+                    },
+                },
+                "required": ["command_id", "input"],
+            }),
+        },
         _ => return None,
     };
     Some(schema)
@@ -303,6 +361,42 @@ pub fn to_proto(
                 max_matches: u32_field(arguments, "max_matches").unwrap_or_default() as i32,
                 ..Default::default()
             })
+        }
+        "read_shell_command_output" => {
+            let delay = if bool_field(arguments, "wait_for_completion") {
+                Some(tool_call::read_shell_command_output::Delay::OnCompletion(()))
+            } else {
+                u32_field(arguments, "max_wait_seconds").map(|seconds| {
+                    tool_call::read_shell_command_output::Delay::Duration(prost_types::Duration {
+                        seconds: i64::from(seconds),
+                        nanos: 0,
+                    })
+                })
+            };
+            tool_call::Tool::ReadShellCommandOutput(tool_call::ReadShellCommandOutput {
+                command_id: string_field(arguments, "command_id")?,
+                delay,
+            })
+        }
+        "write_to_long_running_shell_command" => {
+            let kind = match string_field(arguments, "mode").as_deref() {
+                Some("raw") => tool_call::write_to_long_running_shell_command::mode::Mode::Raw(()),
+                Some("block") => {
+                    tool_call::write_to_long_running_shell_command::mode::Mode::Block(())
+                }
+                // The schema documents `line` as the default: a prompt answer usually
+                // needs the Enter that `line` sends.
+                _ => tool_call::write_to_long_running_shell_command::mode::Mode::Line(()),
+            };
+            tool_call::Tool::WriteToLongRunningShellCommand(
+                tool_call::WriteToLongRunningShellCommand {
+                    command_id: string_field(arguments, "command_id")?,
+                    input: string_field(arguments, "input")?.into_bytes(),
+                    mode: Some(tool_call::write_to_long_running_shell_command::Mode {
+                        mode: Some(kind),
+                    }),
+                },
+            )
         }
         _ => return None,
     };
