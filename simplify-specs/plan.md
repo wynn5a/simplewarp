@@ -3080,6 +3080,13 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
    almost certainly why these two survived that step's own compiler-led cascade — nothing
    *read* them, so nothing failed to compile when their UI went. 257 variants remain.
 
+   **Rounds 4ad–4av kept sweeping by feature instead of by flag** (each recorded under its
+   own Definition-of-done entry; 4ak–4av in one bulk entry there): 20 more variants went
+   with their verticals, including 3 definition-only deletions in 4at and 1 in 4aq.
+   **226 variants remain** of the original 292. 4at's sweep also identified 29 further
+   off-by-default flags, two of which (AgentHarness, GeminiEnterprise) look live-by-design;
+   those and the flags behind the not-yet-deleted modules are what is left.
+
 ## Risks
 
 - **Deep coupling.** The cloud crates appear in ~147 files. This is why deletion is last.
@@ -3301,6 +3308,88 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             (`explicit_local_collection_is_preserved_from_onboarding`), matching the 4ah
             `request_limit()` precedent for a general accessor with its own test coverage.
             nextest 5707 green (down from 5720, expected from the test deletions).
+      - [x] **Twelve flag-vertical rounds recorded in bulk — 4ak–4av (2026-09-03 → 2026-09-07);
+            ~20 flags gone, the enum down to 226 of the original 292.** Detailed in their commit
+            messages; this is the summary the plan would otherwise miss.
+            - **CloudConversations (4ak)** folded to always-off: the sharing menu items, the
+                  pane-header share button, the privacy cloud-storage toggle, the cloud-delete
+                  calls on conversation delete/remove, and the always-`None` server-load path.
+                  The flag itself and the CLI `--conversation` hide/validate guards stay (shared
+                  pattern with CloudEnvironments/CloudRunners/OzPlatformSkills), as does
+                  `CloudConversationData::CLIAgent` (a multi-caller fork in `pane_group/`,
+                  deferred).
+            - **AgentManagementView (4al)** deleted the dashboard view and its type-selector
+                  popup and folded every call site (tab-bar/toolbar/panel/vertical-tabs;
+                  `ToggleAgentManagementView` and `ViewAgentRunsForEnvironment` went outright).
+                  `OpenAgentManagementView` stays as a no-op stub — it is a cataloged
+                  local_control/CLI command surface — and `WindowSnapshot.agent_management_filters`
+                  stays as a persisted SQLite column, now always `None` (removal needs a
+                  migration). The dashboard was the sole consumer of nine
+                  `AgentConversationsModel` methods; they went with 11 of their tests.
+            - **FullSourceCodeEmbedding (4am)** deleted the embedding-backed retrieval path:
+                  `ai/codebase_auto_indexing.rs` whole, the client-side
+                  `RemoteCodebaseIndexModel`, the 357-line speedbump-banner subsystem, `/index`,
+                  and the remote rows on the code-indexing page. Mid-round scope correction:
+                  `crates/ai`'s `full_source_code_embedding` module came back via
+                  `git checkout` — the remote-server daemon (`server_model.rs`, behind the
+                  separate, protected `RemoteCodebaseIndexing` flag) imports
+                  `CodebaseIndexManager` directly, and the planned dependent deletions were
+                  abandoned before landing. The incidentally-nested `ProjectContextModel`
+                  subscription and the page's live LSP-management UI stay, per the
+                  `code_editor_review_page.rs` precedent.
+            - **OzHandoff (4an, two commits)** removed local-to-cloud handoff. Part 1: the
+                  commit pipeline, the driver snapshot writer, the checkpoint coordinator, the
+                  checkpoint-upload path (two `HarnessSupportClient` methods with it), the
+                  settings widget, `/handoff`, and orphaned telemetry — with
+                  `AutoCloudHandoffController` and `start_local_to_cloud_handoff*` folded to
+                  no-op stubs because part 2 still called them by name. Part 2: the
+                  `&`-prefix compose mode, the footer chip, the whole
+                  `auto_handoff_sleep_modal/` view, the handoff state machine with
+                  `PendingHandoffChanged`/`HandoffSnapshotUploadFailed`, four backing settings,
+                  and the newly-dead env-overpick in `handoff/touched_repos.rs`. Kept:
+                  `PendingCloudLaunch` stubs, the `OpenLocalToCloudHandoffPane`/
+                  `AutoHandoffActiveAgentToCloud` handlers, and the URI trigger — all routing
+                  into part 1's stub. The remote daemon's own snapshot upload path is untouched.
+            - **CloudMode and its sub-flags (4ao–4as)** — these were in `default`, so folding
+                  means always-on, the opposite direction of every round before. 4ao/4ap deleted
+                  the base flag and `CloudModeFromLocalSession` (disabled-state branches, 3
+                  sites); 4aq found `CloudModeImageContext` had zero readers anywhere — orphaned
+                  upstream, definition-only delete; 4ar folded `CloudModeSetupV2` +
+                  `HandoffCloudCloud` together because they were entangled in shared boolean
+                  expressions, deleting the legacy ambient loading footer and screens (all of
+                  `loading_screen.rs`), `CloudAgentStartupPresentation*`, and the
+                  auto-open-details-panel one-shot mechanism; 4as made the V2 input composer
+                  unconditional, deleting the v1-spawns-cloud-agent test whose premise was the
+                  off-branch.
+            - **Dead-weight sweep (4at)** — four zero-reader removals: the `loginless_conversion`
+                  cargo feature (no flag at all), `AgentManagementDetailsView` (orphaned by 4al),
+                  `ConversationArtifacts`, and `HOARemoteControl` (its chip was already gone).
+                  29 further off-by-default flags were identified in the same sweep and
+                  deferred; two of them (AgentHarness, GeminiEnterprise) look live-by-design.
+            - **Five small verticals (4au)** — `CreateEnvironmentSlashCommand` (zero readers;
+                  dead weight 4at missed), `GlobalAIAnalyticsCollection` (the telemetry
+                  predicate collapses to `AgentModeAnalytics.is_enabled()`, taking the
+                  `is_telemetry_enabled` parameter and its nine call sites), `SyncAmbientPlans`
+                  (constructor defaults the field to `false`, which stays — profiles/editor
+                  still write it), `UsageBasedPricing` (plan-info row renders unconditionally;
+                  GraphQL wire types stay), `WarpPacks` (plain folder icon; `is_warp_pack`
+                  persistence stays).
+            - **DriveObjectsAsContext + CloudAgentRunners (4av)** — deleting the first removed
+                  the only construction sites of
+                  `AIContextMenuCategory::{Workflows,Notebooks,Plans}`, so the variants
+                  collapsed with their name/icon/navigation/selection arms and both feeding
+                  modules (`search/ai_context_menu/{workflows,notebooks}/` —
+                  `WorkflowDataSource::new` was already wearing `#[allow(dead_code)]`) went
+                  with their 5 tests; `InsertPlan`'s only constructor was the notebooks search
+                  item, so it and its `terminal/input.rs` arm went too
+                  (`QueryFilter::Workflows`/`Notebooks` stay — `command_search` builds them).
+                  The second pinned `supports_orchestration_runners` and
+                  `runner_controls_enabled` to `false` and left the runner-picker UI for the
+                  remote-mode orchestration round, per 4m's scoping.
+
+            Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
+            format clean, nextest green (5707 → 5520 as each deleted subject's tests went with
+            it) — and the later rounds built and launched the app.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
