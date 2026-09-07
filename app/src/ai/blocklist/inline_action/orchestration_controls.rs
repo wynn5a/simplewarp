@@ -103,9 +103,8 @@ pub struct OrchestrationPickerHandles<A: OrchestrationControlAction> {
     pub model_picker: Option<ViewHandle<FilterableDropdown<A>>>,
     pub harness_picker: Option<ViewHandle<Dropdown<A>>>,
     pub environment_picker: Option<ViewHandle<FilterableDropdown<A>>>,
-    /// Runner picker for the Cloud variant (gated on `CloudAgentRunners` and
-    /// the macOS runner experiment test arm).
-    /// `None` until built; runners are fetched via `FactoryClient::get_runners`.
+    /// Runner picker for the Cloud variant. `None` until built; runners are
+    /// fetched via `FactoryClient::get_runners`.
     pub runner_picker: Option<ViewHandle<FilterableDropdown<A>>>,
     pub host_picker: Option<ViewHandle<HostPicker>>,
     /// Picker for the managed auth secret used by non-Oz cloud children.

@@ -9898,11 +9898,6 @@ impl Input {
                         let drive_object_text = format!("<{object_type}:{object_uid}>");
                         self.replace_at_symbol_with_text(&drive_object_text, ctx);
                     }
-                    AIContextMenuSearchableAction::InsertPlan { ai_document_uid } => {
-                        // For InsertPlan, format as <plan:uid> and replace the "@" and any filter text
-                        let ai_document_text = format!("<plan:{ai_document_uid}>");
-                        self.replace_at_symbol_with_text(&ai_document_text, ctx);
-                    }
                     AIContextMenuSearchableAction::InsertConversation { conversation_id } => {
                         let conversation_text = format!("<convo:{conversation_id}>");
                         self.replace_at_symbol_with_text(&conversation_text, ctx);

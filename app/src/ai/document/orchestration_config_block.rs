@@ -566,8 +566,7 @@ impl OrchestrationConfigBlockView {
     }
 
     /// Builds the Runner picker and kicks off the `getRunners` fetch, but
-    /// only when the `CloudAgentRunners` feature is enabled and the macOS
-    /// runner experiment is active, and the config
+    /// only when the runner controls are enabled and the config
     /// is in remote mode — otherwise the Runner control is not rendered, so
     /// there is no reason to create the picker or hit `getRunners`.
     /// Idempotent, and re-invoked on the Local→Cloud toggle.

@@ -922,8 +922,7 @@ impl RunAgentsCardView {
     }
 
     /// Builds the Runner picker and kicks off the `getRunners` fetch, but
-    /// only when the `CloudAgentRunners` feature is enabled and the macOS
-    /// runner experiment is active, and the card is
+    /// only when the runner controls are enabled and the card is
     /// in remote mode — otherwise the Runner control is not rendered, so
     /// there is no reason to create the picker or hit `getRunners`.
     /// Idempotent, and re-invoked on the Local→Cloud toggle so the picker

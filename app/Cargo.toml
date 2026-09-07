@@ -545,7 +545,6 @@ default = [
     "ai_context_menu_code",
     "agent_decides_command_execution",
     "linked_code_blocks",
-    "drive_objects_as_context",
     "search_codebase_ui",
     "profiles_design_revamp",
     "multi_profile",
@@ -664,7 +663,6 @@ default = [
     "git_operations_in_code_review",
     "terminal_lifecycle_recovery",
     "cloud_runners",
-    "cloud_agent_runners",
     "file_backed_execution_profiles",
     "well_known_mcp_ids",
     "factory_mcp",
@@ -987,7 +985,6 @@ cycle_next_command_suggestion = []
 multi_workspace = []
 ime_marked_text = []
 partial_next_command_suggestions = []
-drive_objects_as_context = []
 iterm_images = []
 validate_autosuggestions = []
 autoupdate_ui_revamp = []
@@ -1039,7 +1036,6 @@ inline_code_review = []
 artifact_command = []
 cloud_environments = []
 cloud_runners = []
-cloud_agent_runners = []
 summarize_conversation_command = []
 mcp_grouped_server_context = []
 web_search_ui = []

@@ -1,7 +1,6 @@
 use warpui::App;
 
 use super::runner_controls_enabled;
-use crate::features::FeatureFlag;
 use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 
 fn initialize_app(app: &mut App) {
@@ -12,17 +11,13 @@ fn initialize_app(app: &mut App) {
 }
 
 #[test]
-fn runner_controls_stay_disabled_whatever_the_feature_flag_says() {
+fn runner_controls_stay_disabled() {
     // The controls needed a server-assigned experiment arm on top of the flag,
-    // and this build has no server to assign one. Pinning both flag states
-    // guards against a later change that drops only the experiment half and
-    // silently turns the cloud runner controls on.
+    // and this build has no server to assign one. The flag itself is gone now,
+    // so there is only the one surviving behavior to pin.
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        for enabled in [false, true] {
-            let _cloud_agent_runners = FeatureFlag::CloudAgentRunners.override_enabled(enabled);
-            app.read(|ctx| assert!(!runner_controls_enabled(ctx)));
-        }
+        app.read(|ctx| assert!(!runner_controls_enabled(ctx)));
     });
 }

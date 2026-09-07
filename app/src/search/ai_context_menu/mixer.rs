@@ -23,10 +23,6 @@ pub enum AIContextMenuSearchableAction {
         /// The UID of the drive object to insert as <object_type:{uid}>
         object_uid: String,
     },
-    InsertPlan {
-        /// The UID of the AI document to insert as <plan:{uid}>
-        ai_document_uid: String,
-    },
     InsertDiffSet {
         /// The diff mode indicating what base to compare against
         diff_mode: DiffMode,
