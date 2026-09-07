@@ -6,7 +6,6 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::channel::ChannelState;
 use warp_core::context_flag::ContextFlag;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::icons::Icon;
 use warp_errors::{report_error, report_if_error};
 use warpui::assets::asset_cache::AssetSource;
@@ -580,9 +579,7 @@ impl AccountWidget {
             )
             .with_cross_axis_alignment(CrossAxisAlignment::Start);
 
-        if !FeatureFlag::UsageBasedPricing.is_enabled() {
-            row.add_child(Align::new(plan_info.finish()).right().finish());
-        }
+        row.add_child(Align::new(plan_info.finish()).right().finish());
 
         row.finish()
     }

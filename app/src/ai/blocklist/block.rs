@@ -205,9 +205,7 @@ use crate::view_components::find::FindEvent;
 use crate::workspace::{ForkAIConversationParams, ForkedConversationDestination, WorkspaceAction};
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{
-    AIAgentTodoList, Appearance, FileEdit, PrivacySettings, ToastStack, send_telemetry_from_ctx,
-};
+use crate::{AIAgentTodoList, Appearance, FileEdit, ToastStack, send_telemetry_from_ctx};
 
 /// The default display name used for the user if they have no associated display name.
 const DEFAULT_USER_DISPLAY_NAME: &str = "User";
@@ -4285,8 +4283,7 @@ impl AIBlock {
         let identifiers = view.as_ref(ctx).identifiers().clone();
         let query = view.as_ref(ctx).query().unwrap_or_default();
 
-        let should_collect_ugc =
-            should_collect_ai_ugc_telemetry(ctx, PrivacySettings::as_ref(ctx).is_telemetry_enabled);
+        let should_collect_ugc = should_collect_ai_ugc_telemetry(ctx);
         let redacted_query = if should_collect_ugc {
             let mut redacted_query = query.clone();
             redact_secrets(&mut redacted_query);

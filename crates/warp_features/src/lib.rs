@@ -161,16 +161,10 @@ pub enum FeatureFlag {
     /// Enables Kitty image rendering
     KittyImages,
 
-    /// Enables support for Warp Packs.
-    WarpPacks,
-
     /// Enables the revised AI analytics policy banner.
     ///
     /// This does not gate actual collection of data under the new policy.
     GlobalAIAnalyticsBanner,
-
-    /// Enables actual collection of AI analytics data per the revised AI analytics policy.
-    GlobalAIAnalyticsCollection,
 
     /// Enables Agent Mode onboarding.
     AgentOnboarding,
@@ -210,8 +204,6 @@ pub enum FeatureFlag {
 
     /// Enables reading images with the `read_files` tool.
     ReadImageFiles,
-
-    UsageBasedPricing,
 
     /// Enables cross-repo codebase context.
     CrossRepoContext,
@@ -372,9 +364,6 @@ pub enum FeatureFlag {
     /// Enables cloud environments management via CLI.
     CloudEnvironments,
 
-    /// Enables the /create-environment slash command for setting up Warp Environments
-    CreateEnvironmentSlashCommand,
-
     /// Enables the local docker sandbox entrypoints in the client.
     LocalDockerSandbox,
 
@@ -518,9 +507,6 @@ pub enum FeatureFlag {
 
     /// When enabled, we expose LSP as a tool to the agent
     LSPAsATool,
-
-    /// Enables auto-syncing ambient plans to Warp Drive.
-    SyncAmbientPlans,
 
     /// Enables platform skills support (--skill flag) for agent runs.
     ///
@@ -950,9 +936,6 @@ impl FeatureFlag {
             CloudEnvironments => {
                 Some("Enables creating and managing Warp Environments via the CLI.")
             }
-            CreateEnvironmentSlashCommand => Some(
-                "Enables the /create environment slash command for setting up Warp Environments with custom configurations.",
-            ),
             GlobalSearch => Some("Enables global search in the left panel"),
             BlocklistMarkdownTableRendering => {
                 Some("Enables rendering markdown tables inline in AI block list responses.")

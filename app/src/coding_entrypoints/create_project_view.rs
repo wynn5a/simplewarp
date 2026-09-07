@@ -15,7 +15,6 @@ use crate::TelemetryEvent;
 use crate::ai::blocklist::telemetry_banner::should_collect_ai_ugc_telemetry;
 use crate::appearance::Appearance;
 use crate::coding_entrypoints::glowing_editor::{GlowingEditor, GlowingEditorEvent};
-use crate::settings::PrivacySettings;
 
 const ICON_MARGIN_LEFT: f32 = 12.;
 const ICON_MARGIN_RIGHT: f32 = 8.;
@@ -85,10 +84,7 @@ impl CreateProjectView {
                 );
 
                 // Send content event only if UGC collection is enabled
-                let should_collect_ugc = should_collect_ai_ugc_telemetry(
-                    ctx,
-                    PrivacySettings::as_ref(ctx).is_telemetry_enabled,
-                );
+                let should_collect_ugc = should_collect_ai_ugc_telemetry(ctx);
                 if should_collect_ugc {
                     send_telemetry_from_ctx!(
                         TelemetryEvent::CreateProjectPromptSubmittedContent {

@@ -28,7 +28,7 @@ use crate::terminal::ShellLaunchData;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::{ExecuteCommandOptions, Session, shell_quote_arg};
 use crate::terminal::shell::ShellType;
-use crate::{PrivacySettings, TelemetryEvent, send_telemetry_from_app_ctx};
+use crate::{TelemetryEvent, send_telemetry_from_app_ctx};
 
 const GREP_TIMEOUT: Duration = Duration::from_secs(10);
 const NON_ZERO_EXIT_CODE_ERROR: &str = "Grep command exited with non-zero exit code";
@@ -156,12 +156,7 @@ fn log_grep_error(
     error: GrepError,
     ctx: &mut AppContext,
 ) {
-    let should_collect_ugc = should_collect_ai_ugc_telemetry(
-        ctx,
-        PrivacySettings::handle(ctx)
-            .as_ref(ctx)
-            .is_telemetry_enabled,
-    );
+    let should_collect_ugc = should_collect_ai_ugc_telemetry(ctx);
     let server_output_id = get_server_output_id(conversation_id, ctx);
 
     let event = create_redacted_grep_error_event(

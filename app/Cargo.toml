@@ -521,7 +521,6 @@ default = [
     "ligatures",
     "dynamic_workflow_enums",
     "rect_selection",
-    "warp_packs",
     "ai_rules",
     "suggested_rules",
     "am_workflows",
@@ -529,14 +528,12 @@ default = [
     "render_agent_mode_output_markdown",
     "command_correction_key",
     "kitty_images",
-    "global_ai_analytics_collection",
     "validate_autosuggestions",
     "clear_autosuggestion_on_escape",
     "mcp_server",
     "fast_forward_autoexecute_button",
     "image_as_context",
     "command_palette_file_search",
-    "usage_based_pricing",
     "ai_context_menu",
     "at_menu_outside_of_ai_mode",
     "agent_management_view",
@@ -580,7 +577,6 @@ default = [
     "artifact_command",
     "conversation_api",
     "cloud_environments",
-    "create_environment_slash_command",
     "code_review_find",
     "async_find",
     "mcp_grouped_server_context",
@@ -607,7 +603,6 @@ default = [
     "agent_mode_computer_use",
     "background_computer_use",
     "oz_platform_skills",
-    "sync_ambient_plans",
     "agent_view",
     "agent_view_block_context",
     "agent_view_conversation_list_view",
@@ -833,7 +828,6 @@ extern_plist = []
 fast_dev = ["skip_login"]
 full_screen_zen_mode = []
 global_ai_analytics_banner = []
-global_ai_analytics_collection = []
 grab_the_baton_editing = []
 # This feature is enabled in graphical builds of Warp, and groups together other features
 # that are not needed in headless builds. Because Cargo features are additive, the default
@@ -997,14 +991,12 @@ drive_objects_as_context = []
 iterm_images = []
 validate_autosuggestions = []
 autoupdate_ui_revamp = []
-warp_packs = []
 suggested_rules = []
 command_correction_key = []
 full_source_code_embedding = []
 use_tantivy_search = []
 agent_management_popup = []
 shared_block_title_generation = []
-usage_based_pricing = []
 ai_context_menu = []
 at_menu_outside_of_ai_mode = []
 agent_decides_command_execution = []
@@ -1027,7 +1019,6 @@ multi_profile = []
 pr_comments_v2 = []
 conversations_as_context = []
 conversation_api = []
-sync_ambient_plans = []
 projects = []
 vim_code_editor = []
 allow_opening_file_links_using_editor_env = []
@@ -1049,7 +1040,6 @@ artifact_command = []
 cloud_environments = []
 cloud_runners = []
 cloud_agent_runners = []
-create_environment_slash_command = []
 summarize_conversation_command = []
 mcp_grouped_server_context = []
 web_search_ui = []

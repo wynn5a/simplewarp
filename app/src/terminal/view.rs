@@ -14218,10 +14218,7 @@ impl TerminalView {
                     return;
                 }
 
-                let (query_string, block_command) = if should_collect_ai_ugc_telemetry(
-                    ctx,
-                    PrivacySettings::as_ref(ctx).is_telemetry_enabled,
-                ) {
+                let (query_string, block_command) = if should_collect_ai_ugc_telemetry(ctx) {
                     (Some(suggestion.prompt.to_string()), Some(command))
                 } else {
                     (None, None)

@@ -192,16 +192,12 @@ impl Entity for TelemetryBanner {
 /// For example, a metadata event that records if a user toggled Pair/Dispatch mode does not
 /// require this check, but an event that logs the input buffer for natural language detection
 /// _does_ need to check this.
-pub fn should_collect_ai_ugc_telemetry(app: &AppContext, is_telemetry_enabled: bool) -> bool {
+pub fn should_collect_ai_ugc_telemetry(app: &AppContext) -> bool {
     match UserWorkspaces::as_ref(app).get_ugc_collection_enablement_setting() {
         UgcCollectionEnablementSetting::Disable => false,
         UgcCollectionEnablementSetting::Enable => true,
         UgcCollectionEnablementSetting::RespectUserSetting => {
-            (FeatureFlag::GlobalAIAnalyticsCollection.is_enabled()
-                // Do NOT remove this check. Unlike the send telemetry macro,
-                // UploadBlock endpoint does not automatically check user's telemetry setting.
-                && is_telemetry_enabled)
-                || FeatureFlag::AgentModeAnalytics.is_enabled()
+            FeatureFlag::AgentModeAnalytics.is_enabled()
         }
     }
 }
