@@ -253,9 +253,7 @@ impl TerminalView {
                 ctx.notify();
             }
             AmbientAgentViewModelEvent::ShowCloudAgentCapacityModal => {
-                if FeatureFlag::CloudMode.is_enabled()
-                    && ambient_agent_view_model.as_ref(ctx).is_ambient_agent()
-                {
+                if ambient_agent_view_model.as_ref(ctx).is_ambient_agent() {
                     ctx.emit(crate::terminal::view::Event::ShowCloudAgentCapacityModal {
                         variant: CloudAgentCapacityModalVariant::ConcurrentLimit,
                     });
@@ -264,9 +262,7 @@ impl TerminalView {
                 ctx.notify();
             }
             AmbientAgentViewModelEvent::ShowAICreditModal => {
-                if FeatureFlag::CloudMode.is_enabled()
-                    && ambient_agent_view_model.as_ref(ctx).is_ambient_agent()
-                {
+                if ambient_agent_view_model.as_ref(ctx).is_ambient_agent() {
                     self.show_out_of_credits_modal(ctx);
                 }
 
@@ -604,9 +600,7 @@ impl TerminalView {
         initial_prompt: Option<String>,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !(FeatureFlag::CloudMode.is_enabled()
-            && FeatureFlag::CloudModeFromLocalSession.is_enabled())
-        {
+        if !FeatureFlag::CloudModeFromLocalSession.is_enabled() {
             return;
         }
 

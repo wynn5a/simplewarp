@@ -54,11 +54,11 @@ use crate::server::server_api::ServerApiProvider;
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings::{InputModeSettings, InputSettings, PrivacySettings};
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
+use crate::terminal::input::SET_INPUT_MODE_TERMINAL_ACTION_NAME;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
 use crate::terminal::input::message_bar::common::render_wrapping_standard_message_bar;
 use crate::terminal::input::slash_command_model::SlashCommandModel;
 use crate::terminal::input::suggestions_mode_model::InputSuggestionsModeModel;
-use crate::terminal::input::SET_INPUT_MODE_TERMINAL_ACTION_NAME;
 use crate::terminal::model::block::LONG_RUNNING_COMMAND_DURATION_MS;
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::view::ambient_agent::{

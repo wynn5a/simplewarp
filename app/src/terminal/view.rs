@@ -6012,8 +6012,7 @@ impl TerminalView {
                 self.maybe_send_agent_mode_desktop_notification(conversation_id, ctx);
 
                 // Show AI credits modal for cloud-mode out-of-credits failures.
-                if FeatureFlag::CloudMode.is_enabled()
-                    && self.is_ambient_agent_session(ctx)
+                if self.is_ambient_agent_session(ctx)
                     && let Some(conversation) =
                         BlocklistAIHistoryModel::as_ref(ctx).conversation(conversation_id)
                     && matches!(
@@ -20383,10 +20382,6 @@ impl TerminalView {
         initial_prompt: Option<String>,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::CloudMode.is_enabled() {
-            return;
-        }
-
         // Don't pass an initial prompt, which auto-sends the request.
         self.enter_agent_view_for_new_conversation(None, AgentViewEntryOrigin::CloudAgent, ctx);
 

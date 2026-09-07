@@ -606,7 +606,6 @@ default = [
     "ask_user_question",
     "bundled_skills",
     "ambient_agents_rtc",
-    "cloud_mode",
     "cloud_mode_from_local_session",
     "cloud_mode_image_context",
     "agent_mode_computer_use",
@@ -1085,7 +1084,6 @@ ambient_agents_rtc = []
 team_api_keys = []
 named_agents = []
 classic_completions = []
-cloud_mode = []
 cloud_mode_from_local_session = []
 cloud_mode_image_context = []
 force_classic_completions = []
@@ -1132,8 +1130,8 @@ configurable_toolbar = []
 warpify_footer = []
 git_operations_in_code_review = []
 hoa_remote_control = []
-cloud_mode_setup_v2 = ["cloud_mode"]
-cloud_mode_input_v2 = ["cloud_mode"]
+cloud_mode_setup_v2 = []
+cloud_mode_input_v2 = []
 handoff_cloud_cloud = ["cloud_mode_setup_v2"]
 git_credential_refresh = []
 prompt_cache_expiry_warning = []

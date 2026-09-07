@@ -1700,7 +1700,6 @@ fn test_create_missing_child_agent_panes_restores_remote_child_from_history_mode
 #[test]
 fn test_ambient_transcript_restore_creates_cloud_mode_pane_when_handoff_enabled() {
     let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-    let _cloud_mode = FeatureFlag::CloudMode.override_enabled(true);
     let _setup_v2 = FeatureFlag::CloudModeSetupV2.override_enabled(true);
     let _handoff = FeatureFlag::HandoffCloudCloud.override_enabled(true);
 

@@ -15,7 +15,9 @@ use super::{
     agent_id_key_from_persisted_data,
 };
 use crate::ai::agent::api::ServerConversationToken;
-use crate::ai::agent::conversation::{AIConversation, AIConversationId, ServerAIConversationMetadata};
+use crate::ai::agent::conversation::{
+    AIConversation, AIConversationId, ServerAIConversationMetadata,
+};
 #[cfg(feature = "local_fs")]
 use crate::persistence::agent::read_agent_conversation_by_id;
 use crate::persistence::model::{

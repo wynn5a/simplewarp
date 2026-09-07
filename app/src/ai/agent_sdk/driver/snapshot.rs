@@ -26,7 +26,9 @@ use crate::server::server_api::ai::{
     AIClient, InitialSnapshotToken, SnapshotUploadFileInfo as AiSnapshotUploadFileInfo,
     UploadLocalHandoffSnapshotRequest,
 };
-use crate::server::server_api::harness_support::{SnapshotFileInfo, UploadTarget, upload_to_target};
+use crate::server::server_api::harness_support::{
+    SnapshotFileInfo, UploadTarget, upload_to_target,
+};
 
 /// Upper bound for each git subprocess spawned during the gather phase.
 const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(30);

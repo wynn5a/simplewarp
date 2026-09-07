@@ -160,9 +160,9 @@ use crate::ai::agent_management::AgentManagementEvent;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::agent_sdk::driver::harness::{claude_transcript, codex_transcript};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::ai::ambient_agents::telemetry::{CloudAgentTelemetryEvent, CloudModeEntryPoint};
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use crate::ai::ambient_agents::telemetry::HandoffEntryPoint;
+use crate::ai::ambient_agents::telemetry::{CloudAgentTelemetryEvent, CloudModeEntryPoint};
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEditorMode;
 use crate::ai::blocklist::agent_view::editor::{AgentToolbarEditorEvent, AgentToolbarEditorModal};
@@ -6093,10 +6093,7 @@ impl Workspace {
         }
 
         // 3. Cloud Agent (if flags enabled)
-        if is_any_ai_enabled
-            && FeatureFlag::AgentView.is_enabled()
-            && FeatureFlag::CloudMode.is_enabled()
-        {
+        if is_any_ai_enabled && FeatureFlag::AgentView.is_enabled() {
             let mut cloud_item = MenuItemFields::new("Cloud Agent")
                 .with_on_select_action(WorkspaceAction::AddAmbientAgentTab)
                 .with_icon(icons::Icon::LayoutAlt01);
@@ -8547,7 +8544,6 @@ impl Workspace {
     fn close_vertical_tabs_settings_popup(&mut self) {
         self.vertical_tabs_panel.show_settings_popup = false;
     }
-
 
     fn toggle_left_panel(&mut self, ctx: &mut ViewContext<Self>) {
         let active_pane_group = self.active_tab_pane_group().clone();
@@ -11404,7 +11400,7 @@ impl Workspace {
     }
 
     fn add_ambient_agent_tab(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::AgentView.is_enabled() || !FeatureFlag::CloudMode.is_enabled() {
+        if !FeatureFlag::AgentView.is_enabled() {
             return;
         }
 
@@ -17150,9 +17146,6 @@ impl Workspace {
         variant: CloudAgentCapacityModalVariant,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::CloudMode.is_enabled() {
-            return;
-        }
         self.cloud_agent_capacity_modal.update(ctx, |modal, ctx| {
             modal.set_variant(variant);
             ctx.notify();
@@ -18769,7 +18762,8 @@ impl Workspace {
             HeaderToolbarItemKind::CodeReview => self.render_right_panel_button(appearance, ctx),
             // The agent management view and the notifications mailbox were removed;
             // these variants only survive so persisted toolbar configs keep deserializing.
-            HeaderToolbarItemKind::AgentManagement | HeaderToolbarItemKind::NotificationsMailbox => {
+            HeaderToolbarItemKind::AgentManagement
+            | HeaderToolbarItemKind::NotificationsMailbox => {
                 return None;
             }
         };
@@ -24589,10 +24583,9 @@ impl View for Workspace {
             stack.add_child(ChildView::new(&self.codex_modal).finish());
         }
 
-        if FeatureFlag::CloudMode.is_enabled()
-            && self
-                .current_workspace_state
-                .is_cloud_agent_capacity_modal_open
+        if self
+            .current_workspace_state
+            .is_cloud_agent_capacity_modal_open
         {
             stack.add_child(ChildView::new(&self.cloud_agent_capacity_modal).finish());
         }

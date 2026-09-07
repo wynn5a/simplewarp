@@ -161,8 +161,7 @@ use crate::ai::blocklist::{
     BlocklistAIInputEvent, BlocklistAIInputModel, DIFF_HUNK_ATTACHMENT_REGEX,
     DRIVE_OBJECT_ATTACHMENT_REGEX, InputConfig, InputType, InputTypeAutoDetectionSource,
     QueuedQuery, QueuedQueryEvent, QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin,
-    SlashCommandRequest, ai_indicator_height, render_ai_agent_mode_icon,
-    render_ai_follow_up_icon,
+    SlashCommandRequest, ai_indicator_height, render_ai_agent_mode_icon, render_ai_follow_up_icon,
 };
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::ai::connected_self_hosted_workers::{
@@ -3819,7 +3818,6 @@ impl Input {
             InputPrefixMode::None
         }
     }
-
 
     /// Update the at button's disabled state based on whether AI context menu should render
     pub fn check_and_update_ai_context_menu_disabled_state(&mut self, ctx: &mut ViewContext<Self>) {
@@ -14398,7 +14396,7 @@ impl View for Input {
                     ambient_agent_model.as_ref(app).should_show_status_footer()
                 });
 
-        if FeatureFlag::CloudMode.is_enabled() && should_show_status_footer {
+        if should_show_status_footer {
             self.render_ambient_agent_status_footer(app)
         } else if FeatureFlag::AgentView.is_enabled()
             && self.agent_view_controller.as_ref(app).is_active()

@@ -65,8 +65,8 @@ use crate::settings_view::SettingsSection;
 use crate::terminal::cli_agent_sessions::{
     CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
 };
-use crate::terminal::input::models::InlineModelSelectorTab;
 use crate::terminal::input::MenuPositioningProvider;
+use crate::terminal::input::models::InlineModelSelectorTab;
 use crate::terminal::profile_model_selector::{ProfileModelSelector, ProfileModelSelectorEvent};
 use crate::terminal::session_settings::{
     SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection,
@@ -641,7 +641,6 @@ impl AgentInputFooter {
 
     fn should_render_cloud_mode_v2(&self, app: &AppContext) -> bool {
         FeatureFlag::CloudModeInputV2.is_enabled()
-            && FeatureFlag::CloudMode.is_enabled()
             && self
                 .ambient_agent_view_model
                 .as_ref()

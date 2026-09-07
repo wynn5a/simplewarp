@@ -180,7 +180,8 @@ impl GetRelevantFilesController {
                             },
                         )
                         .abort_handle();
-                    self.pending_requests.insert(action_id, request_abort_handle);
+                    self.pending_requests
+                        .insert(action_id, request_abort_handle);
                 }
                 Ok(())
             }

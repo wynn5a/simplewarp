@@ -100,7 +100,6 @@ impl TokenStore {
         let snapshot = self.inner.read().unwrap_or_else(|err| err.into_inner());
         (snapshot.expires_at > Utc::now()).then(|| snapshot.authorization_header.clone())
     }
-
 }
 
 impl fmt::Debug for TokenStore {

@@ -445,9 +445,11 @@ where
         let (selected_item_text, font_family_id, is_placeholder) = match self.static_menu_header {
             Some(header) => (header.to_string(), None, false),
             None => match self.selected_item.clone() {
-                Some(MenuItem::Item(fields)) => {
-                    (fields.label().to_string(), fields.override_font_family(), false)
-                }
+                Some(MenuItem::Item(fields)) => (
+                    fields.label().to_string(),
+                    fields.override_font_family(),
+                    false,
+                ),
                 _ => match &self.placeholder {
                     Some(placeholder) => (placeholder.clone(), None, true),
                     None => (String::new(), None, false),

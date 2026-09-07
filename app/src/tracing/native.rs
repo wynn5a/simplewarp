@@ -65,6 +65,7 @@ use tracing::subscriber;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt as _;
 use url::{Host, Url};
+
 use super::Initialization;
 use super::cloud_agent_auth::AuthContext;
 use crate::channel::ChannelState;

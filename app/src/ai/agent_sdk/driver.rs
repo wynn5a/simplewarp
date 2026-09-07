@@ -3871,7 +3871,6 @@ impl AgentDriver {
             "Ambient agent lifecycle: event=driver_cleanup_started task_id={task_id:?} next=terminal_process_exit"
         );
     }
-
 }
 
 /// Build the env-var map for the agent terminal session from managed secrets.

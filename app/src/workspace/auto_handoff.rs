@@ -9,5 +9,8 @@ use super::AutoCloudHandoffTrigger;
 /// Kept as a no-op so the URI entry point (`app/src/uri/mod.rs`) keeps
 /// compiling; the real macOS-sleep trigger path (`SystemStats` subscription)
 /// was removed along with the controller.
-pub(crate) fn trigger_auto_handoff_to_cloud(_trigger: AutoCloudHandoffTrigger, _ctx: &mut AppContext) {
+pub(crate) fn trigger_auto_handoff_to_cloud(
+    _trigger: AutoCloudHandoffTrigger,
+    _ctx: &mut AppContext,
+) {
 }
