@@ -61,10 +61,6 @@ pub fn get_cloud_mode_tips() -> Vec<CloudModeTip> {
             Some("https://docs.warp.dev/platform/viewing-cloud-agent-runs"),
         ),
         CloudModeTip::new(
-            "Set up recurring agents that run on cron schedules for automated maintenance.",
-            Some("https://docs.warp.dev/platform/triggers/scheduled-agents"),
-        ),
-        CloudModeTip::new(
             "Create agents that automatically fix bugs when issues are filed in Linear.",
             Some("https://docs.warp.dev/platform/integrations/linear"),
         ),
@@ -99,10 +95,6 @@ pub fn get_cloud_mode_tips() -> Vec<CloudModeTip> {
         CloudModeTip::new(
             "Build internal tools that use agents to answer questions from your databases.",
             Some("https://docs.warp.dev/platform/integrations"),
-        ),
-        CloudModeTip::new(
-            "Create a scheduled agent to clean up stale feature flags every week.",
-            Some("https://docs.warp.dev/platform/triggers/scheduled-agents"),
         ),
         CloudModeTip::new(
             "Tag @Oz in Linear issues to automatically investigate and propose fixes.",
@@ -155,22 +147,6 @@ pub fn get_cloud_mode_tips() -> Vec<CloudModeTip> {
         CloudModeTip::new(
             "Use team secrets for shared infrastructure credentials across all agents.",
             Some("https://docs.warp.dev/platform/secrets"),
-        ),
-        CloudModeTip::new(
-            "Create an agent that runs nightly to check for dependency updates.",
-            Some("https://docs.warp.dev/platform/triggers/scheduled-agents"),
-        ),
-        CloudModeTip::new(
-            "Build an agent that automatically formats and lints code on a schedule.",
-            Some("https://docs.warp.dev/platform/triggers/scheduled-agents"),
-        ),
-        CloudModeTip::new(
-            "Use `oz schedule create` to set up cron-triggered agents.",
-            Some("https://docs.warp.dev/platform/triggers/scheduled-agents"),
-        ),
-        CloudModeTip::new(
-            "Pause and resume scheduled agents without deleting them using `oz schedule pause`.",
-            Some("https://docs.warp.dev/platform/triggers/scheduled-agents"),
         ),
         CloudModeTip::new(
             "Use `oz mcp list` to see which MCP servers are available to your agents.",

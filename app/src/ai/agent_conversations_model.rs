@@ -5,7 +5,6 @@ mod query;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
 use clap::ValueEnum;
 pub use entry::{
     AgentConversationEntry, AgentConversationEntryId, AgentConversationNavigationSubject,
@@ -47,7 +46,6 @@ use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
-use crate::server::cloud_objects::update_manager::{UpdateManager, UpdateManagerEvent};
 use crate::server::retry_strategies::{
     OUT_OF_BAND_REQUEST_RETRY_STRATEGY, PERIODIC_POLL_RETRY_STRATEGY, is_transient_http_error,
 };
@@ -59,7 +57,6 @@ use crate::ui_components::icons::Icon;
 use crate::workspace::{RestoreConversationLayout, WorkspaceAction};
 
 const POLLING_INTERVAL: Duration = Duration::from_secs(30);
-const RTC_TASK_REFRESH_THROTTLE: Duration = Duration::from_secs(5);
 const INITIAL_TASK_AMOUNT: i32 = 100;
 
 /// How long to skip refetching a task that just failed with a transient error
@@ -152,34 +149,6 @@ impl InitialConversationLoadState {
             | InitialConversationLoadState::WaitingForCloud
             | InitialConversationLoadState::LoadingCloud => false,
         }
-    }
-}
-
-/// Tracks the cooldown window for RTC-triggered task-list refreshes. Pending events keep
-/// the earliest timestamp in the burst because `updated_after` is a lower bound; using the
-/// latest timestamp could skip tasks that changed earlier in the same window.
-#[derive(Default)]
-enum RtcTaskRefreshThrottleState {
-    #[default]
-    Idle,
-    CoolingDown {
-        pending_timestamp: Option<DateTime<Utc>>,
-        timer_abort_handle: AbortHandle,
-    },
-}
-
-fn record_earliest_rtc_task_refresh_timestamp(
-    pending_timestamp: &mut Option<DateTime<Utc>>,
-    timestamp: DateTime<Utc>,
-) {
-    match pending_timestamp {
-        Some(existing_timestamp) if timestamp < *existing_timestamp => {
-            *existing_timestamp = timestamp;
-        }
-        None => {
-            *pending_timestamp = Some(timestamp);
-        }
-        Some(_) => {}
     }
 }
 
@@ -601,10 +570,6 @@ pub struct AgentConversationsModel {
     /// the meaning of each variant. Tasks that have been successfully fetched live in `tasks`
     /// and are absent from this map.
     task_fetch_state: HashMap<AmbientAgentTaskId, TaskFetchState>,
-    rtc_task_refresh_throttle_state: RtcTaskRefreshThrottleState,
-    /// Earliest RTC timestamp received while no list surface was open.
-    /// On next `register_view_open`, triggers a single `fetch_tasks_updated_after`.
-    dirty_since: Option<DateTime<Utc>>,
 }
 
 pub enum AgentConversationsModelEvent {
@@ -653,8 +618,6 @@ impl AgentConversationsModel {
                 active_data_consumers_per_window: HashMap::new(),
                 initial_load_state: InitialConversationLoadState::Loaded,
                 task_fetch_state: HashMap::new(),
-                rtc_task_refresh_throttle_state: RtcTaskRefreshThrottleState::default(),
-                dirty_since: None,
             };
         }
 
@@ -678,12 +641,6 @@ impl AgentConversationsModel {
             me.sync_conversations(ctx);
         });
 
-        // Subscribe to UpdateManager for RTC task updates
-        if FeatureFlag::AmbientAgentsRTC.is_enabled() {
-            let update_manager = UpdateManager::handle(ctx);
-            ctx.subscribe_to_model(&update_manager, Self::handle_update_manager_event);
-        }
-
         let mut model = Self {
             tasks: HashMap::new(),
             conversations: HashMap::new(),
@@ -692,8 +649,6 @@ impl AgentConversationsModel {
             active_data_consumers_per_window: HashMap::new(),
             initial_load_state: InitialConversationLoadState::LoadingLocal,
             task_fetch_state: HashMap::new(),
-            rtc_task_refresh_throttle_state: RtcTaskRefreshThrottleState::default(),
-            dirty_since: None,
         };
 
         // Only sync local conversations if we're not in CLI mode. Server-side data
@@ -761,135 +716,6 @@ impl AgentConversationsModel {
         {
             self.fetch_ambient_agent_tasks_and_cloud_convo_metadata(ctx);
         }
-    }
-
-    fn handle_update_manager_event(
-        &mut self,
-        _: ModelHandle<UpdateManager>,
-        event: &UpdateManagerEvent,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let UpdateManagerEvent::AmbientTaskUpdated { task_id, timestamp } = event else {
-            return;
-        };
-
-        let has_list_consumers = self
-            .active_data_consumers_per_window
-            .values()
-            .any(|views| !views.is_empty());
-        if has_list_consumers {
-            // (a) If management view or conversation list is open, throttled list-fetch.
-            self.handle_rtc_for_list_views(*timestamp, ctx);
-        } else {
-            let has_open_tab = ActiveAgentViewsModel::as_ref(ctx)
-                .get_terminal_view_id_for_ambient_task(*task_id)
-                .is_some();
-            if has_open_tab {
-                // (b) If this task has an open tab (any window), force a re-fetch.
-                self.async_fetch_task(task_id, ctx);
-            } else {
-                // (c) No list surface open: record earliest timestamp for flush on next view open.
-                record_earliest_rtc_task_refresh_timestamp(&mut self.dirty_since, *timestamp);
-            }
-        }
-    }
-
-    // Handle RTC invalidations for list views, respecting the refresh throttling.
-    fn handle_rtc_for_list_views(
-        &mut self,
-        timestamp: DateTime<Utc>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match std::mem::take(&mut self.rtc_task_refresh_throttle_state) {
-            RtcTaskRefreshThrottleState::Idle => {
-                self.fetch_tasks_updated_after(timestamp, ctx);
-                self.start_rtc_task_refresh_throttle_timer(ctx);
-            }
-            RtcTaskRefreshThrottleState::CoolingDown {
-                mut pending_timestamp,
-                timer_abort_handle,
-            } => {
-                record_earliest_rtc_task_refresh_timestamp(&mut pending_timestamp, timestamp);
-                self.rtc_task_refresh_throttle_state = RtcTaskRefreshThrottleState::CoolingDown {
-                    pending_timestamp,
-                    timer_abort_handle,
-                };
-            }
-        }
-    }
-
-    fn start_rtc_task_refresh_throttle_timer(&mut self, ctx: &mut ModelContext<Self>) {
-        let future_handle = ctx.spawn(
-            async move {
-                Timer::after(RTC_TASK_REFRESH_THROTTLE).await;
-            },
-            |model, _, ctx| {
-                let pending_timestamp =
-                    match std::mem::take(&mut model.rtc_task_refresh_throttle_state) {
-                        RtcTaskRefreshThrottleState::Idle => None,
-                        RtcTaskRefreshThrottleState::CoolingDown {
-                            pending_timestamp, ..
-                        } => pending_timestamp,
-                    };
-
-                if let Some(timestamp) = pending_timestamp {
-                    model.fetch_tasks_updated_after(timestamp, ctx);
-                    model.start_rtc_task_refresh_throttle_timer(ctx);
-                }
-            },
-        );
-        self.rtc_task_refresh_throttle_state = RtcTaskRefreshThrottleState::CoolingDown {
-            pending_timestamp: None,
-            timer_abort_handle: future_handle.abort_handle(),
-        };
-    }
-
-    fn abort_rtc_task_refresh_throttle(&mut self) {
-        if let RtcTaskRefreshThrottleState::CoolingDown {
-            timer_abort_handle, ..
-        } = std::mem::take(&mut self.rtc_task_refresh_throttle_state)
-        {
-            timer_abort_handle.abort();
-        }
-    }
-
-    /// Fetch tasks updated after the given timestamp (minus 1 second buffer since server uses `>` not `>=`).
-    fn fetch_tasks_updated_after(
-        &mut self,
-        timestamp: DateTime<Utc>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
-
-        // Subtract 1 second to give buffer for clock differences with server
-        let updated_after = timestamp - chrono::Duration::seconds(1);
-        // Reset `dirty_since` now that we are doing a fetch.
-        self.dirty_since = None;
-
-        ctx.spawn_with_retry_on_error(
-            move || {
-                let ai_client = ai_client.clone();
-                async move {
-                    ai_client
-                        .list_ambient_agent_tasks(
-                            INITIAL_TASK_AMOUNT,
-                            TaskListFilter {
-                                updated_after: Some(updated_after),
-                                ..Default::default()
-                            },
-                        )
-                        .await
-                }
-            },
-            OUT_OF_BAND_REQUEST_RETRY_STRATEGY,
-            |model, result, ctx| {
-                if let RequestState::RequestSucceeded(tasks) = result {
-                    model.update_model_with_new_tasks(tasks, ctx);
-                } else if let RequestState::RequestFailed(e) = result {
-                    report_error!(e);
-                }
-            },
-        );
     }
 
     /// Sync all conversations to the AgentConversationsModel.
@@ -1080,11 +906,6 @@ impl AgentConversationsModel {
             .or_default()
             .insert(view_id);
         self.update_polling_state(ctx);
-
-        // Flush dirty tasks accumulated while no list surface was open.
-        if let Some(dirty_since) = self.dirty_since.take() {
-            self.fetch_tasks_updated_after(dirty_since, ctx);
-        }
     }
 
     /// Called when a view that consumes this model's data becomes hidden.
@@ -1118,11 +939,6 @@ impl AgentConversationsModel {
     /// Returns true if we should be polling: online, not loading, and active window has the view open.
     fn should_be_polling(&self, ctx: &ModelContext<Self>) -> bool {
         if !self.initial_load_state.can_poll() {
-            return false;
-        }
-
-        // Don't poll if we're using RTC
-        if FeatureFlag::AmbientAgentsRTC.is_enabled() {
             return false;
         }
 
@@ -1784,10 +1600,8 @@ impl AgentConversationsModel {
         self.tasks.clear();
         self.conversations.clear();
         self.abort_existing_poll();
-        self.abort_rtc_task_refresh_throttle();
         self.active_data_consumers_per_window.clear();
         self.task_fetch_state.clear();
-        self.dirty_since = None;
         self.initial_load_state = InitialConversationLoadState::WaitingForCloud;
     }
 }

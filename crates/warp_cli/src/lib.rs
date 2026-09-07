@@ -32,7 +32,6 @@ pub mod mcp;
 pub mod memory_store;
 pub mod model;
 pub mod provider;
-pub mod schedule;
 pub mod share;
 pub mod task;
 pub const OZ_RUN_ID_ENV: &str = "OZ_RUN_ID";
@@ -121,7 +120,6 @@ pub struct GlobalOptions {
 The Oz CLI is a tool for running, managing, and orchestrating coding agents at scale.
 Use the CLI to:
 * Launch and inspect cloud agents
-* Schedule cloud agents to run in the future
 * Manage the environments that cloud agents run in
 * Upload secrets to Oz's secure storage"#
 )]
@@ -210,15 +208,6 @@ impl Args {
                     }
                 }
 
-                if !FeatureFlag::ScheduledAmbientAgents.is_enabled() {
-                    let args: Vec<String> = env::args().collect();
-                    if args.len() > 1 && args[1] == "schedule" {
-                        eprintln!("error: unrecognized subcommand 'schedule'\n");
-                        eprintln!("For more information, try '--help'");
-                        std::process::exit(2);
-                    }
-                }
-
                 if !FeatureFlag::ArtifactCommand.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "artifact" {
@@ -259,50 +248,22 @@ impl Args {
         let mut command = <Args as CommandFactory>::command();
 
         // The `warp environment` subcommand is gone with cloud environments. The
-        // `--environment` flag on `agent run`/`run-cloud` stays (those commands still accept an
+        // `--environment` flag on `agent run` stays (the command still accepts an
         // environment id) but is hidden from help, since nothing in this build can list or
         // create one.
         if !FeatureFlag::CloudEnvironments.is_enabled() {
             command = command.mut_subcommand("agent", |agent_cmd| {
-                agent_cmd
-                    .mut_subcommand("run", |run_cmd| {
-                        run_cmd.mut_arg("environment", |arg| arg.hide(true))
-                    })
-                    .mut_subcommand("run-cloud", |cloud_cmd| {
-                        cloud_cmd.mut_arg("environment", |arg| arg.hide(true))
-                    })
+                agent_cmd.mut_subcommand("run", |run_cmd| {
+                    run_cmd.mut_arg("environment", |arg| arg.hide(true))
+                })
             });
         }
 
         // Hide the --conversation flag from help text
         if !FeatureFlag::CloudConversations.is_enabled() {
             command = command.mut_subcommand("agent", |agent_cmd| {
-                agent_cmd
-                    .mut_subcommand("run", |run_cmd| {
-                        run_cmd.mut_arg("conversation", |arg| arg.hide(true))
-                    })
-                    .mut_subcommand("run-cloud", |cloud_cmd| {
-                        cloud_cmd.mut_arg("conversation", |arg| arg.hide(true))
-                    })
-            });
-        }
-
-        if !FeatureFlag::AmbientAgentsCommandLine.is_enabled() {
-            command = command.mut_subcommand("agent", |agent_cmd| {
-                agent_cmd.mut_subcommand("run-cloud", |c| c.hide(true))
-            });
-        }
-
-        // Hide the third-party harness flags on `run-cloud` when the harness
-        // feature is off, so `--help` matches the runtime gating (a non-oz
-        // `--harness` is rejected unless AgentHarness is enabled).
-        if !FeatureFlag::AgentHarness.is_enabled() {
-            command = command.mut_subcommand("agent", |agent_cmd| {
-                agent_cmd.mut_subcommand("run-cloud", |cloud_cmd| {
-                    cloud_cmd
-                        .mut_arg("harness", |arg| arg.hide(true))
-                        .mut_arg("claude_auth_secret", |arg| arg.hide(true))
-                        .mut_arg("codex_auth_secret", |arg| arg.hide(true))
+                agent_cmd.mut_subcommand("run", |run_cmd| {
+                    run_cmd.mut_arg("conversation", |arg| arg.hide(true))
                 })
             });
         }
@@ -310,11 +271,6 @@ impl Args {
         // Hide the provider subcommand from help text
         if !FeatureFlag::ProviderCommand.is_enabled() {
             command = command.mut_subcommand("provider", |c| c.hide(true));
-        }
-
-        // Hide the schedule subcommand from help text.
-        if !FeatureFlag::ScheduledAmbientAgents.is_enabled() {
-            command = command.mut_subcommand("schedule", |c| c.hide(true));
         }
 
         // Hide the harness-support subcommand from help text.
@@ -507,11 +463,6 @@ pub enum CliCommand {
     #[command(subcommand)]
     Provider(crate::provider::ProviderCommand),
 
-    /// Create and manage scheduled Oz agents. Scheduled agents run a user-defined task periodically, according to a cron schedule.
-    ///
-    /// As a shorthand, the `schedule` command behaves identically to `schedule create`.
-    Schedule(crate::schedule::ScheduleCommand),
-
     /// Support commands for agent harnesses to integrate with Oz.
     #[command(hide = true)]
     HarnessSupport(crate::harness_support::HarnessSupportArgs),
@@ -537,7 +488,6 @@ impl CliCommand {
             CliCommand::Logout => "logout",
             CliCommand::Whoami => "whoami",
             CliCommand::Provider(command) => command.as_str_for_tracing(),
-            CliCommand::Schedule(command) => command.as_str_for_tracing(),
             CliCommand::HarnessSupport(args) => args.command.as_str_for_tracing(),
             CliCommand::Artifact(command) => command.as_str_for_tracing(),
             CliCommand::ApiKey(command) => command.as_str_for_tracing(),

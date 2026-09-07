@@ -7,11 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::SortOrderArg;
 use crate::config_file::ConfigFileArgs;
-use crate::environment::EnvironmentCreateArgs;
 use crate::json_filter::JsonOutput;
 use crate::mcp::MCPSpec;
 use crate::model::ModelArgs;
-use crate::scope::ObjectScope;
 use crate::share::ShareArgs;
 use crate::skill::SkillSpec;
 
@@ -73,32 +71,6 @@ impl PromptArg {
         match (self.prompt.as_ref(), self.saved_prompt.as_ref()) {
             (Some(prompt), None) => Some(Prompt::PlainText(prompt.clone())),
             (None, Some(saved_prompt)) => Some(Prompt::SavedPrompt(saved_prompt.clone())),
-            _ => None,
-        }
-    }
-}
-
-/// Shared CLI args for controlling computer use capabilities.
-#[derive(Debug, Clone, Args, Default)]
-pub struct ComputerUseArgs {
-    /// Enable computer use capabilities for this agent run.
-    #[arg(long = "computer-use", conflicts_with = "no_computer_use")]
-    pub computer_use: bool,
-
-    /// Disable computer use capabilities for this agent run.
-    #[arg(long = "no-computer-use", conflicts_with = "computer_use")]
-    pub no_computer_use: bool,
-}
-
-impl ComputerUseArgs {
-    /// Returns the computer use override based on CLI flags.
-    /// - `Some(true)` if `--computer-use` was specified
-    /// - `Some(false)` if `--no-computer-use` was specified
-    /// - `None` if neither was specified (use default behavior)
-    pub fn computer_use_override(&self) -> Option<bool> {
-        match (self.computer_use, self.no_computer_use) {
-            (true, false) => Some(true),
-            (false, true) => Some(false),
             _ => None,
         }
     }
@@ -197,11 +169,10 @@ impl Harness {
         }
     }
 
-    /// Whether this harness is surfaced to users in CLI `--help` for cloud runs
-    /// (`oz agent run-cloud --harness`). Only the harnesses that are generally
-    /// available for cloud runs are shown; gemini and opencode aren't available
-    /// yet, so they're hidden from help. Update this when a harness becomes GA
-    /// for cloud.
+    /// Whether this harness is surfaced to users in CLI `--help` for agent runs.
+    /// Only the harnesses that are generally available are shown; gemini and
+    /// opencode aren't available yet, so they're hidden from help. Update this
+    /// when a harness becomes GA.
     ///
     /// This is the single source of truth for the `ValueEnum` help text; the
     /// per-variant `#[value(hide = ...)]` attributes are no longer used. It does
@@ -279,12 +250,11 @@ pub enum AgentProfileCommand {
 }
 
 /// Agent-related subcommands.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Subcommand)]
 pub enum AgentCommand {
     /// Run a new Warp Agent.
     Run(RunAgentArgs),
-    /// Dispatch a cloud agent.
-    RunCloud(RunCloudArgs),
     /// Manage agent profiles.
     #[command(subcommand)]
     Profile(AgentProfileCommand),
@@ -306,7 +276,6 @@ impl AgentCommand {
     pub(crate) fn as_str_for_tracing(&self) -> &'static str {
         match self {
             AgentCommand::Run(_) => "agent run",
-            AgentCommand::RunCloud(_) => "agent run-cloud",
             AgentCommand::Profile(_) => "agent profile",
             AgentCommand::List(_) => "agent list",
             AgentCommand::Get(_) => "agent get",
@@ -347,8 +316,6 @@ pub struct RunAgentArgs {
     /// validates the repo's git remote matches the expected org.
     ///
     /// When used with --prompt, the skill provides the base context and the prompt is the task.
-    ///
-    /// To automate a skill on a schedule, use `oz schedule create --skill <SKILL>`.
     #[arg(long = "skill", value_name = "SKILL")]
     pub skill: Option<SkillSpec>,
 
@@ -498,173 +465,6 @@ pub struct SnapshotArgs {
     /// Maximum time to wait for the declarations script before uploading the snapshot.
     #[arg(long = "snapshot-script-timeout", value_name = "DURATION")]
     pub snapshot_script_timeout: Option<humantime::Duration>,
-}
-
-#[derive(Debug, Clone, Args)]
-#[command(
-    name = "run-cloud",
-    visible_alias = "ra",
-    alias = "run-ambient",
-    group(
-        clap::ArgGroup::new("prompt_group")
-            .required(true)
-            .multiple(true)
-            .args(["prompt", "saved_prompt", "skill"])
-    )
-)]
-pub struct RunCloudArgs {
-    #[command(flatten)]
-    pub prompt_arg: PromptArg,
-
-    #[command(flatten)]
-    pub model: ModelArgs,
-
-    #[command(flatten)]
-    pub config_file: ConfigFileArgs,
-
-    /// Use a skill as the base prompt for the agent.
-    ///
-    /// Format: `skill_name`, `repo:skill_name`, or `org/repo:skill_name`
-    ///
-    /// Skills are searched in `.agents/skills/`, `.warp/skills/`, `.claude/skills/`, and `.codex/skills/` directories.
-    /// If a repo is specified, searches only that repo. If org is also specified,
-    /// validates the repo's git remote matches the expected org.
-    ///
-    /// When used with --prompt, the skill provides the base context and the prompt is the task.
-    ///
-    /// To automate a skill on a schedule, use `oz schedule create --skill <SKILL>`.
-    #[arg(long = "skill", value_name = "SKILL")]
-    pub skill: Option<SkillSpec>,
-
-    /// Name for this agent task.
-    #[arg(long = "name", short = 'n')]
-    pub name: Option<String>,
-
-    /// Title for this agent task and its conversation.
-    ///
-    /// Unlike `--name`, which sets the agent configuration name, `--title`
-    /// controls the task and conversation title shown for the run. When
-    /// spawning a factory sibling, pass the child task title here.
-    #[arg(long = "title", value_name = "TITLE")]
-    pub title: Option<String>,
-
-    /// Run ID of the parent run that is spawning this run.
-    ///
-    /// Setting this makes the new run an orchestration child of the given
-    /// parent: it inherits the parent's lineage (depth, root run) and scope,
-    /// is attributed to the ORCHESTRATION source, and is tracked on the parent
-    /// run. Pass the current run ID when a factory foreman spawns a sibling.
-    #[arg(long = "parent-run-id", value_name = "RUN_ID")]
-    pub parent_run_id: Option<String>,
-
-    /// MCP servers to start before executing the agent.
-    ///
-    /// Can be specified as:
-    /// - A path to a JSON file containing MCP configuration
-    /// - Inline JSON with MCP server configuration
-    ///
-    /// Can be specified multiple times to include multiple servers.
-    #[arg(long = "mcp", value_name = "SPEC")]
-    pub mcp_specs: Vec<MCPSpec>,
-
-    /// The environment to run this ambient agent in.
-    #[command(flatten)]
-    pub environment: EnvironmentCreateArgs,
-
-    /// Runner to use for this agent's compute (docker image, instance size,
-    /// setup commands), identified by ID. Overrides the environment's default runner.
-    #[arg(long = "runner", value_name = "ID")]
-    pub runner: Option<String>,
-
-    /// Open the agent's session in Warp once it's available.
-    #[arg(long = "open")]
-    pub open: bool,
-
-    /// Continue an existing cloud conversation by ID.
-    #[arg(long = "conversation", value_name = "ID")]
-    pub conversation: Option<String>,
-
-    #[command(flatten)]
-    pub scope: ObjectScope,
-
-    /// UID of the agent to execute this run as.
-    ///
-    /// This will apply the agent's configuration, such
-    /// as its skills and base model, and attribute
-    /// credit usage back to the agent.
-    #[arg(long = "agent", value_name = "UID")]
-    pub agent_uid: Option<String>,
-
-    /// Where this job should be hosted. Setting "warp" runs it on Warp's infrastructure. Any other
-    /// value is treated is a self-hosted job and the value will be matched with the self-hosted
-    /// worker's name.
-    #[arg(long = "host", value_name = "WORKER_ID")]
-    pub worker_host: Option<String>,
-
-    /// Path to a file to attach to the agent query.
-    ///
-    /// Can be specified multiple times to attach multiple files (maximum 5).
-    ///
-    /// Example: --attach file1.png --attach file2.txt
-    #[arg(
-        long = "attach",
-        value_name = "PATH",
-        num_args = 1,
-        action = clap::ArgAction::Append,
-        value_parser = clap::value_parser!(PathBuf),
-    )]
-    pub attachment_paths: Vec<PathBuf>,
-
-    #[command(flatten)]
-    pub computer_use: ComputerUseArgs,
-    #[command(flatten)]
-    pub snapshot: SnapshotArgs,
-
-    /// Execution harness for the agent run.
-    ///
-    /// "oz" (the default) runs on Warp's built-in agent infrastructure. Other
-    /// values delegate the run to an external agent CLI; see the possible
-    /// values below.
-    #[arg(long = "harness", value_name = "HARNESS", default_value_t = Harness::Oz)]
-    pub harness: Harness,
-
-    /// Name of a managed secret used to authenticate the Claude Code harness.
-    ///
-    /// Only valid with `--harness claude`. The secret is resolved server-side
-    /// and injected into the agent container.
-    ///
-    /// If you don't have one yet, create it with
-    /// `oz secret create claude api-key <NAME>` (run
-    /// `oz secret create claude --help` for other credential types), then pass
-    /// that <NAME> here.
-    #[arg(long = "claude-auth-secret", value_name = "NAME")]
-    pub claude_auth_secret: Option<String>,
-
-    /// Name of a managed secret used to authenticate the Codex harness.
-    ///
-    /// Only valid with `--harness codex`. The secret is resolved server-side
-    /// and injected into the agent container.
-    ///
-    /// If you don't have one yet, create it with
-    /// `oz secret create codex api-key <NAME>`, then pass that <NAME> here.
-    #[arg(long = "codex-auth-secret", value_name = "NAME")]
-    pub codex_auth_secret: Option<String>,
-}
-
-impl RunCloudArgs {
-    /// Validates that the harness auth-secret flags are only supplied alongside
-    /// their matching `--harness`. Returns a user-facing error message when a
-    /// secret is provided for the wrong harness. Checked on run so a mismatched
-    /// invocation fails fast with a clear message.
-    pub fn validate_auth_secrets(&self) -> Result<(), String> {
-        if self.claude_auth_secret.is_some() && self.harness != Harness::Claude {
-            return Err("--claude-auth-secret is only valid with --harness claude.".to_string());
-        }
-        if self.codex_auth_secret.is_some() && self.harness != Harness::Codex {
-            return Err("--codex-auth-secret is only valid with --harness codex.".to_string());
-        }
-        Ok(())
-    }
 }
 
 /// Sort field for named agents.

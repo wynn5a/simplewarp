@@ -3080,10 +3080,10 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
    almost certainly why these two survived that step's own compiler-led cascade — nothing
    *read* them, so nothing failed to compile when their UI went. 257 variants remain.
 
-   **Rounds 4ad–4av kept sweeping by feature instead of by flag** (each recorded under its
-   own Definition-of-done entry; 4ak–4av in one bulk entry there): 20 more variants went
-   with their verticals, including 3 definition-only deletions in 4at and 1 in 4aq.
-   **226 variants remain** of the original 292. 4at's sweep also identified 29 further
+   **Rounds 4ad–4aw kept sweeping by feature instead of by flag** (each recorded under its
+   own Definition-of-done entry; 4ak–4av in one bulk entry there, 4aw on its own): 24 more
+   variants went with their verticals, including 3 definition-only deletions in 4at and 1
+   in 4aq. **222 variants remain** of the original 292. 4at's sweep also identified 29 further
    off-by-default flags, two of which (AgentHarness, GeminiEnterprise) look live-by-design;
    those and the flags behind the not-yet-deleted modules are what is left.
 
@@ -3308,9 +3308,10 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             (`explicit_local_collection_is_preserved_from_onboarding`), matching the 4ah
             `request_limit()` precedent for a general accessor with its own test coverage.
             nextest 5707 green (down from 5720, expected from the test deletions).
-      - [x] **Twelve flag-vertical rounds recorded in bulk — 4ak–4av (2026-09-03 → 2026-09-07);
-            ~20 flags gone, the enum down to 226 of the original 292.** Detailed in their commit
-            messages; this is the summary the plan would otherwise miss.
+      - [x] **Flag-vertical rounds 4ak–4aw (2026-09-03 → 2026-09-07); 4ak–4av in bulk
+            (twelve rounds, ~20 flags), 4aw after — the enum down to 222 of the original
+            292.** Detailed in their commit messages; this is the summary the plan would
+            otherwise miss.
             - **CloudConversations (4ak)** folded to always-off: the sharing menu items, the
                   pane-header share button, the privacy cloud-storage toggle, the cloud-delete
                   calls on conversation delete/remove, and the always-`None` server-load path.
@@ -3386,9 +3387,36 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
                   The second pinned `supports_orchestration_runners` and
                   `runner_controls_enabled` to `false` and left the runner-picker UI for the
                   remote-mode orchestration round, per 4m's scoping.
+            - **The ambient agents flag family (4aw)** — all four variants
+                  (`AmbientAgentsCommandLine`, `ScheduledAmbientAgents`, `AmbientAgentsRTC`,
+                  `AmbientAgentsImageUpload`) folded to always-off and deleted. The
+                  ambient-agents CLI went whole: the `agent run-cloud` and `schedule`
+                  subcommands (with their argv guards, help-hide guards, and the sibling
+                  CloudEnvironments/CloudConversations/AgentHarness guards that targeted
+                  `run-cloud` args), `warp_cli/schedule.rs`, `RunCloudArgs`, the app-side
+                  `agent_sdk/schedule.rs` and the `run_agent` half of
+                  `agent_sdk/ambient.rs` (the tasks/status/message/get-conversation CLI
+                  stays), `ScheduledAgentManager` (the sync-layer `StringModel`/`JsonModel`
+                  impls in `ambient_agents/scheduled.rs` stay — update_manager and
+                  sync_queue consume them), its telemetry variants, and the six
+                  scheduled-agent tips in the ambient-agent tip pool. RTC died with it:
+                  the `UpdateManagerEvent::AmbientTaskUpdated` variant, the
+                  update-manager handler (the cloud-crate `ObjectUpdateMessage` variant
+                  stays, its arm is now an empty no-op), and the whole throttle subsystem
+                  in `AgentConversationsModel` (polling resumes; the 30s poll is the only
+                  refresh path again). Image upload took
+                  `driver/attachments.rs` whole (upload `process_attachment`, download
+                  `fetch_and_download_attachments`, `AIClient::get_task_attachments`) and
+                  collapsed the `--task-id` metadata fetch to metadata-only; the
+                  handoff-snapshot stub from 4an went with it. The now-test-only
+                  `create_object_online`/`update_object_online` wear `allow(dead_code)`
+                  pending the cloud_objects layer. Clippy note: master's presubmit clippy
+                  is currently red with 11 pre-existing items (last green before the two
+                  post-4av commits); this round's error set is byte-identical to that
+                  baseline.
 
             Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
-            format clean, nextest green (5707 → 5520 as each deleted subject's tests went with
+            format clean, nextest green (5707 → 5519 as each deleted subject's tests went with
             it) — and the later rounds built and launched the app.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in

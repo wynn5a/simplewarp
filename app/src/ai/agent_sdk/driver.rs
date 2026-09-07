@@ -97,7 +97,6 @@ use crate::terminal::cli_agent_sessions::{
 use crate::terminal::model::BlockId;
 use crate::terminal::view::ConversationRestorationInNewPaneType;
 
-pub(crate) mod attachments;
 #[cfg(feature = "local_fs")]
 pub(crate) mod cache_setup;
 pub(crate) mod environment;

@@ -24,7 +24,6 @@ use warp_cli::mcp::MCPCommand;
 use warp_cli::memory_store::{MemoryCommand, MemoryStoreCommand};
 use warp_cli::model::ModelCommand;
 use warp_cli::provider::ProviderCommand;
-use warp_cli::schedule::ScheduleSubcommand;
 use warp_cli::share::ShareRequest;
 use warp_cli::task::{MessageCommand, TaskCommand};
 use warp_cli::{CliCommand, GlobalOptions, OZ_HARNESS_ENV};
@@ -50,7 +49,6 @@ use crate::ai::agent_sdk::setup_observability::{
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::ambient_agents::task::HarnessConfig;
-use crate::ai::attachment_utils::attachments_download_dir;
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::llms::LLMId;
 use crate::ai::skills::{
@@ -88,7 +86,6 @@ pub mod output;
 mod profiles;
 mod provider;
 pub(crate) mod retry;
-mod schedule;
 pub(crate) mod setup_observability;
 mod telemetry;
 #[cfg(test)]
@@ -145,12 +142,6 @@ fn dispatch_command(
                 return Err(anyhow::anyhow!("invalid value 'provider'"));
             }
             provider::run(ctx, global_options, provider_cmd)
-        }
-        CliCommand::Schedule(schedule_cmd) => {
-            if !FeatureFlag::ScheduledAmbientAgents.is_enabled() {
-                return Err(anyhow::anyhow!("invalid value 'schedule'"));
-            }
-            schedule::run(ctx, global_options, schedule_cmd)
         }
         CliCommand::HarnessSupport(args) => {
             if !FeatureFlag::AgentHarness.is_enabled() {
@@ -257,28 +248,6 @@ fn run_agent(
             });
 
             Ok(())
-        }
-        AgentCommand::RunCloud(args) => {
-            if args.environment.environment.is_some()
-                && !FeatureFlag::CloudEnvironments.is_enabled()
-            {
-                return Err(anyhow::anyhow!("unexpected argument '--environment' found"));
-            }
-            if args.conversation.is_some() && !FeatureFlag::CloudConversations.is_enabled() {
-                return Err(anyhow::anyhow!(
-                    "unexpected argument '--conversation' found"
-                ));
-            }
-            if args.harness != Harness::Oz && !FeatureFlag::AgentHarness.is_enabled() {
-                return Err(anyhow::anyhow!("unexpected argument '--harness' found"));
-            }
-            if let Err(msg) = args.validate_auth_secrets() {
-                return Err(anyhow::anyhow!(msg));
-            }
-            if args.runner.is_some() && !FeatureFlag::CloudRunners.is_enabled() {
-                return Err(anyhow::anyhow!("unexpected argument '--runner' found"));
-            }
-            ambient::run_ambient_agent(ctx, args)
         }
         AgentCommand::Profile(sub) => profiles::run(ctx, global_options, sub),
         AgentCommand::List(args) => {
@@ -650,8 +619,8 @@ impl AgentDriverRunner {
 
             // Build driver options and task, handling task creation or existing task setup.
             // For the `--task-id` path, `task_conversation_id` is the `conversation_id` read off
-            // the fetched `AmbientAgentTask` (set by the server when linking the task to an
-            // existing conversation, e.g. via `run-cloud --conversation`).
+            // the fetched `AmbientAgentTask` (set by the server when the task is linked to an
+            // existing conversation).
             let (mut driver_options, task, task_conversation_id) =
                 Self::build_driver_options_and_task(&foreground, args, &server_api, &setup_events)
                     .await?;
@@ -1073,27 +1042,25 @@ impl AgentDriverRunner {
         Ok(())
     }
 
-    /// When starting an agent run from an existing task_id, fetch secrets, task metadata,
-    /// and task attachments (images and files) from the server and update the driver options.
+    /// When starting an agent run from an existing task_id, fetch task metadata from the
+    /// server and update the driver options.
     ///
     /// Returns the task's `conversation_id` when the server has linked the task to an existing
-    /// AI conversation (e.g. a `run-cloud --conversation` spawn). The caller uses this to drive
-    /// transcript rehydration without a separate `--conversation` CLI arg.
+    /// AI conversation. The caller uses this to drive transcript rehydration without a
+    /// separate `--conversation` CLI arg.
     async fn fetch_secrets_and_attachments(
         foreground: &ModelSpawner<Self>,
         task_id_str: String,
         driver_options: &mut AgentDriverOptions,
         task: &mut Task,
     ) -> Result<Option<String>, AgentDriverError> {
-        let (ai_client, server_api) = foreground
+        let ai_client = foreground
             .spawn({
                 move |_, ctx| {
-                    let ai_client = ServerApiProvider::handle(ctx)
+                    ServerApiProvider::handle(ctx)
                         .as_ref(ctx)
                         .get_ai_client()
-                        .clone();
-                    let server_api = ServerApiProvider::handle(ctx).as_ref(ctx).get();
-                    (ai_client, server_api)
+                        .clone()
                 }
             })
             .await?;
@@ -1109,56 +1076,15 @@ impl AgentDriverRunner {
         // during setup can still be reported with cloud-agent context.
         Self::set_ambient_agent_task_id(foreground, parsed_task_id).await?;
 
-        // Fetch secrets, task metadata, regular attachments, and handoff snapshot
-        // attachments in parallel. The handoff snapshot fetch is independent of the
-        // other three calls and only shares the download dir (a cloned PathBuf).
-        let attachments_download_dir = attachments_download_dir(&driver_options.working_dir);
-        let task_ai_client = ai_client.clone();
-        let task_metadata = async {
-            match parsed_task_id {
-                Some(task_id) => task_ai_client
-                    .get_ambient_agent_task(&task_id)
-                    .await
-                    .map(Some),
-                None => Ok(None),
-            }
+        // Task attachments and handoff snapshots are never fetched in this build:
+        // `FeatureFlag::AmbientAgentsImageUpload` and `FeatureFlag::OzHandoff` are both
+        // always off, so no attachments directory is ever populated.
+        let attachments_dir: Option<String> = None;
+
+        let task_metadata_result = match parsed_task_id {
+            Some(task_id) => ai_client.get_ambient_agent_task(&task_id).await.map(Some),
+            None => Ok(None),
         };
-
-        // Handoff (`FeatureFlag::OzHandoff`) is always off in this build, so there are
-        // never handoff snapshot attachments to fetch.
-        let handoff_snapshot = async { Ok::<Option<String>, anyhow::Error>(None) };
-
-        let (attachments_result, task_metadata_result, handoff_snapshot_result) = futures::join!(
-            driver::attachments::fetch_and_download_attachments(
-                ai_client.clone(),
-                server_api.clone(),
-                task_id_str.clone(),
-                attachments_download_dir.clone(),
-            ),
-            task_metadata,
-            handoff_snapshot,
-        );
-
-        // Extract attachments_dir from successful result, log errors
-        let mut attachments_dir = match attachments_result {
-            Ok(dir) => dir,
-            Err(e) => {
-                log::warn!("Failed to fetch and download attachments: {e:#}");
-                None
-            }
-        };
-
-        match handoff_snapshot_result {
-            Ok(Some(dir)) => {
-                // Ensure attachments_dir is set so it's passed to the server even when
-                // there were no regular task attachments.
-                attachments_dir.get_or_insert(dir);
-            }
-            Ok(None) => {}
-            Err(e) => {
-                log::warn!("Failed to fetch handoff snapshot attachments: {e:#}");
-            }
-        }
 
         // There is no server to fetch task secrets from in this build, so this is always empty.
         let secrets = HashMap::new();
@@ -1402,7 +1328,6 @@ fn command_requires_auth(command: &CliCommand) -> bool {
     match command {
         CliCommand::Agent(agent_cmd) => match agent_cmd {
             AgentCommand::Run { .. } => true,
-            AgentCommand::RunCloud { .. } => true,
             AgentCommand::Profile(sub) => match sub {
                 AgentProfileCommand::List => true,
             },
@@ -1431,7 +1356,6 @@ fn command_requires_auth(command: &CliCommand) -> bool {
         CliCommand::Logout => false,
         CliCommand::Whoami => true,
         CliCommand::Provider(_) => true,
-        CliCommand::Schedule(_) => true,
         CliCommand::HarnessSupport(_) => true,
         CliCommand::Artifact(_) => true,
         CliCommand::ApiKey(_) => true,
@@ -1571,7 +1495,6 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
             task_id: args.task_id.clone(),
             harness: args.harness.to_string(),
         },
-        CliCommand::Agent(AgentCommand::RunCloud(_)) => CliTelemetryEvent::AgentRunAmbient,
         CliCommand::Agent(AgentCommand::Profile(sub)) => match sub {
             AgentProfileCommand::List => CliTelemetryEvent::AgentProfileList,
         },
@@ -1627,15 +1550,6 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
         CliCommand::Whoami => CliTelemetryEvent::Whoami,
         CliCommand::Provider(ProviderCommand::Setup(_)) => CliTelemetryEvent::ProviderSetup,
         CliCommand::Provider(ProviderCommand::List) => CliTelemetryEvent::ProviderList,
-        CliCommand::Schedule(c) => match c.subcommand() {
-            None | Some(ScheduleSubcommand::Create(_)) => CliTelemetryEvent::ScheduleCreate,
-            Some(ScheduleSubcommand::List) => CliTelemetryEvent::ScheduleList,
-            Some(ScheduleSubcommand::Get(_)) => CliTelemetryEvent::ScheduleGet,
-            Some(ScheduleSubcommand::Pause(_)) => CliTelemetryEvent::SchedulePause,
-            Some(ScheduleSubcommand::Unpause(_)) => CliTelemetryEvent::ScheduleUnpause,
-            Some(ScheduleSubcommand::Update(_)) => CliTelemetryEvent::ScheduleUpdate,
-            Some(ScheduleSubcommand::Delete(_)) => CliTelemetryEvent::ScheduleDelete,
-        },
         CliCommand::HarnessSupport(args) => match &args.command {
             HarnessSupportCommand::Ping => CliTelemetryEvent::HarnessSupportPing,
             HarnessSupportCommand::ReportArtifact(report_args) => match &report_args.command {

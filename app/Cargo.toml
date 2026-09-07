@@ -582,9 +582,6 @@ default = [
     "fork_from_command",
     "context_window_usage_v2",
     "context_window_usage_breakdown",
-    "ambient_agents_command_line",
-    "ambient_agents_image_upload",
-    "scheduled_ambient_agents",
     "v4a_file_diffs",
     "classic_completions",
     "force_classic_completions",
@@ -598,7 +595,6 @@ default = [
     "list_skills",
     "ask_user_question",
     "bundled_skills",
-    "ambient_agents_rtc",
     "agent_mode_computer_use",
     "background_computer_use",
     "oz_platform_skills",
@@ -666,7 +662,7 @@ default = [
 
 # SimpleWarp: a local-only build. No cloud, no login, no billing, and no Warp Drive.
 # Build it with: cargo run --no-default-features --features simplewarp --bin simplewarp
-# It is the `default` set, less the cloud, sharing, ambient, hand-off, and billing
+# It is the `default` set, less the cloud, sharing, hand-off, and billing
 # features, plus `skip_login`.
 simplewarp = [
     "local_only",
@@ -851,9 +847,6 @@ agent_mode_evals = [
     "warp_logging/agent_mode_evals",
     "warp_server_client/agent_mode_evals",
 ]
-ambient_agents_command_line = []
-ambient_agents_image_upload = []
-scheduled_ambient_agents = []
 allow_ignoring_input_suggestions = []
 inline_slash_commands = ["agent_view"]
 
@@ -1050,7 +1043,6 @@ agent_tips = []
 agent_toolbar_editor = ["agent_view"]
 cloud_conversations = []
 agent_view_prompt_chip = ["agent_view"]
-ambient_agents_rtc = []
 team_api_keys = []
 named_agents = []
 classic_completions = []

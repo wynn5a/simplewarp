@@ -352,9 +352,6 @@ pub enum FeatureFlag {
     /// Enables auto-opening code review pane on first agent change and its setting UI.
     AutoOpenCodeReviewPane,
 
-    /// Enables the ambient agents command-line interface.
-    AmbientAgentsCommandLine,
-
     /// Enables inline code review functionality
     InlineCodeReview,
 
@@ -427,9 +424,6 @@ pub enum FeatureFlag {
     /// Agent Management View.
     AgentManagementView,
 
-    /// Enables scheduled ambient agents.
-    ScheduledAmbientAgents,
-
     AgentView,
 
     /// Enables block context functionality in Agent View.
@@ -480,9 +474,6 @@ pub enum FeatureFlag {
     /// Enables configuring header toolbar item order, side placement, and visibility.
     ConfigurableToolbar,
 
-    /// Enables real-time communication updates for ambient agent tasks.
-    AmbientAgentsRTC,
-
     // Enables a side panel conversation list view for AgentView mode.
     AgentViewConversationListView,
 
@@ -510,9 +501,6 @@ pub enum FeatureFlag {
     /// Skills are loaded from `.agents/skills/`, `.warp/skills/`, `.claude/skills/`, and `.codex/skills/`
     /// directories to provide base prompts for agent runs.
     OzPlatformSkills,
-
-    /// Enables image upload for ambient agents.
-    AmbientAgentsImageUpload,
 
     /// Enables loading and returning bundled skills in the SkillManager.
     BundledSkills,
@@ -712,7 +700,8 @@ pub enum FeatureFlag {
     /// provider-side prompt cache has expired.
     PromptCacheExpiryWarning,
 
-    /// Enables the `--runner` flag on `run-cloud`, which overrides an agent's
+    /// Enables runner support for agent runs: the `runner_id` key in agent
+    /// config files (rejected when the flag is off), which overrides an agent's
     /// compute (docker image, instance shape, setup commands) by runner ID.
     CloudRunners,
 

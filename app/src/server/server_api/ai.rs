@@ -13,7 +13,6 @@ use mockall::automock;
 use warp_errors::report_error;
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
 use warp_graphql::queries::get_conversation_usage::ConversationUsage;
-use warp_graphql::queries::get_scheduled_agent_history::ScheduledAgentHistory;
 use warp_multi_agent_api::ConversationData;
 
 use super::ServerApi;
@@ -991,11 +990,6 @@ pub trait AIClient: 'static + Send + Sync {
         request: RunFollowupRequest,
     ) -> anyhow::Result<(), anyhow::Error>;
 
-    async fn get_scheduled_agent_history(
-        &self,
-        schedule_id: &str,
-    ) -> anyhow::Result<ScheduledAgentHistory, anyhow::Error>;
-
     async fn get_ai_conversation(
         &self,
         server_conversation_token: ServerConversationToken,
@@ -1116,11 +1110,6 @@ pub trait AIClient: 'static + Send + Sync {
         task_id: String,
         workload_token: String,
     ) -> anyhow::Result<Vec<GitCredential>, anyhow::Error>;
-
-    async fn get_task_attachments(
-        &self,
-        task_id: String,
-    ) -> anyhow::Result<Vec<TaskAttachment>, anyhow::Error>;
 
     async fn create_file_artifact_upload_target(
         &self,
@@ -1476,13 +1465,6 @@ impl AIClient for ServerApi {
         Err(crate::server::server_api::local_only_error())
     }
 
-    async fn get_scheduled_agent_history(
-        &self,
-        _schedule_id: &str,
-    ) -> anyhow::Result<ScheduledAgentHistory, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
     #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
     async fn get_ai_conversation(
         &self,
@@ -1653,14 +1635,6 @@ impl AIClient for ServerApi {
         _task_id: String,
         _workload_token: String,
     ) -> anyhow::Result<Vec<GitCredential>, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
-    async fn get_task_attachments(
-        &self,
-        _task_id: String,
-    ) -> anyhow::Result<Vec<TaskAttachment>, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 

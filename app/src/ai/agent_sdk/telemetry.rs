@@ -17,8 +17,6 @@ pub(super) enum CliTelemetryEvent {
         /// Which execution harness was selected (e.g. "oz", "claude").
         harness: String,
     },
-    /// Executing `warp agent run-ambient`
-    AgentRunAmbient,
     /// Executing `warp agent profile list`
     AgentProfileList,
     /// Executing `warp agent list`
@@ -95,20 +93,6 @@ pub(super) enum CliTelemetryEvent {
     ApiKeyCreate,
     /// Executing `warp api-key expire`
     ApiKeyExpire,
-    /// Executing `warp schedule create`
-    ScheduleCreate,
-    /// Executing `warp schedule list`
-    ScheduleList,
-    /// Executing `warp schedule get`
-    ScheduleGet,
-    /// Executing `warp schedule pause`
-    SchedulePause,
-    /// Executing `warp schedule unpause`
-    ScheduleUnpause,
-    /// Executing `warp schedule update`
-    ScheduleUpdate,
-    /// Executing `warp schedule delete`
-    ScheduleDelete,
     /// Executing `warp harness-support ping`
     HarnessSupportPing,
     /// Executing `warp harness-support report-artifact`
@@ -141,7 +125,6 @@ impl TelemetryEvent for CliTelemetryEvent {
                 "task_id": task_id,
                 "harness": harness,
             })),
-            CliTelemetryEvent::AgentRunAmbient => None,
             CliTelemetryEvent::AgentProfileList => None,
             CliTelemetryEvent::AgentList => None,
             CliTelemetryEvent::AgentGet => None,
@@ -182,13 +165,6 @@ impl TelemetryEvent for CliTelemetryEvent {
             CliTelemetryEvent::ApiKeyList => None,
             CliTelemetryEvent::ApiKeyCreate => None,
             CliTelemetryEvent::ApiKeyExpire => None,
-            CliTelemetryEvent::ScheduleCreate => None,
-            CliTelemetryEvent::ScheduleList => None,
-            CliTelemetryEvent::ScheduleGet => None,
-            CliTelemetryEvent::SchedulePause => None,
-            CliTelemetryEvent::ScheduleUnpause => None,
-            CliTelemetryEvent::ScheduleUpdate => None,
-            CliTelemetryEvent::ScheduleDelete => None,
             CliTelemetryEvent::HarnessSupportPing => None,
             CliTelemetryEvent::HarnessSupportReportArtifact { artifact_type } => {
                 Some(json!({ "artifact_type": artifact_type }))
@@ -222,7 +198,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
     fn name(&self) -> &'static str {
         match self {
             CliTelemetryEventDiscriminants::AgentRun => "CLI.Execute.Agent.Run",
-            CliTelemetryEventDiscriminants::AgentRunAmbient => "CLI.Execute.Agent.RunAmbient",
             CliTelemetryEventDiscriminants::AgentProfileList => "CLI.Execute.Agent.Profile.List",
             CliTelemetryEventDiscriminants::AgentList => "CLI.Execute.Agent.List",
             CliTelemetryEventDiscriminants::AgentGet => "CLI.Execute.Agent.Get",
@@ -281,13 +256,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::ApiKeyList => "CLI.Execute.ApiKey.List",
             CliTelemetryEventDiscriminants::ApiKeyCreate => "CLI.Execute.ApiKey.Create",
             CliTelemetryEventDiscriminants::ApiKeyExpire => "CLI.Execute.ApiKey.Expire",
-            CliTelemetryEventDiscriminants::ScheduleCreate => "CLI.Execute.Schedule.Create",
-            CliTelemetryEventDiscriminants::ScheduleList => "CLI.Execute.Schedule.List",
-            CliTelemetryEventDiscriminants::ScheduleGet => "CLI.Execute.Schedule.Get",
-            CliTelemetryEventDiscriminants::SchedulePause => "CLI.Execute.Schedule.Pause",
-            CliTelemetryEventDiscriminants::ScheduleUnpause => "CLI.Execute.Schedule.Unpause",
-            CliTelemetryEventDiscriminants::ScheduleUpdate => "CLI.Execute.Schedule.Update",
-            CliTelemetryEventDiscriminants::ScheduleDelete => "CLI.Execute.Schedule.Delete",
             CliTelemetryEventDiscriminants::HarnessSupportPing => "CLI.Execute.HarnessSupport.Ping",
             CliTelemetryEventDiscriminants::HarnessSupportReportArtifact => {
                 "CLI.Execute.HarnessSupport.ReportArtifact"
@@ -307,9 +275,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
     fn description(&self) -> &'static str {
         match self {
             CliTelemetryEventDiscriminants::AgentRun => "Ran an agent from the Warp CLI",
-            CliTelemetryEventDiscriminants::AgentRunAmbient => {
-                "Ran an ambient agent from the Warp CLI"
-            }
             CliTelemetryEventDiscriminants::AgentProfileList => {
                 "Listed agent profiles from the Warp CLI"
             }
@@ -388,27 +353,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::ApiKeyList => "Listed API keys from the Warp CLI",
             CliTelemetryEventDiscriminants::ApiKeyCreate => "Created an API key from the Warp CLI",
             CliTelemetryEventDiscriminants::ApiKeyExpire => "Expired an API key from the Warp CLI",
-            CliTelemetryEventDiscriminants::ScheduleCreate => {
-                "Created a scheduled agent from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::ScheduleList => {
-                "Listed scheduled agents from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::ScheduleGet => {
-                "Got scheduled agent configuration from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::SchedulePause => {
-                "Paused a scheduled agent from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::ScheduleUnpause => {
-                "Unpaused a scheduled agent from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::ScheduleUpdate => {
-                "Updated a scheduled agent from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::ScheduleDelete => {
-                "Deleted a scheduled agent from the Warp CLI"
-            }
             CliTelemetryEventDiscriminants::HarnessSupportPing => {
                 "Pinged harness-support from the Warp CLI"
             }
