@@ -600,10 +600,6 @@ impl TerminalView {
         initial_prompt: Option<String>,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::CloudModeFromLocalSession.is_enabled() {
-            return;
-        }
-
         // If cloud mode is started from fullscreen agent view, we must ensure the resulting
         // rich content (ambient agent entry block) is scoped to the terminal-level.
         if FeatureFlag::AgentView.is_enabled()

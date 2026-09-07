@@ -1015,10 +1015,7 @@ pub fn init(app: &mut AppContext) {
             TerminalAction::EnterCloudAgentView,
             id!("Terminal") & id!(flags::IS_ANY_AI_ENABLED),
         )
-        .with_enabled(|| {
-            FeatureFlag::AgentView.is_enabled()
-                && FeatureFlag::CloudModeFromLocalSession.is_enabled()
-        })
+        .with_enabled(|| FeatureFlag::AgentView.is_enabled())
         .with_group(bindings::BindingGroup::WarpAi.as_str())]);
         if cfg!(target_os = "macos") {
             // On MacOS, if the user has the 'Option as meta' setting enabled, the cmd-alt-enter
