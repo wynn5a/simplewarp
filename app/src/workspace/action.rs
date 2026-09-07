@@ -702,30 +702,6 @@ pub enum WorkspaceAction {
     /// Reset the AWS Bedrock login banner dismissed state (for debugging).
     #[cfg(debug_assertions)]
     DebugResetAwsBedrockLoginBannerDismissed,
-    /// Open the Oz Launch Modal (for debugging)
-    #[cfg(debug_assertions)]
-    OpenOzLaunchModal,
-    /// Reset the Oz launch modal dismissed state (for debugging)
-    #[cfg(debug_assertions)]
-    ResetOzLaunchModalState,
-    /// Open the OpenWarp Launch Modal (for debugging)
-    #[cfg(debug_assertions)]
-    OpenOpenWarpLaunchModal,
-    /// Reset the OpenWarp launch modal dismissed state (for debugging)
-    #[cfg(debug_assertions)]
-    ResetOpenWarpLaunchModalState,
-    /// Open the Orchestration Launch Modal (for debugging)
-    #[cfg(debug_assertions)]
-    OpenOrchestrationLaunchModal,
-    /// Reset the orchestration launch modal dismissed state (for debugging)
-    #[cfg(debug_assertions)]
-    ResetOrchestrationLaunchModalState,
-    /// Open the Warp Agent CLI Launch Modal (for debugging)
-    #[cfg(debug_assertions)]
-    OpenAgentCliLaunchModal,
-    /// Reset the Warp Agent CLI launch modal dismissed state (for debugging)
-    #[cfg(debug_assertions)]
-    ResetAgentCliLaunchModalState,
     /// Open the Feature Intro Modal (for debugging)
     #[cfg(debug_assertions)]
     OpenFeatureIntroModal,
@@ -1151,14 +1127,6 @@ impl WorkspaceAction {
             OpenBuildPlanMigrationModal
             | ResetBuildPlanMigrationModalState
             | DebugResetAwsBedrockLoginBannerDismissed
-            | OpenOzLaunchModal
-            | ResetOzLaunchModalState
-            | OpenOpenWarpLaunchModal
-            | ResetOpenWarpLaunchModalState
-            | OpenOrchestrationLaunchModal
-            | ResetOrchestrationLaunchModalState
-            | OpenAgentCliLaunchModal
-            | ResetAgentCliLaunchModalState
             | OpenFeatureIntroModal
             | ResetFeatureIntroModalState
             | OpenFreeAiRemovalModal

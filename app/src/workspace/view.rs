@@ -1,4 +1,3 @@
-pub(crate) mod agent_cli_launch_modal;
 mod build_plan_migration_modal;
 pub(crate) mod cloud_agent_capacity_modal;
 pub(crate) mod codex_modal;
@@ -8,11 +7,8 @@ mod crash_recovery;
 pub(crate) mod feature_intro_modal;
 pub(crate) mod free_ai_removal_modal;
 pub mod global_search;
-pub(crate) mod launch_modal;
 pub(crate) mod left_panel;
 pub(crate) mod onboarding;
-pub(crate) mod openwarp_launch_modal;
-pub(crate) mod orchestration_launch_modal;
 pub(crate) mod right_panel;
 mod startup_directory;
 mod tab_grouping;
@@ -451,9 +447,6 @@ use crate::workspace::tab_settings::TabCloseButtonPosition;
 use crate::workspace::toast_stack::{
     ToastStack, ToastStack as WorkspaceToastStack, ToastStackEvent as WorkspaceToastStackEvent,
 };
-use crate::workspace::view::agent_cli_launch_modal::{
-    AgentCliLaunchModal, AgentCliLaunchModalEvent,
-};
 use crate::workspace::view::build_plan_migration_modal::{
     BuildPlanMigrationModal, BuildPlanMigrationModalEvent,
 };
@@ -470,15 +463,8 @@ use crate::workspace::view::free_ai_removal_modal::{
     FreeAiRemovalModalVariant,
 };
 use crate::workspace::view::global_search::view::GlobalSearchEntryFocus;
-use crate::workspace::view::launch_modal::{LaunchModal, LaunchModalEvent, OzLaunchSlide};
 use crate::workspace::view::left_panel::{
     LeftPanelAction, LeftPanelEvent, LeftPanelView, ToolPanelView,
-};
-use crate::workspace::view::openwarp_launch_modal::{
-    OpenWarpLaunchModal, OpenWarpLaunchModalEvent,
-};
-use crate::workspace::view::orchestration_launch_modal::{
-    OrchestrationLaunchModal, OrchestrationLaunchModalEvent,
 };
 use crate::workspace::view::right_panel::{RightPanelEvent, RightPanelView};
 use crate::workspace::{ForkFromExchange, ForkedConversationDestination};
@@ -853,15 +839,6 @@ struct RightPanelUpdateParams<'a> {
     review_pane_context: Option<&'a CodeReviewPaneContext>,
 }
 
-/// Groups a modal view handle with the ID of the tab that was created to host
-/// it, so the custom tab title can be cleared on close regardless of which tab
-/// is active at that point.
-struct ModalWithTab<V> {
-    view: ViewHandle<V>,
-    /// Set when the modal opens a new tab; consumed (taken) when the modal
-    /// closes so we can clear the custom tab title.
-    tab_pane_group_id: Option<EntityId>,
-}
 /// Context saved when the session config modal triggers `open_tab_config` and
 /// the tab config has params (worktree). The params modal opens asynchronously,
 /// so we store what we need to finish the tab replacement when it completes.
@@ -1017,10 +994,6 @@ pub struct Workspace {
     theme_deletion_modal: ViewHandle<ThemeDeletionModal>,
     suggested_agent_mode_workflow_modal: ViewHandle<SuggestedAgentModeWorkflowModal>,
     suggested_rule_modal: ViewHandle<SuggestedRuleModal>,
-    oz_launch_modal: ModalWithTab<LaunchModal<OzLaunchSlide>>,
-    openwarp_launch_modal: ViewHandle<OpenWarpLaunchModal>,
-    orchestration_launch_modal: ViewHandle<OrchestrationLaunchModal>,
-    agent_cli_launch_modal: ViewHandle<AgentCliLaunchModal>,
     feature_intro_modal: ViewHandle<FeatureIntroModal>,
     /// Tab that first received the feature-intro popover. The popover stays
     /// pinned to this tab for the rest of its lifetime so switching tabs does
@@ -2707,26 +2680,6 @@ impl Workspace {
 
         let suggested_rule_modal = Self::build_suggested_rule_modal(ctx);
 
-        let oz_launch_view = ctx.add_typed_action_view(LaunchModal::<OzLaunchSlide>::new);
-        ctx.subscribe_to_view(&oz_launch_view, |me, _, event, ctx| {
-            me.handle_oz_launch_modal_event(event, ctx);
-        });
-
-        let openwarp_launch_view = ctx.add_typed_action_view(OpenWarpLaunchModal::new);
-        ctx.subscribe_to_view(&openwarp_launch_view, |me, _, event, ctx| {
-            me.handle_openwarp_launch_modal_event(event, ctx);
-        });
-
-        let orchestration_launch_view = ctx.add_typed_action_view(OrchestrationLaunchModal::new);
-        ctx.subscribe_to_view(&orchestration_launch_view, |me, _, event, ctx| {
-            me.handle_orchestration_launch_modal_event(event, ctx);
-        });
-
-        let agent_cli_launch_view = ctx.add_typed_action_view(AgentCliLaunchModal::new);
-        ctx.subscribe_to_view(&agent_cli_launch_view, |me, _, event, ctx| {
-            me.handle_agent_cli_launch_modal_event(event, ctx);
-        });
-
         let feature_intro_view = ctx.add_typed_action_view(FeatureIntroModal::new);
         ctx.subscribe_to_view(&feature_intro_view, |me, _, event, ctx| {
             me.handle_feature_intro_modal_event(event, ctx);
@@ -2974,15 +2927,7 @@ impl Workspace {
                 // The model has already determined which window should show the modal.
                 let model_ref = model.as_ref(ctx);
                 if model_ref.target_window_id() == Some(ctx.window_id()) {
-                    if model_ref.is_oz_launch_modal_open() {
-                        me.open_tab_and_focus_oz_launch_modal(ctx);
-                    } else if model_ref.is_openwarp_launch_modal_open() {
-                        me.focus_openwarp_launch_modal(ctx);
-                    } else if model_ref.is_orchestration_launch_modal_open() {
-                        me.focus_orchestration_launch_modal(ctx);
-                    } else if model_ref.is_agent_cli_launch_modal_open() {
-                        me.focus_agent_cli_launch_modal(ctx);
-                    } else if model_ref.is_free_ai_removal_modal_open() {
+                    if model_ref.is_free_ai_removal_modal_open() {
                         me.focus_free_ai_removal_modal(ctx);
                     } else if model_ref.is_build_plan_migration_modal_open() {
                         me.focus_build_plan_migration_modal(ctx);
@@ -3113,13 +3058,6 @@ impl Workspace {
             #[cfg(target_family = "wasm")]
             transcript_details_panel,
             tab_fixed_width: None,
-            oz_launch_modal: ModalWithTab {
-                view: oz_launch_view,
-                tab_pane_group_id: None,
-            },
-            openwarp_launch_modal: openwarp_launch_view,
-            orchestration_launch_modal: orchestration_launch_view,
-            agent_cli_launch_modal: agent_cli_launch_view,
             feature_intro_modal: feature_intro_view,
             feature_intro_tab_pane_group_id: None,
             codex_modal,
@@ -16820,54 +16758,6 @@ impl Workspace {
         }
     }
 
-    fn handle_openwarp_launch_modal_event(
-        &mut self,
-        event: &OpenWarpLaunchModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            OpenWarpLaunchModalEvent::Close => {
-                OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.mark_openwarp_launch_modal_dismissed(ctx);
-                });
-                self.focus_active_tab(ctx);
-                ctx.notify();
-            }
-        }
-    }
-
-    fn handle_orchestration_launch_modal_event(
-        &mut self,
-        event: &OrchestrationLaunchModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            OrchestrationLaunchModalEvent::Close => {
-                OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.mark_orchestration_launch_modal_dismissed(ctx);
-                });
-                self.focus_active_tab(ctx);
-                ctx.notify();
-            }
-        }
-    }
-
-    fn handle_agent_cli_launch_modal_event(
-        &mut self,
-        event: &AgentCliLaunchModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            AgentCliLaunchModalEvent::Close => {
-                OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.mark_agent_cli_launch_modal_dismissed(ctx);
-                });
-                self.focus_active_tab(ctx);
-                ctx.notify();
-            }
-        }
-    }
-
     fn handle_feature_intro_modal_event(
         &mut self,
         event: &FeatureIntroModalEvent,
@@ -16895,40 +16785,6 @@ impl Workspace {
             }
         }
         ctx.notify();
-    }
-
-    fn handle_oz_launch_modal_event(
-        &mut self,
-        event: &LaunchModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            LaunchModalEvent::Close => {
-                OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.mark_oz_launch_modal_dismissed(ctx);
-                });
-
-                // Clear the "Introducing Oz" custom tab name so normal tab naming rules apply.
-                if let Some(pane_group_id) = self.oz_launch_modal.tab_pane_group_id.take()
-                    && let Some(tab) = self
-                        .tabs
-                        .iter()
-                        .find(|tab| tab.pane_group.id() == pane_group_id)
-                {
-                    tab.pane_group.update(ctx, |view, ctx| {
-                        view.clear_title(ctx);
-                    });
-                }
-
-                self.focus_active_tab(ctx);
-            }
-            LaunchModalEvent::ToggleCheckbox => {
-                PrivacySettings::handle(ctx).update(ctx, |settings, ctx| {
-                    let current_value = settings.is_cloud_conversation_storage_enabled;
-                    settings.set_is_cloud_conversation_storage_enabled(!current_value, ctx);
-                });
-            }
-        }
     }
 
     fn handle_build_plan_migration_modal_event(
@@ -21099,18 +20955,6 @@ impl Workspace {
         self.on_window_closed(ctx);
     }
 
-    fn focus_openwarp_launch_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.focus(&self.openwarp_launch_modal);
-    }
-
-    fn focus_orchestration_launch_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.focus(&self.orchestration_launch_modal);
-    }
-
-    fn focus_agent_cli_launch_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.focus(&self.agent_cli_launch_modal);
-    }
-
     fn show_feature_intro_modal(&mut self, id: FeatureIntroId, ctx: &mut ViewContext<Self>) {
         // Non-blocking popover: set the descriptor but intentionally do NOT focus it,
         // so the terminal and input stay usable while it is visible. Pin to the
@@ -21142,26 +20986,6 @@ impl Workspace {
         self.tabs
             .get(self.active_tab_index)
             .is_some_and(|tab| tab.pane_group.id() == pinned_tab)
-    }
-
-    fn open_tab_and_focus_oz_launch_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        // Create a new tab with one terminal session titled "Introducing Oz"
-        self.add_tab_with_pane_layout(
-            PanesLayout::SingleTerminal(Box::new(NewTerminalOptions {
-                shell: None,
-                initial_directory: None,
-                hide_homepage: false,
-                ..Default::default()
-            })),
-            Arc::new(HashMap::new()),
-            Some("Introducing Oz".to_string()),
-            ctx,
-        );
-        self.oz_launch_modal.tab_pane_group_id = self
-            .tabs
-            .get(self.active_tab_index)
-            .map(|tab| tab.pane_group.id());
-        ctx.focus(&self.oz_launch_modal.view);
     }
 
     fn focus_build_plan_migration_modal(&mut self, ctx: &mut ViewContext<Self>) {
@@ -23038,122 +22862,6 @@ impl TypedActionView for Workspace {
                 log::info!("AWS Bedrock login banner dismissed state has been reset");
             }
             #[cfg(debug_assertions)]
-            OpenOzLaunchModal => {
-                // Force open the Oz launch modal for debugging
-                OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.force_open_oz_launch_modal(ctx);
-                });
-                ctx.notify();
-            }
-            #[cfg(debug_assertions)]
-            ResetOzLaunchModalState => {
-                // Reset the Oz launch modal dismissed state for debugging
-                let old_value = *AISettings::as_ref(ctx).did_check_to_trigger_oz_launch_modal;
-                AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
-                    if let Err(e) = ai_settings
-                        .did_check_to_trigger_oz_launch_modal
-                        .set_value(false, ctx)
-                    {
-                        log::warn!("Failed to reset Oz launch modal dismissed setting: {e}");
-                    }
-                });
-                let new_value = *AISettings::as_ref(ctx).did_check_to_trigger_oz_launch_modal;
-                log::info!(
-                    "Oz launch modal state: old={}, new={}, feature_flag_enabled={}",
-                    old_value,
-                    new_value,
-                    FeatureFlag::OzLaunchModal.is_enabled()
-                );
-            }
-            #[cfg(debug_assertions)]
-            OpenOpenWarpLaunchModal => {
-                // Force open the OpenWarp launch modal for debugging
-                OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.force_open_openwarp_launch_modal(ctx);
-                });
-                ctx.notify();
-            }
-            #[cfg(debug_assertions)]
-            ResetOpenWarpLaunchModalState => {
-                // Reset the OpenWarp launch modal dismissed state for debugging
-                let old_value = *GeneralSettings::as_ref(ctx)
-                    .did_check_to_trigger_openwarp_launch_modal
-                    .value();
-                GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    if let Err(e) = settings
-                        .did_check_to_trigger_openwarp_launch_modal
-                        .set_value(false, ctx)
-                    {
-                        log::warn!("Failed to reset OpenWarp launch modal dismissed setting: {e}");
-                    }
-                });
-                let new_value = *GeneralSettings::as_ref(ctx)
-                    .did_check_to_trigger_openwarp_launch_modal
-                    .value();
-                log::info!(
-                    "OpenWarp launch modal state: old={}, new={}, feature_flag_enabled={}",
-                    old_value,
-                    new_value,
-                    FeatureFlag::OpenWarpLaunchModal.is_enabled()
-                );
-            }
-            #[cfg(debug_assertions)]
-            OpenOrchestrationLaunchModal => {
-                OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.force_open_orchestration_launch_modal(ctx);
-                });
-                ctx.notify();
-            }
-            #[cfg(debug_assertions)]
-            ResetOrchestrationLaunchModalState => {
-                let old_value =
-                    *AISettings::as_ref(ctx).did_check_to_trigger_orchestration_launch_modal;
-                AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
-                    if let Err(e) = ai_settings
-                        .did_check_to_trigger_orchestration_launch_modal
-                        .set_value(false, ctx)
-                    {
-                        log::warn!(
-                            "Failed to reset orchestration launch modal dismissed setting: {e}"
-                        );
-                    }
-                });
-                let new_value =
-                    *AISettings::as_ref(ctx).did_check_to_trigger_orchestration_launch_modal;
-                log::info!(
-                    "Orchestration launch modal state: old={old_value}, new={new_value}, feature_flag_enabled={}",
-                    FeatureFlag::OrchestrationLaunchModal.is_enabled()
-                );
-            }
-            #[cfg(debug_assertions)]
-            OpenAgentCliLaunchModal => {
-                OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.force_open_agent_cli_launch_modal(ctx);
-                });
-                ctx.notify();
-            }
-            #[cfg(debug_assertions)]
-            ResetAgentCliLaunchModalState => {
-                let old_value =
-                    *AISettings::as_ref(ctx).did_check_to_trigger_agent_cli_launch_modal;
-                AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
-                    if let Err(e) = ai_settings
-                        .did_check_to_trigger_agent_cli_launch_modal
-                        .set_value(false, ctx)
-                    {
-                        log::warn!(
-                            "Failed to reset Warp Agent CLI launch modal dismissed setting: {e}"
-                        );
-                    }
-                });
-                let new_value =
-                    *AISettings::as_ref(ctx).did_check_to_trigger_agent_cli_launch_modal;
-                log::info!(
-                    "Warp Agent CLI launch modal state: old={old_value}, new={new_value}, feature_flag_enabled={}",
-                    FeatureFlag::AgentCliLaunchModal.is_enabled()
-                );
-            }
-            #[cfg(debug_assertions)]
             OpenFreeAiRemovalModal => {
                 OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
                     model.force_open_free_ai_removal_modal(ctx);
@@ -24547,22 +24255,6 @@ impl View for Workspace {
 
         let one_time_modal_model = OneTimeModalModel::as_ref(app);
         let should_show_modal = one_time_modal_model.target_window_id() == Some(self.window_id);
-
-        if should_show_modal && one_time_modal_model.is_oz_launch_modal_open() {
-            stack.add_child(ChildView::new(&self.oz_launch_modal.view).finish());
-        }
-
-        if should_show_modal && one_time_modal_model.is_openwarp_launch_modal_open() {
-            stack.add_child(ChildView::new(&self.openwarp_launch_modal).finish());
-        }
-
-        if should_show_modal && one_time_modal_model.is_orchestration_launch_modal_open() {
-            stack.add_child(ChildView::new(&self.orchestration_launch_modal).finish());
-        }
-
-        if should_show_modal && one_time_modal_model.is_agent_cli_launch_modal_open() {
-            stack.add_child(ChildView::new(&self.agent_cli_launch_modal).finish());
-        }
 
         if should_show_modal && one_time_modal_model.is_free_ai_removal_modal_open() {
             stack.add_child(ChildView::new(&self.free_ai_removal_modal).finish());

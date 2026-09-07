@@ -148,17 +148,6 @@ define_settings_group!(GeneralSettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
-    // One-time flag tracking whether the OpenWarp launch modal has already been
-    // shown to the user. Not user-visible; modeled as a setting so it's only
-    // shown once per user regardless of the number of devices they use.
-    did_check_to_trigger_openwarp_launch_modal: DidShowOpenWarpLaunchModal {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    },
     anonymous_user_ai_sign_up_banner_shown: AnonymousUserAISignUpBannerShown {
         type: bool,
         default: false,

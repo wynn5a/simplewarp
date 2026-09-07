@@ -12565,14 +12565,11 @@ impl TerminalView {
         let should_show_onboarding = FeatureFlag::AgentOnboarding.is_enabled()
             && !is_onboarded
             && !is_anonymous_or_logged_out;
-        let is_launch_modal_open = OneTimeModalModel::as_ref(ctx).is_oz_launch_modal_open();
-
         if FeatureFlag::AgentView.is_enabled()
             && TerminalSettings::as_ref(ctx).should_show_zero_state_block(ctx)
             && !self.model.lock().block_list().is_restored_session()
             && !should_show_onboarding
             && self.onboarding_callout_view.is_none()
-            && !is_launch_modal_open
             && !is_subshell_or_ssh
         {
             let agent_view_zero_state = ctx.add_typed_action_view(|ctx| {
