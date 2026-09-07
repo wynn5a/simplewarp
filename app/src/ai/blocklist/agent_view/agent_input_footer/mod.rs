@@ -548,7 +548,7 @@ impl AgentInputFooter {
             me.update_display_chips(&model, ctx);
         });
 
-        let v2_model_selector = if FeatureFlag::CloudModeInputV2.is_enabled() {
+        let v2_model_selector = {
             let view = ctx.add_typed_action_view(|ctx| {
                 // Built without the ambient model; the footer's ambient setter attaches it via the
                 // `ModelSelector` setter so construction and the lazy viewer path share one path.
@@ -569,8 +569,6 @@ impl AgentInputFooter {
                 }
             });
             Some(view)
-        } else {
-            None
         };
 
         let mut me = Self {
@@ -640,15 +638,13 @@ impl AgentInputFooter {
     }
 
     fn should_render_cloud_mode_v2(&self, app: &AppContext) -> bool {
-        FeatureFlag::CloudModeInputV2.is_enabled()
-            && self
-                .ambient_agent_view_model
-                .as_ref()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model
-                        .as_ref(app)
-                        .is_configuring_ambient_agent()
-                })
+        self.ambient_agent_view_model
+            .as_ref()
+            .is_some_and(|ambient_agent_model| {
+                ambient_agent_model
+                    .as_ref(app)
+                    .is_configuring_ambient_agent()
+            })
     }
 
     fn render_cloud_mode_v2_footer(&self, app: &AppContext) -> Box<dyn Element> {
@@ -1709,14 +1705,10 @@ impl ActionButtonTheme for AgentInputButtonTheme {
     }
 
     fn font_properties(&self) -> Option<warpui::fonts::Properties> {
-        if crate::features::FeatureFlag::CloudModeInputV2.is_enabled() {
-            Some(warpui::fonts::Properties {
-                weight: warpui::fonts::Weight::Semibold,
-                ..Default::default()
-            })
-        } else {
-            None
-        }
+        Some(warpui::fonts::Properties {
+            weight: warpui::fonts::Weight::Semibold,
+            ..Default::default()
+        })
     }
 }
 

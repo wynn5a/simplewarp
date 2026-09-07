@@ -199,7 +199,7 @@ impl GuiSlashCommandDataSource {
             availability |= Availability::ACTIVE_CONVERSATION;
         }
 
-        if self.is_cloud_mode_v2 && FeatureFlag::CloudModeInputV2.is_enabled() {
+        if self.is_cloud_mode_v2 {
             availability |= Availability::CLOUD_MODE_V2_COMPOSER;
         }
 

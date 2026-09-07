@@ -2014,11 +2014,9 @@ impl Input {
         let harness_selector = ctx.add_typed_action_view(|ctx| {
             HarnessSelector::new(menu_positioning_provider.clone(), view_model.clone(), ctx)
         });
-        if FeatureFlag::CloudModeInputV2.is_enabled() {
-            harness_selector.update(ctx, |selector, ctx| {
-                selector.set_button_theme(NakedHeaderButtonTheme, ctx);
-            });
-        }
+        harness_selector.update(ctx, |selector, ctx| {
+            selector.set_button_theme(NakedHeaderButtonTheme, ctx);
+        });
         // Mirror the V2 model selector / host selector refocus path: when the
         // harness selector menu closes (item picked or dismissed via Esc /
         // click-outside), restore focus to the input editor so typing resumes
@@ -2259,7 +2257,6 @@ impl Input {
         // does not compose a new run, so they stay `None` for a shared-session viewer.
         let is_cloud_mode_composer = self.model.lock().is_dummy_cloud_mode_session();
         let (host_selector, auth_secret_selector, auth_secret_ftux_view) = if is_cloud_mode_composer
-            && FeatureFlag::CloudModeInputV2.is_enabled()
         {
             let host_selector = Self::build_host_selector(
                 view_model.clone(),
@@ -2819,7 +2816,7 @@ impl Input {
         }
         let inline_history_model = inline_history_menu_view.as_ref(ctx).model().clone();
 
-        let cloud_mode_v2_history_menu_view = if FeatureFlag::CloudModeInputV2.is_enabled() {
+        let cloud_mode_v2_history_menu_view = {
             let view = ctx.add_view({
                 let active_session = active_session.clone();
                 let buffer_model = buffer_model.clone();
@@ -2845,8 +2842,6 @@ impl Input {
                 });
             }
             Some(view)
-        } else {
-            None
         };
 
         let terminal_input_message_bar = ctx.add_typed_action_view(|ctx| {
@@ -3236,20 +3231,17 @@ impl Input {
             },
         );
 
-        let cloud_mode_composer_slash_command_data_source =
-            if FeatureFlag::CloudModeInputV2.is_enabled() {
-                let args = slash_commands::GuiDataSourceArgs {
-                    active_session: active_session.clone(),
-                    agent_view_controller: agent_view_controller.clone(),
-                    cli_subagent_controller: cli_subagent_controller.clone(),
-                    terminal_view_id,
-                    // Wired post-construction via `attach_ambient_agent_view_model`.
-                    ambient_agent_view_model: None,
-                };
-                Some(ctx.add_model(|ctx| GuiSlashCommandDataSource::for_cloud_mode_v2(args, ctx)))
-            } else {
-                None
+        let cloud_mode_composer_slash_command_data_source = {
+            let args = slash_commands::GuiDataSourceArgs {
+                active_session: active_session.clone(),
+                agent_view_controller: agent_view_controller.clone(),
+                cli_subagent_controller: cli_subagent_controller.clone(),
+                terminal_view_id,
+                // Wired post-construction via `attach_ambient_agent_view_model`.
+                ambient_agent_view_model: None,
             };
+            Some(ctx.add_model(|ctx| GuiSlashCommandDataSource::for_cloud_mode_v2(args, ctx)))
+        };
         let slash_command_model = ctx.add_model(|ctx| {
             SlashCommandModel::new(
                 &buffer_model,

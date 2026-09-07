@@ -750,10 +750,8 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         commands.push(OPEN_SETTINGS_FILE);
     }
 
-    if FeatureFlag::CloudModeInputV2.is_enabled() {
-        commands.push(HOST.clone());
-        commands.push(HARNESS.clone());
-    }
+    commands.push(HOST.clone());
+    commands.push(HARNESS.clone());
 
     commands
 }

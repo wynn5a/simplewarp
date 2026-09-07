@@ -1244,7 +1244,6 @@ fn attach_ambient_view_model_builds_composer_selectors_for_dummy_cloud_pane() {
     // A dummy cloud-mode session composes a new run, so the composer-only host /
     // auth-secret / FTUX selectors must be built for it.
     App::test((), |mut app| async move {
-        let _cloud_mode_input_v2 = FeatureFlag::CloudModeInputV2.override_enabled(true);
         initialize_app(&mut app);
 
         let tips_model = app.add_model(|_| TipsCompleted::default());
@@ -1284,7 +1283,6 @@ fn attach_ambient_view_model_skips_composer_selectors_for_non_composer_pane() {
     // A pane that is not a dummy cloud-mode session composes no new run, so it must not build
     // the composer-only selectors even though its ambient VM is still `Composing`.
     App::test((), |mut app| async move {
-        let _cloud_mode_input_v2 = FeatureFlag::CloudModeInputV2.override_enabled(true);
         initialize_app(&mut app);
 
         let tips_model = app.add_model(|_| TipsCompleted::default());
@@ -1319,7 +1317,6 @@ fn cloud_mode_host_selector_shown_when_connected_workers_present() {
     // Regression: connected self-hosted workers must surface the host dropdown even
     // with no default host set.
     App::test((), |mut app| async move {
-        let _cloud_mode_input_v2 = FeatureFlag::CloudModeInputV2.override_enabled(true);
         initialize_app(&mut app);
 
         let tips_model = app.add_model(|_| TipsCompleted::default());
