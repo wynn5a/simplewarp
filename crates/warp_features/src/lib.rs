@@ -692,17 +692,11 @@ pub enum FeatureFlag {
     /// for command execution.
     SshRemoteServer,
 
-    /// Redux of the setup/initial user query UI for cloud mode.
-    CloudModeSetupV2,
-
     /// Enables summary mode in vertical tabs, showing condensed tab summaries
     /// instead of individual pane rows.
     VerticalTabsSummaryMode,
 
     CloudModeInputV2,
-
-    /// Enables continuing cloud mode conversations in the cloud after an execution ends.
-    HandoffCloudCloud,
 
     /// Enables the local-to-cloud Oz handoff entry points (footer chip and
     /// `/move-to-cloud` slash command) that fork the active local Oz

@@ -70,27 +70,6 @@ fn build_centered_footer(
         .finish()
 }
 
-/// Render a loading footer that replaces the terminal input while waiting to connect to an
-// ambient agent session.
-pub fn render_loading_footer(appearance: &Appearance) -> Box<dyn Element> {
-    let theme = appearance.theme();
-
-    let header_color = blended_colors::text_main(theme, theme.background());
-    let body_color = blended_colors::text_disabled(theme, theme.background());
-    let background = theme.surface_2().into();
-    let border_color = blended_colors::neutral_4(theme);
-
-    build_centered_footer(
-        "Cloud agent starting up…".to_string(),
-        "You'll be able to interact with Oz soon".to_string(),
-        header_color,
-        body_color,
-        background,
-        border_color,
-        appearance,
-    )
-}
-
 /// Render an error footer that shows when the ambient agent failed to spawn.
 pub fn render_error_footer(error_message: &str, appearance: &Appearance) -> Box<dyn Element> {
     let theme = appearance.theme();

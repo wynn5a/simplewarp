@@ -825,30 +825,6 @@ fn test_swapping_to_child_agent_from_maximized_pane_keeps_maximized_state() {
     });
 }
 #[test]
-fn test_insert_hidden_ambient_child_agent_pane_suppresses_details_auto_open() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        let pane_group = mock_pane_group(&mut app, Default::default());
-
-        pane_group.update(&mut app, |panes, ctx| {
-            let parent_pane_id = get_newly_created_pane_id(panes, &[]);
-            let child_pane_id =
-                panes.insert_ambient_agent_pane_hidden_for_child_agent(parent_pane_id, ctx);
-
-            let terminal_view = panes
-                .terminal_view_from_pane_id(child_pane_id, ctx)
-                .expect("hidden ambient child pane should have a terminal view");
-            assert!(
-                terminal_view
-                    .as_ref(ctx)
-                    .is_initial_conversation_details_panel_auto_open_suppressed_for_test(),
-                "hidden ambient child panes opened from the parent orchestration UI should not \
-                 auto-open details during environment setup or session readiness"
-            );
-        });
-    });
-}
-#[test]
 fn test_hidden_child_creation_applies_ambient_task_id_to_controller() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
@@ -975,17 +951,6 @@ fn test_restored_remote_hidden_child_pane_enters_existing_ambient_session() {
                 panes.child_agent_panes.contains_key(&child_conversation_id),
                 "placeholder AIConversationId must stay the child_agent_panes key after Fix B \
                  hydration",
-            );
-
-            let terminal_view = panes
-                .terminal_view_from_pane_id(child_pane_id, ctx)
-                .expect("remote child pane should have a terminal view");
-            assert!(
-                terminal_view
-                    .as_ref(ctx)
-                    .is_initial_conversation_details_panel_auto_open_suppressed_for_test(),
-                "remote child panes opened from the parent orchestration UI should not auto-open \
-                 details when the ambient session becomes ready"
             );
         });
     });
@@ -1700,8 +1665,6 @@ fn test_create_missing_child_agent_panes_restores_remote_child_from_history_mode
 #[test]
 fn test_ambient_transcript_restore_creates_cloud_mode_pane_when_handoff_enabled() {
     let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-    let _setup_v2 = FeatureFlag::CloudModeSetupV2.override_enabled(true);
-    let _handoff = FeatureFlag::HandoffCloudCloud.override_enabled(true);
 
     App::test((), |mut app| async move {
         initialize_app(&mut app);
@@ -1740,42 +1703,6 @@ fn test_ambient_transcript_restore_creates_cloud_mode_pane_when_handoff_enabled(
             let model = view.model.lock();
             assert!(!model.is_conversation_transcript_viewer());
             assert!(!model.is_read_only());
-        });
-    });
-}
-
-#[test]
-fn test_ambient_transcript_restore_uses_generic_viewer_when_handoff_disabled() {
-    let _handoff = FeatureFlag::HandoffCloudCloud.override_enabled(false);
-    let _setup_v2 = FeatureFlag::CloudModeSetupV2.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        let pane_group = mock_pane_group(&mut app, Default::default());
-        let task_id = new_ambient_agent_task_id();
-
-        pane_group.update(&mut app, |panes, ctx| {
-            panes.load_data_into_conversation_transcript_viewer(
-                cloud_conversation_with_ambient_task(task_id),
-                Some(task_id),
-                ctx,
-            );
-        });
-
-        pane_group.read(&app, |panes, ctx| {
-            let terminal_view = panes
-                .active_session_view(ctx)
-                .expect("fallback viewer should have an active terminal view");
-            let view = terminal_view.as_ref(ctx);
-            assert!(view.ambient_agent_view_model().is_none());
-
-            let model = view.model.lock();
-            assert!(model.is_conversation_transcript_viewer());
-            assert!(model.is_read_only());
-            assert_eq!(
-                model.conversation_transcript_viewer_status(),
-                Some(&ConversationTranscriptViewerStatus::ViewingAmbientConversation(task_id))
-            );
         });
     });
 }

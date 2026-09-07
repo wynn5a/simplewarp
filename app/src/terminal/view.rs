@@ -2079,13 +2079,6 @@ pub enum TerminalViewState {
     Normal,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(in crate::terminal::view) enum ConversationDetailsPanelAutoOpenPolicy {
-    #[default]
-    DefaultOpen,
-    DefaultClosed,
-}
-
 /// A struct containing information about a state change event for a particular
 /// terminal view.
 #[derive(Copy, Clone)]
@@ -2556,14 +2549,6 @@ pub struct TerminalView {
         ViewHandle<crate::ai::conversation_details_panel::ConversationDetailsPanel>,
     /// Whether the conversation details panel is currently open.
     is_conversation_details_panel_open: bool,
-    /// Whether we've already auto-opened the panel when the agent started running.
-    /// This prevents re-opening the panel if the user manually closes it. Only set
-    /// by the cloud-mode auto-open path; local conversations require the user to
-    /// click the pane-header toggle button to open the panel.
-    has_auto_opened_conversation_details_panel: bool,
-    /// Determines whether the one-shot auto-open should open the panel or be
-    /// consumed without opening.
-    conversation_details_panel_auto_open_policy: ConversationDetailsPanelAutoOpenPolicy,
     /// Mouse state handle for the conversation details panel toggle button in the pane header.
     /// On WASM this is used by the workspace-level transcript panel toggle; on desktop, it is used
     /// by the pane-level details panel toggle.
@@ -4043,8 +4028,6 @@ impl TerminalView {
             ambient_agent_view_model: None,
             conversation_details_panel,
             is_conversation_details_panel_open: false,
-            has_auto_opened_conversation_details_panel: false,
-            conversation_details_panel_auto_open_policy: Default::default(),
             orchestration_child_live_unavailable: false,
             conversation_details_panel_toggle_mouse_state: Default::default(),
             ambient_agent_cancel_mouse_state: Default::default(),
@@ -7538,16 +7521,6 @@ impl TerminalView {
             && !model.is_conversation_transcript_viewer()
     }
 
-    /// Consume the one-shot conversation details panel auto-open for this
-    /// view. Call this before the first `maybe_auto_open_conversation_details_panel`
-    /// fires (e.g. on a parent-orchestrated child agent pane) so the panel does
-    /// not default open. Manual toggle via `TerminalAction::ToggleConversationDetailsPanel`
-    /// continues to work normally.
-    pub(crate) fn suppress_initial_conversation_details_panel_auto_open(&mut self) {
-        self.conversation_details_panel_auto_open_policy =
-            ConversationDetailsPanelAutoOpenPolicy::DefaultClosed;
-    }
-
     pub(crate) fn set_orchestration_child_live_unavailable(
         &mut self,
         unavailable: bool,
@@ -7569,16 +7542,6 @@ impl TerminalView {
         self.rich_content_views
             .iter()
             .any(|view| view.is_agent_view_zero_state())
-    }
-
-    #[cfg(test)]
-    pub(crate) fn is_initial_conversation_details_panel_auto_open_suppressed_for_test(
-        &self,
-    ) -> bool {
-        matches!(
-            self.conversation_details_panel_auto_open_policy,
-            ConversationDetailsPanelAutoOpenPolicy::DefaultClosed
-        )
     }
 
     pub fn active_session(&self) -> &ModelHandle<ActiveSession> {
@@ -7712,21 +7675,6 @@ impl TerminalView {
             return false;
         }
 
-        // In cloud agent conversations, once the shared session is ready but before the first
-        // agent exchange arrives, we hide the interactive input view. A non-interactive footer is
-        // rendered instead (see `TerminalView::render`).
-        if !FeatureFlag::CloudModeSetupV2.is_enabled()
-            && !FeatureFlag::HandoffCloudCloud.is_enabled()
-            && ambient_agent::is_cloud_agent_pre_first_exchange(
-                self.ambient_agent_view_model.as_ref(),
-                &self.agent_view_controller,
-                model,
-                app,
-            )
-        {
-            return false;
-        }
-
         if self.has_active_init_project(app) && self.is_last_block_init_step(app) {
             return false;
         }
@@ -7774,7 +7722,7 @@ impl TerminalView {
 
         if (active_ai_block.is_none() || has_active_long_running_agent_interaction)
             && is_active_and_long_running
-            && (!FeatureFlag::CloudModeSetupV2.is_enabled() || !is_oz_env_startup_command)
+            && !is_oz_env_startup_command
             && !is_running_in_band_command
             && model.block_list().is_bootstrapped()
         {
@@ -7787,22 +7735,6 @@ impl TerminalView {
         }
 
         true
-    }
-
-    fn should_render_legacy_ambient_agent_loading_footer(
-        &self,
-        model: &TerminalModel,
-        app: &AppContext,
-    ) -> bool {
-        !model.is_read_only()
-            && !FeatureFlag::CloudModeSetupV2.is_enabled()
-            && !FeatureFlag::HandoffCloudCloud.is_enabled()
-            && ambient_agent::is_cloud_agent_pre_first_exchange(
-                self.ambient_agent_view_model.as_ref(),
-                &self.agent_view_controller,
-                model,
-                app,
-            )
     }
 
     pub fn has_active_env_var_block(&self, app: &AppContext) -> bool {
@@ -25971,8 +25903,6 @@ impl View for TerminalView {
                     let input_box_visible = self.is_input_box_visible(&model, app);
                     if input_box_visible {
                         column.add_child(self.render_input());
-                    } else if self.should_render_legacy_ambient_agent_loading_footer(&model, app) {
-                        column.add_child(ambient_agent::render_loading_footer(appearance));
                     } else if self.show_remote_server_loading_footer(&model, app) {
                         column.add_child(
                             self.render_remote_server_loading_footer(&model, appearance, app),
@@ -25993,15 +25923,6 @@ impl View for TerminalView {
 
         if self.is_any_tooltip_open() {
             self.render_grid_tooltip(&mut stack, &model, appearance, app);
-        }
-
-        // Show progress steps while waiting for an ambient agent to start. CloudModeSetupV2 uses
-        // the agent status bar for setup/follow-up progress.
-        if self.ambient_agent_view_model.as_ref().is_some_and(|model| {
-            let model = model.as_ref(app);
-            model.agent_progress().is_some() && !FeatureFlag::CloudModeSetupV2.is_enabled()
-        }) {
-            stack.add_child(self.render_ambient_agent_progress(appearance, app));
         }
 
         self.maybe_render_onboarding_callout(

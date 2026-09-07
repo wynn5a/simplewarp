@@ -7,7 +7,6 @@ use itertools::Itertools as _;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine, parse_markdown};
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
-use warp_core::features::FeatureFlag;
 use warpui::elements::{
     Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, EventHandler, Flex,
     FormattedTextElement, HighlightedHyperlink, MainAxisSize, MouseStateHandle, ParentElement,
@@ -164,15 +163,11 @@ impl AgentViewZeroStateBlock {
                     return;
                 }
 
-                if FeatureFlag::CloudModeSetupV2.is_enabled() {
-                    if matches!(
-                        event,
-                        AmbientAgentViewModelEvent::DispatchedAgent
-                            | AmbientAgentViewModelEvent::Cancelled
-                    ) {
-                        me.should_hide = true;
-                    }
-                } else if model.as_ref(ctx).should_show_status_footer() {
+                if matches!(
+                    event,
+                    AmbientAgentViewModelEvent::DispatchedAgent
+                        | AmbientAgentViewModelEvent::Cancelled
+                ) {
                     me.should_hide = true;
                 }
 

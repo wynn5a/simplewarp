@@ -2481,8 +2481,6 @@ fn cloud_mode_dispatched_agent_inserts_queued_user_query() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _handoff = FeatureFlag::HandoffCloudCloud.override_enabled(true);
-        let _setup_v2 = FeatureFlag::CloudModeSetupV2.override_enabled(true);
 
         let terminal = add_window_with_cloud_mode_terminal(&mut app);
 
@@ -2744,8 +2742,6 @@ fn cloud_mode_followup_dispatched_inserts_queued_user_query() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _handoff = FeatureFlag::HandoffCloudCloud.override_enabled(true);
-        let _setup_v2 = FeatureFlag::CloudModeSetupV2.override_enabled(true);
 
         let terminal = add_window_with_cloud_mode_terminal(&mut app);
         let task_id = AmbientAgentTaskId::from_str("123e4567-e89b-12d3-a456-426614174000")

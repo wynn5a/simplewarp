@@ -541,18 +541,6 @@ impl AmbientAgentViewModel {
             && matches!(self.status, Status::AgentRunning)
     }
 
-    /// Whether or not we should show a status footer (loading, error, auth, or cancelled).
-    pub fn should_show_status_footer(&self) -> bool {
-        if FeatureFlag::CloudModeSetupV2.is_enabled() {
-            return false;
-        }
-
-        self.is_waiting_for_session()
-            || self.is_failed()
-            || self.is_needs_github_auth()
-            || self.is_cancelled()
-    }
-
     /// Returns the error message if the agent is in a failed state.
     pub fn error_message(&self) -> Option<&str> {
         match &self.status {
@@ -715,11 +703,6 @@ impl AmbientAgentViewModel {
     }
 
     pub fn submit_cloud_followup(&mut self, prompt: String, ctx: &mut ModelContext<Self>) {
-        if !FeatureFlag::HandoffCloudCloud.is_enabled() {
-            log::warn!("Attempted to submit cloud follow-up while HandoffCloudCloud is disabled");
-            return;
-        }
-
         let Some(task_id) = self.task_id else {
             log::warn!("Attempted to submit cloud follow-up without an ambient task ID");
             return;

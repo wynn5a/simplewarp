@@ -666,8 +666,6 @@ default = [
     "queue_slash_command",
     "queued_prompts_v2",
     "cloud_mode_input_v2",
-    "cloud_mode_setup_v2",
-    "handoff_cloud_cloud",
     "remote_codebase_indexing",
     "solo_user_byok",
     "custom_model_routers",
@@ -1126,9 +1124,7 @@ configurable_toolbar = []
 warpify_footer = []
 git_operations_in_code_review = []
 hoa_remote_control = []
-cloud_mode_setup_v2 = []
 cloud_mode_input_v2 = []
-handoff_cloud_cloud = ["cloud_mode_setup_v2"]
 git_credential_refresh = []
 prompt_cache_expiry_warning = []
 osc_hyperlinks = []

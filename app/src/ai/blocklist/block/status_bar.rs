@@ -895,10 +895,6 @@ impl BlocklistAIStatusBar {
     }
 
     fn render_cloud_mode_setup_status(&self, app: &AppContext) -> Option<Box<dyn Element>> {
-        if !FeatureFlag::CloudModeSetupV2.is_enabled() {
-            return None;
-        }
-
         let ambient_agent_model = self
             .ambient_agent_view_model
             .as_ref()
@@ -935,10 +931,6 @@ impl BlocklistAIStatusBar {
         &self,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
-        if !FeatureFlag::CloudModeSetupV2.is_enabled() {
-            return None;
-        }
-
         let ambient_agent_model = self
             .ambient_agent_view_model
             .as_ref()
@@ -1208,18 +1200,18 @@ impl View for BlocklistAIStatusBar {
         let status_element = match self.render_cloud_mode_setup_status(app) {
             Some(cloud_mode_setup_status) => cloud_mode_setup_status,
             _ => {
-                if FeatureFlag::CloudModeSetupV2.is_enabled()
-                    && self.ambient_agent_view_model.as_ref().is_some_and(
-                        |ambient_agent_view_model| {
-                            let terminal_model = self.terminal_model.lock();
-                            is_cloud_agent_pre_first_exchange(
-                                Some(ambient_agent_view_model),
-                                &self.agent_view_controller,
-                                &terminal_model,
-                                app,
-                            )
-                        },
-                    )
+                if self
+                    .ambient_agent_view_model
+                    .as_ref()
+                    .is_some_and(|ambient_agent_view_model| {
+                        let terminal_model = self.terminal_model.lock();
+                        is_cloud_agent_pre_first_exchange(
+                            Some(ambient_agent_view_model),
+                            &self.agent_view_controller,
+                            &terminal_model,
+                            app,
+                        )
+                    })
                 {
                     render_warping_indicator_base(
                         WarpingIndicatorProps {

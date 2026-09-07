@@ -3111,9 +3111,7 @@ impl PaneGroup {
         let ambient_agent_task_id =
             ambient_agent_task_id.or_else(|| Self::ambient_agent_task_id(&cloud_conversation));
 
-        if FeatureFlag::HandoffCloudCloud.is_enabled()
-            && let Some(task_id) = ambient_agent_task_id
-        {
+        if let Some(task_id) = ambient_agent_task_id {
             if terminal_view
                 .as_ref(ctx)
                 .ambient_agent_view_model()
@@ -3367,9 +3365,6 @@ impl PaneGroup {
         // descendants, so disable polling on this child.
         let (view, terminal_manager) =
             Self::create_cloud_mode_terminal(resources, view_bounds.size(), false, ctx);
-        view.update(ctx, |view, _| {
-            view.suppress_initial_conversation_details_panel_auto_open();
-        });
         let pane_data = TerminalPane::new(
             uuid.as_bytes().to_vec(),
             terminal_manager,
@@ -5468,9 +5463,7 @@ impl PaneGroup {
         cloud_conversation: CloudConversationData,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        if FeatureFlag::HandoffCloudCloud.is_enabled()
-            && let Some(task_id) = Self::ambient_agent_task_id(&cloud_conversation)
-        {
+        if let Some(task_id) = Self::ambient_agent_task_id(&cloud_conversation) {
             return self.replace_loading_pane_with_restored_ambient_cloud_mode_pane(
                 loading_pane_id,
                 cloud_conversation,

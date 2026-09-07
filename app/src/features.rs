@@ -429,12 +429,8 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::HOARemoteControl,
         #[cfg(feature = "trim_trailing_blank_lines")]
         FeatureFlag::TrimTrailingBlankLines,
-        #[cfg(feature = "cloud_mode_setup_v2")]
-        FeatureFlag::CloudModeSetupV2,
         #[cfg(feature = "cloud_mode_input_v2")]
         FeatureFlag::CloudModeInputV2,
-        #[cfg(feature = "handoff_cloud_cloud")]
-        FeatureFlag::HandoffCloudCloud,
         #[cfg(feature = "git_credential_refresh")]
         FeatureFlag::GitCredentialRefresh,
         #[cfg(feature = "remote_code_review")]

@@ -1982,20 +1982,19 @@ impl Input {
                     });
                 }
             });
-            // Re-render on status-footer transitions and on status-affecting events that
-            // decide whether the input is in its composing shape.
-            let should_notify = handle.as_ref(ctx).should_show_status_footer()
-                || matches!(
-                    event,
-                    AmbientAgentViewModelEvent::EnteredSetupState
-                        | AmbientAgentViewModelEvent::EnteredComposingState
-                        | AmbientAgentViewModelEvent::DispatchedAgent
-                        | AmbientAgentViewModelEvent::SessionReady { .. }
-                        | AmbientAgentViewModelEvent::Failed { .. }
-                        | AmbientAgentViewModelEvent::Cancelled
-                        | AmbientAgentViewModelEvent::NeedsGithubAuth
-                        | AmbientAgentViewModelEvent::HarnessSelected
-                );
+            // Re-render on status-affecting events that decide whether the input is in its
+            // composing shape.
+            let should_notify = matches!(
+                event,
+                AmbientAgentViewModelEvent::EnteredSetupState
+                    | AmbientAgentViewModelEvent::EnteredComposingState
+                    | AmbientAgentViewModelEvent::DispatchedAgent
+                    | AmbientAgentViewModelEvent::SessionReady { .. }
+                    | AmbientAgentViewModelEvent::Failed { .. }
+                    | AmbientAgentViewModelEvent::Cancelled
+                    | AmbientAgentViewModelEvent::NeedsGithubAuth
+                    | AmbientAgentViewModelEvent::HarnessSelected
+            );
 
             if should_notify {
                 me.set_zero_state_hint_text(ctx);
@@ -11972,14 +11971,12 @@ impl Input {
             self.input_suggestions.update(ctx, |suggestions, ctx| {
                 suggestions.confirm(ctx);
             });
-        } else if FeatureFlag::CloudModeSetupV2.is_enabled()
-            && is_cloud_agent_pre_first_exchange(
-                self.ambient_agent_view_model(),
-                &self.agent_view_controller,
-                &self.model.lock(),
-                ctx,
-            )
-        {
+        } else if is_cloud_agent_pre_first_exchange(
+            self.ambient_agent_view_model(),
+            &self.agent_view_controller,
+            &self.model.lock(),
+            ctx,
+        ) {
             // During cloud-mode setup, non-queued submissions (e.g. third-party harness runs that
             // don't queue) are dropped rather than sent as live prompts the sharer can't accept.
             return;
@@ -13169,13 +13166,12 @@ impl Input {
             // environment setup commands the viewer never requested. Each completed setup block
             // would otherwise reinitialize the buffer and wipe a follow-up the viewer is composing,
             // so skip the clear for that window.
-            let cloud_setup_pre_first_exchange = FeatureFlag::CloudModeSetupV2.is_enabled()
-                && is_cloud_agent_pre_first_exchange(
-                    self.ambient_agent_view_model(),
-                    &self.agent_view_controller,
-                    &self.model.lock(),
-                    ctx,
-                );
+            let cloud_setup_pre_first_exchange = is_cloud_agent_pre_first_exchange(
+                self.ambient_agent_view_model(),
+                &self.agent_view_controller,
+                &self.model.lock(),
+                ctx,
+            );
             // Only clear the input buffer for user-executed commands, not agent-executed ones.
             let should_clear_buffer = !user_block.was_part_of_agent_interaction
                 && !cloud_setup_pre_first_exchange
@@ -14390,16 +14386,8 @@ impl View for Input {
             return self.render_cli_agent_input(app);
         }
         let is_universal_input = self.should_show_universal_developer_input(app);
-        let should_show_status_footer =
-            self.ambient_agent_view_model()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model.as_ref(app).should_show_status_footer()
-                });
 
-        if should_show_status_footer {
-            self.render_ambient_agent_status_footer(app)
-        } else if FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(app).is_active()
+        if FeatureFlag::AgentView.is_enabled() && self.agent_view_controller.as_ref(app).is_active()
         {
             self.render_agent_input(app)
         } else if FeatureFlag::AgentView.is_enabled()
