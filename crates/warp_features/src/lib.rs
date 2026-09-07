@@ -441,9 +441,6 @@ pub enum FeatureFlag {
     /// Agent Management View.
     AgentManagementView,
 
-    /// Agent Management Details View - enables new details panel on card click.
-    AgentManagementDetailsView,
-
     /// Enables scheduled ambient agents.
     ScheduledAmbientAgents,
 
@@ -521,9 +518,6 @@ pub enum FeatureFlag {
 
     /// When enabled, we expose LSP as a tool to the agent
     LSPAsATool,
-
-    /// Enables conversation artifacts.
-    ConversationArtifacts,
 
     /// Enables auto-syncing ambient plans to Warp Drive.
     SyncAmbientPlans,
@@ -679,9 +673,6 @@ pub enum FeatureFlag {
 
     /// Enables commit, push, and create-PR actions in the code review panel.
     GitOperationsInCodeReview,
-
-    /// Gates the remote control chip and `/remote-control` slash command in the CLI agent footer.
-    HOARemoteControl,
 
     /// Trims trailing blank rows from CLI agent block output so unused vertical
     /// space is not rendered while the agent is running.

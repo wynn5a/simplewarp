@@ -521,7 +521,6 @@ default = [
     "ligatures",
     "dynamic_workflow_enums",
     "rect_selection",
-    "loginless_conversion",
     "warp_packs",
     "ai_rules",
     "suggested_rules",
@@ -541,7 +540,6 @@ default = [
     "ai_context_menu",
     "at_menu_outside_of_ai_mode",
     "agent_management_view",
-    "agent_management_details_view",
     "interactive_conversation_management_view",
     "shared_block_title_generation",
     "tab_close_button_on_left",
@@ -610,7 +608,6 @@ default = [
     "background_computer_use",
     "oz_platform_skills",
     "sync_ambient_plans",
-    "conversation_artifacts",
     "agent_view",
     "agent_view_block_context",
     "agent_view_conversation_list_view",
@@ -654,7 +651,6 @@ default = [
     "grouped_tabs",
     "pinned_tabs",
     "agent_harness",
-    "hoa_remote_control",
     "trim_trailing_blank_lines",
     "skip_firebase_anonymous_user",
     "settings_file",
@@ -829,7 +825,6 @@ default_adeberry_theme = []
 drag_tabs_to_windows = []
 embedded_code_review_comments = []
 agent_management_view = []
-agent_management_details_view = []
 interactive_conversation_management_view = []
 enforce_revisions_to_cloud_objects = []
 suggested_agent_mode_workflows = []
@@ -990,7 +985,6 @@ shell_selector = []
 blocklist_markdown_table_rendering = []
 blocklist_markdown_images = []
 minimalist_ui = []
-loginless_conversion = []
 external_agent_mode_context = []
 avatar_in_tab_bar = []
 ssh_drag_and_drop = []
@@ -1031,7 +1025,6 @@ selection_as_context = []
 send_telemetry_to_file = []
 multi_profile = []
 pr_comments_v2 = []
-conversation_artifacts = []
 conversations_as_context = []
 conversation_api = []
 sync_ambient_plans = []
@@ -1122,7 +1115,6 @@ gpt_configurable_context_window = []
 configurable_toolbar = []
 warpify_footer = []
 git_operations_in_code_review = []
-hoa_remote_control = []
 git_credential_refresh = []
 prompt_cache_expiry_warning = []
 osc_hyperlinks = []
