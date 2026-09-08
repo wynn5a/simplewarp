@@ -105,11 +105,9 @@ pub(crate) mod git_credentials;
 pub(crate) mod harness;
 mod harness_output_monitor;
 pub(super) mod output;
-mod snapshot;
 pub(crate) mod terminal;
 
 use environment::PrepareEnvironmentError;
-pub(crate) use snapshot::upload_snapshot_for_handoff;
 use terminal::TerminalDriverEvent;
 
 /// Races `run_future` against the optional background git-credential refresh loop, dropping it

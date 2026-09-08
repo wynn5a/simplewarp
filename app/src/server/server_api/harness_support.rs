@@ -58,13 +58,6 @@ pub enum UploadFieldValue {
     ContentData,
 }
 
-/// Describes a single file in a snapshot upload request.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct SnapshotFileInfo {
-    pub filename: String,
-    pub mime_type: String,
-}
-
 /// Skill attached to a resolve-prompt request,
 /// used when invoking a third-party harness with a skill
 /// via the CLI.

@@ -828,7 +828,6 @@ impl AmbientAgentViewModel {
             runtime_skills: vec![],
             referenced_attachments: vec![],
             conversation_id: None,
-            initial_snapshot_token: None,
             snapshot_disabled: should_disable_snapshot(ctx).then_some(true),
             orchestration_handoff: None,
         };

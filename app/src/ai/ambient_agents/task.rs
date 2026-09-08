@@ -277,15 +277,6 @@ pub struct AttachmentInput {
     pub data: String, // base64-encoded data
 }
 
-/// Information about a task attachment retrieved from the server
-#[derive(Clone, Debug)]
-pub struct TaskAttachment {
-    pub file_id: String,
-    pub filename: String,
-    pub download_url: String,
-    pub mime_type: String,
-}
-
 /// Returns the trimmed orchestrator agent name, or `None` when empty / whitespace-only.
 pub fn normalize_orchestrator_agent_name(raw: &str) -> Option<String> {
     let trimmed = raw.trim();

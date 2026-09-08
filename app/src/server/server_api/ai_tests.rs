@@ -26,7 +26,6 @@ fn spawn_agent_request_serializes_agent_uid_as_agent_identity_uid() {
         runtime_skills: vec![],
         referenced_attachments: vec![],
         conversation_id: None,
-        initial_snapshot_token: None,
         snapshot_disabled: None,
         orchestration_handoff: None,
     };
@@ -96,7 +95,6 @@ fn spawn_agent_request_omits_prompt_when_none() {
         runtime_skills: vec![],
         referenced_attachments: vec![],
         conversation_id: None,
-        initial_snapshot_token: None,
         snapshot_disabled: None,
         orchestration_handoff: None,
     };

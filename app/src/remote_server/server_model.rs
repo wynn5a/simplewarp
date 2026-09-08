@@ -55,8 +55,8 @@ use super::proto::{
     ResolveConflictResponse, ResolveConflictSuccess, ResyncCodebase, RipgrepSearchRequest,
     RunCommandError, RunCommandErrorCode, RunCommandRequest, RunCommandResponse, RunCommandSuccess,
     SaveBuffer, SaveBufferResponse, SaveBufferSuccess, ServerMessage, SessionBootstrapped,
-    TextEdit, UpdateGitHubPrInfo, UpdateGitHubRepoInfo, UpdateGitStatus, UploadHandoffSnapshot,
-    WriteFile, WriteFileResponse, WriteFileSuccess, client_message, delete_file_response,
+    TextEdit, UpdateGitHubPrInfo, UpdateGitHubRepoInfo, UpdateGitStatus, WriteFile,
+    WriteFileResponse, WriteFileSuccess, client_message, delete_file_response,
     discard_files_response, get_diff_state_response, get_fragment_metadata_from_hash_response,
     git_commit_chain_response, git_create_pr_response, git_generate_commit_message_response,
     git_get_committed_branch_files_response, git_push_response, host_scoped_request, notification,
@@ -85,7 +85,6 @@ const MAX_BRANCH_COUNT_CAP: usize = 500;
 pub type ConnectionId = uuid::Uuid;
 use super::protocol::RequestId;
 use crate::ai::agent::FileLocations;
-use crate::ai::blocklist::handoff::snapshot::upload_result_to_proto;
 use crate::ai::blocklist::{ReadFileContextResult, read_local_file_context};
 use crate::ai::skills::{
     BundledSkill, SkillManager, SkillManagerEvent, bundled_skill_snapshot_protos,
@@ -929,9 +928,6 @@ impl ServerModel {
                     }
                     Some(host_scoped_request::Message::ResyncCodebase(m)) => {
                         self.handle_resync_codebase(m, &request_id, conn_id, ctx)
-                    }
-                    Some(host_scoped_request::Message::UploadHandoffSnapshot(m)) => {
-                        self.handle_upload_handoff_snapshot(m, &request_id, conn_id, ctx)
                     }
                     Some(host_scoped_request::Message::GitCommitChain(m)) => {
                         self.handle_git_commit_chain(m, &request_id, conn_id, ctx)
@@ -2855,62 +2851,6 @@ impl ServerModel {
                 }
             }
         }
-    }
-
-    /// Handles `UploadHandoffSnapshot` by gathering the workspace snapshot
-    /// from the daemon's local filesystem and uploading it to GCS.
-    ///
-    /// Extracts the `AIClient` and HTTP client from `ServerApiProvider`, then
-    /// spawns the async gather+upload pipeline. Returns an
-    /// `UploadHandoffSnapshotResponse` with the token on success.
-    fn handle_upload_handoff_snapshot(
-        &mut self,
-        msg: UploadHandoffSnapshot,
-        request_id: &RequestId,
-        conn_id: ConnectionId,
-        ctx: &mut ModelContext<Self>,
-    ) -> HandlerOutcome {
-        log::info!(
-            "Handling UploadHandoffSnapshot ({} paths, request_id={request_id})",
-            msg.paths.len(),
-        );
-
-        let server_api = ServerApiProvider::handle(ctx);
-        let ai_client = server_api.as_ref(ctx).get_ai_client();
-        let http = server_api.as_ref(ctx).get_http_client();
-
-        // Convert proto strings → StandardizedPath at the boundary; invalid
-        // entries are logged and dropped.
-        let paths: Vec<StandardizedPath> = msg
-            .paths
-            .into_iter()
-            .filter_map(|raw| match StandardizedPath::try_new(&raw) {
-                Ok(sp) => Some(sp),
-                Err(e) => {
-                    log::warn!("UploadHandoffSnapshot: skipping invalid path: {e}");
-                    None
-                }
-            })
-            .collect();
-        let request_id_for_response = request_id.clone();
-
-        let handle = self.spawn_request_handler(
-            request_id.clone(),
-            async move {
-                super::handoff_snapshot::gather_and_upload_handoff_snapshot(paths, ai_client, &http)
-                    .await
-            },
-            move |me, result, _ctx| {
-                let response = upload_result_to_proto(result);
-                me.send_server_message(
-                    Some(conn_id),
-                    Some(&request_id_for_response),
-                    server_message::Message::UploadHandoffSnapshotResponse(response),
-                );
-            },
-            ctx,
-        );
-        HandlerOutcome::Async(Some(handle))
     }
 
     /// Handles `GetBranches` — request/response.

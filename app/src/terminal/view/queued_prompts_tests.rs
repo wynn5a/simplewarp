@@ -104,7 +104,6 @@ fn cloud_spawn_request(prompt: &str) -> SpawnAgentRequest {
         runtime_skills: vec![],
         referenced_attachments: vec![],
         conversation_id: None,
-        initial_snapshot_token: None,
         snapshot_disabled: None,
         orchestration_handoff: None,
     }

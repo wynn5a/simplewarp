@@ -257,7 +257,6 @@ pub fn prepare_remote_child_launch(
         runtime_skills,
         referenced_attachments: Vec::new(),
         conversation_id: None,
-        initial_snapshot_token: None,
         agent_identity_uid: agent_identity_uid.filter(|uid| !uid.trim().is_empty()),
         snapshot_disabled: should_disable_snapshot(ctx).then_some(true),
         orchestration_handoff: None,

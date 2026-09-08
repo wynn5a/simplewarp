@@ -133,7 +133,6 @@ pub enum RemoteServerOperation {
     GetDiffState,
     DiscardFiles,
     GetBranches,
-    UploadHandoffSnapshot,
     CommitChain,
     Push,
     CreatePr,
@@ -1035,33 +1034,6 @@ impl HostRequestHandle {
                     "Unexpected response variant for GetFragmentMetadataFromHash: {other:?}"
                 );
                 report_error!("Unexpected response variant for GetFragmentMetadataFromHash");
-                Err(HostRequestError::UnexpectedResponse)
-            }
-        }
-    }
-
-    /// Asks the remote daemon to gather and upload a handoff snapshot for the
-    /// given paths.
-    pub async fn upload_handoff_snapshot(
-        &self,
-        paths: Vec<StandardizedPath>,
-    ) -> Result<crate::proto::UploadHandoffSnapshotResponse, HostRequestError> {
-        let msg = self
-            .send(
-                crate::proto::host_scoped_request::Message::UploadHandoffSnapshot(
-                    crate::proto::UploadHandoffSnapshot {
-                        paths: paths.into_iter().map(|p| p.to_string()).collect(),
-                    },
-                ),
-            )
-            .await?;
-        match msg.message {
-            Some(crate::proto::server_message::Message::UploadHandoffSnapshotResponse(resp)) => {
-                Ok(resp)
-            }
-            other => {
-                log::error!("Unexpected response variant for UploadHandoffSnapshot: {other:?}");
-                report_error!("Unexpected response variant for UploadHandoffSnapshot");
                 Err(HostRequestError::UnexpectedResponse)
             }
         }

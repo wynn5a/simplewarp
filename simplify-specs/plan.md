@@ -3311,7 +3311,10 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
       - [x] **Flag-vertical rounds 4ak–4ay (2026-09-03 → 2026-09-08); 4ak–4av in bulk
             (twelve rounds, ~20 flags), 4aw–4ay after — the enum down to 216 of the
             original 292.** Detailed in their commit messages; this is the summary the
-            plan would otherwise miss.
+            plan would otherwise miss. 4az (2026-09-08) followed with the first
+            non-flag slice since 4m: the dead handoff-snapshot upload chain, ~1,550
+            lines across `remote_server`, `server_api/ai`, `agent_sdk`, and the
+            daemon — SSH remote untouched.
             - **CloudConversations (4ak)** folded to always-off: the sharing menu items, the
                   pane-header share button, the privacy cloud-storage toggle, the cloud-delete
                   calls on conversation delete/remove, and the always-`None` server-load path.
@@ -3450,6 +3453,46 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
                   `SelectionAddedAsContext` event's `selected_text` field went with
                   them. The rich-input feature itself (`cli_agent_rich_input`, live in
                   simplewarp) is untouched.
+            - **The dead handoff-snapshot upload chain (4az, 2026-09-08, ~1,550
+                  lines)** — the last local→cloud pipeline that 4an left
+                  standing, deleted end to end. 4an removed every client-side
+                  *sender* of the handoff snapshot; what remained was the
+                  upload machinery behind them, kept alive only by its own
+                  daemon echo. Gone: the `UploadHandoffSnapshot` /
+                  `UploadHandoffSnapshotResponse` proto messages and both oneof
+                  entries (field numbers 14/26 not reused), the daemon's RPC
+                  arm and `handle_upload_handoff_snapshot` in `server_model.rs`,
+                  the whole `app/src/remote_server/handoff_snapshot.rs` handler,
+                  the client-side sender `RemoteServerManager::upload_handoff_snapshot`
+                  and its `RemoteServerOperation::UploadHandoffSnapshot`
+                  variant, `app/src/ai/agent_sdk/driver/snapshot.rs` (the
+                  1,079-line gather+GCS-upload pipeline — the module held
+                  nothing else), `blocklist/handoff/{snapshot,touched_repos}.rs`
+                  (the touched-repos walker's only consumer was the daemon
+                  handler), `AIClient::{upload_local_handoff_snapshot,
+                  get_handoff_snapshot_attachments}` with their wire types
+                  (`InitialSnapshotToken`, `UploadLocalHandoffSnapshot*`,
+                  `SnapshotUploadFileInfo`, `TaskAttachment`),
+                  `SpawnAgentRequest.initial_snapshot_token` (every constructor
+                  passed `None`; one round-trip test dropped its token
+                  assertions), harness_support's now caller-less
+                  `SnapshotFileInfo`, and the `PendingCloudLaunch`-adjacent
+                  module docs that described them. **SSH remote is untouched by
+                  design**: the deleted RPC was a cloud upload a client requests
+                  from a daemon, not transport, buffers, git, ripgrep, code
+                  index, or any other daemon capability; the client sender had
+                  zero callers and the daemon arm zero senders, so no live SSH
+                  surface changed. `handoff/mod.rs` keeps
+                  `HandoffLaunchAttachments`/`PendingCloudLaunch` — the 4an
+                  stubs still construct them. **Environment note**: this round
+                  ran under a sandbox where `$HOME` is read-only, so `cargo`
+                  needed a project-local `CARGO_HOME` copy and the app could not
+                  be launched from here (both the GUI app and the headless
+                  daemon need `~/.warp*` state dirs); the run-in-app smoke test
+                  is left to the user's normal shell. Five `warp --lib` test
+                  failures (two pane_group, slash-command tilde, two worktree
+                  sidecar) reproduce byte-identically on a clean stash with a
+                  verified recompile — pre-existing, not this round's.
 
             Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
             format clean, nextest green (5707 → 5519 as each deleted subject's tests went with

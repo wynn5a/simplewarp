@@ -27,8 +27,7 @@ use crate::ai::ambient_agents::AmbientAgentTaskId;
 // Re-export ambient agent types for backwards compatibility
 pub use crate::ai::ambient_agents::{
     AgentConfigSnapshot, AgentSource, AmbientAgentTask, AmbientAgentTaskState, ExecutionLocation,
-    TaskStatusMessage,
-    task::{AttachmentInput, TaskAttachment},
+    TaskStatusMessage, task::AttachmentInput,
 };
 use crate::ai::artifacts::Artifact;
 use crate::ai::generate_code_review_content::api::{
@@ -132,11 +131,6 @@ pub struct SpawnAgentRequest {
     /// `POST /agent/conversations/{conversation_id}/fork` at chip-click time.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conversation_id: Option<String>,
-    /// References a batch of files previously uploaded to handoff/{token}/
-    /// via `POST /agent/handoff/upload-snapshot`. The server stores the token on the new run's
-    /// queued execution input and resolves the prefix in place at rehydration time.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub initial_snapshot_token: Option<InitialSnapshotToken>,
     /// When `Some(true)`, the cloud agent skips the end-of-run snapshot upload.
     /// Set by the client when cloud conversation storage is disabled.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -147,46 +141,6 @@ pub struct SpawnAgentRequest {
     /// universal hidden first-turn orchestration handoff message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub orchestration_handoff: Option<bool>,
-}
-
-/// Server-minted token returned by `POST /agent/handoff/upload-snapshot` that scopes a batch
-/// of presigned upload URLs to `handoff/{token}/`. The client passes it
-/// back via `SpawnAgentRequest.initial_snapshot_token`; the server stores it on the new run's
-/// queued execution input so rehydration discovery can read the same prefix.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct InitialSnapshotToken(String);
-
-impl InitialSnapshotToken {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-/// Request body for `POST /agent/handoff/upload-snapshot`. Used by the local-to-cloud
-/// handoff flow to allocate a token and presigned upload URLs scoped to
-/// `handoff/{token}/` before any task exists.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct UploadLocalHandoffSnapshotRequest {
-    pub files: Vec<SnapshotUploadFileInfo>,
-}
-
-/// Describes a single file the client wants to upload as part of a handoff snapshot.
-/// Wire-compatible with the server's `SnapshotUploadFileInfo` schema (also used by the
-/// existing harness-side `/harness-support/upload-snapshot` endpoint).
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct SnapshotUploadFileInfo {
-    pub filename: String,
-    pub mime_type: String,
-}
-
-/// Response body for `POST /agent/handoff/upload-snapshot`. The `uploads` array is aligned
-/// by index with the request `files` array; the client matches each `UploadTarget` back
-/// to the requested filename by index.
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct UploadLocalHandoffSnapshotResponse {
-    pub initial_snapshot_token: InitialSnapshotToken,
-    pub expires_at: String,
-    pub uploads: Vec<UploadTarget>,
 }
 
 /// Response body for `POST /agent/conversations/{conversation_id}/fork`. The returned id is sent
@@ -932,13 +886,6 @@ pub trait AIClient: 'static + Send + Sync {
         request: SpawnAgentRequest,
     ) -> anyhow::Result<SpawnAgentResponse, anyhow::Error>;
 
-    /// Allocate an initial snapshot token and presigned upload URLs for staging local-to-cloud
-    /// handoff snapshot files before the corresponding cloud task exists.
-    async fn upload_local_handoff_snapshot(
-        &self,
-        request: UploadLocalHandoffSnapshotRequest,
-    ) -> anyhow::Result<UploadLocalHandoffSnapshotResponse, anyhow::Error>;
-
     /// Materialize a server-side fork of a conversation.
     async fn fork_conversation(
         &self,
@@ -1138,11 +1085,6 @@ pub trait AIClient: 'static + Send + Sync {
         task_id: &AmbientAgentTaskId,
         attachment_ids: &[String],
     ) -> anyhow::Result<DownloadAttachmentsResponse, anyhow::Error>;
-
-    async fn get_handoff_snapshot_attachments(
-        &self,
-        task_id: &AmbientAgentTaskId,
-    ) -> anyhow::Result<Vec<TaskAttachment>, anyhow::Error>;
 
     // --- Orchestrations V2 messaging ---
 
@@ -1400,13 +1342,6 @@ impl AIClient for ServerApi {
     async fn list_connected_self_hosted_workers(
         &self,
     ) -> anyhow::Result<ListConnectedSelfHostedWorkersResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn upload_local_handoff_snapshot(
-        &self,
-        _request: UploadLocalHandoffSnapshotRequest,
-    ) -> anyhow::Result<UploadLocalHandoffSnapshotResponse, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 
@@ -1673,14 +1608,6 @@ impl AIClient for ServerApi {
         _task_id: &AmbientAgentTaskId,
         _attachment_ids: &[String],
     ) -> anyhow::Result<DownloadAttachmentsResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
-    async fn get_handoff_snapshot_attachments(
-        &self,
-        _task_id: &AmbientAgentTaskId,
-    ) -> anyhow::Result<Vec<TaskAttachment>, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 

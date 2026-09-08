@@ -248,9 +248,6 @@ fn retry_request(prompt: impl Into<String>) -> SpawnAgentRequest {
         runtime_skills: vec!["runtime-skill".to_string()],
         referenced_attachments: vec!["referenced-attachment".to_string()],
         conversation_id: Some("conversation-123".to_string()),
-        initial_snapshot_token: Some(
-            serde_json::from_str("\"snapshot-token-123\"").expect("snapshot token should parse"),
-        ),
         snapshot_disabled: Some(true),
         orchestration_handoff: None,
     }
@@ -336,13 +333,6 @@ fn github_auth_completed_retries_stored_initial_run_request() {
                 vec!["referenced-attachment"]
             );
             assert_eq!(request.conversation_id.as_deref(), Some("conversation-123"));
-            assert_eq!(
-                request
-                    .initial_snapshot_token
-                    .as_ref()
-                    .map(|token| token.as_str()),
-                Some("snapshot-token-123")
-            );
             assert_eq!(request.snapshot_disabled, Some(true));
             let config = request.config.as_ref().expect("config should be preserved");
             assert_eq!(config.environment_id.as_deref(), Some("env-123"));
