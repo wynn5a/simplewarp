@@ -11,7 +11,6 @@ use crate::settings::cloud_preferences_syncer::{
     CloudPreferencesSyncer, CloudPreferencesSyncerEvent,
 };
 use crate::settings::{AISettings, CodeSettings};
-use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::session_settings::{AgentToolbarChipSelection, SessionSettings};
 
 /// A generic model for managing one-time modals that should be shown to users only once.
@@ -21,7 +20,6 @@ use crate::terminal::session_settings::{AgentToolbarChipSelection, SessionSettin
 /// a modal is currently being shown and automatically triggers the modal when appropriate
 /// conditions are met (e.g., user becomes onboarded).
 pub struct OneTimeModalModel {
-    is_build_plan_migration_modal_open: bool,
     /// Whether the free-AI-removal notice modal is currently being shown.
     is_free_ai_removal_modal_open: bool,
     /// The feature-intro popover currently being shown, if any. Unlike the other
@@ -40,21 +38,6 @@ pub struct OneTimeModalModel {
 
 impl OneTimeModalModel {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        // Subscribe to UserWorkspaces to detect when sunsetted_to_build_ts changes
-        ctx.subscribe_to_model(
-            &crate::workspaces::user_workspaces::UserWorkspaces::handle(ctx),
-            |me, _, event, ctx| {
-                use crate::workspaces::user_workspaces::UserWorkspacesEvent;
-                match event {
-                    UserWorkspacesEvent::SunsettedToBuildDataUpdated => {
-                        // When sunsetted_to_build_ts is updated, check if we should show the modal
-                        me.check_and_trigger_build_plan_migration_modal(ctx);
-                    }
-                    _ => {}
-                }
-            },
-        );
-
         // Subscribe to auth manager events to automatically trigger modal when user becomes onboarded
         ctx.subscribe_to_model(&AuthManager::handle(ctx), |_, _, event, ctx| {
             let AuthManagerEvent::AuthComplete = event else {
@@ -92,7 +75,6 @@ impl OneTimeModalModel {
         });
 
         Self {
-            is_build_plan_migration_modal_open: false,
             is_free_ai_removal_modal_open: false,
             active_feature_intro: None,
             has_completed_initial_modal_checks: false,
@@ -115,13 +97,7 @@ impl OneTimeModalModel {
     }
 
     pub fn mark_feature_intro_dismissed(&mut self, ctx: &mut ModelContext<Self>) {
-        if !self.set_active_feature_intro(None, ctx) {
-            return;
-        }
-        // Feature intros sit ahead of build-plan in the startup queue. Resume
-        // that deferred path so lower-priority notices are not lost for the
-        // rest of the session.
-        self.check_and_trigger_build_plan_migration_modal(ctx);
+        self.set_active_feature_intro(None, ctx);
     }
 
     #[cfg(debug_assertions)]
@@ -156,8 +132,7 @@ impl OneTimeModalModel {
 
     /// Returns true if any one-time modal is currently open.
     pub fn is_any_modal_open(&self) -> bool {
-        (self.is_build_plan_migration_modal_open || self.is_free_ai_removal_modal_open)
-            && self.target_window_id.is_some()
+        self.is_free_ai_removal_modal_open && self.target_window_id.is_some()
     }
 
     pub fn update_target_window_id(&mut self, window_id: WindowId, ctx: &mut ModelContext<Self>) {
@@ -197,11 +172,7 @@ impl OneTimeModalModel {
             }
         });
 
-        if self.check_and_trigger_feature_intro_modal(ctx) {
-            return;
-        }
-
-        self.check_and_trigger_build_plan_migration_modal(ctx);
+        self.check_and_trigger_feature_intro_modal(ctx);
     }
 
     /// Returns whether the free-AI-removal notice modal is currently open.
@@ -255,90 +226,6 @@ impl OneTimeModalModel {
             self.set_active_feature_intro(Some(id), ctx);
         }
         should_show
-    }
-
-    pub fn is_build_plan_migration_modal_open(&self) -> bool {
-        self.is_build_plan_migration_modal_open && self.target_window_id.is_some()
-    }
-
-    pub fn mark_build_plan_migration_modal_dismissed(&mut self, ctx: &mut ModelContext<Self>) {
-        self.set_build_plan_migration_modal_open(false, ctx);
-    }
-
-    #[cfg(debug_assertions)]
-    pub fn force_open_build_plan_migration_modal(&mut self, ctx: &mut ModelContext<Self>) {
-        self.set_build_plan_migration_modal_open(true, ctx);
-    }
-
-    fn set_build_plan_migration_modal_open(
-        &mut self,
-        is_open: bool,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        if self.is_build_plan_migration_modal_open != is_open {
-            self.is_build_plan_migration_modal_open = is_open;
-            ctx.emit(OneTimeModalEvent::VisibilityChanged { is_open });
-            return true;
-        }
-        false
-    }
-
-    fn check_and_trigger_build_plan_migration_modal(
-        &mut self,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        use crate::workspaces::user_workspaces::UserWorkspaces;
-
-        // Check if already dismissed
-        let general_settings = GeneralSettings::as_ref(ctx);
-        if *general_settings
-            .build_plan_migration_modal_dismissed
-            .value()
-        {
-            return false;
-        }
-
-        // Check if user is authenticated
-        let auth_state = crate::auth::AuthStateProvider::as_ref(ctx).get();
-
-        if auth_state.is_anonymous_or_logged_out() {
-            return false;
-        }
-
-        // Check if current workspace has sunsetted_to_build_ts set
-        let user_workspaces = UserWorkspaces::as_ref(ctx);
-        let Some(target_window_id) = self
-            .target_window_id
-            .or_else(|| ctx.windows().active_window())
-        else {
-            return false;
-        };
-        let Some(current_team) = user_workspaces.team_for_window(target_window_id) else {
-            return false;
-        };
-
-        // Check if user is admin of the team
-        let Some(user_email) = auth_state.user_email() else {
-            return false;
-        };
-
-        if !current_team.has_admin_permissions(&user_email) {
-            return false;
-        }
-
-        // Check if service agreement has sunsetted_to_build_ts set
-        let has_sunsetted_to_build = user_workspaces
-            .current_workspace()
-            .and_then(|workspace| workspace.billing_metadata.service_agreements.first())
-            .is_some_and(|agreement| agreement.sunsetted_to_build_ts.is_some());
-
-        if !has_sunsetted_to_build {
-            return false;
-        }
-
-        // All conditions met, show the modal
-        self.target_window_id = Some(target_window_id);
-        self.set_build_plan_migration_modal_open(true, ctx)
     }
 }
 

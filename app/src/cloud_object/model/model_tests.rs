@@ -31,7 +31,6 @@ use crate::server::ids::{ServerId, ServerIdAndType};
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::object::ObjectClient;
 use crate::server::server_api::team::MockTeamClient;
-use crate::server::server_api::workspace::MockWorkspaceClient;
 use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::Preference;
@@ -77,7 +76,6 @@ fn initialize_app(
     cloud_object_server_api_mock: Arc<impl ObjectClient>,
 ) {
     let team_client_mock = Arc::new(MockTeamClient::new());
-    let workspace_client_mock = Arc::new(MockWorkspaceClient::new());
 
     // Add the necessary singleton models to the App
     app.add_singleton_model(|_| NetworkStatus::new());
@@ -87,12 +85,7 @@ fn initialize_app(
     app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
     app.add_singleton_model(AuthManager::new_for_test);
     app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            team_client_mock.clone(),
-            workspace_client_mock.clone(),
-            vec![TEST_WORKSPACE.clone()],
-            ctx,
-        )
+        UserWorkspaces::mock(team_client_mock.clone(), vec![TEST_WORKSPACE.clone()], ctx)
     });
     app.add_singleton_model(TeamTesterStatus::new);
     app.add_singleton_model(SyncQueue::mock);

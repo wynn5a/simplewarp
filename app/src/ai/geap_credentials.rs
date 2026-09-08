@@ -92,11 +92,7 @@ pub trait GeapCredentialRefresher {
 impl GeapCredentialRefresher for ApiKeyManager {
     fn subscribe_to_geap_settings_changes(&mut self, ctx: &mut ModelContext<Self>) {
         ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |manager, _, event, ctx| {
-            if matches!(
-                event,
-                UserWorkspacesEvent::UpdateWorkspaceSettingsSuccess
-                    | UserWorkspacesEvent::TeamsChanged
-            ) {
+            if matches!(event, UserWorkspacesEvent::TeamsChanged) {
                 refresh_geap_credentials(manager, ctx);
             }
         });

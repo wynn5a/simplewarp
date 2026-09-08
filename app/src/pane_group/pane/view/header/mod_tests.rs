@@ -15,7 +15,6 @@ use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneId, PaneView};
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::team::MockTeamClient;
-use crate::server::server_api::workspace::MockWorkspaceClient;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::{
@@ -111,16 +110,8 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(|_| NetworkStatus::new());
     let mock_team_client = Arc::new(MockTeamClient::new());
-    let mock_workspace_client = Arc::new(MockWorkspaceClient::new());
     app.add_singleton_model(SyncQueue::mock);
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            mock_team_client.clone(),
-            mock_workspace_client.clone(),
-            vec![],
-            ctx,
-        )
-    });
+    app.add_singleton_model(|ctx| UserWorkspaces::mock(mock_team_client.clone(), vec![], ctx));
     app.add_singleton_model(TeamTesterStatus::new);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| UserProfiles::new(Vec::new()));

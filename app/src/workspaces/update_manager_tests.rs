@@ -11,7 +11,6 @@ use crate::cloud_object::{Owner, Revision, ServerMetadata, ServerPermissions, Se
 use crate::server::cloud_objects::update_manager::InitialLoadResponse;
 use crate::server::ids::SyncId;
 use crate::server::server_api::team::MockTeamClient;
-use crate::server::server_api::workspace::{MockWorkspaceClient, WorkspaceClient};
 use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::PrivacySettings;
@@ -22,23 +21,11 @@ use crate::workspaces::team::Team;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::workspace::{Workspace, WorkspaceUid};
 
-fn initialize_app(
-    team_client: Arc<dyn TeamClient>,
-    workspace_client: Arc<dyn WorkspaceClient>,
-    workspaces: Vec<Workspace>,
-    app: &mut App,
-) {
+fn initialize_app(team_client: Arc<dyn TeamClient>, workspaces: Vec<Workspace>, app: &mut App) {
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(TeamTesterStatus::new);
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            team_client.clone(),
-            workspace_client.clone(),
-            workspaces,
-            ctx,
-        )
-    });
+    app.add_singleton_model(|ctx| UserWorkspaces::mock(team_client.clone(), workspaces, ctx));
     app.add_singleton_model(SyncQueue::mock);
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| ObjectActions::new(vec![]));
@@ -99,12 +86,9 @@ fn test_leaving_team_removes_objects() {
             })
         });
 
-        let workspace_client = MockWorkspaceClient::new();
         let team_client = Arc::new(team_client);
-        let workspace_client = Arc::new(workspace_client);
         initialize_app(
             team_client.clone(),
-            workspace_client.clone(),
             vec![Workspace::from_local_cache(
                 workspace_uid,
                 "Test Workspace".to_owned(),

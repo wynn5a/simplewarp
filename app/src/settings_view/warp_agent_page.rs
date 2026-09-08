@@ -4899,11 +4899,7 @@ impl GeminiEnterpriseWidget {
 
         let refresh_credentials_button_clone = refresh_credentials_button.clone();
         ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), move |_, _, event, ctx| {
-            if matches!(
-                event,
-                UserWorkspacesEvent::TeamsChanged
-                    | UserWorkspacesEvent::UpdateWorkspaceSettingsSuccess
-            ) {
+            if matches!(event, UserWorkspacesEvent::TeamsChanged) {
                 refresh_credentials_button_clone.update(ctx, |button, ctx| {
                     button.set_disabled(!Self::is_refresh_enabled(ctx), ctx);
                 });

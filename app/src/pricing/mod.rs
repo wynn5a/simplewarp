@@ -1,6 +1,4 @@
-use warp_graphql::billing::{
-    AddonCreditsOption, OveragesPricing, PlanPricing, PricingInfo, StripeSubscriptionPlan,
-};
+use warp_graphql::billing::{OveragesPricing, PlanPricing, PricingInfo, StripeSubscriptionPlan};
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 /// A global model for maintaining pricing information from the server.
@@ -58,12 +56,6 @@ impl PricingInfoModel {
     pub fn monthly_plan_cost_dollars(&self, plan: &StripeSubscriptionPlan) -> Option<f64> {
         self.plan_pricing(plan)
             .map(|pricing| pricing.monthly_plan_price_per_month_usd_cents as f64 / 100.0)
-    }
-
-    pub fn addon_credits_options(&self) -> Option<&[AddonCreditsOption]> {
-        self.pricing_info
-            .as_ref()
-            .map(|info| info.addon_credits_options.as_slice())
     }
 
     pub fn promotion_message(&self) -> Option<&str> {

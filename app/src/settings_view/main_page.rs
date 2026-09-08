@@ -106,9 +106,6 @@ pub enum MainPageAction {
         team_uid: Option<ServerId>,
         user_id: UserUid,
     },
-    GenerateStripeBillingPortalLink {
-        team_uid: ServerId,
-    },
     SignupAnonymousUser,
     OpenUrl(String),
 }
@@ -116,10 +113,7 @@ pub enum MainPageAction {
 impl MainPageAction {
     fn blocked_for_anonymous_user(&self) -> bool {
         use MainPageAction::*;
-        matches!(
-            self,
-            Upgrade { .. } | GenerateStripeBillingPortalLink { .. } | ToggleSettingsSync,
-        )
+        matches!(self, Upgrade { .. } | ToggleSettingsSync,)
     }
 }
 
@@ -128,7 +122,6 @@ impl From<&MainPageAction> for LoginGatedFeature {
         use MainPageAction::*;
         match val {
             Upgrade { .. } => "Upgrade Plan",
-            GenerateStripeBillingPortalLink { .. } => "Generate Stripe Billing Portal Link",
             ToggleSettingsSync => "Toggle Settings Sync",
             _ => "Unknown reason",
         }
@@ -204,11 +197,6 @@ impl TypedActionView for MainSettingsPageView {
                     ctx.open_url(&UserWorkspaces::upgrade_link(*user_id));
                 }
             },
-            MainPageAction::GenerateStripeBillingPortalLink { team_uid } => {
-                UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
-                    user_workspaces.generate_stripe_billing_portal_link(*team_uid, ctx);
-                });
-            }
             MainPageAction::SignupAnonymousUser => {
                 ctx.emit(MainSettingsPageEvent::SignupAnonymousUser);
             }
@@ -284,7 +272,6 @@ struct AccountWidgetStateHandles {
     upgrade_link: MouseStateHandle,
     anonymous_user_sign_up_button: MouseStateHandle,
     enterprise_contact_us_link: MouseStateHandle,
-    stripe_billing_portal_link: MouseStateHandle,
 }
 
 #[derive(Default)]
@@ -495,30 +482,6 @@ impl AccountWidget {
                             .finish(),
                     );
                 } else {
-                    if workspace.is_some_and(|workspace| workspace.has_billing_history) {
-                        let team_uid = team.uid;
-                        plan_info.add_child(
-                            appearance
-                                .ui_builder()
-                                .link(
-                                    "Manage billing".into(),
-                                    None,
-                                    Some(Box::new(move |ctx| {
-                                        ctx.dispatch_typed_action(
-                                            MainPageAction::GenerateStripeBillingPortalLink {
-                                                team_uid,
-                                            },
-                                        );
-                                    })),
-                                    self.ui_state_handles.stripe_billing_portal_link.clone(),
-                                )
-                                .soft_wrap(false)
-                                .build()
-                                .with_margin_top(8.)
-                                .finish(),
-                        );
-                    }
-
                     // If the team is upgradeable to self-serve tier, show them the upgrade link.
                     if let Some(billing_metadata) = billing_metadata
                         .filter(|metadata| metadata.can_upgrade_to_higher_tier_plan())

@@ -3314,7 +3314,9 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             plan would otherwise miss. 4az (2026-09-08) followed with the first
             non-flag slice since 4m: the dead handoff-snapshot upload chain, ~1,550
             lines across `remote_server`, `server_api/ai`, `agent_sdk`, and the
-            daemon — SSH remote untouched.
+            daemon — SSH remote untouched. 4ba (2026-09-08) took the
+            `WorkspaceClient` billing trait with its callers, including the whole
+            build-plan-migration modal (~900 lines).
             - **CloudConversations (4ak)** folded to always-off: the sharing menu items, the
                   pane-header share button, the privacy cloud-storage toggle, the cloud-delete
                   calls on conversation delete/remove, and the always-`None` server-load path.
@@ -3493,6 +3495,44 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
                   failures (two pane_group, slash-command tilde, two worktree
                   sidecar) reproduce byte-identically on a clean stash with a
                   verified recompile — pre-existing, not this round's.
+            - **The `WorkspaceClient` billing trait (4ba, 2026-09-08, ~900
+                  lines)** — the second of 4n's client chain, deleted whole with
+                  every UI that only existed to reach it. All three methods
+                  (`generate_stripe_billing_portal_link`, `refresh_ai_overages`,
+                  `update_addon_credits_settings`) were `local_only_error()`
+                  walls. Gone: the trait, its mock, and the getter;
+                  `UserWorkspaces`' client field/param and its three method
+                  pairs; `UserWorkspacesEvent::{GenerateStripeBillingPortalLink,
+                  GenerateStripeBillingPortalLinkRejected, AiOveragesUpdated,
+                  UpdateWorkspaceSettingsSuccess, UpdateWorkspaceSettingsRejected}`
+                  — the last pair's only emitter was the addon-credits response
+                  handler, so geap/aws/warp-agent-page subscribers drop it and
+                  keep `TeamsChanged`; `PricingInfoModel::addon_credits_options`,
+                  `UserWorkspaces::{current_workspace_mut, workspace_from_uid_mut}`
+                  (their only caller was the overages refresh); the blocklist
+                  controller's `maybe_refresh_ai_overages`; the drive panel's
+                  delinquent-payment banner (`render_payment_issue_banner`,
+                  `ManageBilling`, its four copy constants and mouse state);
+                  main_page/teams_page "Manage billing"/"Manage plan" links with
+                  their actions; `GrowTeamWarningCta::UpdateBilling` (payment-
+                  past-due CTAs now go to support, matching the deleted
+                  self-serve path); `PromptSuggestionsEvent::OpenBillingPortal`
+                  (no dispatcher existed); and **the whole
+                  `build_plan_migration_modal.rs`** (870 lines) — its trigger
+                  required an authed onboarded team admin, unreachable locally.
+                  With it: the `OneTimeModalModel` build-plan half (the
+                  `SunsettedToBuildDataUpdated` subscription, the feature-intro
+                  dismissal resume hook, `is_any_modal_open`'s second disjunct)
+                  and the two `[Debug]` palette bindings. **Kept by decision**:
+                  the persisted `build_plan_migration_modal_dismissed` setting
+                  (read-none write-none now; removal needs a settings migration,
+                  same as 4ah's `did_check_to_trigger_free_ai_removal_modal`).
+                  ~20 test files dropped their `MockWorkspaceClient` args
+                  mechanically; no mock had expectations. The syncer flake
+                  (`test_sync_local_pref_to_cloud_after_initial_sync`) failed
+                  once under default features and passed 3/3 isolated, then the
+                  full suite passed twice — the 4h cross-test-interference
+                  family, not this round's.
 
             Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
             format clean, nextest green (5707 → 5519 as each deleted subject's tests went with

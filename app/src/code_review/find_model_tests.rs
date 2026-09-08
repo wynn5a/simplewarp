@@ -24,7 +24,6 @@ use crate::code_review::diff_state::DiffStateModel;
 use crate::pane_group::WorkingDirectoriesModel;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::team::MockTeamClient;
-use crate::server::server_api::workspace::MockWorkspaceClient;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
@@ -160,12 +159,7 @@ fn initialize_test_app(app: &mut App) {
     app.add_singleton_model(|_| DetectedRepositories::default());
     app.add_singleton_model(|_| GlobalCodeReviewModel);
     app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
-            vec![],
-            ctx,
-        )
+        UserWorkspaces::mock(Arc::new(MockTeamClient::new()), vec![], ctx)
     });
 
     // Add mocks required by rich text editor (used in the CommentEditor)

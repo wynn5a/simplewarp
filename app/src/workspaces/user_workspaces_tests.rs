@@ -73,17 +73,11 @@ struct CachedResources {
     workspaces: Vec<Workspace>,
 }
 
-fn initialize_app(
-    app: &mut App,
-    resources: CachedResources,
-    team_client: Arc<dyn TeamClient>,
-    workspace_client: Arc<dyn WorkspaceClient>,
-) {
+fn initialize_app(app: &mut App, resources: CachedResources, team_client: Arc<dyn TeamClient>) {
     initialize_app_with_auth(
         app,
         resources,
         team_client,
-        workspace_client,
         AuthStateProvider::new_for_test(),
     );
 }
@@ -92,7 +86,6 @@ fn initialize_app_with_auth(
     app: &mut App,
     resources: CachedResources,
     team_client: Arc<dyn TeamClient>,
-    workspace_client: Arc<dyn WorkspaceClient>,
     auth_state_provider: AuthStateProvider,
 ) {
     // Add the necessary singleton models to the App
@@ -102,12 +95,7 @@ fn initialize_app_with_auth(
     app.add_singleton_model(SyncQueue::mock);
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            team_client.clone(),
-            workspace_client.clone(),
-            resources.workspaces,
-            ctx,
-        )
+        UserWorkspaces::mock(team_client.clone(), resources.workspaces, ctx)
     });
     app.add_singleton_model(|ctx| TeamUpdateManager::new(team_client.clone(), None, ctx));
     app.add_singleton_model(UpdateManager::mock);
@@ -137,12 +125,7 @@ fn initialize_app_with_auth(
 fn initialize_window_team_test_app(app: &mut App, workspaces: Vec<Workspace>) {
     app.add_singleton_model(PrivacySettings::mock);
     app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
-            workspaces,
-            ctx,
-        )
+        UserWorkspaces::mock(Arc::new(MockTeamClient::new()), workspaces, ctx)
     });
 }
 
@@ -235,7 +218,6 @@ fn test_loading_all_spaces_after_switching_from_offline() {
             &mut app,
             CachedResources { workspaces: vec![] },
             Arc::new(team_client),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         // We also ensure that UserWorkspaces stores no teams.
@@ -273,7 +255,6 @@ fn test_codebase_context_enabled_with_no_workspace() {
             &mut app,
             CachedResources { workspaces: vec![] },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -326,7 +307,6 @@ fn test_aws_bedrock_credentials_default_off_when_admin_respects_user_setting() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -374,7 +354,6 @@ fn test_aws_bedrock_credentials_respect_user_setting() {
                 workspaces: vec![workspace],
             },
             Arc::new(team_client),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
@@ -428,7 +407,6 @@ fn test_aws_bedrock_credentials_enforced_by_admin() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
@@ -489,7 +467,6 @@ fn test_gemini_enterprise_credentials_default_off_when_admin_respects_user_setti
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -522,7 +499,6 @@ fn test_gemini_enterprise_credentials_respect_user_setting_honors_member_toggle(
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
@@ -554,7 +530,6 @@ fn test_gemini_enterprise_credentials_enforced_by_admin() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
@@ -590,7 +565,6 @@ fn test_gemini_enterprise_credentials_disabled_when_host_disabled() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -629,7 +603,6 @@ fn test_gemini_enterprise_credentials_disabled_when_host_absent() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -661,7 +634,6 @@ fn test_gemini_enterprise_credentials_disabled_when_logged_out() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
             AuthStateProvider::new_logged_out_for_test(),
         );
 
@@ -690,7 +662,6 @@ fn test_gemini_enterprise_host_settings_carries_federation_config() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -802,7 +773,6 @@ fn test_codebase_context_enabled_by_team_disabled_by_user() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -830,7 +800,6 @@ fn test_codebase_context_enabled_by_team_and_user() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -860,7 +829,6 @@ fn test_codebase_context_disabled_by_workspace() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -890,7 +858,6 @@ fn test_codebase_context_respect_user_setting() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -921,7 +888,6 @@ fn test_agent_attribution_default_with_no_workspace() {
             &mut app,
             CachedResources { workspaces: vec![] },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -948,7 +914,6 @@ fn test_agent_attribution_forced_on_by_team() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -975,7 +940,6 @@ fn test_agent_attribution_forced_off_by_team() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -1002,7 +966,6 @@ fn test_agent_attribution_respects_user_setting() {
                 workspaces: vec![workspace],
             },
             Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
         );
 
         app.read(|ctx| {
@@ -1086,12 +1049,7 @@ fn test_remove_user_from_team_rejected_emits_error_event_without_updating_worksp
             });
 
         app.add_singleton_model(|ctx| {
-            UserWorkspaces::mock(
-                Arc::new(team_client),
-                Arc::new(MockWorkspaceClient::new()),
-                vec![workspace],
-                ctx,
-            )
+            UserWorkspaces::mock(Arc::new(team_client), vec![workspace], ctx)
         });
 
         let user_workspaces_handle = UserWorkspaces::handle(&app);
@@ -1170,12 +1128,7 @@ fn test_remove_user_from_team_success_emits_success_event_and_refreshes_members(
 
         app.add_singleton_model(PrivacySettings::mock);
         app.add_singleton_model(|ctx| {
-            UserWorkspaces::mock(
-                Arc::new(team_client),
-                Arc::new(MockWorkspaceClient::new()),
-                vec![workspace],
-                ctx,
-            )
+            UserWorkspaces::mock(Arc::new(team_client), vec![workspace], ctx)
         });
 
         let user_workspaces_handle = UserWorkspaces::handle(&app);

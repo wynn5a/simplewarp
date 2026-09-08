@@ -4,7 +4,6 @@ pub mod harness_support;
 pub mod object;
 pub(crate) mod presigned_upload;
 pub mod team;
-pub mod workspace;
 
 use std::ops::Deref;
 use std::path::Path;
@@ -30,7 +29,6 @@ use warp_server_client::base_client::{
 use warp_server_client::network_logging::NetworkLogModel;
 use warpui::r#async::BoxFuture;
 use warpui::{Entity, ModelContext, SingletonEntity};
-use workspace::WorkspaceClient;
 
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::get_relevant_files::api::{GetRelevantFiles, GetRelevantFilesResponse};
@@ -652,10 +650,6 @@ impl ServerApiProvider {
 
     pub fn get_auth_client(&self) -> Arc<dyn AuthClient> {
         self.auth_client.clone()
-    }
-
-    pub fn get_workspace_client(&self) -> Arc<dyn WorkspaceClient> {
-        self.server_api.clone()
     }
 
     pub fn get_team_client(&self) -> Arc<dyn TeamClient> {
