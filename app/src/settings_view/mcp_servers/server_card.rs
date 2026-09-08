@@ -1,6 +1,5 @@
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::external_product_icon::ExternalProductIcon;
 use warp_core::ui::icons::{ICON_DIMENSIONS, Icon};
 use warp_core::ui::theme::AnsiColorIdentifier;
@@ -20,10 +19,8 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
-use crate::ai::mcp::templatable::CloudTemplatableMCPServer;
-use crate::ai::mcp::{MCPServerState, TemplatableMCPServerManager};
+use crate::ai::mcp::MCPServerState;
 use crate::appearance::Appearance;
-use crate::cloud_object::{CloudObject, CloudObjectUuidLookup as _};
 use crate::settings_view::mcp_servers::{ServerCardItemId, style};
 use crate::ui_components::avatar::{Avatar, AvatarContent, StatusElementTypes};
 use crate::ui_components::blended_colors;
@@ -596,69 +593,7 @@ impl ServerCardView {
         wrap.finish()
     }
 
-    fn render_debug_lines(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
-        let mut lines = vec![format!("{}", self.item_id)];
-
-        match self.item_id {
-            ServerCardItemId::TemplatableMCP(template_uuid) => {
-                let cloud_server = CloudTemplatableMCPServer::get_by_uuid(&template_uuid, app);
-                if let Some(cloud_server) = cloud_server {
-                    lines.push(format!("Template sync id: {}", cloud_server.sync_id()));
-                }
-            }
-            ServerCardItemId::TemplatableMCPInstallation(installation_uuid) => {
-                let installation = TemplatableMCPServerManager::as_ref(app)
-                    .get_installed_server(&installation_uuid);
-                if let Some(installation) = installation {
-                    let template_uuid = installation.template_uuid();
-                    let gallery_uuid = installation.gallery_uuid();
-                    let gallery_uuid_text = match gallery_uuid {
-                        Some(uuid) => format!("Gallery Id: {uuid}"),
-                        None => "Gallery Id: None".to_string(),
-                    };
-                    let cloud_server = CloudTemplatableMCPServer::get_by_uuid(&template_uuid, app);
-                    let template_sync_id_text = match cloud_server {
-                        Some(cloud_server) => {
-                            format!("Template sync id: {}", cloud_server.sync_id())
-                        }
-                        None => "Could not find cloud template".to_string(),
-                    };
-                    lines.push(format!(
-                        "{}",
-                        ServerCardItemId::TemplatableMCP(template_uuid)
-                    ));
-                    lines.push(gallery_uuid_text);
-                    lines.push(template_sync_id_text);
-                }
-            }
-            ServerCardItemId::GalleryMCP(_) => {}
-            ServerCardItemId::FileBasedMCP(_) => {}
-        }
-
-        FormattedTextElement::new(
-            FormattedText::new(
-                lines
-                    .into_iter()
-                    .map(|line| {
-                        FormattedTextLine::Line(vec![FormattedTextFragment::plain_text(line)])
-                    })
-                    .collect::<Vec<_>>(),
-            ),
-            appearance.ui_builder().ui_font_size(),
-            appearance.ui_font_family(),
-            appearance.ui_font_family(),
-            blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
-            HighlightedHyperlink::default(),
-        )
-        .finish()
-    }
-
-    fn add_subtitle_lines(
-        &self,
-        mut info_column: Flex,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Flex {
+    fn add_subtitle_lines(&self, mut info_column: Flex, appearance: &Appearance) -> Flex {
         if let Some(description) = &self.description {
             info_column = info_column.with_child(
                 FormattedTextElement::new(
@@ -708,10 +643,6 @@ impl ServerCardView {
                 )
                 .finish(),
             );
-        }
-
-        if FeatureFlag::McpDebuggingIds.is_enabled() {
-            info_column = info_column.with_child(self.render_debug_lines(app, appearance));
         }
 
         info_column
@@ -1020,7 +951,7 @@ impl View for ServerCardView {
 
             let mut info_column = Flex::column().with_child(title_and_title_chip);
 
-            info_column = self.add_subtitle_lines(info_column, appearance, app);
+            info_column = self.add_subtitle_lines(info_column, appearance);
 
             if let Some(tools) = &self.tools {
                 let tools_info_row = self.render_tools_expandable(tools, appearance);

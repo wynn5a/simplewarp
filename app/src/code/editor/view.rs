@@ -2350,38 +2350,36 @@ impl View for CodeEditorView {
             stack.add_overlay_child(dialog);
         }
 
-        if !FeatureFlag::EmbeddedCodeReviewComments.is_enabled() {
-            // Render the open comment editor.
-            if let PendingComment::Open { line, .. } = pending_comment {
-                let render_state_ref = render_state.as_ref(app);
-                let vertical_offset = render_state_ref
-                    .vertical_offset_at_render_location(line.clone().into_render_line_location())
-                    .unwrap_or_default()
-                    + render_state_ref.styles().base_line_height();
+        // Render the open comment editor.
+        if let PendingComment::Open { line, .. } = pending_comment {
+            let render_state_ref = render_state.as_ref(app);
+            let vertical_offset = render_state_ref
+                .vertical_offset_at_render_location(line.clone().into_render_line_location())
+                .unwrap_or_default()
+                + render_state_ref.styles().base_line_height();
 
-                let line_location = app.element_position_by_id_at_last_frame(
-                    self.window_id,
-                    &self.comment_save_position_id,
+            let line_location = app.element_position_by_id_at_last_frame(
+                self.window_id,
+                &self.comment_save_position_id,
+            );
+
+            let should_render_comment_editor = match line_location {
+                Some(line_location) => self
+                    .show_comment_editor_provider
+                    .should_show_comment_editor(line_location, app),
+                None => true,
+            };
+
+            if should_render_comment_editor {
+                stack.add_positioned_child(
+                    ChildView::new(&self.active_comment_editor).finish(),
+                    OffsetPositioning::offset_from_parent(
+                        vec2f(0., vertical_offset.as_f32()),
+                        ParentOffsetBounds::ParentByPosition,
+                        ParentAnchor::TopLeft,
+                        ChildAnchor::TopLeft,
+                    ),
                 );
-
-                let should_render_comment_editor = match line_location {
-                    Some(line_location) => self
-                        .show_comment_editor_provider
-                        .should_show_comment_editor(line_location, app),
-                    None => true,
-                };
-
-                if should_render_comment_editor {
-                    stack.add_positioned_child(
-                        ChildView::new(&self.active_comment_editor).finish(),
-                        OffsetPositioning::offset_from_parent(
-                            vec2f(0., vertical_offset.as_f32()),
-                            ParentOffsetBounds::ParentByPosition,
-                            ParentAnchor::TopLeft,
-                            ChildAnchor::TopLeft,
-                        ),
-                    );
-                }
             }
         }
         stack.finish()

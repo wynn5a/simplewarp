@@ -489,7 +489,6 @@ cloud_object_initial_load = ["enforce_revisions_to_cloud_objects"]
 codebase_index_speedbump = []
 cocoa_sentry = ["crash_reporting"]
 command_predictor = []
-context_line_review_comments = []
 completions_v2 = [
     "plugin_host",
     "warp_completer/v2",
@@ -585,7 +584,6 @@ default = [
     "v4a_file_diffs",
     "classic_completions",
     "force_classic_completions",
-    "team_api_keys",
     "named_agents",
     "agent_tips",
     "pluggable_notifications",
@@ -808,7 +806,6 @@ dynamic_workflow_enums = []
 editable_markdown_mermaid = []
 default_adeberry_theme = []
 drag_tabs_to_windows = []
-embedded_code_review_comments = []
 agent_management_view = []
 interactive_conversation_management_view = []
 enforce_revisions_to_cloud_objects = []
@@ -891,7 +888,6 @@ markdown_tables = []
 markdown_mermaid = []
 mcp_server = []
 mcp_oauth = []
-mcp_debugging_ids = []
 notebook_parameter = []
 personal_cloud_objects = []
 # Remote-backed tty that connects to a PTY-like interface via a server.
@@ -1033,7 +1029,6 @@ fork_from_command = []
 context_window_usage_v2 = []
 context_window_usage_breakdown = []
 global_search = []
-file_and_diff_set_comments = []
 revert_to_checkpoints = []
 rewind_slash_command = []
 agent_view = []
@@ -1043,7 +1038,6 @@ agent_tips = []
 agent_toolbar_editor = ["agent_view"]
 cloud_conversations = []
 agent_view_prompt_chip = ["agent_view"]
-team_api_keys = []
 named_agents = []
 classic_completions = []
 force_classic_completions = []

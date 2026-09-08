@@ -20,7 +20,6 @@ use crate::code_review::code_review_view::{
     get_discard_button_disabled_tooltip,
 };
 use crate::code_review::diff_state::DiffStateModel;
-use crate::menu::Menu;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::ActionButton;
 
@@ -128,15 +127,7 @@ impl CodeReviewHeader {
         }
 
         if FeatureFlag::DiffSetAsContext.is_enabled() && !has_no_changes {
-            if FeatureFlag::FileAndDiffSetComments.is_enabled() {
-                right_section_wide.add_child(self.render_header_dropdown_button(
-                    &code_review_header_fields.header_dropdown_button,
-                    &code_review_header_fields.header_menu,
-                    code_review_header_fields.header_menu_open,
-                ));
-            } else {
-                right_section_wide.add_child(self.render_add_diff_set_context_button(appearance));
-            }
+            right_section_wide.add_child(self.render_add_diff_set_context_button(appearance));
         }
 
         if code_review_header_fields.is_in_split_pane {
@@ -209,16 +200,7 @@ impl CodeReviewHeader {
         let has_no_changes = state.to_diff_stats().has_no_changes();
 
         if FeatureFlag::DiffSetAsContext.is_enabled() && !has_no_changes {
-            if FeatureFlag::FileAndDiffSetComments.is_enabled() {
-                right_subsection_compact.add_child(self.render_header_dropdown_button(
-                    &code_review_header_fields.header_dropdown_button,
-                    &code_review_header_fields.header_menu,
-                    code_review_header_fields.header_menu_open,
-                ));
-            } else {
-                right_subsection_compact
-                    .add_child(self.render_add_diff_set_context_button(appearance));
-            }
+            right_subsection_compact.add_child(self.render_add_diff_set_context_button(appearance));
         }
 
         if code_review_header_fields.is_in_split_pane {
@@ -447,43 +429,6 @@ impl CodeReviewHeader {
             .finish();
 
         Container::new(button).with_margin_left(4.).finish()
-    }
-
-    /// Renders the header dropdown trigger
-    ///
-    /// This button dispatches a CodeReviewAction and, when the header menu is open, renders the
-    /// attached menu in a Stack overlay positioned relative to the button (like other overflow
-    /// buttons in the app, e.g. Drive's "create new" button).
-    fn render_header_dropdown_button(
-        &self,
-        header_dropdown_button: &ViewHandle<ActionButton>,
-        header_menu: &ViewHandle<Menu<CodeReviewAction>>,
-        header_menu_open: bool,
-    ) -> Box<dyn Element> {
-        let button_container = Container::new(
-            ConstrainedBox::new(ChildView::new(header_dropdown_button).finish())
-                .with_height(warp_core::ui::icons::ICON_DIMENSIONS)
-                .with_width(warp_core::ui::icons::ICON_DIMENSIONS)
-                .finish(),
-        )
-        .with_margin_left(4.)
-        .finish();
-
-        let mut stack = Stack::new().with_child(button_container);
-
-        if header_menu_open {
-            stack.add_positioned_overlay_child(
-                ChildView::new(header_menu).finish(),
-                OffsetPositioning::offset_from_parent(
-                    vec2f(0., 0.),
-                    ParentOffsetBounds::WindowByPosition,
-                    ParentAnchor::BottomRight,
-                    ChildAnchor::TopRight,
-                ),
-            );
-        }
-
-        stack.finish()
     }
 
     fn get_header_text(diff_state_model: &ModelHandle<DiffStateModel>, app: &AppContext) -> String {

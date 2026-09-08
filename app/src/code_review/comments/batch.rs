@@ -47,12 +47,6 @@ impl ReviewCommentBatch {
         self.comments.iter_mut().find(|comment| comment.id == id)
     }
 
-    pub(crate) fn diffset_comment(&self) -> Option<&AttachedReviewComment> {
-        self.comments
-            .iter()
-            .find(|comment| matches!(comment.target, AttachedReviewCommentTarget::General))
-    }
-
     pub(crate) fn has_only_outdated_comments(&self) -> bool {
         self.comments.iter().all(|comment| comment.outdated)
     }

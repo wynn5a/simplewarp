@@ -226,9 +226,6 @@ pub enum FeatureFlag {
     /// Show speed bump when enabling codebase indexing.
     CodebaseIndexSpeedbump,
 
-    /// Enables inline review comments on specific lines of code.
-    ContextLineReviewComments,
-
     /// Enables the fast-forward autoexecute button
     FastForwardAutoexecuteButton,
 
@@ -331,9 +328,6 @@ pub enum FeatureFlag {
     /// Enables attaching diff sets (multiple hunks from multiple files) as context in Agent Mode.
     DiffSetAsContext,
 
-    /// Enables file- and diff set-level comments in the code review header.
-    FileAndDiffSetComments,
-
     /// Enables discarding per-file and discarding all changes
     DiscardPerFileAndAllChanges,
 
@@ -379,9 +373,6 @@ pub enum FeatureFlag {
     /// Enables the web fetch UI (when the model fetches content from URLs).
     WebFetchUI,
 
-    /// Displays debugging IDs for MCP servers, installations, and gallery items.
-    McpDebuggingIds,
-
     /// Enables rendering Mermaid diagrams in markdown notebooks.
     MarkdownMermaid,
     /// Enables editable Mermaid diagrams to behave atomically in notebook and plan editors.
@@ -411,9 +402,6 @@ pub enum FeatureFlag {
 
     /// Enables global search
     GlobalSearch,
-
-    /// Enables embedded code review comments.
-    EmbeddedCodeReviewComments,
 
     /// Enables the revert to checkpoints feature.
     RevertToCheckpoints,
@@ -456,9 +444,6 @@ pub enum FeatureFlag {
 
     /// Enables video recording of computer-use sessions for cloud agents.
     VideoRecording,
-
-    /// Enables team API key creation in the API key management UI.
-    TeamApiKeys,
 
     /// Enables cloud conversation loading via the CLI --conversation flag.
     CloudConversations,
@@ -773,11 +758,9 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::MultiWorkspace,
     FeatureFlag::ImeMarkedText,
     FeatureFlag::MSYS2Shells,
-    FeatureFlag::ContextLineReviewComments,
     FeatureFlag::RunGeneratorsWithCmdExe,
     FeatureFlag::Projects,
     FeatureFlag::ProviderCommand,
-    FeatureFlag::FileAndDiffSetComments,
     FeatureFlag::FileGlobV2Warnings,
     FeatureFlag::SummarizationViaMessageReplacement,
     FeatureFlag::LocalComputerUse,

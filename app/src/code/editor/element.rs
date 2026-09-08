@@ -865,17 +865,13 @@ impl<V: EditorView> EditorWrapper<V> {
             let is_comment_on_current_line = attached_comment.is_some();
 
             // The gutter element should take the same height as block's first line.
-            // Compute comment visibility for any hovered/current line, not just diff lines
-            // For non-diff lines, check the feature flag before showing comment button
-            let should_show_comment_button = {
-                if !is_diff_line && !FeatureFlag::ContextLineReviewComments.is_enabled() {
-                    // Only show comment button if there's already a comment on this line
-                    is_comment_box_open_on_current_line
-                } else {
-                    // Show comment button normally for diff lines or when feature flag is enabled
-                    (is_this_line_hovered && !is_comment_box_open_on_different_line)
-                        || is_comment_box_open_on_current_line
-                }
+            // Off diff lines, only show the comment button if there's already a
+            // comment on this line.
+            let should_show_comment_button = if !is_diff_line {
+                is_comment_box_open_on_current_line
+            } else {
+                (is_this_line_hovered && !is_comment_box_open_on_different_line)
+                    || is_comment_box_open_on_current_line
             };
 
             let element = self.render_gutter_element(

@@ -125,8 +125,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::UseTantivySearch,
         #[cfg(feature = "mcp_server")]
         FeatureFlag::McpServer,
-        #[cfg(feature = "mcp_debugging_ids")]
-        FeatureFlag::McpDebuggingIds,
         #[cfg(feature = "markdown_tables")]
         FeatureFlag::MarkdownTables,
         #[cfg(feature = "jupyter_notebook_rendering")]
@@ -163,8 +161,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AgentDecidesCommandExecution,
         #[cfg(feature = "codebase_index_speedbump")]
         FeatureFlag::CodebaseIndexSpeedbump,
-        #[cfg(feature = "context_line_review_comments")]
-        FeatureFlag::ContextLineReviewComments,
         #[cfg(feature = "fast_forward_autoexecute_button")]
         FeatureFlag::FastForwardAutoexecuteButton,
         #[cfg(feature = "code_find_replace")]
@@ -263,10 +259,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ContextWindowUsageBreakdown,
         #[cfg(feature = "global_search")]
         FeatureFlag::GlobalSearch,
-        #[cfg(feature = "embedded_code_review_comments")]
-        FeatureFlag::EmbeddedCodeReviewComments,
-        #[cfg(feature = "file_and_diff_set_comments")]
-        FeatureFlag::FileAndDiffSetComments,
         #[cfg(feature = "revert_to_checkpoints")]
         FeatureFlag::RevertToCheckpoints,
         #[cfg(feature = "rewind_slash_command")]
@@ -291,8 +283,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::BackgroundComputerUse,
         #[cfg(feature = "local_claude_codex_child_harnesses")]
         FeatureFlag::LocalClaudeCodexChildHarnesses,
-        #[cfg(feature = "team_api_keys")]
-        FeatureFlag::TeamApiKeys,
         #[cfg(feature = "named_agents")]
         FeatureFlag::NamedAgents,
         #[cfg(feature = "cloud_conversations")]

@@ -596,8 +596,7 @@ impl PlatformPageWidget {
         view: &PlatformPageView,
     ) -> Box<dyn Element> {
         let table_width_chrome = api_key_table_width_chrome();
-        let show_scope_column =
-            FeatureFlag::TeamApiKeys.is_enabled() || FeatureFlag::NamedAgents.is_enabled();
+        let show_scope_column = FeatureFlag::NamedAgents.is_enabled();
         let min_non_resizable_columns_width =
             api_key_table_min_non_resizable_columns_width(show_scope_column);
         let mut header_row = Flex::row()
@@ -767,7 +766,7 @@ impl PlatformPageWidget {
             .with_width(key_column_width)
             .finish(),
         );
-        if FeatureFlag::TeamApiKeys.is_enabled() || FeatureFlag::NamedAgents.is_enabled() {
+        if FeatureFlag::NamedAgents.is_enabled() {
             let scope_display = match key.scope {
                 ApiKeyScope::Personal => "Personal",
                 ApiKeyScope::Team => "Team",

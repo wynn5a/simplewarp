@@ -3080,10 +3080,10 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
    almost certainly why these two survived that step's own compiler-led cascade — nothing
    *read* them, so nothing failed to compile when their UI went. 257 variants remain.
 
-   **Rounds 4ad–4aw kept sweeping by feature instead of by flag** (each recorded under its
-   own Definition-of-done entry; 4ak–4av in one bulk entry there, 4aw on its own): 24 more
-   variants went with their verticals, including 3 definition-only deletions in 4at and 1
-   in 4aq. **222 variants remain** of the original 292. 4at's sweep also identified 29 further
+   **Rounds 4ad–4ax kept sweeping by feature instead of by flag** (each recorded under its
+   own Definition-of-done entry; 4ak–4av in one bulk entry there, 4aw and 4ax on their
+   own): 29 more variants went with their verticals, including 3 definition-only deletions
+   in 4at and 1 in 4aq. **217 variants remain** of the original 292. 4at's sweep also identified 29 further
    off-by-default flags, two of which (AgentHarness, GeminiEnterprise) look live-by-design;
    those and the flags behind the not-yet-deleted modules are what is left.
 
@@ -3308,10 +3308,10 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             (`explicit_local_collection_is_preserved_from_onboarding`), matching the 4ah
             `request_limit()` precedent for a general accessor with its own test coverage.
             nextest 5707 green (down from 5720, expected from the test deletions).
-      - [x] **Flag-vertical rounds 4ak–4aw (2026-09-03 → 2026-09-07); 4ak–4av in bulk
-            (twelve rounds, ~20 flags), 4aw after — the enum down to 222 of the original
-            292.** Detailed in their commit messages; this is the summary the plan would
-            otherwise miss.
+      - [x] **Flag-vertical rounds 4ak–4ax (2026-09-03 → 2026-09-08); 4ak–4av in bulk
+            (twelve rounds, ~20 flags), 4aw and 4ax after — the enum down to 217 of the
+            original 292.** Detailed in their commit messages; this is the summary the
+            plan would otherwise miss.
             - **CloudConversations (4ak)** folded to always-off: the sharing menu items, the
                   pane-header share button, the privacy cloud-storage toggle, the cloud-delete
                   calls on conversation delete/remove, and the always-`None` server-load path.
@@ -3414,6 +3414,28 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
                   is currently red with 11 pre-existing items (last green before the two
                   post-4av commits); this round's error set is byte-identical to that
                   baseline.
+            - **Five cloud-only verticals (4ax)** — `FileAndDiffSetComments`,
+                  `EmbeddedCodeReviewComments`, `ContextLineReviewComments`,
+                  `TeamApiKeys`, and `McpDebuggingIds`. The review-comments fold removed
+                  the header "Add comment" item from the overflow menu in both renderers
+                  and collapsed the legacy header's comments-only dropdown to the plain
+                  add-diff-set-context button — while keeping the dropdown mechanism
+                  itself, since the live `render_new` header still hosts the
+                  DiffSetAsContext/Discard items through it. The diffset (General)
+                  comment composer entry points went
+                  (`OpenCommentComposerFromHeader`, `get_existing_diffset_comment`,
+                  `ReviewCommentBatch::diffset_comment`); the composer itself and
+                  `AttachedReviewCommentTarget::General` stay — imported comments and the
+                  comment-list edit path still reach them. In the code editor the legacy
+                  positioned comment editor now renders unconditionally (the embedded
+                  renderer was the flag's other half) and the gutter comment button on
+                  non-diff lines shows only where a comment exists. `TeamApiKeys`
+                  collapses to `NamedAgents` on the platform page and deletes the
+                  has-team machinery in the create-key modal; `McpDebuggingIds` takes the
+                  MCP server card's debug-lines block. Left for later rounds: HOA
+                  (entangled with editor selection-context and the remote right panel),
+                  `RemoteCodeReview` (remote-server pass), `WaitForEventsParentRegistration`
+                  (orchestration).
 
             Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
             format clean, nextest green (5707 → 5519 as each deleted subject's tests went with

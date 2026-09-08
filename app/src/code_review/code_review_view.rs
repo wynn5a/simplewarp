@@ -153,14 +153,14 @@ use crate::workspace::view::right_panel::{ReviewDestination, ReviewSubmissionRes
 use crate::workspace::{ToastStack, Workspace, WorkspaceAction};
 
 pub struct CodeReviewHeaderFields {
-    pub is_in_split_pane: bool,
-    pub diff_state_model: ModelHandle<DiffStateModel>,
-    pub maximize_button: ViewHandle<ActionButton>,
-    pub diff_selector: ViewHandle<DiffSelector>,
     pub header_menu: ViewHandle<Menu<CodeReviewAction>>,
     pub header_menu_open: bool,
     pub header_dropdown_button: ViewHandle<ActionButton>,
     pub has_header_menu_items: bool,
+    pub is_in_split_pane: bool,
+    pub diff_state_model: ModelHandle<DiffStateModel>,
+    pub maximize_button: ViewHandle<ActionButton>,
+    pub diff_selector: ViewHandle<DiffSelector>,
     pub file_nav_button: Option<ViewHandle<ActionButton>>,
     pub primary_git_action_mode: PrimaryGitActionMode,
     pub git_primary_action_button: ViewHandle<ActionButton>,
@@ -318,11 +318,11 @@ pub enum CodeReviewAction {
         line_and_column: Option<LineAndColumnArg>,
     },
     ToggleFileExpanded(String),
-    OpenHeaderMenu,
     SetDiffMode(DiffMode),
     ToggleFileSidebar,
     FileSelected(usize),
     ToggleMaximize,
+    OpenHeaderMenu,
     SaveAllUnsavedFiles,
     SaveAllFiles {
         paths: Vec<String>,
@@ -338,7 +338,6 @@ pub enum CodeReviewAction {
     ToggleFileSelection(String),
     AddDiffSetAsContext(DiffSetScope),
     CopyFilePath(String),
-    OpenCommentComposerFromHeader,
     ShowFindBar,
     FocusView,
     InitProjectForCurrentDirectory,
@@ -611,11 +610,13 @@ pub struct CodeReviewView {
     active_repo: Option<RepositoryState>,
 
     focus_handle: Option<PaneFocusHandle>,
-    maximize_button: ViewHandle<ActionButton>,
     header_dropdown_button: ViewHandle<ActionButton>,
+    maximize_button: ViewHandle<ActionButton>,
     file_nav_button: ViewHandle<ActionButton>,
     git_primary_action_button: ViewHandle<ActionButton>,
     git_operations_chevron: ViewHandle<ActionButton>,
+    header_menu: ViewHandle<Menu<CodeReviewAction>>,
+    header_menu_open: bool,
     git_operations_menu: ViewHandle<Menu<CodeReviewAction>>,
     git_operations_menu_open: bool,
     file_sidebar_expanded: bool,
@@ -630,8 +631,6 @@ pub struct CodeReviewView {
     last_revert: Option<(ViewHandle<CodeEditorView>, ContentVersion)>,
     containing_pane_id: Option<PaneId>,
     // Header-specific dropdown menu ("Add diff set as context" / "Add comment")
-    header_menu: ViewHandle<Menu<CodeReviewAction>>,
-    header_menu_open: bool,
     view_position_id: String,
     /// Position ID of the code review list within this view.
     code_review_list_position_id: String,
@@ -1337,10 +1336,10 @@ impl CodeReviewView {
             action_target_provider,
             window_id: ctx.window_id(),
             undo_action_button,
-            last_revert: None,
-            containing_pane_id: None,
             header_menu,
             header_menu_open: false,
+            last_revert: None,
+            containing_pane_id: None,
             view_position_id: format!("code_review_view_{}", ctx.view_id()),
             code_review_list_position_id: format!("code_review_view_list_{}", ctx.view_id()),
             header_position_id: format!("code_review_view_header_{}", ctx.view_id()),
@@ -2744,12 +2743,6 @@ impl CodeReviewView {
             .as_ref()
             .map(|repo| repo.should_auto_expand_file(file))
             .unwrap_or(false)
-    }
-
-    fn get_existing_diffset_comment(&self, app: &AppContext) -> Option<AttachedReviewComment> {
-        self.active_comment_model
-            .as_ref()
-            .and_then(|model| model.read(app, |batch, _| batch.diffset_comment().cloned()))
     }
 
     /// Updates or adds a review comment.
@@ -4179,21 +4172,20 @@ impl CodeReviewView {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let has_menu_flags = FeatureFlag::DiscardPerFileAndAllChanges.is_enabled()
-            || FeatureFlag::DiffSetAsContext.is_enabled()
-            || FeatureFlag::FileAndDiffSetComments.is_enabled();
+            || FeatureFlag::DiffSetAsContext.is_enabled();
         let has_changes = matches!(self.state(), CodeReviewViewState::Loaded(loaded) if !loaded.to_diff_stats().has_no_changes());
         let has_header_menu_items =
             has_menu_flags && (!FeatureFlag::GitOperationsInCodeReview.is_enabled() || has_changes);
 
         let code_review_header_fields = CodeReviewHeaderFields {
+            header_menu: self.header_menu.clone(),
+            header_menu_open: self.header_menu_open,
+            header_dropdown_button: self.header_dropdown_button.clone(),
+            has_header_menu_items,
             is_in_split_pane,
             maximize_button: self.maximize_button.clone(),
             diff_selector: self.diff_selector.clone(),
-            header_menu: self.header_menu.clone(),
-            header_menu_open: self.header_menu_open,
             diff_state_model: self.diff_state_model.clone(),
-            header_dropdown_button: self.header_dropdown_button.clone(),
-            has_header_menu_items,
             file_nav_button: if FeatureFlag::GitOperationsInCodeReview.is_enabled()
                 && self.has_file_states()
             {
@@ -6788,16 +6780,12 @@ impl CodeReviewView {
         }
     }
 
-    /// Legacy menu items — gated on FileAndDiffSetComments only.
+    /// Legacy menu items — shown when git operations in code review are off.
     fn header_menu_items_legacy(
         &self,
-        ctx: &mut ViewContext<Self>,
+        _ctx: &mut ViewContext<Self>,
     ) -> Vec<MenuItem<CodeReviewAction>> {
         let mut items = Vec::new();
-
-        if !FeatureFlag::FileAndDiffSetComments.is_enabled() {
-            return items;
-        }
 
         let mut has_changes = false;
         if let CodeReviewViewState::Loaded(loaded) = self.state() {
@@ -6812,19 +6800,6 @@ impl CodeReviewView {
                     .into_item(),
             );
         }
-
-        let (comment_label, comment_icon) = if self.get_existing_diffset_comment(ctx).is_some() {
-            ("Show saved comment", Icon::MessageText)
-        } else {
-            ("Add comment", Icon::MessagePlusSquare)
-        };
-
-        items.push(
-            MenuItemFields::new(comment_label)
-                .with_icon(comment_icon)
-                .with_on_select_action(CodeReviewAction::OpenCommentComposerFromHeader)
-                .into_item(),
-        );
 
         items
     }
@@ -6844,22 +6819,6 @@ impl CodeReviewView {
                 MenuItemFields::new("Add diff set as context")
                     .with_icon(Icon::Paperclip)
                     .with_on_select_action(CodeReviewAction::AddDiffSetAsContext(DiffSetScope::All))
-                    .into_item(),
-            );
-        }
-
-        if FeatureFlag::FileAndDiffSetComments.is_enabled() && has_changes {
-            let (comment_label, comment_icon) = if self.get_existing_diffset_comment(ctx).is_some()
-            {
-                ("Show saved comment", Icon::MessageText)
-            } else {
-                ("Add comment", Icon::MessagePlusSquare)
-            };
-
-            items.push(
-                MenuItemFields::new(comment_label)
-                    .with_icon(comment_icon)
-                    .with_on_select_action(CodeReviewAction::OpenCommentComposerFromHeader)
                     .into_item(),
             );
         }
@@ -7365,11 +7324,6 @@ impl TypedActionView for CodeReviewView {
                 }
                 self.update_header_dropdown_active_state(ctx);
                 ctx.notify();
-            }
-            CodeReviewAction::OpenCommentComposerFromHeader => {
-                // Show the review comment composer overlay if it's not already open.
-                let existing_comment = self.get_existing_diffset_comment(ctx);
-                self.open_review_comment_composer(existing_comment, ctx);
             }
             CodeReviewAction::EmitPaneEvent(event) => {
                 ctx.emit(CodeReviewViewEvent::Pane(event.clone()));

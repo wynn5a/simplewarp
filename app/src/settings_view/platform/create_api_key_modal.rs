@@ -73,7 +73,6 @@ pub struct CreateApiKeyModal {
     request_state: RequestState,
     raw_key_copied: bool,
     raw_key: Option<String>,
-    has_team: bool,
     has_named_agents: bool,
     agents: Vec<AgentIdentity>,
     selected_agent_uid: Option<String>,
@@ -148,8 +147,6 @@ impl CreateApiKeyModal {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let font_family = Appearance::as_ref(ctx).ui_font_family();
 
-        let has_team = FeatureFlag::TeamApiKeys.is_enabled()
-            && UserWorkspaces::as_ref(ctx).team_for_view(ctx).is_some();
         let has_named_agents = FeatureFlag::NamedAgents.is_enabled();
 
         let name_editor = ctx.add_typed_action_view(|ctx| {
@@ -182,8 +179,6 @@ impl CreateApiKeyModal {
         let api_key_type_control = ctx.add_typed_action_view(move |ctx| {
             let options = if has_named_agents {
                 vec![ApiKeyType::Personal, ApiKeyType::Agent]
-            } else if has_team {
-                vec![ApiKeyType::Personal, ApiKeyType::Team]
             } else {
                 vec![ApiKeyType::Personal]
             };
@@ -231,10 +226,6 @@ impl CreateApiKeyModal {
             me.name_editor.update(ctx, |_, ctx| ctx.notify());
         });
 
-        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, _, _, ctx| {
-            me.update_has_team(ctx);
-        });
-
         ctx.subscribe_to_view(&name_editor, |me, _, event, ctx| {
             me.handle_name_editor_event(event, ctx);
         });
@@ -271,7 +262,6 @@ impl CreateApiKeyModal {
             request_state: RequestState::Idle,
             raw_key_copied: false,
             raw_key: None,
-            has_team,
             has_named_agents,
             agents: Vec::new(),
             selected_agent_uid: None,
@@ -440,27 +430,6 @@ impl CreateApiKeyModal {
         ctx.focus(&self.name_editor);
         if self.has_named_agents {
             self.fetch_agents(ctx);
-        }
-    }
-
-    fn update_has_team(&mut self, ctx: &mut ViewContext<Self>) {
-        let new_has_team = FeatureFlag::TeamApiKeys.is_enabled()
-            && UserWorkspaces::as_ref(ctx).team_for_view(ctx).is_some();
-        let new_has_named_agents = FeatureFlag::NamedAgents.is_enabled();
-
-        if new_has_team != self.has_team || new_has_named_agents != self.has_named_agents {
-            self.has_team = new_has_team;
-            self.has_named_agents = new_has_named_agents;
-            let options = if new_has_named_agents {
-                vec![ApiKeyType::Personal, ApiKeyType::Agent]
-            } else if new_has_team {
-                vec![ApiKeyType::Personal, ApiKeyType::Team]
-            } else {
-                vec![ApiKeyType::Personal]
-            };
-            self.api_key_type_control
-                .update(ctx, |control, ctx| control.update_options(options, ctx));
-            ctx.notify();
         }
     }
 
@@ -709,7 +678,7 @@ impl View for CreateApiKeyModal {
                 let mut col = Flex::column();
                 let mut render_agent_dropdown = false;
 
-                if self.has_team || self.has_named_agents {
+                if self.has_named_agents {
                     let type_label =
                         Text::new("Type", appearance.ui_font_family(), LABEL_FONT_SIZE)
                             .with_color(theme.active_ui_text_color().into())
