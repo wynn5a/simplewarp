@@ -914,8 +914,6 @@ impl CommentListView {
         let has_sendable_comments = self.has_non_outdated_comments();
         match &self.review_destination {
             ReviewDestination::None => false,
-            // CLI agents don't consume AI credits, so bypass the ai check.
-            ReviewDestination::Cli(_) => has_sendable_comments,
             ReviewDestination::Warp => {
                 AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx) && has_sendable_comments
             }
@@ -948,13 +946,7 @@ impl CommentListView {
         ai_available: bool,
         ai_enabled: bool,
     ) -> Cow<'static, str> {
-        if let ReviewDestination::Cli(agent) = destination {
-            if !has_sendable_comments {
-                Cow::Borrowed("No non-outdated comments to send")
-            } else {
-                Cow::Owned(format!("Send diff comments to {}", agent.display_name()))
-            }
-        } else if !ai_enabled {
+        if !ai_enabled {
             Cow::Borrowed("AI must be enabled to send comments to Agent")
         } else if !ai_available {
             Cow::Borrowed("Agent code review requires AI credits")

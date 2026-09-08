@@ -3080,10 +3080,10 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
    almost certainly why these two survived that step's own compiler-led cascade — nothing
    *read* them, so nothing failed to compile when their UI went. 257 variants remain.
 
-   **Rounds 4ad–4ax kept sweeping by feature instead of by flag** (each recorded under its
-   own Definition-of-done entry; 4ak–4av in one bulk entry there, 4aw and 4ax on their
-   own): 29 more variants went with their verticals, including 3 definition-only deletions
-   in 4at and 1 in 4aq. **217 variants remain** of the original 292. 4at's sweep also identified 29 further
+   **Rounds 4ad–4ay kept sweeping by feature instead of by flag** (each recorded under its
+   own Definition-of-done entry; 4ak–4av in one bulk entry there, 4aw–4ay on their own):
+   30 more variants went with their verticals, including 3 definition-only deletions in
+   4at and 1 in 4aq. **216 variants remain** of the original 292. 4at's sweep also identified 29 further
    off-by-default flags, two of which (AgentHarness, GeminiEnterprise) look live-by-design;
    those and the flags behind the not-yet-deleted modules are what is left.
 
@@ -3308,8 +3308,8 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             (`explicit_local_collection_is_preserved_from_onboarding`), matching the 4ah
             `request_limit()` precedent for a general accessor with its own test coverage.
             nextest 5707 green (down from 5720, expected from the test deletions).
-      - [x] **Flag-vertical rounds 4ak–4ax (2026-09-03 → 2026-09-08); 4ak–4av in bulk
-            (twelve rounds, ~20 flags), 4aw and 4ax after — the enum down to 217 of the
+      - [x] **Flag-vertical rounds 4ak–4ay (2026-09-03 → 2026-09-08); 4ak–4av in bulk
+            (twelve rounds, ~20 flags), 4aw–4ay after — the enum down to 216 of the
             original 292.** Detailed in their commit messages; this is the summary the
             plan would otherwise miss.
             - **CloudConversations (4ak)** folded to always-off: the sharing menu items, the
@@ -3436,6 +3436,20 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
                   (entangled with editor selection-context and the remote right panel),
                   `RemoteCodeReview` (remote-server pass), `WaitForEventsParentRegistration`
                   (orchestration).
+            - **HoaCodeReview (4ay)** — the HOA CLI-agent code-review interplay is
+                  gone whole: `TerminalView::active_cli_agent` (flag-gated to `None`
+                  anyway) and with it the right panel's CLI-review dispatch branch,
+                  `ReviewDestination::Cli`, the four
+                  `*to_cli_agent_or_rich_input` senders with `try_send_text...`'s
+                  HOA gate, and the five `cli_agent.rs` prompt builders with their
+                  tests; the review-context flows (selection, diff set, diff hunk,
+                  attach-path) now go straight to their generic input-buffer paths.
+                  The three flag-gated `with_selection_as_context` editor wirings went
+                  (the ungated code-review one stays — `CodeSelectionAddedAsContext`
+                  telemetry maps to `Always` now); five HOA tests and the
+                  `SelectionAddedAsContext` event's `selected_text` field went with
+                  them. The rich-input feature itself (`cli_agent_rich_input`, live in
+                  simplewarp) is untouched.
 
             Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
             format clean, nextest green (5707 → 5519 as each deleted subject's tests went with

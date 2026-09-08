@@ -45,7 +45,6 @@ pub enum LocalCodeEditorEvent {
     SelectionAddedAsContext {
         relative_file_path: String,
         line_range: Range<LineCount>,
-        selected_text: String,
     },
     #[allow(dead_code)]
     DiscardUnsavedChanges { path: PathBuf },

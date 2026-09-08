@@ -6,7 +6,6 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::channel::{Channel, ChannelState};
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::icons::ICON_DIMENSIONS;
 use warp_editor::render::element::VerticalExpansionBehavior;
@@ -63,15 +62,10 @@ use crate::search::files::icon::icon_from_file_path;
 use crate::server::telemetry::CodeContextDestination;
 use crate::settings::CodeSettings;
 use crate::tab::TAB_BAR_BORDER_HEIGHT;
-use crate::terminal::cli_agent::{
-    build_selection_line_range_prompt, build_selection_substring_prompt,
-};
-use crate::terminal::view::CliAgentRouting;
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
 use crate::util::path::{display_name_with_host, display_path_with_host};
 use crate::view_components::{DismissibleToast, MarkdownToggleEvent, MarkdownToggleView};
-use crate::workspace::util::get_context_target_terminal_view;
 use crate::workspace::{ActiveSession, TabBarDropTargetData, ToastStack, WorkspaceAction};
 use crate::{TelemetryEvent, send_telemetry_from_ctx};
 
@@ -378,7 +372,7 @@ impl CodeView {
     ) -> ViewHandle<LocalCodeEditorView> {
         let is_local = matches!(location, LocalOrRemotePath::Local(_));
         ctx.add_typed_action_view(|ctx| {
-            let mut editor = LocalCodeEditorView::new_with_global_buffer(
+            let editor = LocalCodeEditorView::new_with_global_buffer(
                 location,
                 |buffer_state, ctx| {
                     ctx.add_typed_action_view(|ctx| {
@@ -401,10 +395,6 @@ impl CodeView {
                 ctx,
             );
             if is_local {
-                if FeatureFlag::HoaCodeReview.is_enabled() {
-                    editor = editor
-                        .with_selection_as_context(Box::new(get_context_target_terminal_view));
-                }
                 let mut editor = editor.with_find_references_provider(
                     ShowFindReferencesCard {
                         editor_window_id: ctx.window_id(),
@@ -441,11 +431,7 @@ impl CodeView {
         });
 
         ctx.add_typed_action_view(|ctx| {
-            let mut local_editor = LocalCodeEditorView::new(editor, None, false, None, ctx);
-            if FeatureFlag::HoaCodeReview.is_enabled() {
-                local_editor = local_editor
-                    .with_selection_as_context(Box::new(get_context_target_terminal_view));
-            }
+            let local_editor = LocalCodeEditorView::new(editor, None, false, None, ctx);
             local_editor.with_find_references_provider(
                 ShowFindReferencesCard {
                     editor_window_id: ctx.window_id(),
@@ -521,13 +507,12 @@ impl CodeView {
             LocalCodeEditorEvent::SelectionAddedAsContext {
                 relative_file_path,
                 line_range,
-                selected_text,
+                ..
             } => {
                 me.insert_selection_as_context(
                     relative_file_path.clone(),
                     line_range.start.as_usize(),
                     line_range.end.as_usize(),
-                    selected_text.clone(),
                     ctx,
                 );
             }
@@ -1065,34 +1050,8 @@ impl CodeView {
         file_path: String,
         start_line: usize,
         end_line: usize,
-        selected_text: String,
         ctx: &mut ViewContext<Self>,
     ) {
-        // If a CLI agent is active, send appropriate content to the PTY (or rich input if open).
-        let window_id = ctx.window_id();
-        if let Some(terminal_view) = get_context_target_terminal_view(window_id, ctx) {
-            let prompt = if start_line == end_line {
-                // Single-line: send the literal text with file/line context.
-                build_selection_substring_prompt(&file_path, start_line, &selected_text)
-            } else {
-                // Multi-line: send a line-range reference with format note.
-                build_selection_line_range_prompt(&file_path, start_line, end_line)
-            };
-            if let Some(routing) = terminal_view.update(ctx, |tv, ctx| {
-                tv.try_send_text_to_cli_agent_or_rich_input(prompt, ctx)
-            }) {
-                let destination = match routing {
-                    CliAgentRouting::RichInput => CodeContextDestination::RichInput,
-                    CliAgentRouting::Pty => CodeContextDestination::Pty,
-                };
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::CodeSelectionAddedAsContext { destination },
-                    ctx
-                );
-                return;
-            }
-        }
-
         // Otherwise insert the location snippet into the input buffer (original behavior).
         send_telemetry_from_ctx!(
             TelemetryEvent::CodeSelectionAddedAsContext {

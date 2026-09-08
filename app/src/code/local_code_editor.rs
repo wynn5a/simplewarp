@@ -131,8 +131,6 @@ pub enum LocalCodeEditorEvent {
         relative_file_path: String,
         /// 1-indexed line range of the selection: `[start, end]` both inclusive.
         line_range: Range<LineCount>,
-        /// Literal text content of the selection.
-        selected_text: String,
     },
     DiscardUnsavedChanges {
         path: PathBuf,
@@ -2082,14 +2080,13 @@ impl LocalCodeEditorView {
             }
         });
 
-        let (Some(line_range), Some(selected_text)) = (line_range, selected_text) else {
+        let Some(line_range) = line_range else {
             return;
         };
 
         ctx.emit(LocalCodeEditorEvent::SelectionAddedAsContext {
             relative_file_path,
             line_range,
-            selected_text,
         });
         self.editor.update(ctx, |editor, ctx| {
             editor.clear_selection(ctx);
