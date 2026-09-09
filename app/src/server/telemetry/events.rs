@@ -2030,11 +2030,6 @@ pub enum TelemetryEvent {
         is_natural_language_autosuggestions_enabled: bool,
     },
 
-    /// Emitted when the user toggles the "Shared Block Title Auto Generation" setting in the AI settings page.
-    ToggleSharedBlockTitleGenerationSetting {
-        is_shared_block_title_generation_enabled: bool,
-    },
-
     /// Emitted when the user toggles the "Git Operations Autogen" setting in the AI settings page.
     ToggleGitOperationsAutogenSetting {
         is_git_operations_autogen_enabled: bool,
@@ -3331,11 +3326,6 @@ impl TelemetryEvent {
                 is_natural_language_autosuggestions_enabled,
             } => Some(
                 json!({"is_natural_language_autosuggestions_enabled": is_natural_language_autosuggestions_enabled}),
-            ),
-            TelemetryEvent::ToggleSharedBlockTitleGenerationSetting {
-                is_shared_block_title_generation_enabled,
-            } => Some(
-                json!({"is_shared_block_title_generation_enabled": is_shared_block_title_generation_enabled}),
             ),
             TelemetryEvent::ToggleGitOperationsAutogenSetting {
                 is_git_operations_autogen_enabled,
@@ -4798,7 +4788,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AgentModeError { .. }
             | TelemetryEvent::AgentModeRequestRetrySucceeded { .. }
             | TelemetryEvent::ToggleNaturalLanguageAutosuggestionsSetting { .. }
-            | TelemetryEvent::ToggleSharedBlockTitleGenerationSetting { .. }
             | TelemetryEvent::ToggleGitOperationsAutogenSetting { .. }
             | TelemetryEvent::GrepToolSucceeded
             | TelemetryEvent::FileGlobToolSucceeded
@@ -5268,9 +5257,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ToggleNaturalLanguageAutosuggestionsSetting => {
                 EnablementState::Flag(FeatureFlag::PredictAMQueries)
             }
-            Self::ToggleSharedBlockTitleGenerationSetting => {
-                EnablementState::Flag(FeatureFlag::SharedBlockTitleGeneration)
-            }
             Self::ToggleGitOperationsAutogenSetting => {
                 EnablementState::Flag(FeatureFlag::GitOperationsInCodeReview)
             }
@@ -5726,7 +5712,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ToggleNaturalLanguageAutosuggestionsSetting => {
                 "Toggle Natural Language Autosuggestions Setting"
             }
-            Self::ToggleSharedBlockTitleGenerationSetting => "Toggle SharedBlock Title Generation",
             Self::ToggleGitOperationsAutogenSetting => "Toggle Git Operations Autogen Setting",
             Self::AgentModeCodeSuggestionEditedByUser => "AgentMode.Code.SuggestedCodeEditedByUser",
             Self::AgentModeCodeFilesNavigated => "AgentMode.Code.FilesNavigated",
@@ -6399,9 +6384,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ToggleCodeSuggestionsSetting => "Toggled on/off the code suggestions setting",
             Self::ToggleNaturalLanguageAutosuggestionsSetting => {
                 "Toggled on/off the natural language autosuggestions setting"
-            }
-            Self::ToggleSharedBlockTitleGenerationSetting => {
-                "Toggled on/off the shared block title generation setting"
             }
             Self::ToggleGitOperationsAutogenSetting => {
                 "Toggled on/off the git operations autogen setting"

@@ -3316,7 +3316,9 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             lines across `remote_server`, `server_api/ai`, `agent_sdk`, and the
             daemon — SSH remote untouched. 4ba (2026-09-08) took the
             `WorkspaceClient` billing trait with its callers, including the whole
-            build-plan-migration modal (~900 lines).
+            build-plan-migration modal (~900 lines). 4bb (2026-09-08) bundled
+            three small-fry slices (~250 lines) and took the enum from 212 to
+            208 variants.
             - **CloudConversations (4ak)** folded to always-off: the sharing menu items, the
                   pane-header share button, the privacy cloud-storage toggle, the cloud-delete
                   calls on conversation delete/remove, and the always-`None` server-load path.
@@ -3533,6 +3535,40 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
                   once under default features and passed 3/3 isolated, then the
                   full suite passed twice — the 4h cross-test-interference
                   family, not this round's.
+            - **Small-fry bundle (4bb, 2026-09-08, ~250 lines)** — three more
+                  slices in the 4at/4au shape, found by re-running the
+                  zero-reader sweep over the enum (now 212 → 208 variants):
+                  **`PeriodicHandoffCheckpoints`** — zero readers anywhere, a
+                  definition-only delete like 4aq. **The handoff-chip toolbar
+                  migration** (`maybe_ensure_handoff_chip_in_toolbar`) — a
+                  startup migration whose whole job was to append
+                  `AgentToolbarItemKind::HandoffToCloud` to persisted custom
+                  toolbar layouts; 4an already made the chip's `is_available()`
+                  permanently false, so in default builds the migration ran,
+                  mutated the user's persisted layout, and produced a chip that
+                  could never render — an actively harmful no-op. Gone with it:
+                  `FeatureFlag::OzHandoff` and `FeatureFlag::HandoffLocalCloud`
+                  (the migration was their last real reader; the remaining
+                  mentions were doc comments) and their `oz_handoff` /
+                  `handoff_local_cloud` cargo features. **Kept**: the persisted
+                  `HandoffToCloud` toolbar variant itself (serde
+                  backwards-compat, same reason as 4ad's `NotificationsMailbox`)
+                  and the `did_add_handoff_chip_to_toolbar` setting (now
+                  read-none write-none; removal needs a migration).
+                  **`SharedBlockTitleGeneration`** — the server call it enabled
+                  (`generate_block_title`) was deleted in 4i, so the whole
+                  remaining surface was a settings toggle controlling nothing:
+                  the flag + `shared_block_title_generation` cargo feature, the
+                  Warp-Agent-page toggle row/binding/action/switch, the
+                  `is_..._toggleable` predicate (whose enterprise-team and
+                  dogfood checks died with it, taking `ActiveAIWidget`'s
+                  `view_handle` field), the
+                  `ToggleSharedBlockTitleGenerationSetting` telemetry event (4
+                  arms), the `is_shared_block_title_generation_enabled` getter,
+                  the workspace flag-context insert, and the
+                  `SHARED_BLOCK_TITLE_GENERATION_FLAG` palette constant. The
+                  persisted `shared_block_title_generation_enabled_internal`
+                  setting stays (read-none write-none, migration-gated).
 
             Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
             format clean, nextest green (5707 → 5519 as each deleted subject's tests went with

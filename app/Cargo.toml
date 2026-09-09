@@ -537,7 +537,6 @@ default = [
     "at_menu_outside_of_ai_mode",
     "agent_management_view",
     "interactive_conversation_management_view",
-    "shared_block_title_generation",
     "tab_close_button_on_left",
     "ai_resume_button",
     "code_find_replace",
@@ -639,8 +638,6 @@ default = [
     "settings_file",
     "directory_tab_colors",
     "git_credential_refresh",
-    "oz_handoff",
-    "handoff_local_cloud",
     "pending_user_query_indicator",
     "queue_slash_command",
     "queued_prompts_v2",
@@ -977,7 +974,6 @@ command_correction_key = []
 full_source_code_embedding = []
 use_tantivy_search = []
 agent_management_popup = []
-shared_block_title_generation = []
 ai_context_menu = []
 at_menu_outside_of_ai_mode = []
 agent_decides_command_execution = []
@@ -1067,8 +1063,6 @@ grouped_tabs = []
 pinned_tabs = []
 warp_control_cli = []
 agent_harness = []
-oz_handoff = []
-handoff_local_cloud = []
 transfer_control_tool = []
 skip_firebase_anonymous_user = []
 custom_model_routers = []
