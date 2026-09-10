@@ -23,7 +23,6 @@ use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::sync_queue::SyncQueue;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 fn configurable_model(provider: LLMProvider) -> LLMInfo {
     LLMInfo {
@@ -69,7 +68,6 @@ fn assert_context_window_limit_for_request(
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(TeamTesterStatus::mock);
         app.add_singleton_model(SyncQueue::mock);
         app.add_singleton_model(UpdateManager::mock);
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());

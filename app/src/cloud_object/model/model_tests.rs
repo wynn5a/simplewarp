@@ -30,14 +30,12 @@ use crate::server::cloud_objects::update_manager::InitialLoadResponse;
 use crate::server::ids::{ServerId, ServerIdAndType};
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::object::ObjectClient;
-use crate::server::server_api::team::MockTeamClient;
 use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::Preference;
 use crate::system::SystemStats;
 use crate::workflows::CloudWorkflowModel;
 use crate::workspaces::team::Team;
-use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::{Workspace, WorkspaceUid};
@@ -75,8 +73,6 @@ fn initialize_app(
     cached_objects: Vec<Box<dyn CloudObject>>,
     cloud_object_server_api_mock: Arc<impl ObjectClient>,
 ) {
-    let team_client_mock = Arc::new(MockTeamClient::new());
-
     // Add the necessary singleton models to the App
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
@@ -84,10 +80,7 @@ fn initialize_app(
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
     app.add_singleton_model(AuthManager::new_for_test);
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(team_client_mock.clone(), vec![TEST_WORKSPACE.clone()], ctx)
-    });
-    app.add_singleton_model(TeamTesterStatus::new);
+    app.add_singleton_model(|ctx| UserWorkspaces::mock(vec![TEST_WORKSPACE.clone()], ctx));
     app.add_singleton_model(SyncQueue::mock);
     app.add_singleton_model(|_ctx| CloudModel::new(None, cached_objects, None));
     app.add_singleton_model(|ctx| UpdateManager::new(None, cloud_object_server_api_mock, ctx));
@@ -97,8 +90,8 @@ fn initialize_app(
 
     // The start of polling is normally triggered by authentication completion, but
     // we need to do it manually for tests.
-    TeamTesterStatus::handle(app).update(app, |team_tester, ctx| {
-        team_tester.initiate_data_pollers(false, ctx);
+    UpdateManager::handle(app).update(app, |manager, ctx| {
+        manager.start_polling_for_updated_objects(ctx);
     });
 }
 

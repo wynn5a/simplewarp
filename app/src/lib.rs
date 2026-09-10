@@ -304,8 +304,6 @@ use crate::workflows::local_workflows::LocalWorkflows;
 use crate::workspace::{
     ActiveSession, OneTimeModalModel, PaneViewLocator, ToastStack, Workspace, WorkspaceAction,
 };
-use crate::workspaces::team_tester::TeamTesterStatus;
-use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 
@@ -1434,12 +1432,7 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|ctx| AIRequestUsageModel::new(ai_client, ctx));
 
     ctx.add_singleton_model(|ctx| {
-        UserWorkspaces::new(
-            server_api_provider.as_ref(ctx).get_team_client(),
-            cached_workspaces,
-            current_workspace_uid,
-            ctx,
-        )
+        UserWorkspaces::new(cached_workspaces, current_workspace_uid, ctx)
     });
 
     // Initialize ApiKeyManager after UserWorkspaces so it can subscribe to workspace/settings changes
@@ -1918,18 +1911,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|_| ObjectActions::new(object_actions));
 
     ctx.add_singleton_model(|_| AudibleBell::new());
-
-    // This model has to be registered after the user workspaces model because it relies on it,
-    // and before the UpdateManager models because they rely on the TeamTester model.
-    ctx.add_singleton_model(TeamTesterStatus::new);
-
-    ctx.add_singleton_model(|ctx| {
-        TeamUpdateManager::new(
-            server_api_provider.as_ref(ctx).get_team_client(),
-            persistence_writer.sender(),
-            ctx,
-        )
-    });
 
     ctx.add_singleton_model(|ctx| {
         UpdateManager::new(

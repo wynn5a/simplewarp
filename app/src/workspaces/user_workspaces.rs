@@ -1,20 +1,16 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
-use anyhow::Result;
 use regex::Regex;
 use warp_core::features::FeatureFlag;
 use warp_core::settings::{ChangeEventReason, Setting};
-use warp_errors::report_error;
-use warp_graphql::workspace::FeatureModelChoice;
 use warpui::{
     AppContext, Entity, ModelContext, SingletonEntity, Tracked, ViewContext, WeakViewHandle,
     WindowId,
 };
 
+use super::team::Team;
 #[cfg(test)]
-use super::team::TeamVisibility;
-use super::team::{MembershipRole, Team};
+use super::team::{MembershipRole, TeamVisibility};
 #[cfg(test)]
 use super::workspace::WorkspaceMemberUsageInfo;
 use super::workspace::{
@@ -25,12 +21,8 @@ use crate::ai::llms::LLMModelHost;
 use crate::auth::{AuthStateProvider, UserUid};
 use crate::channel::ChannelState;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{CloudObjectEventEntrypoint, ObjectType, Owner, Space};
-use crate::pricing::PricingInfoModel;
+use crate::cloud_object::{ObjectType, Owner, Space};
 use crate::server::ids::ServerId;
-#[cfg(test)]
-use crate::server::server_api::team::MockTeamClient;
-use crate::server::server_api::team::TeamClient;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
 };
@@ -43,27 +35,8 @@ use crate::workspaces::workspace::{WorkspaceMember, WorkspaceSettings};
 const STRIPE_SUBSCRIPTION_INTERVAL_PAGE_PREFIX: &str = "/upgrade";
 
 #[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum UserWorkspacesEvent {
-    AddDomainRestrictionsSuccess,
-    AddDomainRestrictionsRejected(anyhow::Error),
-    DeleteDomainRestrictionSuccess,
-    DeleteDomainRestrictionRejected(anyhow::Error),
-    EmailInviteSent,
-    EmailInviteRejected(anyhow::Error),
-    ToggleInviteLinksSuccess,
-    ToggleInviteLinksRejected(anyhow::Error),
-    ResetInviteLinks,
-    ResetInviteLinksRejected(anyhow::Error),
-    DeleteTeamInvite,
-    DeleteTeamInviteRejected(anyhow::Error),
-    GenerateUpgradeLink(String),
-    GenerateUpgradeLinkRejected(anyhow::Error),
-    ToggleTeamDiscoverabilitySuccess,
-    ToggleTeamDiscoverabilityRejected(anyhow::Error),
-    SetTeamMemberRoleSuccess,
-    SetTeamMemberRoleRejected(anyhow::Error),
-    RemoveUserFromTeamSuccess,
-    RemoveUserFromTeamRejected(anyhow::Error),
     /// Fired whenever the set of teams the user is on changes.
     TeamsChanged,
     /// Fired when the selected workspace actually changes to a different one.
@@ -72,8 +45,6 @@ pub enum UserWorkspacesEvent {
     /// subscribers that hold per-window state must only react to their own window.
     WindowTeamChanged,
     CodebaseContextEnablementChanged,
-    /// Fired when a service agreement's sunsetted_to_build_ts field is updated.
-    SunsettedToBuildDataUpdated,
 }
 
 /// UserWorkspaces is a singleton model that holds workspace metadata (name, members, etc).
@@ -84,60 +55,24 @@ pub struct UserWorkspaces {
     current_workspace_uid: Tracked<Option<WorkspaceUid>>,
     workspaces: Tracked<Vec<Workspace>>,
     window_team_uids: HashMap<WindowId, Option<ServerId>>,
-    /// The user-level add-on credits purchase policy from the latest
-    /// workspaces-metadata response. Teamless (fresh free) users have no
-    /// team and their only workspace is the server's placeholder, which is
-    /// filtered out of `workspaces` — this is the only place their purchase
-    /// policy survives.
-    team_client: Arc<dyn TeamClient>,
-}
-
-/// Represents the workspaces a user potentially has access to.
-#[derive(Clone)]
-pub struct WorkspacesMetadataResponse {
-    /// The list of workspaces the user is currently on.
-    pub workspaces: Vec<Workspace>,
-    /// TODO(Tyler): Post-workspaces, move this into the workspace object.
-    /// Feature model choices may change from user to user and while the app is open, so we need to periodically update this list.
-    /// It makes most sense to fetch this in workspaces which is queried every 10 minutes.
-    /// This is list of available LLM models for the user.
-    pub feature_model_choices: Option<FeatureModelChoice>,
-}
-
-// A representation of all data we fetch at a single time via our 10 minute poll.
-// Prefer adding to this struct if you need relatively fresh data vs making
-// independent queries.
-pub struct WorkspacesMetadataWithPricing {
-    pub metadata: WorkspacesMetadataResponse,
-    pub pricing_info: Option<warp_graphql::billing::PricingInfo>,
-}
-
-pub struct CreateTeamResponse {
-    pub workspace: Workspace,
 }
 
 impl UserWorkspaces {
     #[cfg(test)]
-    pub fn mock(
-        team_client: Arc<dyn TeamClient>,
-        cached_workspaces: Vec<Workspace>,
-        _ctx: &mut ModelContext<Self>,
-    ) -> Self {
+    pub fn mock(cached_workspaces: Vec<Workspace>, _ctx: &mut ModelContext<Self>) -> Self {
         Self {
             current_workspace_uid: cached_workspaces.first().map(|w| w.uid).into(),
             workspaces: cached_workspaces.into(),
             window_team_uids: Default::default(),
-            team_client,
         }
     }
 
     #[cfg(test)]
     pub fn default_mock(ctx: &mut ModelContext<Self>) -> Self {
-        Self::mock(Arc::new(MockTeamClient::new()), vec![], ctx)
+        Self::mock(vec![], ctx)
     }
 
     pub fn new(
-        team_client: Arc<dyn TeamClient>,
         cached_workspaces: Vec<Workspace>,
         current_workspace_uid: Option<WorkspaceUid>,
         ctx: &mut ModelContext<Self>,
@@ -163,7 +98,6 @@ impl UserWorkspaces {
             current_workspace_uid: current_workspace_uid.into(),
             workspaces: cached_workspaces.into(),
             window_team_uids: Default::default(),
-            team_client,
         }
     }
 
@@ -756,53 +690,12 @@ impl UserWorkspaces {
         }
     }
 
+    #[cfg(any(test, feature = "integration_tests"))]
     pub fn update_workspaces(&mut self, workspaces: Vec<Workspace>, ctx: &mut ModelContext<Self>) {
-        // Check if sunsetted_to_build_ts changed for any workspace
-        let sunsetted_to_build_changed = self.has_sunsetted_to_build_data_changed(&workspaces);
-
         *self.workspaces = workspaces;
         let reassigned_windows = self.reconcile_window_team_assignments();
         self.notify_and_emit_teams_changed(ctx);
         Self::emit_window_team_changed(reassigned_windows, ctx);
-
-        if sunsetted_to_build_changed {
-            ctx.emit(UserWorkspacesEvent::SunsettedToBuildDataUpdated);
-        }
-    }
-
-    /// Checks if any workspace's service agreement sunsetted_to_build_ts field has changed.
-    fn has_sunsetted_to_build_data_changed(&self, new_workspaces: &[Workspace]) -> bool {
-        for new_workspace in new_workspaces {
-            // Find the corresponding old workspace
-            let old_workspace = self.workspaces.iter().find(|w| w.uid == new_workspace.uid);
-
-            if let Some(old_workspace) = old_workspace {
-                // Check if any team's service agreement sunsetted_to_build_ts changed
-                for new_team in &new_workspace.teams {
-                    let old_team = old_workspace.teams.iter().find(|t| t.uid == new_team.uid);
-
-                    if let Some(old_team) = old_team {
-                        let old_sunsetted = old_team
-                            .billing_metadata
-                            .service_agreements
-                            .first()
-                            .and_then(|sa| sa.sunsetted_to_build_ts);
-
-                        let new_sunsetted = new_team
-                            .billing_metadata
-                            .service_agreements
-                            .first()
-                            .and_then(|sa| sa.sunsetted_to_build_ts);
-
-                        // Detect if it changed from None to Some or changed value
-                        if old_sunsetted != new_sunsetted {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        false
     }
 
     fn notify_and_emit_teams_changed(&self, ctx: &mut ModelContext<Self>) {
@@ -824,358 +717,6 @@ impl UserWorkspaces {
         ctx.emit(UserWorkspacesEvent::TeamsChanged);
         ctx.emit(UserWorkspacesEvent::CodebaseContextEnablementChanged);
         ctx.notify();
-    }
-
-    // TODO follow up with moving other modifying calls out of UserWorkspaces to TeamUpdateManager
-    fn on_workspaces_updated(
-        &mut self,
-        result: Result<WorkspacesMetadataWithPricing>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Ok(response) => {
-                if let Some(pricing_info) = response.pricing_info {
-                    PricingInfoModel::handle(ctx).update(ctx, |model, ctx| {
-                        model.update_pricing_info(pricing_info, ctx);
-                    });
-                }
-
-                let workspaces = response.metadata.workspaces;
-
-                self.update_workspaces(workspaces.clone(), ctx);
-
-                // Check if the current workspace is still in the list of workspaces.
-                // If it's not, then set the current workspace to the first workspace in the list.
-                if let Some(current_workspace) = self.current_workspace() {
-                    if !self
-                        .workspaces
-                        .iter()
-                        .any(|w| w.uid == current_workspace.uid)
-                        && let Some(workspace_uid) = workspaces.first().map(|w| w.uid)
-                    {
-                        self.set_current_workspace_uid(workspace_uid, ctx);
-                    }
-                } else if let Some(workspace_uid) = workspaces.first().map(|w| w.uid) {
-                    self.set_current_workspace_uid(workspace_uid, ctx);
-                }
-            }
-            Err(e) => {
-                report_error!(e.context("Failed to load user workspaces"));
-            }
-        }
-    }
-
-    pub fn team_created(
-        &mut self,
-        create_team_response: &CreateTeamResponse,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.workspaces.push(create_team_response.workspace.clone());
-        self.set_current_workspace_uid(create_team_response.workspace.uid, ctx);
-        self.notify_and_emit_teams_changed(ctx);
-    }
-
-    fn on_remove_user_from_team(
-        &mut self,
-        result: Result<WorkspacesMetadataWithPricing>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::RemoveUserFromTeamRejected(err)),
-            Ok(result) => {
-                self.on_workspaces_updated(Ok(result), ctx);
-                ctx.emit(UserWorkspacesEvent::RemoveUserFromTeamSuccess);
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn remove_user_from_team(
-        &mut self,
-        user_uid: UserUid,
-        team_uid: ServerId,
-        entrypoint: CloudObjectEventEntrypoint,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let team_client = self.team_client.clone();
-        let _ = ctx.spawn(
-            async move {
-                team_client
-                    .remove_user_from_team(user_uid, team_uid, entrypoint)
-                    .await
-            },
-            Self::on_remove_user_from_team,
-        );
-    }
-
-    fn on_add_invite_link_domain_restrictions(
-        &mut self,
-        result: Result<WorkspacesMetadataWithPricing>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::AddDomainRestrictionsRejected(err)),
-            Ok(result) => {
-                self.on_workspaces_updated(Ok(result), ctx);
-                ctx.emit(UserWorkspacesEvent::AddDomainRestrictionsSuccess);
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn add_invite_link_domain_restrictions(
-        &mut self,
-        team_uid: ServerId,
-        domains: Vec<String>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        for domain in domains {
-            let team_client = self.team_client.clone();
-            let _ = ctx.spawn(
-                async move {
-                    team_client
-                        .add_invite_link_domain_restriction(team_uid, domain)
-                        .await
-                },
-                Self::on_add_invite_link_domain_restrictions,
-            );
-        }
-    }
-
-    fn on_delete_invite_link_domain_restriction(
-        &mut self,
-        result: Result<WorkspacesMetadataWithPricing>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::DeleteDomainRestrictionRejected(err)),
-            Ok(result) => {
-                self.on_workspaces_updated(Ok(result), ctx);
-                ctx.emit(UserWorkspacesEvent::DeleteDomainRestrictionSuccess);
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn delete_invite_link_domain_restriction(
-        &mut self,
-        team_uid: ServerId,
-        domain_uid: ServerId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let team_client = self.team_client.clone();
-        let _ = ctx.spawn(
-            async move {
-                team_client
-                    .delete_invite_link_domain_restriction(team_uid, domain_uid)
-                    .await
-            },
-            Self::on_delete_invite_link_domain_restriction,
-        );
-    }
-
-    fn on_email_invite_sent(
-        &mut self,
-        result: Result<WorkspacesMetadataWithPricing>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::EmailInviteRejected(err)),
-            Ok(result) => {
-                self.on_workspaces_updated(Ok(result), ctx);
-                ctx.emit(UserWorkspacesEvent::EmailInviteSent);
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn send_email_invites(
-        &mut self,
-        team_uid: ServerId,
-        emails: Vec<String>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        for email in emails {
-            let team_client = self.team_client.clone();
-            let _ = ctx.spawn(
-                async move { team_client.send_team_invite_email(team_uid, email).await },
-                Self::on_email_invite_sent,
-            );
-        }
-    }
-
-    pub fn on_is_invite_link_enabled_set(
-        &mut self,
-        result: Result<WorkspacesMetadataWithPricing>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::ToggleInviteLinksRejected(err)),
-            Ok(result) => {
-                self.on_workspaces_updated(Ok(result), ctx);
-                ctx.emit(UserWorkspacesEvent::ToggleInviteLinksSuccess);
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn set_is_invite_link_enabled(
-        &mut self,
-        team_uid: ServerId,
-        new_value: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let team_client = self.team_client.clone();
-        let _ = ctx.spawn(
-            async move {
-                team_client
-                    .set_is_invite_link_enabled(team_uid, new_value)
-                    .await
-            },
-            Self::on_is_invite_link_enabled_set,
-        );
-    }
-
-    pub fn on_invite_links_reset(
-        &mut self,
-        result: Result<WorkspacesMetadataWithPricing>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::ResetInviteLinksRejected(err)),
-            Ok(result) => {
-                self.on_workspaces_updated(Ok(result), ctx);
-                ctx.emit(UserWorkspacesEvent::ResetInviteLinks);
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn reset_invite_links(&mut self, team_uid: ServerId, ctx: &mut ModelContext<Self>) {
-        let team_client = self.team_client.clone();
-        let _ = ctx.spawn(
-            async move { team_client.reset_invite_links(team_uid).await },
-            Self::on_invite_links_reset,
-        );
-    }
-
-    pub fn on_team_discoverability_set(
-        &mut self,
-        result: Result<WorkspacesMetadataWithPricing>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::ToggleTeamDiscoverabilityRejected(err)),
-            Ok(result) => {
-                self.on_workspaces_updated(Ok(result), ctx);
-                ctx.emit(UserWorkspacesEvent::ToggleTeamDiscoverabilitySuccess);
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn set_team_discoverability(
-        &mut self,
-        team_uid: ServerId,
-        discoverable: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let team_client = self.team_client.clone();
-        let _ = ctx.spawn(
-            async move {
-                team_client
-                    .set_team_discoverability(team_uid, discoverable)
-                    .await
-            },
-            Self::on_team_discoverability_set,
-        );
-    }
-
-    fn on_team_member_role_set(
-        &mut self,
-        result: Result<WorkspacesMetadataWithPricing>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::SetTeamMemberRoleRejected(err)),
-            Ok(result) => {
-                self.on_workspaces_updated(Ok(result), ctx);
-                ctx.emit(UserWorkspacesEvent::SetTeamMemberRoleSuccess);
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn set_team_member_role(
-        &mut self,
-        user_uid: UserUid,
-        team_uid: ServerId,
-        role: MembershipRole,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let team_client = self.team_client.clone();
-        let _ = ctx.spawn(
-            async move {
-                team_client
-                    .set_team_member_role(user_uid, team_uid, role)
-                    .await
-            },
-            Self::on_team_member_role_set,
-        );
-    }
-
-    pub fn on_delete_team_invite(
-        &mut self,
-        result: Result<WorkspacesMetadataWithPricing>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::DeleteTeamInviteRejected(err)),
-            Ok(result) => {
-                self.on_workspaces_updated(Ok(result), ctx);
-                ctx.emit(UserWorkspacesEvent::DeleteTeamInvite);
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn delete_team_invite(
-        &mut self,
-        team_uid: ServerId,
-        invitee_email: String,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let team_client = self.team_client.clone();
-        let _ = ctx.spawn(
-            async move {
-                team_client
-                    .delete_team_invite(team_uid, invitee_email)
-                    .await
-            },
-            Self::on_delete_team_invite,
-        );
-    }
-
-    pub fn on_generate_upgrade_link(
-        &mut self,
-        result: Result<String>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::GenerateUpgradeLinkRejected(err)),
-            Ok(upgrade_link) => {
-                ctx.emit(UserWorkspacesEvent::GenerateUpgradeLink(upgrade_link));
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn generate_upgrade_link(&mut self, team_uid: ServerId, ctx: &mut ModelContext<Self>) {
-        Self::on_generate_upgrade_link(
-            self,
-            Ok(UserWorkspaces::upgrade_link_for_team(team_uid)),
-            ctx,
-        );
     }
 
     pub fn is_telemetry_force_enabled(&self) -> bool {
@@ -1259,17 +800,7 @@ impl UserWorkspaces {
             .unwrap_or(true)
     }
 
-    /// Whether the current workspace's team is discoverable. This is a
-    /// workspace-level setting; the teams-settings page reads it from here rather
-    /// than from the `Team` struct.
-    pub fn is_discoverable(&self) -> bool {
-        self.current_workspace()
-            .map(|workspace| workspace.settings.is_discoverable)
-            .unwrap_or(false)
-    }
-
-    /// Returns the codebase context settings, taking into account the organization,
-    /// global AI settings, and codebase-specific settings.
+    /// Returns the codebase context settings, taking into account the organization, /// global AI settings, and codebase-specific settings.
     /// Prefer this function to determine whether to show indexing-related functionality.
     pub fn is_codebase_context_enabled(&self, app: &AppContext) -> bool {
         // If the organization has an explicit setting, respect it and make user toggle irrelevant.

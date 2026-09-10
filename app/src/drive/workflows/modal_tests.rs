@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use warp_core::ui::appearance::Appearance;
 use warpui::platform::WindowStyle;
 use warpui::{App, SingletonEntity, ViewHandle};
@@ -10,7 +8,6 @@ use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::editor::PlainTextEditorViewAction as EditorAction;
 use crate::server::server_api::ServerApiProvider;
-use crate::server::server_api::team::MockTeamClient;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workflows::workflow::{Argument, Workflow};
@@ -26,9 +23,7 @@ fn initialize_app(app: &mut App) {
 
     #[cfg(feature = "voice_input")]
     app.add_singleton_model(voice_input::VoiceInput::new);
-
-    let team_client_mock = Arc::new(MockTeamClient::new());
-    app.add_singleton_model(|ctx| UserWorkspaces::mock(team_client_mock.clone(), vec![], ctx));
+    app.add_singleton_model(|ctx| UserWorkspaces::mock(vec![], ctx));
 }
 
 fn create_modal(app: &mut App) -> ViewHandle<WorkflowModal> {

@@ -37,7 +37,6 @@ use crate::settings::initializer::SettingsInitializer;
 use crate::terminal::general_settings::GeneralSettings;
 #[cfg(target_family = "wasm")]
 use crate::uri::browser_url_handler::{parse_current_url, update_browser_url};
-use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::{
     GlobalResourceHandlesProvider, TelemetryEvent, persistence, send_telemetry_from_ctx,
     send_telemetry_sync_from_ctx,
@@ -418,11 +417,11 @@ impl AuthManager {
                     });
                 }
 
-                // Now that we have a user, start polling for team and cloud object information.
-                // The polling loop's first tick fires immediately, so there is no need for a
-                // separate out-of-band refresh here.
-                TeamTesterStatus::handle(ctx).update(ctx, |model, ctx| {
-                    model.initiate_data_pollers(false, ctx);
+                // Now that we have a user, start polling for cloud object updates.
+                // The polling loop's first tick fires immediately, so there is no
+                // need for a separate out-of-band refresh here.
+                UpdateManager::handle(ctx).update(ctx, |manager, ctx| {
+                    manager.start_polling_for_updated_objects(ctx);
                 });
 
                 CloudPreferencesSyncer::handle(ctx).update(ctx, |model, ctx| {

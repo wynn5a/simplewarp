@@ -26,7 +26,6 @@ use warp_graphql::billing::{
     UsageVisibilityPolicy as GqlUsageVisibilityPolicy, WarpAiPolicy as GqlWarpAiPolicy,
 };
 use warp_graphql::queries::get_conversation_usage as gql_usage;
-use warp_graphql::queries::get_workspaces_metadata_for_user::User as GqlUser;
 use warp_graphql::workspace::{
     AddonCreditsSettings as GqlAddonCreditsSettings,
     AdminEnablementSetting as GqlAdminEnablementSetting, AiAutonomyValue as GqlAiAutonomyValue,
@@ -47,7 +46,6 @@ use warp_graphql::workspace::{
 };
 
 use super::team::{MembershipRole, Team, TeamMember, TeamVisibility};
-use super::user_workspaces::WorkspacesMetadataResponse;
 use super::workspace::{
     AIAutonomyPolicy, AddonCreditsSettings, AdminEnablementSetting, AiAutonomySettings,
     AiPermissionsSettings, AmbientAgentsPolicy, BillingCycleUsageData, BillingCycleUsageEntry,
@@ -79,8 +77,6 @@ use crate::workspaces::workspace::{
     UsageBasedPricingSettings, WorkspaceUid,
 };
 
-pub const PLACEHOLDER_WORKSPACE_UID: &str = "NOT_A_REAL_WORKSPACE_UID";
-
 impl From<GqlTeamMember> for TeamMember {
     fn from(gql_team_member: GqlTeamMember) -> TeamMember {
         Self {
@@ -89,19 +85,6 @@ impl From<GqlTeamMember> for TeamMember {
             role: gql_team_member.role.into(),
         }
     }
-}
-
-/// Narrows a workspace to the teams the authenticated user actually belongs to.
-///
-/// The server hands workspace admins every team in the workspace so admin
-/// surfaces can manage them, but a team the user is not a member of is not one
-/// they can operate as in the client. Filtering here keeps every consumer of
-/// `Workspace::teams` (team switcher, team spaces, warp drive teams, ...)
-/// scoped to real memberships.
-fn retain_authenticated_teams(workspace: &mut Workspace, user_uid: UserUid) {
-    workspace
-        .teams
-        .retain(|team| team.members.iter().any(|member| member.uid == user_uid));
 }
 
 impl From<GqlManagedByokByoePolicy> for ManagedByokByoePolicy {
@@ -1410,38 +1393,6 @@ impl From<GqlWorkspace> for Workspace {
                 .collect(),
             total_requests_used_since_last_refresh: gql_workspace
                 .total_requests_used_since_last_refresh,
-        }
-    }
-}
-
-impl From<GqlUser> for WorkspacesMetadataResponse {
-    fn from(gql_user: GqlUser) -> WorkspacesMetadataResponse {
-        let user_uid = UserUid::new(&gql_user.profile.uid);
-        let feature_model_choices = gql_user
-            .workspaces
-            .first()
-            .map(|gql_workspace| gql_workspace.feature_model_choice.clone());
-
-        let workspaces: Vec<Workspace> = gql_user
-            .workspaces
-            .clone()
-            .into_iter()
-            .filter(|gql_workspace| {
-                // TODO(skambashi): REV-717: Clean up this code once every user always has
-                // a workspace, and the server no longer returns a placeholder workspace.
-                gql_workspace.uid != PLACEHOLDER_WORKSPACE_UID.into()
-            })
-            .map(|gql_workspace| {
-                let mut workspace = gql_workspace.into();
-                retain_authenticated_teams(&mut workspace, user_uid);
-                workspace
-            })
-            .collect();
-
-        // TODO(skambashi) refactor to return back workspaces, and not teams
-        WorkspacesMetadataResponse {
-            workspaces,
-            feature_model_choices,
         }
     }
 }

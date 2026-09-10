@@ -21,7 +21,6 @@ use crate::server::sync_queue::SyncQueue;
 use crate::settings::AISettings;
 use crate::terminal::input::models::query_model_picker_choices;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 // -- DisableReason::should_clear_preference tests --
@@ -629,7 +628,6 @@ fn active_models_fall_back_to_usable_choice_or_custom_endpoint_when_default_disa
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(TeamTesterStatus::mock);
         app.add_singleton_model(SyncQueue::mock);
         app.add_singleton_model(UpdateManager::mock);
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -750,7 +748,6 @@ fn active_models_use_default_when_usable() {
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(TeamTesterStatus::mock);
         app.add_singleton_model(SyncQueue::mock);
         app.add_singleton_model(UpdateManager::mock);
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -802,7 +799,6 @@ fn reconcile_preserves_custom_models_saved_on_execution_profile() {
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(TeamTesterStatus::mock);
         app.add_singleton_model(SyncQueue::mock);
         app.add_singleton_model(UpdateManager::mock);
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -876,7 +872,6 @@ fn reconcile_preserves_custom_endpoint_models_not_configured_locally() {
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(TeamTesterStatus::mock);
         app.add_singleton_model(SyncQueue::mock);
         app.add_singleton_model(UpdateManager::mock);
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -975,7 +970,6 @@ fn reconcile_preserves_custom_router_models_not_configured_locally() {
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(TeamTesterStatus::mock);
         app.add_singleton_model(SyncQueue::mock);
         app.add_singleton_model(UpdateManager::mock);
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -1111,7 +1105,6 @@ fn updating_active_profile_base_model_persists_and_updates_resolution() {
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(TeamTesterStatus::mock);
         app.add_singleton_model(SyncQueue::mock);
         app.add_singleton_model(UpdateManager::mock);
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -1186,7 +1179,6 @@ fn selecting_a_custom_profile_default_clears_the_session_override() {
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(TeamTesterStatus::mock);
         app.add_singleton_model(SyncQueue::mock);
         app.add_singleton_model(UpdateManager::mock);
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -1244,7 +1236,6 @@ fn explicit_child_model_pin_preserves_gui_behavior_and_only_emits_for_effective_
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(TeamTesterStatus::mock);
         app.add_singleton_model(SyncQueue::mock);
         app.add_singleton_model(UpdateManager::mock);
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());

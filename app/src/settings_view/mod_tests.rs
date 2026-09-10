@@ -122,7 +122,6 @@ const ALL_SECTIONS: &[SettingsSection] = &[
     SettingsSection::Keybindings,
     SettingsSection::Privacy,
     SettingsSection::Scripting,
-    SettingsSection::Teams,
     SettingsSection::Warpify,
     SettingsSection::WarpAgent,
     SettingsSection::AgentProfiles,
@@ -145,7 +144,6 @@ fn all_sections_list_is_exhaustive() {
             | SettingsSection::Keybindings
             | SettingsSection::Privacy
             | SettingsSection::Scripting
-            | SettingsSection::Teams
             | SettingsSection::Warpify
             | SettingsSection::WarpAgent
             | SettingsSection::AgentProfiles
@@ -296,7 +294,7 @@ fn realistic_nav_items() -> Vec<SettingsNavItem> {
             "Cloud platform",
             vec![SettingsSection::OzCloudAPIKeys],
         )),
-        SettingsNavItem::Page(SettingsSection::Teams),
+        SettingsNavItem::Page(SettingsSection::Appearance),
     ]
 }
 
@@ -316,7 +314,7 @@ fn collapsed_umbrella_is_a_single_nav_stop() {
     let stops = build_nav_stops(&nav_items, |_| true);
 
     // Expect: Account, <Agents umbrella>, <Code umbrella>,
-    // <Cloud platform umbrella>, Teams.
+    // <Cloud platform umbrella>, Appearance.
     assert_eq!(stops.len(), 5);
     assert!(matches!(
         stops[0],
@@ -346,7 +344,6 @@ fn collapsed_umbrella_is_a_single_nav_stop() {
             last_subpage: SettingsSection::OzCloudAPIKeys,
         }
     ));
-    assert!(matches!(stops[4], NavStop::Section(SettingsSection::Teams)));
 }
 
 #[test]
@@ -358,7 +355,8 @@ fn expanded_umbrella_produces_section_stop_per_subpage() {
     let stops = build_nav_stops(&nav_items, |_| true);
 
     // Expect: Account, WarpAgent, AgentProfiles, AgentMCPServers, Knowledge,
-    // ThirdPartyCLIAgents, <Code umbrella>, <Cloud platform umbrella>, Teams.
+    // ThirdPartyCLIAgents, <Code umbrella>, <Cloud platform umbrella>,
+    // Appearance.
     let sections: Vec<_> = stops
         .iter()
         .map(|s| match s {
@@ -377,7 +375,7 @@ fn expanded_umbrella_produces_section_stop_per_subpage() {
             "ThirdPartyCLIAgents",
             "Umbrella@2",
             "Umbrella@3",
-            "Teams",
+            "Appearance",
         ]
     );
 }
@@ -450,13 +448,13 @@ fn umbrella_with_no_visible_subpages_is_skipped_entirely() {
 fn filtered_out_top_level_page_is_skipped() {
     let nav_items = realistic_nav_items();
 
-    let stops = build_nav_stops(&nav_items, |section| section != SettingsSection::Teams);
+    let stops = build_nav_stops(&nav_items, |section| section != SettingsSection::Appearance);
 
     assert!(
         !stops
             .iter()
-            .any(|s| matches!(s, NavStop::Section(SettingsSection::Teams))),
-        "Teams should be filtered out entirely"
+            .any(|s| matches!(s, NavStop::Section(SettingsSection::Appearance))),
+        "Appearance should be filtered out entirely"
     );
     // But other pages remain.
     assert!(
@@ -473,7 +471,7 @@ fn current_stop_index_matches_section_stop() {
     let nav_items = realistic_nav_items();
     let stops = build_nav_stops(&nav_items, |_| true);
 
-    let idx = current_stop_index(&stops, &nav_items, SettingsSection::Teams);
+    let idx = current_stop_index(&stops, &nav_items, SettingsSection::Appearance);
     assert_eq!(idx, Some(4));
 }
 
@@ -872,11 +870,7 @@ fn empty_query_after_reapply_shows_all_widgets() {
 fn account_pages_map_onto_a_page_this_build_has() {
     // `Account` is the enum default and the page a saved session most often names, so it is the
     // one that decides where settings opens.
-    for section in [
-        SettingsSection::Account,
-        SettingsSection::Teams,
-        SettingsSection::OzCloudAPIKeys,
-    ] {
+    for section in [SettingsSection::Account, SettingsSection::OzCloudAPIKeys] {
         assert!(
             section.needs_warp_account(),
             "{section:?} has nothing to show without a Warp account"

@@ -8,7 +8,6 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::sync_queue::SyncQueue;
-use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 
@@ -24,7 +23,6 @@ fn test_expand_directories() {
         app.add_singleton_model(|_| Appearance::mock());
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(SyncQueue::mock);
-        app.add_singleton_model(TeamTesterStatus::mock);
         app.add_singleton_model(UpdateManager::mock);
 
         let directory = current_dir()

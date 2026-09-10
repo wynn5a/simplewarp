@@ -3569,6 +3569,56 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
                   `SHARED_BLOCK_TITLE_GENERATION_FLAG` palette constant. The
                   persisted `shared_block_title_generation_enabled_internal`
                   setting stays (read-none write-none, migration-gated).
+            - **The TeamClient deletion (4bc, 2026-09-10, ~8,300 net lines,
+                  91 files, 11 files deleted)** — the last of the `server_api`
+                  client-removal table entries: `TeamClient` (216 impl lines)
+                  plus its mock, `TeamUpdateManager` (the 10-minute poller),
+                  `team_tester`, and the client's whole UI — the 4,327-line
+                  Teams settings page, its tab-menu entry, the Drive "Create a
+                  team" / "Add teammates" blocks, the `warp://settings/teams`
+                  and `warp://team/...` deep links, and the
+                  `OpenTeamSettingsPage` action chain. `UserWorkspaces` lost
+                  the `team_client` field, 13 team-management methods, and 20
+                  event variants. The seven `TeamUpdateManager` consumers
+                  (auth logout, agent-sdk model-list / whoami / worker setup,
+                  blocklist quota arm, cloud-objects polling, Drive
+                  SetCurrentWorkspace) rewire to direct clients;
+                  SetCurrentWorkspace now persists via a new
+                  `UpdateManager::persist_current_workspace`. One rewiring gap
+                  the first full test run caught: deleting the
+                  `TeamTesterStatus::initiate_data_pollers` hop had also
+                  dropped the login-time kick that started cloud-object
+                  polling, so nothing ever fetched the initial load while
+                  online (the `NetworkStatus` Online event only fires on a
+                  *change*). Restored as a direct
+                  `UpdateManager::start_polling_for_updated_objects` call in
+                  auth's user-fetched path and in the two test helpers
+                  (`cloud_object/model/model_tests`, `test_utils`'s
+                  `create_update_manager_struct`) that stubbed the hop.
+                  Orphaned with the
+                  page: `TransferOwnershipConfirmationModal`,
+                  `AdminActions`, `ClickableTextInput`,
+                  `CloudActionConfirmationDialog` (its only live reader at HEAD
+                  was teams_page; the empty-trash dialog referenced it in a
+                  comment only), and `ChipEditorState` +
+                  `retain_authenticated_teams` + the GQL workspaces-metadata
+                  conversion feeding the team switcher. **Kept by ledger
+                  decision**: `PricingInfoModel` (the auth-class question), but
+                  this round deleted `update_pricing_info` / `plans` /
+                  `PricingInfoModelEvent` and pricing_promotion's never-firing
+                  subscription, so the model is now permanently-empty state
+                  behind a live API; `update_workspaces` is
+                  `cfg(any(test, feature = "integration_tests"))` — production
+                  code no longer refreshes the cached workspace list.
+                  `AIRequestUsageModel`'s team-bonus-credit methods and the
+                  sunsetted-to-build change-detection chain (zero subscribers)
+                  went too. Acceptance: check/clippy clean in both presubmit
+                  configs — strictly better than baseline (the pre-existing
+                  `request_limit` dead method fell with its siblings, leaving a
+                  9-error baseline that predates the round); format clean;
+                  full nextest 8757/8763 with the only failures being six
+                  proven pre-existing on HEAD (five ssh integration tests and
+                  `test_create_folder_from_command_palette`, all environmental).
 
             Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
             format clean, nextest green (5707 → 5519 as each deleted subject's tests went with

@@ -3,9 +3,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Write;
-use std::future::Future;
 use std::path::Path;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -569,14 +567,6 @@ impl AgentDriverRunner {
             .post_timeline_event(OzRunTimelineEvent::WorkerContainerReady)
             .await;
 
-        // Ensure we've synced team state before starting the driver.
-        setup_events
-            .record_result(
-                SetupStep::TeamMetadataRefresh,
-                Self::refresh_team_metadata(&foreground),
-            )
-            .await?;
-
         // Wait for Warp Drive to sync before building the task config, since
         // prompt resolution (SavedPrompt -> workflow lookup) and environment
         // resolution (CloudAmbientAgentEnvironment lookup) depend on it.
@@ -693,20 +683,6 @@ impl AgentDriverRunner {
             driver::report_driver_error(task_id, err, &server_api).await;
         }
         result
-    }
-
-    async fn refresh_team_metadata(
-        foreground: &ModelSpawner<Self>,
-    ) -> Result<(), AgentDriverError> {
-        foreground
-            .spawn(
-                |_, ctx| -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> {
-                    Box::pin(common::refresh_workspace_metadata(ctx))
-                },
-            )
-            .await?
-            .await
-            .map_err(|_| AgentDriverError::TeamMetadataRefreshTimeout)
     }
 
     async fn set_ambient_agent_task_id(

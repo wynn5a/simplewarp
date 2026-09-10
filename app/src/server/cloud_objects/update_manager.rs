@@ -10,7 +10,6 @@ pub use cloud_object_client::GetCloudObjectResponse;
 pub use cloud_object_client::InitialLoadResponse;
 use futures::channel::oneshot::{self, Receiver};
 use futures::stream::AbortHandle;
-use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use warp_errors::report_error;
@@ -20,7 +19,7 @@ use warp_graphql::scalars::time::ServerTimestamp;
 use warp_util::sync::Condition;
 use warpui::r#async::{FutureId, Timer};
 use warpui::{
-    AppContext, Entity, ModelContext, ModelHandle, RequestState, RetryOption, SingletonEntity,
+    AppContext, Entity, ModelContext, RequestState, RetryOption, SingletonEntity,
     duration_with_jitter,
 };
 
@@ -80,10 +79,9 @@ use crate::sharing::SharingAccessLevel;
 use crate::workflows::workflow::Workflow;
 use crate::workflows::workflow_enum::{CloudWorkflowEnum, CloudWorkflowEnumModel, WorkflowEnum};
 use crate::workflows::{CloudWorkflowModel, WorkflowId};
-use crate::workspaces::team_tester::{TeamTesterStatus, TeamTesterStatusEvent};
-use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::workspaces::workspace::WorkspaceUid;
 
 lazy_static! {
     /// For online-only operations, we want to quickly determine if the operation can succeed,
@@ -195,9 +193,6 @@ impl UpdateManager {
             me.handle_network_status_changed(event, ctx);
         });
 
-        let team_tester_status = TeamTesterStatus::handle(ctx);
-        ctx.subscribe_to_model(&team_tester_status, Self::handle_team_tester_status_changed);
-
         let sync_queue = SyncQueue::handle(ctx);
         ctx.subscribe_to_model(&sync_queue, |me, _, event, ctx| {
             me.handle_model_event(event, ctx);
@@ -251,54 +246,9 @@ impl UpdateManager {
         }
     }
 
-    /// Remove team-owned objects in response to leaving a team.
-    pub fn remove_team_objects(&mut self, left_team_uid: ServerId, ctx: &mut ModelContext<Self>) {
-        let cloud_model = CloudModel::handle(ctx);
-        let objects_to_remove = cloud_model
-            .as_ref(ctx)
-            .all_cloud_objects_in_space(
-                Space::Team {
-                    team_uid: left_team_uid,
-                },
-                ctx,
-            )
-            .map(|object| object.cloud_object_type_and_id())
-            .collect_vec();
-
-        // First, delete in-memory from CloudModel and object actions.
-        cloud_model.update(ctx, |cloud_model, ctx| {
-            for object in objects_to_remove.iter() {
-                cloud_model.delete_object(object.sync_id(), ctx);
-            }
-        });
-        ObjectActions::handle(ctx).update(ctx, |object_actions, ctx| {
-            for object in objects_to_remove.iter() {
-                object_actions.delete_actions_for_object(&object.uid(), ctx);
-            }
-        });
-
-        // Then, delete from SQLite.
-        let object_ids_and_types = objects_to_remove
-            .into_iter()
-            .map(|object| (object.sync_id(), object.object_id_type()))
-            .collect();
-        self.save_to_db([ModelEvent::DeleteObjects {
-            ids: object_ids_and_types,
-        }]);
-    }
-
-    fn handle_team_tester_status_changed(
-        &mut self,
-        _: ModelHandle<TeamTesterStatus>,
-        event: &TeamTesterStatusEvent,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let TeamTesterStatusEvent::InitiateDataPollers { force_refresh } = event;
-        if *force_refresh {
-            self.refresh_updated_objects(ctx);
-        }
-
-        self.start_polling_for_updated_objects(ctx);
+    /// Persists the user's current-workspace selection to SQLite.
+    pub fn persist_current_workspace(&self, workspace_uid: WorkspaceUid) {
+        self.save_to_db([ModelEvent::SetCurrentWorkspace { workspace_uid }]);
     }
 
     fn handle_model_event(&mut self, event: &SyncQueueEvent, ctx: &mut ModelContext<Self>) {
@@ -1083,10 +1033,6 @@ impl UpdateManager {
     }
 
     fn handle_team_memberships_changed(&mut self, ctx: &mut ModelContext<UpdateManager>) {
-        // Immediately check for updates in workspace metadata
-        TeamUpdateManager::handle(ctx).update(ctx, |manager, ctx| {
-            std::mem::drop(manager.refresh_workspace_metadata(ctx));
-        });
         self.refresh_updated_objects(ctx);
     }
 

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use ai::api_keys::ApiKeyManager;
 use chrono::Duration;
 use warp_core::telemetry::testing::MockTelemetryContextProvider;
@@ -9,22 +7,6 @@ use super::*;
 use crate::auth::AuthStateProvider;
 use crate::pricing::PricingInfoModel;
 use crate::server::server_api::ServerApiProvider;
-use crate::server::server_api::team::MockTeamClient;
-use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::workspaces::workspace::{Workspace, WorkspaceUid};
-
-fn create_test_workspace() -> (WorkspaceUid, Workspace) {
-    let server_id: crate::server::ids::ServerId = 1_i64.into();
-    let uid = WorkspaceUid::from(server_id);
-    let workspace = Workspace::from_local_cache(uid, "Test Workspace".to_string(), None);
-    (uid, workspace)
-}
-
-fn add_user_workspaces_with_workspace(app: &mut App, workspace: Workspace) {
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(Arc::new(MockTeamClient::new()), vec![workspace], ctx)
-    });
-}
 
 fn add_request_usage_model(app: &mut App) -> ModelHandle<AIRequestUsageModel> {
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
@@ -87,7 +69,6 @@ fn test_request_limit_info() {
                 max_files_per_repo: 5000,
                 embedding_generation_batch_size: 100,
             };
-            assert_eq!(200, request_usage_model.request_limit());
             assert_eq!(161, request_usage_model.requests_remaining());
         })
     });
@@ -112,7 +93,6 @@ fn test_request_limit_info_with_limit() {
                 max_files_per_repo: 5000,
                 embedding_generation_batch_size: 100,
             };
-            assert_eq!(999999999, request_usage_model.request_limit());
             assert_eq!(999999960, request_usage_model.requests_remaining());
         })
     });
@@ -137,7 +117,6 @@ fn test_request_limit_info_past_refresh_time() {
                 max_files_per_repo: 5000,
                 embedding_generation_batch_size: 100,
             };
-            assert_eq!(200, request_usage_model.request_limit());
             assert_eq!(200, request_usage_model.requests_remaining());
         })
     });
@@ -162,7 +141,6 @@ fn test_request_limit_info_is_unlimited_true() {
                 max_files_per_repo: 5000,
                 embedding_generation_batch_size: 100,
             };
-            assert_eq!(999999999, request_usage_model.request_limit());
             assert_eq!(999999999, request_usage_model.requests_remaining());
         })
     });
@@ -206,41 +184,6 @@ fn test_ambient_credits_banner_dismissal_loads_from_preferences() {
         });
     });
 }
-#[test]
-fn test_total_workspace_and_team_bonus_credits_counts_both_scopes() {
-    App::test((), |mut app| async move {
-        let (uid, workspace) = create_test_workspace();
-        let other_uid = WorkspaceUid::from(crate::server::ids::ServerId::from(2_i64));
-        add_user_workspaces_with_workspace(&mut app, workspace);
-        let request_usage_model = add_request_usage_model(&mut app);
-
-        request_usage_model.update(&mut app, |model, _ctx| {
-            let make = |scope, remaining| BonusGrant {
-                created_at: Utc::now(),
-                cost_cents: 0,
-                expiration: None,
-                grant_type: BonusGrantType::Any,
-                reason: "test".to_string(),
-                user_facing_message: None,
-                request_credits_granted: remaining,
-                request_credits_remaining: remaining,
-                scope,
-            };
-            model.bonus_grants = vec![
-                make(BonusGrantScope::User, 5),
-                make(BonusGrantScope::Team(uid), 7),
-                make(BonusGrantScope::Workspace(uid), 11),
-                make(BonusGrantScope::Team(other_uid), 13),
-            ];
-
-            assert_eq!(
-                model.total_workspace_and_team_bonus_credits_remaining(uid),
-                18
-            );
-        });
-    });
-}
-
 /// The 30 tests this replaces each described a way to *earn* the right to make
 /// an AI request — base quota, bonus grants, overages, pay-as-you-go, auto
 /// reload, a BYO key. SimpleWarp does not meter requests, so there is nothing

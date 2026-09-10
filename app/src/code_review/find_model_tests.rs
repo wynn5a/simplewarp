@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use repo_metadata::repositories::DetectedRepositories;
 use string_offset::CharOffset;
@@ -23,7 +22,6 @@ use crate::code_review::code_review_view::CodeReviewView;
 use crate::code_review::diff_state::DiffStateModel;
 use crate::pane_group::WorkingDirectoriesModel;
 use crate::server::server_api::ServerApiProvider;
-use crate::server::server_api::team::MockTeamClient;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
@@ -158,9 +156,7 @@ fn initialize_test_app(app: &mut App) {
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
     app.add_singleton_model(|_| DetectedRepositories::default());
     app.add_singleton_model(|_| GlobalCodeReviewModel);
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(Arc::new(MockTeamClient::new()), vec![], ctx)
-    });
+    app.add_singleton_model(|ctx| UserWorkspaces::mock(vec![], ctx));
 
     // Add mocks required by rich text editor (used in the CommentEditor)
     app.add_singleton_model(CloudModel::mock);

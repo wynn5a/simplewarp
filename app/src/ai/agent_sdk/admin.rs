@@ -211,48 +211,39 @@ pub fn whoami(ctx: &mut AppContext, output_format: OutputFormat) -> Result<()> {
         workspace_name: None,
     };
 
-    // Refresh workspace metadata before reading team info, so we don't print
-    // stale or missing team data if the metadata hasn't been fetched yet.
+    // Read team info from the persisted workspace state.
     let runner = ctx.add_singleton_model(|_| WhoamiRunner);
     runner.update(ctx, move |_, ctx| {
-        let refresh_future = super::common::refresh_workspace_metadata(ctx);
-        ctx.spawn(refresh_future, move |_, result, ctx| {
-            if let Err(err) = result {
-                // Do not prevent showing user info if fetching team metadata fails.
-                log::warn!("Failed to refresh team metadata for whoami: {err:#}");
-            }
+        info.set_workspace(UserWorkspaces::as_ref(ctx).current_workspace(), user_uid);
 
-            info.set_workspace(UserWorkspaces::as_ref(ctx).current_workspace(), user_uid);
-
-            match output_format {
-                OutputFormat::Json => {
-                    match serde_json::to_string(&info).context("whoami output should serialize") {
-                        Ok(json) => println!("{json}"),
-                        Err(err) => {
-                            ctx.terminate_app(TerminationMode::ForceTerminate, Some(Err(err)));
-                            return;
-                        }
+        match output_format {
+            OutputFormat::Json => {
+                match serde_json::to_string(&info).context("whoami output should serialize") {
+                    Ok(json) => println!("{json}"),
+                    Err(err) => {
+                        ctx.terminate_app(TerminationMode::ForceTerminate, Some(Err(err)));
+                        return;
                     }
                 }
-                OutputFormat::Pretty => {
-                    println!("{}", info.pretty(principal_type));
-                }
-                OutputFormat::Text => {
-                    println!("{}:{}", info.principal_type, info.uid);
-                }
-                OutputFormat::Ndjson => {
-                    ctx.terminate_app(
-                        TerminationMode::ForceTerminate,
-                        Some(Err(anyhow::anyhow!(
-                            "`whoami` does not support `--output-format ndjson`"
-                        ))),
-                    );
-                    return;
-                }
             }
+            OutputFormat::Pretty => {
+                println!("{}", info.pretty(principal_type));
+            }
+            OutputFormat::Text => {
+                println!("{}:{}", info.principal_type, info.uid);
+            }
+            OutputFormat::Ndjson => {
+                ctx.terminate_app(
+                    TerminationMode::ForceTerminate,
+                    Some(Err(anyhow::anyhow!(
+                        "`whoami` does not support `--output-format ndjson`"
+                    ))),
+                );
+                return;
+            }
+        }
 
-            ctx.terminate_app(TerminationMode::ForceTerminate, None);
-        });
+        ctx.terminate_app(TerminationMode::ForceTerminate, None);
     });
 
     Ok(())

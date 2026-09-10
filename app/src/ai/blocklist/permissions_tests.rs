@@ -26,7 +26,6 @@ use crate::server::sync_queue::SyncQueue;
 use crate::settings::{AISettings, AgentModeCommandExecutionPredicate, PrivacySettings};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::test_util::settings::initialize_settings_for_tests_with_mode;
-use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::SandboxedAgentSettings;
 use crate::{
@@ -72,7 +71,6 @@ fn initialize_permissions_test_with_mode(
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(SyncQueue::mock);
     app.add_singleton_model(|_| NetworkStatus::new());
-    app.add_singleton_model(TeamTesterStatus::mock);
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| TemplatableMCPServerManager::default());

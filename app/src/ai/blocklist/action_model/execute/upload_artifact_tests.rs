@@ -29,7 +29,6 @@ use crate::terminal::model::terminal_model::BlockIndex;
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::shell::ShellType;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 fn build_upload_artifact_action(file_path: &str) -> AIAgentAction {
@@ -58,7 +57,6 @@ fn initialize_upload_artifact_test(
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(SyncQueue::mock);
     app.add_singleton_model(|_| NetworkStatus::new());
-    app.add_singleton_model(TeamTesterStatus::mock);
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| TemplatableMCPServerManager::default());

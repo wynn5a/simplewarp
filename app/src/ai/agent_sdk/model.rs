@@ -32,33 +32,20 @@ impl ModelCommandRunner {
     fn list(&self, global_options: GlobalOptions, ctx: &mut ModelContext<Self>) {
         let output_format = global_options.output_format;
 
-        // Ensure workspace metadata is refreshed so LLM preferences are up-to-date.
-        let refresh_future = super::common::refresh_workspace_metadata(ctx);
+        let llm_prefs = LLMPreferences::as_ref(ctx);
+        let mut ids = BTreeSet::new();
+        for info in llm_prefs.get_base_llm_choices_for_agent_mode(ctx) {
+            ids.insert(info.id.to_string());
+        }
 
-        ctx.spawn(refresh_future, move |_, refresh_result, ctx| {
-            if refresh_result.is_err() {
-                super::report_fatal_error(
-                    anyhow::anyhow!("Timed out refreshing workspace metadata"),
-                    ctx,
-                );
-                return;
-            }
+        let items = ids
+            .into_iter()
+            .map(|id| ModelListItem { id })
+            .collect::<Vec<_>>();
 
-            let llm_prefs = LLMPreferences::as_ref(ctx);
-            let mut ids = BTreeSet::new();
-            for info in llm_prefs.get_base_llm_choices_for_agent_mode(ctx) {
-                ids.insert(info.id.to_string());
-            }
+        output::print_list(items, output_format);
 
-            let items = ids
-                .into_iter()
-                .map(|id| ModelListItem { id })
-                .collect::<Vec<_>>();
-
-            output::print_list(items, output_format);
-
-            ctx.terminate_app(TerminationMode::ForceTerminate, None);
-        });
+        ctx.terminate_app(TerminationMode::ForceTerminate, None);
     }
 }
 

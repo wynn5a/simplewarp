@@ -4,7 +4,6 @@ pub mod action_button;
 mod agent_toast;
 pub mod alert;
 pub mod callout_bubble;
-mod clickable_text_input;
 mod compact_dropdown;
 pub mod compactible_action_button;
 pub mod compactible_split_action_button;
@@ -20,7 +19,6 @@ mod warning_box;
 
 pub use agent_toast::*;
 pub use alert::Alert;
-pub use clickable_text_input::*;
 pub use compact_dropdown::{CompactDropdown, CompactDropdownEvent, CompactDropdownItem};
 pub use dismissible_toast::*;
 pub use dropdown::{Dropdown, DropdownItem, DropdownItemAction};

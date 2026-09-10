@@ -39,7 +39,6 @@ use crate::settings::{
 use crate::terminal::general_settings::GeneralSettings;
 use crate::workflows::manager::WorkflowManager;
 use crate::workspace::{Workspace, WorkspaceAction};
-use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::{
     GlobalResourceHandlesProvider, focus_running_window_and_show_native_modal, persistence,
     send_telemetry_sync_from_app_ctx,
@@ -238,12 +237,9 @@ pub fn log_out(app: &mut AppContext) {
         sync_queue.clear();
     });
 
-    // Stop the cloud object and workspace metadata polling loops that were started on login.
+    // Stop the cloud object polling loop that was started on login.
     UpdateManager::handle(app).update(app, |manager, _| {
         manager.stop_polling_for_updated_objects();
-    });
-    TeamUpdateManager::handle(app).update(app, |manager, _| {
-        manager.stop_polling_for_workspace_metadata_updates();
     });
     remove_cloud_persisted_settings(app);
 

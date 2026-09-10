@@ -7,7 +7,7 @@ use warp_core::telemetry::{EnablementState, TelemetryEvent, TelemetryEventDesc};
 use warp_core::user_preferences::GetUserPreferences;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
-use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
+use crate::pricing::PricingInfoModel;
 
 const AGENT_DISMISSED_KEY: &str = "pricing_promotion_agent_dismissed";
 const TERMINAL_DISMISSED_KEY: &str = "pricing_promotion_terminal_dismissed";
@@ -48,13 +48,6 @@ pub struct PricingPromotionState {
 
 impl PricingPromotionState {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        ctx.subscribe_to_model(&PricingInfoModel::handle(ctx), |_, _, event, ctx| {
-            if matches!(event, PricingInfoModelEvent::PricingInfoUpdated) {
-                ctx.emit(PricingPromotionStateEvent::Updated);
-                ctx.notify();
-            }
-        });
-
         Self {
             agent_dismissed: Self::read_dismissed(AGENT_DISMISSED_KEY, ctx),
             terminal_dismissed: Self::read_dismissed(TERMINAL_DISMISSED_KEY, ctx),

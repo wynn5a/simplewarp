@@ -179,7 +179,6 @@ impl OzRunTimelineEvent {
 
 #[derive(Clone, Copy)]
 pub(crate) enum SetupStep {
-    TeamMetadataRefresh,
     WarpDriveSync,
     TaskDataFetch,
     EnvironmentResolution,
@@ -220,9 +219,6 @@ macro_rules! span_and_name {
 impl SetupStep {
     fn to_event_name_and_span(self) -> (&'static str, tracing::Span) {
         match self {
-            Self::TeamMetadataRefresh => {
-                span_and_name!("setup_team_metadata_refresh")
-            }
             Self::WarpDriveSync => {
                 span_and_name!("setup_warp_drive_sync")
             }

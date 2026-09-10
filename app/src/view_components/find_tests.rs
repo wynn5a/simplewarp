@@ -1,12 +1,9 @@
-use std::sync::Arc;
-
 use warp_core::ui::appearance::Appearance;
 use warpui::App;
 use warpui::platform::WindowStyle;
 
 use super::{Find, FindDirection, FindEvent, FindModel};
 use crate::auth::AuthStateProvider;
-use crate::server::server_api::team::MockTeamClient;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
@@ -40,9 +37,7 @@ fn initialize_test_app(app: &mut App) {
     app.add_singleton_model(|_| SyncedInputState::mock());
     app.add_singleton_model(|_| VimRegisters::new());
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(Arc::new(MockTeamClient::new()), vec![], ctx)
-    });
+    app.add_singleton_model(|ctx| UserWorkspaces::mock(vec![], ctx));
 }
 
 #[test]

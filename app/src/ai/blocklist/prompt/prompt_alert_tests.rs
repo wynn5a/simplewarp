@@ -1,11 +1,8 @@
-use std::sync::Arc;
-
 use warpui::App;
 
 use super::*;
 use crate::auth::AuthStateProvider;
 use crate::server::server_api::ServerApiProvider;
-use crate::server::server_api::team::MockTeamClient;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::workspaces::workspace::{Workspace, WorkspaceUid};
 
@@ -18,9 +15,7 @@ fn initialize_app_with_workspaces(app: &mut App, workspaces: Vec<Workspace>) {
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(Arc::new(MockTeamClient::new()), workspaces, ctx)
-    });
+    app.add_singleton_model(|ctx| UserWorkspaces::mock(workspaces, ctx));
     if app
         .models_of_type::<settings::PrivatePreferences>()
         .is_empty()

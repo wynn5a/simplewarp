@@ -1,5 +1,5 @@
 use warp_graphql::billing::{OveragesPricing, PlanPricing, PricingInfo, StripeSubscriptionPlan};
-use warpui::{Entity, ModelContext, SingletonEntity};
+use warpui::{Entity, SingletonEntity};
 
 /// A global model for maintaining pricing information from the server.
 #[derive(Debug)]
@@ -11,12 +11,6 @@ pub struct PricingInfoModel {
 impl PricingInfoModel {
     pub fn new() -> Self {
         Self { pricing_info: None }
-    }
-
-    /// Updates the model with the latest pricing information from the server.
-    pub fn update_pricing_info(&mut self, pricing_info: PricingInfo, ctx: &mut ModelContext<Self>) {
-        self.pricing_info = Some(pricing_info);
-        ctx.emit(PricingInfoModelEvent::PricingInfoUpdated);
     }
 
     /// Returns the current overage pricing information.
@@ -33,15 +27,6 @@ impl PricingInfoModel {
             .plans
             .iter()
             .find(|p| &p.plan == plan)
-    }
-
-    /// Returns the pricing data for all known plans, or an empty slice if
-    /// pricing information has not yet been fetched from the server.
-    pub fn plans(&self) -> &[PlanPricing] {
-        self.pricing_info
-            .as_ref()
-            .map(|info| info.plans.as_slice())
-            .unwrap_or(&[])
     }
 
     /// Returns the overage cost in dollars (converted from cents).
@@ -69,13 +54,8 @@ impl Default for PricingInfoModel {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum PricingInfoModelEvent {
-    PricingInfoUpdated,
-}
-
 impl Entity for PricingInfoModel {
-    type Event = PricingInfoModelEvent;
+    type Event = ();
 }
 
 impl SingletonEntity for PricingInfoModel {}

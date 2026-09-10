@@ -50,7 +50,7 @@ use crate::server::server_api::{ServerApi, ServerApiProvider, ServerTime};
 use crate::server::telemetry::{LaunchConfigUiLocation, TelemetryEvent};
 use crate::settings::QuakeModeSettings;
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
-use crate::settings_view::{OpenTeamsSettingsModalArgs, SettingsSection, flags};
+use crate::settings_view::{SettingsSection, flags};
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::keys_settings::KeysSettings;
@@ -62,7 +62,6 @@ use crate::util::bindings::{self, is_binding_pty_compliant};
 use crate::view_components::DismissibleToast;
 use crate::window_settings::WindowSettings;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceAction, WorkspaceRegistry};
-use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{
     ChannelState, GlobalResourceHandles, GlobalResourceHandlesProvider, UpdateQuakeModeEventArg,
@@ -230,14 +229,6 @@ pub fn init(app: &mut AppContext) {
         RootView::add_session_at_path,
     );
     app.add_action(
-        "root_view:handle_team_intent_link_action",
-        RootView::handle_team_intent_link_action,
-    );
-    app.add_action(
-        "root_view:open_team_settings_page",
-        RootView::open_team_settings_page,
-    );
-    app.add_action(
         "root_view:handle_notification_click",
         RootView::handle_notification_click,
     );
@@ -273,15 +264,6 @@ pub fn init(app: &mut AppContext) {
     app.add_action(
         "root_view:open_drive_object_existing_window",
         RootView::open_warp_drive_object_in_existing_window,
-    );
-
-    app.add_global_action(
-        "root_view:open_team_settings_with_email_invite_in_new_window",
-        open_team_settings_with_email_invite_in_new_window,
-    );
-    app.add_action(
-        "root_view:open_team_settings_with_email_invite_in_existing_window",
-        RootView::open_team_settings_with_email_invite_in_existing_window,
     );
 
     app.add_global_action(
@@ -777,22 +759,6 @@ fn open_conversation_viewer(conversation_id: &ServerConversationToken, ctx: &mut
         },
         ctx,
     );
-}
-
-fn open_team_settings_with_email_invite_in_new_window(
-    arg: &OpenTeamsSettingsModalArgs,
-    ctx: &mut AppContext,
-) {
-    let root_handle = open_new_window_get_handles(None, ctx).1;
-    root_handle.update(ctx, |root_view, ctx| {
-        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-        let email_invite = arg.invite_email.clone();
-        root_view.workspace.update(ctx, |_, ctx| {
-            let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                workspace.show_team_settings_page_with_email_invite(email_invite.as_ref(), ctx)
-            });
-        });
-    });
 }
 
 fn open_settings_page_in_new_window(section: &SettingsSection, ctx: &mut AppContext) {
@@ -1691,17 +1657,6 @@ impl RootView {
         true
     }
 
-    pub fn open_team_settings_with_email_invite_in_existing_window(
-        &mut self,
-        arg: &OpenTeamsSettingsModalArgs,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        self.workspace.update(ctx, |workspace, ctx| {
-            workspace.show_team_settings_page_with_email_invite(arg.invite_email.as_ref(), ctx)
-        });
-        true
-    }
-
     pub fn open_warp_drive_object_in_existing_window(
         &mut self,
         arg: &OpenWarpDriveObjectArgs,
@@ -1780,36 +1735,6 @@ impl RootView {
             );
             ctx.windows().show_window_and_focus_app(window_id);
         });
-        true
-    }
-
-    /// Shows the user the settings view of their newly joined team
-    /// within the app.
-    pub fn handle_team_intent_link_action(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
-        // Force-open warp drive.
-        let window_id = ctx.window_id();
-        ctx.dispatch_typed_action_for_view(
-            window_id,
-            self.workspace.id(),
-            &WorkspaceAction::OpenWarpDrive,
-        );
-        ctx.windows().show_window_and_focus_app(window_id);
-
-        // Use the team tester model to notify relevant subscribers to refresh their data.
-        TeamTesterStatus::handle(ctx).update(ctx, |model, ctx| {
-            model.initiate_data_pollers(true, ctx);
-        });
-        true
-    }
-
-    pub fn open_team_settings_page(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
-        let window_id = ctx.window_id();
-        ctx.dispatch_typed_action_for_view(
-            window_id,
-            self.workspace.id(),
-            &WorkspaceAction::ShowSettingsPage(SettingsSection::Teams),
-        );
-        ctx.windows().show_window_and_focus_app(window_id);
         true
     }
 

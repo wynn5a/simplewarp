@@ -21,11 +21,9 @@ use crate::search::mixer::SyncDataSource;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
-use crate::server::server_api::team::MockTeamClient;
 use crate::server::sync_queue::SyncQueue;
 use crate::settings::AISettings;
 use crate::system::SystemStats;
-use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
@@ -66,9 +64,7 @@ fn mock_server_ai_fact(id: i64, name: &str, content: &str, revision: Revision) -
 fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
-    let mock_team_client = Arc::new(MockTeamClient::new());
-    app.add_singleton_model(|ctx| UserWorkspaces::mock(mock_team_client.clone(), vec![], ctx));
-    app.add_singleton_model(TeamTesterStatus::new);
+    app.add_singleton_model(|ctx| UserWorkspaces::mock(vec![], ctx));
     app.add_singleton_model(SyncQueue::mock);
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|ctx| UpdateManager::new(None, Arc::new(MockObjectClient::new()), ctx));

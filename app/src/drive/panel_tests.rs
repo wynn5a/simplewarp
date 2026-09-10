@@ -18,7 +18,6 @@ use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::terminal::resizable_data::ResizableData;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{ASSETS, ObjectActions};
 
@@ -31,7 +30,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(SyncQueue::mock);
     app.add_singleton_model(|_| ResizableData::default());
-    app.add_singleton_model(TeamTesterStatus::mock);
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(CloudViewModel::mock);
     app.add_singleton_model(|_| ObjectActions::new(Vec::new()));
@@ -58,9 +56,8 @@ fn test_warp_drive_sections_with_no_team() {
         let index = panel.read(&app, |panel, _| panel.index_view.clone());
         index.read(&app, |index, _| {
             let sections = index.sections();
-            assert_eq!(sections.len(), 2);
-            assert_eq!(sections[0], DriveIndexSection::CreateATeam);
-            assert_eq!(sections[1], DriveIndexSection::Space(Space::Personal))
+            assert_eq!(sections.len(), 1);
+            assert_eq!(sections[0], DriveIndexSection::Space(Space::Personal))
         });
     })
 }

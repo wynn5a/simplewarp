@@ -590,14 +590,6 @@ fn make_new_drive_menu(ctx: &AppContext) -> Menu {
         updateable_custom_item_without_checkmark(CustomAction::ToggleWarpDrive, ctx),
         updateable_custom_item_without_checkmark(CustomAction::SearchDrive, ctx),
     ]);
-    // Team settings live behind an account, and the binding that titles this item is gated with
-    // the rest of the cloud settings pages. See the note above `CreateBlockPermalink`.
-    if crate::features::warp_account_available() {
-        items.push(updateable_custom_item_without_checkmark(
-            CustomAction::OpenTeamSettings,
-            ctx,
-        ));
-    }
     items.extend([
         updateable_custom_item_without_checkmark(CustomAction::OpenAIFactCollection, ctx),
         updateable_custom_item_without_checkmark(CustomAction::OpenMCPServerCollection, ctx),

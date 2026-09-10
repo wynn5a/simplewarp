@@ -65,7 +65,6 @@ use crate::network::NetworkStatus;
 use crate::notebooks::editor::model::FileLinkResolutionContext;
 use crate::persistence::ModelEvent;
 use crate::send_telemetry_from_ctx;
-use crate::server::server_api::AIApiError;
 #[cfg(not(target_family = "wasm"))]
 use crate::server::server_api::ServerApiProvider;
 use crate::server::telemetry::TelemetryEvent;
@@ -77,7 +76,6 @@ use crate::terminal::model::session::SessionType;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::terminal_model::TerminalModel;
 use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
-use crate::workspaces::update_manager::TeamUpdateManager;
 
 #[derive(Debug, Clone)]
 pub struct SessionContext {
@@ -2785,19 +2783,6 @@ impl BlocklistAIController {
                         }
                     }
                     Err(e) => {
-                        if matches!(e.as_ref(), AIApiError::QuotaLimit { .. }) {
-                            // If the error is a quota limit, we want to refresh workspace metadata
-                            // So the current state of AI overages is immediately up to date.
-                            TeamUpdateManager::handle(ctx).update(
-                                ctx,
-                                |team_update_manager, ctx| {
-                                    std::mem::drop(
-                                        team_update_manager.refresh_workspace_metadata(ctx),
-                                    );
-                                },
-                            );
-                        }
-
                         // A resume scheduled for this failure keeps the conversation in
                         // the non-terminal TransientError status instead of Error.
                         let recovery_pending = response_stream

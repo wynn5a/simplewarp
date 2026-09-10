@@ -17,7 +17,6 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::auth::AuthStateProvider;
 use crate::server::server_api::ai::AIClient;
 use crate::settings::AISettings;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::WorkspaceUid;
 
 /// Threshold of ambient-only credits at which we surface upgrade/CTA UI.
@@ -421,10 +420,6 @@ impl AIRequestUsageModel {
         true
     }
 
-    pub fn request_limit(&self) -> usize {
-        self.request_limit_info.limit
-    }
-
     /// Returns the number of indices the user's tier allows them to create and the number of files
     /// the user's tier allows them to index. If the user is allowed unlimited indices, then the
     /// max_indices_allowed is None.
@@ -485,26 +480,6 @@ impl AIRequestUsageModel {
         self.ambient_credits_banner_dismissed = true;
         cache_ambient_credits_banner_dismissed(true, ctx);
         ctx.emit(AIRequestUsageModelEvent::AmbientCreditsBannerDismissed);
-    }
-
-    pub fn total_workspace_and_team_bonus_credits_remaining(&self, uid: WorkspaceUid) -> i32 {
-        let now = Utc::now();
-        self.bonus_grants
-            .iter()
-            .filter(|grant| grant.scope.workspace_uid() == Some(uid))
-            .filter(|grant| grant.expiration.is_none_or(|exp| now < exp))
-            .map(|grant| grant.request_credits_remaining)
-            .sum()
-    }
-
-    pub fn total_current_workspace_and_team_bonus_credits_remaining(
-        &self,
-        ctx: &AppContext,
-    ) -> i32 {
-        UserWorkspaces::as_ref(ctx)
-            .current_workspace()
-            .map(|workspace| self.total_workspace_and_team_bonus_credits_remaining(workspace.uid))
-            .unwrap_or(0)
     }
 }
 
