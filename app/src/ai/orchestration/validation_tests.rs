@@ -78,14 +78,12 @@ fn accept_blocked_for_opencode_cloud() {
 fn accept_blocked_for_cloud_harness_with_unset_auth_secret() {
     with_app_ctx(|ctx| {
         for harness in ["claude", "codex"] {
-            for auth in [AuthSecretSelection::Unset, AuthSecretSelection::CreatingNew] {
-                let state = state(harness, cloud(), auth);
-                assert_eq!(
-                    accept_disabled_reason_with_auth(&state, ctx),
-                    Some("Select an API key for this harness to continue.".to_string()),
-                    "Cloud + {harness} without an API key choice should block Accept"
-                );
-            }
+            let state = state(harness, cloud(), AuthSecretSelection::Unset);
+            assert_eq!(
+                accept_disabled_reason_with_auth(&state, ctx),
+                Some("Select an API key for this harness to continue.".to_string()),
+                "Cloud + {harness} without an API key choice should block Accept"
+            );
         }
     });
 }

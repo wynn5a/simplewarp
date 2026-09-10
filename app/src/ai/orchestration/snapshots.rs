@@ -15,7 +15,6 @@ use super::providers::{
     get_base_model_choices, resolve_default_host_slug, resolve_recent_host_slug,
 };
 use crate::LLMPreferences;
-use crate::ai::auth_secret_types::auth_secret_types_for_harness;
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::connected_self_hosted_workers::ConnectedSelfHostedWorkersModel;
 use crate::ai::harness_availability::{AuthSecretFetchState, HarnessAvailabilityModel};
@@ -93,9 +92,6 @@ pub enum OptionSourceStatus {
 pub enum OptionFooter {
     /// Free-form text entry (e.g. custom host slug).
     CustomText { label: String },
-    /// "New API key…" affordance. The GUI renders it for harnesses that
-    /// support managed secrets; the TUI intentionally omits resource creation.
-    CreateNewAuthSecret,
 }
 
 /// A complete option list for one configuration field.
@@ -416,8 +412,7 @@ enum AuthSecretNamesInput {
 
 /// Builds the API-key options: "Skip (advanced)" (inherit) plus loaded
 /// managed-secret names. Secret values are never included — names only.
-/// Status mirrors `AuthSecretFetchState`; the `CreateNewAuthSecret`
-/// footer is emitted for harnesses with managed-secret types.
+/// Status mirrors `AuthSecretFetchState`.
 pub fn api_key_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> OptionSnapshot {
     let Some(harness) = Harness::parse_orchestration_harness(&state.harness_type) else {
         return OptionSnapshot::ready(Vec::new(), None);
@@ -429,15 +424,13 @@ pub fn api_key_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> O
         AuthSecretFetchState::NotFetched => AuthSecretNamesInput::NotLoaded,
         AuthSecretFetchState::Failed(_) => AuthSecretNamesInput::Failed,
     };
-    let supports_create_new = !auth_secret_types_for_harness(harness).is_empty();
-    build_api_key_snapshot(names, &state.auth_secret_selection, supports_create_new)
+    build_api_key_snapshot(names, &state.auth_secret_selection)
 }
 
 /// Pure core of [`api_key_snapshot`].
 fn build_api_key_snapshot(
     names: AuthSecretNamesInput,
     selection: &AuthSecretSelection,
-    supports_create_new: bool,
 ) -> OptionSnapshot {
     let mut rows = vec![OptionRow::new(String::new(), AUTH_SECRET_INHERIT_LABEL)];
     let status = match names {
@@ -454,17 +447,17 @@ fn build_api_key_snapshot(
     };
     // The selection derives directly from the edit state. `Named` is kept
     // even while the catalog is loading so a transient refresh never
-    // clears it; `Unset`/`CreatingNew` have no selected row.
+    // clears it; `Unset` has no selected row.
     let selected_id = match selection {
         AuthSecretSelection::Named(name) => Some(name.clone()),
         AuthSecretSelection::Inherit => Some(String::new()),
-        AuthSecretSelection::Unset | AuthSecretSelection::CreatingNew => None,
+        AuthSecretSelection::Unset => None,
     };
     OptionSnapshot {
         rows,
         selected_id,
         status,
-        footer: supports_create_new.then_some(OptionFooter::CreateNewAuthSecret),
+        footer: None,
     }
 }
 

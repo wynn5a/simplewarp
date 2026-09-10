@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tempfile::NamedTempFile;
 use warp_cli::agent::Harness;
-use warp_managed_secrets::ManagedSecretValue;
 use warpui::{ModelHandle, ModelSpawner};
 
 use super::super::terminal::{CommandHandle, TerminalDriver};
@@ -48,7 +47,6 @@ impl ThirdPartyHarness for GeminiHarness {
         working_dir: &Path,
         terminal_driver: ModelHandle<TerminalDriver>,
         _resolved_env_vars: &HashMap<OsString, OsString>,
-        _resolved_secrets: &HashMap<String, ManagedSecretValue>,
         _resolved_mcp_servers: &HashMap<String, JSONMCPServer>,
         _third_party_harness_model_config: Option<&HarnessModelConfig>,
     ) -> Result<Box<dyn HarnessRunner>, AgentDriverError> {

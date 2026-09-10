@@ -54,7 +54,6 @@ use settings::{Setting as _, ToggleableSetting};
 use string_offset::{ByteOffset, CharOffset};
 use vec1::Vec1;
 use vim::vim::{VimHandler, VimMode};
-use warp_cli::agent::Harness;
 use warp_completer::completer::{
     self, CompleterOptions, CompletionContext, CompletionsFallbackStrategy, Description,
     ExplicitTabCompletion, MatchStrategy, MatchType, PathSeparators, PreparedSuggestion,
@@ -163,7 +162,6 @@ use crate::ai::blocklist::{
     QueuedQuery, QueuedQueryEvent, QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin,
     SlashCommandRequest, ai_indicator_height, render_ai_agent_mode_icon, render_ai_follow_up_icon,
 };
-use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::ai::connected_self_hosted_workers::{
     ConnectedSelfHostedWorkersEvent, ConnectedSelfHostedWorkersModel,
 };
@@ -283,7 +281,6 @@ use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
 use crate::terminal::universal_developer_input::AtContextMenuDisabledReason;
 use crate::terminal::view::CodeDiffAction;
 use crate::terminal::view::ambient_agent::{
-    AuthSecretFtuxView, AuthSecretFtuxViewEvent, AuthSecretSelector, AuthSecretSelectorEvent,
     HarnessSelector, HarnessSelectorEvent, HostSelector, HostSelectorEvent, NakedHeaderButtonTheme,
 };
 use crate::terminal::view::inline_banner::{PromptSuggestionsEvent, PromptSuggestionsView};
@@ -1617,8 +1614,6 @@ struct AmbientAgentViewState {
     #[allow(dead_code)]
     harness_selector: ViewHandle<HarnessSelector>,
     host_selector: Option<ViewHandle<HostSelector>>,
-    auth_secret_selector: Option<ViewHandle<AuthSecretSelector>>,
-    auth_secret_ftux_view: Option<ViewHandle<AuthSecretFtuxView>>,
 }
 
 impl AmbientAgentViewState {
@@ -2113,77 +2108,10 @@ impl Input {
         view
     }
 
-    /// Builds the cloud-mode auth-secret selector and its FTUX view for an ambient agent view
-    /// model. Composer-only. Shared by [`Self::attach_ambient_agent_view_model`], which is the
-    /// single wiring point for both the eager (`Input::new`) and lazy (`SessionJoined`) paths.
-    fn build_auth_secret_selector(
-        view_model: ModelHandle<AmbientAgentViewModel>,
-        menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
-        ctx: &mut ViewContext<Self>,
-    ) -> (
-        ViewHandle<AuthSecretSelector>,
-        ViewHandle<AuthSecretFtuxView>,
-    ) {
-        let selector = ctx.add_typed_action_view(|ctx| {
-            AuthSecretSelector::new(menu_positioning_provider.clone(), view_model.clone(), ctx)
-        });
-        ctx.subscribe_to_view(&selector, |me, _, event, ctx| match event {
-            AuthSecretSelectorEvent::MenuVisibilityChanged { open: false } => {
-                me.focus_input_box(ctx);
-            }
-            AuthSecretSelectorEvent::NewTypeSelected {
-                harness,
-                type_index,
-            } => {
-                if let Some(ftux_view) = me.auth_secret_ftux_view().cloned() {
-                    let harness = *harness;
-                    let type_index = *type_index;
-                    ftux_view.update(ctx, |view, ctx| {
-                        view.enter_creation_state_public(harness, type_index, ctx);
-                    });
-                }
-                ctx.notify();
-            }
-            AuthSecretSelectorEvent::MenuVisibilityChanged { open: true } => {}
-        });
-        let initial_harness = view_model.as_ref(ctx).selected_harness();
-        let ftux_view =
-            ctx.add_typed_action_view(|ctx| AuthSecretFtuxView::new(initial_harness, ctx));
-
-        // Forward the pane's harness changes into the FTUX view.
-        let ftux_for_harness_sub = ftux_view.clone();
-        ctx.subscribe_to_model(&view_model, move |_me, vm, event, ctx| {
-            if matches!(event, AmbientAgentViewModelEvent::HarnessSelected) {
-                let harness = vm.as_ref(ctx).selected_harness();
-                ftux_for_harness_sub.update(ctx, |view, ctx| {
-                    view.set_harness(harness, ctx);
-                });
-            }
-        });
-
-        // Cloud-mode side effects on FTUX events: reset to Oz on Cancel, mark FTUX completed on Skip.
-        let vm_for_events = view_model.clone();
-        ctx.subscribe_to_view(&ftux_view, move |_me, _, event, ctx| match event {
-            AuthSecretFtuxViewEvent::Cancelled => {
-                vm_for_events.update(ctx, |model, ctx| {
-                    model.set_harness(Harness::Oz, ctx);
-                });
-            }
-            AuthSecretFtuxViewEvent::Skipped { harness } => {
-                let harness = *harness;
-                CloudAgentSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    settings.mark_harness_auth_ftux_completed(harness, ctx);
-                });
-            }
-            AuthSecretFtuxViewEvent::Failed { .. } => {}
-        });
-        (selector, ftux_view)
-    }
-
     /// Wires an ambient agent view model into this input. This is the SINGLE wiring point,
     /// invoked by both `Input::new` (eager/composer, when a model is supplied at construction)
     /// and the lazy cloud-pane path. Idempotent: a no-op when already wired. Builds the
-    /// composer-only sub-views (host / auth-secret / FTUX selectors).
+    /// composer-only host selector.
     pub(crate) fn attach_ambient_agent_view_model(
         &mut self,
         view_model: ModelHandle<AmbientAgentViewModel>,
@@ -2253,11 +2181,10 @@ impl Input {
         // in agent view, so unreachable for a cloud viewer) and per-exchange AI blocks / ambient
         // setup-command blocks (created after the model exists).
         //
-        // The host / auth-secret / FTUX selectors are composer-only: a viewer of an existing run
-        // does not compose a new run, so they stay `None` for a shared-session viewer.
+        // The host selector is composer-only: a viewer of an existing run does not compose a
+        // new run, so it stays `None` for a shared-session viewer.
         let is_cloud_mode_composer = self.model.lock().is_dummy_cloud_mode_session();
-        let (host_selector, auth_secret_selector, auth_secret_ftux_view) = if is_cloud_mode_composer
-        {
+        let host_selector = if is_cloud_mode_composer {
             let host_selector = Self::build_host_selector(
                 view_model.clone(),
                 self.menu_positioning_provider.clone(),
@@ -2273,25 +2200,14 @@ impl Input {
                     }
                 },
             );
-            let (auth_secret_selector, auth_secret_ftux_view) = Self::build_auth_secret_selector(
-                view_model.clone(),
-                self.menu_positioning_provider.clone(),
-                ctx,
-            );
-            (
-                Some(host_selector),
-                Some(auth_secret_selector),
-                Some(auth_secret_ftux_view),
-            )
+            Some(host_selector)
         } else {
-            (None, None, None)
+            None
         };
         self.ambient_agent_view_state = Some(AmbientAgentViewState {
             view_model,
             harness_selector,
             host_selector,
-            auth_secret_selector,
-            auth_secret_ftux_view,
         });
         ctx.notify();
     }
@@ -3764,18 +3680,6 @@ impl Input {
         self.ambient_agent_view_state
             .as_ref()
             .and_then(|state| state.host_selector.as_ref())
-    }
-
-    fn auth_secret_selector(&self) -> Option<&ViewHandle<AuthSecretSelector>> {
-        self.ambient_agent_view_state
-            .as_ref()
-            .and_then(|state| state.auth_secret_selector.as_ref())
-    }
-
-    pub(super) fn auth_secret_ftux_view(&self) -> Option<&ViewHandle<AuthSecretFtuxView>> {
-        self.ambient_agent_view_state
-            .as_ref()
-            .and_then(|state| state.auth_secret_ftux_view.as_ref())
     }
 
     /// Opens the V2 cloud-mode host selector popover, if the feature is enabled and the
@@ -7681,14 +7585,6 @@ impl Input {
     }
 
     pub fn focus_input_box(&self, ctx: &mut ViewContext<Self>) {
-        if self.should_show_auth_secret_ftux(ctx)
-            && let Some(ftux_view) = self.auth_secret_ftux_view().cloned()
-        {
-            ftux_view.update(ctx, |view, ctx| {
-                view.focus_dropdown_editor(ctx);
-            });
-            return;
-        }
         ctx.focus_self();
     }
 
@@ -7757,25 +7653,6 @@ impl Input {
     }
 
     fn editor_up(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.should_show_auth_secret_ftux(ctx) {
-            if let Some(ftux_view) = self.auth_secret_ftux_view().cloned() {
-                ftux_view.update(ctx, |view, ctx| {
-                    view.select_previous_in_dropdown(ctx);
-                });
-            }
-            return;
-        }
-
-        if let Some(selector) = self.auth_secret_selector()
-            && selector.as_ref(ctx).is_menu_open()
-        {
-            let selector = selector.clone();
-            selector.update(ctx, |selector, ctx| {
-                selector.select_previous(ctx);
-            });
-            return;
-        }
-
         if self.is_editing_queued_prompt(ctx) {
             return;
         }

@@ -8,7 +8,6 @@ use warp_errors::report_if_error;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::LLMPreferences;
-use crate::ai::auth_secret_types::auth_secret_types_for_harness;
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::ai::cloud_environments::CloudEnvironmentCatalog;
 use crate::ai::connected_self_hosted_workers::WARP_WORKER_HOST;
@@ -231,8 +230,7 @@ pub fn resolve_auth_secret_selection_for_harness(
 /// Persists the user's auth-secret choice for the active harness.
 /// `Named` writes to `last_selected_auth_secret` and clears any prior
 /// `Inherit` flag. `Inherit` clears the named entry and sets the inherit
-/// flag. `Unset`/`CreatingNew` clear both (no recorded choice). No-op for
-/// Oz / unknown.
+/// flag. `Unset` clears both (no recorded choice). No-op for Oz / unknown.
 pub(crate) fn persist_auth_secret_selection(
     harness_type: &str,
     selection: &AuthSecretSelection,
@@ -258,7 +256,7 @@ pub(crate) fn persist_auth_secret_selection(
                 named_map.remove(&key);
                 inherit_map.insert(key, true);
             }
-            AuthSecretSelection::Unset | AuthSecretSelection::CreatingNew => {
+            AuthSecretSelection::Unset => {
                 named_map.remove(&key);
                 inherit_map.remove(&key);
             }
@@ -281,7 +279,7 @@ fn requires_default_auth_secret_for_execution(request: &RunAgentsRequest) -> boo
     let Some(harness) = Harness::parse_orchestration_harness(&request.harness_type) else {
         return false;
     };
-    harness != Harness::Oz && !auth_secret_types_for_harness(harness).is_empty()
+    super::validation::harness_supports_auth_secrets(harness)
 }
 
 /// Whether the request can execute as-is: either it doesn't need a

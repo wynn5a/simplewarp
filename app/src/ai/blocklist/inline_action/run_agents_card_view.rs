@@ -173,9 +173,6 @@ impl OrchestrationControlAction for RunAgentsCardViewAction {
     fn auth_secret_changed(auth_secret_name: Option<String>) -> Self {
         Self::AuthSecretChanged { auth_secret_name }
     }
-    fn create_new_auth_secret_requested() -> Self {
-        Self::CreateNewAuthSecretRequested
-    }
 }
 
 /// Per-action UI handles for the confirmation card.
@@ -192,29 +189,13 @@ pub enum RunAgentsCardViewAction {
     AcceptWithoutOrchestration,
     ToggleAcceptMenu,
     Reject,
-    ExecutionModeToggled {
-        is_remote: bool,
-    },
-    ModelChanged {
-        model_id: String,
-    },
-    HarnessChanged {
-        harness_type: String,
-    },
-    EnvironmentChanged {
-        environment_id: String,
-    },
-    RunnerChanged {
-        runner_id: String,
-    },
-    WorkerHostChanged {
-        worker_host: String,
-    },
-    AuthSecretChanged {
-        auth_secret_name: Option<String>,
-    },
-    /// User picked the "New API key…" item; opens the workspace create modal.
-    CreateNewAuthSecretRequested,
+    ExecutionModeToggled { is_remote: bool },
+    ModelChanged { model_id: String },
+    HarnessChanged { harness_type: String },
+    EnvironmentChanged { environment_id: String },
+    RunnerChanged { runner_id: String },
+    WorkerHostChanged { worker_host: String },
+    AuthSecretChanged { auth_secret_name: Option<String> },
 }
 
 #[derive(Clone, Debug)]
@@ -467,7 +448,6 @@ impl RunAgentsCardView {
                     me.maybe_auto_open_create_modal(ctx);
                     ctx.notify();
                 }
-                HarnessAvailabilityEvent::AuthSecretCreationFailed { .. } => {}
             },
         );
 
@@ -1264,24 +1244,6 @@ impl TypedActionView for RunAgentsCardView {
                 self.orchestration_edit_state
                     .orchestration_config_state
                     .apply_auth_secret_change(auth_secret_name.clone(), ctx);
-                self.refresh_accept_button_state(ctx);
-                ctx.notify();
-            }
-            RunAgentsCardViewAction::CreateNewAuthSecretRequested => {
-                oc::apply_create_new_auth_secret_requested(
-                    &mut self.orchestration_edit_state.orchestration_config_state,
-                    ctx,
-                );
-                if let Some(harness) = warp_cli::agent::Harness::parse_orchestration_harness(
-                    &self
-                        .orchestration_edit_state
-                        .orchestration_config_state
-                        .harness_type,
-                ) {
-                    ctx.dispatch_typed_action(
-                        &crate::workspace::WorkspaceAction::OpenCreateAuthSecretModal { harness },
-                    );
-                }
                 self.refresh_accept_button_state(ctx);
                 ctx.notify();
             }

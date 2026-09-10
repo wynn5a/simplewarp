@@ -11,7 +11,6 @@ use tempfile::NamedTempFile;
 use uuid::Uuid;
 use warp_cli::agent::Harness;
 use warp_core::safe_info;
-use warp_managed_secrets::ManagedSecretValue;
 use warpui::{ModelHandle, ModelSpawner};
 
 use super::super::terminal::{CommandHandle, TerminalDriver};
@@ -82,7 +81,6 @@ impl ThirdPartyHarness for CodexHarness {
         working_dir: &Path,
         terminal_driver: ModelHandle<TerminalDriver>,
         resolved_env_vars: &HashMap<OsString, OsString>,
-        resolved_secrets: &HashMap<String, ManagedSecretValue>,
         resolved_mcp_servers: &HashMap<String, JSONMCPServer>,
         third_party_harness_model_config: Option<&HarnessModelConfig>,
     ) -> Result<Box<dyn HarnessRunner>, AgentDriverError> {
@@ -91,7 +89,6 @@ impl ThirdPartyHarness for CodexHarness {
             working_dir,
             system_prompt,
             resolved_env_vars,
-            resolved_secrets,
             resolved_mcp_servers,
             third_party_harness_model_config,
         )
@@ -233,7 +230,6 @@ const CODEX_AUTH_MODE_API_KEY: &str = "apikey";
 const CODEX_TRUST_LEVEL_TRUSTED: &str = "trusted";
 /// Top-level config key codex reads to override the built-in `openai` provider's base URL
 /// (codex `core/src/config/mod.rs`).
-const CODEX_OPENAI_BASE_URL_KEY: &str = "openai_base_url";
 const CODEX_CHECK_FOR_UPDATE_ON_STARTUP_KEY: &str = "check_for_update_on_startup";
 const CODEX_MODEL_KEY: &str = "model";
 const CODEX_MODEL_REASONING_EFFORT_KEY: &str = "model_reasoning_effort";
@@ -249,7 +245,6 @@ fn prepare_codex_environment_config(
     working_dir: &Path,
     system_prompt: Option<&str>,
     resolved_env_vars: &HashMap<OsString, OsString>,
-    resolved_secrets: &HashMap<String, ManagedSecretValue>,
     resolved_mcp_servers: &HashMap<String, JSONMCPServer>,
     third_party_harness_model_config: Option<&HarnessModelConfig>,
 ) -> Result<()> {
@@ -264,17 +259,11 @@ fn prepare_codex_environment_config(
         None => log::info!("No OPENAI_API_KEY available; skipping Codex auth.json seed"),
     }
 
-    // Resolve the base URL directly from the typed OpenAI secret. This avoids
-    // leaking base_url into the child process environment and ensures we only
-    // apply it when the typed secret is the active API key source.
-    let openai_base_url = resolve_openai_base_url_from_secret(resolved_secrets, resolved_env_vars);
-
     prepare_codex_config_toml(
         &codex_dir.join(CODEX_CONFIG_TOML_FILE_NAME),
         working_dir,
         resolved_mcp_servers,
         third_party_harness_model_config,
-        openai_base_url.as_deref(),
     )?;
     publish_warp_skill_dirs_for_codex(working_dir);
     Ok(())
@@ -424,45 +413,10 @@ fn resolve_openai_api_key(resolved_env_vars: &HashMap<OsString, OsString>) -> Op
         .filter(|s| !s.is_empty())
 }
 
-/// Returns the OpenAI base URL from the typed secret, if applicable.
-///
-/// The base URL is only used when the typed `OpenaiApiKey` secret is the active
-/// source of `OPENAI_API_KEY`. If a worker-injected process env already provides
-/// the API key, the typed-secret base URL is not applied (the worker controls
-/// both the key and endpoint).
-fn resolve_openai_base_url_from_secret(
-    secrets: &HashMap<String, ManagedSecretValue>,
-    resolved_env_vars: &HashMap<OsString, OsString>,
-) -> Option<String> {
-    // If the worker already injected an API key, the typed secret lost
-    // precedence — do not apply its base URL.
-    if std::env::var(OPENAI_API_KEY_ENV)
-        .ok()
-        .is_some_and(|v| !v.trim().is_empty())
-    {
-        return None;
-    }
-
-    // Only apply when the resolved env vars actually contain OPENAI_API_KEY
-    // from the typed secret (i.e. the secret was not skipped).
-    resolved_env_vars.get(OsStr::new(OPENAI_API_KEY_ENV))?;
-
-    secrets.values().find_map(|secret| match secret {
-        ManagedSecretValue::OpenaiApiKey { base_url, .. } => base_url
-            .as_ref()
-            .map(|s| s.trim().to_owned())
-            .filter(|s| !s.is_empty()),
-        _ => None,
-    })
-}
-
 /// Edit `~/.codex/config.toml` via `toml_edit` to seed the harness defaults
 /// while preserving anything that might already exist there. We handle:
 /// - project trust: for a working dir and all of its git repo subdirectories,
 ///   set the projects to `trusted`.
-/// - base URL: when `openai_base_url` is provided (from the secret's `base_url`
-///   field), write it to config.toml. When absent, skip the key entirely so
-///   Codex uses the provider's default global endpoint.
 /// - update checks: disable Codex's startup update prompt for unattended runs.
 /// - model override: when a non-default harness model config is
 ///   supplied, write the top-level `model` key so Codex pins the chosen model
@@ -472,7 +426,6 @@ fn prepare_codex_config_toml(
     working_dir: &Path,
     resolved_mcp_servers: &HashMap<String, JSONMCPServer>,
     third_party_harness_model_config: Option<&HarnessModelConfig>,
-    openai_base_url: Option<&str>,
 ) -> Result<()> {
     let existing = match fs::read_to_string(config_toml_path) {
         Ok(content) => content,
@@ -491,10 +444,6 @@ fn prepare_codex_config_toml(
         )
     })?;
 
-    // Only write openai_base_url when the secret specifies one.
-    if let Some(url) = openai_base_url {
-        set_codex_openai_base_url(&mut doc, url);
-    }
     set_codex_check_for_update_on_startup(&mut doc, false);
     set_codex_model(&mut doc, third_party_harness_model_config);
     set_codex_model_reasoning_effort(&mut doc, third_party_harness_model_config);
@@ -529,11 +478,6 @@ fn prepare_codex_config_toml(
             config_toml_path.display()
         )
     })
-}
-
-/// Set the top-level `openai_base_url` key, overwriting any existing value.
-fn set_codex_openai_base_url(doc: &mut toml_edit::DocumentMut, base_url: &str) {
-    doc[CODEX_OPENAI_BASE_URL_KEY] = toml_edit::value(base_url);
 }
 
 fn set_codex_check_for_update_on_startup(doc: &mut toml_edit::DocumentMut, enabled: bool) {

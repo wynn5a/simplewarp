@@ -1,6 +1,3 @@
-mod auth_secret_ftux_dropdown;
-mod auth_secret_ftux_view;
-pub(crate) mod auth_secret_selector;
 mod block;
 mod footer;
 mod harness_selector;
@@ -12,12 +9,6 @@ mod progress_ui_state;
 mod tips;
 mod view_impl;
 
-pub use auth_secret_ftux_view::{
-    AuthSecretFtuxAction, AuthSecretFtuxView, AuthSecretFtuxViewEvent,
-};
-pub use auth_secret_selector::{
-    AuthSecretSelector, AuthSecretSelectorAction, AuthSecretSelectorEvent,
-};
 pub use block::*;
 pub use footer::render_error_footer;
 pub use harness_selector::{HarnessSelector, HarnessSelectorAction, HarnessSelectorEvent};

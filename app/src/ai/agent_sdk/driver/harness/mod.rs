@@ -14,7 +14,6 @@ use warp_cli::{
     SESSION_SHARING_SERVER_URL_OVERRIDE_ENV, WS_SERVER_URL_OVERRIDE_ENV,
 };
 use warp_core::channel::ChannelState;
-use warp_managed_secrets::ManagedSecretValue;
 use warpui::{ModelHandle, ModelSpawner};
 
 use super::terminal::{CommandHandle, TerminalDriver};
@@ -96,11 +95,8 @@ pub(crate) trait ThirdPartyHarness: Send + Sync {
     /// trust, system prompt, MCP, etc.) and constructing the runner that will
     /// execute the CLI command.
     ///
-    /// `resolved_env_vars` contains already-resolved secret env vars (worker
-    /// env > typed secrets > raw values precedence already applied).
-    ///
-    /// `resolved_secrets` provides the raw typed managed secrets so harnesses
-    /// can read structured fields (e.g. `base_url`) without relying on env vars.
+    /// `resolved_env_vars` contains the env vars resolved for the terminal
+    /// session (worker env, task vars, harness model vars).
     #[allow(clippy::too_many_arguments)]
     fn build_runner(
         &self,
@@ -111,7 +107,6 @@ pub(crate) trait ThirdPartyHarness: Send + Sync {
         working_dir: &Path,
         terminal_driver: ModelHandle<TerminalDriver>,
         resolved_env_vars: &HashMap<OsString, OsString>,
-        resolved_secrets: &HashMap<String, ManagedSecretValue>,
         resolved_mcp_servers: &HashMap<String, JSONMCPServer>,
         third_party_harness_model_config: Option<&HarnessModelConfig>,
     ) -> Result<Box<dyn HarnessRunner>, AgentDriverError>;

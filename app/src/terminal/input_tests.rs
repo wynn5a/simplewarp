@@ -1262,14 +1262,6 @@ fn attach_ambient_view_model_builds_composer_selectors_for_dummy_cloud_pane() {
                 input.host_selector().is_some(),
                 "the initial cloud composer state must build the host selector"
             );
-            assert!(
-                input.auth_secret_selector().is_some(),
-                "the initial cloud composer state must build the auth-secret selector"
-            );
-            assert!(
-                input.auth_secret_ftux_view().is_some(),
-                "the initial cloud composer state must build the auth-secret FTUX view"
-            );
         });
     });
 }
@@ -1295,14 +1287,6 @@ fn attach_ambient_view_model_skips_composer_selectors_for_non_composer_pane() {
             assert!(
                 input.host_selector().is_none(),
                 "a non-composer pane must not build the host selector"
-            );
-            assert!(
-                input.auth_secret_selector().is_none(),
-                "a non-composer pane must not build the auth-secret selector"
-            );
-            assert!(
-                input.auth_secret_ftux_view().is_none(),
-                "a non-composer pane must not build the auth-secret FTUX view"
             );
         });
     });

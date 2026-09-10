@@ -33,7 +33,6 @@ use warp_core::features::FeatureFlag;
 use warp_core::{safe_debug, safe_error, safe_info};
 use warp_errors::{ErrorExt, register_error, report_error, report_if_error};
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
-use warp_managed_secrets::ManagedSecretValue;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::r#async::{FutureExt, TimeoutError, Timer};
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, ModelSpawner, SingletonEntity};
@@ -332,8 +331,6 @@ pub enum ResumeOptions {
 pub struct AgentDriverOptions {
     /// Initial working directory for the agent's terminal session.
     pub working_dir: PathBuf,
-    /// Secrets to inject into the agent's terminal session.
-    pub secrets: HashMap<String, ManagedSecretValue>,
     /// ID of the task being executed.
     pub task_id: Option<AmbientAgentTaskId>,
     /// Parent run ID for child orchestration flows, if this task was spawned by another run.
@@ -377,15 +374,9 @@ pub struct AgentDriver {
     terminal_driver: ModelHandle<terminal::TerminalDriver>,
     working_dir: PathBuf,
 
-    /// Secrets available to the running agent.
-    /// - Secrets are injected as environment variables when the terminal session is created.
-    /// - Secrets are passed to MCP servers during spawning.
-    secrets: Arc<HashMap<String, ManagedSecretValue>>,
-
-    /// Env vars passed to the terminal session, including resolved secrets, cloud
-    /// provider vars, task vars, and sandbox flags. Passed to
-    /// `build_runner` so harnesses can look up resolved secret values
-    /// without re-deriving precedence.
+    /// Env vars passed to the terminal session, including cloud provider
+    /// vars, task vars, and sandbox flags. Passed to `build_runner` so
+    /// harnesses can look up resolved values without re-deriving precedence.
     resolved_env_vars: Arc<HashMap<OsString, OsString>>,
 
     output_format: OutputFormat,
@@ -675,7 +666,6 @@ impl AgentDriver {
             should_share,
             idle_on_complete,
             idle_on_fail,
-            secrets,
             resume,
             environment,
             additional_source_repos,
@@ -716,7 +706,7 @@ impl AgentDriver {
                     _ => None,
                 });
 
-        let mut env_vars = build_secret_env_vars(&secrets);
+        let mut env_vars = HashMap::new();
 
         // Clone before consuming for env vars; the field on `Self` is
         // also needed at register time.
@@ -770,7 +760,6 @@ impl AgentDriver {
         Ok(Self {
             terminal_driver,
             working_dir,
-            secrets: Arc::new(secrets),
             resolved_env_vars,
             output_format: OutputFormat::default(),
             task_id,
@@ -809,7 +798,6 @@ impl AgentDriver {
         Self {
             terminal_driver,
             working_dir,
-            secrets: Arc::new(HashMap::new()),
             resolved_env_vars: Arc::new(HashMap::new()),
             output_format: OutputFormat::default(),
             task_id: None,
@@ -1107,11 +1095,10 @@ impl AgentDriver {
     }
 
     /// Resolve MCP specs into a map of MCP name to `JSONMCPServer` for use in
-    /// third-party harnesses. Each spec is fully resolved (secrets applied, templates
-    /// rendered) so harnesses can serialize directly into their native config format.
+    /// third-party harnesses. Each spec is fully resolved (templates rendered)
+    /// so harnesses can serialize directly into their native config format.
     async fn resolve_mcp_specs_to_json(
         specs: &[MCPSpec],
-        secrets: Arc<HashMap<String, ManagedSecretValue>>,
         foreground: &ModelSpawner<Self>,
     ) -> Result<HashMap<String, JSONMCPServer>, AgentDriverError> {
         let resolved_specs = Self::resolve_mcp_specs(specs, foreground).await?;
@@ -1133,17 +1120,15 @@ impl AgentDriver {
             .await??;
         installations.extend(resolved_specs.ephemeral_installations);
 
-        Self::mcp_installations_to_json(installations, secrets.as_ref())
+        Self::mcp_installations_to_json(installations)
     }
 
     fn mcp_installations_to_json(
         mut installations: Vec<TemplatableMCPServerInstallation>,
-        secrets: &HashMap<String, ManagedSecretValue>,
     ) -> Result<HashMap<String, JSONMCPServer>, AgentDriverError> {
         let mut result = HashMap::new();
 
         for installation in installations.iter_mut() {
-            installation.apply_secrets(secrets);
             let resolved = resolve_json(installation);
             let servers: HashMap<String, JSONMCPServer> = serde_json::from_str(&resolved)
                 .map_err(|e| AgentDriverError::MCPJsonParseError(e.to_string()))?;
@@ -1569,16 +1554,11 @@ impl AgentDriver {
     /// These servers are not persisted and exist only for the duration of the agent run.
     fn start_ephemeral_mcp_servers(
         &self,
-        mut installations: Vec<TemplatableMCPServerInstallation>,
+        installations: Vec<TemplatableMCPServerInstallation>,
         ctx: &mut ModelContext<Self>,
     ) -> impl Future<Output = Result<(), AgentDriverError>> + use<> {
         if installations.is_empty() {
             return Either::Right(future::ready(Ok(())));
-        }
-
-        // Inject secrets into the ephemeral MCP server installations.
-        for installation in installations.iter_mut() {
-            installation.apply_secrets(&self.secrets);
         }
 
         log::info!("Starting {} ephemeral MCP servers...", installations.len());
@@ -2982,24 +2962,14 @@ impl AgentDriver {
             }
         };
 
-        let (secrets, third_party_harness_model_config) = foreground
-            .spawn(|me, _| {
-                (
-                    Arc::clone(&me.secrets),
-                    me.third_party_harness_model_config.clone(),
-                )
-            })
+        let third_party_harness_model_config = foreground
+            .spawn(|me, _| me.third_party_harness_model_config.clone())
             .await
             .map_err(|_| AgentDriverError::InvalidRuntimeState)?;
 
-        // Clone the raw secrets before the MCP closure consumes the Arc, so the
-        // harness can read structured fields (e.g. OpenAI `base_url`) directly.
-        let secrets_for_harness = Arc::clone(&secrets);
-
         // Resolve MCP specs into harness-native JSON format.
         let mcp_specs = mcp_specs.to_vec();
-        let resolved_mcp_servers =
-            Self::resolve_mcp_specs_to_json(&mcp_specs, secrets, foreground).await?;
+        let resolved_mcp_servers = Self::resolve_mcp_specs_to_json(&mcp_specs, foreground).await?;
         if !resolved_mcp_servers.is_empty() {
             log::info!(
                 "Resolved {} MCP server(s) for third-party harness",
@@ -3021,7 +2991,6 @@ impl AgentDriver {
                 &working_dir,
                 terminal_driver,
                 &resolved_env_vars,
-                &secrets_for_harness,
                 &resolved_mcp_servers,
                 third_party_harness_model_config.as_ref(),
             )?
@@ -3742,124 +3711,6 @@ impl AgentDriver {
         log::info!(
             "Ambient agent lifecycle: event=driver_cleanup_started task_id={task_id:?} next=terminal_process_exit"
         );
-    }
-}
-
-/// Build the env-var map for the agent terminal session from managed secrets.
-///
-/// Invariant: the server resolves at most one typed auth secret per harness, so
-/// env-var collisions between typed secrets cannot occur in practice.
-///
-/// Precedence order:
-/// 1. Worker-injected process env (already non-empty in `std::env`). Never overridden.
-/// 2. Typed auth secrets (`AnthropicApiKey`, `AnthropicBedrock*`). Inserted atomically:
-///    if any one env var for a typed secret is already worker-injected, the entire
-///    secret is skipped.
-/// 3. Generic `RawValue` secrets. Skipped on collision with either of the above.
-fn build_secret_env_vars(
-    secrets: &HashMap<String, ManagedSecretValue>,
-) -> HashMap<OsString, OsString> {
-    let mut env_vars = HashMap::with_capacity(secrets.len() + 1);
-
-    // Phase 1: Record which env-var names are claimed by typed auth secrets.
-    let typed_env_names = typed_secret_env_names(secrets);
-
-    // Phase 2: Insert typed auth secrets atomically.
-    for (name, secret) in secrets {
-        let entries = typed_secret_entries(secret);
-        if entries.is_empty() {
-            continue;
-        }
-
-        if let Some((conflict, _)) = entries
-            .iter()
-            .find(|(env_name, _)| std::env::var(env_name).is_ok_and(|v| !v.is_empty()))
-        {
-            log::warn!(
-                "Skipping auth secret '{name}' ({:?}): '{conflict}' is already set \
-                 in the process environment",
-                secret.secret_type(),
-            );
-            continue;
-        }
-
-        for (env_name, env_value) in entries {
-            env_vars.insert(OsString::from(env_name), OsString::from(env_value));
-        }
-    }
-
-    // Phase 3: Insert generic RawValue secrets, skipping any that collide
-    // with worker-injected env vars or typed-secret-claimed names.
-    for (name, secret) in secrets {
-        let ManagedSecretValue::RawValue { value } = secret else {
-            continue;
-        };
-        let env_name = name.as_str();
-
-        if std::env::var(env_name).is_ok_and(|v| !v.is_empty()) {
-            log::warn!("Skipping managed secret {env_name}: already set in environment");
-            continue;
-        }
-        if typed_env_names.contains(env_name) {
-            log::warn!("Skipping generic secret '{env_name}': overridden by a typed auth secret");
-            continue;
-        }
-
-        env_vars.insert(OsString::from(env_name), OsString::from(value.as_str()));
-    }
-
-    env_vars
-}
-
-/// The env-var names that any typed auth secret in `secrets` will populate.
-/// Used for phase-3 collision detection and by the suffix resolver.
-fn typed_secret_env_names(secrets: &HashMap<String, ManagedSecretValue>) -> HashSet<&'static str> {
-    let mut names = HashSet::new();
-    for secret in secrets.values() {
-        for (env_name, _) in typed_secret_entries(secret) {
-            names.insert(env_name);
-        }
-    }
-    names
-}
-
-fn typed_secret_entries(secret: &ManagedSecretValue) -> Vec<(&'static str, &str)> {
-    match secret {
-        ManagedSecretValue::RawValue { .. } => vec![],
-        ManagedSecretValue::AnthropicApiKey { api_key } => {
-            vec![("ANTHROPIC_API_KEY", api_key.as_str())]
-        }
-        ManagedSecretValue::AnthropicBedrockApiKey {
-            aws_bearer_token_bedrock,
-            aws_region,
-        } => vec![
-            (
-                "AWS_BEARER_TOKEN_BEDROCK",
-                aws_bearer_token_bedrock.as_str(),
-            ),
-            ("CLAUDE_CODE_USE_BEDROCK", "1"),
-            ("AWS_REGION", aws_region.as_str()),
-        ],
-        ManagedSecretValue::AnthropicBedrockAccessKey {
-            aws_access_key_id,
-            aws_secret_access_key,
-            aws_session_token,
-            aws_region,
-        } => {
-            let mut entries = vec![
-                ("AWS_ACCESS_KEY_ID", aws_access_key_id.as_str()),
-                ("AWS_SECRET_ACCESS_KEY", aws_secret_access_key.as_str()),
-                ("CLAUDE_CODE_USE_BEDROCK", "1"),
-                ("AWS_REGION", aws_region.as_str()),
-            ];
-            if let Some(token) = aws_session_token.as_deref() {
-                entries.push(("AWS_SESSION_TOKEN", token));
-            }
-            entries
-        }
-        ManagedSecretValue::OpenaiApiKey { api_key, .. } => {
-            vec![("OPENAI_API_KEY", api_key.as_str())]
-        }
     }
 }
 

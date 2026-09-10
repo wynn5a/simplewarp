@@ -5,7 +5,6 @@ use warp_cli::agent::Harness;
 use warpui::AppContext;
 
 use super::config_state::{AuthSecretSelection, OrchestrationConfigState};
-use crate::ai::auth_secret_types::auth_secret_types_for_harness;
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::local_harness_setup::{
     LocalHarnessSetupState, local_harness_is_product_enabled, local_harness_setup_state,
@@ -38,6 +37,11 @@ pub fn harness_is_selectable(harness: Harness, is_local: bool) -> bool {
     local_harness_setup_is_ready(harness, is_local)
 }
 
+/// The harnesses with managed auth-secret types (Claude and Codex).
+pub(crate) fn harness_supports_auth_secrets(harness: Harness) -> bool {
+    matches!(harness, Harness::Claude | Harness::Codex)
+}
+
 /// Returns `true` when the auth secret picker should be visible: Cloud +
 /// non-Oz + a harness with at least one supported auth-secret type. Local
 /// non-Oz children inherit auth from the user's shell environment.
@@ -51,7 +55,7 @@ pub fn should_show_auth_secret_picker(state: &OrchestrationConfigState) -> bool 
     if harness == Harness::Oz {
         return false;
     }
-    !auth_secret_types_for_harness(harness).is_empty()
+    harness_supports_auth_secrets(harness)
 }
 
 /// `true` when the user must pick an API key (or Inherit) before Accept is
@@ -62,16 +66,7 @@ pub fn auth_secret_selection_required(state: &OrchestrationConfigState, _ctx: &A
     if !should_show_auth_secret_picker(state) {
         return false;
     }
-    if !matches!(
-        state.auth_secret_selection,
-        AuthSecretSelection::Unset | AuthSecretSelection::CreatingNew
-    ) {
-        return false;
-    }
-    let Some(harness) = Harness::parse_orchestration_harness(&state.harness_type) else {
-        return false;
-    };
-    if harness == Harness::Oz || auth_secret_types_for_harness(harness).is_empty() {
+    if !matches!(state.auth_secret_selection, AuthSecretSelection::Unset) {
         return false;
     }
     true

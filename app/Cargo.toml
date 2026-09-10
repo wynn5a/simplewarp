@@ -275,7 +275,6 @@ vim.workspace = true
 rmcp.workspace = true
 warp_isolation_platform.workspace = true
 warp_ripgrep.workspace = true
-warp_managed_secrets.workspace = true
 local_control.workspace = true
 local_inference.workspace = true
 

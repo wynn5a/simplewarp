@@ -36,7 +36,6 @@ use crate::ai::harness_availability::{HarnessAvailabilityEvent, HarnessAvailabil
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
 use crate::ui_components::blended_colors;
-use crate::workspace::WorkspaceAction;
 
 /// True when the mode is remote and `environment_id` is non-empty.
 fn env_presence(execution_mode: &RunAgentsExecutionMode) -> bool {
@@ -65,29 +64,13 @@ const BASE_MODEL_HELPER: &str = "The primary model all agents will use.";
 pub enum OrchestrationConfigBlockAction {
     ToggleApproval,
     ToggleDetails,
-    ExecutionModeToggled {
-        is_remote: bool,
-    },
-    ModelChanged {
-        model_id: String,
-    },
-    HarnessChanged {
-        harness_type: String,
-    },
-    EnvironmentChanged {
-        environment_id: String,
-    },
-    RunnerChanged {
-        runner_id: String,
-    },
-    WorkerHostChanged {
-        worker_host: String,
-    },
-    AuthSecretChanged {
-        auth_secret_name: Option<String>,
-    },
-    /// User picked the "New API key…" item; opens the workspace create modal.
-    CreateNewAuthSecretRequested,
+    ExecutionModeToggled { is_remote: bool },
+    ModelChanged { model_id: String },
+    HarnessChanged { harness_type: String },
+    EnvironmentChanged { environment_id: String },
+    RunnerChanged { runner_id: String },
+    WorkerHostChanged { worker_host: String },
+    AuthSecretChanged { auth_secret_name: Option<String> },
 }
 
 impl OrchestrationControlAction for OrchestrationConfigBlockAction {
@@ -108,9 +91,6 @@ impl OrchestrationControlAction for OrchestrationConfigBlockAction {
     }
     fn auth_secret_changed(auth_secret_name: Option<String>) -> Self {
         Self::AuthSecretChanged { auth_secret_name }
-    }
-    fn create_new_auth_secret_requested() -> Self {
-        Self::CreateNewAuthSecretRequested
     }
 }
 
@@ -234,7 +214,6 @@ impl OrchestrationConfigBlockView {
                     me.maybe_auto_open_create_modal(ctx);
                     ctx.notify();
                 }
-                HarnessAvailabilityEvent::AuthSecretCreationFailed { .. } => {}
             },
         );
 
@@ -920,23 +899,6 @@ impl TypedActionView for OrchestrationConfigBlockView {
                 self.orchestration_edit_state
                     .orchestration_config_state
                     .apply_auth_secret_change(auth_secret_name.clone(), ctx);
-                ctx.notify();
-            }
-            OrchestrationConfigBlockAction::CreateNewAuthSecretRequested => {
-                oc::apply_create_new_auth_secret_requested(
-                    &mut self.orchestration_edit_state.orchestration_config_state,
-                    ctx,
-                );
-                if let Some(harness) = Harness::parse_orchestration_harness(
-                    &self
-                        .orchestration_edit_state
-                        .orchestration_config_state
-                        .harness_type,
-                ) {
-                    ctx.dispatch_typed_action(&WorkspaceAction::OpenCreateAuthSecretModal {
-                        harness,
-                    });
-                }
                 ctx.notify();
             }
         }

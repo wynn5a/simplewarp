@@ -1,9 +1,8 @@
-use warp_cli::agent::Harness;
 use warp_core::settings::Setting;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     Align, AnchorPair, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    DispatchEventResult, DropTarget, Element, Empty, EventHandler, Expanded, Flex, Hoverable,
+    DispatchEventResult, DropTarget, Element, EventHandler, Expanded, Flex, Hoverable,
     MainAxisSize, OffsetPositioning, OffsetType, ParentElement, PositionedElementOffsetBounds,
     PositioningAxis, Radius, SavePosition, Stack, XAxisAnchor, YAxisAnchor,
 };
@@ -459,32 +458,6 @@ impl Input {
         SavePosition::new(outer_stack.finish(), &self.save_position_id()).finish()
     }
 
-    pub(super) fn should_show_auth_secret_ftux(&self, app: &AppContext) -> bool {
-        let Some(view_model) = self.ambient_agent_view_model() else {
-            return false;
-        };
-        let vm = view_model.as_ref(app);
-        let harness = vm.selected_harness();
-        if harness == Harness::Oz {
-            return false;
-        }
-        // Skip FTUX for harnesses that have no auth secret types defined.
-        if crate::ai::auth_secret_types::auth_secret_types_for_harness(harness).is_empty() {
-            return false;
-        }
-        if let Some(ftux_view) = self.auth_secret_ftux_view()
-            && ftux_view.as_ref(app).has_creation_state()
-        {
-            return true;
-        }
-        if crate::ai::cloud_agent_settings::CloudAgentSettings::as_ref(app)
-            .is_harness_auth_ftux_completed(harness)
-        {
-            return false;
-        }
-        vm.selected_harness_auth_secret_name().is_none()
-    }
-
     fn render_cloud_mode_v2_content(
         &self,
         appearance: &Appearance,
@@ -503,11 +476,7 @@ impl Input {
             column.add_child(ChildView::new(panel).finish());
         }
 
-        if self.should_show_auth_secret_ftux(app) {
-            column.add_child(self.render_auth_secret_ftux_content());
-        } else {
-            column.add_child(self.render_cloud_mode_v2_input_container(appearance, app));
-        }
+        column.add_child(self.render_cloud_mode_v2_input_container(appearance, app));
 
         Align::new(
             ConstrainedBox::new(column.finish())
@@ -515,13 +484,6 @@ impl Input {
                 .finish(),
         )
         .finish()
-    }
-
-    fn render_auth_secret_ftux_content(&self) -> Box<dyn Element> {
-        match self.auth_secret_ftux_view() {
-            Some(view) => ChildView::new(view).finish(),
-            None => Empty::new().finish(),
-        }
     }
 
     fn render_cloud_mode_v2_history_menu(&self, app: &AppContext) -> Option<Box<dyn Element>> {
@@ -560,16 +522,6 @@ impl Input {
         }
         if let Some(harness_selector) = self.harness_selector() {
             row.add_child(ChildView::new(harness_selector).finish());
-        }
-
-        if let Some(auth_secret_selector) = self.auth_secret_selector() {
-            let harness = self
-                .ambient_agent_view_model()
-                .map(|m| m.as_ref(app).selected_harness())
-                .unwrap_or(warp_cli::agent::Harness::Oz);
-            if harness != warp_cli::agent::Harness::Oz && !self.should_show_auth_secret_ftux(app) {
-                row.add_child(ChildView::new(auth_secret_selector).finish());
-            }
         }
 
         row.finish()

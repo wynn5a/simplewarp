@@ -60,7 +60,6 @@ use sentry::protocol::{Attachment, AttachmentType};
 use serde_json;
 #[cfg(target_family = "wasm")]
 use url::Url;
-use warp_cli::agent::Harness;
 use warp_core::context_flag::ContextFlag;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
@@ -360,7 +359,6 @@ use crate::terminal::session_settings::{
 };
 use crate::terminal::settings::{SpacingMode, TerminalSettings};
 use crate::terminal::shell::ShellType;
-use crate::terminal::view::ambient_agent::{AuthSecretFtuxView, AuthSecretFtuxViewEvent};
 #[cfg(feature = "local_tty")]
 use crate::terminal::view::docker_sandbox::DEFAULT_DOCKER_SANDBOX_BASE_IMAGE;
 use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
@@ -1067,10 +1065,6 @@ pub struct Workspace {
     tab_config_action_sidecar_item: Option<SidecarItemKind>,
     tab_config_action_sidecar_mouse_states: crate::tab_configs::action_sidecar::SidecarMouseStates,
     remove_tab_config_confirmation_dialog: ViewHandle<RemoveTabConfigConfirmationDialog>,
-    /// Workspace-level modal hosting `AuthSecretFtuxView` for the
-    /// orchestration cards' "New API key…" flow. Cloud mode renders the
-    /// FTUX view inline and does not use this.
-    create_auth_secret_modal: Option<ViewHandle<Modal<AuthSecretFtuxView>>>,
 }
 
 impl Workspace {
@@ -3067,7 +3061,6 @@ impl Workspace {
             tab_config_action_sidecar_mouse_states: Default::default(),
             remove_tab_config_confirmation_dialog:
                 Self::build_remove_tab_config_confirmation_dialog(ctx),
-            create_auth_secret_modal: None,
         };
 
         ws.configure_new_workspace(workspace_setting, ctx);
@@ -13826,48 +13819,6 @@ impl Workspace {
         });
     }
 
-    /// Opens the workspace-level blocking modal for creating a new managed
-    /// auth secret. Dismisses on Cancel/Skip; stays open on Failed (the view
-    /// already toasts) since there is no server to succeed against in this
-    /// build.
-    fn show_create_auth_secret_modal(&mut self, harness: Harness, ctx: &mut ViewContext<Self>) {
-        let body = ctx.add_typed_action_view(|ctx| {
-            AuthSecretFtuxView::new(harness, ctx)
-                .with_skip_hidden()
-                .with_compact_mode(ctx)
-        });
-        ctx.subscribe_to_view(&body, |me, _, event, ctx| match event {
-            AuthSecretFtuxViewEvent::Cancelled | AuthSecretFtuxViewEvent::Skipped { .. } => {
-                me.dismiss_create_auth_secret_modal(ctx);
-            }
-            // Keep the modal open on Failed; the view already toasts.
-            AuthSecretFtuxViewEvent::Failed { .. } => {}
-        });
-
-        let title = "New API key".to_string();
-        let modal = ctx.add_typed_action_view(|ctx| {
-            Modal::new(Some(title), body, ctx).with_modal_style(UiComponentStyles {
-                width: Some(520.),
-                ..Default::default()
-            })
-        });
-        ctx.subscribe_to_view(&modal, |me, _, event, ctx| {
-            if matches!(event, ModalEvent::Close) {
-                me.dismiss_create_auth_secret_modal(ctx);
-            }
-        });
-        ctx.focus(&modal);
-        self.create_auth_secret_modal = Some(modal);
-        ctx.notify();
-    }
-
-    fn dismiss_create_auth_secret_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.create_auth_secret_modal.take().is_some() {
-            self.focus_active_tab(ctx);
-            ctx.notify();
-        }
-    }
-
     /// Opens a local-to-cloud handoff pane in place over the active local pane.
     /// Triggered by `/handoff`, `&` compose mode, and the handoff footer chip.
     #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
@@ -21487,9 +21438,6 @@ impl TypedActionView for Workspace {
                     let _ = (terminal_view_id, conversation_id, trigger);
                 }
             }
-            OpenCreateAuthSecretModal { harness } => {
-                self.show_create_auth_secret_modal(*harness, ctx);
-            }
             OpenNetworkLogPane => {
                 self.open_network_log_pane(ctx);
             }
@@ -24189,10 +24137,6 @@ impl View for Workspace {
 
         if let Some(lightbox_view) = &self.lightbox_view {
             stack.add_child(ChildView::new(lightbox_view).finish());
-        }
-
-        if let Some(create_auth_secret_modal) = &self.create_auth_secret_modal {
-            stack.add_child(ChildView::new(create_auth_secret_modal).finish());
         }
 
         if self

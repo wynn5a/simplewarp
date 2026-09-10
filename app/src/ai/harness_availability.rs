@@ -7,8 +7,6 @@ use warp_cli::agent::Harness;
 use warp_core::features::FeatureFlag;
 use warp_core::user_preferences::GetUserPreferences;
 use warp_errors::report_error;
-use warp_managed_secrets::ManagedSecretValue;
-use warp_managed_secrets::client::SecretOwner;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::harness_display;
@@ -63,9 +61,6 @@ pub enum HarnessAvailabilityEvent {
     /// error state — without this signal the picker would otherwise be
     /// stuck on the loading placeholder until the next refetch.
     AuthSecretsFetchFailed,
-    AuthSecretCreationFailed {
-        error: String,
-    },
 }
 
 pub struct HarnessAvailabilityModel {
@@ -196,23 +191,6 @@ impl HarnessAvailabilityModel {
     pub fn invalidate_auth_secrets(&mut self, harness: Harness) {
         self.auth_secrets.remove(&harness);
         self.auth_secret_retry_after.remove(&harness);
-    }
-
-    /// There is no server to create a managed secret against in this build, so this
-    /// always fails immediately rather than round-tripping through a client that could
-    /// only ever answer with an error.
-    pub fn create_auth_secret(
-        &mut self,
-        harness: Harness,
-        _name: String,
-        _value: ManagedSecretValue,
-        _owner: SecretOwner,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let _ = harness;
-        ctx.emit(HarnessAvailabilityEvent::AuthSecretCreationFailed {
-            error: "Auth secrets are not available".to_string(),
-        });
     }
 
     pub fn refresh(&self, ctx: &mut ModelContext<Self>) {

@@ -31,9 +31,9 @@ use crate::ai::execution_profiles::model_menu_items::available_model_menu_items;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
 use crate::ai::orchestration::{
-    AUTH_SECRET_INHERIT_LABEL, OptionBadge, OptionFooter, OptionRow, OptionSnapshot,
-    OptionSourceStatus, api_key_snapshot, build_runner_snapshot, environment_snapshot,
-    harness_snapshot, host_snapshot, model_snapshot,
+    AUTH_SECRET_INHERIT_LABEL, OptionBadge, OptionRow, OptionSnapshot, OptionSourceStatus,
+    api_key_snapshot, build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot,
+    model_snapshot,
 };
 pub use crate::ai::orchestration::{
     AuthSecretSelection, ORCHESTRATION_WARP_WORKER_HOST, OrchestrationConfigState,
@@ -63,7 +63,6 @@ const ORCHESTRATION_SEGMENT_VERTICAL_PADDING: f32 = 4.;
 
 /// Label for the auth secret column.
 pub const AUTH_SECRET_COLUMN_LABEL: &str = "API key";
-const AUTH_SECRET_CREATE_NEW_LABEL: &str = "New API key…";
 
 /// Returns whether the client should expose the remote runner controls.
 ///
@@ -90,8 +89,6 @@ pub trait OrchestrationControlAction: DropdownItemAction + Clone {
     fn runner_changed(runner_id: String) -> Self;
     /// `None` means Inherit; `Some(name)` means a named managed secret.
     fn auth_secret_changed(name: Option<String>) -> Self;
-    /// User picked the "New API key…" item; opens the workspace create modal.
-    fn create_new_auth_secret_requested() -> Self;
 }
 
 // ── Picker handles ──────────────────────────────────────────────────
@@ -527,24 +524,18 @@ pub fn populate_host_picker<V: View>(
 
 // ── Auth secret helpers ──────────────────────────────────
 
-/// Trigger label for the auth-secret dropdown. `Unset` falls back to
-/// "+ New API key…" rather than auto-picking the first loaded key.
-fn auth_secret_trigger_label(selection: &AuthSecretSelection, supports_create_new: bool) -> String {
+/// Trigger label for the auth-secret dropdown.
+fn auth_secret_trigger_label(selection: &AuthSecretSelection) -> String {
     match selection {
         AuthSecretSelection::Named(name) => name.clone(),
-        AuthSecretSelection::Inherit => AUTH_SECRET_INHERIT_LABEL.to_string(),
-        AuthSecretSelection::CreatingNew => AUTH_SECRET_CREATE_NEW_LABEL.to_string(),
-        AuthSecretSelection::Unset if supports_create_new => {
-            AUTH_SECRET_CREATE_NEW_LABEL.to_string()
+        AuthSecretSelection::Inherit | AuthSecretSelection::Unset => {
+            AUTH_SECRET_INHERIT_LABEL.to_string()
         }
-        AuthSecretSelection::Unset => AUTH_SECRET_INHERIT_LABEL.to_string(),
     }
 }
 
-/// Populates the auth secret picker from [`api_key_snapshot`]: Inherit,
-/// loaded managed secrets, then a "+ New API key…" entry for harnesses
-/// with managed-secret types. Also kicks off a lazy fetch so subsequent
-/// paints replace "Loading…" with real entries.
+/// Populates the auth secret picker from [`api_key_snapshot`]: Inherit
+/// plus any loaded managed secrets.
 pub fn populate_auth_secret_picker_for_harness<A: OrchestrationControlAction, V: View>(
     dropdown: &ViewHandle<Dropdown<A>>,
     selection: &AuthSecretSelection,
@@ -570,8 +561,6 @@ pub fn populate_auth_secret_picker_for_harness<A: OrchestrationControlAction, V:
     state.auth_secret_selection = selection.clone();
     dropdown.update(ctx, |dropdown, ctx_dropdown| {
         let snapshot = api_key_snapshot(&state, ctx_dropdown);
-        let supports_create_new =
-            matches!(snapshot.footer, Some(OptionFooter::CreateNewAuthSecret));
         let mut items: Vec<MenuItem<DropdownAction>> = snapshot
             .rows
             .into_iter()
@@ -593,28 +582,10 @@ pub fn populate_auth_secret_picker_for_harness<A: OrchestrationControlAction, V:
             )),
             OptionSourceStatus::Ready | OptionSourceStatus::Empty { .. } => {}
         }
-        if supports_create_new {
-            items.push(MenuItem::Separator);
-            items.push(MenuItem::Item(
-                MenuItemFields::new(AUTH_SECRET_CREATE_NEW_LABEL).with_on_select_action(
-                    DropdownAction::select_action_and_close(A::create_new_auth_secret_requested()),
-                ),
-            ));
-        }
-        let final_selection =
-            auth_secret_trigger_label(&state.auth_secret_selection, supports_create_new);
+        let final_selection = auth_secret_trigger_label(&state.auth_secret_selection);
         dropdown.set_rich_items(items, ctx_dropdown);
         dropdown.set_selected_by_name(&final_selection, ctx_dropdown);
     });
-}
-
-/// Marks `CreatingNew` (not re-seeded from settings, so a background refresh
-/// can't restore a stale selection mid-create). Used by both card views.
-pub fn apply_create_new_auth_secret_requested<V: View>(
-    state: &mut OrchestrationConfigState,
-    _ctx: &mut ViewContext<V>,
-) {
-    state.select_create_new_auth_secret();
 }
 
 // ── Shared action helpers ───────────────────────────────────
@@ -779,11 +750,7 @@ pub fn sync_picker_selections<A: OrchestrationControlAction, V: View>(
         });
     }
     if let Some(auth_secret_picker) = handles.auth_secret_picker.clone() {
-        let supports_create_new = matches!(
-            api_key_snapshot(state, ctx).footer,
-            Some(OptionFooter::CreateNewAuthSecret)
-        );
-        let label = auth_secret_trigger_label(&state.auth_secret_selection, supports_create_new);
+        let label = auth_secret_trigger_label(&state.auth_secret_selection);
         auth_secret_picker.update(ctx, |dropdown, ctx_dropdown| {
             dropdown.set_selected_by_name(&label, ctx_dropdown);
         });

@@ -38,7 +38,7 @@ pub use snapshots::location_snapshot;
 #[allow(unused_imports)]
 pub use snapshots::oz_model_snapshot;
 pub use snapshots::{
-    OptionBadge, OptionFooter, OptionRow, OptionSnapshot, OptionSourceStatus, api_key_snapshot,
+    OptionBadge, OptionRow, OptionSnapshot, OptionSourceStatus, api_key_snapshot,
     build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot, model_snapshot,
 };
 pub use validation::{

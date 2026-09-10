@@ -11,7 +11,6 @@ use tempfile::NamedTempFile;
 use uuid::Uuid;
 use warp_cli::agent::Harness;
 use warp_core::safe_info;
-use warp_managed_secrets::ManagedSecretValue;
 use warpui::{ModelHandle, ModelSpawner};
 
 use super::super::terminal::{CommandHandle, TerminalDriver};
@@ -96,7 +95,6 @@ impl ThirdPartyHarness for ClaudeHarness {
         working_dir: &Path,
         terminal_driver: ModelHandle<TerminalDriver>,
         resolved_env_vars: &HashMap<OsString, OsString>,
-        _resolved_secrets: &HashMap<String, ManagedSecretValue>,
         resolved_mcp_servers: &HashMap<String, JSONMCPServer>,
         _third_party_harness_model_config: Option<&HarnessModelConfig>,
     ) -> Result<Box<dyn HarnessRunner>, AgentDriverError> {

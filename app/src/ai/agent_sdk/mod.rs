@@ -1,7 +1,6 @@
 //! Agent SDK entry points for invoking Agent-related functionality from the app.
 //! For now this provides a simple runner that echoes the received command.
 
-use std::collections::HashMap;
 use std::fmt::Write;
 use std::path::Path;
 use std::sync::Arc;
@@ -898,7 +897,6 @@ impl AgentDriverRunner {
                     should_share,
                     idle_on_complete: args.idle_on_complete.map(|d| d.into()),
                     idle_on_fail: args.idle_on_fail.map(|d| d.into()),
-                    secrets: Default::default(),
                     resume: None,
                     environment: None,
                     additional_source_repos: Vec::new(),
@@ -916,14 +914,14 @@ impl AgentDriverRunner {
 
         let environment_id = merged_config.environment_id.clone();
 
-        // Handle secrets/attachments fetch (existing task) or task creation (new run).
+        // Handle task-metadata fetch (existing task) or task creation (new run).
         // The existing-task branch also surfaces the task's `conversation_id` (if any) so
         // the caller can wire up resume without a separate `--conversation` arg.
         let task_conversation_id = if let Some(task_id_str) = task_id_str {
             setup_events
                 .record_result(
                     SetupStep::TaskDataFetch,
-                    Self::fetch_secrets_and_attachments(
+                    Self::fetch_task_metadata(
                         foreground,
                         task_id_str,
                         &mut driver_options,
@@ -1014,7 +1012,7 @@ impl AgentDriverRunner {
     /// Returns the task's `conversation_id` when the server has linked the task to an existing
     /// AI conversation. The caller uses this to drive transcript rehydration without a
     /// separate `--conversation` CLI arg.
-    async fn fetch_secrets_and_attachments(
+    async fn fetch_task_metadata(
         foreground: &ModelSpawner<Self>,
         task_id_str: String,
         driver_options: &mut AgentDriverOptions,
@@ -1052,8 +1050,6 @@ impl AgentDriverRunner {
             None => Ok(None),
         };
 
-        // There is no server to fetch task secrets from in this build, so this is always empty.
-        let secrets = HashMap::new();
         let (
             parent_run_id,
             task_conversation_id,
@@ -1101,7 +1097,6 @@ impl AgentDriverRunner {
         driver_options.task_id = parsed_task_id;
         driver_options.parent_run_id = parent_run_id;
         driver_options.additional_source_repos = additional_source_repos;
-        driver_options.secrets = secrets;
         // CLI flags continue to take precedence so users can still override per-invocation.
         if driver_options.third_party_harness_model_config.is_none() {
             driver_options.third_party_harness_model_config = task_harness_model_config;

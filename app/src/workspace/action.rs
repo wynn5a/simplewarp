@@ -630,11 +630,6 @@ pub enum WorkspaceAction {
         conversation_id: AIConversationId,
         trigger: AutoCloudHandoffTrigger,
     },
-    /// Open the workspace modal for creating a new managed auth secret.
-    /// Dispatched by orchestration card pickers' "New API key…" item.
-    OpenCreateAuthSecretModal {
-        harness: warp_cli::agent::Harness,
-    },
     /// Summarize the active AI conversation in the focused pane.
     SummarizeAIConversation {
         prompt: Option<String>,
@@ -1111,7 +1106,6 @@ impl WorkspaceAction {
             | FixSettingsWithOz { .. }
             | OpenLocalToCloudHandoffPane { .. }
             | AutoHandoffActiveAgentToCloud { .. }
-            | OpenCreateAuthSecretModal { .. }
             | OpenNetworkLogPane
             | OpenNewWindowForTeam { .. }
             | ShowTeamSwitcherMenu => false,
