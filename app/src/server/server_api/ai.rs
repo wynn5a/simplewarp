@@ -16,7 +16,7 @@ use warp_graphql::queries::get_conversation_usage::ConversationUsage;
 use warp_multi_agent_api::ConversationData;
 
 use super::ServerApi;
-use super::harness_support::{UploadField, UploadTarget};
+use super::presigned_upload::UploadField;
 use crate::ai::RequestUsageInfo;
 pub use crate::ai::agent::UserQueryMode;
 use crate::ai::agent::api::ServerConversationToken;
@@ -409,53 +409,6 @@ pub struct FileArtifactResponseData {
     pub filename: String,
     pub description: Option<String>,
     pub size_bytes: Option<i64>,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct AttachmentFileInfo {
-    pub filename: String,
-    pub mime_type: String,
-}
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct AttachmentDownloadInfo {
-    pub attachment_id: String,
-    pub download_url: String,
-}
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct DownloadAttachmentsResponse {
-    pub attachments: Vec<AttachmentDownloadInfo>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct AttachmentUploadInfo {
-    pub attachment_id: String,
-    /// Presigned URL form of [`Self::upload_target`], kept for compatibility.
-    /// It only describes a plain `PUT`, so it cannot express the presigned POST
-    /// form that self-hosted S3 storage requires.
-    pub upload_url: String,
-    /// Absent when the server predates the upload-target contract.
-    #[serde(default)]
-    pub upload_target: Option<UploadTarget>,
-}
-
-impl AttachmentUploadInfo {
-    /// The target to upload this attachment to, synthesizing a presigned `PUT`
-    /// from [`Self::upload_url`] when the server did not send an upload target.
-    pub fn resolve_upload_target(&self, content_type: &str) -> UploadTarget {
-        self.upload_target.clone().unwrap_or_else(|| UploadTarget {
-            url: self.upload_url.clone(),
-            method: "PUT".to_string(),
-            headers: HashMap::from([("Content-Type".to_string(), content_type.to_string())]),
-            fields: Vec::new(),
-        })
-    }
-}
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct PrepareAttachmentUploadsResponse {
-    pub attachments: Vec<AttachmentUploadInfo>,
 }
 
 #[derive(Debug, Clone)]
@@ -1074,18 +1027,6 @@ pub trait AIClient: 'static + Send + Sync {
         artifact_uid: &str,
     ) -> anyhow::Result<ArtifactDownloadResponse, anyhow::Error>;
 
-    async fn prepare_attachments_for_upload(
-        &self,
-        task_id: &AmbientAgentTaskId,
-        files: &[AttachmentFileInfo],
-    ) -> anyhow::Result<PrepareAttachmentUploadsResponse, anyhow::Error>;
-
-    async fn download_task_attachments(
-        &self,
-        task_id: &AmbientAgentTaskId,
-        attachment_ids: &[String],
-    ) -> anyhow::Result<DownloadAttachmentsResponse, anyhow::Error>;
-
     // --- Orchestrations V2 messaging ---
 
     async fn send_agent_message(
@@ -1592,22 +1533,6 @@ impl AIClient for ServerApi {
         &self,
         _artifact_uid: &str,
     ) -> anyhow::Result<ArtifactDownloadResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn prepare_attachments_for_upload(
-        &self,
-        _task_id: &AmbientAgentTaskId,
-        _files: &[AttachmentFileInfo],
-    ) -> anyhow::Result<PrepareAttachmentUploadsResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn download_task_attachments(
-        &self,
-        _task_id: &AmbientAgentTaskId,
-        _attachment_ids: &[String],
-    ) -> anyhow::Result<DownloadAttachmentsResponse, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 

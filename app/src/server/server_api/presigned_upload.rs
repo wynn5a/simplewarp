@@ -11,7 +11,31 @@ pub use warp_server_client::HttpStatusError;
 
 #[cfg(feature = "local_fs")]
 use super::ai::FileArtifactUploadTargetInfo;
-use super::harness_support::{UploadFieldValue, UploadTarget};
+
+/// A single multipart form field on a POST upload target.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct UploadField {
+    pub name: String,
+    pub value: UploadFieldValue,
+}
+
+/// Descriptor for a field value when uploading to an upload target with
+/// multipart form fields. This is currently only used for `POST` requests,
+/// but may be supported for HTTP headers in the future.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum UploadFieldValue {
+    /// Literal string value known at URL-generation time.
+    Static { value: String },
+    /// Client should compute CRC32C of the upload, base64-encode the 4-byte
+    /// big-endian result, and send it as this field's value.
+    // `snake_case` would derive `content_crc32_c`, which does not match the
+    // `ContentCRC32CFieldValue` discriminator in warp-server's OpenAPI schema.
+    #[serde(rename = "content_crc32c")]
+    ContentCrc32C,
+    /// Client should use the raw upload bytes as this field's value.
+    ContentData,
+}
 
 #[cfg(not(target_family = "wasm"))]
 pub(crate) static CRC32C: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
@@ -39,34 +63,6 @@ enum NormalizedFieldValue<'a> {
     Static(&'a str),
     ContentCrc32C,
     ContentData,
-}
-
-impl<'a> From<&'a UploadTarget> for NormalizedUploadTarget<'a> {
-    fn from(target: &'a UploadTarget) -> Self {
-        Self {
-            url: &target.url,
-            method: &target.method,
-            headers: target
-                .headers
-                .iter()
-                .map(|(name, value)| (name.as_str(), value.as_str()))
-                .collect(),
-            fields: target
-                .fields
-                .iter()
-                .map(|field| NormalizedField {
-                    name: field.name.as_str(),
-                    value: match &field.value {
-                        UploadFieldValue::Static { value } => {
-                            NormalizedFieldValue::Static(value.as_str())
-                        }
-                        UploadFieldValue::ContentCrc32C => NormalizedFieldValue::ContentCrc32C,
-                        UploadFieldValue::ContentData => NormalizedFieldValue::ContentData,
-                    },
-                })
-                .collect(),
-        }
-    }
 }
 
 #[cfg(feature = "local_fs")]
@@ -271,26 +267,9 @@ async fn send_upload_request(
     ensure_upload_succeeded(response, error_context).await
 }
 
-/// Upload a body to a presigned [`UploadTarget`] (PUT or multipart POST).
-///
-/// Today only the attachment-upload tests drive this end to end.
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) async fn upload_to_target(
-    http_client: &http_client::Client,
-    target: &UploadTarget,
-    body: impl UploadBody,
-) -> Result<()> {
-    let normalized = NormalizedUploadTarget::from(target);
-    let error_context = UploadErrorContext {
-        transport: "Failed to upload to presigned URL",
-        failure: "Upload",
-    };
-    send_upload(http_client, &normalized, body, None, error_context).await
-}
-
-/// Internal dispatcher shared between [`upload_to_target`] and
-/// [`upload_file_to_target`]. Routes the request to either a plain body upload
-/// or a multipart form upload based on whether the target has form fields.
+/// Internal dispatcher for [`upload_file_to_target`]. Routes the request to
+/// either a plain body upload or a multipart form upload based on whether the
+/// target has form fields.
 async fn send_upload(
     http_client: &http_client::Client,
     target: &NormalizedUploadTarget<'_>,

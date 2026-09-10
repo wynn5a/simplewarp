@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs;
 
 use futures::executor::block_on;
@@ -7,7 +6,6 @@ use tempfile::tempdir;
 
 use super::*;
 use crate::server::server_api::ai::{FileArtifactUploadHeaderInfo, FileArtifactUploadTargetInfo};
-use crate::server::server_api::harness_support::{UploadField, UploadFieldValue};
 
 /// Drive a future to completion on a fresh Tokio runtime. Required for tests
 /// that exercise `FileUploadBody`, which hashes the file via `spawn_blocking`
@@ -142,18 +140,15 @@ fn matches_multipart_field(name: &'static str, expected: &'static str) -> Matche
 #[test]
 fn multipart_post_requires_content_data_field() {
     block_on(async {
-        let target = UploadTarget {
-            url: "https://example.com/upload".to_string(),
-            method: "POST".to_string(),
-            headers: HashMap::new(),
-            fields: vec![UploadField {
-                name: "key".to_string(),
-                value: UploadFieldValue::Static {
-                    value: "presigned/object/key".to_string(),
-                },
+        let normalized = NormalizedUploadTarget {
+            url: "https://example.com/upload",
+            method: "POST",
+            headers: Vec::new(),
+            fields: vec![NormalizedField {
+                name: "key",
+                value: NormalizedFieldValue::Static("presigned/object/key"),
             }],
         };
-        let normalized = NormalizedUploadTarget::from(&target);
 
         let err = build_multipart_form(&normalized, b"missing content data".to_vec(), None)
             .await

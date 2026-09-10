@@ -1,8 +1,6 @@
 // We don't directly run agent harnesses on WASM, so this code is unused.
 #![cfg_attr(target_family = "wasm", expect(dead_code))]
 
-use std::collections::HashMap;
-
 use anyhow::{Context, Result};
 
 use super::ServerApi;
@@ -11,46 +9,6 @@ pub use super::presigned_upload::FileUploadBody;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::agent_sdk::retry::with_bounded_retry;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-
-/// A presigned upload target returned by the server.
-#[serde_with::serde_as]
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct UploadTarget {
-    pub url: String,
-    pub method: String,
-    #[serde(default)]
-    #[serde_as(deserialize_as = "serde_with::DefaultOnNull")]
-    pub headers: HashMap<String, String>,
-    /// Ordered multipart form fields for POST uploads.
-    #[serde(default)]
-    #[serde_as(deserialize_as = "serde_with::DefaultOnNull")]
-    pub fields: Vec<UploadField>,
-}
-
-/// A single multipart form field on a POST upload target.
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct UploadField {
-    pub name: String,
-    pub value: UploadFieldValue,
-}
-
-/// Descriptor for a field value when uploading to an [`UploadTarget`].
-/// This is currently only used for `POST` requests, but may be supported
-/// for HTTP headers in the future.
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum UploadFieldValue {
-    /// Literal string value known at URL-generation time.
-    Static { value: String },
-    /// Client should compute CRC32C of the upload, base64-encode the 4-byte
-    /// big-endian result, and send it as this field's value.
-    // `snake_case` would derive `content_crc32_c`, which does not match the
-    // `ContentCRC32CFieldValue` discriminator in warp-server's OpenAPI schema.
-    #[serde(rename = "content_crc32c")]
-    ContentCrc32C,
-    /// Client should use the raw upload bytes as this field's value.
-    ContentData,
-}
 
 /// Skill attached to a resolve-prompt request,
 /// used when invoking a third-party harness with a skill
@@ -143,7 +101,3 @@ impl ServerApi {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "harness_support_tests.rs"]
-mod tests;
