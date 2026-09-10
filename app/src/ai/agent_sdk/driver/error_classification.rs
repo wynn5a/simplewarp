@@ -270,19 +270,6 @@ pub fn classify_driver_error(error: &AgentDriverError) -> (AgentTaskState, TaskS
                 PlatformErrorCode::EnvironmentSetupFailed,
             ),
         ),
-        AgentDriverError::ConversationResumeStateMissing {
-            harness,
-            conversation_id,
-        } => (
-            AgentTaskState::Failed,
-            TaskStatusUpdate::with_error_code(
-                format!(
-                    "Conversation {conversation_id} has no stored transcript for the {harness} harness. \
-                     The prior run may have crashed before saving any state."
-                ),
-                PlatformErrorCode::ResourceNotFound,
-            ),
-        ),
         AgentDriverError::HarnessCommandFailed { exit_code } => (
             AgentTaskState::Failed,
             TaskStatusUpdate::with_error_code(

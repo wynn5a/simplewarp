@@ -54,11 +54,6 @@ pub fn list_ambient_agent_tasks(
     })
 }
 
-/// Print a table of ambient agent tasks.
-pub(super) fn print_tasks(tasks: &[AmbientAgentTask]) {
-    AmbientAgentRunner::print_tasks_table(tasks);
-}
-
 /// Get status of a specific ambient agent task.
 pub fn get_ambient_agent_task_status(
     ctx: &mut AppContext,

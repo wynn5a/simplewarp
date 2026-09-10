@@ -271,6 +271,10 @@ async fn send_upload_request(
     ensure_upload_succeeded(response, error_context).await
 }
 
+/// Upload a body to a presigned [`UploadTarget`] (PUT or multipart POST).
+///
+/// Today only the attachment-upload tests drive this end to end.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) async fn upload_to_target(
     http_client: &http_client::Client,
     target: &UploadTarget,

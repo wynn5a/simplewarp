@@ -93,16 +93,6 @@ pub(super) enum CliTelemetryEvent {
     ApiKeyCreate,
     /// Executing `warp api-key expire`
     ApiKeyExpire,
-    /// Executing `warp harness-support ping`
-    HarnessSupportPing,
-    /// Executing `warp harness-support report-artifact`
-    HarnessSupportReportArtifact { artifact_type: &'static str },
-    /// Executing `warp harness-support notify-user`
-    HarnessSupportNotifyUser,
-    /// Executing `warp harness-support finish-task`
-    HarnessSupportFinishTask { success: bool },
-    /// Executing `warp harness-support report-shutdown`
-    HarnessSupportReportShutdown,
 }
 
 impl TelemetryEvent for CliTelemetryEvent {
@@ -165,15 +155,6 @@ impl TelemetryEvent for CliTelemetryEvent {
             CliTelemetryEvent::ApiKeyList => None,
             CliTelemetryEvent::ApiKeyCreate => None,
             CliTelemetryEvent::ApiKeyExpire => None,
-            CliTelemetryEvent::HarnessSupportPing => None,
-            CliTelemetryEvent::HarnessSupportReportArtifact { artifact_type } => {
-                Some(json!({ "artifact_type": artifact_type }))
-            }
-            CliTelemetryEvent::HarnessSupportNotifyUser => None,
-            CliTelemetryEvent::HarnessSupportFinishTask { success } => {
-                Some(json!({ "success": success }))
-            }
-            CliTelemetryEvent::HarnessSupportReportShutdown => None,
         }
     }
 
@@ -256,19 +237,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::ApiKeyList => "CLI.Execute.ApiKey.List",
             CliTelemetryEventDiscriminants::ApiKeyCreate => "CLI.Execute.ApiKey.Create",
             CliTelemetryEventDiscriminants::ApiKeyExpire => "CLI.Execute.ApiKey.Expire",
-            CliTelemetryEventDiscriminants::HarnessSupportPing => "CLI.Execute.HarnessSupport.Ping",
-            CliTelemetryEventDiscriminants::HarnessSupportReportArtifact => {
-                "CLI.Execute.HarnessSupport.ReportArtifact"
-            }
-            CliTelemetryEventDiscriminants::HarnessSupportNotifyUser => {
-                "CLI.Execute.HarnessSupport.NotifyUser"
-            }
-            CliTelemetryEventDiscriminants::HarnessSupportFinishTask => {
-                "CLI.Execute.HarnessSupport.FinishTask"
-            }
-            CliTelemetryEventDiscriminants::HarnessSupportReportShutdown => {
-                "CLI.Execute.HarnessSupport.ReportShutdown"
-            }
         }
     }
 
@@ -353,30 +321,11 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::ApiKeyList => "Listed API keys from the Warp CLI",
             CliTelemetryEventDiscriminants::ApiKeyCreate => "Created an API key from the Warp CLI",
             CliTelemetryEventDiscriminants::ApiKeyExpire => "Expired an API key from the Warp CLI",
-            CliTelemetryEventDiscriminants::HarnessSupportPing => {
-                "Pinged harness-support from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::HarnessSupportReportArtifact => {
-                "Reported an artifact via harness-support from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::HarnessSupportNotifyUser => {
-                "Sent a user notification via harness-support from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::HarnessSupportFinishTask => {
-                "Reported task completion via harness-support from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::HarnessSupportReportShutdown => {
-                "Reported agent shutdown via harness-support from the Warp CLI"
-            }
         }
     }
 
     fn enablement_state(&self) -> EnablementState {
         match self {
-            Self::HarnessSupportPing
-            | Self::HarnessSupportReportArtifact
-            | Self::HarnessSupportNotifyUser
-            | Self::HarnessSupportFinishTask => EnablementState::Flag(FeatureFlag::AgentHarness),
             Self::ArtifactUpload | Self::ArtifactGet | Self::ArtifactDownload => {
                 EnablementState::Flag(FeatureFlag::ArtifactCommand)
             }

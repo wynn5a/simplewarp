@@ -4,9 +4,8 @@ use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::io::Write;
 use std::path::Path;
-use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use tempfile::NamedTempFile;
 use warp_cli::agent::Harness;
@@ -16,7 +15,7 @@ use warp_cli::{
 };
 use warp_core::channel::ChannelState;
 use warp_managed_secrets::ManagedSecretValue;
-use warpui::{ModelHandle, ModelSpawner, SingletonEntity};
+use warpui::{ModelHandle, ModelSpawner};
 
 use super::terminal::{CommandHandle, TerminalDriver};
 use super::{
@@ -24,16 +23,11 @@ use super::{
     LEGACY_OZ_PARENT_STATE_ROOT_ENV, OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV,
     OZ_MESSAGE_LISTENER_STATE_ROOT_ENV,
 };
-use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_sdk::setup_observability::SetupClientEventReporter;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::ambient_agents::task::HarnessModelConfig;
 use crate::ai::mcp::JSONMCPServer;
-use crate::server::server_api::ServerApi;
-use crate::server::server_api::harness_support::{HarnessSupportClient, upload_to_target};
 use crate::terminal::CLIAgent;
-use crate::terminal::cli_agent_sessions::{CLIAgentSessionStatus, CLIAgentSessionsModel};
-use crate::terminal::model::block::{BlockId, SerializedBlock};
 use crate::util::path::resolve_executable;
 
 pub(crate) mod claude_code;
@@ -45,78 +39,9 @@ mod json_utils;
 mod skill_dirs_publish;
 mod telemetry;
 pub(crate) use claude_code::ClaudeHarness;
-use claude_transcript::ClaudeResumeInfo;
 use codex::CodexHarness;
-use codex_transcript::CodexResumeInfo;
 use gemini::GeminiHarness;
 pub(crate) use telemetry::ThirdPartyHarnessTelemetryEvent;
-
-/// Harness-agnostic payload describing how to resume an existing conversation.
-///
-/// Each variant carries the data a specific harness needs to rehydrate state before its CLI
-/// launches. Harnesses match on the variant they produce and ignore others; new CLIs that
-/// want resume support add a new variant and override [`ThirdPartyHarness::fetch_resume_payload`].
-#[derive(Debug)]
-pub(crate) enum ResumePayload {
-    /// Claude Code session state fetched from the server's transcript endpoint.
-    Claude(ClaudeResumeInfo),
-    /// Codex session state fetched from the server's transcript endpoint.
-    Codex(CodexResumeInfo),
-}
-
-impl TryFrom<ResumePayload> for ClaudeResumeInfo {
-    type Error = AgentDriverError;
-
-    fn try_from(payload: ResumePayload) -> Result<Self, Self::Error> {
-        match payload {
-            ResumePayload::Claude(info) => Ok(info),
-            _ => {
-                log::error!("ClaudeHarness given non-Claude ResumePayload variant");
-                Err(AgentDriverError::InvalidRuntimeState)
-            }
-        }
-    }
-}
-
-impl TryFrom<ResumePayload> for CodexResumeInfo {
-    type Error = AgentDriverError;
-
-    fn try_from(payload: ResumePayload) -> Result<Self, Self::Error> {
-        match payload {
-            ResumePayload::Codex(info) => Ok(info),
-            _ => {
-                log::error!("CodexHarness given non-Codex ResumePayload variant");
-                Err(AgentDriverError::InvalidRuntimeState)
-            }
-        }
-    }
-}
-
-/// Fetch the harness transcript for `conversation_id` and deserialize it into `E`.
-pub(super) async fn fetch_transcript_envelope<E: serde::de::DeserializeOwned>(
-    harness_label: &str,
-    conversation_id: &AIConversationId,
-    client: Arc<dyn HarnessSupportClient>,
-) -> Result<E, AgentDriverError> {
-    let bytes = client.fetch_transcript().await.map_err(|err| {
-        // A 404 from the server maps to "no stored transcript" so the CLI can tell
-        // the user the prior run never saved state.
-        let message = format!("{err:#}").to_lowercase();
-        if message.contains("status 404") {
-            AgentDriverError::ConversationResumeStateMissing {
-                harness: harness_label.to_string(),
-                conversation_id: conversation_id.to_string(),
-            }
-        } else {
-            AgentDriverError::ConversationLoadFailed(format!("{err:#}"))
-        }
-    })?;
-    serde_json::from_slice(&bytes).map_err(|err| {
-        AgentDriverError::ConversationLoadFailed(format!(
-            "Failed to deserialize {harness_label} transcript for {conversation_id}: {err:#}"
-        ))
-    })
-}
 
 /// Trait for third-party agent harnesses that execute prompts via their own CLIs.
 ///
@@ -165,24 +90,6 @@ pub(crate) trait ThirdPartyHarness: Send + Sync {
         false
     }
 
-    /// Fetch the harness-specific resume payload for an existing conversation.
-    ///
-    /// The driver calls this when the user passes `--conversation <id>` and the harness
-    /// matches the stored conversation's harness. Harnesses that don't support resume
-    /// use the default impl, which returns `Ok(None)` and causes the run to start fresh.
-    ///
-    /// Implementations download the raw transcript via [`HarnessSupportClient::fetch_transcript`]
-    /// (which derives the conversation from the current task's `agent_conversation_id`) and
-    /// own all harness-specific deserialization and error mapping (e.g. a 404 maps to
-    /// [`AgentDriverError::ConversationResumeStateMissing`] tagged with the harness label).
-    async fn fetch_resume_payload(
-        &self,
-        _conversation_id: &AIConversationId,
-        _harness_support_client: Arc<dyn HarnessSupportClient>,
-    ) -> Result<Option<ResumePayload>, AgentDriverError> {
-        Ok(None)
-    }
-
     /// Build a runner for executing this harness with the given prompt.
     ///
     /// Responsible for all harness-specific setup: writing config files (auth,
@@ -194,9 +101,6 @@ pub(crate) trait ThirdPartyHarness: Send + Sync {
     ///
     /// `resolved_secrets` provides the raw typed managed secrets so harnesses
     /// can read structured fields (e.g. `base_url`) without relying on env vars.
-    ///
-    /// If `resume` is `Some`, the harness matches on its own [`ResumePayload`]
-    /// variant and reuses stored session/conversation ids.
     #[allow(clippy::too_many_arguments)]
     fn build_runner(
         &self,
@@ -205,10 +109,7 @@ pub(crate) trait ThirdPartyHarness: Send + Sync {
         resumption_prompt: Option<&str>,
         context: Option<&str>,
         working_dir: &Path,
-        task_id: Option<AmbientAgentTaskId>,
-        server_api: Arc<ServerApi>,
         terminal_driver: ModelHandle<TerminalDriver>,
-        resume: Option<ResumePayload>,
         resolved_env_vars: &HashMap<OsString, OsString>,
         resolved_secrets: &HashMap<String, ManagedSecretValue>,
         resolved_mcp_servers: &HashMap<String, JSONMCPServer>,
@@ -454,30 +355,6 @@ pub(crate) fn harness_model_env_vars(
     env_vars
 }
 
-/// Indicates when the harness conversation is being saved.
-/// Implementations may use this to customize the saved data, such as
-/// recording additional metadata on completion.
-pub(crate) enum SavePoint {
-    /// A periodic auto-save to minimize data loss.
-    Periodic,
-    /// The final save of conversation state, after the harness has completed.
-    Final,
-    /// A save after the harness reports it finished an agent turn.
-    PostTurn,
-}
-
-/// Controls how much harness-owned state should survive cleanup after the CLI
-/// exits.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum HarnessCleanupDisposition {
-    /// Tear down all harness-owned resume and wake state.
-    DropResumptionState,
-    /// The harness exited cleanly and its final save completed, so wake/resume
-    /// state may be preserved if the harness-specific runtime also considers
-    /// the run complete.
-    PreserveResumptionStateIfSupported,
-}
-
 /// Stateful per-run representation of an external harness produced
 /// by [`ThirdPartyHarness::build_runner`].
 ///
@@ -491,71 +368,17 @@ pub(crate) enum HarnessCleanupDisposition {
 pub(crate) trait HarnessRunner: Send + Sync {
     fn harness_name(&self) -> &str;
 
-    /// Create the external conversation on the server and start the harness
-    /// command in the terminal.
+    /// Start the harness command in the terminal.
     ///
-    /// Returns a [`CommandHandle`] that resolves to the exit code. The runner
-    /// stores the conversation ID and block ID internally for use in
-    /// [`save_conversation`].
+    /// Returns a [`CommandHandle`] that resolves to the exit code.
     async fn start(
         &self,
         foreground: &ModelSpawner<AgentDriver>,
         setup_events: &SetupClientEventReporter,
     ) -> Result<CommandHandle, AgentDriverError>;
 
-    /// Save the current conversation state (transcript upload, etc.).
-    async fn save_conversation(
-        &self,
-        save_point: SavePoint,
-        foreground: &ModelSpawner<AgentDriver>,
-    ) -> Result<()>;
-
     /// Gracefully ask the harness to exit.
     async fn exit(&self, foreground: &ModelSpawner<AgentDriver>) -> Result<()>;
-    /// Handle a CLI session update such as a prompt submit or completed tool use.
-    async fn handle_session_update(&self, _foreground: &ModelSpawner<AgentDriver>) -> Result<()> {
-        Ok(())
-    }
-
-    /// Clean up any harness-owned background state after the harness exits.
-    async fn cleanup(
-        &self,
-        _cleanup_disposition: HarnessCleanupDisposition,
-        _foreground: &ModelSpawner<AgentDriver>,
-    ) -> Result<()> {
-        Ok(())
-    }
-}
-
-/// Returns `true` if the terminal tracked by `terminal_driver` has a CLI agent session
-/// that is currently in progress.
-pub(crate) async fn has_running_cli_agent(
-    terminal_driver: &ModelHandle<TerminalDriver>,
-    foreground: &ModelSpawner<AgentDriver>,
-) -> bool {
-    matches!(
-        cli_agent_session_status(terminal_driver, foreground).await,
-        Some(CLIAgentSessionStatus::InProgress)
-    )
-}
-
-/// Returns the tracked CLI agent session status for the terminal, if any.
-pub(crate) async fn cli_agent_session_status(
-    terminal_driver: &ModelHandle<TerminalDriver>,
-    foreground: &ModelSpawner<AgentDriver>,
-) -> Option<CLIAgentSessionStatus> {
-    let driver = terminal_driver.clone();
-    foreground
-        .spawn(move |_, ctx| {
-            let terminal_view_id = driver.as_ref(ctx).terminal_view().id();
-            CLIAgentSessionsModel::handle(ctx)
-                .as_ref(ctx)
-                .session(terminal_view_id)
-                .map(|session| session.status.clone())
-        })
-        .await
-        .ok()
-        .flatten()
 }
 
 /// Create a [`NamedTempFile`] with the given prefix and write `content` into it.
@@ -582,51 +405,6 @@ pub(super) fn write_temp_file(
         ))
     })?;
     Ok(file)
-}
-
-/// Upload a [`SerializedBlock`] as the JSON block snapshot for a third-party harness conversation.
-pub(crate) async fn upload_block_snapshot(
-    client: &dyn HarnessSupportClient,
-    conversation_id: AIConversationId,
-    block: SerializedBlock,
-) -> Result<()> {
-    log::info!("Uploading block snapshot for CLI agent to conversation {conversation_id}");
-    let target = client
-        .get_block_snapshot_upload_target(&conversation_id)
-        .await
-        .with_context(|| {
-            format!("Unable to get block upload slot for conversation {conversation_id}")
-        })?;
-
-    let body = block
-        .to_json()
-        .with_context(|| format!("Unable to serialize block for conversation {conversation_id}"))?;
-
-    upload_to_target(client.http_client(), &target, body).await
-}
-
-/// Fetch the current block snapshot for `block_id` and upload it to the server.
-///
-/// If the snapshot cannot be fetched, logs a warning and returns `Ok(())`.
-pub(super) async fn upload_current_block_snapshot(
-    foreground: &ModelSpawner<AgentDriver>,
-    terminal_driver: &ModelHandle<TerminalDriver>,
-    client: &dyn HarnessSupportClient,
-    conversation_id: AIConversationId,
-    block_id: BlockId,
-) -> Result<()> {
-    let td = terminal_driver.clone();
-    let snapshot = foreground
-        .spawn(move |_, ctx| td.as_ref(ctx).block_snapshot(&block_id, ctx))
-        .await
-        .map_err(|_| anyhow::anyhow!("Agent driver dropped"))?;
-    match snapshot {
-        Some(block) => upload_block_snapshot(client, conversation_id, block).await,
-        None => {
-            log::warn!("No block snapshot found for harness command");
-            Ok(())
-        }
-    }
 }
 
 #[cfg(test)]

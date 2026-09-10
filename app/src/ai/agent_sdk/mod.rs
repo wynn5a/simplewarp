@@ -17,7 +17,6 @@ use warp_cli::agent::{
 };
 use warp_cli::api_key::ApiKeyCommand;
 use warp_cli::artifact::ArtifactCommand;
-use warp_cli::harness_support::{HarnessSupportCommand, ReportArtifactCommand, TaskStatus};
 use warp_cli::mcp::MCPCommand;
 use warp_cli::memory_store::{MemoryCommand, MemoryStoreCommand};
 use warp_cli::model::ModelCommand;
@@ -73,7 +72,6 @@ pub(crate) mod artifact_upload;
 mod common;
 mod config_file;
 pub(crate) mod driver;
-mod harness_support;
 #[cfg(not(target_family = "wasm"))]
 #[cfg(not(target_family = "wasm"))]
 mod mcp;
@@ -86,8 +84,6 @@ mod provider;
 pub(crate) mod retry;
 pub(crate) mod setup_observability;
 mod telemetry;
-#[cfg(test)]
-mod test_support;
 mod text_layout;
 
 /// Prints a non-blocking warning to stderr when the CLI is invoked with a team-scoped API key.
@@ -140,12 +136,6 @@ fn dispatch_command(
                 return Err(anyhow::anyhow!("invalid value 'provider'"));
             }
             provider::run(ctx, global_options, provider_cmd)
-        }
-        CliCommand::HarnessSupport(args) => {
-            if !FeatureFlag::AgentHarness.is_enabled() {
-                return Err(anyhow::anyhow!("invalid value 'harness-support'"));
-            }
-            harness_support::run(ctx, global_options, args)
         }
         CliCommand::Artifact(artifact_cmd) => {
             if !FeatureFlag::ArtifactCommand.is_enabled() {
@@ -1137,10 +1127,8 @@ impl AgentDriverRunner {
     /// conversation's metadata up-front by [`common::fetch_and_validate_conversation_harness`]).
     ///
     /// For the Oz harness, fetches the full conversation and returns a [`driver::ResumeOptions::Oz`].
-    /// For third-party harnesses, delegates to [`ThirdPartyHarness::fetch_resume_payload`] and
-    /// wraps the returned payload (if any) in [`driver::ResumeOptions::ThirdParty`]; each harness
-    /// owns its server call and error mapping. Returns `None` if a third-party harness has no
-    /// resume payload to surface.
+    /// Third-party harnesses cannot resume: their transcript lives on the Warp server, so this
+    /// errors instead of returning a payload.
     #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true, conversation_id = conversation_id))]
     async fn load_conversation_information(
         foreground: &ModelSpawner<Self>,
@@ -1181,18 +1169,11 @@ impl AgentDriverRunner {
                     },
                 ))))
             }
-            HarnessKind::ThirdParty(h) => {
-                let harness_support_client = foreground
-                    .spawn(|_, ctx| ServerApiProvider::as_ref(ctx).get_harness_support_client())
-                    .await?;
-                let resume_conversation_id = AIConversationId::try_from(conversation_id.clone())
-                    .map_err(|err| AgentDriverError::ConversationLoadFailed(format!("{err:#}")))?;
-                Ok(
-                    h.fetch_resume_payload(&resume_conversation_id, harness_support_client)
-                        .await?
-                        .map(|payload| driver::ResumeOptions::ThirdParty(Box::new(payload))),
-                )
-            }
+            HarnessKind::ThirdParty(_) => Err(AgentDriverError::ConversationLoadFailed(
+                "Resuming a third-party harness conversation requires the transcript stored on \
+                 the Warp server."
+                    .to_string(),
+            )),
             HarnessKind::Unsupported(harness) => Err(AgentDriverError::HarnessSetupFailed {
                 harness: harness.to_string(),
                 reason: format!(
@@ -1332,7 +1313,6 @@ fn command_requires_auth(command: &CliCommand) -> bool {
         CliCommand::Logout => false,
         CliCommand::Whoami => true,
         CliCommand::Provider(_) => true,
-        CliCommand::HarnessSupport(_) => true,
         CliCommand::Artifact(_) => true,
         CliCommand::ApiKey(_) => true,
     }
@@ -1526,30 +1506,6 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
         CliCommand::Whoami => CliTelemetryEvent::Whoami,
         CliCommand::Provider(ProviderCommand::Setup(_)) => CliTelemetryEvent::ProviderSetup,
         CliCommand::Provider(ProviderCommand::List) => CliTelemetryEvent::ProviderList,
-        CliCommand::HarnessSupport(args) => match &args.command {
-            HarnessSupportCommand::Ping => CliTelemetryEvent::HarnessSupportPing,
-            HarnessSupportCommand::ReportArtifact(report_args) => match &report_args.command {
-                ReportArtifactCommand::PullRequest(_) => {
-                    CliTelemetryEvent::HarnessSupportReportArtifact {
-                        artifact_type: "pull_request",
-                    }
-                }
-            },
-            HarnessSupportCommand::ReportExternalReference(_) => {
-                CliTelemetryEvent::HarnessSupportReportArtifact {
-                    artifact_type: "external_reference",
-                }
-            }
-            HarnessSupportCommand::NotifyUser(_) => CliTelemetryEvent::HarnessSupportNotifyUser,
-            HarnessSupportCommand::FinishTask(finish_args) => {
-                CliTelemetryEvent::HarnessSupportFinishTask {
-                    success: finish_args.status == TaskStatus::Success,
-                }
-            }
-            HarnessSupportCommand::ReportShutdown(_) => {
-                CliTelemetryEvent::HarnessSupportReportShutdown
-            }
-        },
         CliCommand::Artifact(artifact_cmd) => match artifact_cmd {
             ArtifactCommand::Upload(_) => CliTelemetryEvent::ArtifactUpload,
             ArtifactCommand::Get(_) => CliTelemetryEvent::ArtifactGet,

@@ -2,49 +2,29 @@ use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tempfile::NamedTempFile;
 use uuid::Uuid;
 use warp_cli::agent::Harness;
 use warp_core::safe_info;
-use warp_errors::report_error;
 use warp_managed_secrets::ManagedSecretValue;
-use warpui::{ModelHandle, ModelSpawner, SingletonEntity};
+use warpui::{ModelHandle, ModelSpawner};
 
 use super::super::terminal::{CommandHandle, TerminalDriver};
 use super::super::{AgentDriver, AgentDriverError};
-use super::claude_transcript::read_jsonl;
-use super::codex_transcript::{
-    CodexResumeInfo, CodexTranscriptEnvelope, codex_sessions_root, find_session_file,
-    parse_session_meta, rehydrate_codex_transcript,
-};
 use super::json_utils::read_json_file_or_default;
-use super::{
-    HarnessRunner, JSONMCPServer, ResumePayload, SavePoint, ThirdPartyHarness, write_temp_file,
-};
-use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent_sdk::setup_observability::{
-    OzRunTimelineEvent, SetupClientEventReporter, SetupStep,
-};
-use crate::ai::ambient_agents::AmbientAgentTaskId;
+use super::{HarnessRunner, JSONMCPServer, ThirdPartyHarness, write_temp_file};
+use crate::ai::agent_sdk::setup_observability::{OzRunTimelineEvent, SetupClientEventReporter};
 use crate::ai::ambient_agents::task::HarnessModelConfig;
 use crate::ai::mcp::JSONTransportType;
-use crate::server::server_api::ServerApi;
-use crate::server::server_api::harness_support::{HarnessSupportClient, upload_to_target};
 use crate::terminal::CLIAgent;
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
-use crate::terminal::model::block::BlockId;
 
 pub(crate) struct CodexHarness;
 
-/// Format slug sent to the server when creating a Codex conversation.
-const CODEX_CLI_FORMAT: &str = "codex_cli";
 /// Slash command Codex's TUI recognises as a graceful shutdown.
 const CODEX_EXIT_COMMAND: &str = "/exit";
 /// Allow the Warp-installed Codex plugin hooks to run in vetted driver sessions
@@ -93,24 +73,6 @@ impl ThirdPartyHarness for CodexHarness {
         ]
     }
 
-    /// Fetch the codex transcript for the current task's conversation and wrap it into a
-    /// [`ResumePayload::Codex`].
-    async fn fetch_resume_payload(
-        &self,
-        conversation_id: &AIConversationId,
-        harness_support_client: Arc<dyn HarnessSupportClient>,
-    ) -> Result<Option<ResumePayload>, AgentDriverError> {
-        let envelope: CodexTranscriptEnvelope =
-            super::fetch_transcript_envelope("codex", conversation_id, harness_support_client)
-                .await?;
-        let session_id = envelope.session_id;
-        Ok(Some(ResumePayload::Codex(CodexResumeInfo {
-            conversation_id: *conversation_id,
-            session_id,
-            envelope,
-        })))
-    }
-
     fn build_runner(
         &self,
         prompt: &str,
@@ -118,10 +80,7 @@ impl ThirdPartyHarness for CodexHarness {
         resumption_prompt: Option<&str>,
         context: Option<&str>,
         working_dir: &Path,
-        _task_id: Option<AmbientAgentTaskId>,
-        server_api: Arc<ServerApi>,
         terminal_driver: ModelHandle<TerminalDriver>,
-        resume: Option<ResumePayload>,
         resolved_env_vars: &HashMap<OsString, OsString>,
         resolved_secrets: &HashMap<String, ManagedSecretValue>,
         resolved_mcp_servers: &HashMap<String, JSONMCPServer>,
@@ -141,9 +100,6 @@ impl ThirdPartyHarness for CodexHarness {
             error,
         })?;
 
-        // The ResumePayload shouldn't contain non-Codex information, error if it does.
-        let codex_resume = resume.map(CodexResumeInfo::try_from).transpose()?;
-
         // Mirror Claude harness behavior: prepend the resumption preamble and server context
         // to the user-turn prompt so codex treats it as immediate intent.
         // Order: resumption_prompt → context → prompt
@@ -160,15 +116,12 @@ impl ThirdPartyHarness for CodexHarness {
         }
         parts.push(prompt);
         let owned_prompt = parts.join("\n\n");
-        let client: Arc<dyn HarnessSupportClient> = server_api;
         Ok(Box::new(CodexHarnessRunner::new(
             self.cli_agent().command_prefix(),
             &owned_prompt,
             system_prompt,
             working_dir,
-            client,
             terminal_driver,
-            codex_resume,
         )?))
     }
 }
@@ -196,104 +149,33 @@ fn codex_command(cli_name: &str, session_id: Option<&Uuid>, prompt_path: &str) -
     }
 }
 
-enum CodexRunnerState {
-    Preexec,
-    Running {
-        conversation_id: AIConversationId,
-        block_id: BlockId,
-    },
-}
-
 struct CodexHarnessRunner {
     command: String,
     cli_name: String,
     /// Held so the temp file is cleaned up when the runner is dropped.
     _temp_prompt_file: NamedTempFile,
-    client: Arc<dyn HarnessSupportClient>,
     terminal_driver: ModelHandle<TerminalDriver>,
-    state: Mutex<CodexRunnerState>,
-    /// Codex session UUID. Populated lazily by [`HarnessRunner::handle_session_update`]
-    /// once the codex hooks emit `SessionStart`. Set once (using `OnceLock`).
-    session_id: OnceLock<Uuid>,
-    /// Path to the codex session rollout JSONL file. Populated by the first
-    /// successful [`find_session_file`] walk so that subsequent saves skip the YYYY/MM/DD
-    /// directory walk and read the JSONL file directly.
-    transcript_path: OnceLock<PathBuf>,
-    /// Optionally supply an existing conversation ID.
-    preexisting_conversation_id: Option<AIConversationId>,
 }
 
 impl CodexHarnessRunner {
-    #[allow(clippy::too_many_arguments)]
     fn new(
         cli_command: &str,
         prompt: &str,
         _system_prompt: Option<&str>,
         _working_dir: &Path,
-        client: Arc<dyn HarnessSupportClient>,
         terminal_driver: ModelHandle<TerminalDriver>,
-        resume: Option<CodexResumeInfo>,
     ) -> Result<Self, AgentDriverError> {
         let temp_file = write_temp_file("oz_prompt_", prompt, ".txt")?;
         let prompt_path = temp_file.path().display().to_string();
 
-        let (session_id, preexisting_conversation_id, transcript_path) = match resume {
-            Some(CodexResumeInfo {
-                conversation_id,
-                session_id,
-                mut envelope,
-            }) => {
-                let continuation = rehydrate_codex_transcript(&mut envelope, _working_dir)
-                    .map_err(AgentDriverError::ConfigBuildFailed)?;
-                (
-                    Some(session_id),
-                    Some(conversation_id),
-                    Some(continuation.transcript_path),
-                )
-            }
-            None => (None, None, None),
-        };
-
-        let command = codex_command(cli_command, session_id.as_ref(), &prompt_path);
-
-        let session_id_cell: OnceLock<Uuid> = OnceLock::new();
-        if let Some(id) = session_id {
-            let _ = session_id_cell.set(id);
-        }
-        let transcript_path_cell: OnceLock<PathBuf> = OnceLock::new();
-        if let Some(p) = transcript_path {
-            let _ = transcript_path_cell.set(p);
-        }
+        let command = codex_command(cli_command, None, &prompt_path);
 
         Ok(Self {
             command,
             cli_name: cli_command.to_string(),
             _temp_prompt_file: temp_file,
-            client,
             terminal_driver,
-            state: Mutex::new(CodexRunnerState::Preexec),
-            session_id: session_id_cell,
-            transcript_path: transcript_path_cell,
-            preexisting_conversation_id,
         })
-    }
-
-    /// Return the filepath for the session transcript, walking the codex sessions tree to find it on the
-    /// first save call.
-    async fn resolve_transcript_path(&self) -> Option<PathBuf> {
-        if let Some(cached) = self.transcript_path.get() {
-            return Some(cached.clone());
-        }
-        let session_id = self.session_id.get().copied()?;
-        let resolved = tokio::task::spawn_blocking(move || -> Option<PathBuf> {
-            let root = codex_sessions_root().ok()?;
-            find_session_file(&root, session_id)
-        })
-        .await
-        .ok()
-        .flatten()?;
-        let _ = self.transcript_path.set(resolved.clone());
-        Some(resolved)
     }
 }
 
@@ -309,29 +191,6 @@ impl HarnessRunner for CodexHarnessRunner {
         foreground: &ModelSpawner<AgentDriver>,
         setup_events: &SetupClientEventReporter,
     ) -> Result<CommandHandle, AgentDriverError> {
-        // Resume runs reuse the prior server conversation id; fresh runs mint a new one.
-        let conversation_id = match self.preexisting_conversation_id {
-            Some(id) => {
-                log::info!("Resuming external conversation {id}");
-                id
-            }
-            None => {
-                let id = setup_events
-                    .record_result(SetupStep::ThirdPartyHarnessExternalConversation, async {
-                        self.client
-                            .create_external_conversation(CODEX_CLI_FORMAT)
-                            .await
-                            .map_err(|e| {
-                                report_error!(&e);
-                                AgentDriverError::ConfigBuildFailed(e)
-                            })
-                    })
-                    .await?;
-                log::info!("Created external conversation {id}");
-                id
-            }
-        };
-
         let command = self.command.clone();
         let terminal_driver = self.terminal_driver.clone();
         let command_handle = foreground
@@ -340,11 +199,6 @@ impl HarnessRunner for CodexHarnessRunner {
             })
             .await??
             .await?;
-
-        *self.state.lock() = CodexRunnerState::Running {
-            conversation_id,
-            block_id: command_handle.block_id().clone(),
-        };
 
         setup_events
             .post_timeline_event(OzRunTimelineEvent::AgentStarted)
@@ -365,127 +219,6 @@ impl HarnessRunner for CodexHarnessRunner {
             .await
             .map_err(|_| anyhow::anyhow!("Agent driver dropped while sending /exit"))
     }
-
-    /// Capture the codex session ID from the `SessionStart` event picked up by the `CLIAgentSessionsModel`.
-    ///
-    /// Relies on codex hooks being set up to emit this event correctly.
-    async fn handle_session_update(&self, foreground: &ModelSpawner<AgentDriver>) -> Result<()> {
-        if self.session_id.get().is_some() {
-            return Ok(());
-        }
-        let terminal_driver = self.terminal_driver.clone();
-        let session_id_str = foreground
-            .spawn(move |_, ctx| {
-                let terminal_view_id = terminal_driver.as_ref(ctx).terminal_view().id();
-                CLIAgentSessionsModel::handle(ctx)
-                    .as_ref(ctx)
-                    .session(terminal_view_id)
-                    .and_then(|s| s.session_context.session_id.clone())
-            })
-            .await
-            .ok()
-            .flatten();
-        let Some(session_id_str) = session_id_str else {
-            return Ok(());
-        };
-        match Uuid::parse_str(&session_id_str) {
-            Ok(uuid) => {
-                log::info!("Captured codex session id {uuid}");
-                let _ = self.session_id.set(uuid);
-            }
-            Err(e) => log::warn!("Failed to parse codex session id '{session_id_str}': {e}"),
-        }
-        Ok(())
-    }
-
-    async fn save_conversation(
-        &self,
-        save_point: SavePoint,
-        foreground: &ModelSpawner<AgentDriver>,
-    ) -> Result<()> {
-        if matches!(save_point, SavePoint::Periodic)
-            && !super::has_running_cli_agent(&self.terminal_driver, foreground).await
-        {
-            log::debug!("Will not save conversation, Codex not in progress");
-            return Ok(());
-        }
-
-        let (conversation_id, block_id) = match &*self.state.lock() {
-            CodexRunnerState::Preexec => {
-                log::warn!("save_conversation called before start");
-                return Ok(());
-            }
-            CodexRunnerState::Running {
-                conversation_id,
-                block_id,
-            } => (*conversation_id, block_id.clone()),
-        };
-
-        let session_id = self.session_id.get().copied();
-        let rollout_path = self.resolve_transcript_path().await;
-        let client = self.client.as_ref();
-
-        let is_final = matches!(save_point, SavePoint::Final);
-        futures::try_join!(
-            super::upload_current_block_snapshot(
-                foreground,
-                &self.terminal_driver,
-                client,
-                conversation_id,
-                block_id,
-            ),
-            upload_transcript(client, conversation_id, session_id, rollout_path, is_final),
-        )?;
-        Ok(())
-    }
-}
-
-/// Upload the codex session transcript to the server. No-ops if the session UUID hasn't
-/// been captured yet or no rollout file is on disk yet.
-async fn upload_transcript(
-    client: &dyn HarnessSupportClient,
-    conversation_id: AIConversationId,
-    session_id: Option<Uuid>,
-    transcript_path: Option<PathBuf>,
-    is_final: bool,
-) -> Result<()> {
-    let Some(session_id) = session_id else {
-        if is_final {
-            log::warn!(
-                "Codex session id still unknown at final save; transcript was never uploaded"
-            );
-        } else {
-            log::debug!("Codex session id not yet known; skipping transcript upload");
-        }
-        return Ok(());
-    };
-    let Some(transcript_path) = transcript_path else {
-        if is_final {
-            log::warn!(
-                "No codex rollout file found at final save for session {session_id}; transcript was never uploaded"
-            );
-        } else {
-            log::debug!("No codex rollout file yet for session {session_id}");
-        }
-        return Ok(());
-    };
-    log::info!("Uploading codex transcript to conversation {conversation_id}");
-
-    let body = tokio::task::spawn_blocking(move || -> Result<Vec<u8>> {
-        let entries = read_jsonl(&transcript_path)?;
-        let metadata = parse_session_meta(entries.first()).unwrap_or_default();
-        let envelope = CodexTranscriptEnvelope::new(session_id, metadata, entries);
-        serde_json::to_vec(&envelope).context("Failed to serialize codex transcript")
-    })
-    .await
-    .context("read_envelope task panicked")??;
-
-    let target = client
-        .get_transcript_upload_target(&conversation_id)
-        .await
-        .with_context(|| format!("Failed to get transcript upload target for {conversation_id}"))?;
-    upload_to_target(client.http_client(), &target, body).await?;
-    Ok(())
 }
 
 const CODEX_CONFIG_DIR: &str = ".codex";

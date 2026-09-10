@@ -201,7 +201,6 @@ pub(crate) enum SetupStep {
     SkillsDirsLoading,
     ConversationResumeLoading,
     ThirdPartyHarnessPreparation,
-    ThirdPartyHarnessExternalConversation,
     /// Sub-steps of [`SetupStep::ThirdPartyHarnessPreparation`] that track plugin
     /// install/update latency and reliability individually.
     ThirdPartyHarnessPreparationNotificationPluginInstall,
@@ -284,9 +283,6 @@ impl SetupStep {
             }
             Self::ThirdPartyHarnessPreparation => {
                 span_and_name!("setup_third_party_harness_preparation")
-            }
-            Self::ThirdPartyHarnessExternalConversation => {
-                span_and_name!("setup_third_party_harness_external_conversation")
             }
             Self::ThirdPartyHarnessPreparationNotificationPluginInstall => {
                 span_and_name!("setup_third_party_harness_preparation_notification_plugin_install")

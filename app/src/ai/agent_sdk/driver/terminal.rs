@@ -23,7 +23,7 @@ use crate::pane_group::NewTerminalOptions;
 use crate::root_view::{NewWorkspaceSource, open_new_with_workspace_source};
 use crate::terminal::TerminalView;
 use crate::terminal::model::RespectObfuscatedSecrets;
-use crate::terminal::model::block::{BlockId, SerializedBlock};
+use crate::terminal::model::block::BlockId;
 use crate::terminal::model::find::RegexDFAs;
 use crate::terminal::model::grid::RespectDisplayedOutput;
 use crate::terminal::model::index::Point;
@@ -315,16 +315,6 @@ impl TerminalDriver {
         self.terminal_view.update(ctx, |terminal, ctx| {
             terminal.submit_text_to_cli_agent_pty(text, ctx);
         });
-    }
-
-    /// Return a snapshot of the block with the given ID.
-    pub fn block_snapshot(&self, block_id: &BlockId, ctx: &AppContext) -> Option<SerializedBlock> {
-        let terminal = self.terminal_view.as_ref(ctx);
-        let model = terminal.model.lock();
-        model
-            .block_list()
-            .block_with_id(block_id)
-            .map(SerializedBlock::from)
     }
 
     /// Full visible plaintext of `block_id`'s output grid (no ANSI escape

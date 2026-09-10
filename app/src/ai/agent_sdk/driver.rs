@@ -44,8 +44,8 @@ use crate::ai::agent::{
     FinishedAIAgentOutput, RenderableAIError, TransientNetworkErrorKind,
 };
 use crate::ai::agent_sdk::driver::harness::{
-    HarnessCleanupDisposition, HarnessKind, HarnessRunner, ResumePayload, SavePoint,
-    ThirdPartyHarness, ThirdPartyHarnessTelemetryEvent, harness_model_env_vars, task_env_vars,
+    HarnessKind, HarnessRunner, ThirdPartyHarness, ThirdPartyHarnessTelemetryEvent,
+    harness_model_env_vars, task_env_vars,
 };
 use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
 use crate::ai::ambient_agents::task::HarnessModelConfig;
@@ -85,9 +85,6 @@ use crate::send_telemetry_from_app_ctx;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::{AIClient, TaskStatusUpdate};
-use crate::server::server_api::harness_support::{
-    HarnessSupportClient, ResolvePromptAttachedSkill, ResolvePromptRequest,
-};
 use crate::terminal::cli_agent_sessions::plugin_manager::{
     CliAgentPluginManager, plugin_manager_for,
 };
@@ -137,7 +134,6 @@ where
 }
 
 const MCP_SERVER_STARTUP_TIMEOUT: Duration = Duration::from_secs(20);
-const HARNESS_SAVE_INTERVAL: Duration = Duration::from_secs(30);
 /// Timeout for individual harness auth preflight commands.
 const PREFLIGHT_CHECK_TIMEOUT: Duration = Duration::from_secs(30);
 pub(crate) const WARP_DRIVE_SYNC_TIMEOUT: Duration = Duration::from_secs(60);
@@ -327,11 +323,9 @@ fn cli_session_status_log_outcome(status: &CLIAgentSessionStatus) -> &'static st
 /// How to resume an existing conversation when starting an agent run.
 ///
 /// The Oz harness restores the full conversation transcript into the terminal pane and treats
-/// any new prompt as a follow-up; third-party harnesses round-trip a harness-specific payload
-/// (see [`ResumePayload`]) instead.
+/// any new prompt as a follow-up.
 pub enum ResumeOptions {
     Oz(Box<ConversationRestorationInNewPaneType>),
-    ThirdParty(Box<ResumePayload>),
 }
 
 /// Options for initializing the agent driver.
@@ -352,9 +346,8 @@ pub struct AgentDriverOptions {
     /// all. Set by the cloud worker from the environment's post-failure session retention policy
     /// so the failed run's shared session stays attachable for debugging.
     pub idle_on_fail: Option<Duration>,
-    /// If set, resume an existing conversation instead of starting fresh. The variant
-    /// determines which harness-specific path is taken (Oz transcript restore vs.
-    /// third-party-harness payload rehydration).
+    /// If set, resume an existing conversation instead of starting fresh (Oz transcript
+    /// restore).
     pub resume: Option<ResumeOptions>,
     /// Resolved environment configuration, if any.
     pub environment: Option<AmbientAgentEnvironment>,
@@ -424,10 +417,6 @@ pub struct AgentDriver {
 
     // The conversation ID to continue (if provided).
     restored_conversation_id: Option<AIConversationId>,
-
-    /// If set, a third-party-harness conversation to resume. Consumed when
-    /// preparing the harness runner and cleared afterward.
-    resume_payload: Option<ResumePayload>,
 
     /// Resolved environment configuration.
     environment: Option<AmbientAgentEnvironment>,
@@ -613,14 +602,6 @@ pub enum AgentDriverError {
         expected: String,
         got: String,
     },
-    #[error(
-        "Conversation {conversation_id} has no stored transcript for the {harness} harness. \
-         The prior run may have crashed before saving any state."
-    )]
-    ConversationResumeStateMissing {
-        harness: String,
-        conversation_id: String,
-    },
     #[error("Harness command exited with code {exit_code}")]
     HarnessCommandFailed { exit_code: i32 },
     #[error("Harness '{harness}' setup failed: {reason}")]
@@ -705,14 +686,9 @@ impl AgentDriver {
             mcp_startup_timeout,
         } = options;
 
-        // Split the unified resume option into the two internal slots that the rest of
-        // the driver consumes: terminal-driven Oz transcript restoration vs. third-party
-        // harness payload rehydration.
-        let (conversation_restoration, resume_payload) = match resume {
-            Some(ResumeOptions::Oz(restoration)) => (Some(*restoration), None),
-            Some(ResumeOptions::ThirdParty(payload)) => (None, Some(*payload)),
-            None => (None, None),
-        };
+        // Split the unified resume option into the slot the rest of the driver consumes:
+        // terminal-driven Oz transcript restoration.
+        let conversation_restoration = resume.map(|ResumeOptions::Oz(restoration)| *restoration);
 
         safe_info!(
             safe: ("Initializing agent driver: share={should_share}, idle_on_complete={idle_on_complete:?}, idle_on_fail={idle_on_fail:?}"),
@@ -803,7 +779,6 @@ impl AgentDriver {
             idle_on_fail,
             last_published_debug_deadline: None,
             restored_conversation_id,
-            resume_payload,
             environment,
             additional_source_repos,
             run_conversation_id,
@@ -843,7 +818,6 @@ impl AgentDriver {
             idle_on_fail: None,
             last_published_debug_deadline: None,
             restored_conversation_id: None,
-            resume_payload: None,
             environment: None,
             additional_source_repos: Vec::new(),
             run_conversation_id: None,
@@ -2977,8 +2951,8 @@ impl AgentDriver {
         harness: &dyn ThirdPartyHarness,
         foreground: &ModelSpawner<Self>,
     ) -> Result<Arc<dyn harness::HarnessRunner>, AgentDriverError> {
-        let (working_dir, task_id, server_api, terminal_driver) = foreground
-            .spawn(|me, ctx| {
+        let (working_dir, terminal_driver) = foreground
+            .spawn(|me, _| {
                 if me.harness.is_some() {
                     log::error!(
                         "Attempted to prepare a third-party harness, but one was already configured"
@@ -2986,12 +2960,7 @@ impl AgentDriver {
                     return Err(AgentDriverError::InvalidRuntimeState);
                 }
 
-                Ok((
-                    me.working_dir.clone(),
-                    me.task_id,
-                    ServerApiProvider::as_ref(ctx).get(),
-                    me.terminal_driver.clone(),
-                ))
+                Ok((me.working_dir.clone(), me.terminal_driver.clone()))
             })
             .await
             .map_err(|_| AgentDriverError::InvalidRuntimeState)
@@ -3004,31 +2973,12 @@ impl AgentDriver {
             Option<String>,
         ) = match prompt {
             AgentRunPrompt::Local(text) => (Cow::Borrowed(text), None, None, None),
-            AgentRunPrompt::ServerSide {
-                skill,
-                attachments_dir,
-            } => {
-                let skill = skill
-                    .as_ref()
-                    .map(|parsed_skill| ResolvePromptAttachedSkill {
-                        name: parsed_skill.name.clone(),
-                        content: parsed_skill.content.clone(),
-                        path: Some(parsed_skill.path.display_path()),
-                    });
-                let request = ResolvePromptRequest {
-                    skill,
-                    attachments_dir: attachments_dir.clone(),
-                };
-                let resolved = server_api
-                    .resolve_prompt(request)
-                    .await
-                    .map_err(AgentDriverError::PromptResolutionFailed)?;
-                (
-                    Cow::Owned(resolved.prompt),
-                    resolved.system_prompt,
-                    resolved.resumption_prompt,
-                    resolved.context,
-                )
+            AgentRunPrompt::ServerSide { .. } => {
+                // Server-side prompts are resolved by the Warp server from the task's
+                // skill and attachments; with no server there is nothing to resolve.
+                return Err(AgentDriverError::PromptResolutionFailed(anyhow::anyhow!(
+                    "Server-side prompt resolution requires a connection to the Warp server"
+                )));
             }
         };
 
@@ -3061,10 +3011,6 @@ impl AgentDriver {
             .spawn(|me, _| Arc::clone(&me.resolved_env_vars))
             .await
             .map_err(|_| AgentDriverError::InvalidRuntimeState)?;
-        let resume = foreground
-            .spawn(|me, _| me.resume_payload.take())
-            .await
-            .map_err(|_| AgentDriverError::InvalidRuntimeState)?;
 
         let runner: Arc<dyn HarnessRunner> = harness
             .build_runner(
@@ -3073,10 +3019,7 @@ impl AgentDriver {
                 resumption_prompt.as_deref(),
                 server_context.as_deref(),
                 &working_dir,
-                task_id,
-                server_api,
                 terminal_driver,
-                resume,
                 &resolved_env_vars,
                 &secrets_for_harness,
                 &resolved_mcp_servers,
@@ -3126,23 +3069,15 @@ impl AgentDriver {
         .fuse();
         futures::pin_mut!(scanner_fut);
 
-        // Detected runtime error, if any. Promoted to the final return
-        // value below after final-save + cleanup run.
+        // Detected runtime error, if any. Promoted to the final return value below
+        // after the select loop ends.
         let mut detected_runtime_failure: Option<harness_output_monitor::DetectedHarnessError> =
             None;
 
-        // Periodically save the conversation while the command is running and handle
-        // exiting gracefully once the idle timeout elapses.
+        // Handle exiting gracefully once the idle timeout elapses.
         let command_result = loop {
             futures::select! {
                 exit_code = command_handle => break exit_code,
-                _ = warpui::r#async::Timer::after(HARNESS_SAVE_INTERVAL).fuse() => {
-                    log::debug!("Triggering periodic save of harness conversation data");
-                    report_if_error!(runner
-                        .save_conversation(SavePoint::Periodic, foreground)
-                        .await
-                        .context("Failed to save harness conversation (periodic)"));
-                }
                 _ = harness_exit_rx => {
                     log::debug!("Requesting harness exit");
                     report_if_error!(runner
@@ -3208,35 +3143,6 @@ impl AgentDriver {
                 }
             }
         };
-
-        // Final save after the command finishes.
-        log::debug!("Triggering final save of harness conversation data");
-        let final_save_succeeded = match runner
-            .save_conversation(SavePoint::Final, foreground)
-            .await
-            .context("Failed to save harness conversation (final)")
-        {
-            Ok(()) => true,
-            Err(err) => {
-                report_error!(err);
-                false
-            }
-        };
-        let cleanup_disposition = if final_save_succeeded
-            && detected_runtime_failure.is_none()
-            && matches!(command_result.as_ref(), Ok(exit_code) if exit_code.was_successful())
-        {
-            HarnessCleanupDisposition::PreserveResumptionStateIfSupported
-        } else {
-            HarnessCleanupDisposition::DropResumptionState
-        };
-        if let Err(err) = runner
-            .cleanup(cleanup_disposition, foreground)
-            .await
-            .context("Failed to clean up harness runtime state")
-        {
-            report_error!(err);
-        }
 
         // A runtime failure detected mid-run takes precedence over the
         // harness's own exit code: surface the actionable detail rather
@@ -3791,37 +3697,8 @@ impl AgentDriver {
                         }
                     }
                 }
-                CLIAgentSessionsModelEvent::SessionUpdated {
-                    terminal_view_id: event_tid,
-                    ..
-                } => {
-                    if *event_tid != terminal_view_id {
-                        return;
-                    }
-
-                    let Some(runner) = me.harness.clone() else {
-                        return;
-                    };
-                    let spawner = ctx.spawner();
-                    ctx.spawn(
-                        async move {
-                            log::debug!(
-                                "Triggering post-turn harness session update from CLI agent event"
-                            );
-                            report_if_error!(runner
-                                .handle_session_update(&spawner)
-                                .await
-                                .context("Failed to update harness state from CLI session event"));
-                            log::debug!("Triggering post-turn save of harness conversation data");
-                            report_if_error!(runner
-                                .save_conversation(SavePoint::PostTurn, &spawner)
-                                .await
-                                .context("Failed to save harness conversation (post-turn)"));
-                        },
-                        |_, _, _| {},
-                    );
-                }
-                CLIAgentSessionsModelEvent::Started { .. }
+                CLIAgentSessionsModelEvent::SessionUpdated { .. }
+                | CLIAgentSessionsModelEvent::Started { .. }
                 | CLIAgentSessionsModelEvent::InputSessionChanged { .. }
                 | CLIAgentSessionsModelEvent::Ended { .. } => {}
             });

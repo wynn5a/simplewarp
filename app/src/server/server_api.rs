@@ -663,11 +663,6 @@ impl ServerApiProvider {
     pub fn get_http_client(&self) -> Arc<http_client::Client> {
         self.server_api.owned_http_client()
     }
-
-    #[cfg_attr(target_family = "wasm", expect(dead_code))]
-    pub fn get_harness_support_client(&self) -> Arc<dyn harness_support::HarnessSupportClient> {
-        self.server_api.clone()
-    }
 }
 
 impl Entity for ServerApiProvider {

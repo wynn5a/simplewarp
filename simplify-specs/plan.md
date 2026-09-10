@@ -3619,6 +3619,55 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
                   full nextest 8757/8763 with the only failures being six
                   proven pre-existing on HEAD (five ssh integration tests and
                   `test_create_folder_from_command_palette`, all environmental).
+      - [x] **HarnessSupportClient, the `warp harness-support` CLI, and the harness
+                  upload/save/resume chain are gone** (4bd, 2026-09-10, ~3,300 net
+                  lines, 29 files, 3 files deleted). Every method on the trait was
+                  already a `local_only_error()` wall; 4n called this a feature
+                  round and it was, but 4az/4bb had already carved out the big
+                  parts, so what remained split cleanly along the local/server
+                  seam. **Deleted**: the `warp harness-support` CLI (args module,
+                  `CliCommand` variant, hidden-subcommand block, dispatch +
+                  `is_gui_required` arms, five `HarnessSupport*` telemetry events,
+                  parse tests); the trait + `ServerApi` impl +
+                  `get_harness_support_client` (**provider down to 5 client
+                  getters**); `ResumePayload`/`fetch_resume_payload`/
+                  `fetch_transcript_envelope`; the runners' `save_conversation`
+                  + `handle_session_update` + `cleanup` and the trait methods
+                  themselves, with `SavePoint`, `HarnessCleanupDisposition`,
+                  `HARNESS_SAVE_INTERVAL`, `ResumeOptions::ThirdParty`, the
+                  driver's `resume_payload` slot, `TerminalDriver::block_snapshot`,
+                  and `SetupStep::ThirdPartyHarnessExternalConversation`;
+                  parent_bridge's `MessageBridge` runtime + hook-output rendering
+                  (762 → 278 lines); `agent_events`' `bounded_run_ids` and its two
+                  constants (the bridge was the only consumer); and the CLI's
+                  ambient-task context kick in `agent_sdk/common`. **Collapses**:
+                  `prepare_harness`'s `AgentRunPrompt::ServerSide` arm fails
+                  directly with `PromptResolutionFailed`; `load_conversation_information`'s
+                  third-party arm errors instead of fetching a server transcript.
+                  **Kept, and why**: the runner world itself (claude_code/codex/
+                  gemini build + launch + `/exit`) now executes as purely local
+                  runs; the wake path stays, so `resolve_prompt_for_task`/
+                  `fetch_transcript_for_task` and parent_bridge's staging
+                  helpers stay in `server_api/harness_support.rs` (which is now
+                  just those helpers plus the `UploadTarget` family — note the
+                  attachment-upload client surface (`prepare_attachment_uploads`,
+                  `resolve_upload_target`, `upload_to_target`) turned out to be
+                  prod-orphaned at HEAD and is deliberately left standing as its
+                  own slice); the transcript reader halves (`read_envelope`,
+                  `find_session_file`, `parse_session_meta`, …) carry
+                  `#[cfg_attr(not(test), allow(dead_code))]` as the
+                  on-disk-contract guards for the live write paths, the same
+                  pattern as `AgentEventConsumerControlFlow::Stop`. The
+                  in-app CLI-agent surfaces (harness_availability, local child
+                  launch, workspace transcript rehydration) are untouched, and
+                  the `oz-harness-support` *plugin* name belongs to that world.
+                  Acceptance: check `--all-targets` clean in both presubmit
+                  configs with the warning set **identical to HEAD** (lib
+                  baseline still exactly 4); clippy `-p warp` 0 errors in both;
+                  format clean; nextest 8736/8729 with the six known
+                  environmental ssh/palette failures plus `test_ctrl_c`, which
+                  passes in isolation (full-suite load flake, verified on the
+                  work tree).
 
             Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
             format clean, nextest green (5707 → 5519 as each deleted subject's tests went with

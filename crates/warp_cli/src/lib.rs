@@ -25,7 +25,6 @@ pub mod completions;
 pub mod config_file;
 mod date_time;
 pub mod environment;
-pub mod harness_support;
 pub mod json_filter;
 pub mod local_control;
 pub mod mcp;
@@ -273,11 +272,6 @@ impl Args {
             command = command.mut_subcommand("provider", |c| c.hide(true));
         }
 
-        // Hide the harness-support subcommand from help text.
-        if !FeatureFlag::AgentHarness.is_enabled() {
-            command = command.mut_subcommand("harness-support", |c| c.hide(true));
-        }
-
         // Hide the conversation subcommand and --conversation flag from help text.
         if !FeatureFlag::ConversationApi.is_enabled() {
             command = command.mut_subcommand("run", |run_cmd| {
@@ -463,10 +457,6 @@ pub enum CliCommand {
     #[command(subcommand)]
     Provider(crate::provider::ProviderCommand),
 
-    /// Support commands for agent harnesses to integrate with Oz.
-    #[command(hide = true)]
-    HarnessSupport(crate::harness_support::HarnessSupportArgs),
-
     /// Manage artifacts.
     #[command(subcommand)]
     Artifact(crate::artifact::ArtifactCommand),
@@ -488,7 +478,6 @@ impl CliCommand {
             CliCommand::Logout => "logout",
             CliCommand::Whoami => "whoami",
             CliCommand::Provider(command) => command.as_str_for_tracing(),
-            CliCommand::HarnessSupport(args) => args.command.as_str_for_tracing(),
             CliCommand::Artifact(command) => command.as_str_for_tracing(),
             CliCommand::ApiKey(command) => command.as_str_for_tracing(),
             CliCommand::MemoryStore(command) => command.as_str_for_tracing(),

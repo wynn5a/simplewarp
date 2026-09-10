@@ -13,7 +13,6 @@ use crate::ai::agent_sdk::driver::{AgentDriverError, WARP_DRIVE_SYNC_TIMEOUT};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::AIClient;
 
 pub fn validate_agent_mode_base_model_id(
@@ -68,18 +67,6 @@ pub(super) fn parse_ambient_task_id(
     run_id
         .parse()
         .map_err(|err| anyhow::anyhow!("{error_prefix} '{run_id}': {err}"))
-}
-
-pub(super) fn set_ambient_task_context_from_run_id(
-    ctx: &AppContext,
-    run_id: &str,
-) -> anyhow::Result<AmbientAgentTaskId> {
-    let task_id = parse_ambient_task_id(run_id, "Invalid run ID")?;
-    ServerApiProvider::handle(ctx)
-        .as_ref(ctx)
-        .get()
-        .set_ambient_agent_task_id(Some(task_id));
-    Ok(task_id)
 }
 
 /// Refresh Warp Drive before executing an operation.
