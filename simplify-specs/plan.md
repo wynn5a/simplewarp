@@ -3845,6 +3845,53 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             targets by site count**: `WarpControlCli` (24), `GeminiEnterprise` (23,
             live-by-design per 4at), `EditableMarkdownMermaid` (23); 98 constant-false
             flags remain of 208 enum variants.
+      - [x] **The `WarpControlCli` flag is folded away** (4bp, 2026-09-14, 69 files,
+            +56/−12,194): the `warp_control_cli` cargo feature was absent from the
+            simplewarp set, so Warp Control — the app-side local-control server, the
+            `warpctrl` CLI client it serves, and the Scripting page that enabled them —
+            was permanently inert. The whole vertical went, end to end:
+
+            - *Server side*: all of `app/src/local_control/` (Axum listener, credential
+              broker, resolver, permissions, the allowlisted action handlers), the
+              `LocalControlBridge`/`LocalControlServer` singleton registration and the
+              `--warpctrl` early-dispatch block in `lib.rs`, and `LocalControlSettings`
+              with its tests (its only readers were the flag-gated server and page).
+            - *Settings UI*: the whole Scripting page (`scripting_page.rs`, install
+              widget, `local_control_mode` dropdown), the `SettingsSection::Scripting`
+              variant with its nav insert, page-handle arm, slug/from_slug spellings,
+              and the `from_slug` doc comment's warpctrl mention (persisted-session
+              compat stays — the warpctrl callers do not).
+            - *CLI side*: all of `crates/warp_cli/src/local_control/` (`warpctrl`
+              parser, `warp control` command tree, run-and-exit client) with its 732
+              test lines, the `local_control` crate itself (protocol, discovery,
+              catalog, auth), both dependency edges, and `Channel::warpctrl_command_name`.
+            - *Periphery*: `InstallWarpctrl`/`UninstallWarpctrl` actions, bindings, and
+              view methods; the `cli_install.rs` warpctrl fns with `path_resolves_to`
+              (its only production caller) and the single-test file it left behind;
+              the `warpctrl` bundled skill (resources dir, template variables,
+              activation arm); the DOGFOOD_FLAGS entry, the `features.rs` mapping, the
+              cargo feature, and the wrapper-creating branches in the macOS/Linux
+              bundle and run scripts.
+
+            Tests re-pointed rather than deleted where they covered live behavior:
+            the RequiresFeature gating tests in `skill_manager_tests` and
+            `read_skill_tests` now use `FactoryMcp` (already the sibling example);
+            the redundant `warp_control_bundled_skill_activations_track_warp_control_feature`
+            test was dropped. `specs/warp-control-cli/` stays — no spec has ever been
+            deleted in this repo, including the TUI's.
+
+            Acceptance: check both feature sets at the 4-warning lib baseline (same
+            four warnings as HEAD: `is_transient_graphql_or_http_error`,
+            `reset_unknown`, `should_preserve_onboarding_profile`, `Loaded`), clippy
+            error set byte-identical to HEAD in both configs via stash diff (8 pairs
+            per config, including the pre-existing `for loop over a single element`
+            in lifecycle tests), format clean, nextest green (warp lib 5213 default /
+            5211 simplewarp vs 5250/5248 — delta = tests deleted with their subject;
+            `warp_cli`+`warp_features`+`warp_server_client` 149). Not re-run in the
+            app — every deleted surface was unreachable in the product build.
+            **Next flag targets by site count**: `EditableMarkdownMermaid` (23;
+            `GeminiEnterprise` (23) is live-by-design per 4at — treat carefully);
+            97 constant-false flags remain of 207 enum variants.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
