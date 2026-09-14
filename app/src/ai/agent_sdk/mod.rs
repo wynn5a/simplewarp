@@ -62,7 +62,6 @@ use crate::workflows::workflow::Workflow;
 
 mod admin;
 mod agent_config;
-mod agent_management;
 mod ambient;
 mod api_key;
 mod artifact;
@@ -231,21 +230,6 @@ fn run_agent(
             Ok(())
         }
         AgentCommand::Profile(sub) => profiles::run(ctx, global_options, sub),
-        AgentCommand::List(args) => {
-            agent_management::list_agents(ctx, global_options.output_format, args)
-        }
-        AgentCommand::Get(args) => {
-            agent_management::get_agent(ctx, global_options.output_format, args)
-        }
-        AgentCommand::Create(args) => {
-            agent_management::create_agent(ctx, global_options.output_format, args)
-        }
-        AgentCommand::Update(args) => {
-            agent_management::update_agent(ctx, global_options.output_format, args)
-        }
-        AgentCommand::Delete(args) => {
-            agent_management::delete_agent(ctx, global_options.output_format, args)
-        }
         AgentCommand::Skills(args) => agent_config::list_skills(ctx, args),
     }
 }
@@ -1259,11 +1243,6 @@ fn command_requires_auth(command: &CliCommand) -> bool {
             AgentCommand::Profile(sub) => match sub {
                 AgentProfileCommand::List => true,
             },
-            AgentCommand::List(_) => true,
-            AgentCommand::Get(_) => true,
-            AgentCommand::Create(_) => true,
-            AgentCommand::Update(_) => true,
-            AgentCommand::Delete(_) => true,
             AgentCommand::Skills(_) => true,
         },
         CliCommand::MCP(mcp_cmd) => match mcp_cmd {
@@ -1423,11 +1402,6 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
         CliCommand::Agent(AgentCommand::Profile(sub)) => match sub {
             AgentProfileCommand::List => CliTelemetryEvent::AgentProfileList,
         },
-        CliCommand::Agent(AgentCommand::List(_)) => CliTelemetryEvent::AgentList,
-        CliCommand::Agent(AgentCommand::Get(_)) => CliTelemetryEvent::AgentGet,
-        CliCommand::Agent(AgentCommand::Create(_)) => CliTelemetryEvent::AgentCreate,
-        CliCommand::Agent(AgentCommand::Update(_)) => CliTelemetryEvent::AgentUpdate,
-        CliCommand::Agent(AgentCommand::Delete(_)) => CliTelemetryEvent::AgentDelete,
         CliCommand::Agent(AgentCommand::Skills(_)) => CliTelemetryEvent::AgentSkills,
         CliCommand::MCP(MCPCommand::List) => CliTelemetryEvent::MCPList,
         CliCommand::Run(TaskCommand::List(_)) => CliTelemetryEvent::TaskList,

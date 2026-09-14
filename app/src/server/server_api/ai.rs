@@ -560,75 +560,6 @@ pub struct AgentSkillItem {
     pub variants: Vec<AgentSkillVariant>,
 }
 
-/// Reference to a managed secret by name.
-#[derive(Clone, serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq)]
-pub struct SecretRef {
-    pub name: String,
-}
-
-/// JSON payload sent to `POST /agent/identities`.
-#[derive(Clone, serde::Serialize, Debug, PartialEq, Eq)]
-pub struct CreateAgentRequest {
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Optional base prompt for this agent.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub secrets: Vec<SecretRef>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub skills: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub base_model: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub environment_id: Option<String>,
-}
-
-/// JSON payload sent to `PUT /agent/identities/{uid}`.
-///
-/// Each field uses the public API's PATCH semantics: `None` omits the field
-/// (leave unchanged), while `Some(String::new())` sends an empty value to clear
-/// it. See `CreateAgentRequest`/`UpdateAgentRequest` in
-/// `warp-server/public_api/openapi.yaml`.
-#[derive(Clone, Default, serde::Serialize, Debug, PartialEq, Eq)]
-pub struct UpdateAgentRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Replacement prompt. `None` leaves it unchanged; `Some(String::new())`
-    /// clears it via the public API's PATCH clear-via-empty semantics.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub secrets: Option<Vec<SecretRef>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skills: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub base_model: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub environment_id: Option<String>,
-}
-
-/// Public API representation of a named agent identity.
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, PartialEq, Eq)]
-pub struct AgentResponse {
-    pub uid: String,
-    pub name: String,
-    pub description: Option<String>,
-    /// Optional base prompt for this agent.
-    #[serde(default)]
-    pub prompt: Option<String>,
-    pub available: bool,
-    pub created_at: DateTime<Utc>,
-    pub secrets: Vec<SecretRef>,
-    pub skills: Vec<String>,
-    pub base_model: Option<String>,
-    #[serde(default)]
-    pub environment_id: Option<String>,
-}
-
 #[derive(Clone, serde::Deserialize, Debug, PartialEq, Eq)]
 pub struct ConnectedSelfHostedWorker {
     pub worker_host: String,
@@ -781,38 +712,6 @@ pub trait AIClient: 'static + Send + Sync {
         &self,
         repo: Option<String>,
     ) -> anyhow::Result<Vec<AgentSkillItem>, anyhow::Error>;
-
-    async fn list_agents(&self) -> anyhow::Result<Vec<AgentResponse>, anyhow::Error>;
-
-    async fn list_agents_raw(&self) -> anyhow::Result<serde_json::Value, anyhow::Error>;
-
-    async fn get_agent(&self, uid: &str) -> anyhow::Result<AgentResponse, anyhow::Error>;
-
-    async fn get_agent_raw(&self, uid: &str) -> anyhow::Result<serde_json::Value, anyhow::Error>;
-
-    async fn create_agent(
-        &self,
-        request: CreateAgentRequest,
-    ) -> anyhow::Result<AgentResponse, anyhow::Error>;
-
-    async fn create_agent_raw(
-        &self,
-        request: CreateAgentRequest,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error>;
-
-    async fn update_agent(
-        &self,
-        uid: &str,
-        request: UpdateAgentRequest,
-    ) -> anyhow::Result<AgentResponse, anyhow::Error>;
-
-    async fn update_agent_raw(
-        &self,
-        uid: &str,
-        request: UpdateAgentRequest,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error>;
-
-    async fn delete_agent(&self, uid: &str) -> anyhow::Result<(), anyhow::Error>;
 
     async fn cancel_ambient_agent_task(
         &self,
@@ -1144,56 +1043,6 @@ impl AIClient for ServerApi {
     ) -> anyhow::Result<Vec<AgentSkillItem>, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
-    async fn list_agents(&self) -> anyhow::Result<Vec<AgentResponse>, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn list_agents_raw(&self) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn get_agent(&self, _uid: &str) -> anyhow::Result<AgentResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn get_agent_raw(&self, _uid: &str) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn create_agent(
-        &self,
-        _request: CreateAgentRequest,
-    ) -> anyhow::Result<AgentResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn create_agent_raw(
-        &self,
-        _request: CreateAgentRequest,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn update_agent(
-        &self,
-        _uid: &str,
-        _request: UpdateAgentRequest,
-    ) -> anyhow::Result<AgentResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn update_agent_raw(
-        &self,
-        _uid: &str,
-        _request: UpdateAgentRequest,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn delete_agent(&self, _uid: &str) -> anyhow::Result<(), anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
     async fn cancel_ambient_agent_task(
         &self,
         _task_id: &AmbientAgentTaskId,

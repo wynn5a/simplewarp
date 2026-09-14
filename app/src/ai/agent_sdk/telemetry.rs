@@ -19,16 +19,6 @@ pub(super) enum CliTelemetryEvent {
     },
     /// Executing `warp agent profile list`
     AgentProfileList,
-    /// Executing `warp agent list`
-    AgentList,
-    /// Executing `warp agent get`
-    AgentGet,
-    /// Executing `warp agent create`
-    AgentCreate,
-    /// Executing `warp agent update`
-    AgentUpdate,
-    /// Executing `warp agent delete`
-    AgentDelete,
     /// Executing `warp agent skills`
     AgentSkills,
     /// Executing `warp mcp list`
@@ -98,11 +88,6 @@ impl TelemetryEvent for CliTelemetryEvent {
                 "harness": harness,
             })),
             CliTelemetryEvent::AgentProfileList => None,
-            CliTelemetryEvent::AgentList => None,
-            CliTelemetryEvent::AgentGet => None,
-            CliTelemetryEvent::AgentCreate => None,
-            CliTelemetryEvent::AgentUpdate => None,
-            CliTelemetryEvent::AgentDelete => None,
             CliTelemetryEvent::AgentSkills => None,
             CliTelemetryEvent::MCPList => None,
             CliTelemetryEvent::ModelList => None,
@@ -153,11 +138,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
         match self {
             CliTelemetryEventDiscriminants::AgentRun => "CLI.Execute.Agent.Run",
             CliTelemetryEventDiscriminants::AgentProfileList => "CLI.Execute.Agent.Profile.List",
-            CliTelemetryEventDiscriminants::AgentList => "CLI.Execute.Agent.List",
-            CliTelemetryEventDiscriminants::AgentGet => "CLI.Execute.Agent.Get",
-            CliTelemetryEventDiscriminants::AgentCreate => "CLI.Execute.Agent.Create",
-            CliTelemetryEventDiscriminants::AgentUpdate => "CLI.Execute.Agent.Update",
-            CliTelemetryEventDiscriminants::AgentDelete => "CLI.Execute.Agent.Delete",
             CliTelemetryEventDiscriminants::AgentSkills => "CLI.Execute.Agent.Skills",
             CliTelemetryEventDiscriminants::MCPList => "CLI.Execute.MCP.List",
             CliTelemetryEventDiscriminants::ModelList => "CLI.Execute.Model.List",
@@ -194,11 +174,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::AgentProfileList => {
                 "Listed agent profiles from the Warp CLI"
             }
-            CliTelemetryEventDiscriminants::AgentList => "Listed agents from the Warp CLI",
-            CliTelemetryEventDiscriminants::AgentGet => "Got agent details from the Warp CLI",
-            CliTelemetryEventDiscriminants::AgentCreate => "Created an agent from the Warp CLI",
-            CliTelemetryEventDiscriminants::AgentUpdate => "Updated an agent from the Warp CLI",
-            CliTelemetryEventDiscriminants::AgentDelete => "Deleted an agent from the Warp CLI",
             CliTelemetryEventDiscriminants::AgentSkills => "Listed agent skills from the Warp CLI",
             CliTelemetryEventDiscriminants::MCPList => "Listed MCP servers from the Warp CLI",
             CliTelemetryEventDiscriminants::ModelList => "Listed models from the Warp CLI",

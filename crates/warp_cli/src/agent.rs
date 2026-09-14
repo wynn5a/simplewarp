@@ -5,9 +5,7 @@ use clap::builder::PossibleValue;
 use clap::{Args, Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
 
-use crate::SortOrderArg;
 use crate::config_file::ConfigFileArgs;
-use crate::json_filter::JsonOutput;
 use crate::mcp::MCPSpec;
 use crate::model::ModelArgs;
 use crate::share::ShareArgs;
@@ -258,16 +256,6 @@ pub enum AgentCommand {
     /// Manage agent profiles.
     #[command(subcommand)]
     Profile(AgentProfileCommand),
-    /// List all available agents.
-    List(AgentListArgs),
-    /// Get details of an agent.
-    Get(AgentGetArgs),
-    /// Create a new agent.
-    Create(AgentCreateArgs),
-    /// Update an existing agent.
-    Update(AgentUpdateArgs),
-    /// Delete an agent.
-    Delete(AgentDeleteArgs),
     /// List available agent skills.
     Skills(ListAgentSkillsArgs),
 }
@@ -277,11 +265,6 @@ impl AgentCommand {
         match self {
             AgentCommand::Run(_) => "agent run",
             AgentCommand::Profile(_) => "agent profile",
-            AgentCommand::List(_) => "agent list",
-            AgentCommand::Get(_) => "agent get",
-            AgentCommand::Create(_) => "agent create",
-            AgentCommand::Update(_) => "agent update",
-            AgentCommand::Delete(_) => "agent delete",
             AgentCommand::Skills(_) => "agent skills",
         }
     }
@@ -465,187 +448,6 @@ pub struct SnapshotArgs {
     /// Maximum time to wait for the declarations script before uploading the snapshot.
     #[arg(long = "snapshot-script-timeout", value_name = "DURATION")]
     pub snapshot_script_timeout: Option<humantime::Duration>,
-}
-
-/// Sort field for named agents.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum AgentSortByArg {
-    #[value(name = "name")]
-    Name,
-    #[value(name = "created-at")]
-    CreatedAt,
-}
-
-/// Arguments for listing named agents.
-#[derive(Debug, Clone, Args)]
-pub struct AgentListArgs {
-    /// Sort field. Only supported for pretty, text, and ndjson output.
-    #[arg(long = "sort-by", value_enum, value_name = "FIELD")]
-    pub sort_by: Option<AgentSortByArg>,
-
-    /// Sort direction. Only supported for pretty, text, and ndjson output.
-    #[arg(long = "sort-order", value_enum, value_name = "DIR")]
-    pub sort_order: Option<SortOrderArg>,
-
-    /// JSON formatting configuration.
-    #[command(flatten)]
-    pub json_output: JsonOutput,
-}
-
-/// Arguments for getting a named agent.
-#[derive(Debug, Clone, Args)]
-pub struct AgentGetArgs {
-    /// UID of the agent to get.
-    pub uid: String,
-
-    /// JSON formatting configuration.
-    #[command(flatten)]
-    pub json_output: JsonOutput,
-}
-
-/// Arguments for creating a named agent.
-#[derive(Debug, Clone, Args)]
-pub struct AgentCreateArgs {
-    /// Name of the agent.
-    #[arg(long = "name", short = 'n')]
-    pub name: String,
-
-    /// Description of the agent.
-    #[arg(long = "description")]
-    pub description: Option<String>,
-
-    /// Base prompt for runs of this agent.
-    #[arg(long = "prompt", value_name = "TEXT")]
-    pub prompt: Option<String>,
-
-    /// Attach a secret to the agent. Repeat the flag for multiple secrets.
-    #[arg(long = "secret", value_name = "NAME")]
-    pub secrets: Vec<String>,
-
-    /// Attach a skill to the agent. Repeat the flag for multiple skills.
-    #[arg(long = "skill", value_name = "SKILL")]
-    pub skills: Vec<String>,
-
-    /// Base model for runs of this agent.
-    #[arg(long = "base-model", value_name = "MODEL_ID")]
-    pub base_model: Option<String>,
-
-    /// Default cloud environment for runs of this agent.
-    #[arg(long = "environment", short = 'e', value_name = "ENVIRONMENT_ID")]
-    pub environment: Option<String>,
-
-    /// JSON formatting configuration.
-    #[command(flatten)]
-    pub json_output: JsonOutput,
-}
-
-/// Arguments for updating a named agent.
-#[derive(Debug, Clone, Args)]
-pub struct AgentUpdateArgs {
-    /// UID of the agent to update.
-    pub uid: String,
-
-    /// New name for the agent.
-    #[arg(long = "name", short = 'n')]
-    pub name: Option<String>,
-
-    /// Replacement description for the agent.
-    #[arg(long = "description", conflicts_with = "remove_description")]
-    pub description: Option<String>,
-
-    /// Remove the agent description.
-    #[arg(long = "remove-description", conflicts_with = "description")]
-    pub remove_description: bool,
-
-    /// Add a secret to the agent. Repeat the flag for multiple secrets.
-    #[arg(
-        long = "add-secret",
-        value_name = "NAME",
-        conflicts_with = "remove_all_secrets"
-    )]
-    pub add_secrets: Vec<String>,
-
-    /// Remove a secret from the agent. Repeat the flag for multiple secrets.
-    #[arg(
-        long = "remove-secret",
-        value_name = "NAME",
-        conflicts_with = "remove_all_secrets"
-    )]
-    pub remove_secrets: Vec<String>,
-
-    /// Remove all secrets from the agent.
-    #[arg(
-        long = "remove-all-secrets",
-        conflicts_with_all = ["add_secrets", "remove_secrets"]
-    )]
-    pub remove_all_secrets: bool,
-
-    /// Add a skill to the agent. Repeat the flag for multiple skills.
-    #[arg(
-        long = "add-skill",
-        value_name = "SKILL",
-        conflicts_with = "remove_all_skills"
-    )]
-    pub add_skills: Vec<String>,
-
-    /// Remove a skill from the agent. Repeat the flag for multiple skills.
-    #[arg(
-        long = "remove-skill",
-        value_name = "SKILL",
-        conflicts_with = "remove_all_skills"
-    )]
-    pub remove_skills: Vec<String>,
-
-    /// Remove all skills from the agent.
-    #[arg(
-        long = "remove-all-skills",
-        conflicts_with_all = ["add_skills", "remove_skills"]
-    )]
-    pub remove_all_skills: bool,
-
-    /// Replacement base model for runs executed by this agent.
-    #[arg(
-        long = "base-model",
-        value_name = "MODEL_ID",
-        conflicts_with = "remove_base_model"
-    )]
-    pub base_model: Option<String>,
-
-    /// Remove the agent base model.
-    #[arg(long = "remove-base-model", conflicts_with = "base_model")]
-    pub remove_base_model: bool,
-
-    /// Replacement default cloud environment for runs executed by this agent.
-    #[arg(
-        long = "environment",
-        short = 'e',
-        value_name = "ENVIRONMENT_ID",
-        conflicts_with = "remove_environment"
-    )]
-    pub environment: Option<String>,
-
-    /// Remove the agent default environment.
-    #[arg(long = "remove-environment", conflicts_with = "environment")]
-    pub remove_environment: bool,
-
-    /// Replacement base prompt for runs executed by this agent.
-    #[arg(long = "prompt", value_name = "TEXT", conflicts_with = "remove_prompt")]
-    pub prompt: Option<String>,
-
-    /// Remove the agent base prompt.
-    #[arg(long = "remove-prompt", conflicts_with = "prompt")]
-    pub remove_prompt: bool,
-
-    /// JSON formatting configuration.
-    #[command(flatten)]
-    pub json_output: JsonOutput,
-}
-
-/// Arguments for deleting a named agent.
-#[derive(Debug, Clone, Args)]
-pub struct AgentDeleteArgs {
-    /// UID of the agent to delete.
-    pub uid: String,
 }
 
 /// Arguments for listing available agent skills.
