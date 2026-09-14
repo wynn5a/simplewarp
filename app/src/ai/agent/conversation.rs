@@ -4516,21 +4516,6 @@ pub enum AIAgentHarness {
     Unknown,
 }
 
-/// Describes the format of the conversation transcript data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AIAgentSerializedBlockFormat {
-    JsonV1,
-}
-
-/// Describes the format capabilities of a conversation.
-#[derive(Debug, Clone)]
-pub struct AIAgentConversationFormat {
-    /// Whether there is a Warp MAA task list available for this conversation.
-    pub has_task_list: bool,
-    /// The format of the TUI serialized block, if available.
-    pub block_snapshot: Option<AIAgentSerializedBlockFormat>,
-}
-
 /// Metadata for an AI conversation, containing all information from the GraphQL API
 /// except the full task list data.
 #[derive(Debug, Clone)]

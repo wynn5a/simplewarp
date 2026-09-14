@@ -12,7 +12,6 @@ use chrono::{DateTime, Utc};
 use mockall::automock;
 use warp_errors::report_error;
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
-use warp_graphql::queries::get_conversation_usage::ConversationUsage;
 use warp_multi_agent_api::ConversationData;
 
 use super::ServerApi;
@@ -20,9 +19,7 @@ use super::presigned_upload::UploadField;
 use crate::ai::RequestUsageInfo;
 pub use crate::ai::agent::UserQueryMode;
 use crate::ai::agent::api::ServerConversationToken;
-use crate::ai::agent::conversation::{
-    AIAgentConversationFormat, AIAgentHarness, ServerAIConversationMetadata,
-};
+use crate::ai::agent::conversation::{AIAgentHarness, ServerAIConversationMetadata};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 // Re-export ambient agent types for backwards compatibility
 pub use crate::ai::ambient_agents::{
@@ -46,7 +43,6 @@ use crate::ai_assistant::utils::TranscriptPart;
 use crate::ai_assistant::{AIGeneratedCommand, GenerateCommandsFromNaturalLanguageError};
 use crate::drive::workflows::ai_assist::{GeneratedCommandMetadata, GeneratedCommandMetadataError};
 use crate::persistence::model::ConversationUsageMetadata;
-use crate::terminal::model::block::SerializedBlock;
 
 /// A status update for a task, optionally including a platform error code.
 pub struct TaskStatusUpdate {
@@ -203,19 +199,6 @@ pub struct AgentRunEvent {
     pub sequence: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ReportAgentEventRequest {
-    pub event_type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub execution_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ref_id: Option<String>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ReportAgentEventResponse {
-    pub sequence: i64,
-}
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct AgentRunClientEventRequest {
     pub event_uuid: String,
@@ -765,16 +748,6 @@ pub trait AIClient: 'static + Send + Sync {
 
     async fn get_request_limit_info(&self) -> Result<RequestUsageInfo, anyhow::Error>;
 
-    /// Returns conversation usage history for the current user over the requested number of days.
-    ///
-    /// If `last_updated_end_timestamp` is provided, only conversations updated before that timestamp are returned.
-    async fn get_conversation_usage_history(
-        &self,
-        days: Option<i32>,
-        limit: Option<i32>,
-        last_updated_end_timestamp: Option<warp_graphql::scalars::Time>,
-    ) -> Result<Vec<ConversationUsage>, anyhow::Error>;
-
     async fn get_feature_model_choices(&self) -> Result<ModelsByFeature, anyhow::Error>;
 
     async fn get_available_harnesses(&self) -> Result<Vec<HarnessAvailability>, anyhow::Error>;
@@ -789,20 +762,6 @@ pub trait AIClient: 'static + Send + Sync {
         &self,
         referrer: Option<String>,
     ) -> Result<ModelsByFeature, anyhow::Error>;
-
-    async fn update_merkle_tree(
-        &self,
-        embedding_config: EmbeddingConfig,
-        nodes: Vec<IntermediateNode>,
-    ) -> anyhow::Result<HashMap<NodeHash, bool>>;
-
-    async fn generate_code_embeddings(
-        &self,
-        embedding_config: EmbeddingConfig,
-        fragments: Vec<full_source_code_embedding::Fragment>,
-        root_hash: NodeHash,
-        repo_metadata: RepoMetadata,
-    ) -> anyhow::Result<HashMap<ContentHash, bool>>;
 
     async fn provide_negative_feedback_response_for_ai_conversation(
         &self,
@@ -899,21 +858,6 @@ pub trait AIClient: 'static + Send + Sync {
         &self,
         conversation_ids: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<ServerAIConversationMetadata>>;
-
-    async fn get_ai_conversation_format(
-        &self,
-        server_conversation_token: ServerConversationToken,
-    ) -> anyhow::Result<AIAgentConversationFormat, anyhow::Error>;
-
-    async fn get_block_snapshot(
-        &self,
-        server_conversation_token: ServerConversationToken,
-    ) -> anyhow::Result<SerializedBlock, anyhow::Error>;
-
-    async fn delete_ai_conversation(
-        &self,
-        server_conversation_token: String,
-    ) -> anyhow::Result<(), anyhow::Error>;
 
     async fn list_skills(
         &self,
@@ -1050,11 +994,6 @@ pub trait AIClient: 'static + Send + Sync {
         sequence: i64,
     ) -> anyhow::Result<(), anyhow::Error>;
 
-    async fn report_agent_event(
-        &self,
-        run_id: &str,
-        request: ReportAgentEventRequest,
-    ) -> anyhow::Result<ReportAgentEventResponse, anyhow::Error>;
     async fn post_agent_run_client_event(
         &self,
         run_id: &AmbientAgentTaskId,
@@ -1195,15 +1134,6 @@ impl AIClient for ServerApi {
         Err(crate::server::server_api::local_only_error())
     }
 
-    async fn get_conversation_usage_history(
-        &self,
-        _days: Option<i32>,
-        _limit: Option<i32>,
-        _last_updated_end_timestamp: Option<warp_graphql::scalars::Time>,
-    ) -> Result<Vec<ConversationUsage>, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
     async fn get_feature_model_choices(&self) -> Result<ModelsByFeature, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
@@ -1216,24 +1146,6 @@ impl AIClient for ServerApi {
         &self,
         _referrer: Option<String>,
     ) -> Result<ModelsByFeature, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn update_merkle_tree(
-        &self,
-        _embedding_config: EmbeddingConfig,
-        _nodes: Vec<IntermediateNode>,
-    ) -> anyhow::Result<HashMap<NodeHash, bool>> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn generate_code_embeddings(
-        &self,
-        _embedding_config: EmbeddingConfig,
-        _fragments: Vec<full_source_code_embedding::Fragment>,
-        _root_hash: NodeHash,
-        _repo_metadata: RepoMetadata,
-    ) -> anyhow::Result<HashMap<ContentHash, bool>> {
         Err(crate::server::server_api::local_only_error())
     }
 
@@ -1353,27 +1265,6 @@ impl AIClient for ServerApi {
         &self,
         _conversation_ids: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<ServerAIConversationMetadata>> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn get_ai_conversation_format(
-        &self,
-        _server_conversation_token: ServerConversationToken,
-    ) -> anyhow::Result<AIAgentConversationFormat, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn get_block_snapshot(
-        &self,
-        _server_conversation_token: ServerConversationToken,
-    ) -> anyhow::Result<SerializedBlock, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn delete_ai_conversation(
-        &self,
-        _server_conversation_token: String,
-    ) -> anyhow::Result<(), anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 
@@ -1570,13 +1461,6 @@ impl AIClient for ServerApi {
         Err(crate::server::server_api::local_only_error())
     }
 
-    async fn report_agent_event(
-        &self,
-        _run_id: &str,
-        _request: ReportAgentEventRequest,
-    ) -> anyhow::Result<ReportAgentEventResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
     async fn post_agent_run_client_event(
         &self,
         _run_id: &AmbientAgentTaskId,
