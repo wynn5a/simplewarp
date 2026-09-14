@@ -40,6 +40,6 @@ Date: 2026-09-14
 - Ledger: simplify-specs/plan.md 4be/4bf/4bg entries ("Record rounds 4be-4bg" commit).
 
 ## Next candidates
-- Remaining clients: AIClient (2226 lines, last), AuthClient. Then ServerApi/Provider/BaseClient, then crates (warp_server_client/auth, firebase, graphql).
+- AIClient wave done through 4bm (2026-09-14): 62 → 34 methods. Slices: 4bh zero-caller walls (7), 4bi memory-store CLI (9), 4bj named-agent mgmt CLI (9), 4bk observability posting (2), 4bl skills CLI (1). Ledger: plan.md 4bh–4bm entry. Remaining 34 all need feature rounds (survey in ledger); then AuthClient → ServerApi/Provider/BaseClient → crates (warp_server_client/auth, firebase, graphql).
 - `CloudModel::mock` vs restored production registration is fine; `object_actions` unused-variable watch.
 - `Duration` unused import in notebook_tests.rs (pre-existing 4bg warning, left).

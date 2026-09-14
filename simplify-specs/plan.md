@@ -3711,6 +3711,44 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             passed with only the six known environmental failures (five ssh, palette). The
             mermaid backspace integration test caught the baton regression (fails pre-fix, passes
             on HEAD and after). simplewarp bin check clean.
+      - [x] **AIClient, first five slices (4bh–4bl, 2026-09-14, ~2,100 net lines): 62 trait
+            methods down to 34.** 4bh took the 7 zero-caller walls (usage history, merkle/
+            embeddings, conversation format, block snapshot, conversation delete, agent-event
+            report) with their orphaned wire types. 4bi/4bj/4bl took three whole CLI verticals
+            that only ever reached walls — `warp memory-store`/`warp memory` (9 methods),
+            `warp agent list/get/create/update/delete` (9 methods), `warp agent skills`
+            (1 method) — each with its clap args, dispatch/auth/telemetry arms, parse tests,
+            and wire types. 4bk took the two warn-and-continue fire-and-forget walls
+            (setup-observability event post, cursor PATCH) and collapsed the reporter struct
+            and `HarnessRunner::start` chain around them. Standard acceptance every round;
+            warning set identical to baseline throughout (each round's cascade — SecretRef,
+            skill wire cluster, mock `expect_` shapes the method-name grep misses, an
+            `is_gui_required`-style second match in `agent_sdk/mod.rs` — caught by check,
+            not by inspection).
+      - [ ] **AIClient, the rest (4bm survey, no code change): the remaining 34 methods all
+            have live callers with error fallbacks, so each is a feature round per 4n, not
+            client cleanup.** Traced every one to its caller and classified, so the next
+            attempts do not repeat it: cloud-run lifecycle (`create/update_agent_task`,
+            `spawn_agent`, `submit_run_followup`, `cancel_ambient_agent_task`,
+            `list/get_ambient_agent_task`, `list/get_agent_run_raw(s)`,
+            `download_run_transcript_to_path`, `get_task_git_credentials`) — live ambient
+            terminal UI and driver paths; conversation sync (`fork/rename_conversation`,
+            `get_ai_conversation`, `list_ai_conversation_metadata`, `send/list/read/mark`
+            messages, `get_public/run_conversation`) — `--conversation` resume and
+            orchestration messaging; artifacts (`create/confirm_file_artifact_upload_target`,
+            `get_artifact_download`) — the live upload pipeline's wall steps around the live
+            presigned-S3 middle; assistant surfaces (`generate_commands_from_natural_language`
+            palette search, `generate_dialogue_answer` assistant panel,
+            `generate_metadata_for_command` workflow AI-assist, `provide_negative_feedback`
+            refund-credits UI); code-review generation (`generate_code_review_content` —
+            dialog plus daemon flows with a `--fill` fallback on only one branch);
+            login-gated refreshes (`get_request_limit_info`, `get_feature_model_choices`,
+            `get_available_harnesses`, `list_connected_self_hosted_workers` — dead in
+            practice via `is_logged_in`, live in shape for other channels, the 3k question
+            again); `get_free_available_models` (ungated but reached only through the
+            `agent_mode_evals`-gated startup fetch, a CI-checked feature). After these go,
+            the chain is `AuthClient` (external-crate trait, entangled with `AuthManager`),
+            then `ServerApi`/`Provider`/`BaseClient`, then the crates.
 
             Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
             format clean, nextest green (5707 → 5519 as each deleted subject's tests went with
