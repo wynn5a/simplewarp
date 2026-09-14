@@ -1,5 +1,11 @@
 # SimpleWarp release app build
 
+## Git push identity (standing decision, 2026-09-14)
+- Push as `wynn5a`, then switch back to `fuwenming-pacvue`.
+- Both accounts live in `gh auth` (keyring); remote is HTTPS + osxkeychain (holds fuwenming's credential, so a plain push 403s).
+- Flow (touches nothing stored): `gh auth switch --hostname github.com --user wynn5a`, then `git -c credential.helper='!gh auth git-credential' push origin master`, then switch back to `fuwenming-pacvue` and verify with `gh auth status`.
+- Never add a remote pointing at `warpdotdev/warp`; push to `origin` only.
+
 Date: 2026-09-07
 
 ## Result
