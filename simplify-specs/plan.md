@@ -3753,6 +3753,58 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
             format clean, nextest green (5707 → 5519 as each deleted subject's tests went with
             it) — and the later rounds built and launched the app.
+      - [x] **AuthClient, first wave (4bn, 2026-09-14, 21 files, +50/−959): 18 trait methods
+            down to 12, `warp_server_client` loses its `oauth2` dependency.** The chain's
+            next link, taken as four slices:
+
+            1. *Zero-caller trait surface.* `AuthClient::fetch_user_properties` had no caller
+               outside the impl — demoted to an inherent `AuthClientImpl` method (the trait
+               shape only served the mock). `ServerApi::send_graphql_request`, the one wall on
+               `ServerApi` proper with zero callers, deleted with its `BoxFuture` import.
+            2. *`create_anonymous_user`.* Its last production caller was the debug global
+               action `workspace:debug_create_anonymous_user` ("Create anonymous user" in the
+               debug menu) — 3o already deleted every real creation path. Deleted the action,
+               the menu item, the trait method, and the impl.
+            3. *Custom-token minting.* `fetch_new_custom_token` + `on_custom_token_fetched`
+               were reachable only through `AuthManager::initiate_anonymous_user_linking` and
+               `open_url_maybe_with_anonymous_token` — the first only from the Drive
+               personal-object-limit card, unreachable since `personal_object_limits()`
+               populates solely from a warp-server user fetch (deleted the card, its two
+               actions, `render_personal_object_limit_row`, and the overlay block, ~330 lines
+               of provably dead rendering); the second only from the privacy page's data
+               management link, whose anonymous branch requires an anonymous *logged-in*
+               user, which this build cannot have. The page now opens the plain
+               `data_management_url()` directly. Gone with them: `MintCustomTokenError`,
+               `AuthManagerEvent::MintCustomTokenFailed` (its two `|`-grouped matchers
+               trimmed), `login_options_url`, `URLConstructorCallback`, and the wasm-only
+               `parse_current_url`/`update_browser_url` branch.
+            4. *Device auth.* `warp login` was the sole consumer of
+               `request_device_code`/`exchange_device_access_token` — the 4o precedent
+               applies (a CLI vertical that can never work without warp-server's OAuth
+               endpoints). Deleted `CliCommand::Login` with its dispatch/auth/telemetry arms,
+               `admin::login`, `AuthManager::authorize_device`/`on_device_code_received`/
+               `request_device_code_with_timeout`, `AuthManagerEvent::ReceivedDeviceAuthorizationCode`,
+               `AuthSession`'s device methods and its whole `oauth_client` (the crate's last
+               `oauth2` use — dependency dropped), and the `device_authorization_uses_warp_agent_cli_client`
+               test. The 4m landmine was checked up front: grepping the literal `"login"`
+               found only GitHub-JSON parsing and the parse tests, which were re-pointed at
+               `whoami` rather than deleted (they test global-flag parsing, not login).
+
+            What remains on `AuthClient` is live in shape: `get_or_refresh_access_token`/
+            `fetch_user` (load-bearing `AuthManager` + remote-server auth context), the
+            privacy-settings sync group (`get_user_settings`, the three `set_is_*`,
+            `update_user_settings` — all `is_logged_in`-gated server pushes), API-key
+            management (`list/create/expire_api_key`, `list_agent_identities` —
+            `api_key_management` is in the simplewarp feature set), `set_user_is_onboarded`,
+            and the custom-token pair's remaining sibling surfaces. Each is a feature round
+            per 4n; the trait itself cannot shrink further without them.
+
+            Acceptance: check both feature sets at the 4-warning lib baseline (one test-file
+            import trimmed along the way; the notebook_tests `Duration` warning is the known
+            4bg leftover), clippy 0 errors in both, format clean, nextest green (warp lib
+            5284, `warp_server_client`+`warp_cli` 167). Not re-run in the app — no reachable
+            surface changed: the deleted UI was all provably unreachable, and the privacy
+            page's link still opens the same URL it always opened in a logged-out client.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all

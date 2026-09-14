@@ -46,6 +46,7 @@ Date: 2026-09-14
 - Ledger: simplify-specs/plan.md 4be/4bf/4bg entries ("Record rounds 4be-4bg" commit).
 
 ## Next candidates
-- AIClient wave done through 4bm (2026-09-14): 62 → 34 methods. Slices: 4bh zero-caller walls (7), 4bi memory-store CLI (9), 4bj named-agent mgmt CLI (9), 4bk observability posting (2), 4bl skills CLI (1). Ledger: plan.md 4bh–4bm entry. Remaining 34 all need feature rounds (survey in ledger); then AuthClient → ServerApi/Provider/BaseClient → crates (warp_server_client/auth, firebase, graphql).
+- AuthClient wave started (4bn, 2026-09-14): 18 → 12 methods, 21 files +50/−959, `oauth2` dropped from warp_server_client. Slices: zero-caller surface (fetch_user_properties demoted, ServerApi::send_graphql_request wall), create_anonymous_user + debug action/menu, custom-token minting vertical (Drive object-limit card ~330 lines, privacy-page token branch, MintCustomTokenFailed, login_options_url), device auth (`warp login` CLI + authorize_device + AuthSession oauth_client). Ledger: plan.md 4bn entry. Remaining 12 all live-in-shape feature rounds (survey in ledger); then ServerApi/Provider/BaseClient → crates (warp_server_client/auth, firebase, graphql).
+- AIClient wave done through 4bm (2026-09-14): 62 → 34 methods. Slices: 4bh zero-caller walls (7), 4bi memory-store CLI (9), 4bj named-agent mgmt CLI (9), 4bk observability posting (2), 4bl skills CLI (1). Ledger: plan.md 4bh–4bm entry. Remaining 34 all need feature rounds (survey in ledger).
 - `CloudModel::mock` vs restored production registration is fine; `object_actions` unused-variable watch.
 - `Duration` unused import in notebook_tests.rs (pre-existing 4bg warning, left).
