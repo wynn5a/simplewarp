@@ -225,7 +225,7 @@ impl BackingView for NetworkLogView {
 
     fn render_header_content(
         &self,
-        _ctx: &view::HeaderRenderContext<'_>,
+        _ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> HeaderContent {
         HeaderContent::Standard(StandardHeader {

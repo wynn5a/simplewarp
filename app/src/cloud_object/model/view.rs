@@ -10,9 +10,6 @@ use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::folders::CloudFolder;
 use crate::cloud_object::{CloudObject, CloudObjectLocation, Space};
 use crate::safe_info;
-use crate::server::cloud_objects::update_manager::{
-    ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
-};
 use crate::server::ids::{ObjectUid, SyncId};
 use crate::sharing::{ContentEditability, SharingAccessLevel};
 use crate::workspaces::user_profiles::UserProfiles;
@@ -68,10 +65,6 @@ pub enum CloudViewModelEvent {
 impl CloudViewModel {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
         ctx.subscribe_to_model(&CloudModel::handle(ctx), Self::handle_cloud_model_event);
-        ctx.subscribe_to_model(
-            &UpdateManager::handle(ctx),
-            Self::handle_update_manager_event,
-        );
         Self {
             folder_timestamp_cache: Default::default(),
         }
@@ -364,44 +357,6 @@ impl CloudViewModel {
             | CloudModelEvent::ObjectSynced { .. }
             | CloudModelEvent::InitialLoadCompleted
             | CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated => (),
-        }
-    }
-
-    fn handle_update_manager_event(
-        &mut self,
-        _: ModelHandle<UpdateManager>,
-        event: &UpdateManagerEvent,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event else {
-            return;
-        };
-
-        if result.success_type != OperationSuccessType::Success {
-            return;
-        }
-
-        let cloud_model = CloudModel::as_ref(ctx);
-        if let ObjectOperation::Create { .. } = result.operation {
-            // If a folder was created, remove the cache entry tied to its client ID.
-            // TODO @ianhodge: Update the way we do this check once we remove the generic
-            let server_id = &result.server_id.expect("Expect server id on success");
-            if cloud_model.get_folder_by_uid(&server_id.uid()).is_some()
-                && let Some(client_id) = result.client_id
-            {
-                let sync_id = SyncId::ClientId(client_id);
-                self.folder_timestamp_cache.borrow_mut().remove(&sync_id);
-            }
-
-            // For any new object, we need to recalculate its ancestors' timestamp with their
-            // new child.
-            if let Some(parent_id) = cloud_model
-                .get_by_uid(&server_id.uid())
-                .and_then(|object| object.metadata().folder_id)
-                && self.invalidate_folder_timestamps(&parent_id, cloud_model)
-            {
-                ctx.emit(CloudViewModelEvent::SortTimestampsChanged);
-            }
         }
     }
 

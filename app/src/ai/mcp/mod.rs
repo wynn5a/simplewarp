@@ -19,14 +19,13 @@ use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
     CloudObjectUuid, GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
-    Revision, WarpDriveItem,
+    WarpDriveItem,
 };
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::items::mcp_server::WarpDriveMCPServer;
 #[cfg(not(target_family = "wasm"))]
 use crate::persistence::model::MCPEnvironmentVariables;
 use crate::server::ids::SyncId;
-use crate::server::sync_queue::QueueItem;
 
 cfg_if::cfg_if! {
     if #[cfg(not(feature = "local_fs"))] {
@@ -55,9 +54,7 @@ pub mod templatable;
 pub use cloud_object_models::{
     CLIServer, JSONMCPServer, JSONTransportType, ServerSentEvents, StaticEnvVar, StaticHeader,
 };
-pub use cloud_object_models::{
-    CloudMCPServer, CloudMCPServerModel, MCPServer, MCPServerState, TransportType,
-};
+pub use cloud_object_models::{CloudMCPServer, MCPServer, MCPServerState, TransportType};
 pub use templatable::{JsonTemplate, TemplatableMCPServer, TemplateVariable};
 pub mod logs;
 pub mod templatable_installation;
@@ -103,18 +100,6 @@ impl StringModel for MCPServer {
 
     fn display_name(&self) -> String {
         self.name.clone()
-    }
-
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        object: &Self::CloudObjectType,
-    ) -> QueueItem {
-        QueueItem::UpdateMCPServer {
-            model: object.model().clone().into(),
-            id: object.id,
-            revision: revision_ts.or(object.metadata.revision),
-        }
     }
 
     fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {

@@ -33,7 +33,6 @@ use warpui::{
     ViewContext, ViewHandle, WindowId,
 };
 
-use super::aliases::WorkflowAliases;
 use super::command_parser::WorkflowCommandDisplayData;
 use super::{CloudWorkflowModel, WorkflowSource, WorkflowType, WorkflowViewMode};
 use crate::ai::AIRequestUsageModel;
@@ -43,8 +42,7 @@ use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::CloudViewModel;
 use crate::cloud_object::{
-    CloudObject, CloudObjectEventEntrypoint, DriveObjectType, ObjectType,
-    OpenWarpDriveObjectSettings, Owner, Revision, Space,
+    CloudObject, DriveObjectType, ObjectType, OpenWarpDriveObjectSettings, Owner, Revision, Space,
 };
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
@@ -69,10 +67,9 @@ use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
 use crate::server::cloud_objects::update_manager::{
-    FetchSingleObjectOption, ObjectOperation, OperationSuccessType, UpdateManager,
-    UpdateManagerEvent,
+    ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
-use crate::server::ids::{ClientId, ServerId, SyncId};
+use crate::server::ids::{ClientId, SyncId};
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::AIClient;
 use crate::server::telemetry::{
@@ -82,7 +79,7 @@ use crate::settings::AISettings;
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
-use crate::sharing::{ContentEditability, ShareableObject};
+use crate::sharing::ContentEditability;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::ui_components::breadcrumb::{BreadcrumbState, render_breadcrumbs};
 use crate::ui_components::buttons::{accent_icon_button, icon_button};
@@ -540,37 +537,7 @@ impl WorkflowView {
         event: &UpdateManagerEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event else {
-            return;
-        };
-
-        if let (ObjectOperation::Create { .. }, OperationSuccessType::Success) =
-            (&result.operation, &result.success_type)
-            && self.workflow_id.into_client() == result.client_id
-        {
-            let server_id = result
-                .server_id
-                .expect("Expect server id on success creation");
-
-            // The aliases were created with the old client sync id.  Update them to the new server id.
-            WorkflowAliases::handle(ctx).update(ctx, |aliases, ctx| {
-                if let Result::Err(e) =
-                    aliases.update_workflow_id(self.workflow_id, server_id.into(), ctx)
-                {
-                    report_error!(e.context("Failed to update aliases after workflow creation"));
-                }
-            });
-
-            if let Some(workflow) = CloudModel::as_ref(ctx).get_workflow_by_uid(&server_id.uid()) {
-                self.load(
-                    workflow.clone(),
-                    &OpenWarpDriveObjectSettings::default(),
-                    self.workflow_view_mode,
-                    ctx,
-                );
-            }
-            ctx.notify();
-        }
+        let UpdateManagerEvent::ObjectOperationComplete { result } = event;
 
         if let (ObjectOperation::Update, OperationSuccessType::Success) =
             (&result.operation, &result.success_type)
@@ -615,27 +582,12 @@ impl WorkflowView {
         window_id: WindowId,
         ctx: &mut ViewContext<Self>,
     ) {
-        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-        // TODO @ianhodge CLD-2002: it could be nice to have a loading screen here while we wait for the load
-        let settings = settings.clone();
-        ctx.spawn(initial_load_complete, move |me, _, ctx| {
-            let workflow = CloudModel::as_ref(ctx).get_workflow(&workflow_id).cloned();
-            // If either the focused folder or the workflow can't be found in cloudmodel, fetch the object from the server
-            let fetch_needed = workflow.is_none()
-                || settings
-                    .focused_folder_id
-                    .map(SyncId::ServerId)
-                    .map(|folder_id| CloudModel::as_ref(ctx).get_folder(&folder_id).is_none())
-                    .unwrap_or(false);
-            if fetch_needed {
-                if let Some(server_id) = workflow_id.into_server() {
-                    me.fetch_and_load_workflow(server_id, &settings, mode, window_id, ctx);
-                } else {
-                    log::warn!("Tried to load workflow without server id {workflow_id:?}");
-                }
-            } else if let Some(workflow) = workflow {
-                me.load(workflow, &settings, mode, ctx);
-            } else {
+        // The model is restored from sqlite at startup, so the object is either already
+        // in memory (load it) or it doesn't exist (not-found toast; there is no server
+        // to fetch it from).
+        match CloudModel::as_ref(ctx).get_workflow(&workflow_id).cloned() {
+            Some(workflow) => self.load(workflow, settings, mode, ctx),
+            None => {
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast_by_type(
                         ToastType::CloudObjectNotFound,
@@ -645,45 +597,7 @@ impl WorkflowView {
                 });
                 log::warn!("Tried to open unknown workflow {workflow_id:?}");
             }
-        });
-    }
-
-    fn fetch_and_load_workflow(
-        &mut self,
-        workflow_id: ServerId,
-        settings: &OpenWarpDriveObjectSettings,
-        mode: WorkflowViewMode,
-        window_id: WindowId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // If we have a parent folder we are trying to load as a part of this workflow, fetch that instead
-        let id_to_fetch = settings.focused_folder_id.unwrap_or(workflow_id);
-        let fetch_cloud_object_rx =
-            UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                update_manager.fetch_single_cloud_object(
-                    &id_to_fetch,
-                    FetchSingleObjectOption::None,
-                    ctx,
-                )
-            });
-        let settings = settings.clone();
-        ctx.spawn(fetch_cloud_object_rx, move |me, _, ctx| {
-            if let Some(workflow) = CloudModel::as_ref(ctx)
-                .get_workflow(&SyncId::ServerId(workflow_id))
-                .cloned()
-            {
-                me.load(workflow, &settings, mode, ctx);
-            } else {
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast_by_type(
-                        ToastType::CloudObjectNotFound,
-                        window_id,
-                        ctx,
-                    );
-                });
-                log::warn!("Tried to open unknown workflow {workflow_id:?} after fetching");
-            }
-        });
+        }
     }
 
     pub fn load(
@@ -732,12 +646,6 @@ impl WorkflowView {
         if let ContainerConfiguration::Pane(pane_config) = &mut self.container_configuration {
             pane_config.update(ctx, |pane_config, ctx| {
                 pane_config.set_title(workflow_name, ctx);
-                if let Some(server_id) = workflow.id.into_server() {
-                    pane_config.set_shareable_object(
-                        Some(ShareableObject::WarpDriveObject(server_id)),
-                        ctx,
-                    );
-                }
             });
         }
 
@@ -1555,12 +1463,7 @@ impl WorkflowView {
         match self.workflow_view_mode {
             WorkflowViewMode::Edit => {
                 UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                    update_manager.update_workflow(
-                        workflow.clone(),
-                        self.workflow_id,
-                        self.revision_ts,
-                        ctx,
-                    );
+                    update_manager.update_workflow(workflow.clone(), self.workflow_id, ctx);
                 });
                 if let ContainerConfiguration::Pane(pane_config) = &mut self.container_configuration
                 {
@@ -1589,7 +1492,6 @@ impl WorkflowView {
                             space,
                             self.initial_folder_id,
                             client_id,
-                            CloudObjectEventEntrypoint::Unknown,
                             true,
                             ctx,
                         );
@@ -3139,7 +3041,7 @@ impl BackingView for WorkflowView {
 
     fn render_header_content(
         &self,
-        _ctx: &view::HeaderRenderContext<'_>,
+        _ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> view::HeaderContent {
         let mut content =

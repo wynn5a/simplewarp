@@ -8,10 +8,9 @@ use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
     CloudObjectUuid, GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
-    Revision, UniquePer, WarpDriveItem,
+    UniquePer, WarpDriveItem,
 };
 use crate::server::ids::SyncId;
-use crate::server::sync_queue::QueueItem;
 
 const UNIQUENESS_KEY_PREFIX: &str = "templatable_mcp_server";
 
@@ -46,18 +45,6 @@ impl StringModel for TemplatableMCPServer {
 
     fn display_name(&self) -> String {
         self.name.clone()
-    }
-
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        object: &Self::CloudObjectType,
-    ) -> QueueItem {
-        QueueItem::UpdateTemplatableMCPServer {
-            model: object.model().clone().into(),
-            id: object.id,
-            revision: revision_ts.or(object.metadata.revision),
-        }
     }
 
     fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {

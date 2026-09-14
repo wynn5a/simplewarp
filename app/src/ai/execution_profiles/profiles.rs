@@ -551,11 +551,11 @@ impl AIExecutionProfilesModel {
         ctx: &mut ModelContext<Self>,
     ) -> bool {
         if AuthStateProvider::as_ref(ctx).get().user_id().is_some()
-            && !UpdateManager::as_ref(ctx).has_completed_initial_load()
+            && ctx.has_singleton_model::<CloudPreferencesSyncer>()
+            && !CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load()
         {
             return false;
         }
-
         if Self::cloud_collection_awaiting_reconciliation(ctx) {
             return false;
         }
@@ -631,8 +631,9 @@ impl AIExecutionProfilesModel {
         if AuthStateProvider::as_ref(ctx).get().user_id().is_none() {
             return;
         }
-
-        if !UpdateManager::as_ref(ctx).has_completed_initial_load() {
+        if ctx.has_singleton_model::<CloudPreferencesSyncer>()
+            && !CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load()
+        {
             return;
         }
 
@@ -848,7 +849,14 @@ impl AIExecutionProfilesModel {
         let update_manager = UpdateManager::handle(ctx);
         let client_id = ClientId::default();
         update_manager.update(ctx, |update_manager, ctx| {
-            update_manager.create_ai_execution_profile(new_profile, client_id, owner, ctx);
+            update_manager.create_object(
+                CloudAIExecutionProfileModel::new(new_profile),
+                owner,
+                client_id,
+                false,
+                None,
+                ctx,
+            );
         });
 
         self.profile_id_to_sync_id
@@ -1988,7 +1996,14 @@ impl AIExecutionProfilesModel {
                 let update_manager = UpdateManager::handle(ctx);
                 let client_id = ClientId::default();
                 update_manager.update(ctx, |update_manager, ctx| {
-                    update_manager.create_ai_execution_profile(new_profile, client_id, owner, ctx);
+                    update_manager.create_object(
+                        CloudAIExecutionProfileModel::new(new_profile),
+                        owner,
+                        client_id,
+                        false,
+                        None,
+                        ctx,
+                    );
                 });
 
                 // For forever on, the default profile state is synced.
@@ -2039,7 +2054,7 @@ impl AIExecutionProfilesModel {
                 }
                 let update_manager = UpdateManager::handle(ctx);
                 update_manager.update(ctx, |update_manager, ctx| {
-                    update_manager.update_ai_execution_profile(data, *sync_id, None, ctx);
+                    update_manager.update_ai_execution_profile(data, *sync_id, ctx);
                 });
 
                 log::info!("Edited execution profile with id: {profile_id:?}");

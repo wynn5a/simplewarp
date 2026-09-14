@@ -1,6 +1,3 @@
-use std::sync::Arc;
-
-use cloud_object_client::MockObjectClient;
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::Empty;
 use warpui::platform::WindowStyle;
@@ -16,7 +13,7 @@ use crate::pane_group::{BackingView, PaneConfiguration, PaneId, PaneView};
 use crate::server::server_api::ServerApiProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::{NetworkStatus, SyncQueue, UpdateManager, UserProfiles, UserWorkspaces};
+use crate::{NetworkStatus, UpdateManager, UserProfiles, UserWorkspaces};
 
 /// A dummy view that is also a backing pane view for testing purposes.
 struct TestView {
@@ -92,7 +89,7 @@ impl BackingView for TestView {
 
     fn render_header_content(
         &self,
-        _ctx: &super::HeaderRenderContext<'_>,
+        _ctx: &super::HeaderRenderContext,
         _app: &AppContext,
     ) -> super::HeaderContent {
         super::HeaderContent::simple("Test")
@@ -106,12 +103,11 @@ fn initialize_app(app: &mut App) {
 
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(|_| NetworkStatus::new());
-    app.add_singleton_model(SyncQueue::mock);
     app.add_singleton_model(|ctx| UserWorkspaces::mock(vec![], ctx));
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| UserProfiles::new(Vec::new()));
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(|ctx| UpdateManager::new(None, Arc::new(MockObjectClient::new()), ctx));
+    app.add_singleton_model(|_ctx| UpdateManager::new(None));
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
     #[cfg(feature = "voice_input")]

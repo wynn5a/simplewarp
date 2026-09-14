@@ -20,9 +20,10 @@ use warpui::{
 use super::command_dialog::EnvVarCommandDialog;
 use super::menus::Menus;
 use crate::ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels;
+use crate::cloud_object::Owner;
 use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{CloudObjectEventEntrypoint, Owner};
+use crate::drive::CloudObjectTypeAndId;
 use crate::editor::EditorView;
 use crate::env_vars::active_env_var_collection_data::{
     ActiveEnvVarCollection, ActiveEnvVarCollectionData, ActiveEnvVarCollectionDataEvent,
@@ -39,9 +40,9 @@ use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
 use crate::search::external_secrets::view::ExternalSecretsMenu;
-use crate::server::cloud_objects::update_manager::{FetchSingleObjectOption, UpdateManager};
-use crate::server::ids::{ServerId, SyncId};
-use crate::sharing::{ContentEditability, ShareableObject};
+use crate::server::cloud_objects::update_manager::UpdateManager;
+use crate::server::ids::SyncId;
+use crate::sharing::ContentEditability;
 use crate::terminal::model::secrets::SecretLevel;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::ui_components::breadcrumb::{BreadcrumbState, render_breadcrumbs};
@@ -54,7 +55,7 @@ use crate::util::bindings::CustomAction;
 use crate::view_components::alert::AlertConfig;
 use crate::view_components::{Alert, DismissibleToast, ToastType};
 use crate::workspace::ToastStack;
-use crate::{Appearance, CloudObjectTypeAndId, TelemetryEvent, send_telemetry_from_ctx};
+use crate::{Appearance, TelemetryEvent, send_telemetry_from_ctx};
 
 // Universal
 pub(super) const CORE_HORIZONATAL_MARGIN: f32 = 24.;
@@ -589,18 +590,15 @@ impl EnvVarCollectionView {
         window_id: WindowId,
         ctx: &mut ViewContext<Self>,
     ) {
-        let initial_load_complete = UpdateManager::handle(ctx).update(ctx, |update_manager, _| {
-            update_manager.initial_load_complete()
-        });
-        ctx.spawn(initial_load_complete, move |me, _, ctx| {
-            let env_var_collection = CloudModel::as_ref(ctx)
-                .get_env_var_collection(&env_var_collection_id)
-                .cloned();
-            if let Some(env_var_collection) = env_var_collection {
-                me.load(env_var_collection, ctx);
-            } else if let Some(server_id) = env_var_collection_id.into_server() {
-                me.fetch_and_load_env_var_collection(server_id, window_id, ctx);
-            } else {
+        // The model is restored from sqlite at startup, so the collection is either already
+        // in memory (load it) or it doesn't exist (not-found toast; there is no server to
+        // fetch it from).
+        match CloudModel::as_ref(ctx)
+            .get_env_var_collection(&env_var_collection_id)
+            .cloned()
+        {
+            Some(env_var_collection) => self.load(env_var_collection, ctx),
+            None => {
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast_by_type(
                         ToastType::CloudObjectNotFound,
@@ -610,36 +608,7 @@ impl EnvVarCollectionView {
                 });
                 log::warn!("Tried to open unknown env var collection {env_var_collection_id:?}");
             }
-        });
-    }
-
-    fn fetch_and_load_env_var_collection(
-        &mut self,
-        env_var_collection_id: ServerId,
-        window_id: WindowId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let fetch_cloud_object_rx =
-            UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                update_manager.fetch_single_cloud_object(
-                    &env_var_collection_id,
-                    FetchSingleObjectOption::None,
-                    ctx,
-                )
-            });
-        ctx.spawn(fetch_cloud_object_rx, move |me, _, ctx| {
-            if let Some(env_var_collection) = CloudModel::as_ref(ctx)
-                .get_env_var_collection(&SyncId::ServerId(env_var_collection_id))
-                .cloned()
-            {
-                me.load(env_var_collection, ctx);
-            } else {
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast_by_type(ToastType::CloudObjectNotFound, window_id, ctx);
-                });
-                log::warn!("Tried to open unknown env var collection {env_var_collection_id:?} after fetching");
-            }
-        });
+        }
     }
 
     pub fn load(&mut self, env_var_collection: CloudEnvVarCollection, ctx: &mut ViewContext<Self>) {
@@ -655,13 +624,6 @@ impl EnvVarCollectionView {
         let title = collection.title.clone().unwrap_or_default();
 
         self.set_pane_title(if title.is_empty() { "Untitled" } else { &title }, ctx);
-        if let Some(server_id) = env_var_collection.id.into_server() {
-            self.pane_configuration.update(ctx, |pane_config, ctx| {
-                pane_config
-                    .set_shareable_object(Some(ShareableObject::WarpDriveObject(server_id)), ctx);
-            });
-        }
-
         let description = collection.description.clone().unwrap_or_default();
 
         self.title_editor.update(ctx, |editor, ctx| {
@@ -823,13 +785,7 @@ impl EnvVarCollectionView {
             // memory and server data via update manager
             ActiveEnvVarCollection::CommittedEnvVarCollection(id) => UpdateManager::handle(ctx)
                 .update(ctx, |update_manager, ctx| {
-                    update_manager.update_env_var_collection(
-                        new_env_var_collection,
-                        id,
-                        self.active_env_var_collection_data
-                            .update(ctx, |data, _| data.revision_ts),
-                        ctx,
-                    );
+                    update_manager.update_env_var_collection(new_env_var_collection, id, ctx);
                 }),
             // If the EVC hasn't been committed yet, create the EVC through update
             // manager, and update the active EVC
@@ -841,7 +797,6 @@ impl EnvVarCollectionView {
                             env_var_collection.permissions.owner,
                             env_var_collection.metadata.folder_id,
                             CloudEnvVarCollectionModel::new(new_env_var_collection),
-                            CloudObjectEventEntrypoint::Unknown,
                             true,
                             ctx,
                         );
@@ -949,15 +904,6 @@ impl EnvVarCollectionView {
             ActiveEnvVarCollectionDataEvent::BreadcrumbsChanged => {
                 self.update_breadcrumbs(ctx);
                 ctx.notify()
-            }
-            ActiveEnvVarCollectionDataEvent::CreatedOnServer(server_id) => {
-                self.update_breadcrumbs(ctx);
-                self.pane_configuration.update(ctx, |pane_config, ctx| {
-                    pane_config.set_shareable_object(
-                        Some(ShareableObject::WarpDriveObject(*server_id)),
-                        ctx,
-                    );
-                });
             }
             ActiveEnvVarCollectionDataEvent::TrashStatusChanged => {
                 self.pane_configuration.update(ctx, |pane_config, ctx| {
@@ -1571,7 +1517,7 @@ impl BackingView for EnvVarCollectionView {
 
     fn render_header_content(
         &self,
-        _ctx: &view::HeaderRenderContext<'_>,
+        _ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> view::HeaderContent {
         let title = self.title_editor.as_ref(app).buffer_text(app);

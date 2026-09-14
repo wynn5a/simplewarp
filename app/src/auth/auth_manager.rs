@@ -27,7 +27,6 @@ use crate::ai::AIRequestUsageModel;
 use crate::ai::llms::LLMPreferences;
 use crate::autoupdate::AutoupdateState;
 use crate::persistence::ModelEvent;
-use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApi;
 use crate::server::server_api::auth::{AuthClient, FetchUserResult, UserAuthenticationError};
 use crate::server::telemetry::AnonymousUserSignupEntrypoint;
@@ -386,7 +385,7 @@ impl AuthManager {
                 let FetchUserResult {
                     user_output,
                     credentials,
-                    from_refresh,
+                    ..
                 } = fetch_user_result;
                 let UserProperties { user, llms } = user_output.into();
 
@@ -407,23 +406,6 @@ impl AuthManager {
                 });
 
                 // Reset the initial-load condition so that any cloud preference
-                // sync waits for the *new* user's cloud objects rather than
-                // resolving immediately against stale data from a prior session.
-                // Only do this for non-refresh fetches (login/signup), not for
-                // token refreshes where the user identity hasn't changed.
-                if !from_refresh {
-                    UpdateManager::handle(ctx).update(ctx, |manager, _| {
-                        manager.reset_initial_load();
-                    });
-                }
-
-                // Now that we have a user, start polling for cloud object updates.
-                // The polling loop's first tick fires immediately, so there is no
-                // need for a separate out-of-band refresh here.
-                UpdateManager::handle(ctx).update(ctx, |manager, ctx| {
-                    manager.start_polling_for_updated_objects(ctx);
-                });
-
                 CloudPreferencesSyncer::handle(ctx).update(ctx, |model, ctx| {
                     model.handle_user_fetched(self.auth_state.clone(), ctx)
                 });

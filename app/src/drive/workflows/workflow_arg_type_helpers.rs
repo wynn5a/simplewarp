@@ -5,13 +5,13 @@ use warpui::{AppContext, SingletonEntity, ViewHandle};
 
 use super::enum_creation_dialog::{EnumCreationDialog, WorkflowEnumData};
 use super::workflow_arg_selector::WorkflowArgSelector;
+use crate::cloud_object::Owner;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{CloudObjectEventEntrypoint, Owner};
 use crate::editor::EditorView;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::SyncId;
 use crate::workflows::workflow::{Argument, ArgumentType};
-use crate::workflows::workflow_enum::WorkflowEnum;
+use crate::workflows::workflow_enum::{CloudWorkflowEnumModel, WorkflowEnum};
 
 #[derive(Debug, Clone)]
 pub struct ArgumentEditorRowIndex(pub usize);
@@ -168,12 +168,12 @@ pub fn save_enum<V>(
         SyncId::ClientId(client_id) => {
             if let Some(owner) = owner {
                 UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                    update_manager.create_workflow_enum(
-                        workflow_enum,
+                    update_manager.create_object(
+                        CloudWorkflowEnumModel::new(workflow_enum),
                         owner,
                         client_id,
-                        CloudObjectEventEntrypoint::Unknown,
                         true,
+                        None,
                         ctx,
                     );
                 });
@@ -182,12 +182,7 @@ pub fn save_enum<V>(
         SyncId::ServerId(_) => {
             // We will issue enum update requests here
             UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                update_manager.update_workflow_enum(
-                    workflow_enum,
-                    enum_data.id,
-                    enum_data.revision_ts,
-                    ctx,
-                );
+                update_manager.update_workflow_enum(workflow_enum, enum_data.id, ctx);
             })
         }
     }

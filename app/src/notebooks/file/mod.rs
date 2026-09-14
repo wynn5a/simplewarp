@@ -1176,7 +1176,7 @@ impl BackingView for FileNotebookView {
 
     fn render_header_content(
         &self,
-        ctx: &view::HeaderRenderContext<'_>,
+        ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> view::HeaderContent {
         let title = self.pane_configuration.as_ref(app).title().to_owned();

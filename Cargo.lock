@@ -2837,24 +2837,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cloud_object_client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-channel",
- "async-trait",
- "chrono",
- "cloud_object_models",
- "cloud_objects",
- "mockall",
- "serde",
- "serde_json",
- "uuid",
- "warp_core",
- "warp_graphql",
-]
-
-[[package]]
 name = "cloud_object_models"
 version = "0.1.0"
 dependencies = [
@@ -14407,7 +14389,6 @@ dependencies = [
  "channel_versions",
  "chrono",
  "clap",
- "cloud_object_client",
  "cloud_object_models",
  "cloud_object_persistence",
  "cloud_objects",
@@ -15123,7 +15104,6 @@ dependencies = [
  "bounded-vec-deque",
  "cfg-if",
  "chrono",
- "cloud_object_client",
  "cloud_object_models",
  "cloud_objects",
  "cynic",

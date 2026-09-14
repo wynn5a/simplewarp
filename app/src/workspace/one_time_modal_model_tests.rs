@@ -1,9 +1,6 @@
 use warpui::{App, SingletonEntity};
 
-use super::{
-    AISettings, AuthManager, AuthManagerEvent, FEATURE_INTROS, FeatureIntroId, OneTimeModalModel,
-};
-use crate::auth::AuthStateProvider;
+use super::{AISettings, FEATURE_INTROS, FeatureIntroId, OneTimeModalModel};
 use crate::test_util::terminal::{add_window_with_terminal, initialize_app_for_terminal_view};
 
 #[test]

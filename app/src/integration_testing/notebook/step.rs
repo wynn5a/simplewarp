@@ -7,7 +7,7 @@ use warpui::windowing::WindowManager;
 use warpui::{App, SingletonEntity, ViewHandle, WindowId, async_assert};
 
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{CloudObjectEventEntrypoint, OpenWarpDriveObjectSettings, Space};
+use crate::cloud_object::{OpenWarpDriveObjectSettings, Space};
 use crate::integration_testing::view_getters::{notebook_view, workspace_view};
 use crate::notebooks::manager::NotebookSource;
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -40,7 +40,6 @@ pub fn create_a_personal_notebook(key: impl Into<String>, title: impl Into<Strin
                         .expect("User UID must be set in tests"),
                     None,
                     Default::default(),
-                    CloudObjectEventEntrypoint::ManagementUI,
                     true,
                     ctx,
                 );

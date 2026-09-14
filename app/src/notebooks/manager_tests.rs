@@ -20,7 +20,6 @@ use crate::persistence::ModelEvent;
 use crate::search::files::model::FileSearchModel;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
-use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::PrivacySettings;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
@@ -95,11 +94,7 @@ fn initialize_app(app: &mut App) -> TestState {
     app.add_singleton_model(voice_input::VoiceInput::new);
 
     let (sender, receiver) = mpsc::sync_channel(10);
-    let objects_client = ServerApiProvider::new_for_test().get_cloud_objects_client();
-    let sync_queue = app
-        .add_singleton_model(|ctx| SyncQueue::new(Default::default(), objects_client.clone(), ctx));
-    app.add_singleton_model(|ctx| UpdateManager::new(Some(sender), objects_client.clone(), ctx));
-    sync_queue.update(app, |queue, ctx| queue.start_dequeueing(ctx));
+    app.add_singleton_model(|_| UpdateManager::new(Some(sender)));
 
     app.add_singleton_model(CloudViewModel::mock);
     let manager = app.add_singleton_model(NotebookManager::mock);

@@ -17,7 +17,6 @@ use crate::ai::mcp::{
 use crate::appearance::Appearance;
 use crate::cloud_object::Space;
 use crate::modal::{Modal, ModalViewState};
-use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::settings_view::SettingsSection;
 use crate::settings_view::mcp_servers::edit_page::{
     MCPServersEditPageView, MCPServersEditPageViewEvent,
@@ -245,7 +244,6 @@ impl MCPServersSettingsPageView {
                 templatable_manager.create_templatable_mcp_server(
                     templatable_mcp_server.clone(),
                     Space::Personal,
-                    InitiatedBy::User,
                     ctx,
                 );
             }

@@ -43,7 +43,6 @@ use crate::launch_configs::launch_config;
 use crate::linear::LinearIssueWork;
 use crate::pane_group::{NewTerminalOptions, PanesLayout};
 use crate::persistence::ModelEvent;
-use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::auth::UserAuthenticationError;
 use crate::server::server_api::{ServerApi, ServerApiProvider, ServerTime};
@@ -797,21 +796,18 @@ fn open_settings_in_new_window(args: &OpenSettingsArgs, ctx: &mut AppContext) {
     });
 }
 
-/// MCP servers need to wait for initial load to complete, so we have this action in addition
-/// to the general-purpose [`open_settings_page_in_new_window`].
+/// MCP servers page opener in a new window, in addition to the general-purpose
+/// [`open_settings_page_in_new_window`].
 fn open_mcp_settings_in_new_window(args: &OpenMCPSettingsArgs, ctx: &mut AppContext) {
     let autoinstall = args.autoinstall.clone();
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
-        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-        root_view.workspace.update(ctx, |_, ctx| {
-            let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                workspace.open_mcp_servers_page(
-                    MCPServersSettingsPage::List,
-                    autoinstall.as_deref(),
-                    ctx,
-                )
-            });
+        root_view.workspace.update(ctx, |workspace, ctx| {
+            workspace.open_mcp_servers_page(
+                MCPServersSettingsPage::List,
+                autoinstall.as_deref(),
+                ctx,
+            );
         });
     });
 }
@@ -820,11 +816,8 @@ fn open_mcp_settings_in_new_window(args: &OpenMCPSettingsArgs, ctx: &mut AppCont
 fn open_codex_in_new_window(_: &(), ctx: &mut AppContext) {
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
-        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-        root_view.workspace.update(ctx, |_, ctx| {
-            let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                workspace.open_codex_modal(ctx)
-            });
+        root_view.workspace.update(ctx, |workspace, ctx| {
+            workspace.open_codex_modal(ctx);
         });
     });
 }
@@ -1773,15 +1766,12 @@ impl RootView {
         ctx: &mut ViewContext<Self>,
     ) -> bool {
         let autoinstall = args.autoinstall.clone();
-        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-        self.workspace.update(ctx, |_, ctx| {
-            let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                workspace.open_mcp_servers_page(
-                    MCPServersSettingsPage::List,
-                    autoinstall.as_deref(),
-                    ctx,
-                )
-            });
+        self.workspace.update(ctx, |workspace, ctx| {
+            workspace.open_mcp_servers_page(
+                MCPServersSettingsPage::List,
+                autoinstall.as_deref(),
+                ctx,
+            );
         });
         let window_id = ctx.window_id();
         ctx.windows().show_window_and_focus_app(window_id);

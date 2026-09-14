@@ -242,11 +242,7 @@ impl BackingView for CodeView {
     ) {
     }
 
-    fn render_header_content(
-        &self,
-        _ctx: &HeaderRenderContext<'_>,
-        app: &AppContext,
-    ) -> HeaderContent {
+    fn render_header_content(&self, _ctx: &HeaderRenderContext, app: &AppContext) -> HeaderContent {
         HeaderContent::simple(self.pane_configuration.as_ref(app).title())
     }
 

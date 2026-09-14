@@ -1726,7 +1726,7 @@ impl CodeView {
     /// Renders the tab bar with explicit draggable handling for multi-tab case.
     fn render_tab_bar_with_draggable(
         &self,
-        header_ctx: &view::HeaderRenderContext<'_>,
+        header_ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
@@ -1922,7 +1922,7 @@ impl CodeView {
     /// Renders the header for the single-tab (or empty) case with a centered title.
     fn render_single_tab_header(
         &self,
-        header_ctx: &view::HeaderRenderContext<'_>,
+        header_ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> Box<dyn Element> {
         let title = self
@@ -2417,7 +2417,7 @@ impl BackingView for CodeView {
 
     fn render_header_content(
         &self,
-        ctx: &view::HeaderRenderContext<'_>,
+        ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> view::HeaderContent {
         if self.tab_group.len() >= 2 {

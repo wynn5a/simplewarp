@@ -6,7 +6,6 @@ use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::ai::agent_sdk::output::{self, TableFormat};
 use crate::ai::mcp::TemplatableMCPServerManager;
-use crate::server::cloud_objects::update_manager::UpdateManager;
 
 /// Handle MCP-related CLI commands.
 pub fn run(
@@ -28,21 +27,17 @@ struct MCPCommandRunner;
 
 impl MCPCommandRunner {
     fn list(&self, global_options: GlobalOptions, ctx: &mut ModelContext<Self>) {
-        let initial_sync = UpdateManager::as_ref(ctx).initial_load_complete();
+        let mut servers = TemplatableMCPServerManager::get_all_runnable_mcp_servers(ctx);
+        servers.sort_by_key(|(uuid, _)| *uuid);
 
-        ctx.spawn(initial_sync, move |_, _, ctx| {
-            let mut servers = TemplatableMCPServerManager::get_all_runnable_mcp_servers(ctx);
-            servers.sort_by_key(|(uuid, _)| *uuid);
+        output::print_list(
+            servers
+                .into_iter()
+                .map(|(uuid, name)| MCPServerInfo { uuid, name }),
+            global_options.output_format,
+        );
 
-            output::print_list(
-                servers
-                    .into_iter()
-                    .map(|(uuid, name)| MCPServerInfo { uuid, name }),
-                global_options.output_format,
-            );
-
-            ctx.terminate_app(warpui::platform::TerminationMode::ForceTerminate, None);
-        });
+        ctx.terminate_app(warpui::platform::TerminationMode::ForceTerminate, None);
     }
 }
 

@@ -12,12 +12,6 @@ use crate::server::server_api::presigned_upload::HttpStatusError;
 /// - RTC messages
 /// - Out-of-band queries based on user actions (i.e. fetch team info when user opens the settings page, user
 /// starts the app)
-/// However, we also periodically poll for updates in case RTC is down, the user's websocket
-/// is borked, etc.
-/// For team memberships, we also don't yet process messages for joining or leaving a team, so the user would see these
-/// updates only after a periodic poll.
-pub const PERIODIC_POLL: Duration = Duration::from_secs(60 * 10);
-
 /// For a periodic poll, it's fine to wait for longer period of time between retries. However, we don't want this to be so
 /// long that it's around the same as the overall periodic poll interval.
 pub const PERIODIC_POLL_RETRY_STRATEGY: RetryOption = RetryOption::exponential(
@@ -36,13 +30,6 @@ pub const OUT_OF_BAND_REQUEST_RETRY_STRATEGY: RetryOption = RetryOption::exponen
     3,                          /* max retry count */
 )
 .with_jitter(0.5 /* max_jitter_percentage */);
-
-// For listeners, retry up to 5 times, waiting between 10-40 seconds between retries.
-pub const LISTENER_RETRY_STRATEGY: RetryOption = RetryOption::linear(
-    Duration::from_secs(25), /* interval */
-    5,                       /* max retry count */
-)
-.with_jitter(0.6 /* max_jitter_multiplier */);
 
 /// Classify an HTTP-backed error as transient (worth retrying) or permanent (fail fast).
 ///

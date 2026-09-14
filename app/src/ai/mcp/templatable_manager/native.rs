@@ -560,7 +560,6 @@ impl TemplatableMCPServerManager {
         &mut self,
         templatable_mcp_server: TemplatableMCPServer,
         space: Space,
-        initiated_by: InitiatedBy,
         ctx: &mut ModelContext<Self>,
     ) {
         let owner = UserWorkspaces::as_ref(ctx).space_to_owner(space, ctx);
@@ -572,7 +571,6 @@ impl TemplatableMCPServerManager {
                     templatable_mcp_server.clone(),
                     client_id,
                     owner,
-                    initiated_by,
                     ctx,
                 );
             });
@@ -599,7 +597,6 @@ impl TemplatableMCPServerManager {
                 update_manager.update_templatable_mcp_server(
                     template_server,
                     cloud_templatable_mcp_server.id,
-                    cloud_templatable_mcp_server.metadata.revision,
                     ctx,
                 );
             });
@@ -1661,7 +1658,6 @@ impl TemplatableMCPServerManager {
         mut legacy_mcp_server: MCPServer,
         space: Space,
         automatically_start_server: bool,
-        initiated_by: InitiatedBy,
         ctx: &mut ModelContext<Self>,
     ) -> Result<ParsedTemplatableMCPServerResult, LegacyToTemplatableMCPConversionError> {
         let template_uuid = legacy_mcp_server.uuid;
@@ -1684,7 +1680,7 @@ impl TemplatableMCPServerManager {
             ..
         } = parsed_result.clone();
         let template_uuid = templatable_mcp_server.uuid;
-        self.create_templatable_mcp_server(templatable_mcp_server, space, initiated_by, ctx);
+        self.create_templatable_mcp_server(templatable_mcp_server, space, ctx);
         self.copy_oauth_from_legacy_to_templatable(sync_id, template_uuid, ctx);
         if let Some(templatable_mcp_server_installation) = templatable_mcp_server_installation {
             let installation = self.install_from_template(
@@ -1725,7 +1721,6 @@ impl TemplatableMCPServerManager {
                 legacy_mcp_server,
                 Space::Personal,
                 servers_to_restart.contains(&uuid),
-                InitiatedBy::System,
                 ctx,
             );
             match result {

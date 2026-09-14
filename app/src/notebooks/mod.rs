@@ -8,33 +8,36 @@ pub mod notebook;
 mod styles;
 pub mod telemetry;
 
-use std::sync::Arc;
-
-use anyhow::Result;
 use async_trait::async_trait;
 pub use cloud_object_models::{CloudNotebook, CloudNotebookModel, NotebookId, SerializedNotebook};
+use cloud_objects::cloud_object::SerializedModel;
 use serde::{Deserialize, Serialize};
 use warpui::AppContext;
 
 use crate::appearance::Appearance;
 use crate::cloud_object::{
-    CloudModelType, CloudObjectEventEntrypoint, CloudObjectUpsertParams, CreateCloudObjectResult,
-    CreateObjectRequest, GenericServerObject, ObjectType, Owner, Revision, UpdateCloudObjectResult,
-    WarpDriveItem,
+    CloudModelType, CloudObjectUpsertParams, ObjectType, Owner, WarpDriveItem,
 };
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::items::notebook::WarpDriveNotebook;
 use crate::persistence::ModelEvent;
-use crate::server::cloud_objects::update_manager::InitiatedBy;
-use crate::server::ids::{ServerId, SyncId};
-use crate::server::server_api::object::ObjectClient;
-use crate::server::sync_queue::{QueueItem, SerializedModel};
+use crate::server::ids::SyncId;
 
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 impl CloudModelType for CloudNotebookModel {
     type CloudObjectType = CloudNotebook;
     type IdType = NotebookId;
+
+    fn serialized(&self) -> SerializedModel {
+        let serialized = SerializedNotebook {
+            data: self.data.clone(),
+            ai_document_id: self.ai_document_id.as_ref().map(|id| id.to_string()),
+            conversation_id: self.conversation_id.clone(),
+        };
+        let json = serde_json::to_string(&serialized).expect("Failed to serialize notebook");
+        SerializedModel::new(json)
+    }
 
     fn model_type_name(&self) -> &'static str {
         if self.ai_document_id.is_some() {
@@ -70,84 +73,9 @@ impl CloudModelType for CloudNotebookModel {
         ModelEvent::UpsertNotebooks(objects.into_iter().map(CloudNotebook::from).collect())
     }
 
-    fn create_object_queue_item(
-        &self,
-        notebook: &CloudNotebook,
-        entrypoint: CloudObjectEventEntrypoint,
-        initiated_by: InitiatedBy,
-    ) -> Option<QueueItem> {
-        if let SyncId::ClientId(client_id) = notebook.id {
-            let title = Some(notebook.model().display_name())
-                .filter(|name| !name.is_empty())
-                .map(Arc::new);
-
-            let serialized_model = Some(Arc::new(notebook.model().serialized()));
-
-            return Some(QueueItem::CreateObject {
-                object_type: self.object_type(),
-                owner: notebook.permissions.owner,
-                id: client_id,
-                title,
-                serialized_model,
-                initial_folder_id: notebook.metadata.folder_id,
-                entrypoint,
-                initiated_by,
-            });
-        }
-        None
-    }
-
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        notebook: &CloudNotebook,
-    ) -> QueueItem {
-        QueueItem::UpdateNotebook {
-            // Note that this is intentionally a deep clone of the model because we are grabbing
-            // a snapshot to update at a moment in time.
-            model: notebook.model().clone().into(),
-            id: notebook.id,
-            revision: revision_ts.or(notebook.metadata.revision),
-        }
-    }
-
     fn should_update_after_server_conflict(&self) -> bool {
         true
     }
-
-    fn serialized(&self) -> SerializedModel {
-        let serialized = SerializedNotebook {
-            data: self.data.clone(),
-            ai_document_id: self.ai_document_id.as_ref().map(|id| id.to_string()),
-            conversation_id: self.conversation_id.clone(),
-        };
-        let json = serde_json::to_string(&serialized).expect("Failed to serialize notebook");
-        SerializedModel::new(json)
-    }
-
-    async fn send_create_request(
-        object_client: Arc<dyn ObjectClient>,
-        request: CreateObjectRequest,
-    ) -> Result<CreateCloudObjectResult> {
-        object_client.create_notebook(request).await
-    }
-
-    async fn send_update_request(
-        &self,
-        object_client: Arc<dyn ObjectClient>,
-        server_id: ServerId,
-        revision: Option<Revision>,
-    ) -> Result<UpdateCloudObjectResult<GenericServerObject<NotebookId, Self>>> {
-        object_client
-            .update_notebook(
-                server_id.into(),
-                Some(self.title.clone()),
-                Some(self.data.clone().into()),
-                revision,
-            )
-            .await
-    }
-
     fn renders_in_warp_drive(&self) -> bool {
         true
     }

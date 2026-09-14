@@ -10,7 +10,6 @@ use crate::features::FeatureFlag;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
-use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::{AISettings, CodeSettings, FocusedTerminalInfo};
 use crate::system::SystemStats;
@@ -38,10 +37,9 @@ fn initialize_app_with_auth(
     // Add the necessary singleton models to the App
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
-    app.add_singleton_model(SyncQueue::mock);
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|ctx| UserWorkspaces::mock(resources.workspaces, ctx));
-    app.add_singleton_model(UpdateManager::mock);
+    app.add_singleton_model(|_| UpdateManager::mock());
     app.add_singleton_model(PrivacySettings::mock);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| auth_state_provider);

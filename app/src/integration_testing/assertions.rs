@@ -2,9 +2,8 @@ use warpui::integration::TestStep;
 use warpui::{SingletonEntity, async_assert, async_assert_eq};
 
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{CloudObjectEventEntrypoint, CloudObjectLocation, Space};
+use crate::cloud_object::{CloudObjectLocation, Space};
 use crate::network::{NetworkStatus, NetworkStatusKind};
-use crate::server::cloud_objects::listener::Listener;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::ClientId;
 use crate::util::bindings::keybinding_name_to_display_string;
@@ -109,7 +108,6 @@ pub fn create_a_personal_workflow() -> TestStep {
                         .expect("User UID must be set in tests"),
                     None,
                     ClientId::default(),
-                    CloudObjectEventEntrypoint::ManagementUI,
                     true,
                     ctx,
                 )
@@ -142,34 +140,6 @@ pub fn assert_binding_display_string(
                 async_assert_eq!(
                     keybinding_name_to_display_string(binding, ctx).as_deref(),
                     display_string
-                )
-            })
-        },
-    )
-}
-
-pub fn assert_websocket_has_started() -> TestStep {
-    TestStep::new("Assert a websocket has started").add_named_assertion(
-        "subscription abort handle should exist",
-        move |app, _| {
-            Listener::handle(app).read(app, |listener, _| {
-                async_assert!(
-                    listener.has_current_subscription_abort_handle(),
-                    "subscription has started"
-                )
-            })
-        },
-    )
-}
-
-pub fn assert_websocket_has_not_started() -> TestStep {
-    TestStep::new("Assert a websocket has not started").add_named_assertion(
-        "subscription abort handle should not exist",
-        move |app, _| {
-            Listener::handle(app).read(app, |listener, _| {
-                async_assert!(
-                    !listener.has_current_subscription_abort_handle(),
-                    "subscription has not started"
                 )
             })
         },

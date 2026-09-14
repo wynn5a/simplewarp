@@ -3799,49 +3799,48 @@ impl Workspace {
             // We open Warp Drive automatically in two cases:
             // * The user is new to Warp, and went through the overall onboarding flow
             // * The user is on the web, so we can't open a terminal session.
-            let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-            ctx.spawn(initial_load_complete, move |me, _, ctx| {
-                // New Warp users can have non-welcome objects if they were directly invited OR if
-                // linked objects were copied over from an anonymous user.
-                if CloudModel::as_ref(ctx).has_non_welcome_objects() {
-                    me.open_or_toggle_warp_drive(false, false, ctx);
+            //
+            // New Warp users can have non-welcome objects if they were directly invited OR if
+            // linked objects were copied over from an anonymous user. The model is restored
+            // from sqlite at startup, so the check can run inline.
+            if CloudModel::as_ref(ctx).has_non_welcome_objects() {
+                self.open_or_toggle_warp_drive(false, false, ctx);
 
-                    // After opening Warp Drive, if we rendered the Warp Home placeholder panel, replace it with one of
-                    // the user's own objects.
-                    if show_warp_home {
-                        let cloud_model = CloudModel::as_ref(ctx);
-                        let candidate_objects = cloud_model
-                            .cloud_objects()
-                            .filter(|object| {
-                                !object.is_trashed(cloud_model)
-                                    && object.renders_in_warp_drive()
-                                    && !object.metadata().is_welcome_object
-                            })
-                            .map(|object| object.cloud_object_type_and_id())
-                            .collect_vec();
-                        // Collect into a temporary Vec so that we can create a pane for the first
-                        // supported object.
-                        let target_object_pane = candidate_objects
-                            .into_iter()
-                            .find_map(|object_id| me.create_cloud_object_pane(object_id, ctx));
+                // After opening Warp Drive, if we rendered the Warp Home placeholder panel, replace it with one of
+                // the user's own objects.
+                if show_warp_home {
+                    let cloud_model = CloudModel::as_ref(ctx);
+                    let candidate_objects = cloud_model
+                        .cloud_objects()
+                        .filter(|object| {
+                            !object.is_trashed(cloud_model)
+                                && object.renders_in_warp_drive()
+                                && !object.metadata().is_welcome_object
+                        })
+                        .map(|object| object.cloud_object_type_and_id())
+                        .collect_vec();
+                    // Collect into a temporary Vec so that we can create a pane for the first
+                    // supported object.
+                    let target_object_pane = candidate_objects
+                        .into_iter()
+                        .find_map(|object_id| self.create_cloud_object_pane(object_id, ctx));
 
-                        if let Some((target_object_pane, placeholder_pane)) =
-                            target_object_pane.zip(placeholder_pane)
-                        {
-                            initial_tab.update(ctx, |pane_group, ctx| {
-                                pane_group.add_pane_sibling(
-                                    placeholder_pane,
-                                    Direction::Left,
-                                    target_object_pane,
-                                    true,
-                                    ctx,
-                                );
-                                pane_group.close_pane(placeholder_pane, ctx);
-                            });
-                        }
+                    if let Some((target_object_pane, placeholder_pane)) =
+                        target_object_pane.zip(placeholder_pane)
+                    {
+                        initial_tab.update(ctx, |pane_group, ctx| {
+                            pane_group.add_pane_sibling(
+                                placeholder_pane,
+                                Direction::Left,
+                                target_object_pane,
+                                true,
+                                ctx,
+                            );
+                            pane_group.close_pane(placeholder_pane, ctx);
+                        });
                     }
                 }
-            });
+            }
         }
     }
 
@@ -15944,9 +15943,7 @@ impl Workspace {
         event: &UpdateManagerEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event else {
-            return;
-        };
+        let UpdateManagerEvent::ObjectOperationComplete { result } = event;
 
         let cloud_model = CloudModel::as_ref(ctx);
 
@@ -15984,8 +15981,7 @@ impl Workspace {
                             let mut new_toast =
                                 DismissibleToast::success(message).with_object_id(object_id);
                             if let Some(notebook) = cloned_notebook
-                                && (matches!(result.operation, ObjectOperation::Create { .. })
-                                    || result.operation == ObjectOperation::Update)
+                                && result.operation == ObjectOperation::Update
                                 && notebook.model().ai_document_id.is_some()
                             {
                                 // This is a plan. Only show the "Plan synced" toast if the plan is open in
@@ -16015,8 +16011,7 @@ impl Workspace {
                             }
 
                             if let Some(workflow) = cloned_workflow
-                                && (matches!(result.operation, ObjectOperation::Create { .. })
-                                    || result.operation == ObjectOperation::Update)
+                                && result.operation == ObjectOperation::Update
                             {
                                 new_toast = new_toast.with_link(
                                     ToastLink::new("View".to_string()).with_onclick_action(
@@ -16038,28 +16033,6 @@ impl Workspace {
                             }
 
                             view.add_ephemeral_toast(new_toast, ctx);
-                        }
-                        OperationSuccessType::Failure => {
-                            // Suppress failure toasts for plan notebook updates
-                            // that are not visible in the active pane group.
-                            // Plan notebooks auto-save in the background, and
-                            // showing persistent error toasts for transient
-                            // failures is confusing when the user didn't
-                            // initiate the action.
-                            if let Some(notebook) = &cloned_notebook
-                                && result.operation == ObjectOperation::Update
-                                && notebook.model().ai_document_id.is_some_and(|ai_doc_id| {
-                                    !self
-                                        .active_tab_pane_group()
-                                        .as_ref(ctx)
-                                        .contains_ai_document(&ai_doc_id, ctx)
-                                })
-                            {
-                                return;
-                            }
-                            let new_toast =
-                                DismissibleToast::error(message).with_object_id(object_id);
-                            view.add_persistent_toast(new_toast, ctx);
                         }
                         OperationSuccessType::Rejection => {
                             let new_toast = if let Some(workflow) = cloned_workflow {
@@ -16093,18 +16066,6 @@ impl Workspace {
                             };
                             view.add_persistent_toast(new_toast, ctx);
                         }
-                        OperationSuccessType::FeatureNotAvailable => {
-                            if cloned_workflow.is_some() {
-                                report_error!(
-                                    "Getting feature not available message for workflows"
-                                );
-                            }
-                        }
-                        OperationSuccessType::Denied(_) => {
-                            let new_toast =
-                                DismissibleToast::error(message).with_object_id(object_id);
-                            view.add_persistent_toast(new_toast, ctx);
-                        }
                     });
             }
         }
@@ -16118,31 +16079,16 @@ impl Workspace {
             )
         {
             self.toast_stack
-                    .update(ctx, |view, ctx| match result.success_type {
-                        OperationSuccessType::Success => {
-                            let new_toast = DismissibleToast::success(message);
-                            view.add_ephemeral_toast(new_toast, ctx);
-                        }
-                        OperationSuccessType::Failure => {
-                            let new_toast: DismissibleToast<WorkspaceAction> =
-                                DismissibleToast::error(message);
-                            view.add_ephemeral_toast(new_toast, ctx);
-                        }
-                        OperationSuccessType::Rejection => {
-                            let new_toast = DismissibleToast::error(message);
-                            view.add_ephemeral_toast(new_toast, ctx);
-                        }
-                        OperationSuccessType::FeatureNotAvailable => {
-                            report_error!(
-                                "Should not get deletion confirmation message when feature is not available",
-                                extra: { "operation" => ?result.operation }
-                            );
-                        }
-                        OperationSuccessType::Denied(_) => {
-                            let new_toast = DismissibleToast::error(message);
-                            view.add_ephemeral_toast(new_toast, ctx);
-                        },
-                    })
+                .update(ctx, |view, ctx| match result.success_type {
+                    OperationSuccessType::Success => {
+                        let new_toast = DismissibleToast::success(message);
+                        view.add_ephemeral_toast(new_toast, ctx);
+                    }
+                    OperationSuccessType::Rejection => {
+                        let new_toast = DismissibleToast::error(message);
+                        view.add_ephemeral_toast(new_toast, ctx);
+                    }
+                })
         }
 
         // If this was a successful update on a workflow - caused by this client - then we may need

@@ -114,23 +114,6 @@ impl WorkflowAliases {
         self.aliases.set_value(aliases, ctx)
     }
 
-    /// Migrate all aliases from one workflow id to another.
-    /// Useful when a workflow id changes, like on initial save.
-    pub fn update_workflow_id(
-        &mut self,
-        old_workflow_id: SyncId,
-        new_workflow_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<(), Error> {
-        let mut aliases = self.aliases.clone();
-        for alias in aliases.iter_mut() {
-            if alias.workflow_id == old_workflow_id {
-                alias.workflow_id = new_workflow_id;
-            }
-        }
-        self.aliases.set_value(aliases, ctx)
-    }
-
     pub fn remove_aliases_for_workflow(
         &mut self,
         workflow_id: SyncId,

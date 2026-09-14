@@ -16,7 +16,6 @@ use crate::ai::blocklist::telemetry_banner::should_collect_ai_ugc_telemetry;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_state::AuthState;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
 #[cfg(any(test, feature = "test-util"))]
 use crate::server::server_api::auth::MockAuthClient;
@@ -713,16 +712,10 @@ impl PrivacySettings {
     /// 2) update the warp drive prefs to match the values from the legacy user_settings endpoint so
     ///    that we can use warp drive prefs going forward.
     pub fn maybe_sync_with_warp_drive_prefs(&mut self, ctx: &mut ModelContext<Self>) {
-        // Wait for cloud objects to load, and, if telemetry & crash reporting are synced to warp drive
-        // initialize from the warp drive values.
-        let update_manager = UpdateManager::as_ref(ctx);
-        ctx.spawn(
-            update_manager.initial_load_complete(),
-            Self::handle_warp_drive_objects_loaded,
-        );
+        self.handle_warp_drive_objects_loaded(ctx);
     }
 
-    fn handle_warp_drive_objects_loaded(&mut self, _: (), ctx: &mut ModelContext<Self>) {
+    fn handle_warp_drive_objects_loaded(&mut self, ctx: &mut ModelContext<Self>) {
         self.initialize_default_regexes_once(ctx);
         // Check if the warp drive preferences are set. If they are, and telemetry and crash reporting
         // are set as warp drive prefs, then use those.  Otherwise, update the warp drive prefs to match

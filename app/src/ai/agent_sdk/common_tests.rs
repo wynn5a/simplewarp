@@ -18,7 +18,6 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
-use crate::server::sync_queue::SyncQueue;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
@@ -125,8 +124,7 @@ fn update_feature_model_choices_clears_unavailable_flag_after_failed_fetch() {
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(SyncQueue::mock);
-        app.add_singleton_model(UpdateManager::mock);
+        app.add_singleton_model(|_| UpdateManager::mock());
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
         app.add_singleton_model(|ctx| {
             AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)

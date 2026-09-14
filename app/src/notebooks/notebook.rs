@@ -13,7 +13,7 @@ use warp_editor::editor::NavigationKey;
 use warp_editor::model::{CoreEditorModel, RichTextEditorModel};
 use warp_errors::{report_error, report_if_error};
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
-use warpui::r#async::{SpawnedFutureHandle, Timer};
+use warpui::r#async::Timer;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Align, Clipped, ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult, Empty,
@@ -46,12 +46,9 @@ use super::{CloudNotebookModel, NotebookId, NotebookLocation, styles};
 use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::appearance::Appearance;
-use crate::cloud_object::grab_edit_access_modal::{GrabEditAccessModal, GrabEditAccessModalEvent};
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
 use crate::cloud_object::model::view::{Editor, EditorState};
-use crate::cloud_object::{
-    CloudObject, CloudObjectEventEntrypoint, ObjectType, OpenWarpDriveObjectSettings, Owner, Space,
-};
+use crate::cloud_object::{CloudObject, ObjectType, OpenWarpDriveObjectSettings, Owner, Space};
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_notebook_limit;
 use crate::drive::export::ExportManager;
@@ -67,8 +64,8 @@ use crate::notebooks::editor::rich_text_styles;
 use crate::pane_group::focus_state::{PaneFocusHandle, PaneGroupFocusEvent};
 use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
-use crate::server::cloud_objects::update_manager::{FetchSingleObjectOption, UpdateManager};
-use crate::server::ids::{ClientId, ServerId, SyncId};
+use crate::server::cloud_objects::update_manager::UpdateManager;
+use crate::server::ids::{ClientId, SyncId};
 use crate::server::telemetry::{
     CloudObjectTelemetryMetadata, NotebookActionEvent, NotebookTelemetryMetadata,
     TelemetryCloudObjectType, TelemetryEvent,
@@ -80,7 +77,6 @@ use crate::settings::{
     FontSettings, FontSettingsChangedEvent, NotebookFontSize, decrease_notebook_font_size,
     increase_notebook_font_size,
 };
-use crate::sharing::ShareableObject;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::throttle::throttle;
 use crate::ui_components::icons::{self};
@@ -91,7 +87,7 @@ use crate::view_components::{DismissibleToast, ToastType};
 use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ToastStack;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{cmd_or_ctrl_shift, safe_info, send_telemetry_from_ctx};
+use crate::{cmd_or_ctrl_shift, send_telemetry_from_ctx};
 
 mod details_bar;
 
@@ -102,9 +98,6 @@ mod tests;
 const EDIT_BUTTON_MARGIN: f32 = 6.;
 const HEADER_MARGIN: f32 = 15.;
 const BANNER_VERTICAL_MARGIN: f32 = 10.;
-
-const CONFLICT_RESOLUTION_MESSAGE: &str = "This notebook could not be saved because changes were made while you were editing. Please copy your work and refresh.";
-const REFRESH_BUTTON_TEXT: &str = "Refresh";
 
 const FEATURE_NOT_AVAILABLE_MESSAGE: &str = "This notebook could not be saved to the server because the feature is temporarily unavailable. The changes are saved locally. Please retry later.";
 
@@ -194,15 +187,12 @@ struct NotebookUpdateRequestDebounceArg {}
 
 #[derive(Default)]
 struct ButtonMouseStates {
-    conflict_resolution_refresh_button: MouseStateHandle,
-    conflict_resolution_copy_all_button: MouseStateHandle,
     restore_from_trash_button: MouseStateHandle,
     copy_to_personal_drive_button: MouseStateHandle,
 }
 
 #[derive(Clone, Copy)]
 enum NotebookSyncError {
-    InConflict,
     FeatureNotAvailable,
 }
 
@@ -214,7 +204,6 @@ pub struct NotebookView {
     details_bar: DetailsBar,
     title: ViewHandle<EditorView>,
     input: ViewHandle<RichTextEditorView>,
-    grab_edit_access_modal: ViewHandle<GrabEditAccessModal>,
     focused: bool,
     last_focused_component: FocusedComponent,
     active_notebook_data: ModelHandle<ActiveNotebookData>,
@@ -266,7 +255,6 @@ pub enum NotebookAction {
     IncreaseFontSize,
     DecreaseFontSize,
     ResetFontSize,
-    ConflictResolutionBannerRefreshClicked,
     FocusTerminalInput,
     ContextMenu(ContextMenuAction), // right click context menu
     Duplicate,
@@ -370,11 +358,6 @@ impl NotebookView {
             notebook.handle_input_editor_event(event, ctx);
         });
 
-        let grab_edit_access_modal = ctx.add_typed_action_view(|_| GrabEditAccessModal::new());
-        ctx.subscribe_to_view(&grab_edit_access_modal, |notebook, _, event, ctx| {
-            notebook.handle_grab_edit_access_modal_event(event, ctx);
-        });
-
         let user_workspaces = UserWorkspaces::handle(ctx);
         ctx.observe(&user_workspaces, Self::on_user_workspaces_update);
 
@@ -395,7 +378,6 @@ impl NotebookView {
             details_bar: DetailsBar::new(),
             title,
             input,
-            grab_edit_access_modal,
             focused: false,
             last_focused_component: FocusedComponent::Input,
             active_notebook_data,
@@ -553,30 +535,12 @@ impl NotebookView {
                 log::info!("Edit mode stolen");
                 self.switch_to_view(ctx);
             }
-            ActiveNotebookDataEvent::SwitchedToEditMode => {
-                log::info!("Edit mode confirmed from server");
-                self.set_editor_interaction_state(InteractionState::Editable, ctx);
-            }
             ActiveNotebookDataEvent::EditRejected => {
                 log::info!("Edit rejected, switching to view mode");
                 self.switch_to_view(ctx);
             }
             ActiveNotebookDataEvent::BreadcrumbsChanged => {
                 self.update_breadcrumbs(ctx);
-            }
-            ActiveNotebookDataEvent::CreatedOnServer => {
-                ctx.emit(NotebookEvent::Pane(PaneEvent::AppStateChanged));
-                if let Some(id) = self
-                    .active_notebook_data
-                    .as_ref(ctx)
-                    .id()
-                    .and_then(SyncId::into_server)
-                {
-                    self.pane_configuration.update(ctx, |pane_config, ctx| {
-                        pane_config
-                            .set_shareable_object(Some(ShareableObject::WarpDriveObject(id)), ctx);
-                    })
-                }
             }
             ActiveNotebookDataEvent::TrashStatusChanged | ActiveNotebookDataEvent::MovedToSpace => {
                 self.pane_configuration.update(ctx, |pane_config, ctx| {
@@ -649,35 +613,6 @@ impl NotebookView {
             }
             _ => (),
         }
-    }
-
-    /// Handle an event from the [`GrabEditAccessModal`]. This lets users steal edit access from
-    /// other users.
-    fn handle_grab_edit_access_modal_event(
-        &mut self,
-        event: &GrabEditAccessModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            GrabEditAccessModalEvent::Close => {
-                self.active_notebook_data
-                    .update(ctx, |active_notebook_data, ctx| {
-                        active_notebook_data.show_grab_edit_access_modal = false;
-                        ctx.notify();
-                    });
-            }
-            GrabEditAccessModalEvent::GrabEditAccess => {
-                self.active_notebook_data
-                    .update(ctx, |active_notebook_data, ctx| {
-                        active_notebook_data.show_grab_edit_access_modal = false;
-                        ctx.notify();
-                    });
-                log::info!("Explicitly grabbing edit access, stealing from active editor");
-                self.grab_edit_access(false, ctx);
-                self.send_telemetry_action(NotebookTelemetryAction::GrabEditingBaton, ctx);
-            }
-        }
-        ctx.notify();
     }
 
     /// Reload an updated notebook.
@@ -818,7 +753,6 @@ impl NotebookView {
                                 ai_document_id: notebook.model().ai_document_id,
                                 conversation_id: notebook.model().conversation_id.clone(),
                             },
-                            CloudObjectEventEntrypoint::Unknown,
                             true,
                             ctx,
                         );
@@ -881,19 +815,9 @@ impl NotebookView {
 
     /// Checks if the user is the current known editor of the notebook, if they
     /// are, then sets the current editor to be None both locally and on the server
-    fn try_give_up_edit_access(&self, ctx: &mut ViewContext<Self>) {
-        let id = self.active_notebook_data.as_ref(ctx).id();
-        UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-            if let Some(id) = id {
-                update_manager.give_up_notebook_edit_access(id, ctx);
-            }
-        });
-        ctx.notify();
-    }
-
     fn give_up_edit_access_and_start_viewing(&mut self, ctx: &mut ViewContext<Self>) {
-        self.try_give_up_edit_access(ctx);
         self.switch_to_view(ctx);
+        ctx.notify();
     }
 
     /// Save any changes to the notebook.
@@ -1091,23 +1015,13 @@ impl NotebookView {
     /// Sends a request to the server to grab notebook edit access, if the user is taking
     /// access from another user, we wait to actually switch them into edit mode. If we are
     /// not taking access, we go ahead and optimistically switch them in.
-    fn grab_edit_access(&mut self, optimistically_grant_access: bool, ctx: &mut ViewContext<Self>) {
+    fn grab_edit_access(&mut self, ctx: &mut ViewContext<Self>) {
         let active_notebook = self.active_notebook_data.as_ref(ctx);
         if !active_notebook.trash_status(ctx).is_editable() {
             // Do not allow grabbing edit access if the notebook is trashed or feature flag is turned off.
             return;
         }
-        let id = active_notebook.id();
-        UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-            if let Some(id) = id {
-                update_manager.grab_notebook_edit_access(id, optimistically_grant_access, ctx);
-            }
-        });
-
-        // If we are optimistically granting access, go ahead and switch into edit mode.
-        if optimistically_grant_access {
-            self.switch_to_edit(ctx);
-        }
+        self.switch_to_edit(ctx);
 
         ctx.focus(&self.input);
         ctx.notify();
@@ -1127,14 +1041,9 @@ impl NotebookView {
         let current_editor = active_notebook_data
             .current_editor(ctx)
             .unwrap_or(Editor::no_editor());
-        if current_editor.state == EditorState::OtherUserActive {
-            self.active_notebook_data.update(ctx, |data, ctx| {
-                data.show_grab_edit_access_modal = true;
-                ctx.notify();
-            });
-        } else {
+        if current_editor.state != EditorState::OtherUserActive {
             log::info!("Explicitly grabbing edit access, no active editor");
-            self.grab_edit_access(true, ctx);
+            self.grab_edit_access(ctx);
         }
 
         self.focus_input(ctx);
@@ -1275,7 +1184,6 @@ impl NotebookView {
                     ai_document_id,
                     conversation_id: None,
                 },
-                CloudObjectEventEntrypoint::Unknown,
                 true,
                 ctx,
             );
@@ -1294,7 +1202,7 @@ impl NotebookView {
 
         // Because the notebook was just created, and is in the user's personal space, grabbing
         // access must be safe.
-        self.grab_edit_access(true, ctx);
+        self.grab_edit_access(ctx);
 
         // Save the new notebook ID for session restoration.
         ctx.emit(NotebookEvent::Pane(PaneEvent::AppStateChanged));
@@ -1413,12 +1321,11 @@ impl NotebookView {
         NetworkStatus::as_ref(app).is_online()
     }
 
-    /// Takes a given `notebook_id`, and tries to load it into view after initial load completes.
-    /// If the notebook still does not exist in memory after initial load, displaces an error message in
-    /// the given window.
+    /// Takes a given `notebook_id` and tries to load it into view. If it doesn't exist in
+    /// memory, displays an error message in the given window — the model is restored from
+    /// sqlite at startup and there is no server to fetch a missing object from.
     ///
-    /// Used for code paths such as link opening, where we are often trying to open notebooks before
-    /// the initial response from the server has completed.
+    /// Used for code paths such as link opening.
     pub fn wait_for_initial_load_then_load(
         &mut self,
         notebook_id: SyncId,
@@ -1426,26 +1333,11 @@ impl NotebookView {
         window_id: WindowId,
         ctx: &mut ViewContext<Self>,
     ) {
-        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-        // TODO @ianhodge CLD-2002: it could be nice to have a loading screen here while we wait for the load
-        let settings = settings.clone();
-        ctx.spawn(initial_load_complete, move |me, _, ctx| {
-            let notebook = CloudModel::as_ref(ctx).get_notebook(&notebook_id).cloned();
-            let fetch_needed = notebook.is_none()
-                || settings
-                    .focused_folder_id
-                    .map(SyncId::ServerId)
-                    .map(|folder_id| CloudModel::as_ref(ctx).get_folder(&folder_id).is_none())
-                    .unwrap_or(false);
-            if fetch_needed {
-                if let Some(server_id) = notebook_id.into_server() {
-                    me.fetch_and_load_notebook(server_id, &settings, window_id, ctx);
-                } else {
-                    log::warn!("Tried to load notebook without server id {notebook_id:?}");
-                }
-            } else if let Some(notebook) = notebook {
-                me.load(notebook, &settings, ctx);
-            } else {
+        match CloudModel::as_ref(ctx).get_notebook(&notebook_id).cloned() {
+            Some(notebook) => {
+                self.load(notebook, settings, ctx);
+            }
+            None => {
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast_by_type(
                         ToastType::CloudObjectNotFound,
@@ -1455,71 +1347,21 @@ impl NotebookView {
                 });
                 log::warn!("Tried to open unknown notebook {notebook_id:?}");
             }
-        });
-    }
-
-    fn fetch_and_load_notebook(
-        &mut self,
-        notebook_id: ServerId,
-        settings: &OpenWarpDriveObjectSettings,
-        window_id: WindowId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // If we have a parent folder we are trying to load as a part of this notebook, fetch that instead
-        let id_to_fetch = settings.focused_folder_id.unwrap_or(notebook_id);
-        let fetch_cloud_object_rx =
-            UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                update_manager.fetch_single_cloud_object(
-                    &id_to_fetch,
-                    FetchSingleObjectOption::None,
-                    ctx,
-                )
-            });
-        let settings = settings.clone();
-        ctx.spawn(fetch_cloud_object_rx, move |me, _, ctx| {
-            if let Some(notebook) = CloudModel::as_ref(ctx)
-                .get_notebook(&SyncId::ServerId(notebook_id))
-                .cloned()
-            {
-                me.load(notebook, &settings, ctx);
-            } else {
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast_by_type(
-                        ToastType::CloudObjectNotFound,
-                        window_id,
-                        ctx,
-                    );
-                });
-                log::warn!("Tried to open unknown notebook {notebook_id:?} after fetching");
-            }
-        });
+        }
     }
 
     /// Takes a `CloudNotebook` and loads it into the view.
     ///
     /// Namely, we reset the title and body's undo stack and we set the buffer to be
     /// that of the cloud notebook's content.
-    ///
-    /// The returned [`SpawnedFutureHandle`] guards asynchronous work to grab the baton and start
-    /// editing if there is not already an editor.
     pub fn load(
         &mut self,
         notebook: CloudNotebook,
         _settings: &OpenWarpDriveObjectSettings,
         ctx: &mut ViewContext<Self>,
-    ) -> SpawnedFutureHandle {
+    ) {
         self.set_title(&notebook.model().title, ctx);
         self.set_content(&notebook, ctx);
-
-        if let Some(server_id) = notebook.id.into_server() {
-            self.pane_configuration
-                .update(ctx, |pane_configuration, ctx| {
-                    pane_configuration.set_shareable_object(
-                        Some(ShareableObject::WarpDriveObject(server_id)),
-                        ctx,
-                    );
-                });
-        }
 
         self.active_notebook_data.update(ctx, |data, ctx| {
             data.open_existing(notebook.id, ctx);
@@ -1535,55 +1377,9 @@ impl NotebookView {
             ctx
         );
 
-        // Once we've received metadata from the server, check if we can eagerly edit the notebook.
-        let has_metadata = UpdateManager::as_ref(ctx).initial_load_complete();
-        let baton_future = ctx.spawn(has_metadata, |me, _, ctx| {
-            let active_notebook_data = me.active_notebook_data.as_ref(ctx);
-
-            if active_notebook_data.has_conflicts(ctx) {
-                log::debug!("Notebook has conflicts, opening in view mode");
-            } else {
-                let current_editor = active_notebook_data.current_editor(ctx);
-
-                // If there's not currently an editor or the current editor has been idle, we want to automatically
-                // switch the user into edit mode.
-                match current_editor {
-                    Some(editor) => {
-                        let email = editor.email.unwrap_or_default();
-                        match editor.state {
-                            EditorState::None => {
-                                log::info!("Optimistically grabbing edit access, no notebook editor");
-                                me.grab_edit_access(true, ctx);
-                            }
-                            EditorState::CurrentUser => {
-                                safe_info!(
-                                    safe: ("Optimistically grabbing edit access, already the editor"),
-                                    full: ("Optmisitically grabbing edit access, user {email} is already the editor")
-                                );
-                                me.grab_edit_access(true, ctx);
-                            }
-                            EditorState::OtherUserIdle => {
-                                    safe_info!(
-                                        safe: ("Optimistically grabbing edit access, editor is idle"),
-                                        full: ("Optmisitically grabbing edit access, editor {email} is idle")
-                                    );
-                                    me.grab_edit_access(true, ctx);
-                                }
-                            EditorState::OtherUserActive => {
-                                log::info!("Opening in view mode, notebook is being edited")
-                            }
-                        }
-                    }
-                    None => {
-                        log::info!("Opening in view mode, unknown editor");
-                    }
-                }
-            }
-        });
         self.update_breadcrumbs(ctx);
 
         ctx.notify();
-        baton_future
     }
 
     /// Reset this view to show a new, empty notebook.
@@ -1667,7 +1463,6 @@ impl NotebookView {
                                 ai_document_id: notebook.model().ai_document_id,
                                 conversation_id: notebook.model().conversation_id.clone(),
                             },
-                            CloudObjectEventEntrypoint::Unknown,
                             true,
                             ctx,
                         );
@@ -1691,14 +1486,11 @@ impl NotebookView {
         ctx.notify();
     }
 
-    /// Save this notebook and give up edit access before detaching it from a pane.
+    /// Save this notebook before detaching it from a pane.
     pub fn on_detach(&mut self, ctx: &mut ViewContext<Self>) {
         // If there are un-saved edits, persist them now, since the asynchronous update callback
         // is unlikely to run again.
         self.handle_save(NotebookUpdateRequestDebounceArg {}, ctx);
-
-        // Give up notebook edit access on quitting.
-        self.try_give_up_edit_access(ctx);
     }
 
     pub fn toggle_mode(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1735,27 +1527,6 @@ impl NotebookView {
             workflow: workflow_type,
             source,
         });
-        ctx.notify();
-    }
-
-    fn conflict_dialog_refresh_button_clicked(&mut self, ctx: &mut ViewContext<Self>) {
-        let Some(id) = self.notebook_id(ctx) else {
-            return;
-        };
-
-        UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-            update_manager.replace_object_with_conflict(&id.uid(), ctx);
-        });
-
-        // Load the server's version of the notebook now that the cloud model has been updated.
-        // This will also switch back to edit mode if there isn't an active editor.
-        if let Some(notebook) = CloudModel::as_ref(ctx).get_notebook(&id) {
-            self.load(
-                notebook.clone(),
-                &OpenWarpDriveObjectSettings::default(),
-                ctx,
-            );
-        }
         ctx.notify();
     }
 
@@ -1953,7 +1724,6 @@ impl NotebookView {
                 .wrappable_text(
                     match sync_error {
                         NotebookSyncError::FeatureNotAvailable => FEATURE_NOT_AVAILABLE_MESSAGE,
-                        NotebookSyncError::InConflict => CONFLICT_RESOLUTION_MESSAGE,
                     },
                     true,
                 )
@@ -1970,79 +1740,10 @@ impl NotebookView {
         )
         .finish();
 
-        let mut action_row = Flex::row()
+        let action_row = Flex::row()
             .with_main_axis_alignment(MainAxisAlignment::End)
             .with_main_axis_size(MainAxisSize::Max)
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
-
-        let ui_builder = appearance.ui_builder().clone();
-        action_row.add_child(
-            Container::new(
-                Align::new(
-                    appearance
-                        .ui_builder()
-                        .button(
-                            ButtonVariant::Basic,
-                            self.button_mouse_states
-                                .conflict_resolution_copy_all_button
-                                .clone(),
-                        )
-                        .with_tooltip(move || {
-                            ui_builder
-                                .tool_tip("Copy notebook contents to your clipboard".to_string())
-                                .build()
-                                .finish()
-                        })
-                        .with_text_label("Copy All".to_string())
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(NotebookAction::CopyToClipboard)
-                        })
-                        .finish(),
-                )
-                .finish(),
-            )
-            .with_margin_bottom(BANNER_VERTICAL_MARGIN)
-            .with_margin_right(HEADER_MARGIN)
-            .with_margin_left(HEADER_MARGIN)
-            .finish(),
-        );
-
-        if matches!(sync_error, NotebookSyncError::InConflict) {
-            let ui_builder = appearance.ui_builder().clone();
-            action_row.add_child(
-                Container::new(
-                    Align::new(
-                        appearance
-                            .ui_builder()
-                            .button(
-                                ButtonVariant::Basic,
-                                self.button_mouse_states
-                                    .conflict_resolution_refresh_button
-                                    .clone(),
-                            )
-                            .with_tooltip(move || {
-                                ui_builder
-                                    .tool_tip("Refresh notebook".to_string())
-                                    .build()
-                                    .finish()
-                            })
-                            .with_text_label(REFRESH_BUTTON_TEXT.to_string())
-                            .build()
-                            .on_click(|ctx, _, _| {
-                                ctx.dispatch_typed_action(
-                                    NotebookAction::ConflictResolutionBannerRefreshClicked,
-                                )
-                            })
-                            .finish(),
-                    )
-                    .finish(),
-                )
-                .with_margin_bottom(BANNER_VERTICAL_MARGIN)
-                .with_margin_right(HEADER_MARGIN)
-                .finish(),
-            );
-        }
 
         Container::new(
             Flex::column()
@@ -2113,24 +1814,12 @@ impl View for NotebookView {
         if self
             .active_notebook_data
             .as_ref(app)
-            .show_grab_edit_access_modal
-        {
-            stack.add_child(ChildView::new(&self.grab_edit_access_modal).finish());
-        }
-
-        if self
-            .active_notebook_data
-            .as_ref(app)
             .feature_not_available()
         {
             stack.add_child(self.render_sync_banner(
                 NotebookSyncError::FeatureNotAvailable,
                 Appearance::as_ref(app),
             ));
-        } else if self.active_notebook_data.as_ref(app).has_conflicts(app) {
-            stack.add_child(
-                self.render_sync_banner(NotebookSyncError::InConflict, Appearance::as_ref(app)),
-            );
         }
 
         self.context_menu.render(&mut stack);
@@ -2173,9 +1862,6 @@ impl TypedActionView for NotebookView {
             NotebookAction::Focus => ctx.focus_self(),
             NotebookAction::ToggleMode => self.toggle_mode(ctx),
             NotebookAction::Close => ctx.emit(NotebookEvent::Pane(PaneEvent::Close)),
-            NotebookAction::ConflictResolutionBannerRefreshClicked => {
-                self.conflict_dialog_refresh_button_clicked(ctx)
-            }
             NotebookAction::IncreaseFontSize => self.increase_font_size(ctx),
             NotebookAction::DecreaseFontSize => self.decrease_font_size(ctx),
             NotebookAction::ResetFontSize => {
@@ -2261,7 +1947,7 @@ impl BackingView for NotebookView {
 
     fn render_header_content(
         &self,
-        _ctx: &view::HeaderRenderContext<'_>,
+        _ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> view::HeaderContent {
         view::HeaderContent::simple(self.pane_configuration.as_ref(app).title())

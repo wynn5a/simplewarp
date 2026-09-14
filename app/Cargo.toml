@@ -87,7 +87,6 @@ cfg-if.workspace = true
 channel_versions.workspace = true
 chrono.workspace = true
 clap.workspace = true
-cloud_object_client.workspace = true
 cloud_object_models.workspace = true
 cloud_objects.workspace = true
 command = { workspace = true }
@@ -428,13 +427,14 @@ winreg.workspace = true
 [dev-dependencies]
 ai = { workspace = true, features = ["test-util"] }
 async-process.workspace = true
+cloud_object_models = { workspace = true, features = ["test-util"] }
+cloud_objects = { workspace = true, features = ["test-util"] }
 computer_use = { workspace = true, features = ["test-util"] }
 firebase.workspace = true
 jsonschema = { workspace = true, default-features = false }
 async-executor = "1.5.1"
 command = { workspace = true, features = ["test-util"] }
 ctor = "0.1.18"
-cloud_object_client = { workspace = true, features = ["test-util"] }
 http_client = { workspace = true, features = ["test-util"] }
 mockall.workspace = true
 mockito.workspace = true
@@ -929,7 +929,6 @@ system_theme = []
 tab_close_button_on_left = []
 team_features_override = []
 test-util = [
-    "cloud_object_client/test-util",
     "warp_server_auth/test-util",
     "http_client/test-util",
     "warp_core/test-util",

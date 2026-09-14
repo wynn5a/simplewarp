@@ -682,6 +682,7 @@ impl UserWorkspaces {
         }
     }
 
+    #[cfg(any(test, feature = "integration_tests"))]
     pub fn has_teams(&self) -> bool {
         if let Some(workspace) = self.current_workspace() {
             !workspace.teams.is_empty()
@@ -776,28 +777,6 @@ impl UserWorkspaces {
                     .clone()
             })
             .unwrap_or_default()
-    }
-
-    pub fn is_anyone_with_link_sharing_enabled(&self) -> bool {
-        self.current_workspace()
-            .map(|workspace| {
-                workspace
-                    .settings
-                    .link_sharing_settings
-                    .anyone_with_link_sharing_enabled
-            })
-            .unwrap_or(true)
-    }
-
-    pub fn is_direct_link_sharing_enabled(&self) -> bool {
-        self.current_workspace()
-            .map(|workspace| {
-                workspace
-                    .settings
-                    .link_sharing_settings
-                    .direct_link_sharing_enabled
-            })
-            .unwrap_or(true)
     }
 
     /// Returns the codebase context settings, taking into account the organization, /// global AI settings, and codebase-specific settings.

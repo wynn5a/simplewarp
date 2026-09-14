@@ -3014,7 +3014,7 @@ impl BackingView for CodeDiffView {
 
     fn render_header_content(
         &self,
-        _ctx: &view::HeaderRenderContext<'_>,
+        _ctx: &view::HeaderRenderContext,
         _app: &AppContext,
     ) -> view::HeaderContent {
         // Code diffs should show "Requested Edit" as the title and hide the close button

@@ -4,7 +4,7 @@ use warpui::{SingletonEntity, WindowId, async_assert};
 
 use super::open_workflow_count;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{CloudObjectEventEntrypoint, OpenWarpDriveObjectSettings, Space};
+use crate::cloud_object::{OpenWarpDriveObjectSettings, Space};
 use crate::integration_testing::view_getters::workspace_view;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
@@ -29,7 +29,6 @@ pub fn create_a_personal_workflow(key: impl Into<String>) -> TestStep {
                         .expect("User UID must be set in tests"),
                     None,
                     client_id,
-                    CloudObjectEventEntrypoint::ManagementUI,
                     true,
                     ctx,
                 );

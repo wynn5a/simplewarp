@@ -12,8 +12,6 @@ use warp_errors::report_error;
 #[cfg(feature = "local_tty")]
 use warpui::ModelHandle;
 use warpui::ViewContext;
-#[cfg(not(target_family = "wasm"))]
-use warpui::r#async::FutureExt;
 #[cfg(feature = "local_tty")]
 use warpui::geometry::vector::Vector2F;
 #[cfg(not(target_family = "wasm"))]
@@ -21,9 +19,7 @@ use warpui::{SingletonEntity, View, ViewHandle};
 
 use super::TerminalView;
 #[cfg(not(target_family = "wasm"))]
-use crate::ai::agent_sdk::driver::{
-    WARP_DRIVE_SYNC_TIMEOUT, environment::prepare_environment, terminal::TerminalDriver,
-};
+use crate::ai::agent_sdk::driver::{environment::prepare_environment, terminal::TerminalDriver};
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::agent_sdk::setup_observability::SetupClientEventReporter;
 #[cfg(not(target_family = "wasm"))]
@@ -35,7 +31,6 @@ use crate::pane_group::TerminalViewResources;
 #[cfg(feature = "local_tty")]
 use crate::persistence::ModelEvent;
 #[cfg(not(target_family = "wasm"))]
-use crate::server::cloud_objects::update_manager::UpdateManager;
 #[cfg(not(target_family = "wasm"))]
 use crate::server::ids::{ServerId, SyncId};
 #[cfg(any(feature = "local_tty", not(target_family = "wasm")))]
@@ -235,19 +230,8 @@ impl TerminalView {
         );
 
         let spawner = terminal_driver.update(ctx, |_, ctx| ctx.spawner());
-        let sync_future = UpdateManager::as_ref(ctx).initial_load_complete();
         ctx.spawn(
             async move {
-                // Wait for Warp Drive initial sync so environment lookup succeeds.
-
-                if sync_future
-                    .with_timeout(WARP_DRIVE_SYNC_TIMEOUT)
-                    .await
-                    .is_err()
-                {
-                    return Err("Timed out waiting for Warp Drive to sync for docker sandbox");
-                }
-
                 // Wait for the terminal session to bootstrap.
                 let bootstrap_future = spawner
                     .spawn(move |driver, _| driver.wait_for_session_bootstrapped())

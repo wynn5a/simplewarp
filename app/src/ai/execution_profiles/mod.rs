@@ -11,9 +11,8 @@ use super::llms::{LLMContextWindow, LLMInfo, LLMPreferences, LLMProvider};
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
-    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, Revision, UniquePer,
+    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, UniquePer,
 };
-use crate::server::sync_queue::QueueItem;
 use crate::settings::AISettings;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 /// This threshold currently only applies to GPT 5.4 and GPT 5.5 models
@@ -237,18 +236,6 @@ impl StringModel for AIExecutionProfile {
             "Untitled".to_string()
         } else {
             self.name.clone()
-        }
-    }
-
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        object: &Self::CloudObjectType,
-    ) -> QueueItem {
-        QueueItem::UpdateAIExecutionProfile {
-            model: object.model().clone().into(),
-            id: object.id,
-            revision: revision_ts.or(object.metadata.revision),
         }
     }
 

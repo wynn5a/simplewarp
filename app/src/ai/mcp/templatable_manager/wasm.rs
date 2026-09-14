@@ -78,7 +78,6 @@ impl TemplatableMCPServerManager {
         &mut self,
         _server: TemplatableMCPServer,
         _space: Space,
-        _initiated_by: InitiatedBy,
         _ctx: &mut ModelContext<Self>,
     ) {
         log::warn!("Creating a TemplatableMCPServer is not supported in WASM");

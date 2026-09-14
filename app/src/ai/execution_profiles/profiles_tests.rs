@@ -1,4 +1,6 @@
 use chrono::{DateTime, Utc};
+use cloud_object_models::{ServerAIExecutionProfile, ServerPreference};
+use cloud_objects::cloud_object::ServerPermissions;
 use settings::Setting as _;
 use warp_core::features::FeatureFlag;
 use warpui::{App, SingletonEntity};
@@ -15,17 +17,14 @@ use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::user::User;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{
-    ObjectIdType, Revision, ServerAIExecutionProfile, ServerCreationInfo, ServerMetadata,
-    ServerPermissions, ServerPreference,
-};
+use crate::cloud_object::{ObjectIdType, Revision, ServerCreationInfo, ServerMetadata};
 use crate::network::NetworkStatus;
-use crate::server::cloud_objects::update_manager::{InitialLoadResponse, UpdateManager};
+use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, ServerIdAndType, SyncId};
 use crate::server::server_api::ServerApiProvider;
-use crate::server::sync_queue::SyncQueue;
 use crate::settings::cloud_preferences::{CloudPreferenceModel, CloudPreferencesSettings};
-use crate::settings::{AISettings, PrivacySettings};
+use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
+use crate::settings::{AISettings, PrivacySettings, WarpDrivePrivacySettings};
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -75,9 +74,16 @@ fn cloud_execution_profiles_preference(server_id: ServerId) -> ServerPreference 
 fn install_singletons(app: &mut App, auth_state: AuthStateProvider) {
     initialize_settings_for_tests(app);
     app.add_singleton_model(|_| auth_state);
-    app.add_singleton_model(SyncQueue::mock);
+    // The syncer here is a readiness flag-holder, not a live sync driver: tests flip
+    // CloudPreferencesSettings directly and drive initial load by hand, so a live sync
+    // cascade would need the full app graph. Disabled sync keeps `sync()` inert while
+    // `complete_initial_load_for_test` still feeds the migration gates below.
+    app.add_singleton_model(|ctx| {
+        CloudPreferencesSyncer::new(false, std::path::PathBuf::new(), false, ctx)
+    });
+    WarpDrivePrivacySettings::register(app);
     app.add_singleton_model(|_| NetworkStatus::new());
-    app.add_singleton_model(UpdateManager::mock);
+    app.add_singleton_model(|_| UpdateManager::mock());
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| ObjectActions::new(Vec::new()));
     app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -87,8 +93,13 @@ fn install_singletons(app: &mut App, auth_state: AuthStateProvider) {
 }
 
 fn complete_cloud_initial_load(app: &mut App) {
-    UpdateManager::handle(app).update(app, |update_manager, ctx| {
-        update_manager.mock_initial_load(InitialLoadResponse::default(), ctx);
+    CloudPreferencesSyncer::handle(app).update(app, |syncer: &mut CloudPreferencesSyncer, _| {
+        syncer.complete_initial_load_for_test();
+    });
+    // Production kicks the migration off the syncer's InitialLoadCompleted event; fire
+    // the migration directly since these tests drive the syncer flag by hand.
+    AIExecutionProfilesModel::handle(app).update(app, |model, ctx| {
+        model.migrate_settings_profiles(ctx);
     });
 }
 

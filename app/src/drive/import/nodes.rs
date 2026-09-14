@@ -28,10 +28,6 @@ use crate::workflows::export_workflow::export_deserialize;
 use crate::workflows::workflow::Workflow;
 use crate::workflows::workflow_enum::WorkflowEnum;
 
-#[cfg(test)]
-#[path = "node_tests.rs"]
-mod node_tests;
-
 /// Unique ID for a file node.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct FileId(pub usize);
@@ -736,45 +732,6 @@ impl FileUploadState {
         Some((file_node.name.clone(), parent_cloud_id))
     }
 
-    pub(super) fn mark_folder_synced(&mut self, result: UploadResult, folder_id: FolderId) {
-        let parent_id = if let Some(folder) = self.folder_id_to_node.get_mut(&folder_id) {
-            let should_update_upstream_folders = match result {
-                // If uploading the folder is not successful, its children will not upload.
-                // Mark the folder as errored and update upstream folders.
-                UploadResult::Error(e) => {
-                    folder.status = UploadStatus::Error(e);
-                    true
-                }
-                // If the folder has no children, mark the folder as completed and update
-                // upstream folders.
-                UploadResult::Success(server_id) => {
-                    folder.server_id = Some(server_id.clone());
-
-                    // If a folder has no children or all of its children complete syncing,
-                    // we need to bubble the state up in the folder hierarchy tree.
-                    if folder.children().is_empty() || folder.all_children_synced {
-                        folder.status = UploadStatus::Loaded(server_id);
-                        true
-                    } else {
-                        false
-                    }
-                }
-            };
-
-            if should_update_upstream_folders {
-                Some(folder.parent_id)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        if let Some(parent_id) = parent_id {
-            self.update_upstream_folders_loaded(parent_id);
-        }
-    }
-
     pub(super) fn set_file_and_parent_to_loading(&mut self, file_id: FileId) {
         let parent_id = match self.file_id_to_node.get_mut(&file_id) {
             Some(file_node) => {
@@ -881,7 +838,6 @@ impl FileUploadState {
         };
 
         file_node_to_update.status = match result {
-            UploadResult::Success(id) => UploadStatus::Loaded(id),
             UploadResult::Error(e) => UploadStatus::Error(format!("Failed to parse file: {e}")),
         };
 
@@ -915,7 +871,6 @@ pub(super) async fn parse_file(path: PathBuf, file_type: FileType) -> Result<Fil
 }
 
 pub(super) enum UploadResult {
-    Success(String),
     Error(String),
 }
 

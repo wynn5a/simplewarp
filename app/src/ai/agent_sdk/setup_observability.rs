@@ -179,7 +179,6 @@ impl OzRunTimelineEvent {
 
 #[derive(Clone, Copy)]
 pub(crate) enum SetupStep {
-    WarpDriveSync,
     TaskDataFetch,
     EnvironmentResolution,
     SkillRepoClone,
@@ -218,9 +217,6 @@ macro_rules! span_and_name {
 impl SetupStep {
     fn to_event_name_and_span(self) -> (&'static str, tracing::Span) {
         match self {
-            Self::WarpDriveSync => {
-                span_and_name!("setup_warp_drive_sync")
-            }
             Self::TaskDataFetch => {
                 span_and_name!("setup_task_metadata_secrets_attachments_git_credentials_fetch")
             }

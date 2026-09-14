@@ -555,24 +555,6 @@ impl AgentDriverRunner {
         setup_events
             .post_timeline_event(OzRunTimelineEvent::WorkerContainerReady)
             .await;
-
-        // Wait for Warp Drive to sync before building the task config, since
-        // prompt resolution (SavedPrompt -> workflow lookup) and environment
-        // resolution (CloudAmbientAgentEnvironment lookup) depend on it.
-        setup_events
-            .record_result(SetupStep::WarpDriveSync, async {
-                if foreground
-                    .spawn(|_, ctx| common::refresh_warp_drive(ctx))
-                    .await?
-                    .await
-                    .is_err()
-                {
-                    return Err(AgentDriverError::WarpDriveSyncFailed);
-                }
-                Ok(())
-            })
-            .await?;
-
         // Set up and run the driver, reporting any errors back to the server.
         let result: Result<(), AgentDriverError> = async {
             // Pull relevant variables out of args before moving it into the closure.

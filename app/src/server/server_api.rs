@@ -1,7 +1,6 @@
 pub mod ai;
 pub mod auth;
 pub mod harness_support;
-pub mod object;
 pub(crate) mod presigned_upload;
 
 use std::ops::Deref;
@@ -15,7 +14,6 @@ use auth::AuthClient;
 use channel_versions::ChannelVersions;
 use chrono::{DateTime, FixedOffset};
 use instant::Instant;
-use object::ObjectClient;
 use serde::{Deserialize, Serialize};
 use warp_core::context_flag::ContextFlag;
 use warp_core::telemetry::TelemetryEvent;
@@ -651,10 +649,6 @@ impl ServerApiProvider {
     }
 
     pub fn get_ai_client(&self) -> Arc<dyn AIClient> {
-        self.server_api.clone()
-    }
-
-    pub fn get_cloud_objects_client(&self) -> Arc<dyn ObjectClient> {
         self.server_api.clone()
     }
 

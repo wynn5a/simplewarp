@@ -11,7 +11,7 @@ agent_mode_evals = ["dep:rand"]
 integration_tests = ["warp_server_auth/integration_tests"]
 local_only = ["warp_server_auth/local_only"]
 skip_login = ["warp_server_auth/skip_login"]
-test-util = ["cloud_object_client/test-util", "cloud_objects/test-util", "dep:mockall"]
+test-util = ["cloud_objects/test-util", "dep:mockall"]
 
 [dependencies]
 anyhow.workspace = true
@@ -21,7 +21,6 @@ bincode.workspace = true
 bounded-vec-deque.workspace = true
 cfg-if.workspace = true
 chrono.workspace = true
-cloud_object_client.workspace = true
 cloud_object_models.workspace = true
 cloud_objects.workspace = true
 cynic.workspace = true

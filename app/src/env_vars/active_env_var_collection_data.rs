@@ -9,7 +9,7 @@ use crate::env_vars::CloudEnvVarCollection;
 use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManagerEvent,
 };
-use crate::server::ids::{ClientId, ServerId, SyncId};
+use crate::server::ids::{ClientId, SyncId};
 use crate::sharing::{ContentEditability, SharingAccessLevel};
 use crate::{AppContext, CloudModel, UpdateManager};
 
@@ -75,33 +75,9 @@ impl ActiveEnvVarCollectionData {
     ) {
         let cloud_model = CloudModel::as_ref(ctx);
 
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event else {
-            return;
-        };
+        let UpdateManagerEvent::ObjectOperationComplete { result } = event;
 
         match (&result.operation, &result.success_type) {
-            (ObjectOperation::Create { .. }, OperationSuccessType::Success) => {
-                if let Some(current_id) = self.id()
-                    && current_id.into_client() == result.client_id
-                {
-                    let server_id = result.server_id.expect("Expect server id on success");
-                    let env_var_collection_id = SyncId::ServerId(server_id);
-
-                    if let Some(env_var_collection) =
-                        cloud_model.get_env_var_collection(&env_var_collection_id)
-                    {
-                        self.saving_status = SavingStatus::Saved;
-                        self.active_env_var_collection =
-                            ActiveEnvVarCollection::CommittedEnvVarCollection(
-                                env_var_collection_id,
-                            );
-                        self.revision_ts
-                            .clone_from(&env_var_collection.metadata.revision);
-                        ctx.emit(ActiveEnvVarCollectionDataEvent::CreatedOnServer(server_id));
-                        ctx.notify();
-                    }
-                }
-            }
             (ObjectOperation::Update, OperationSuccessType::Success) => {
                 if let Some(current_id) = self.id() {
                     // If we match on a non-None client id or a non-None server id then
@@ -293,8 +269,6 @@ pub enum TrashStatus {
 pub enum ActiveEnvVarCollectionDataEvent {
     /// The EVC's breadcrumbs were updated.
     BreadcrumbsChanged,
-    /// The EVC was synced to the server for the first time.
-    CreatedOnServer(ServerId),
     /// The EVC was trashed or untrashed
     /// (used for refreshing the pane overflow items)
     TrashStatusChanged,

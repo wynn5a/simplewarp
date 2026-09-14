@@ -15,9 +15,6 @@ use crate::ai::agent::{SuggestedAgentModeWorkflow, SuggestedLoggingId, Suggested
 use crate::ai::facts::{AIFact, AIMemory, CloudAIFactModel};
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::server::cloud_objects::update_manager::{
-    ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
-};
 use crate::server::ids::{ClientId, SyncId};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -48,36 +45,6 @@ const MAX_PROMPT_TOOLTIP_LENGTH: usize = 200;
 /// The component emits events to:
 /// - Show rule or workflow modals
 /// - Open existing rules or workflows directly
-///
-/// An [`ActionButton`] theme for suggested rules and prompts.
-struct SuggestionButtonTheme;
-
-impl ActionButtonTheme for SuggestionButtonTheme {
-    fn background(&self, hovered: bool, appearance: &Appearance) -> Option<Fill> {
-        if hovered {
-            Some(blended_colors::fg_overlay_2(appearance.theme()))
-        } else {
-            None
-        }
-    }
-
-    fn text_color(
-        &self,
-        _hovered: bool,
-        _background: Option<Fill>,
-        appearance: &Appearance,
-    ) -> ColorU {
-        appearance
-            .theme()
-            .sub_text_color(appearance.theme().background())
-            .into()
-    }
-
-    fn border(&self, appearance: &Appearance) -> Option<ColorU> {
-        Some(blended_colors::neutral_4(appearance.theme()))
-    }
-}
-
 /// A theme for the dismiss button in the suggestion footer.
 pub struct SuggestionDismissButtonTheme;
 
@@ -253,44 +220,10 @@ impl SuggestionChipView {
     }
 
     fn listen_for_warp_drive_events(ctx: &mut ViewContext<Self>) {
-        let update_manager = UpdateManager::handle(ctx);
-        ctx.subscribe_to_model(&update_manager, |me, _, event, ctx| {
-            me.handle_update_manager_event(event, ctx);
-        });
-
         let cloud_model = CloudModel::handle(ctx);
         ctx.subscribe_to_model(&cloud_model, |me, _, event, ctx| {
             me.handle_cloud_model_event(event, ctx);
         });
-    }
-
-    fn handle_update_manager_event(
-        &mut self,
-        event: &UpdateManagerEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event else {
-            return;
-        };
-
-        if let (ObjectOperation::Create { .. }, OperationSuccessType::Success) =
-            (&result.operation, &result.success_type)
-            && self.sync_id.into_client() == result.client_id
-            && let Some(server_id) = result.server_id
-        {
-            self.sync_id = SyncId::ServerId(server_id);
-            // Reload the rule from the cloud model.
-            match &mut self.suggestion {
-                Suggestion::Rule { .. } => {
-                    self.load_suggestion(ctx);
-                }
-                Suggestion::AgentModeWorkflow { .. } => {
-                    // Loading agent mode workflows is not supported
-                    // as there is no editing flow for them.
-                }
-            }
-            self.on_add_suggestion(ctx);
-        }
     }
 
     fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ViewContext<Self>) {
@@ -362,16 +295,6 @@ impl SuggestionChipView {
                 // Loading agent mode workflows is not yet supported as there is no editing flow.
             }
         }
-    }
-
-    /// Updates the UI state to reflect that a rule has been added.
-    fn on_add_suggestion(&mut self, ctx: &mut ViewContext<Self>) {
-        self.is_saved = true;
-        self.chip.update(ctx, |chip, ctx| {
-            chip.set_icon(Some(Icon::Check), ctx);
-            chip.set_theme(SuggestionButtonTheme, ctx);
-        });
-        ctx.notify();
     }
 }
 

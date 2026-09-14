@@ -5,9 +5,8 @@ use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
-    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, Revision, UniquePer,
+    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, UniquePer,
 };
-use crate::server::sync_queue::QueueItem;
 define_settings_group!(CloudPreferencesSettings, settings: [
    settings_sync_enabled: IsSettingsSyncEnabled {
        type: bool,
@@ -50,18 +49,6 @@ impl StringModel for Preference {
 
     fn display_name(&self) -> String {
         self.model_type_name().to_owned()
-    }
-
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        object: &CloudPreference,
-    ) -> QueueItem {
-        QueueItem::UpdateCloudPreferences {
-            model: object.model().clone().into(),
-            id: object.id,
-            revision: revision_ts.or(object.metadata.revision),
-        }
     }
 
     fn should_clear_on_unique_key_conflict(&self) -> bool {

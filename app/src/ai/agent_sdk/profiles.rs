@@ -7,7 +7,6 @@ use warpui::{AppContext, ModelContext, SingletonEntity};
 use crate::ai::agent_sdk::output::{self, TableFormat};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::cloud_object::model::generic_string_model::StringModel;
-use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::SyncId;
 
 /// Handle Agent Profile-related CLI commands.
@@ -30,31 +29,26 @@ struct ProfilesCommandRunner;
 
 impl ProfilesCommandRunner {
     fn list(&self, global_options: GlobalOptions, ctx: &mut ModelContext<Self>) {
-        // Ensure initial cloud sync completes so profiles from the server are available.
-        let initial_sync = UpdateManager::as_ref(ctx).initial_load_complete();
+        let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
 
-        ctx.spawn(initial_sync, move |_, _, ctx| {
-            let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
+        let profile_ids = profiles_model.get_all_profile_ids();
 
-            let profile_ids = profiles_model.get_all_profile_ids();
+        let profiles: Vec<_> = profile_ids
+            .iter()
+            .flat_map(|id| profiles_model.get_profile_by_id(id, ctx))
+            .map(|profile| {
+                let name = profile.data().display_name().to_string();
+                let id = match profile.sync_id() {
+                    Some(SyncId::ServerId(server_id)) => server_id.to_string(),
+                    _ => "Unsynced".to_string(),
+                };
+                ProfileInfo { id, name }
+            })
+            .collect();
 
-            let profiles: Vec<_> = profile_ids
-                .iter()
-                .flat_map(|id| profiles_model.get_profile_by_id(id, ctx))
-                .map(|profile| {
-                    let name = profile.data().display_name().to_string();
-                    let id = match profile.sync_id() {
-                        Some(SyncId::ServerId(server_id)) => server_id.to_string(),
-                        _ => "Unsynced".to_string(),
-                    };
-                    ProfileInfo { id, name }
-                })
-                .collect();
+        output::print_list(profiles, global_options.output_format);
 
-            output::print_list(profiles, global_options.output_format);
-
-            ctx.terminate_app(warpui::platform::TerminationMode::ForceTerminate, None);
-        });
+        ctx.terminate_app(warpui::platform::TerminationMode::ForceTerminate, None);
     }
 }
 

@@ -43,7 +43,6 @@ use crate::code::editor::view::{CodeEditorRenderOptions, CodeEditorView};
 use crate::persistence::ModelEvent;
 #[cfg(feature = "local_fs")]
 use crate::persistence::{database_file_path_for_current_scope, establish_ro_connection};
-use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::server::telemetry::{MCPTemplateCreationSource, TelemetryEvent};
 use crate::settings_view::mcp_servers::destructive_mcp_confirmation_dialog::{
     DestructiveMCPConfirmationDialog, DestructiveMCPConfirmationDialogEvent,
@@ -933,7 +932,6 @@ impl TypedActionView for MCPServersEditPageView {
                                 templatable_manager.create_templatable_mcp_server(
                                     parsed_server.templatable_mcp_server.clone(),
                                     Space::Personal,
-                                    InitiatedBy::User,
                                     ctx,
                                 );
                                 if let Some(installation) =

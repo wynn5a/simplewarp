@@ -3,22 +3,16 @@
 //! This module provides the infrastructure for backing views to declaratively
 //! specify their header content without worrying about draggable behavior.
 
-use warp_core::ui::theme::Fill;
+use warpui::Element;
 use warpui::elements::{DraggableState, MouseStateHandle};
 use warpui::fonts::Properties;
 use warpui::text_layout::ClipConfig;
-use warpui::{AppContext, Element};
-
-/// Closure that renders sharing controls (share button, view-only indicator) for a pane header.
-/// Accepts optional icon color and button size overrides.
-type RenderSharingControlsFn<'a> =
-    Box<dyn Fn(&AppContext, Option<Fill>, Option<f32>) -> Option<Box<dyn Element>> + 'a>;
 
 /// Context provided to backing views when rendering header content.
 ///
 /// This provides read-only access to appearance and configuration,
 /// plus a helper for creating draggable spacer elements.
-pub struct HeaderRenderContext<'a> {
+pub struct HeaderRenderContext {
     /// Shared draggable state for the header.
     pub draggable_state: DraggableState,
     /// Mouse state for the pane close button (owned by PaneHeader).
@@ -32,21 +26,6 @@ pub struct HeaderRenderContext<'a> {
     /// Extra left inset for the header's left-side controls, used to avoid
     /// overlap with a floating button overlay (e.g. the vertical tabs toggle).
     pub header_left_inset: f32,
-    /// Closure that renders the sharing controls. Use [`Self::sharing_controls`] to call this.
-    pub(super) render_sharing_controls_fn: RenderSharingControlsFn<'a>,
-}
-
-impl HeaderRenderContext<'_> {
-    /// Renders the sharing controls (share button, view-only indicator) for this pane.
-    /// Returns `None` if sharing is not enabled.
-    pub fn sharing_controls(
-        &self,
-        app: &AppContext,
-        icon_color: Option<Fill>,
-        button_size: Option<f32>,
-    ) -> Option<Box<dyn Element>> {
-        (self.render_sharing_controls_fn)(app, icon_color, button_size)
-    }
 }
 
 /// Render-time options for the header that apply to all header types.

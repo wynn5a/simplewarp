@@ -21,14 +21,13 @@ use crate::ai::facts::CloudAIFactModel;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::CloudViewModel;
 use crate::cloud_object::{
-    CloudObjectEventEntrypoint, DriveObjectType, GenericStringObjectFormat, JsonObjectType, Owner,
-    Space, WarpDriveItemId,
+    DriveObjectType, GenericStringObjectFormat, JsonObjectType, Owner, Space, WarpDriveItemId,
 };
 use crate::env_vars::CloudEnvVarCollection;
 use crate::env_vars::manager::EnvVarCollectionSource;
 use crate::notebooks::CloudNotebook;
 use crate::notebooks::manager::NotebookSource;
-use crate::server::cloud_objects::update_manager::{InitiatedBy, UpdateManager};
+use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
 use crate::workflows::manager::WorkflowOpenSource;
 use crate::workflows::{CloudWorkflow, WorkflowViewMode};
@@ -191,7 +190,6 @@ impl DrivePanel {
                             client_id,
                             *initial_folder_id,
                             true,
-                            InitiatedBy::User,
                             ctx,
                         );
                     });
@@ -345,12 +343,8 @@ impl DrivePanel {
                             CloudAIFactModel::new(fact.clone()),
                             owner,
                             client_id,
-                            CloudObjectEventEntrypoint::Blocklist,
                             true,
                             *initial_folder_id,
-                            // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
-                            // It can be changed to InitiatedBy::System if this action was automatically kicked off and does not require toasts to notify the user of completion.
-                            InitiatedBy::User,
                             ctx,
                         );
                     });

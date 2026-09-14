@@ -32,7 +32,6 @@ use crate::ai::orchestration::{
 };
 use crate::cloud_object::CloudObjectLookup as _;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::{
@@ -195,11 +194,9 @@ impl AmbientAgentViewModel {
             }
         });
 
-        // Validate the default environment once Warp Drive sync completes.
-        // The environment ID may be restored from settings before environments are synced,
-        // so we need to validate it once the initial load is complete.
-        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-        ctx.spawn(initial_load_complete, |me, _, ctx| {
+        // Validate the default environment now that Warp Drive is restored from
+        // the local database at startup.
+        ctx.spawn(async {}, |me, _, ctx| {
             me.validate_environment_after_initial_load(ctx);
         });
 

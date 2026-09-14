@@ -1,18 +1,14 @@
 //! Common utilities for agent SDK commands.
 
-use std::future::Future;
 use std::sync::Arc;
 
-use futures::TryFutureExt;
 use warp_cli::agent::Harness;
-use warpui::r#async::FutureExt;
 use warpui::{AppContext, SingletonEntity as _};
 
 use crate::ai::agent::conversation::ServerAIConversationMetadata;
-use crate::ai::agent_sdk::driver::{AgentDriverError, WARP_DRIVE_SYNC_TIMEOUT};
+use crate::ai::agent_sdk::driver::AgentDriverError;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::llms::{LLMId, LLMPreferences};
-use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ai::AIClient;
 
 pub fn validate_agent_mode_base_model_id(
@@ -67,16 +63,6 @@ pub(super) fn parse_ambient_task_id(
     run_id
         .parse()
         .map_err(|err| anyhow::anyhow!("{error_prefix} '{run_id}': {err}"))
-}
-
-/// Refresh Warp Drive before executing an operation.
-pub fn refresh_warp_drive(
-    ctx: &AppContext,
-) -> impl Future<Output = anyhow::Result<()>> + Send + 'static + use<> {
-    UpdateManager::as_ref(ctx)
-        .initial_load_complete()
-        .with_timeout(WARP_DRIVE_SYNC_TIMEOUT)
-        .map_err(|_| anyhow::anyhow!("Timed out waiting for Warp Drive to sync"))
 }
 
 /// Fetch the conversation's server metadata and validate that its harness matches the caller's

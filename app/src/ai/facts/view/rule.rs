@@ -25,9 +25,7 @@ use super::{AIFact, CloudAIFact, CloudAIFactModel, is_edit_allowed, is_syncing, 
 use crate::ai::facts::AIMemory;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{
-    CloudObject, GenericStringObjectFormat, JsonObjectType, Owner, Revision,
-};
+use crate::cloud_object::{CloudObject, GenericStringObjectFormat, JsonObjectType, Owner};
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
@@ -36,7 +34,6 @@ use crate::network::NetworkStatus;
 use crate::search_bar::SearchBar;
 use crate::server::cloud_objects::update_manager::{UpdateManager, UpdateManagerEvent};
 use crate::server::ids::{ClientId, SyncId};
-use crate::server::sync_queue::SyncQueue;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::icons::Icon;
 use crate::util::path::display_path_with_host;
@@ -325,9 +322,8 @@ impl RuleView {
         event: &UpdateManagerEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        if let UpdateManagerEvent::ObjectOperationComplete { .. } = event {
-            self.fetch_ai_rules(ctx);
-        }
+        let UpdateManagerEvent::ObjectOperationComplete { .. } = event;
+        self.fetch_ai_rules(ctx);
     }
 
     fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ViewContext<Self>) {
@@ -419,7 +415,6 @@ impl RuleView {
         name: Option<String>,
         content: String,
         sync_id: SyncId,
-        revision_ts: Option<Revision>,
         ctx: &mut ViewContext<Self>,
     ) {
         let update_manager = UpdateManager::handle(ctx);
@@ -441,7 +436,7 @@ impl RuleView {
                 content,
                 suggested_logging_id,
             });
-            update_manager.update_ai_fact(ai_fact, sync_id, revision_ts, ctx);
+            update_manager.update_ai_fact(ai_fact, sync_id, ctx);
         });
     }
 
@@ -681,7 +676,7 @@ impl RuleView {
 
         let item = ai_row.fact.to_warp_drive_item(appearance)?;
         let icon = item.sync_status_icon(
-            SyncQueue::as_ref(app).is_dequeueing(),
+            false,
             ai_row.mouse_states.sync_status_icon.clone(),
             appearance,
         )?;

@@ -10,7 +10,6 @@ use warp_core::context_flag::ContextFlag;
 use warp_core::settings::Setting;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::{report_error, report_if_error};
-use warp_util::sync::Condition;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Align, AnchorPair, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ClippedScrollable,
@@ -56,9 +55,8 @@ use crate::banner::BannerState;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::{CloudViewModel, CloudViewModelEvent, UpdateTimestamp};
 use crate::cloud_object::{
-    CloudFolder, CloudObject, CloudObjectEventEntrypoint, CloudObjectLocation,
-    CloudObjectSyncStatus, DriveObjectType, DriveSortOrder, GenericCloudObject,
-    GenericStringObjectFormat, JsonObjectType, NumInFlightRequests, ObjectType, Space,
+    CloudFolder, CloudObject, CloudObjectLocation, DriveObjectType, DriveSortOrder,
+    GenericCloudObject, GenericStringObjectFormat, JsonObjectType, ObjectType, Space,
     WarpDriveItemId,
 };
 use crate::drive::panel::DrivePanelAction;
@@ -68,20 +66,13 @@ use crate::features::FeatureFlag;
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
 use crate::network::NetworkStatus;
 use crate::notebooks::CloudNotebookModel;
-use crate::server::cloud_objects::update_manager::{
-    FetchSingleObjectOption, InitiatedBy, UpdateManager,
-};
+use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, ObjectUid, ServerId, SyncId};
-use crate::server::sync_queue::SyncQueue;
-use crate::server::telemetry::{
-    AnonymousUserSignupEntrypoint, SharingDialogSource, TelemetryEvent,
-};
+use crate::server::telemetry::{AnonymousUserSignupEntrypoint, TelemetryEvent};
 use crate::settings::SharedObjectLimitBannerSettings;
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
-use crate::sharing::ShareableObject;
-use crate::sharing::dialog::{SharingDialog, SharingDialogEvent};
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::{highlight, icon_button};
 use crate::ui_components::icons::{ICON_DIMENSIONS, Icon};
@@ -177,8 +168,6 @@ const ZERO_STATE_NOTEBOOK_LABEL: &str = "Notebook";
 
 const SORTING_BUTTON_TOOLTIP_LABEL: &str = "Sort by";
 
-const RETRY_BUTTON_TOOLTIP_LABEL: &str = "Retry sync";
-
 const SHARED_OBJECT_LIMIT_HIT_BANNER_LINE: &str =
     "Upgrade for access to more notebooks, workflows, shared sessions, and AI credits.";
 
@@ -258,9 +247,6 @@ pub enum DriveIndexAction {
         space: Space,
         warp_drive_item_id: WarpDriveItemId,
     },
-    ToggleShareDialog {
-        warp_drive_item_id: WarpDriveItemId,
-    },
     ToggleSpaceOverflowMenu {
         space: Space,
         offset: Vector2F,
@@ -319,9 +305,6 @@ pub enum DriveIndexAction {
     UpdateSortingChoice {
         sorting_choice: DriveSortOrder,
     },
-    RetryFailedObject(CloudObjectTypeAndId),
-    RetryAllFailedObjects,
-    RevertFailedObject(ServerId),
     OpenTrashIndex,
     CloseTrashIndex,
     FocusPreviousItem,
@@ -454,7 +437,6 @@ pub enum DriveIndexEvent {
 struct MouseStateHandles {
     warp_drive_initial_load_mouse_state: MouseStateHandle,
     sorting_button_mouse_state: MouseStateHandle,
-    retry_button_mouse_state: MouseStateHandle,
     trash_row_mouse_state: MouseStateHandle,
     exit_trash_button_mouse_state: MouseStateHandle,
     shared_object_limit_hit_banner_button_mouse_state: MouseStateHandle,
@@ -487,13 +469,11 @@ pub struct DriveIndex {
     /// default, should get the menu fields on open, example: + button to add notebook)
     menu: ViewHandle<Menu<DriveIndexAction>>,
 
-    sharing_dialog: ViewHandle<SharingDialog>,
     /// Variant of the index, determines whether base Warp Drive or trash is viewed.
     index_variant: DriveIndexVariant,
     /// If None, the context menu is closed. Otherwise, this contains the ID of the object it's open on.
     menu_object_id_if_open: Option<WarpDriveItemId>,
     /// If Some, the share dialog is open for the given object.
-    share_dialog_open_for_object: Option<WarpDriveItemId>,
     sections: Vec<DriveIndexSection>,
     /// Selected represents an object that is open in the active pane
     selected: Option<WarpDriveItemId>,
@@ -524,13 +504,10 @@ pub struct DriveIndex {
     /// Whether or not we have done an initial setting of all the section states.
     /// We need to keep track of this to make sure we don't do any opening actions on WD
     /// from links before everything has been set up.
-    has_initialized_sections: Condition,
 
     /// The number of objects in Warp Drive that have errored.
     /// This value is cached so that we can determine whether to render the "retry all"
     /// objects button in the case of syncing failures.
-    num_errored_objects: usize,
-
     workspace_dropdown: ViewHandle<Dropdown<DriveIndexAction>>,
 
     /// Drive item to represent collection of AI facts.
@@ -897,20 +874,6 @@ impl DriveIndex {
 
         let sorting_choice = *WarpDriveSettings::as_ref(ctx).sorting_choice.value();
 
-        // Hide Warp Drive loading icon once initial load is complete
-        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-        ctx.spawn(initial_load_complete, |me, _, ctx| {
-            me.show_warp_drive_loading_icon = false;
-            me.initialize_section_states(ctx);
-            me.has_initialized_sections.set();
-            ctx.notify();
-        });
-
-        let sharing_dialog = ctx.add_typed_action_view(|ctx| SharingDialog::new(None, ctx));
-        ctx.subscribe_to_view(&sharing_dialog, |me, _, event, ctx| {
-            me.handle_sharing_dialog_event(event, ctx);
-        });
-
         let workspace_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(400.);
@@ -955,7 +918,6 @@ impl DriveIndex {
         Self {
             window_id: ctx.window_id(),
             menu,
-            sharing_dialog,
             index_variant: DriveIndexVariant::MainIndex,
             menu_object_id_if_open: None,
             sections: Default::default(),
@@ -973,12 +935,9 @@ impl DriveIndex {
             sorting_choice,
             auth_state: AuthStateProvider::as_ref(ctx).get().clone(),
             space_menu_open_for_space: None,
-            show_warp_drive_loading_icon: true,
+            show_warp_drive_loading_icon: false,
             sorted_orders_by_location: Default::default(),
             ordered_items: Default::default(),
-            has_initialized_sections: Default::default(),
-            num_errored_objects: Default::default(),
-            share_dialog_open_for_object: None,
             should_show_personal_object_limit_status: true,
             workspace_dropdown,
             ai_fact_collection,
@@ -1104,11 +1063,10 @@ impl DriveIndex {
 
     fn on_cloud_model_changed(
         &mut self,
-        cloud_model: ModelHandle<CloudModel>,
+        _cloud_model: ModelHandle<CloudModel>,
         ctx: &mut ViewContext<Self>,
     ) {
         self.initialize_section_states(ctx);
-        self.num_errored_objects = cloud_model.as_ref(ctx).num_visible_errored_objects();
         ctx.notify();
     }
 
@@ -1126,19 +1084,6 @@ impl DriveIndex {
             if !*via_select_item {
                 ctx.emit(DriveIndexEvent::FocusWarpDrive);
                 self.reset_focused_index_in_warp_drive(false, ctx);
-            }
-        }
-    }
-
-    fn handle_sharing_dialog_event(
-        &mut self,
-        event: &SharingDialogEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            SharingDialogEvent::Close => {
-                self.share_dialog_open_for_object = None;
-                ctx.notify();
             }
         }
     }
@@ -1772,10 +1717,8 @@ impl DriveIndex {
             false, /* can_move */
             !self.menu_items(&space, &warp_drive_item_id, app).is_empty(),
             false,
-            false, /* share_dialog_open */
             is_selected,
             is_focused,
-            false, /* sync_queue_is_dequeueing */
             tools_panel_menu_direction(app),
             appearance,
         )?;
@@ -1808,10 +1751,8 @@ impl DriveIndex {
             false, /* can_move */
             !self.menu_items(&space, &warp_drive_item_id, app).is_empty(),
             false,
-            false, /* share_dialog_open */
             is_selected,
             is_focused,
-            false, /* sync_queue_is_dequeueing */
             tools_panel_menu_direction(app),
             appearance,
         )?;
@@ -2207,11 +2148,6 @@ impl DriveIndex {
             title_right_side.add_child(self.render_warp_drive_loading_icon(appearance));
         }
 
-        // Only show the global retry button if there are errored objects
-        if self.num_errored_objects > 0 && self.is_online(app) {
-            title_right_side.add_child(self.render_retry_button(appearance));
-        }
-
         let search_button = icon_button(
             appearance,
             Icon::Search,
@@ -2369,10 +2305,7 @@ impl DriveIndex {
         let warp_drive_item_id = WarpDriveItemId::Object(row_object_id);
         let access_level = CloudViewModel::as_ref(app).access_level(&row_object_id.uid(), app);
 
-        let share_dialog_open = self.share_dialog_open_for_object == Some(warp_drive_item_id);
-        // If the share dialog is open, we don't want to open the menu for the same object.
-        let menu_open =
-            self.menu_object_id_if_open == Some(warp_drive_item_id) && !share_dialog_open;
+        let menu_open = self.menu_object_id_if_open == Some(warp_drive_item_id);
         let can_move = self.online_only_operation_allowed(&row_object_id, app)
             && matches!(self.index_variant, DriveIndexVariant::MainIndex)
             && access_level.can_move_drive();
@@ -2395,10 +2328,8 @@ impl DriveIndex {
             can_move,
             !self.menu_items(&space, &warp_drive_item_id, app).is_empty(),
             menu_open,
-            share_dialog_open,
             is_selected,
             is_focused,
-            SyncQueue::as_ref(app).is_dequeueing(),
             tools_panel_menu_direction(app),
             appearance,
         )?;
@@ -2420,13 +2351,6 @@ impl DriveIndex {
                 ConstrainedBox::new(self.cloud_object_naming_dialog.render(appearance, app))
                     .with_max_width(CLOUD_OBJECT_DIALOG_WIDTH)
                     .finish(),
-                row_position_id.as_str(),
-                app,
-            );
-        } else if share_dialog_open {
-            self.add_dialog_to_stack(
-                &mut stack,
-                ChildView::new(&self.sharing_dialog).finish(),
                 row_position_id.as_str(),
                 app,
             );
@@ -2725,28 +2649,6 @@ impl DriveIndex {
         );
 
         hoverable.finish()
-    }
-
-    fn render_retry_button(&self, appearance: &Appearance) -> Box<dyn warpui::Element> {
-        let ui_builder = appearance.ui_builder().clone();
-
-        icon_button(
-            appearance,
-            Icon::Refresh,
-            false,
-            self.mouse_state_handles.retry_button_mouse_state.clone(),
-        )
-        .with_tooltip(move || {
-            ui_builder
-                .tool_tip(RETRY_BUTTON_TOOLTIP_LABEL.to_string())
-                .build()
-                .finish()
-        })
-        .build()
-        .on_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(DriveIndexAction::RetryAllFailedObjects)
-        })
-        .finish()
     }
 
     fn render_create_new_button(
@@ -3436,52 +3338,6 @@ impl DriveIndex {
         }) as _
     }
 
-    fn retry_failed_object(
-        &mut self,
-        cloud_object_type_and_id: &CloudObjectTypeAndId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-            update_manager.resync_object(cloud_object_type_and_id, ctx);
-        });
-    }
-
-    fn retry_all_failed(&mut self, ctx: &mut ViewContext<Self>) {
-        CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
-            for object in cloud_model.cloud_objects_mut() {
-                if object.metadata().is_errored() {
-                    let queue_item = object
-                        .create_object_queue_item(
-                            CloudObjectEventEntrypoint::default(),
-                            // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
-                            // It can be changed to InitiatedBy::System if this action was automatically kicked off and does not require toasts to notify the user of completion.
-                            InitiatedBy::User,
-                        )
-                        .unwrap_or(object.update_object_queue_item(None));
-                    object.set_pending_content_changes_status(CloudObjectSyncStatus::InFlight(
-                        NumInFlightRequests(1),
-                    ));
-                    SyncQueue::handle(ctx).update(ctx, |sync_queue, ctx| {
-                        sync_queue.enqueue(queue_item, ctx);
-                    });
-                    self.num_errored_objects -= 1;
-                }
-            }
-        });
-    }
-
-    fn revert_failed_object(&mut self, server_id: &ServerId, ctx: &mut ViewContext<Self>) {
-        UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-            let fetch_cloud_object_rx = update_manager.fetch_single_cloud_object(
-                server_id,
-                FetchSingleObjectOption::ForceOverwrite,
-                ctx,
-            );
-            // Don't need to wait for the fetch to complete, so drop the receiver
-            std::mem::drop(fetch_cloud_object_rx);
-        });
-    }
-
     fn dismiss_personal_object_limit_status(&mut self, ctx: &mut ViewContext<Self>) {
         self.should_show_personal_object_limit_status = false;
         ctx.notify();
@@ -3927,7 +3783,8 @@ impl DriveIndex {
         let can_move_or_trash = self.online_only_operation_allowed(cloud_object_type_and_id, app);
         let cloud_view_model = CloudViewModel::as_ref(app);
         let _access_level = cloud_view_model.access_level(&cloud_object_type_and_id.uid(), app);
-        let editability = cloud_view_model.object_editability(&cloud_object_type_and_id.uid(), app);
+        let _editability =
+            cloud_view_model.object_editability(&cloud_object_type_and_id.uid(), app);
         let object = CloudModel::as_ref(app).get_by_uid(&cloud_object_type_and_id.uid());
 
         if let CloudObjectTypeAndId::Folder(folder_id) = cloud_object_type_and_id {
@@ -4022,16 +3879,6 @@ impl DriveIndex {
                             .with_icon(Icon::Link)
                             .into_item(),
                     );
-                    if editability.can_edit() {
-                        menu_items.push(
-                            MenuItemFields::new("Share")
-                                .with_on_select_action(DriveIndexAction::ToggleShareDialog {
-                                    warp_drive_item_id: *warp_drive_item_id,
-                                })
-                                .with_icon(Icon::Share)
-                                .into_item(),
-                        );
-                    }
                 }
 
                 {
@@ -4056,28 +3903,6 @@ impl DriveIndex {
             }
         } else {
             if let Some(object) = object {
-                if self.is_online(app) && object.metadata().is_errored() {
-                    menu_items.push(
-                        MenuItemFields::new("Retry")
-                            .with_on_select_action(DriveIndexAction::RetryFailedObject(
-                                *cloud_object_type_and_id,
-                            ))
-                            .with_icon(Icon::Refresh)
-                            .into_item(),
-                    );
-
-                    if let Some(server_id) = cloud_object_type_and_id.server_id() {
-                        menu_items.push(
-                            MenuItemFields::new("Revert to server")
-                                .with_on_select_action(DriveIndexAction::RevertFailedObject(
-                                    server_id,
-                                ))
-                                .with_icon(Icon::ReverseLeft)
-                                .into_item(),
-                        );
-                    }
-                }
-
                 let workflow: Option<&CloudWorkflow> = object.into();
                 let env_var_collection: Option<&CloudEnvVarCollection> = object.into();
 
@@ -4224,16 +4049,6 @@ impl DriveIndex {
                                     .into_item(),
                             );
                         }
-                        if editability.can_edit() {
-                            menu_items.push(
-                                MenuItemFields::new("Share")
-                                    .with_on_select_action(DriveIndexAction::ToggleShareDialog {
-                                        warp_drive_item_id: *warp_drive_item_id,
-                                    })
-                                    .with_icon(Icon::Share)
-                                    .into_item(),
-                            );
-                        }
                         if !warpui::platform::is_mobile_device()
                             && !ContextFlag::HideOpenOnDesktopButton.is_enabled()
                             && *UserAppInstallDetectionSettings::as_ref(app)
@@ -4323,30 +4138,7 @@ impl DriveIndex {
         let _access_level =
             CloudViewModel::as_ref(app).access_level(&cloud_object_type_and_id.uid(), app);
         let cloud_model = CloudModel::as_ref(app);
-        let object = cloud_model.get_by_uid(&cloud_object_type_and_id.uid());
-
-        if let Some(object) = object
-            && self.is_online(app)
-            && object.metadata().is_errored()
-        {
-            menu_items.push(
-                MenuItemFields::new("Retry")
-                    .with_on_select_action(DriveIndexAction::RetryFailedObject(
-                        *cloud_object_type_and_id,
-                    ))
-                    .with_icon(Icon::Refresh)
-                    .into_item(),
-            );
-
-            if let Some(server_id) = cloud_object_type_and_id.server_id() {
-                menu_items.push(
-                    MenuItemFields::new("Revert to server")
-                        .with_on_select_action(DriveIndexAction::RevertFailedObject(server_id))
-                        .with_icon(Icon::ReverseLeft)
-                        .into_item(),
-                );
-            }
-        }
+        let _object = cloud_model.get_by_uid(&cloud_object_type_and_id.uid());
 
         if self.online_only_operation_allowed(cloud_object_type_and_id, app) {
             {
@@ -4388,39 +4180,6 @@ impl DriveIndex {
 
         self.menu_object_id_if_open = Some(*warp_drive_item_id);
         ctx.focus(&self.menu);
-        ctx.notify();
-    }
-
-    pub fn toggle_share_dialog(
-        &mut self,
-        warp_drive_item_id: &WarpDriveItemId,
-        invitee_email: Option<String>,
-        source: SharingDialogSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let WarpDriveItemId::Object(cloud_object_type_and_id) = warp_drive_item_id else {
-            return;
-        };
-
-        if self.auth_state.is_anonymous_or_logged_out() {
-            AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.attempt_login_gated_feature("Share Object", ctx)
-            });
-            return;
-        }
-
-        self.reset_menus(ctx);
-        if let Some(server_id) = cloud_object_type_and_id.server_id() {
-            self.share_dialog_open_for_object = Some(*warp_drive_item_id);
-            self.sharing_dialog.update(ctx, |sharing_dialog, ctx| {
-                sharing_dialog.set_target(Some(ShareableObject::WarpDriveObject(server_id)), ctx);
-                if let Some(invitee_email) = invitee_email {
-                    sharing_dialog.add_invitee_email(invitee_email, ctx);
-                }
-                sharing_dialog.report_open(source, ctx);
-            });
-            ctx.focus(&self.sharing_dialog);
-        }
         ctx.notify();
     }
 
@@ -4606,8 +4365,7 @@ impl View for DriveIndex {
 
         // Disable WD Vim keybindings when a dialog is open
         // because it interferes with the ability to type all letters.
-        if self.cloud_object_naming_dialog.is_open() || self.share_dialog_open_for_object.is_some()
-        {
+        if self.cloud_object_naming_dialog.is_open() {
             context.set.insert("DisableDriveIndexVimKeybindings");
         }
 
@@ -5024,15 +4782,6 @@ impl TypedActionView for DriveIndex {
             DriveIndexAction::UpdateSortingChoice { sorting_choice } => {
                 self.update_sorting_choice(sorting_choice, ctx);
             }
-            DriveIndexAction::RetryFailedObject(cloud_object_type_and_id) => {
-                self.retry_failed_object(cloud_object_type_and_id, ctx);
-            }
-            DriveIndexAction::RetryAllFailedObjects => {
-                self.retry_all_failed(ctx);
-            }
-            DriveIndexAction::RevertFailedObject(server_id) => {
-                self.revert_failed_object(server_id, ctx);
-            }
             DriveIndexAction::OpenTrashIndex => {
                 self.index_variant = DriveIndexVariant::Trash;
                 self.initialize_section_states(ctx);
@@ -5116,14 +4865,6 @@ impl TypedActionView for DriveIndex {
                 send_telemetry_from_ctx!(
                     TelemetryEvent::SharedObjectLimitHitBannerViewPlansButtonClicked,
                     ctx
-                );
-            }
-            DriveIndexAction::ToggleShareDialog { warp_drive_item_id } => {
-                self.toggle_share_dialog(
-                    warp_drive_item_id,
-                    None,
-                    SharingDialogSource::DriveIndex,
-                    ctx,
                 );
             }
             DriveIndexAction::SignupAnonymousUser => {

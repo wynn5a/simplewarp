@@ -4,13 +4,11 @@ use warp_core::ui::appearance::Appearance;
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
-    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, Revision,
-    WarpDriveItem,
+    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, WarpDriveItem,
 };
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::items::ai_fact::WarpDriveAIFact;
 use crate::server::ids::SyncId;
-use crate::server::sync_queue::QueueItem;
 
 pub mod manager;
 pub mod view;
@@ -43,18 +41,6 @@ impl StringModel for AIFact {
     fn display_name(&self) -> String {
         match self {
             AIFact::Memory(memory) => memory.content.clone(),
-        }
-    }
-
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        object: &Self::CloudObjectType,
-    ) -> QueueItem {
-        QueueItem::UpdateAIFact {
-            model: object.model().clone().into(),
-            id: object.id,
-            revision: revision_ts.or(object.metadata.revision),
         }
     }
 

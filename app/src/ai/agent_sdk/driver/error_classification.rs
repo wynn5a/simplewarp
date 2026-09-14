@@ -53,13 +53,6 @@ pub fn classify_driver_error(error: &AgentDriverError) -> (AgentTaskState, TaskS
                 ),
             )
         }
-        AgentDriverError::WarpDriveSyncFailed => (
-            AgentTaskState::Error,
-            TaskStatusUpdate::with_error_code(
-                "Warp Drive failed to sync. Please check your network connection and try again.",
-                PlatformErrorCode::InternalError,
-            ),
-        ),
         AgentDriverError::NotLoggedIn => {
             let bin = warp_cli::binary_name().unwrap_or_else(|| "warp".to_string());
             (

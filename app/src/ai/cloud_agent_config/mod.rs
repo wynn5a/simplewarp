@@ -1,11 +1,10 @@
-pub use cloud_object_models::{AgentConfig, CloudAgentConfig, CloudAgentConfigModel};
+pub use cloud_object_models::{AgentConfig, CloudAgentConfig};
 
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
-    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, Revision,
+    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
 };
-use crate::server::sync_queue::QueueItem;
 
 impl StringModel for AgentConfig {
     type CloudObjectType = CloudAgentConfig;
@@ -24,18 +23,6 @@ impl StringModel for AgentConfig {
 
     fn display_name(&self) -> String {
         self.name.clone()
-    }
-
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        object: &CloudAgentConfig,
-    ) -> QueueItem {
-        QueueItem::UpdateCloudAgentConfig {
-            model: object.model().clone().into(),
-            id: object.id,
-            revision: revision_ts.or(object.metadata.revision),
-        }
     }
 
     fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {

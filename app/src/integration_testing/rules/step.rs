@@ -95,7 +95,7 @@ pub fn update_rule_content(
                 content: new_content.as_ref().clone(),
                 suggested_logging_id: None,
             });
-            update_manager.update_ai_fact(ai_fact, *sync_id, None, ctx);
+            update_manager.update_ai_fact(ai_fact, *sync_id, ctx);
         });
     })
 }

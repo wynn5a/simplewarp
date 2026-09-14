@@ -1,6 +1,6 @@
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
-use super::{CloudNotebookModel, NotebookId};
+use super::CloudNotebookModel;
 use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
@@ -51,7 +51,6 @@ pub struct ActiveNotebookData {
     pub saving_status: SavingStatus,
     pub active_notebook: ActiveNotebook,
 
-    pub show_grab_edit_access_modal: bool,
     pub feature_not_available: bool,
 }
 
@@ -106,26 +105,9 @@ impl ActiveNotebookData {
         event: &UpdateManagerEvent,
         ctx: &mut ModelContext<Self>,
     ) {
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event else {
-            return;
-        };
+        let UpdateManagerEvent::ObjectOperationComplete { result } = event;
 
         match (&result.operation, &result.success_type) {
-            (ObjectOperation::Create { .. }, OperationSuccessType::Success) => {
-                if let Some(current_id) = self.id()
-                    && current_id.into_client() == result.client_id
-                {
-                    let server_id = result.server_id.expect("Expect server id on success");
-                    let notebook_id: NotebookId = server_id.into();
-                    self.feature_not_available = false;
-                    self.saving_status = SavingStatus::Saved;
-                    self.active_notebook =
-                        ActiveNotebook::CommittedNotebook(SyncId::ServerId(notebook_id.into()));
-                    ctx.emit(ActiveNotebookDataEvent::BreadcrumbsChanged);
-                    ctx.emit(ActiveNotebookDataEvent::CreatedOnServer);
-                    ctx.notify();
-                }
-            }
             (ObjectOperation::Update, OperationSuccessType::Success) => {
                 if let Some(current_id) = self.id() {
                     let server_id = result.server_id.expect("Expect server id on success");
@@ -147,30 +129,6 @@ impl ActiveNotebookData {
                         ctx.emit(ActiveNotebookDataEvent::EditRejected);
                         ctx.notify();
                     }
-                }
-            }
-            (ObjectOperation::Update, OperationSuccessType::FeatureNotAvailable) => {
-                let current_id = self.id();
-                if let Some(id) = current_id {
-                    let server_id = result
-                        .server_id
-                        .expect("Expect server id on update failure");
-                    if id.into_server() == Some(server_id) {
-                        self.feature_not_available = true;
-                        ctx.emit(ActiveNotebookDataEvent::EditRejected);
-                        ctx.notify();
-                    }
-                }
-            }
-            (ObjectOperation::TakeEditAccess, OperationSuccessType::Success) => {
-                let current_id = self.id();
-                let server_id = result.server_id.expect("Expect server id on success");
-                if let Some(id) = current_id
-                    && id.into_server() == Some(server_id)
-                {
-                    self.feature_not_available = false;
-                    self.mode = Mode::Editing;
-                    ctx.emit(ActiveNotebookDataEvent::SwitchedToEditMode);
                 }
             }
             (ObjectOperation::Trash, OperationSuccessType::Success)
@@ -199,7 +157,6 @@ impl ActiveNotebookData {
     pub fn reset(&mut self) {
         self.mode = Mode::View;
         self.saving_status = SavingStatus::default();
-        self.show_grab_edit_access_modal = false;
         self.active_notebook = ActiveNotebook::None;
         self.feature_not_available = false;
     }
@@ -360,14 +317,10 @@ impl ActiveNotebookData {
 pub enum ActiveNotebookDataEvent {
     /// Another user stole the baton for the current object.
     ModeChangedFromServer,
-    /// The editing baton for the current object was successfully grabbed server-side.
-    SwitchedToEditMode,
     /// An edit to the current object was rejected.
     EditRejected,
     /// The notebook's breadcrumbs were updated.
     BreadcrumbsChanged,
-    /// This notebook was created on the server.
-    CreatedOnServer,
     /// This notebook was trashed or untrashed (used for refreshing pane overflow items)
     TrashStatusChanged,
     // This notebook was moved to a shared space.
