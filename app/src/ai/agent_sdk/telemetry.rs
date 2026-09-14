@@ -19,8 +19,6 @@ pub(super) enum CliTelemetryEvent {
     },
     /// Executing `warp agent profile list`
     AgentProfileList,
-    /// Executing `warp agent skills`
-    AgentSkills,
     /// Executing `warp mcp list`
     MCPList,
     /// Executing `warp model list`
@@ -88,7 +86,6 @@ impl TelemetryEvent for CliTelemetryEvent {
                 "harness": harness,
             })),
             CliTelemetryEvent::AgentProfileList => None,
-            CliTelemetryEvent::AgentSkills => None,
             CliTelemetryEvent::MCPList => None,
             CliTelemetryEvent::ModelList => None,
             CliTelemetryEvent::TaskList => None,
@@ -138,7 +135,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
         match self {
             CliTelemetryEventDiscriminants::AgentRun => "CLI.Execute.Agent.Run",
             CliTelemetryEventDiscriminants::AgentProfileList => "CLI.Execute.Agent.Profile.List",
-            CliTelemetryEventDiscriminants::AgentSkills => "CLI.Execute.Agent.Skills",
             CliTelemetryEventDiscriminants::MCPList => "CLI.Execute.MCP.List",
             CliTelemetryEventDiscriminants::ModelList => "CLI.Execute.Model.List",
             CliTelemetryEventDiscriminants::TaskList => "CLI.Execute.Task.List",
@@ -174,7 +170,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::AgentProfileList => {
                 "Listed agent profiles from the Warp CLI"
             }
-            CliTelemetryEventDiscriminants::AgentSkills => "Listed agent skills from the Warp CLI",
             CliTelemetryEventDiscriminants::MCPList => "Listed MCP servers from the Warp CLI",
             CliTelemetryEventDiscriminants::ModelList => "Listed models from the Warp CLI",
             CliTelemetryEventDiscriminants::TaskList => "Listed tasks from the Warp CLI",

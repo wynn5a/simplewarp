@@ -59,7 +59,6 @@ use crate::terminal::view::ConversationRestorationInNewPaneType;
 use crate::workflows::workflow::Workflow;
 
 mod admin;
-mod agent_config;
 mod ambient;
 mod api_key;
 mod artifact;
@@ -228,7 +227,6 @@ fn run_agent(
             Ok(())
         }
         AgentCommand::Profile(sub) => profiles::run(ctx, global_options, sub),
-        AgentCommand::Skills(args) => agent_config::list_skills(ctx, args),
     }
 }
 
@@ -1235,7 +1233,6 @@ fn command_requires_auth(command: &CliCommand) -> bool {
             AgentCommand::Profile(sub) => match sub {
                 AgentProfileCommand::List => true,
             },
-            AgentCommand::Skills(_) => true,
         },
         CliCommand::MCP(mcp_cmd) => match mcp_cmd {
             MCPCommand::List => true,
@@ -1394,7 +1391,6 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
         CliCommand::Agent(AgentCommand::Profile(sub)) => match sub {
             AgentProfileCommand::List => CliTelemetryEvent::AgentProfileList,
         },
-        CliCommand::Agent(AgentCommand::Skills(_)) => CliTelemetryEvent::AgentSkills,
         CliCommand::MCP(MCPCommand::List) => CliTelemetryEvent::MCPList,
         CliCommand::Run(TaskCommand::List(_)) => CliTelemetryEvent::TaskList,
         CliCommand::Run(TaskCommand::Get(args)) => {

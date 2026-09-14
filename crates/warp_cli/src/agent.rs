@@ -256,8 +256,6 @@ pub enum AgentCommand {
     /// Manage agent profiles.
     #[command(subcommand)]
     Profile(AgentProfileCommand),
-    /// List available agent skills.
-    Skills(ListAgentSkillsArgs),
 }
 
 impl AgentCommand {
@@ -265,7 +263,6 @@ impl AgentCommand {
         match self {
             AgentCommand::Run(_) => "agent run",
             AgentCommand::Profile(_) => "agent profile",
-            AgentCommand::Skills(_) => "agent skills",
         }
     }
 }
@@ -448,17 +445,4 @@ pub struct SnapshotArgs {
     /// Maximum time to wait for the declarations script before uploading the snapshot.
     #[arg(long = "snapshot-script-timeout", value_name = "DURATION")]
     pub snapshot_script_timeout: Option<humantime::Duration>,
-}
-
-/// Arguments for listing available agent skills.
-#[derive(Debug, Clone, Args)]
-pub struct ListAgentSkillsArgs {
-    /// List skills from a specific GitHub repository.
-    ///
-    /// Format: `owner/repo` or `https://github.com/owner/repo`
-    ///
-    /// When provided, lists skills from this repo instead of from your environments.
-    /// Any environments that include this repo will still be shown in the results.
-    #[arg(long = "repo", short = 'r', value_name = "REPO")]
-    pub repo: Option<String>,
 }

@@ -470,38 +470,6 @@ impl RunSortOrder {
     }
 }
 
-/// Source information for an agent skill.
-#[derive(Clone, serde::Deserialize, Debug, PartialEq)]
-pub struct AgentSkillSource {
-    pub owner: String,
-    pub name: String,
-    pub skill_path: String,
-}
-
-/// Environment information for an agent skill.
-#[derive(Clone, serde::Deserialize, Debug, PartialEq)]
-pub struct AgentSkillEnvironment {
-    pub uid: String,
-    pub name: String,
-}
-
-/// A variant of an agent skill.
-#[derive(Clone, serde::Deserialize, Debug, PartialEq)]
-pub struct AgentSkillVariant {
-    pub id: String,
-    pub description: String,
-    pub base_prompt: String,
-    pub source: AgentSkillSource,
-    pub environments: Vec<AgentSkillEnvironment>,
-}
-
-/// An agent skill item with its variants.
-#[derive(Clone, serde::Deserialize, Debug, PartialEq)]
-pub struct AgentSkillItem {
-    pub name: String,
-    pub variants: Vec<AgentSkillVariant>,
-}
-
 #[derive(Clone, serde::Deserialize, Debug, PartialEq, Eq)]
 pub struct ConnectedSelfHostedWorker {
     pub worker_host: String,
@@ -649,11 +617,6 @@ pub trait AIClient: 'static + Send + Sync {
         &self,
         conversation_ids: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<ServerAIConversationMetadata>>;
-
-    async fn list_skills(
-        &self,
-        repo: Option<String>,
-    ) -> anyhow::Result<Vec<AgentSkillItem>, anyhow::Error>;
 
     async fn cancel_ambient_agent_task(
         &self,
@@ -963,12 +926,6 @@ impl AIClient for ServerApi {
         Err(crate::server::server_api::local_only_error())
     }
 
-    async fn list_skills(
-        &self,
-        _repo: Option<String>,
-    ) -> anyhow::Result<Vec<AgentSkillItem>, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
     async fn cancel_ambient_agent_task(
         &self,
         _task_id: &AmbientAgentTaskId,
