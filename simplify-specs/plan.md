@@ -3669,6 +3669,49 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
                   passes in isolation (full-suite load flake, verified on the
                   work tree).
 
+      - [x] **The prod-orphaned attachment-upload client surface is gone** (4be, 2026-09-10, 6
+            files, +37/-342). `prepare_attachments_for_upload` and
+            `download_task_attachments` (both `local_only_error()` walls) had zero production
+            callers, and `resolve_upload_target`/`upload_to_target` were driven only by their own
+            tests. Deleted the two AIClient methods with their impl stubs and wire types,
+            `UploadTarget` and its normalization, `upload_to_target`, and the harness_support
+            attachment serde tests. `UploadField`/`UploadFieldValue` moved to
+            `presigned_upload.rs`, home of the live artifact-upload path. Acceptance: check both
+            configs identical to HEAD, clippy both configs baseline-only, format clean; nextest
+            8730 run / 8724 passed with only the six known environmental failures (five ssh,
+            palette).
+      - [x] **Managed secrets and the auth-secret UI chain are gone** (4bf, 2026-09-10, 44 files,
+            +88/-4219). The client trait fell in 4r; auth secrets are fetched and created against
+            a server this build does not have. Deleted the `warp_managed_secrets` crate, the
+            GraphQL `ManagedSecretType` module, the FTUX creation UI (ftux view, dropdown,
+            composer selector, `auth_secret_types.rs`, workspace "New API key" modal), the
+            driver's secret injection (hardcoded-empty `secrets`), MCP's `apply_secrets`, and the
+            CreateNew picker flow end to end. Kept the orchestration picker shell, the
+            `harness_auth_secrets` wire field, and `SecretRef`. Acceptance: check/clippy both
+            configs baseline-only, format clean; nextest 8688 run / 8681 passed — six
+            environmental plus `test_with_launch_config_with_active_pane` (passes in isolation,
+            load flake).
+      - [x] **ObjectClient, the sync queue, and the sharing dialog are gone** (4bg, 2026-09-14,
+            151 files, +812/-26569, 18 files deleted). The last client-trait vertical before
+            AIClient/AuthClient: every ObjectClient method was a wall, and the sync machinery
+            around it only fed that wall. Deleted `server_api/object.rs` (provider down to 2
+            getters: auth + ai), `sync_queue.rs` + tests, UpdateManager initial-load tracking,
+            `cloud_objects/listener`/`fake_object_client`/`test_utils`, the
+            `cloud_object_client` crate, `sharing/dialog` + style, `word_block_editor.rs`,
+            `grab_edit_access_modal`, and the integration websockets module with its 4 registered
+            tests and 4 nextest names. `UpdateManager::new` takes the persistence sender only;
+            the syncer decoupled from SyncQueue/UpdateManager events. Local persistence stays.
+            Four acceptance repairs, all suite-caught: CloudModel startup registration restored
+            (every integration test died at launch); migration/activation waits re-pointed at the
+            syncer flag; the notebook baton auto-grab (which waited on the same dead load signal
+            via an already-ready async block, flipping open into edit mode) removed with its
+            tests re-pinned to view-on-open; profiles/notebook test graphs given the syncer and
+            WarpDrivePrivacySettings singletons. Acceptance: check both configs identical to HEAD
+            (lib 4 baseline), clippy `-p warp` 0 errors, format clean; nextest 8564 run / 8558
+            passed with only the six known environmental failures (five ssh, palette). The
+            mermaid backspace integration test caught the baton regression (fails pre-fix, passes
+            on HEAD and after). simplewarp bin check clean.
+
             Every round ran the standard acceptance — check both feature sets, clippy 0 errors,
             format clean, nextest green (5707 → 5519 as each deleted subject's tests went with
             it) — and the later rounds built and launched the app.
