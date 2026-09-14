@@ -332,17 +332,17 @@ fn test_read_skill_executor_reads_enabled_bundled_skill() {
 }
 
 #[test]
-fn test_read_skill_executor_rejects_warp_control_bundled_skills_when_disabled() {
+fn test_read_skill_executor_rejects_feature_gated_bundled_skills_when_disabled() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
         let _bundled_skills = FeatureFlag::BundledSkills.override_enabled(true);
-        let _warp_control_cli = FeatureFlag::WarpControlCli.override_enabled(false);
-        let skill_id = "warpctrl";
+        let _factory_mcp = FeatureFlag::FactoryMcp.override_enabled(false);
+        let skill_id = "factory-mcp";
         SkillManager::handle(&app).update(&mut app, |manager, _ctx| {
             manager.add_bundled_skill_for_testing(
                 skill_id,
                 bundled_skill(skill_id),
-                BundledSkillActivation::RequiresFeature(FeatureFlag::WarpControlCli),
+                BundledSkillActivation::RequiresFeature(FeatureFlag::FactoryMcp),
             );
         });
         let executor_handle = add_test_read_skill_executor(&mut app);

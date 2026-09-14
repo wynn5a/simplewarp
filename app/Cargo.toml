@@ -274,7 +274,6 @@ vim.workspace = true
 rmcp.workspace = true
 warp_isolation_platform.workspace = true
 warp_ripgrep.workspace = true
-local_control.workspace = true
 local_inference.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -1056,7 +1055,6 @@ vertical_tabs_summary_mode = []
 tab_configs = []
 grouped_tabs = []
 pinned_tabs = []
-warp_control_cli = []
 agent_harness = []
 transfer_control_tool = []
 skip_firebase_anonymous_user = []

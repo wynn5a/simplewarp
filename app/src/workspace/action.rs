@@ -642,12 +642,6 @@ pub enum WorkspaceAction {
     /// Uninstall the Oz CLI command from /usr/local/bin
     #[cfg(target_os = "macos")]
     UninstallOz,
-    /// Install the Warp Control CLI command to /usr/local/bin
-    #[cfg(target_os = "macos")]
-    InstallWarpctrl,
-    /// Uninstall the Warp Control CLI command from /usr/local/bin
-    #[cfg(target_os = "macos")]
-    UninstallWarpctrl,
     UndoRevertInCodeReviewPane {
         window_id: WindowId,
         view_id: EntityId,
@@ -1125,8 +1119,6 @@ impl WorkspaceAction {
             SampleProcess => false,
             #[cfg(target_os = "macos")]
             InstallOz | UninstallOz => false,
-            #[cfg(target_os = "macos")]
-            InstallWarpctrl | UninstallWarpctrl => false,
             #[cfg(feature = "local_fs")]
             FileRenamed { .. } => false, // File rename doesn't change workspace state
             #[cfg(feature = "local_fs")]

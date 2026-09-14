@@ -39,8 +39,6 @@ mod gpu_state;
 mod input_classifier;
 mod interval_timer;
 mod linear;
-#[cfg(feature = "local_fs")]
-mod local_control;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod login_item;
 mod menu;
@@ -638,9 +636,8 @@ fn apply_scroll_multiplier(event: &mut Event, app: &AppContext) {
 
 /// Runs the shared Warp executable as the app or as one of its command-line modes.
 ///
-/// The bundled Warp Control wrapper injects `--warpctrl`, which is dispatched
-/// before the normal Warp/Oz parser. Oz subcommands are part of that normal
-/// parser and therefore do not require a separate mode flag.
+/// Oz subcommands are part of the normal parser and therefore do not require a
+/// separate mode flag.
 #[::tracing::instrument(skip_all, fields(tags.cloud_agent = true))]
 pub fn run() -> Result<()> {
     // Perform any necessary platform-specific initialization.
@@ -648,11 +645,6 @@ pub fn run() -> Result<()> {
 
     // Ensure feature flags are initialized before parsing command-line arguments.
     features::init_feature_flags();
-    if let Some(args) = warp_cli::local_control::ControlArgs::from_control_mode_env() {
-        #[cfg(windows)]
-        warp_util::windows::attach_to_parent_console();
-        warp_cli::local_control::run_and_exit(args);
-    }
 
     // Parse command-line arguments.
     let args = warp_cli::Args::from_env();
@@ -2094,16 +2086,6 @@ pub(crate) fn initialize_app(
             http_server::HttpServer::new(routers, ctx)
         });
     }
-    #[cfg(feature = "local_fs")]
-    if matches!(
-        launch_mode,
-        LaunchMode::App { .. } | LaunchMode::Test { .. }
-    ) && FeatureFlag::WarpControlCli.is_enabled()
-    {
-        ctx.add_singleton_model(local_control::LocalControlBridge::new);
-        ctx.add_singleton_model(local_control::LocalControlServer::new);
-    }
-
     app_state
 }
 

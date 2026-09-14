@@ -338,8 +338,8 @@ while (( "$#" )); do
       ;;
     --artifact)
       if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
-        if [[ "$2" != "app" && "$2" != "cli" && "$2" != "warpctrl" && "$2" != "tui" ]]; then
-          echo "Error: --artifact must be 'app', 'cli', 'warpctrl', or 'tui', got '$2'" >&2
+        if [[ "$2" != "app" && "$2" != "cli" && "$2" != "tui" ]]; then
+          echo "Error: --artifact must be 'app', 'cli', or 'tui', got '$2'" >&2
           exit 1
         fi
         ARTIFACT="$2"
@@ -367,7 +367,7 @@ elif [[ $RELEASE_CHANNEL = "local" || $RELEASE_CHANNEL = "dev" ]]; then
   # a normal release build (e.g. in stable).
   if [[ "$ARTIFACT" == "tui" ]]; then
     CARGO_PROFILE="release-tui-debug-assertions"
-  elif [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "warpctrl" ]]; then
+  elif [[ "$ARTIFACT" == "cli" ]]; then
     CARGO_PROFILE="release-cli-debug_assertions"
   else
     CARGO_PROFILE="release-lto-debug_assertions"
@@ -375,7 +375,7 @@ elif [[ $RELEASE_CHANNEL = "local" || $RELEASE_CHANNEL = "dev" ]]; then
 else
   if [[ "$ARTIFACT" == "tui" ]]; then
     CARGO_PROFILE="release-tui"
-  elif [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "warpctrl" ]]; then
+  elif [[ "$ARTIFACT" == "cli" ]]; then
     CARGO_PROFILE="release-cli"
   else
     CARGO_PROFILE="release-lto"
@@ -405,8 +405,6 @@ elif [[ $RELEASE_CHANNEL = "dev" ]]; then
     FEATURES="$FEATURES,agent_mode_debug"
     # Enable heap usage tracking & profiling using jemalloc through pprof.
     FEATURES="$FEATURES,jemalloc_pprof,heap_usage_tracking"
-    # Enable the Warp Control CLI wrapper for local scripting/automation.
-    FEATURES="$FEATURES,warp_control_cli"
     # For dev builds, use different versions of our bundled frameworks (e.g.:
     # Sentry).  This needs to be exported so it can be referenced by
     # app/build.rs later, while running `cargo bundle`.
@@ -468,7 +466,7 @@ else
 fi
 
 # Set artifact-specific configuration.
-if [[ "$ARTIFACT" == cli || "$ARTIFACT" == warpctrl ]]; then
+if [[ "$ARTIFACT" == cli ]]; then
   UNIVERSAL_BINARY=false
   OPEN_AFTER_BUNDLE=false
   FEATURES="$FEATURES,standalone"
@@ -508,7 +506,7 @@ if [[ "$CHECK_ONLY" == "true" ]]; then
     cargo check -p warp_tui --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$WARP_TUI_FEATURES"
   else
     cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
-    if [[ $UNIVERSAL_BINARY = true && "$ARTIFACT" != "cli" && "$ARTIFACT" != "warpctrl" ]]; then
+    if [[ $UNIVERSAL_BINARY = true && "$ARTIFACT" != "cli" ]]; then
       cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$ADDITIONAL_TARGET" --features "$FEATURES"
     fi
   fi
@@ -697,26 +695,10 @@ EOF
   # Make the script executable
   chmod +x "$CLI_SCRIPT_PATH"
 
-  if [[ ",$FEATURES," =~ ",warp_control_cli," ]]; then
-    # Each value must match `Channel::warpctrl_command_name` in the Rust source.
-    if [[ $RELEASE_CHANNEL = "stable" ]]; then
-      WARPCTRL_COMMAND_NAME="warpctrl"
-    elif [[ $RELEASE_CHANNEL = "oss" ]]; then
-      WARPCTRL_COMMAND_NAME="warpctrl-oss"
-    else
-      WARPCTRL_COMMAND_NAME="warpctrl-$RELEASE_CHANNEL"
-    fi
-    WARPCTRL_SCRIPT_PATH="$BUNDLED_RESOURCES_DIR/bin/$WARPCTRL_COMMAND_NAME"
-    echo "Creating warpctrl wrapper script at $WARPCTRL_SCRIPT_PATH..."
-    "$WORKSPACE_ROOT_DIR/script/macos/create_warpctrl_wrapper" \
-      "$WARPCTRL_SCRIPT_PATH" \
-      "../../MacOS/$WARP_BIN"
-  fi
-
   # Store the built artifact locations for GitHub Actions outputs.
   BINARY_PATH="target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN"
   DMG_PATH="$OUT_DIR/$FINAL_DMG_NAME"
-elif [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "warpctrl" ]]; then
+elif [[ "$ARTIFACT" == "cli" ]]; then
   if [[ $BUILD_BINARY == true ]]; then
     # Create Info.plist before building the app, since it's embedded at build time.
     # Apple's codesigning tools will detect Info.plist files in the same directory as an executable.
@@ -743,18 +725,6 @@ elif [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "warpctrl" ]]; then
   echo "Copying binary into $OUT_DIR/$WARP_BIN"
   cp "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" "$OUT_DIR/$WARP_BIN"
 
-  if [[ "$ARTIFACT" == "warpctrl" ]]; then
-    if [[ ! ",$FEATURES," =~ ",warp_control_cli," ]]; then
-      echo "warpctrl artifact requires the warp_control_cli feature" >&2
-      exit 1
-    fi
-    WARPCTRL_SCRIPT_PATH="$OUT_DIR/warpctrl"
-    echo "Creating warpctrl wrapper script at $WARPCTRL_SCRIPT_PATH"
-    "$WORKSPACE_ROOT_DIR/script/macos/create_warpctrl_wrapper" \
-      "$WARPCTRL_SCRIPT_PATH" \
-      "$WARP_BIN"
-  fi
-
   if [[ -n "$TARGET_ARCH" && -e "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" ]]; then
     echo "Copying .dSYM into $OUT_DIR/$WARP_BIN.dSYM"
     cp -HR "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" "$OUT_DIR/"
@@ -766,11 +736,7 @@ elif [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "warpctrl" ]]; then
 
 
   # Set the primary binary path to output.
-  if [[ "$ARTIFACT" == "warpctrl" ]]; then
-    BINARY_PATH="$OUT_DIR/warpctrl"
-  else
-    BINARY_PATH="$OUT_DIR/$WARP_BIN"
-  fi
+  BINARY_PATH="$OUT_DIR/$WARP_BIN"
 elif [[ "$ARTIFACT" == "tui" ]]; then
   if [[ $BUILD_BINARY == true ]]; then
     echo "Building $WARP_BIN ($DEFAULT_TARGET) for channel $RELEASE_CHANNEL with profile $CARGO_PROFILE"
@@ -861,7 +827,7 @@ if [[ $SELFSIGN = true ]]; then
   if [[ "$ARTIFACT" == app ]]; then
     echo "Self-signing $BUNDLE_DIR/$WARP_APP_NAME.app with ${SIGNING_CERT}..."
     codesign --force --deep --options runtime --sign "$SIGNING_CERT" "$BUNDLE_DIR/$WARP_APP_NAME.app" --entitlements script/Debug-Entitlements.plist
-  elif [[ "$ARTIFACT" == cli || "$ARTIFACT" == warpctrl || "$ARTIFACT" == tui ]]; then
+  elif [[ "$ARTIFACT" == cli || "$ARTIFACT" == tui ]]; then
     echo "Self-signing $OUT_DIR/$WARP_BIN with ${SIGNING_CERT}..."
     codesign --force --options runtime --sign "$SIGNING_CERT" "$OUT_DIR/$WARP_BIN" --entitlements script/Debug-Entitlements.plist
   fi
@@ -870,7 +836,7 @@ elif [[ $CODESIGN = true ]]; then
     echo "Codesigning $BUNDLE_DIR/$WARP_APP_NAME.app..."
     # Use --deep so we sign bundled frameworks as well
     codesign_with_retry --deep -f -o runtime --timestamp -s "$APPLE_TEAM_ID" "$BUNDLE_DIR/$WARP_APP_NAME.app" --entitlements script/Entitlements.plist
-  elif [[ "$ARTIFACT" == cli || "$ARTIFACT" == warpctrl || "$ARTIFACT" == tui ]]; then
+  elif [[ "$ARTIFACT" == cli || "$ARTIFACT" == tui ]]; then
     echo "Codesigning $OUT_DIR/$WARP_BIN..."
     codesign_with_retry -f -o runtime --timestamp -s "$APPLE_TEAM_ID" "$OUT_DIR/$WARP_BIN" --entitlements script/Entitlements.plist
 
@@ -976,7 +942,7 @@ if [[ $CODESIGN = true ]]; then
   echo "Verifying notarization ticket..."
   if [[ "$ARTIFACT" = app ]]; then
     xcrun stapler validate "$DMG_DIR/$DMG_NAME"
-  elif [[ "$ARTIFACT" = cli || "$ARTIFACT" = warpctrl || "$ARTIFACT" = tui ]]; then
+  elif [[ "$ARTIFACT" = cli || "$ARTIFACT" = tui ]]; then
     spctl -a -t open --context context:primary-signature -vv "$OUT_DIR/$WARP_BIN"
   fi
 fi

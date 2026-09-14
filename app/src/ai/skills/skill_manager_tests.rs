@@ -532,7 +532,6 @@ description: Test skill with variables
 ---
 
 Run `{{warp_cli_binary_name}}` to connect to {{warp_server_url}}.
-Use `{{warpctrl_binary_name}}` from {{warpctrl_wrapper_path}}.
 "#,
     )
     .unwrap();
@@ -546,12 +545,6 @@ Use `{{warpctrl_binary_name}}` from {{warpctrl_wrapper_path}}.
     let expected_url = ChannelState::server_root_url();
     assert!(skill.content.contains(&format!(
         "Run `{expected_cli}` to connect to {expected_url}."
-    )));
-    let expected_warpctrl = ChannelState::channel().warpctrl_command_name();
-    let expected_wrapper = resources_dir.join("bin").join(expected_warpctrl);
-    assert!(skill.content.contains(&format!(
-        "Use `{expected_warpctrl}` from {}.",
-        expected_wrapper.display()
     )));
 }
 
@@ -664,11 +657,9 @@ fn test_build_bundled_skill_context() {
     let skill_dir = resources_dir.join("bundled/skills/test-skill");
     let context = build_bundled_skill_context(resources_dir, &skill_dir);
 
-    assert_eq!(context.len(), 11);
+    assert_eq!(context.len(), 9);
     assert!(context.contains_key("warp_server_url"));
     assert!(context.contains_key("warp_cli_binary_name"));
-    assert!(context.contains_key("warpctrl_binary_name"));
-    assert!(context.contains_key("warpctrl_wrapper_path"));
     assert!(context.contains_key("warp_url_scheme"));
     assert!(context.contains_key("settings_file_path"));
     assert!(context.contains_key("keybindings_file_path"));
@@ -706,18 +697,6 @@ fn test_build_bundled_skill_context() {
     assert_eq!(
         context.get("warp_cli_binary_name").unwrap(),
         ChannelState::channel().cli_command_name()
-    );
-    assert_eq!(
-        context.get("warpctrl_binary_name").unwrap(),
-        ChannelState::channel().warpctrl_command_name()
-    );
-    assert_eq!(
-        context.get("warpctrl_wrapper_path").unwrap(),
-        &resources_dir
-            .join("bin")
-            .join(ChannelState::channel().warpctrl_command_name())
-            .display()
-            .to_string()
     );
     assert_eq!(
         context.get("warp_url_scheme").unwrap(),
@@ -1028,13 +1007,13 @@ fn feature_gated_bundled_skill_is_listed_only_when_enabled() {
         app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
         let handle = app.add_singleton_model(SkillManager::new);
         let bundled_skills_guard = FeatureFlag::BundledSkills.override_enabled(true);
-        let warp_control_cli = FeatureFlag::WarpControlCli.override_enabled(false);
+        let factory_mcp = FeatureFlag::FactoryMcp.override_enabled(false);
 
         handle.update(&mut app, |manager, _| {
             manager.add_bundled_skill_for_testing(
-                "warpctrl",
-                bundled_test_skill("warpctrl", "Control Warp"),
-                BundledSkillActivation::RequiresFeature(FeatureFlag::WarpControlCli),
+                "factory-mcp",
+                bundled_test_skill("factory-mcp", "Factory MCP"),
+                BundledSkillActivation::RequiresFeature(FeatureFlag::FactoryMcp),
             );
             manager.add_bundled_skill_for_testing(
                 "always",
@@ -1050,11 +1029,11 @@ fn feature_gated_bundled_skill_is_listed_only_when_enabled() {
                 .map(|skill| skill.name)
                 .collect::<HashSet<_>>()
         });
-        assert!(!disabled_names.contains("warpctrl"));
+        assert!(!disabled_names.contains("factory-mcp"));
         assert!(disabled_names.contains("always"));
 
-        drop(warp_control_cli);
-        let warp_control_cli_enabled = FeatureFlag::WarpControlCli.override_enabled(true);
+        drop(factory_mcp);
+        let factory_mcp_enabled = FeatureFlag::FactoryMcp.override_enabled(true);
         let enabled_names = handle.read(&app, |manager, ctx| {
             manager
                 .get_skills_for_working_directory(None, ctx)
@@ -1062,30 +1041,10 @@ fn feature_gated_bundled_skill_is_listed_only_when_enabled() {
                 .map(|skill| skill.name)
                 .collect::<HashSet<_>>()
         });
-        assert!(enabled_names.contains("warpctrl"));
+        assert!(enabled_names.contains("factory-mcp"));
         assert!(enabled_names.contains("always"));
-        drop(warp_control_cli_enabled);
+        drop(factory_mcp_enabled);
         drop(bundled_skills_guard);
-    });
-}
-
-#[test]
-fn warp_control_bundled_skill_activations_track_warp_control_feature() {
-    App::test((), |app| async move {
-        let settings = app.add_singleton_model(AISettings::new_with_defaults);
-        let warp_control_cli = FeatureFlag::WarpControlCli.override_enabled(false);
-        let activations = ["warpctrl"]
-            .map(|skill_id| activation_for_bundled_skill(skill_id, Path::new("/resources")));
-        for activation in &activations {
-            assert!(!settings.read(&app, |_, ctx| activation.is_enabled(ctx)));
-        }
-
-        drop(warp_control_cli);
-        let warp_control_cli_enabled = FeatureFlag::WarpControlCli.override_enabled(true);
-        for activation in &activations {
-            assert!(settings.read(&app, |_, ctx| activation.is_enabled(ctx)));
-        }
-        drop(warp_control_cli_enabled);
     });
 }
 
@@ -1111,8 +1070,8 @@ fn factory_mcp_bundled_skill_activation_tracks_factory_mcp_feature() {
 }
 
 #[test]
-fn warp_control_direct_read_respects_warp_control_feature() {
-    let reference = SkillReference::BundledSkillId("warpctrl".to_owned());
+fn factory_mcp_direct_read_respects_factory_mcp_feature() {
+    let reference = SkillReference::BundledSkillId("factory-mcp".to_owned());
 
     App::test((), |mut app| async move {
         app.add_singleton_model(DirectoryWatcher::new);
@@ -1122,13 +1081,13 @@ fn warp_control_direct_read_respects_warp_control_feature() {
         app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
         app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
         let handle = app.add_singleton_model(SkillManager::new);
-        let warp_control_cli = FeatureFlag::WarpControlCli.override_enabled(false);
+        let factory_mcp = FeatureFlag::FactoryMcp.override_enabled(false);
 
         handle.update(&mut app, |manager, _| {
             manager.add_bundled_skill_for_testing(
-                "warpctrl",
-                bundled_test_skill("warpctrl", "Control Warp"),
-                BundledSkillActivation::RequiresFeature(FeatureFlag::WarpControlCli),
+                "factory-mcp",
+                bundled_test_skill("factory-mcp", "Factory MCP"),
+                BundledSkillActivation::RequiresFeature(FeatureFlag::FactoryMcp),
             );
         });
 
@@ -1139,12 +1098,12 @@ fn warp_control_direct_read_respects_warp_control_feature() {
             manager.active_skill_by_reference(&reference, ctx).is_none()
         }));
 
-        drop(warp_control_cli);
-        let warp_control_cli_enabled = FeatureFlag::WarpControlCli.override_enabled(true);
+        drop(factory_mcp);
+        let factory_mcp_enabled = FeatureFlag::FactoryMcp.override_enabled(true);
         assert!(handle.read(&app, |manager, ctx| {
             manager.active_skill_by_reference(&reference, ctx).is_some()
         }));
-        drop(warp_control_cli_enabled);
+        drop(factory_mcp_enabled);
     });
 }
 #[test]

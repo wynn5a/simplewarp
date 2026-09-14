@@ -1167,24 +1167,6 @@ pub fn init(app: &mut AppContext) {
             .with_group(bindings::BindingGroup::Settings.as_str())
             .with_context_predicate(id!("Workspace")),
         ]);
-        if FeatureFlag::WarpControlCli.is_enabled() {
-            app.register_editable_bindings([
-                EditableBinding::new(
-                    "workspace:install_warpctrl",
-                    "Install Warp Control CLI globally for use outside of Warp",
-                    WorkspaceAction::InstallWarpctrl,
-                )
-                .with_group(bindings::BindingGroup::Settings.as_str())
-                .with_context_predicate(id!("Workspace")),
-                EditableBinding::new(
-                    "workspace:uninstall_warpctrl",
-                    "Undo global Warp Control CLI installation (warpctrl will still work within Warp)",
-                    WorkspaceAction::UninstallWarpctrl,
-                )
-                .with_group(bindings::BindingGroup::Settings.as_str())
-                .with_context_predicate(id!("Workspace")),
-            ]);
-        }
     }
 
     // We use the same binding name for the AI Assistant and block list AI to preserve custom

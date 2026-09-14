@@ -12,49 +12,6 @@ fn oz_install_target_path() -> PathBuf {
     PathBuf::from("/usr/local/bin").join(ChannelState::channel().cli_command_name())
 }
 
-/// Compute the target path where the Warp Control symlink should be installed, based on channel
-fn warpctrl_install_target_path() -> PathBuf {
-    PathBuf::from("/usr/local/bin").join(ChannelState::channel().warpctrl_command_name())
-}
-
-/// Compute the source path of the warpctrl wrapper inside the current app bundle.
-///
-/// Oz commands are part of the shared executable's normal argument parser, so
-/// Oz can symlink directly to the current executable. Warp Control has a
-/// separate parser selected by the hidden `--warpctrl` flag, so its installed
-/// symlink must target the bundled wrapper that injects that flag. Without it,
-/// Warp Control subcommands such as `tab` would reach the normal parser and be
-/// rejected as unknown.
-fn warpctrl_bundle_source_path() -> Result<PathBuf> {
-    let current_binary =
-        std::env::current_exe().context("Failed to get current executable path")?;
-    let bundle_root = current_binary
-        .parent()
-        .and_then(|p| p.parent())
-        .and_then(|p| p.parent())
-        .ok_or_else(|| anyhow!("Current executable is not inside a bundled app"))?;
-    Ok(bundle_root
-        .join("Contents/Resources/bin")
-        .join(ChannelState::channel().warpctrl_command_name()))
-}
-fn path_resolves_to(path: &Path, expected_path: &Path) -> bool {
-    let Ok(path) = path.canonicalize() else {
-        return false;
-    };
-    let Ok(expected_path) = expected_path.canonicalize() else {
-        return false;
-    };
-    path == expected_path
-}
-
-/// Whether the installed Warp Control command resolves to this app bundle's wrapper.
-pub fn is_warpctrl_installed() -> bool {
-    let Ok(source) = warpctrl_bundle_source_path() else {
-        return false;
-    };
-    path_resolves_to(&warpctrl_install_target_path(), &source)
-}
-
 /// Create a symlink with elevated privileges using osascript
 ///
 /// This function uses macOS's osascript to prompt for administrator privileges
@@ -212,32 +169,3 @@ pub fn install_oz() -> Result<()> {
 pub fn uninstall_oz() -> Result<()> {
     uninstall_symlink(&oz_install_target_path(), "Oz command")
 }
-
-/// Install Warp Control by symlinking its bundled wrapper into /usr/local/bin.
-///
-/// The wrapper contains no control implementation. It resolves this installed
-/// symlink back into the app bundle, launches the shared Warp executable, and
-/// injects `--warpctrl` so startup selects the separate Warp Control parser
-/// before normal parsing or GUI startup.
-pub fn install_warpctrl() -> Result<()> {
-    let warpctrl_path = warpctrl_install_target_path();
-    let warpctrl_source = warpctrl_bundle_source_path()?;
-
-    if !warpctrl_source.exists() {
-        return Err(anyhow!(
-            "Cannot install Warp Control CLI: bundled wrapper not found at {}",
-            warpctrl_source.display()
-        ));
-    }
-
-    install_symlink(&warpctrl_source, &warpctrl_path, "Warp Control CLI")
-}
-
-/// Uninstall the Warp Control CLI by removing the symlink from /usr/local/bin
-pub fn uninstall_warpctrl() -> Result<()> {
-    uninstall_symlink(&warpctrl_install_target_path(), "Warp Control command")
-}
-
-#[cfg(test)]
-#[path = "cli_install_tests.rs"]
-mod tests;

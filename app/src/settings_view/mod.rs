@@ -15,7 +15,6 @@ use mcp_servers_page::MCPServersSettingsPageView;
 use nav::{SettingsNavItem, SettingsUmbrella};
 use pathfinder_geometry::vector::Vector2F;
 use privacy_page::{PrivacyPageView, PrivacyPageViewEvent};
-use scripting_page::ScriptingSettingsPageView;
 use settings_file_footer::{SettingsFooterKind, SettingsFooterMouseStates, render_footer};
 use settings_page::{
     HEADER_PADDING, MatchData, SettingsPage, SettingsPageEvent, SettingsPageMeta,
@@ -92,7 +91,6 @@ mod platform_page;
 mod privacy;
 mod privacy_page;
 mod remove_custom_endpoint_confirmation_dialog;
-mod scripting_page;
 mod set_default_model_modal;
 mod settings_file_footer;
 pub(crate) mod settings_page;
@@ -284,7 +282,6 @@ pub enum SettingsSection {
     Features,
     Keybindings,
     Privacy,
-    Scripting,
     Warpify,
     // ── Agents umbrella subpages ──
     WarpAgent,
@@ -307,7 +304,6 @@ impl Display for SettingsSection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SettingsSection::Keybindings => write!(f, "Keyboard shortcuts"),
-            SettingsSection::Scripting => write!(f, "Scripting"),
             SettingsSection::WarpAgent => write!(f, "Warp Agent"),
             SettingsSection::AgentProfiles => write!(f, "Profiles"),
             SettingsSection::AgentMCPServers => write!(f, "MCP servers"),
@@ -346,8 +342,7 @@ impl SettingsSection {
     }
 
     /// Stable identifier for this section, used everywhere the section leaves
-    /// the process: the SQLite session-restore key and the
-    /// `surface.settings.open --page` warpctrl vocabulary.
+    /// the process: the SQLite session-restore key.
     ///
     /// These strings are a compatibility contract — changing one breaks
     /// session restore for existing users and a public CLI argument. They were
@@ -366,7 +361,6 @@ impl SettingsSection {
             Self::Features => "Features",
             Self::Keybindings => "Keyboard shortcuts",
             Self::Privacy => "Privacy",
-            Self::Scripting => "Scripting",
             Self::Warpify => "Warpify",
             Self::WarpAgent => "Warp Agent",
             Self::AgentProfiles => "Profiles",
@@ -380,7 +374,7 @@ impl SettingsSection {
     }
 
     /// Parses a [`Self::slug`], also accepting the legacy spellings that
-    /// persisted sessions and existing warpctrl callers may still be using.
+    /// persisted sessions may still be using.
     ///
     /// Legacy names for pages that no longer exist under that name resolve
     /// here, at the boundary, rather than becoming sections of their own. That
@@ -394,7 +388,6 @@ impl SettingsSection {
             "Features" => Self::Features,
             "Keyboard shortcuts" => Self::Keybindings,
             "Privacy" => Self::Privacy,
-            "Scripting" => Self::Scripting,
             "Warpify" => Self::Warpify,
             // "Oz" and "AI" are older names for what is now the Warp Agent page.
             "Warp Agent" | "Oz" | "AI" => Self::WarpAgent,
@@ -1095,7 +1088,6 @@ macro_rules! update_page {
             SettingsPageViewHandle::Warpify(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::OzCloudAPIKeys(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Privacy(handle) => $ctx.update_view(handle, $update),
-            SettingsPageViewHandle::Scripting(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::WarpAgent(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::AgentProfiles(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Knowledge(handle) => $ctx.update_view(handle, $update),
@@ -1210,12 +1202,6 @@ impl SettingsView {
             me.handle_privacy_page_event(event, ctx);
         });
 
-        let scripting_page_handle = if FeatureFlag::WarpControlCli.is_enabled() {
-            Some(ctx.add_typed_action_view(ScriptingSettingsPageView::new))
-        } else {
-            None
-        };
-
         let platform_page_handle = ctx.add_typed_action_view(platform_page::PlatformPageView::new);
         ctx.subscribe_to_view(&platform_page_handle, |me, _, event, ctx| {
             me.handle_platform_page_event(event, ctx);
@@ -1270,10 +1256,6 @@ impl SettingsView {
             SettingsPage::new(warpify_page_handle),
         ];
 
-        if let Some(scripting_page_handle) = scripting_page_handle {
-            settings_pages.push(SettingsPage::new(scripting_page_handle));
-        }
-
         settings_pages.extend(vec![
             SettingsPage::new(mcp_servers_page_handle),
             SettingsPage::new(privacy_page_handle),
@@ -1313,19 +1295,6 @@ impl SettingsView {
             SettingsNavItem::Page(SettingsSection::About),
         ];
 
-        if FeatureFlag::WarpControlCli.is_enabled() {
-            // Scripting sits just above Privacy, the slot the Shared blocks page used to
-            // anchor before it was removed.
-            let privacy_index = nav_items
-                .iter()
-                .position(|item| matches!(item, SettingsNavItem::Page(SettingsSection::Privacy)))
-                .unwrap_or(nav_items.len());
-            nav_items.insert(
-                privacy_index,
-                SettingsNavItem::Page(SettingsSection::Scripting),
-            );
-        }
-
         // A build with no Warp account behind it has nothing to put on these pages. Leaving them
         // in the sidebar would offer the user a sign-up prompt or an empty page instead of a
         // setting, so they are dropped here, at the one place membership is declared.
@@ -1345,13 +1314,7 @@ impl SettingsView {
             });
         }
 
-        let initial_page = match page {
-            Some(SettingsSection::Scripting) if !FeatureFlag::WarpControlCli.is_enabled() => {
-                SettingsSection::Account
-            }
-            other => other.unwrap_or_default(),
-        }
-        .available();
+        let initial_page = page.unwrap_or_default().available();
 
         // Auto-expand the umbrella if the initial page is one of its subpages.
         for item in &mut nav_items {
@@ -1927,7 +1890,6 @@ impl SettingsView {
             SettingsPageViewHandle::OzCloudAPIKeys(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Privacy(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Warpify(v) => v.as_ref(app).should_render(app),
-            SettingsPageViewHandle::Scripting(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::WarpAgent(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::AgentProfiles(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Knowledge(v) => v.as_ref(app).should_render(app),

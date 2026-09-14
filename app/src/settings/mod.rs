@@ -19,7 +19,6 @@ mod input;
 mod input_mode;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod linux;
-mod local_control;
 pub mod macros;
 pub mod manager;
 pub mod native_preference;
@@ -53,7 +52,6 @@ pub use input::*;
 pub use input_mode::*;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub use linux::*;
-pub use local_control::*;
 pub use native_preference::*;
 pub use pane::*;
 pub use privacy::*;
