@@ -71,7 +71,6 @@ impl GuiSlashCommandDataSource {
         subscribe_to_shared_dependencies(
             &active_session,
             &cli_subagent_controller,
-            terminal_view_id,
             Self::recompute_active_commands,
             ctx,
         );

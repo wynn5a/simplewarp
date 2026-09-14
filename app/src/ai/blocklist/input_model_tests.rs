@@ -273,7 +273,6 @@ fn build_input_model(
             conversation_selection.clone(),
             context_model,
             Rc::new(policy),
-            terminal_surface_id,
             ctx,
         )
     });

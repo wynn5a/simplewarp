@@ -24,9 +24,6 @@ use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
 use crate::settings::{
     AISettings, AISettingsChangedEvent, PrivacySettings, PrivacySettingsChangedEvent,
 };
-use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
-};
 use crate::terminal::input::slash_command_model::{
     DetectedCommand, DetectedSkillCommand, ParsedSlashCommandInput,
     slash_command_composition_filter,
@@ -46,8 +43,6 @@ const SCORE_MULTIPLIER: OrderedFloat<f64> = OrderedFloat(1000.0);
 /// Slash commands that are available in CLI agent rich input mode.
 /// Add command names here to make them accessible when composing prompts
 /// for a running CLI agent (Claude Code, Codex, etc.).
-const CLI_AGENT_INPUT_ALLOWED_COMMANDS: &[&str] = &["/prompts", "/skills"];
-
 fn split_command_and_argument(buffer: &str) -> (&str, Option<&str>) {
     buffer
         .split_once(' ')
@@ -63,7 +58,6 @@ fn split_command_and_argument(buffer: &str) -> (&str, Option<&str>) {
 pub struct CommonCommandGates {
     is_orchestration_enabled: bool,
     has_default_host: bool,
-    is_cli_agent_input: bool,
 }
 
 /// Subscribe a concrete surface data source to dependencies that affect both GUI and TUI command
@@ -71,7 +65,6 @@ pub struct CommonCommandGates {
 pub(super) fn subscribe_to_shared_dependencies<T>(
     active_session: &ModelHandle<ActiveSession>,
     cli_subagent_controller: &ModelHandle<CLISubagentController>,
-    terminal_view_id: EntityId,
     recompute_active_commands: fn(&mut T, &mut ModelContext<T>),
     ctx: &mut ModelContext<T>,
 ) where
@@ -116,19 +109,6 @@ pub(super) fn subscribe_to_shared_dependencies<T>(
             recompute_active_commands(me, ctx);
         }
     });
-    ctx.subscribe_to_model(
-        &CLIAgentSessionsModel::handle(ctx),
-        move |me, _, event, ctx| {
-            if let CLIAgentSessionsModelEvent::InputSessionChanged {
-                terminal_view_id: event_terminal_view_id,
-                ..
-            } = event
-                && *event_terminal_view_id == terminal_view_id
-            {
-                recompute_active_commands(me, ctx);
-            }
-        },
-    );
     // Recompute when the active conversation switches so commands gated on the active
     // conversation's task (e.g. /continue-locally) update on navigation.
     ctx.subscribe_to_model(
@@ -406,10 +386,6 @@ pub trait SlashCommandDataSource {
         if command.name == commands::HOST.name && !gates.has_default_host {
             return false;
         }
-        // When CLI agent input is open, restrict to the explicit allowlist.
-        if gates.is_cli_agent_input && !CLI_AGENT_INPUT_ALLOWED_COMMANDS.contains(&command.name) {
-            return false;
-        }
         true
     }
 
@@ -424,7 +400,6 @@ pub trait SlashCommandDataSource {
         CommonCommandGates {
             is_orchestration_enabled: ai_settings.is_orchestration_enabled(ctx),
             has_default_host,
-            is_cli_agent_input: self.is_cli_agent_input_open(ctx),
         }
     }
 
@@ -435,23 +410,6 @@ pub trait SlashCommandDataSource {
             || crate::ai::blocklist::BlocklistAIHistoryModel::as_ref(ctx)
                 .active_conversation(self.terminal_view_id())
                 .is_some()
-    }
-
-    /// Returns `true` if the CLI agent rich input is currently open for this terminal.
-    fn is_cli_agent_input_open(&self, ctx: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id())
-    }
-
-    /// Returns the supported skill providers for the active CLI agent, or `None` if
-    /// CLI agent input is not open (meaning no filtering should be applied).
-    fn active_cli_agent_providers(
-        &self,
-        ctx: &AppContext,
-    ) -> Option<&'static [ai::skills::SkillProvider]> {
-        CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.terminal_view_id())
-            .filter(|s| matches!(s.input_state, CLIAgentInputState::Open { .. }))
-            .map(|s| s.agent.supported_skill_providers())
     }
 
     /// Fuzzy-match the active commands against `query_text`. Returns scored [`InlineItem`]s with
@@ -499,28 +457,14 @@ pub trait SlashCommandDataSource {
             return Vec::new();
         }
 
-        let cli_agent_providers = self.active_cli_agent_providers(app);
         let active_session = self.active_session().as_ref(app);
         let cwd_path = active_session.current_working_directory_location(app);
         let skills = SkillManager::handle(app)
             .as_ref(app)
             .get_skills_for_working_directory(cwd_path.as_ref(), app);
 
-        let skill_manager = SkillManager::as_ref(app);
         let mut results = Vec::new();
-        for mut skill in skills {
-            // In CLI agent input mode, only show skills that exist in a supported
-            // provider folder. We check all paths (not just the deduplicated
-            // provider) because deduplication may have picked a higher-priority
-            // provider even when the skill also exists in the CLI agent's folder.
-            if let Some(providers) = &cli_agent_providers {
-                if !skill_manager.skill_exists_for_any_provider(&skill, providers) {
-                    continue;
-                }
-                // Re-map the provider to the best supported one so the icon
-                // reflects the active CLI agent's native provider.
-                skill.provider = skill_manager.best_supported_provider(&skill, providers);
-            }
+        for skill in skills {
             let Some(fuzzy_result) = SlashCommandFuzzyMatchResult::try_match(
                 query_text,
                 &skill.name,

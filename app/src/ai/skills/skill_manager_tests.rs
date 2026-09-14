@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 
-use ai::skills::{ParsedSkill, SkillProvider, SkillReference, SkillScope, get_provider_for_path};
+use ai::skills::{ParsedSkill, SkillProvider, SkillReference, SkillScope};
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::{DirectoryWatcher, RepoMetadataModel};
 use tempfile::TempDir;
@@ -204,14 +204,6 @@ fn remote_home_provider_variants_are_available_for_provider_selection() {
             .unwrap();
 
         assert_eq!(descriptor.provider, SkillProvider::Agents);
-        assert!(handle.read(&app, |manager, _| {
-            manager.skill_exists_for_any_provider(&descriptor, &[SkillProvider::Claude])
-        }));
-        assert_eq!(
-            handle.read(&app, |manager, _| manager
-                .best_supported_provider(&descriptor, &[SkillProvider::Claude])),
-            SkillProvider::Claude
-        );
     });
 }
 
@@ -261,14 +253,7 @@ fn remote_home_provider_variants_are_scoped_to_the_descriptor_host() {
             .find(|skill| skill.name == "deploy")
             .unwrap();
 
-        assert!(!handle.read(&app, |manager, _| {
-            manager.skill_exists_for_any_provider(&descriptor, &[SkillProvider::Claude])
-        }));
-        assert_eq!(
-            handle.read(&app, |manager, _| manager
-                .best_supported_provider(&descriptor, &[SkillProvider::Claude])),
-            SkillProvider::Agents
-        );
+        assert_eq!(descriptor.provider, SkillProvider::Agents);
     });
 }
 
@@ -1454,112 +1439,5 @@ fn removing_remote_home_skills_preserves_project_skills_below_home() {
                 vec![project_skill_path]
             );
         });
-    });
-}
-
-// ============================================================================
-// Tests for best_supported_provider
-// ============================================================================
-
-/// Helper: creates a ParsedSkill under a given provider directory.
-fn make_skill(name: &str, provider_dir: &str) -> ParsedSkill {
-    let local_path = std::env::temp_dir()
-        .join("repo")
-        .join(provider_dir)
-        .join("skills")
-        .join(name)
-        .join("SKILL.md");
-    let path = LocalOrRemotePath::Local(local_path);
-    ParsedSkill {
-        name: name.to_string(),
-        description: format!("{name} skill"),
-        path: path.clone(),
-        content: format!("# {name}"),
-        line_range: None,
-        provider: get_provider_for_path(&path).unwrap_or(SkillProvider::Warp),
-        scope: SkillScope::Project,
-    }
-}
-
-#[test]
-fn best_supported_provider_fast_path_returns_deduped_provider() {
-    // When the deduped provider is already in the supported set, return it immediately.
-    App::test((), |mut app| async move {
-        app.add_singleton_model(DirectoryWatcher::new);
-        app.add_singleton_model(AISettings::new_with_defaults);
-        app.add_singleton_model(|_| DetectedRepositories::default());
-        app.add_singleton_model(RepoMetadataModel::new);
-        app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
-        app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
-        let handle = app.add_singleton_model(SkillManager::new);
-
-        let claude_skill = make_skill("deploy", ".claude");
-        handle.update(&mut app, |manager, _| {
-            manager.add_skill_for_testing(claude_skill.clone());
-        });
-
-        let descriptor = SkillDescriptor::from(claude_skill);
-        let result = handle.read(&app, |manager, _| {
-            manager.best_supported_provider(&descriptor, &[SkillProvider::Claude])
-        });
-        assert_eq!(result, SkillProvider::Claude);
-    });
-}
-
-#[test]
-fn best_supported_provider_remaps_to_supported_provider() {
-    // Skill exists under both .agents and .claude. Dedup picked Agents (higher priority).
-    // When supported set is [Claude], should re-map to Claude.
-    App::test((), |mut app| async move {
-        app.add_singleton_model(DirectoryWatcher::new);
-        app.add_singleton_model(AISettings::new_with_defaults);
-        app.add_singleton_model(|_| DetectedRepositories::default());
-        app.add_singleton_model(RepoMetadataModel::new);
-        app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
-        app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
-        let handle = app.add_singleton_model(SkillManager::new);
-
-        let agents_skill = make_skill("deploy", ".agents");
-        let claude_skill = make_skill("deploy", ".claude");
-        handle.update(&mut app, |manager, _| {
-            manager.add_skill_for_testing(agents_skill.clone());
-            manager.add_skill_for_testing(claude_skill.clone());
-        });
-
-        // Descriptor has provider = Agents (the dedup winner).
-        let descriptor = SkillDescriptor::from(agents_skill);
-        assert_eq!(descriptor.provider, SkillProvider::Agents);
-
-        let result = handle.read(&app, |manager, _| {
-            manager.best_supported_provider(&descriptor, &[SkillProvider::Claude])
-        });
-        assert_eq!(result, SkillProvider::Claude);
-    });
-}
-
-#[test]
-fn best_supported_provider_falls_back_when_no_match() {
-    // Skill only exists under .agents, but the supported set is [Claude].
-    // Should fall back to the original deduped provider (Agents).
-    App::test((), |mut app| async move {
-        app.add_singleton_model(DirectoryWatcher::new);
-        app.add_singleton_model(AISettings::new_with_defaults);
-        app.add_singleton_model(|_| DetectedRepositories::default());
-        app.add_singleton_model(RepoMetadataModel::new);
-        app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
-        app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
-        let handle = app.add_singleton_model(SkillManager::new);
-
-        let agents_skill = make_skill("deploy", ".agents");
-        handle.update(&mut app, |manager, _| {
-            manager.add_skill_for_testing(agents_skill.clone());
-        });
-
-        let descriptor = SkillDescriptor::from(agents_skill);
-        let result = handle.read(&app, |manager, _| {
-            manager.best_supported_provider(&descriptor, &[SkillProvider::Claude])
-        });
-        // No .claude path exists, so falls back to the deduped provider.
-        assert_eq!(result, SkillProvider::Agents);
     });
 }

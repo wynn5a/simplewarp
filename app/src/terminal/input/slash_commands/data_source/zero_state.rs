@@ -48,23 +48,16 @@ impl SyncDataSource for GuiZeroStateDataSource {
             && FeatureFlag::ListSkills.is_enabled()
             && AISettings::as_ref(app).is_any_ai_enabled(app)
         {
-            let cli_agent_providers = source.active_cli_agent_providers(app);
             let active_session = source.active_session().as_ref(app);
             let cwd = active_session.current_working_directory_location(app);
             let skill_manager_handle = SkillManager::handle(app);
             let skill_manager = skill_manager_handle.as_ref(app);
             let skills = skill_manager.get_skills_for_working_directory(cwd.as_ref(), app);
 
-            for mut skill in skills
+            for skill in skills
                 .into_iter()
                 .sorted_by(|a, b| b.name.to_lowercase().cmp(&a.name.to_lowercase()))
             {
-                if let Some(providers) = &cli_agent_providers {
-                    if !skill_manager.skill_exists_for_any_provider(&skill, providers) {
-                        continue;
-                    }
-                    skill.provider = skill_manager.best_supported_provider(&skill, providers);
-                }
                 results.push(InlineItem::from_skill(&skill, app));
             }
         }

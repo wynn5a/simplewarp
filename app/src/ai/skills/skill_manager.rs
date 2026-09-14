@@ -3,9 +3,7 @@ mod file_watchers;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use ai::skills::{
-    ParsedSkill, SkillPathOrigin, SkillProvider, SkillReference, SkillScope, provider_rank,
-};
+use ai::skills::{ParsedSkill, SkillPathOrigin, SkillReference, SkillScope};
 pub use file_watchers::{
     SkillWatcher, SkillWatcherEvent, extract_skill_parent_directory, read_skills_from_directories,
 };
@@ -262,64 +260,6 @@ impl SkillManager {
         let mut paths: Vec<PathBuf> = paths.into_iter().collect();
         paths.sort();
         paths
-    }
-
-    /// Returns true if the skill (or any of its provider-path variants) exists in
-    /// a folder matching one of the given `providers`. This handles the deduplication
-    /// edge case where a skill is present in multiple provider folders (e.g. both
-    /// `.agents/skills/` and `.claude/skills/`) but deduplication picked a provider
-    /// that the caller doesn't support.
-    pub fn skill_exists_for_any_provider(
-        &self,
-        skill: &SkillDescriptor,
-        providers: &[SkillProvider],
-    ) -> bool {
-        // Fast path: the deduplicated provider already matches.
-        if providers.contains(&skill.provider) {
-            return true;
-        }
-        // Slow path: check all paths for this skill name.
-        self.providers_for_descriptor(skill)
-            .any(|provider| providers.contains(&provider))
-    }
-
-    /// Returns the best supported provider for a skill given a set of supported providers.
-    ///
-    /// When a skill is duplicated across multiple provider folders (e.g. both
-    /// `.agents/skills/` and `.claude/skills/`), the global deduplication picks the
-    /// highest-priority provider per [`SKILL_PROVIDER_DEFINITIONS`]. However, for the
-    /// CLI agent footer `/skills` menu we want the icon to reflect the provider that
-    /// the active CLI agent actually supports.
-    ///
-    /// This method checks all paths for the skill name and returns the supported
-    /// provider with the best (lowest) rank. Falls back to the skill's deduped
-    /// provider if no supported provider is found among its paths.
-    pub fn best_supported_provider(
-        &self,
-        skill: &SkillDescriptor,
-        supported_providers: &[SkillProvider],
-    ) -> SkillProvider {
-        // Fast path: the deduplicated provider is already supported.
-        if supported_providers.contains(&skill.provider) {
-            return skill.provider;
-        }
-        // Find the supported provider with the best (lowest) rank among all paths.
-        self.providers_for_descriptor(skill)
-            .filter(|provider| supported_providers.contains(provider))
-            .min_by_key(|provider| provider_rank(*provider))
-            .unwrap_or(skill.provider)
-    }
-
-    fn providers_for_descriptor<'a>(
-        &'a self,
-        descriptor: &'a SkillDescriptor,
-    ) -> impl Iterator<Item = SkillProvider> + 'a {
-        self.skills_by_name
-            .get(&descriptor.name)
-            .into_iter()
-            .flatten()
-            .filter(|path| path_matches_reference_location(path, &descriptor.reference))
-            .filter_map(|path| self.skills_by_path.get(path).map(|skill| skill.provider))
     }
 
     /// Returns skill file paths that have the given skill name.
@@ -676,24 +616,6 @@ impl Entity for SkillManager {
 }
 
 impl SingletonEntity for SkillManager {}
-
-fn path_matches_reference_location(path: &LocalOrRemotePath, reference: &SkillReference) -> bool {
-    match (path, reference) {
-        (
-            LocalOrRemotePath::Remote(path),
-            SkillReference::Path(LocalOrRemotePath::Remote(reference)),
-        ) => path.host_id == reference.host_id,
-        (
-            LocalOrRemotePath::Local(_),
-            SkillReference::Path(LocalOrRemotePath::Local(_)) | SkillReference::BundledSkillId(_),
-        ) => true,
-        (LocalOrRemotePath::Local(_), SkillReference::Path(LocalOrRemotePath::Remote(_)))
-        | (
-            LocalOrRemotePath::Remote(_),
-            SkillReference::Path(LocalOrRemotePath::Local(_)) | SkillReference::BundledSkillId(_),
-        ) => false,
-    }
-}
 
 #[cfg(test)]
 #[path = "skill_manager_tests.rs"]

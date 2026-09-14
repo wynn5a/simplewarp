@@ -62,9 +62,7 @@ use crate::settings::{
     PrivacySettingsChangedEvent,
 };
 use crate::settings_view::SettingsSection;
-use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
-};
+use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::MenuPositioningProvider;
 use crate::terminal::input::models::InlineModelSelectorTab;
 use crate::terminal::profile_model_selector::{ProfileModelSelector, ProfileModelSelectorEvent};
@@ -75,7 +73,6 @@ use crate::terminal::view::TerminalAction;
 use crate::terminal::view::ambient_agent::{
     AmbientAgentViewModel, ModelSelector, ModelSelectorEvent,
 };
-use crate::terminal::view::init::OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING;
 use crate::terminal::{CLIAgent, TerminalModel};
 use crate::ui_components::icons::Icon;
 use crate::view_components::DismissibleToast;
@@ -147,7 +144,6 @@ pub struct AgentInputFooter {
     file_explorer_button: ViewHandle<ActionButton>,
 
     // CLI agent-specific buttons (rendered when a CLI agent session is active).
-    rich_input_button: ViewHandle<ActionButton>,
     settings_button: ViewHandle<ActionButton>,
 
     // Fast-forward (auto-approve) toggle button shown in the agent view footer.
@@ -347,22 +343,6 @@ impl AgentInputFooter {
                     ctx.dispatch_typed_action(AgentInputFooterAction::ToggleFileExplorer);
                 })
         });
-        // CLI agent-specific buttons (only rendered when a CLI agent session is active).
-        let rich_input_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("Rich Input", AgentInputButtonTheme)
-                .with_icon(Icon::TextInput)
-                .with_tooltip("Open Rich Input")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_keybinding(
-                    KeystrokeSource::Binding(OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING),
-                    ctx,
-                )
-                .with_compact_keybinding(true)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::ToggleRichInput);
-                })
-        });
         let settings_button = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new("", AgentInputButtonTheme)
                 .with_icon(Icon::Settings)
@@ -378,7 +358,7 @@ impl AgentInputFooter {
         // Also reset CLI voice state if the session ends while voice is active.
         ctx.subscribe_to_model(
             &CLIAgentSessionsModel::handle(ctx),
-            move |me, _, event, ctx| {
+            move |_, _, event, ctx| {
                 if event.terminal_view_id() != terminal_view_id {
                     return;
                 }
@@ -388,35 +368,6 @@ impl AgentInputFooter {
                     me.stop_cli_voice_and_reset(ctx);
                 }
 
-                let CLIAgentSessionsModelEvent::InputSessionChanged {
-                    new_input_state, ..
-                } = event
-                else {
-                    ctx.notify();
-                    return;
-                };
-                let is_open = matches!(new_input_state, CLIAgentInputState::Open { .. });
-                me.rich_input_button.update(ctx, |button, ctx| {
-                    if is_open {
-                        button.set_label("Hide Rich Input", ctx);
-                        button.set_tooltip(Some("Hide Rich Input"), ctx);
-                        button.set_keybinding(
-                            Some(KeystrokeSource::Binding(
-                                OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING,
-                            )),
-                            ctx,
-                        );
-                    } else {
-                        button.set_label("Rich Input", ctx);
-                        button.set_tooltip(Some("Open Rich Input"), ctx);
-                        button.set_keybinding(
-                            Some(KeystrokeSource::Binding(
-                                OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING,
-                            )),
-                            ctx,
-                        );
-                    }
-                });
                 ctx.notify();
             },
         );
@@ -578,7 +529,6 @@ impl AgentInputFooter {
             mic_button,
             file_button,
             file_explorer_button,
-            rich_input_button,
             settings_button,
             context_window_button,
             model_selector: profile_model_selector_full,
@@ -721,10 +671,6 @@ impl AgentInputFooter {
         }
     }
 
-    fn has_active_cli_agent_input_session(&self, app: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(app).is_input_open(self.terminal_view_id)
-    }
-
     fn cli_agent(&self, app: &AppContext) -> Option<CLIAgent> {
         CLIAgentSessionsModel::as_ref(app)
             .session(self.terminal_view_id)
@@ -798,9 +744,9 @@ impl AgentInputFooter {
             AgentToolbarItemKind::FileExplorer => item
                 .is_available(app)
                 .then(|| ChildView::new(&self.file_explorer_button).finish()),
-            AgentToolbarItemKind::RichInput => FeatureFlag::CLIAgentRichInput
-                .is_enabled()
-                .then(|| ChildView::new(&self.rich_input_button).finish()),
+            // Kept for persisted-toolbar-layout backwards compatibility (see
+            // `AgentToolbarItemKind::is_available`); never rendered.
+            AgentToolbarItemKind::RichInput => None,
             AgentToolbarItemKind::FileAttach => Some(ChildView::new(&self.file_button).finish()),
             AgentToolbarItemKind::VoiceInput => {
                 #[cfg(feature = "voice_input")]
@@ -1145,13 +1091,7 @@ impl AgentInputFooter {
         match result {
             Ok(transcribed_text) => {
                 if !transcribed_text.is_empty() {
-                    if self.has_active_cli_agent_input_session(ctx) {
-                        ctx.emit(AgentInputFooterEvent::InsertIntoCLIRichInput(
-                            transcribed_text,
-                        ));
-                    } else {
-                        ctx.emit(AgentInputFooterEvent::InsertIntoCLIPty(transcribed_text));
-                    }
+                    ctx.emit(AgentInputFooterEvent::InsertIntoCLIPty(transcribed_text));
                 }
             }
             Err(e) => match e {
@@ -1530,7 +1470,6 @@ pub enum AgentInputFooterAction {
     InsertFilePath(String),
     ToggleCodeReview,
     ToggleFileExplorer,
-    ToggleRichInput,
     ToggleAutodetectionSetting,
     OpenCodingAgentSettings,
     ShowContextMenu {
@@ -1575,13 +1514,7 @@ impl TypedActionView for AgentInputFooter {
                     );
                 }
                 let path_with_space = format!("{path} ");
-                if self.has_active_cli_agent_input_session(ctx) {
-                    ctx.emit(AgentInputFooterEvent::InsertIntoCLIRichInput(
-                        path_with_space,
-                    ));
-                } else {
-                    ctx.emit(AgentInputFooterEvent::WriteToPty(path_with_space));
-                }
+                ctx.emit(AgentInputFooterEvent::WriteToPty(path_with_space));
             }
             AgentInputFooterAction::ToggleCodeReview => {
                 if let Some(agent) = self.cli_agent(ctx) {
@@ -1592,13 +1525,6 @@ impl TypedActionView for AgentInputFooter {
                 ctx.emit(AgentInputFooterEvent::ToggleFileExplorer(
                     self.cli_agent(ctx),
                 ));
-            }
-            AgentInputFooterAction::ToggleRichInput => {
-                if self.has_active_cli_agent_input_session(ctx) {
-                    ctx.emit(AgentInputFooterEvent::HideRichInput);
-                } else {
-                    ctx.emit(AgentInputFooterEvent::OpenRichInput);
-                }
             }
             AgentInputFooterAction::ToggleAutodetectionSetting => {
                 let ai_settings = AISettings::handle(ctx);
@@ -1633,14 +1559,10 @@ pub enum AgentInputFooterEvent {
     WriteToPty(String),
     /// Insert text into the CLI agent's PTY input using its paste strategy.
     InsertIntoCLIPty(String),
-    /// Insert text into the CLI agent rich input.
-    InsertIntoCLIRichInput(String),
     ToggleCodeReviewPane(CLIAgent),
     /// Toggle the file explorer side panel. `None` when no CLI agent session is
     /// attached to this pane.
     ToggleFileExplorer(Option<CLIAgent>),
-    OpenRichInput,
-    HideRichInput,
     ToggledChipMenu {
         open: bool,
     },

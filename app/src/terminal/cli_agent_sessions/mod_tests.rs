@@ -7,10 +7,8 @@ use super::event::{
     CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventSource, CLIAgentEventType, parse_event,
 };
 use super::{
-    CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext,
-    CLIAgentSessionStatus, CLIAgentSessionsModel,
+    CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
 };
-use crate::ai::blocklist::{InputConfig, InputType};
 use crate::terminal::CLIAgent;
 
 #[test]
@@ -258,58 +256,13 @@ fn parse_droid_stop_notification() {
 }
 
 #[test]
-fn apply_event_preserves_input_session() {
-    let input_state = CLIAgentInputState::Open {
-        entrypoint: CLIAgentInputEntrypoint::CtrlG,
-        previous_input_config: InputConfig {
-            input_type: InputType::Shell,
-            is_locked: false,
-        },
-        previous_was_lock_set_with_empty_buffer: true,
-    };
-    let mut session = CLIAgentSession {
-        agent: CLIAgent::Claude,
-        status: CLIAgentSessionStatus::InProgress,
-        session_context: CLIAgentSessionContext::default(),
-        input_state,
-        should_auto_toggle_input: false,
-        listener: None,
-        remote_host: None,
-        plugin_version: None,
-        draft_text: None,
-        received_rich_notification: false,
-    };
-
-    let event = CLIAgentEvent {
-        source: CLIAgentEventSource::RichPlugin,
-        v: 1,
-        agent: CLIAgent::Claude,
-        event: CLIAgentEventType::PermissionRequest,
-        session_id: Some("abc".to_string()),
-        cwd: Some("/tmp/proj".to_string()),
-        project: Some("proj".to_string()),
-        payload: CLIAgentEventPayload {
-            summary: Some("Needs approval".to_string()),
-            ..Default::default()
-        },
-    };
-
-    session.apply_event(&event);
-
-    assert_eq!(session.input_state, input_state);
-}
-
-#[test]
 fn session_start_sets_plugin_version() {
     let mut session = CLIAgentSession {
         agent: CLIAgent::Claude,
         status: CLIAgentSessionStatus::InProgress,
         session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
         listener: None,
         plugin_version: None,
-        draft_text: None,
         remote_host: None,
         received_rich_notification: false,
     };
@@ -338,11 +291,8 @@ fn session_start_without_plugin_version_leaves_none() {
         agent: CLIAgent::Claude,
         status: CLIAgentSessionStatus::InProgress,
         session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
         listener: None,
         plugin_version: None,
-        draft_text: None,
         remote_host: None,
         received_rich_notification: false,
     };
@@ -370,12 +320,9 @@ fn codex_session_not_rich_until_rich_notification() {
         agent: CLIAgent::Codex,
         status: CLIAgentSessionStatus::InProgress,
         session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
         listener: None,
         plugin_version: None,
         remote_host: None,
-        draft_text: None,
         received_rich_notification: false,
     };
     assert!(!session.supports_rich_status());
@@ -391,12 +338,9 @@ fn non_codex_session_rich_after_rich_notification() {
         agent: CLIAgent::Claude,
         status: CLIAgentSessionStatus::InProgress,
         session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
         listener: None,
         plugin_version: None,
         remote_host: None,
-        draft_text: None,
         received_rich_notification: false,
     };
     // No listener and no rich notification yet.
@@ -421,11 +365,8 @@ fn blocked_claude_session_with_permission_state() -> CLIAgentSession {
             tool_input_preview: Some("rm -rf /tmp".to_owned()),
             ..Default::default()
         },
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
         listener: None,
         plugin_version: None,
-        draft_text: None,
         remote_host: None,
         received_rich_notification: false,
     }
@@ -567,11 +508,8 @@ fn permission_request_still_populates_summary_and_tool_fields() {
         agent: CLIAgent::Claude,
         status: CLIAgentSessionStatus::InProgress,
         session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
         listener: None,
         plugin_version: None,
-        draft_text: None,
         remote_host: None,
         received_rich_notification: false,
     };
@@ -626,12 +564,9 @@ fn cli_agent_session(
         agent: CLIAgent::Claude,
         status,
         session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
         listener: None,
         plugin_version: None,
         remote_host: None,
-        draft_text: None,
         received_rich_notification,
     }
 }

@@ -130,7 +130,7 @@ impl AgentToolbarItemKind {
             // was folded permanently off (round 4an) — it required a Warp
             // account/server, which this build never has. The variant stays
             // for persisted-toolbar-layout backwards compatibility.
-            Self::HandoffToCloud => false,
+            Self::HandoffToCloud | Self::RichInput => false,
             // Matches the gating on every other project explorer entry point, so the chip
             // cannot open a tool view the rest of the app hides. See
             // `Workspace::compute_left_panel_views` and the `SHOW_PROJECT_EXPLORER`
@@ -198,9 +198,6 @@ impl AgentToolbarItemKind {
             Self::ContextChip(ContextChipKind::GitDiffStats),
         ];
         items.push(Self::FileExplorer);
-        if FeatureFlag::CLIAgentRichInput.is_enabled() {
-            items.push(Self::RichInput);
-        }
         items
     }
 
@@ -221,7 +218,6 @@ impl AgentToolbarItemKind {
             .collect();
         items.extend([
             Self::FileExplorer,
-            Self::RichInput,
             Self::FileAttach,
             Self::VoiceInput,
             Self::Settings,

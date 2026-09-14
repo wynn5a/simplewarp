@@ -11,9 +11,7 @@ use warpui::fonts::{Properties, Weight};
 use warpui::keymap::Keystroke;
 use warpui::scene::{CornerRadius, Radius};
 use warpui::text_layout::ClipConfig;
-use warpui::{
-    AppContext, Element, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _,
-};
+use warpui::{AppContext, Element, Entity, ModelContext, ModelHandle, SingletonEntity as _};
 
 use crate::appearance::Appearance;
 use crate::search::data_source::{Query, QueryResult};
@@ -64,7 +62,6 @@ pub struct UpdatedAvailableSkills;
 
 pub struct SkillSelectorDataSource {
     active_session: ModelHandle<ActiveSession>,
-    terminal_view_id: EntityId,
     /// Whether bundled skills should be included in results.
     /// False for `/open-skill` (bundled skills can't be edited), true for `/skills` (they can be invoked).
     include_bundled: bool,
@@ -76,7 +73,6 @@ pub struct SkillSelectorDataSource {
 impl SkillSelectorDataSource {
     pub fn new(
         active_session: ModelHandle<ActiveSession>,
-        terminal_view_id: EntityId,
         ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
@@ -89,7 +85,6 @@ impl SkillSelectorDataSource {
 
         Self {
             active_session,
-            terminal_view_id,
             include_bundled: false,
             ambient_agent_view_model,
         }
@@ -148,17 +143,13 @@ impl SyncDataSource for SkillSelectorDataSource {
         }
 
         let cwd = self.get_current_working_directory(app);
-        Ok(query_selectable_skills(
-            cwd.as_ref(),
-            self.terminal_view_id,
-            self.include_bundled,
-            &query.text,
-            app,
+        Ok(
+            query_selectable_skills(cwd.as_ref(), self.include_bundled, &query.text, app)
+                .into_iter()
+                .map(SkillSearchItem::from)
+                .map(QueryResult::from)
+                .collect(),
         )
-        .into_iter()
-        .map(SkillSearchItem::from)
-        .map(QueryResult::from)
-        .collect())
     }
 }
 

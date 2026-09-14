@@ -591,9 +591,7 @@ pub fn init(ctx: &mut AppContext) {
             EditorAction::AddNextOccurrence,
         )
         .with_custom_action(CustomAction::AddNextOccurrence)
-        .with_context_predicate(
-            id!("EditorView") & !id!("IMEOpen") & !id!(flags::CLI_AGENT_RICH_INPUT_OPEN),
-        ),
+        .with_context_predicate(id!("EditorView") & !id!("IMEOpen")),
         // `shift-end` is registered on all platforms for this action.
         EditableBinding::new(
             "editor_view:select_to_line_end",

@@ -37,7 +37,7 @@ use crate::settings::WarpPromptSeparator;
 #[cfg(windows)]
 use crate::system::SystemInfo;
 use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus,
+    CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus,
 };
 use crate::terminal::model::block::BlockMetadata;
 use crate::terminal::model::session::{
@@ -642,12 +642,9 @@ fn test_cli_agent_footer_chips_require_a_visible_supported_footer() {
             agent,
             status: CLIAgentSessionStatus::InProgress,
             session_context: CLIAgentSessionContext::default(),
-            input_state: CLIAgentInputState::Closed,
-            should_auto_toggle_input: false,
             listener: None,
             plugin_version: None,
             remote_host: None,
-            draft_text: None,
             received_rich_notification: false,
         };
 

@@ -29,8 +29,8 @@ use crate::ai::blocklist::agent_view::{
 };
 use crate::ai::blocklist::block::cli_controller::UserTakeOverReason;
 use crate::ai::blocklist::{
-    BlocklistAIHistoryEvent, BlocklistAIHistoryModel, FakeAIBlockModel, InputConfig, InputType,
-    ResponseStream, ResponseStreamId,
+    BlocklistAIHistoryEvent, BlocklistAIHistoryModel, FakeAIBlockModel, InputType, ResponseStream,
+    ResponseStreamId,
 };
 use crate::ai::cloud_environments::{
     AmbientAgentEnvironment, CloudAmbientAgentEnvironment, CloudAmbientAgentEnvironmentModel,
@@ -52,13 +52,10 @@ use crate::terminal::alt_screen::should_intercept_mouse;
 use crate::terminal::block_list_element::{SnackbarPoint, SnackbarTranslationMode};
 use crate::terminal::block_list_viewport::{ClampingMode, ScrollLines};
 use crate::terminal::cli_agent_sessions::event::{
-    CLI_AGENT_NOTIFICATION_SENTINEL, CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventSource,
-    CLIAgentEventType,
+    CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventSource, CLIAgentEventType,
 };
-use crate::terminal::cli_agent_sessions::listener::CLIAgentSessionListener;
 use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentRichInputCloseReason, CLIAgentSession,
-    CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
+    CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
 };
 use crate::terminal::model::ansi::{self, BootstrappedValue, InitShellValue, PreexecValue};
 use crate::terminal::model::block::AgentViewVisibility;
@@ -674,48 +671,6 @@ fn focus_reporting_writes_focus_events_in_normal_screen() {
         );
     })
 }
-
-/// Registers a rich-status-capable, `InProgress` CLI agent session that has
-/// already observed a `prompt_submit` -- the state a real working third-party
-/// harness turn is in -- so `observe_ctrl_c_write` is able to arm.
-fn register_armable_cli_agent_session(app: &mut App, view_id: EntityId) {
-    let cli_sessions = CLIAgentSessionsModel::handle(app);
-    cli_sessions.update(app, |sessions, ctx| {
-        sessions.set_session(
-            view_id,
-            CLIAgentSession {
-                agent: CLIAgent::Claude,
-                status: CLIAgentSessionStatus::InProgress,
-                session_context: CLIAgentSessionContext::default(),
-                input_state: CLIAgentInputState::Closed,
-                should_auto_toggle_input: false,
-                listener: None,
-                plugin_version: None,
-                remote_host: None,
-                draft_text: None,
-                received_rich_notification: true,
-            },
-            ctx,
-        );
-    });
-    cli_sessions.update(app, |sessions, ctx| {
-        sessions.update_from_event(
-            view_id,
-            &CLIAgentEvent {
-                v: 1,
-                agent: CLIAgent::Claude,
-                event: CLIAgentEventType::PromptSubmit,
-                session_id: None,
-                cwd: None,
-                project: None,
-                payload: CLIAgentEventPayload::default(),
-                source: CLIAgentEventSource::RichPlugin,
-            },
-            ctx,
-        );
-    });
-}
-
 #[test]
 fn ctrl_c_from_shared_viewer_forwards_and_arms_cancel_window() {
     App::test((), |mut app| async move {
@@ -1373,151 +1328,6 @@ fn test_create_new_block_with_local_status() {
         );
     })
 }
-
-#[test]
-fn submit_cli_agent_rich_input_restores_unlocked_input_config() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_agent_rich_input = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            let _ = settings
-                .auto_dismiss_rich_input_after_submit
-                .set_value(true, ctx);
-        });
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.input.update(ctx, |input, ctx| {
-                input.ai_input_model().update(ctx, |ai_input, ctx| {
-                    ai_input.set_input_config(
-                        InputConfig {
-                            input_type: InputType::Shell,
-                            is_locked: false,
-                        },
-                        true,
-                        None,
-                        ctx,
-                    );
-                });
-            });
-
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Droid,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: false,
-                        listener: None,
-                        remote_host: None,
-                        plugin_version: None,
-                        draft_text: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::FooterButton, ctx);
-            assert!(view.has_active_cli_agent_input_session(ctx));
-
-            view.submit_cli_agent_rich_input("hello!".to_owned(), ctx);
-            assert!(!view.has_active_cli_agent_input_session(ctx));
-        });
-
-        terminal.read(&app, |view, ctx| {
-            let input = view.input.as_ref(ctx);
-            let ai_input_model = input.ai_input_model().as_ref(ctx);
-
-            assert_eq!(
-                ai_input_model.input_config(),
-                InputConfig {
-                    input_type: InputType::Shell,
-                    is_locked: false,
-                }
-            );
-            assert!(input.editor().as_ref(ctx).buffer_text(ctx).is_empty());
-        });
-    })
-}
-
-#[test]
-fn unregister_cli_agent_session_restores_unlocked_input_config() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_agent_rich_input = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.input.update(ctx, |input, ctx| {
-                input.ai_input_model().update(ctx, |ai_input, ctx| {
-                    ai_input.set_input_config(
-                        InputConfig {
-                            input_type: InputType::Shell,
-                            is_locked: false,
-                        },
-                        true,
-                        None,
-                        ctx,
-                    );
-                });
-            });
-
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: false,
-                        listener: None,
-                        remote_host: None,
-                        plugin_version: None,
-                        draft_text: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::FooterButton, ctx);
-            assert!(view.has_active_cli_agent_input_session(ctx));
-
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.remove_session(view.view_id, ctx);
-            });
-            assert!(!view.has_active_cli_agent_input_session(ctx));
-            assert!(
-                CLIAgentSessionsModel::as_ref(ctx)
-                    .session(view.view_id)
-                    .is_none()
-            );
-        });
-
-        terminal.read(&app, |view, ctx| {
-            let input = view.input.as_ref(ctx);
-            let ai_input_model = input.ai_input_model().as_ref(ctx);
-
-            assert_eq!(
-                ai_input_model.input_config(),
-                InputConfig {
-                    input_type: InputType::Shell,
-                    is_locked: false,
-                }
-            );
-            assert!(input.editor().as_ref(ctx).buffer_text(ctx).is_empty());
-        });
-    })
-}
-
 #[test]
 fn clear_buffer_action_in_fullscreen_agent_view_starts_new_conversation() {
     App::test((), |mut app| async move {
@@ -6300,1430 +6110,6 @@ fn terminal_action_ctrl_c_exit_agent_view_requires_confirmation() {
         });
     })
 }
-
-/// Sets up a CLI agent session, opens rich input, submits `text`, and returns
-/// the terminal handle and the collected PTY writes.
-#[allow(clippy::type_complexity)]
-fn submit_rich_input_and_collect_pty_writes(
-    app: &mut App,
-    agent: CLIAgent,
-    text: &str,
-) -> (ViewHandle<TerminalView>, Rc<RefCell<Vec<Vec<u8>>>>) {
-    let terminal = add_window_with_terminal(app, None);
-    let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
-    let writes = pty_writes.clone();
-    app.update(|ctx| {
-        ctx.subscribe_to_view(&terminal, move |_, event, _| {
-            if let Event::WriteBytesToPty { bytes } = event {
-                writes.borrow_mut().push(bytes.to_vec());
-            }
-        });
-    });
-
-    terminal.update(app, |view, ctx| {
-        CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-            sessions.set_session(
-                view.view_id,
-                CLIAgentSession {
-                    agent,
-                    status: CLIAgentSessionStatus::InProgress,
-                    session_context: CLIAgentSessionContext::default(),
-                    input_state: CLIAgentInputState::Closed,
-                    should_auto_toggle_input: false,
-                    listener: None,
-                    remote_host: None,
-                    plugin_version: None,
-                    draft_text: None,
-                    received_rich_notification: false,
-                },
-                ctx,
-            );
-        });
-
-        view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::FooterButton, ctx);
-        assert!(view.has_active_cli_agent_input_session(ctx));
-
-        view.submit_cli_agent_rich_input(text.to_owned(), ctx);
-    });
-
-    (terminal, pty_writes)
-}
-
-fn open_cli_agent_rich_input_for_agent(app: &mut App, agent: CLIAgent) -> ViewHandle<TerminalView> {
-    open_cli_agent_rich_input_for_agent_with_window_id(app, agent).1
-}
-
-fn open_cli_agent_rich_input_for_agent_with_window_id(
-    app: &mut App,
-    agent: CLIAgent,
-) -> (WindowId, ViewHandle<TerminalView>) {
-    let (window_id, terminal) = add_window_with_id_and_terminal(app, None);
-    terminal.update(app, |view, ctx| {
-        CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-            sessions.set_session(
-                view.view_id,
-                CLIAgentSession {
-                    agent,
-                    status: CLIAgentSessionStatus::InProgress,
-                    session_context: CLIAgentSessionContext::default(),
-                    input_state: CLIAgentInputState::Closed,
-                    should_auto_toggle_input: false,
-                    listener: None,
-                    remote_host: None,
-                    plugin_version: None,
-                    draft_text: None,
-                    received_rich_notification: false,
-                },
-                ctx,
-            );
-        });
-
-        view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::FooterButton, ctx);
-        assert!(view.has_active_cli_agent_input_session(ctx));
-    });
-    (window_id, terminal)
-}
-
-/// Verifies that Ctrl-G closes CLI agent rich input when dispatched from the
-/// focused editor context. This is a regression test for #9286 where the
-/// keybinding only matched the terminal context, not the embedded editor.
-#[test]
-fn ctrl_g_closes_cli_agent_rich_input_when_editor_is_focused() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        app.add_singleton_model(ImportedConfigModel::new);
-        // Register keybindings so keystroke dispatch can match the Ctrl-G binding.
-        app.update(|ctx| {
-            crate::terminal::init(ctx);
-            crate::editor::init(ctx);
-        });
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        let (window_id, terminal) =
-            open_cli_agent_rich_input_for_agent_with_window_id(&mut app, CLIAgent::OpenCode);
-
-        // Dispatch Ctrl-G through the focused editor's responder chain.
-        let (input_id, editor_id) = terminal.read(&app, |view, ctx| {
-            let input = view.input.clone();
-            let editor = input.as_ref(ctx).editor().clone();
-            (input.id(), editor.id())
-        });
-        let handled = app
-            .dispatch_keystroke(
-                window_id,
-                &[terminal.id(), input_id, editor_id],
-                &warpui::keymap::Keystroke::parse("ctrl-g").expect("valid keystroke"),
-                false,
-            )
-            .expect("dispatch should succeed");
-
-        assert!(handled, "ctrl-g should be handled from the focused editor");
-        terminal.read(&app, |view, ctx| {
-            assert!(
-                !view.has_active_cli_agent_input_session(ctx),
-                "rich input should be closed after Ctrl-G"
-            );
-        });
-    })
-}
-
-/// Verifies that Ctrl-G closes CLI agent rich input when dispatched from the
-/// terminal context alone (no editor in the responder chain). Regression test
-/// for #9916 where the keybinding only opened rich input but did not close it
-/// in scenarios where focus was outside the embedded editor and the active
-/// block had transitioned out of `LongRunningCommand` — for example, when the
-/// CLI agent has paused waiting for user input.
-#[test]
-fn ctrl_g_closes_cli_agent_rich_input_from_terminal_context() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        app.add_singleton_model(ImportedConfigModel::new);
-        // Register keybindings so keystroke dispatch can match the Ctrl-G binding.
-        app.update(|ctx| {
-            crate::terminal::init(ctx);
-            crate::editor::init(ctx);
-        });
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        let (window_id, terminal) =
-            open_cli_agent_rich_input_for_agent_with_window_id(&mut app, CLIAgent::OpenCode);
-
-        // Dispatch Ctrl-G with only the terminal view in the responder chain.
-        // This simulates the case where focus is not on the embedded editor
-        // (e.g., on the block list) and the previous Case 1 / Case 2 predicates
-        // would both fail to match.
-        let handled = app
-            .dispatch_keystroke(
-                window_id,
-                &[terminal.id()],
-                &warpui::keymap::Keystroke::parse("ctrl-g").expect("valid keystroke"),
-                false,
-            )
-            .expect("dispatch should succeed");
-
-        assert!(
-            handled,
-            "ctrl-g should be handled from the terminal context when rich input is open"
-        );
-        terminal.read(&app, |view, ctx| {
-            assert!(
-                !view.has_active_cli_agent_input_session(ctx),
-                "rich input should be closed after Ctrl-G from terminal context"
-            );
-        });
-    })
-}
-
-/// Verifies that Ctrl-G is a true toggle: opens then closes rich input from
-/// the terminal context. Regression test for #9916.
-#[test]
-fn ctrl_g_toggles_cli_agent_rich_input_from_terminal_context() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        app.add_singleton_model(ImportedConfigModel::new);
-        app.update(|ctx| {
-            crate::terminal::init(ctx);
-            crate::editor::init(ctx);
-        });
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        // Start with rich input open, then close via Ctrl-G, then re-open via
-        // direct call (Ctrl-G open path requires LongRunningCommand which is
-        // tricky to simulate in a unit test), then close via Ctrl-G again.
-        let (window_id, terminal) =
-            open_cli_agent_rich_input_for_agent_with_window_id(&mut app, CLIAgent::OpenCode);
-
-        let keystroke = warpui::keymap::Keystroke::parse("ctrl-g").expect("valid keystroke");
-
-        // First close: rich input is open → Ctrl-G should close.
-        let handled = app
-            .dispatch_keystroke(window_id, &[terminal.id()], &keystroke, false)
-            .expect("dispatch should succeed");
-        assert!(handled, "first ctrl-g should be handled (close)");
-        terminal.read(&app, |view, ctx| {
-            assert!(
-                !view.has_active_cli_agent_input_session(ctx),
-                "rich input should be closed after first Ctrl-G"
-            );
-        });
-
-        // Re-open programmatically (mirrors the user re-triggering open via
-        // Ctrl-G in a long-running context).
-        terminal.update(&mut app, |view, ctx| {
-            view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::CtrlG, ctx);
-            assert!(view.has_active_cli_agent_input_session(ctx));
-        });
-
-        // Second close: rich input is open again → Ctrl-G should close again.
-        let handled = app
-            .dispatch_keystroke(window_id, &[terminal.id()], &keystroke, false)
-            .expect("dispatch should succeed");
-        assert!(handled, "second ctrl-g should be handled (close again)");
-        terminal.read(&app, |view, ctx| {
-            assert!(
-                !view.has_active_cli_agent_input_session(ctx),
-                "rich input should be closed after second Ctrl-G"
-            );
-        });
-    })
-}
-
-#[test]
-fn cli_agent_rich_input_hint_text_mentions_active_cli_agent() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        for (agent, expected_hint_text) in [
-            (CLIAgent::Claude, "Enter prompt for Claude Code..."),
-            (CLIAgent::Gemini, "Enter prompt for Gemini..."),
-            (CLIAgent::Codex, "Enter prompt for Codex..."),
-            (CLIAgent::Unknown, "Tell the agent what to build..."),
-        ] {
-            let terminal = open_cli_agent_rich_input_for_agent(&mut app, agent);
-            terminal.read(&app, |view, ctx| {
-                let placeholder_text = view
-                    .input
-                    .as_ref(ctx)
-                    .editor()
-                    .as_ref(ctx)
-                    .placeholder_text("");
-                assert_eq!(placeholder_text, Some(expected_hint_text));
-            });
-        }
-    })
-}
-
-#[test]
-fn cli_agent_rich_input_shell_mode_uses_run_commands_hint_text() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Claude);
-        terminal.update(&mut app, |view, ctx| {
-            view.input.update(ctx, |input, ctx| {
-                input.ai_input_model().update(ctx, |ai_input, ctx| {
-                    ai_input.set_input_config(
-                        InputConfig {
-                            input_type: InputType::Shell,
-                            is_locked: true,
-                        },
-                        true,
-                        None,
-                        ctx,
-                    );
-                });
-                input.set_zero_state_hint_text(ctx);
-            });
-        });
-        terminal.read(&app, |view, ctx| {
-            let placeholder_text = view
-                .input
-                .as_ref(ctx)
-                .editor()
-                .as_ref(ctx)
-                .placeholder_text("");
-            assert_eq!(placeholder_text, Some("Run commands"));
-        });
-    })
-}
-
-#[test]
-fn submit_cli_agent_rich_input_codex_uses_bracketed_paste() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        let (_terminal, pty_writes) =
-            submit_rich_input_and_collect_pty_writes(&mut app, CLIAgent::Codex, "hello");
-
-        let writes = pty_writes.borrow();
-        // BracketedPaste: first write is ESC[200~ + text + ESC[201~, second is \r.
-        assert_eq!(
-            writes.len(),
-            2,
-            "expected 2 PTY writes, got {}",
-            writes.len()
-        );
-
-        let mut expected_paste =
-            Vec::with_capacity(BRACKETED_PASTE_START.len() + 5 + BRACKETED_PASTE_END.len());
-        expected_paste.extend_from_slice(BRACKETED_PASTE_START);
-        expected_paste.extend_from_slice(b"hello");
-        expected_paste.extend_from_slice(BRACKETED_PASTE_END);
-        assert_eq!(writes[0], expected_paste);
-        assert_eq!(writes[1], b"\r");
-    })
-}
-
-/// Verifies that multi-line Hermes rich input is delivered as a single bracketed
-/// paste payload with a standalone \r submit. Embedded newlines must remain
-/// inside the paste instead of triggering separate submissions.
-#[test]
-fn submit_cli_agent_rich_input_hermes_multiline_uses_bracketed_paste() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        let (_terminal, pty_writes) =
-            submit_rich_input_and_collect_pty_writes(&mut app, CLIAgent::Hermes, "line1\nline2");
-
-        let writes = pty_writes.borrow();
-        // BracketedPaste: first write is ESC[200~ + both lines + ESC[201~, second is \r.
-        // The embedded \n between lines must NOT split into a separate write or trigger
-        // a second submission — that was the voice-input auto-submit regression.
-        assert_eq!(
-            writes.len(),
-            2,
-            "expected 2 PTY writes (paste payload + submit \r), got {}: {:?}",
-            writes.len(),
-            writes
-        );
-
-        let mut expected_paste =
-            Vec::with_capacity(BRACKETED_PASTE_START.len() + 11 + BRACKETED_PASTE_END.len());
-        expected_paste.extend_from_slice(BRACKETED_PASTE_START);
-        expected_paste.extend_from_slice(b"line1\nline2");
-        expected_paste.extend_from_slice(BRACKETED_PASTE_END);
-        assert_eq!(
-            writes[0], expected_paste,
-            "first write should be the full bracketed paste payload"
-        );
-        assert_eq!(
-            writes[1], b"\r",
-            "second write should be the standalone submit \r"
-        );
-    })
-}
-
-#[test]
-fn submit_cli_agent_rich_input_opencode_defers_enter_and_close() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        let (_terminal, pty_writes) =
-            submit_rich_input_and_collect_pty_writes(&mut app, CLIAgent::OpenCode, "hello");
-
-        // Immediately after submit, only the text should have been written;
-        // the \r is sent after a short delay.
-        assert_eq!(pty_writes.borrow().len(), 1);
-        assert_eq!(pty_writes.borrow()[0], b"hello");
-
-        // Wait for the delayed \r to arrive.
-        assert_eventually!(
-            pty_writes.borrow().len() == 2,
-            "carriage return should be written after delay"
-        );
-        assert_eq!(pty_writes.borrow()[1], b"\r");
-    })
-}
-#[test]
-fn drag_drop_image_in_cli_agent_long_running_command_pastes_via_clipboard() {
-    // Regression test: dropping an image file into a tab where a CLI agent
-    // (e.g. Claude Code) is the foreground long-running process should
-    // mirror the Cmd+V image-paste path — write the image to the system
-    // clipboard and send the agent's paste keystroke to the PTY — instead
-    // of shell-escaping the path and typing it into the agent's prompt.
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        // The new path actually reads the file off disk, so we need a real
-        // file. Bytes don't have to be a valid PNG.
-        let mut image_path = std::env::temp_dir();
-        image_path.push(format!(
-            "warp-test-cli-agent-drop-{}.png",
-            std::process::id()
-        ));
-        std::fs::write(&image_path, b"fake-png-bytes").expect("write tmp image");
-        let image_path_str = image_path.to_string_lossy().into_owned();
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
-        let writes = pty_writes.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&terminal, move |_, event, _| {
-                if let Event::WriteBytesToPty { bytes } = event {
-                    writes.borrow_mut().push(bytes.to_vec());
-                }
-            });
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: false,
-                        listener: None,
-                        remote_host: None,
-                        plugin_version: None,
-                        draft_text: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            // The CLI-agent paste branch is gated on the active block being
-            // long-running (the agent's TUI). Without a long-running block
-            // we'd fall through to the regular image-attach flow.
-            {
-                let mut model = view.model.lock();
-                model.simulate_long_running_block("claude", "");
-                assert!(
-                    model
-                        .block_list()
-                        .active_block()
-                        .is_active_and_long_running()
-                );
-            }
-
-            view.drag_and_drop_files(&[image_path_str], ctx);
-        });
-
-        // The paste flow is async (off-thread file read, then hop back to
-        // the view to write the clipboard + paste keystroke). Wait for the
-        // single PTY write of the platform-appropriate paste byte: 0x16
-        // (Ctrl+V) on macOS/Linux, or `ESC v` on Windows. Without the fix
-        // a shell-escaped path string is written here instead.
-        let expected_paste_bytes: Vec<u8> = if cfg!(windows) {
-            vec![0x1b, b'v']
-        } else {
-            vec![0x16]
-        };
-        assert_eventually!(
-            pty_writes.borrow().len() == 1 && pty_writes.borrow()[0] == expected_paste_bytes,
-            "expected single paste-keystroke PTY write {:?}; got {:?}",
-            expected_paste_bytes,
-            pty_writes.borrow()
-        );
-
-        std::fs::remove_file(&image_path).ok();
-    })
-}
-
-#[test]
-fn paste_raw_image_clipboard_in_cli_agent_sends_correct_bytes() {
-    fn run_for_agent(agent: CLIAgent) {
-        App::test((), move |mut app| async move {
-            initialize_app_for_terminal_view(&mut app);
-            let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-            let terminal = add_window_with_terminal(&mut app, None);
-
-            let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
-            let writes = pty_writes.clone();
-            app.update(|ctx| {
-                ctx.subscribe_to_view(&terminal, move |_, event, _| {
-                    if let Event::WriteBytesToPty { bytes } = event {
-                        writes.borrow_mut().push(bytes.to_vec());
-                    }
-                });
-            });
-
-            terminal.update(&mut app, |view, ctx| {
-                CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                    sessions.set_session(
-                        view.view_id,
-                        CLIAgentSession {
-                            agent,
-                            status: CLIAgentSessionStatus::InProgress,
-                            session_context: CLIAgentSessionContext::default(),
-                            input_state: CLIAgentInputState::Closed,
-                            should_auto_toggle_input: false,
-                            listener: None,
-                            remote_host: None,
-                            plugin_version: None,
-                            draft_text: None,
-                            received_rich_notification: false,
-                        },
-                        ctx,
-                    );
-                });
-
-                {
-                    let mut model = view.model.lock();
-                    model.simulate_long_running_block(agent.command_prefix(), "");
-                    model.set_mode(ansi::Mode::BracketedPaste);
-                }
-
-                // Write image-only data to the clipboard (no text, no paths).
-                ctx.clipboard().write(ClipboardContent {
-                    images: Some(vec![warpui::clipboard::ImageData {
-                        data: vec![0x89, 0x50, 0x4E, 0x47], // PNG magic bytes
-                        mime_type: "image/png".to_string(),
-                        filename: None,
-                    }]),
-                    ..Default::default()
-                });
-
-                view.handle_action(&TerminalAction::Paste, ctx);
-            });
-
-            let writes = pty_writes.borrow();
-            assert_eq!(
-                writes.len(),
-                1,
-                "expected 1 PTY write, got {}",
-                writes.len()
-            );
-
-            if cfg!(windows) {
-                if agent == CLIAgent::Claude {
-                    assert_eq!(writes[0], vec![C0::ESC, b'v']);
-                } else {
-                    let mut expected = Vec::new();
-                    expected.extend_from_slice(BRACKETED_PASTE_START);
-                    expected.extend_from_slice(BRACKETED_PASTE_END);
-                    assert_eq!(writes[0], expected);
-                }
-            } else {
-                assert_eq!(writes[0], vec![C0::SYN]);
-            }
-        })
-    }
-
-    run_for_agent(CLIAgent::Claude);
-    run_for_agent(CLIAgent::OpenCode);
-    run_for_agent(CLIAgent::Codex);
-}
-
-#[test]
-fn submit_without_auto_dismiss_keeps_rich_input_open() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-        // auto_dismiss defaults to false — leave it off.
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: false,
-                        listener: None,
-                        remote_host: None,
-                        plugin_version: None,
-                        draft_text: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::FooterButton, ctx);
-            assert!(view.has_active_cli_agent_input_session(ctx));
-
-            view.submit_cli_agent_rich_input("hello".to_owned(), ctx);
-
-            // Rich input stays open because auto_dismiss is off.
-            assert!(view.has_active_cli_agent_input_session(ctx));
-        });
-
-        // Buffer should still be cleared even though rich input is open.
-        terminal.read(&app, |view, ctx| {
-            let input = view.input.as_ref(ctx);
-            assert!(input.editor().as_ref(ctx).buffer_text(ctx).is_empty());
-        });
-    })
-}
-
-#[test]
-fn submit_with_plugin_and_auto_toggle_keeps_rich_input_open() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-        // auto_toggle_rich_input defaults to true.
-        // Turn on auto_dismiss too — it should be overridden by auto_toggle.
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            let _ = settings
-                .auto_dismiss_rich_input_after_submit
-                .set_value(true, ctx);
-        });
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            // Create a session with a plugin listener and should_auto_toggle_input.
-            let listener = ctx.add_model(|ctx| {
-                CLIAgentSessionListener::new(
-                    view.view_id,
-                    CLIAgent::Claude,
-                    &view.model_events_handle,
-                    ctx,
-                )
-            });
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: true,
-                        listener: Some(listener),
-                        remote_host: None,
-                        plugin_version: Some("1.0.0".to_owned()),
-                        draft_text: None,
-                        received_rich_notification: true,
-                    },
-                    ctx,
-                );
-            });
-
-            view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::FooterButton, ctx);
-            assert!(view.has_active_cli_agent_input_session(ctx));
-
-            view.submit_cli_agent_rich_input("hello".to_owned(), ctx);
-
-            // Rich input stays open because auto_toggle + plugin takes precedence.
-            assert!(view.has_active_cli_agent_input_session(ctx));
-        });
-    })
-}
-
-#[test]
-fn submit_with_plugin_but_auto_toggle_off_respects_auto_dismiss() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            let _ = settings.auto_toggle_rich_input.set_value(false, ctx);
-            let _ = settings
-                .auto_dismiss_rich_input_after_submit
-                .set_value(true, ctx);
-        });
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            let listener = ctx.add_model(|ctx| {
-                CLIAgentSessionListener::new(
-                    view.view_id,
-                    CLIAgent::Claude,
-                    &view.model_events_handle,
-                    ctx,
-                )
-            });
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: true,
-                        listener: Some(listener),
-                        remote_host: None,
-                        plugin_version: Some("1.0.0".to_owned()),
-                        draft_text: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::FooterButton, ctx);
-            assert!(view.has_active_cli_agent_input_session(ctx));
-
-            view.submit_cli_agent_rich_input("hello".to_owned(), ctx);
-        });
-
-        // auto_toggle is off, so auto_dismiss closes rich input.
-        // Claude uses DelayedEnter, so the close happens after a timer.
-        assert_eventually!(
-            terminal.read(&app, |view, ctx| !view
-                .has_active_cli_agent_input_session(ctx)),
-            "Rich input should be closed after submit with auto_dismiss"
-        );
-    })
-}
-
-#[test]
-fn status_blocked_auto_closes_rich_input() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-        // auto_toggle_rich_input defaults to true.
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            let listener = ctx.add_model(|ctx| {
-                CLIAgentSessionListener::new(
-                    view.view_id,
-                    CLIAgent::Claude,
-                    &view.model_events_handle,
-                    ctx,
-                )
-            });
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: true,
-                        listener: Some(listener),
-                        remote_host: None,
-                        plugin_version: Some("1.0.0".to_owned()),
-                        draft_text: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::FooterButton, ctx);
-            assert!(view.has_active_cli_agent_input_session(ctx));
-
-            // Simulate a PermissionRequest event → status transitions to Blocked.
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        source: CLIAgentEventSource::RichPlugin,
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::PermissionRequest,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload {
-                            summary: Some("Approve?".to_owned()),
-                            ..Default::default()
-                        },
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        // The StatusChanged event is delivered to the terminal view, which
-        // auto-closes rich input because the agent is blocked.
-        terminal.read(&app, |view, ctx| {
-            assert!(!view.has_active_cli_agent_input_session(ctx));
-        });
-
-        // should_auto_toggle_input is preserved so auto-open can fire later.
-        terminal.read(&app, |_view, ctx| {
-            let session = CLIAgentSessionsModel::as_ref(ctx).session(_view.view_id);
-            assert!(session.unwrap().should_auto_toggle_input);
-        });
-    })
-}
-
-#[test]
-fn status_in_progress_auto_opens_rich_input_after_blocked() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            let listener = ctx.add_model(|ctx| {
-                CLIAgentSessionListener::new(
-                    view.view_id,
-                    CLIAgent::Claude,
-                    &view.model_events_handle,
-                    ctx,
-                )
-            });
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: true,
-                        listener: Some(listener),
-                        remote_host: None,
-                        plugin_version: Some("1.0.0".to_owned()),
-                        draft_text: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            // Open rich input, then simulate blocked → closed automatically.
-            view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::FooterButton, ctx);
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        source: CLIAgentEventSource::RichPlugin,
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::PermissionRequest,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload {
-                            summary: Some("Approve?".to_owned()),
-                            ..Default::default()
-                        },
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        // Rich input should be auto-closed from the blocked status.
-        terminal.read(&app, |view, ctx| {
-            assert!(!view.has_active_cli_agent_input_session(ctx));
-        });
-
-        // Simulate permission replied → status transitions back to InProgress.
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        source: CLIAgentEventSource::RichPlugin,
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::PermissionReplied,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload::default(),
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        // Rich input should auto-open because should_auto_toggle_input was preserved.
-        terminal.read(&app, |view, ctx| {
-            assert!(view.has_active_cli_agent_input_session(ctx));
-        });
-    })
-}
-
-// Regression test for https://github.com/warpdotdev/warp/issues/9059.
-// Codex's listener doesn't emit Blocked-state events (it only forwards opaque
-// OSC 9 notifications as Stop), so auto-toggling rich input would trap arrow
-// keys when Codex shows interactive option menus. Auto-toggle must not fire
-// for agents whose handlers report `supports_rich_status() == false`.
-#[test]
-fn codex_status_change_does_not_auto_open_rich_input() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-        // auto_toggle_rich_input defaults to true.
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            let listener = ctx.add_model(|ctx| {
-                CLIAgentSessionListener::new(
-                    view.view_id,
-                    CLIAgent::Codex,
-                    &view.model_events_handle,
-                    ctx,
-                )
-            });
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Codex,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: true,
-                        listener: Some(listener),
-                        remote_host: None,
-                        plugin_version: None,
-                        draft_text: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            // Rich input starts closed. Simulating a Stop event (the only
-            // status Codex's handler ever emits) must not re-open it,
-            // because the user may be navigating Codex's option menus.
-            assert!(!view.has_active_cli_agent_input_session(ctx));
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        source: CLIAgentEventSource::CodexOsc9Fallback,
-                        v: 1,
-                        agent: CLIAgent::Codex,
-                        event: CLIAgentEventType::Stop,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload {
-                            query: Some("Agent turn complete".to_owned()),
-                            ..Default::default()
-                        },
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        terminal.read(&app, |view, ctx| {
-            assert!(!view.has_active_cli_agent_input_session(ctx));
-        });
-    })
-}
-
-#[test]
-fn cli_session_status_updates_active_child_conversation() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        let child_conversation_id = terminal.update(&mut app, |view, ctx| {
-            let parent_conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_conversation(view.view_id, false, false, false, ctx)
-                });
-            let child_conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_child_conversation(
-                        view.view_id,
-                        "Agent 2".to_string(),
-                        parent_conversation_id,
-                        None,
-                        false,
-                        ctx,
-                    )
-                });
-
-            view.enter_agent_view(
-                None,
-                Some(child_conversation_id),
-                AgentViewEntryOrigin::ChildAgent,
-                ctx,
-            );
-
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: false,
-                        listener: None,
-                        remote_host: None,
-                        plugin_version: None,
-                        draft_text: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            child_conversation_id
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(conversation.status(), &ConversationStatus::InProgress);
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        source: CLIAgentEventSource::RichPlugin,
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::PermissionRequest,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload {
-                            summary: Some("Approve?".to_owned()),
-                            ..Default::default()
-                        },
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(
-                conversation.status(),
-                &ConversationStatus::Blocked {
-                    blocked_action: "Approve?".to_string(),
-                }
-            );
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        source: CLIAgentEventSource::RichPlugin,
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::PermissionReplied,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload::default(),
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(conversation.status(), &ConversationStatus::InProgress);
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        source: CLIAgentEventSource::RichPlugin,
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::Stop,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload {
-                            response: Some("Done".to_owned()),
-                            ..Default::default()
-                        },
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(conversation.status(), &ConversationStatus::Success);
-        });
-    })
-}
-
-#[test]
-fn cli_session_status_updates_single_child_conversation_without_agent_view() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        let child_conversation_id = terminal.update(&mut app, |view, ctx| {
-            let parent_conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_conversation(view.view_id, false, false, false, ctx)
-                });
-            let child_conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_child_conversation(
-                        view.view_id,
-                        "Agent 2".to_string(),
-                        parent_conversation_id,
-                        None,
-                        false,
-                        ctx,
-                    )
-                });
-
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: false,
-                        listener: None,
-                        remote_host: None,
-                        plugin_version: None,
-                        draft_text: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            child_conversation_id
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(conversation.status(), &ConversationStatus::InProgress);
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        source: CLIAgentEventSource::RichPlugin,
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::Stop,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload {
-                            response: Some("Done".to_owned()),
-                            ..Default::default()
-                        },
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(conversation.status(), &ConversationStatus::Success);
-        });
-    })
-}
-
-#[test]
-fn manual_dismiss_disables_auto_toggle_for_session() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            let listener = ctx.add_model(|ctx| {
-                CLIAgentSessionListener::new(
-                    view.view_id,
-                    CLIAgent::Claude,
-                    &view.model_events_handle,
-                    ctx,
-                )
-            });
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: true,
-                        listener: Some(listener),
-                        remote_host: None,
-                        plugin_version: Some("1.0.0".to_owned()),
-                        draft_text: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::FooterButton, ctx);
-            assert!(view.has_active_cli_agent_input_session(ctx));
-
-            // Manual dismiss via the "disable auto-toggle" path (Escape / Ctrl-G / footer).
-            view.close_cli_agent_rich_input_and_disable_auto_toggle(ctx);
-            assert!(!view.has_active_cli_agent_input_session(ctx));
-        });
-
-        // should_auto_toggle_input should now be false.
-        terminal.read(&app, |view, ctx| {
-            let session = CLIAgentSessionsModel::as_ref(ctx).session(view.view_id);
-            assert!(!session.unwrap().should_auto_toggle_input);
-        });
-
-        // A status change to InProgress should NOT auto-open rich input.
-        terminal.update(&mut app, |view, ctx| {
-            // First move to Blocked so we can transition back.
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        source: CLIAgentEventSource::RichPlugin,
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::PermissionRequest,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload {
-                            summary: Some("Approve?".to_owned()),
-                            ..Default::default()
-                        },
-                    },
-                    ctx,
-                );
-            });
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        source: CLIAgentEventSource::RichPlugin,
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::PermissionReplied,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload::default(),
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        // Rich input should remain closed.
-        terminal.read(&app, |view, ctx| {
-            assert!(!view.has_active_cli_agent_input_session(ctx));
-        });
-    })
-}
-
-#[test]
-fn close_cli_agent_rich_input_saves_draft_and_reopen_restores_it() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Claude);
-
-        // Type some text into the composer.
-        terminal.update(&mut app, |view, ctx| {
-            view.input.update(ctx, |input, ctx| {
-                input.replace_buffer_content("work in progress", ctx);
-            });
-        });
-
-        // Close the composer — the buffer text should be saved as a draft.
-        terminal.update(&mut app, |view, ctx| {
-            view.close_cli_agent_rich_input(CLIAgentRichInputCloseReason::Manual, ctx);
-            assert!(!view.has_active_cli_agent_input_session(ctx));
-        });
-
-        terminal.read(&app, |view, ctx| {
-            let session = CLIAgentSessionsModel::as_ref(ctx)
-                .session(view.view_id)
-                .expect("session should exist");
-            assert_eq!(
-                session.draft_text.as_deref(),
-                Some("work in progress"),
-                "draft should be saved on close"
-            );
-        });
-
-        // Reopen — draft should be restored into the buffer and consumed.
-        terminal.update(&mut app, |view, ctx| {
-            view.open_cli_agent_rich_input(CLIAgentInputEntrypoint::FooterButton, ctx);
-            assert!(view.has_active_cli_agent_input_session(ctx));
-        });
-
-        terminal.read(&app, |view, ctx| {
-            assert_eq!(
-                view.input.as_ref(ctx).buffer_text(ctx),
-                "work in progress",
-                "draft should be restored on reopen"
-            );
-            let session = CLIAgentSessionsModel::as_ref(ctx)
-                .session(view.view_id)
-                .expect("session should exist");
-            assert_eq!(
-                session.draft_text, None,
-                "draft should be consumed after restore"
-            );
-        });
-    })
-}
-
-#[test]
-fn submit_cli_agent_rich_input_clears_draft() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            // Keep the input open after submit so we can inspect the buffer.
-            let _ = settings
-                .auto_dismiss_rich_input_after_submit
-                .set_value(false, ctx);
-        });
-
-        let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Claude);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.submit_cli_agent_rich_input("hello agent".to_owned(), ctx);
-            // Input stays open because auto-dismiss is off.
-            assert!(view.has_active_cli_agent_input_session(ctx));
-        });
-
-        terminal.read(&app, |view, ctx| {
-            let session = CLIAgentSessionsModel::as_ref(ctx)
-                .session(view.view_id)
-                .expect("session should exist");
-            assert_eq!(
-                session.draft_text, None,
-                "draft should be cleared after submit"
-            );
-            assert!(
-                view.input.as_ref(ctx).buffer_text(ctx).is_empty(),
-                "buffer should be empty after submit"
-            );
-        });
-    })
-}
-
-#[test]
-fn close_cli_agent_rich_input_with_empty_buffer_stores_no_draft() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Claude);
-
-        // Close immediately without typing anything.
-        terminal.update(&mut app, |view, ctx| {
-            view.close_cli_agent_rich_input(CLIAgentRichInputCloseReason::Manual, ctx);
-            assert!(!view.has_active_cli_agent_input_session(ctx));
-        });
-
-        terminal.read(&app, |view, ctx| {
-            let session = CLIAgentSessionsModel::as_ref(ctx)
-                .session(view.view_id)
-                .expect("session should exist");
-            assert_eq!(
-                session.draft_text, None,
-                "no draft should be stored for empty buffer"
-            );
-        });
-    })
-}
-
 #[test]
 fn ctrl_c_does_not_accept_prompt_suggestion_banner() {
     App::test((), |mut app| async move {
@@ -8523,36 +6909,6 @@ fn copy_does_not_forward_on_normal_screen() {
         );
     })
 }
-
-#[test]
-fn warp_tui_listener_does_not_auto_open_rich_input() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            let _ = settings
-                .auto_open_rich_input_on_cli_agent_start
-                .set_value(true, ctx);
-        });
-
-        let terminal = add_window_with_terminal(&mut app, None);
-        terminal.update(&mut app, |view, ctx| {
-            view.handle_cli_agent_notification(
-                Some(CLI_AGENT_NOTIFICATION_SENTINEL),
-                r#"{"v":1,"agent":"warp-tui","event":"session_start"}"#,
-                ctx,
-            );
-        });
-
-        terminal.read(&app, |view, ctx| {
-            let session = CLIAgentSessionsModel::as_ref(ctx)
-                .session(view.view_id)
-                .expect("Warp TUI session should be registered");
-            assert!(session.listener.is_some());
-            assert!(!session.should_auto_toggle_input);
-            assert!(!view.has_active_cli_agent_input_session(ctx));
-        });
-    });
-}
 #[test]
 fn back_button_label_names_the_direct_parent_at_depth() {
     App::test((), |mut app| async move {
@@ -8661,4 +7017,444 @@ fn back_button_label_resolves_token_only_parent_linkage() {
             );
         });
     });
+}
+
+/// Registers a rich-status-capable, `InProgress` CLI agent session that has
+/// already observed a `prompt_submit` -- the state a real working third-party
+/// harness turn is in -- so `observe_ctrl_c_write` is able to arm.
+fn register_armable_cli_agent_session(app: &mut App, view_id: EntityId) {
+    let cli_sessions = CLIAgentSessionsModel::handle(app);
+    cli_sessions.update(app, |sessions, ctx| {
+        sessions.set_session(
+            view_id,
+            CLIAgentSession {
+                agent: CLIAgent::Claude,
+                status: CLIAgentSessionStatus::InProgress,
+                session_context: CLIAgentSessionContext::default(),
+                listener: None,
+                plugin_version: None,
+                remote_host: None,
+                received_rich_notification: true,
+            },
+            ctx,
+        );
+    });
+    cli_sessions.update(app, |sessions, ctx| {
+        sessions.update_from_event(
+            view_id,
+            &CLIAgentEvent {
+                v: 1,
+                agent: CLIAgent::Claude,
+                event: CLIAgentEventType::PromptSubmit,
+                session_id: None,
+                cwd: None,
+                project: None,
+                payload: CLIAgentEventPayload::default(),
+                source: CLIAgentEventSource::RichPlugin,
+            },
+            ctx,
+        );
+    });
+}
+
+#[test]
+fn drag_drop_image_in_cli_agent_long_running_command_pastes_via_clipboard() {
+    // Regression test: dropping an image file into a tab where a CLI agent
+    // (e.g. Claude Code) is the foreground long-running process should
+    // mirror the Cmd+V image-paste path — write the image to the system
+    // clipboard and send the agent's paste keystroke to the PTY — instead
+    // of shell-escaping the path and typing it into the agent's prompt.
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
+
+        // The new path actually reads the file off disk, so we need a real
+        // file. Bytes don't have to be a valid PNG.
+        let mut image_path = std::env::temp_dir();
+        image_path.push(format!(
+            "warp-test-cli-agent-drop-{}.png",
+            std::process::id()
+        ));
+        std::fs::write(&image_path, b"fake-png-bytes").expect("write tmp image");
+        let image_path_str = image_path.to_string_lossy().into_owned();
+
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
+        let writes = pty_writes.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                if let Event::WriteBytesToPty { bytes } = event {
+                    writes.borrow_mut().push(bytes.to_vec());
+                }
+            });
+        });
+
+        terminal.update(&mut app, |view, ctx| {
+            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                sessions.set_session(
+                    view.view_id,
+                    CLIAgentSession {
+                        agent: CLIAgent::Claude,
+                        status: CLIAgentSessionStatus::InProgress,
+                        session_context: CLIAgentSessionContext::default(),
+                        listener: None,
+                        remote_host: None,
+                        plugin_version: None,
+                        received_rich_notification: false,
+                    },
+                    ctx,
+                );
+            });
+
+            // The CLI-agent paste branch is gated on the active block being
+            // long-running (the agent's TUI). Without a long-running block
+            // we'd fall through to the regular image-attach flow.
+            {
+                let mut model = view.model.lock();
+                model.simulate_long_running_block("claude", "");
+                assert!(
+                    model
+                        .block_list()
+                        .active_block()
+                        .is_active_and_long_running()
+                );
+            }
+
+            view.drag_and_drop_files(&[image_path_str], ctx);
+        });
+
+        // The paste flow is async (off-thread file read, then hop back to
+        // the view to write the clipboard + paste keystroke). Wait for the
+        // single PTY write of the platform-appropriate paste byte: 0x16
+        // (Ctrl+V) on macOS/Linux, or `ESC v` on Windows. Without the fix
+        // a shell-escaped path string is written here instead.
+        let expected_paste_bytes: Vec<u8> = if cfg!(windows) {
+            vec![0x1b, b'v']
+        } else {
+            vec![0x16]
+        };
+        assert_eventually!(
+            pty_writes.borrow().len() == 1 && pty_writes.borrow()[0] == expected_paste_bytes,
+            "expected single paste-keystroke PTY write {:?}; got {:?}",
+            expected_paste_bytes,
+            pty_writes.borrow()
+        );
+
+        std::fs::remove_file(&image_path).ok();
+    })
+}
+
+#[test]
+fn paste_raw_image_clipboard_in_cli_agent_sends_correct_bytes() {
+    fn run_for_agent(agent: CLIAgent) {
+        App::test((), move |mut app| async move {
+            initialize_app_for_terminal_view(&mut app);
+            let _agent_view = FeatureFlag::AgentView.override_enabled(true);
+
+            let terminal = add_window_with_terminal(&mut app, None);
+
+            let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
+            let writes = pty_writes.clone();
+            app.update(|ctx| {
+                ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                    if let Event::WriteBytesToPty { bytes } = event {
+                        writes.borrow_mut().push(bytes.to_vec());
+                    }
+                });
+            });
+
+            terminal.update(&mut app, |view, ctx| {
+                CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                    sessions.set_session(
+                        view.view_id,
+                        CLIAgentSession {
+                            agent,
+                            status: CLIAgentSessionStatus::InProgress,
+                            session_context: CLIAgentSessionContext::default(),
+                            listener: None,
+                            remote_host: None,
+                            plugin_version: None,
+                            received_rich_notification: false,
+                        },
+                        ctx,
+                    );
+                });
+
+                {
+                    let mut model = view.model.lock();
+                    model.simulate_long_running_block(agent.command_prefix(), "");
+                    model.set_mode(ansi::Mode::BracketedPaste);
+                }
+
+                // Write image-only data to the clipboard (no text, no paths).
+                ctx.clipboard().write(ClipboardContent {
+                    images: Some(vec![warpui::clipboard::ImageData {
+                        data: vec![0x89, 0x50, 0x4E, 0x47], // PNG magic bytes
+                        mime_type: "image/png".to_string(),
+                        filename: None,
+                    }]),
+                    ..Default::default()
+                });
+
+                view.handle_action(&TerminalAction::Paste, ctx);
+            });
+
+            let writes = pty_writes.borrow();
+            assert_eq!(
+                writes.len(),
+                1,
+                "expected 1 PTY write, got {}",
+                writes.len()
+            );
+
+            if cfg!(windows) {
+                if agent == CLIAgent::Claude {
+                    assert_eq!(writes[0], vec![C0::ESC, b'v']);
+                } else {
+                    let mut expected = Vec::new();
+                    expected.extend_from_slice(BRACKETED_PASTE_START);
+                    expected.extend_from_slice(BRACKETED_PASTE_END);
+                    assert_eq!(writes[0], expected);
+                }
+            } else {
+                assert_eq!(writes[0], vec![C0::SYN]);
+            }
+        })
+    }
+
+    run_for_agent(CLIAgent::Claude);
+    run_for_agent(CLIAgent::OpenCode);
+    run_for_agent(CLIAgent::Codex);
+}
+
+#[test]
+fn cli_session_status_updates_active_child_conversation() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
+
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        let child_conversation_id = terminal.update(&mut app, |view, ctx| {
+            let parent_conversation_id =
+                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
+                    history_model.start_new_conversation(view.view_id, false, false, false, ctx)
+                });
+            let child_conversation_id =
+                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
+                    history_model.start_new_child_conversation(
+                        view.view_id,
+                        "Agent 2".to_string(),
+                        parent_conversation_id,
+                        None,
+                        false,
+                        ctx,
+                    )
+                });
+
+            view.enter_agent_view(
+                None,
+                Some(child_conversation_id),
+                AgentViewEntryOrigin::ChildAgent,
+                ctx,
+            );
+
+            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                sessions.set_session(
+                    view.view_id,
+                    CLIAgentSession {
+                        agent: CLIAgent::Claude,
+                        status: CLIAgentSessionStatus::InProgress,
+                        session_context: CLIAgentSessionContext::default(),
+                        listener: None,
+                        remote_host: None,
+                        plugin_version: None,
+                        received_rich_notification: false,
+                    },
+                    ctx,
+                );
+            });
+
+            child_conversation_id
+        });
+
+        terminal.read(&app, |_view, ctx| {
+            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(&child_conversation_id)
+                .expect("child conversation should exist");
+            assert_eq!(conversation.status(), &ConversationStatus::InProgress);
+        });
+
+        terminal.update(&mut app, |view, ctx| {
+            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                sessions.update_from_event(
+                    view.view_id,
+                    &CLIAgentEvent {
+                        source: CLIAgentEventSource::RichPlugin,
+                        v: 1,
+                        agent: CLIAgent::Claude,
+                        event: CLIAgentEventType::PermissionRequest,
+                        session_id: None,
+                        cwd: None,
+                        project: None,
+                        payload: CLIAgentEventPayload {
+                            summary: Some("Approve?".to_owned()),
+                            ..Default::default()
+                        },
+                    },
+                    ctx,
+                );
+            });
+        });
+
+        terminal.read(&app, |_view, ctx| {
+            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(&child_conversation_id)
+                .expect("child conversation should exist");
+            assert_eq!(
+                conversation.status(),
+                &ConversationStatus::Blocked {
+                    blocked_action: "Approve?".to_string(),
+                }
+            );
+        });
+
+        terminal.update(&mut app, |view, ctx| {
+            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                sessions.update_from_event(
+                    view.view_id,
+                    &CLIAgentEvent {
+                        source: CLIAgentEventSource::RichPlugin,
+                        v: 1,
+                        agent: CLIAgent::Claude,
+                        event: CLIAgentEventType::PermissionReplied,
+                        session_id: None,
+                        cwd: None,
+                        project: None,
+                        payload: CLIAgentEventPayload::default(),
+                    },
+                    ctx,
+                );
+            });
+        });
+
+        terminal.read(&app, |_view, ctx| {
+            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(&child_conversation_id)
+                .expect("child conversation should exist");
+            assert_eq!(conversation.status(), &ConversationStatus::InProgress);
+        });
+
+        terminal.update(&mut app, |view, ctx| {
+            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                sessions.update_from_event(
+                    view.view_id,
+                    &CLIAgentEvent {
+                        source: CLIAgentEventSource::RichPlugin,
+                        v: 1,
+                        agent: CLIAgent::Claude,
+                        event: CLIAgentEventType::Stop,
+                        session_id: None,
+                        cwd: None,
+                        project: None,
+                        payload: CLIAgentEventPayload {
+                            response: Some("Done".to_owned()),
+                            ..Default::default()
+                        },
+                    },
+                    ctx,
+                );
+            });
+        });
+
+        terminal.read(&app, |_view, ctx| {
+            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(&child_conversation_id)
+                .expect("child conversation should exist");
+            assert_eq!(conversation.status(), &ConversationStatus::Success);
+        });
+    })
+}
+
+#[test]
+fn cli_session_status_updates_single_child_conversation_without_agent_view() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
+
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        let child_conversation_id = terminal.update(&mut app, |view, ctx| {
+            let parent_conversation_id =
+                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
+                    history_model.start_new_conversation(view.view_id, false, false, false, ctx)
+                });
+            let child_conversation_id =
+                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
+                    history_model.start_new_child_conversation(
+                        view.view_id,
+                        "Agent 2".to_string(),
+                        parent_conversation_id,
+                        None,
+                        false,
+                        ctx,
+                    )
+                });
+
+            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                sessions.set_session(
+                    view.view_id,
+                    CLIAgentSession {
+                        agent: CLIAgent::Claude,
+                        status: CLIAgentSessionStatus::InProgress,
+                        session_context: CLIAgentSessionContext::default(),
+                        listener: None,
+                        remote_host: None,
+                        plugin_version: None,
+                        received_rich_notification: false,
+                    },
+                    ctx,
+                );
+            });
+
+            child_conversation_id
+        });
+
+        terminal.read(&app, |_view, ctx| {
+            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(&child_conversation_id)
+                .expect("child conversation should exist");
+            assert_eq!(conversation.status(), &ConversationStatus::InProgress);
+        });
+
+        terminal.update(&mut app, |view, ctx| {
+            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                sessions.update_from_event(
+                    view.view_id,
+                    &CLIAgentEvent {
+                        source: CLIAgentEventSource::RichPlugin,
+                        v: 1,
+                        agent: CLIAgent::Claude,
+                        event: CLIAgentEventType::Stop,
+                        session_id: None,
+                        cwd: None,
+                        project: None,
+                        payload: CLIAgentEventPayload {
+                            response: Some("Done".to_owned()),
+                            ..Default::default()
+                        },
+                    },
+                    ctx,
+                );
+            });
+        });
+
+        terminal.read(&app, |_view, ctx| {
+            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(&child_conversation_id)
+                .expect("child conversation should exist");
+            assert_eq!(conversation.status(), &ConversationStatus::Success);
+        });
+    })
 }

@@ -12,7 +12,6 @@ use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use self::listener::CLIAgentSessionListener;
 use super::CLIAgent;
-use crate::ai::blocklist::InputConfig;
 
 /// How long to wait, after observing a synthesized Ctrl-C write to a working
 /// CLI agent session's PTY, for further plugin activity before concluding the
@@ -66,49 +65,6 @@ pub struct CLIAgentSessionContext {
     pub response: Option<String>,
 }
 
-/// State of the rich input editor for composing a prompt to send to a CLI agent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CLIAgentInputState {
-    /// The rich input editor is not open.
-    Closed,
-    /// The rich input editor is open.
-    Open {
-        /// How this session was opened (for telemetry).
-        entrypoint: CLIAgentInputEntrypoint,
-        /// The input config that was active before opening rich input.
-        previous_input_config: InputConfig,
-        /// Whether the previous lock state was established while the input buffer was empty.
-        previous_was_lock_set_with_empty_buffer: bool,
-    },
-}
-
-/// Why the CLI agent rich input was closed (for telemetry).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-pub enum CLIAgentRichInputCloseReason {
-    /// User explicitly closed (Escape, Ctrl-G, footer button).
-    Manual,
-    /// Auto-closed due to agent status change (e.g. Blocked).
-    AutoToggle,
-    /// Auto-dismissed after submitting a prompt.
-    Submit,
-    /// Closed for another reason (chip removed, session ended, shared session sync).
-    Other,
-}
-
-/// How a [`CLIAgentInputState`] was opened.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-pub enum CLIAgentInputEntrypoint {
-    /// User pressed Ctrl-G while a CLI agent was active.
-    CtrlG,
-    /// User clicked the rich input button in the CLI agent footer.
-    FooterButton,
-    /// Automatically opened when the CLI agent resumed work (left a blocked state)
-    /// and the auto-show setting is enabled.
-    AutoShow,
-    /// Rich input was opened to mirror a shared-session participant's state.
-    SharedSessionSync,
-}
-
 impl CLIAgentSessionContext {
     pub(crate) fn latest_user_prompt(&self) -> Option<String> {
         self.query
@@ -134,10 +90,6 @@ pub struct CLIAgentSession {
     pub agent: CLIAgent,
     pub status: CLIAgentSessionStatus,
     pub session_context: CLIAgentSessionContext,
-    /// Rich input editor state.
-    pub input_state: CLIAgentInputState,
-    /// Whether status-driven auto-toggle is enabled for this session.
-    pub should_auto_toggle_input: bool,
     /// Event listener for plugin-backed sessions or Codex OSC9 fallback.
     /// `None` for non-Codex sessions created by command detection alone.
     /// Dropping this handle cleans up the listener's PTY event subscription.
@@ -148,9 +100,6 @@ pub struct CLIAgentSession {
     /// `None` when the session is local.
     /// `Some("user@hostname")` when running over SSH (warpified or legacy).
     pub remote_host: Option<String>,
-    /// Draft text saved from the rich input composer when it was closed.
-    /// Restored into the editor when the composer is reopened.
-    pub draft_text: Option<String>,
     /// Set once the session has received any structured OSC 777 (rich)
     /// notification. Codex's OSC 9 fallback never sets it, so this is the
     /// single source of truth for whether the session is plugin-backed.
@@ -260,7 +209,7 @@ impl CLIAgentSession {
 }
 
 /// Events emitted by `CLIAgentSessionsModel` for subscribers (e.g., `AgentNotificationsModel`).
-#[allow(dead_code)] // `agent` fields on Started/InputSessionChanged/Ended are used for logging and future subscribers.
+#[allow(dead_code)] // `agent` fields on Started/Ended are used for logging and future subscribers.
 #[derive(Debug, Clone)]
 pub enum CLIAgentSessionsModelEvent {
     Started {
@@ -272,15 +221,6 @@ pub enum CLIAgentSessionsModelEvent {
         agent: CLIAgent,
         status: CLIAgentSessionStatus,
         session_context: Box<CLIAgentSessionContext>,
-    },
-    InputSessionChanged {
-        terminal_view_id: EntityId,
-        agent: CLIAgent,
-        /// The input state BEFORE this change. When transitioning from
-        /// `Open` → `Closed`, contains the saved input config to restore.
-        previous_input_state: CLIAgentInputState,
-        /// The input state AFTER this change.
-        new_input_state: CLIAgentInputState,
     },
     Ended {
         terminal_view_id: EntityId,
@@ -301,9 +241,6 @@ impl CLIAgentSessionsModelEvent {
                 terminal_view_id, ..
             }
             | CLIAgentSessionsModelEvent::StatusChanged {
-                terminal_view_id, ..
-            }
-            | CLIAgentSessionsModelEvent::InputSessionChanged {
                 terminal_view_id, ..
             }
             | CLIAgentSessionsModelEvent::Ended {
@@ -366,13 +303,6 @@ impl CLIAgentSessionsModel {
         self.sessions.get(&terminal_view_id)
     }
 
-    /// Returns `true` if the rich input editor is currently open for this terminal.
-    pub fn is_input_open(&self, terminal_view_id: EntityId) -> bool {
-        self.sessions
-            .get(&terminal_view_id)
-            .is_some_and(|s| matches!(s.input_state, CLIAgentInputState::Open { .. }))
-    }
-
     /// Registers a plugin-backed listener on the session for this terminal.
     ///
     /// If a session for the same agent already exists (e.g. created earlier by
@@ -393,7 +323,6 @@ impl CLIAgentSessionsModel {
         session_id: Option<String>,
         plugin_version: Option<String>,
         remote_host: Option<String>,
-        should_auto_toggle_input: bool,
         listener: ModelHandle<CLIAgentSessionListener>,
         ctx: &mut ModelContext<Self>,
     ) {
@@ -407,7 +336,6 @@ impl CLIAgentSessionsModel {
             session.listener = Some(listener);
             session.plugin_version = plugin_version;
             session.remote_host = remote_host;
-            session.should_auto_toggle_input = should_auto_toggle_input;
             session.session_context.cwd = cwd.or(session.session_context.cwd.take());
             session.session_context.project = project.or(session.session_context.project.take());
             session.session_context.session_id =
@@ -426,12 +354,9 @@ impl CLIAgentSessionsModel {
                     session_id,
                     ..Default::default()
                 },
-                input_state: CLIAgentInputState::Closed,
-                should_auto_toggle_input,
                 listener: Some(listener),
                 plugin_version,
                 remote_host,
-                draft_text: None,
                 received_rich_notification: false,
             },
             ctx,
@@ -662,59 +587,6 @@ impl CLIAgentSessionsModel {
             .is_some_and(|state| state.pending_cancel.is_some())
     }
 
-    pub fn open_input(
-        &mut self,
-        terminal_view_id: EntityId,
-        entrypoint: CLIAgentInputEntrypoint,
-        previous_input_config: InputConfig,
-        previous_was_lock_set_with_empty_buffer: bool,
-        should_auto_toggle_input: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let Some(session) = self.sessions.get_mut(&terminal_view_id) else {
-            return;
-        };
-
-        let previous_input_state = session.input_state;
-        session.input_state = CLIAgentInputState::Open {
-            entrypoint,
-            previous_input_config,
-            previous_was_lock_set_with_empty_buffer,
-        };
-        session.should_auto_toggle_input = should_auto_toggle_input;
-
-        ctx.emit(CLIAgentSessionsModelEvent::InputSessionChanged {
-            terminal_view_id,
-            agent: session.agent,
-            previous_input_state,
-            new_input_state: session.input_state,
-        });
-    }
-
-    pub fn close_input(
-        &mut self,
-        terminal_view_id: EntityId,
-        should_auto_toggle_input: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let Some(session) = self.sessions.get_mut(&terminal_view_id) else {
-            return;
-        };
-        if session.input_state == CLIAgentInputState::Closed {
-            return;
-        }
-
-        let previous_input_state = session.input_state;
-        session.input_state = CLIAgentInputState::Closed;
-        session.should_auto_toggle_input = should_auto_toggle_input;
-        ctx.emit(CLIAgentSessionsModelEvent::InputSessionChanged {
-            terminal_view_id,
-            agent: session.agent,
-            previous_input_state,
-            new_input_state: CLIAgentInputState::Closed,
-        });
-    }
-
     pub fn set_session(
         &mut self,
         terminal_view_id: EntityId,
@@ -722,9 +594,6 @@ impl CLIAgentSessionsModel {
         ctx: &mut ModelContext<Self>,
     ) {
         let agent = session.agent;
-        // Close any open rich input before replacing, so subscribers can
-        // restore input config before the session ends.
-        self.close_input(terminal_view_id, false, ctx);
         // A fresh session must re-observe `prompt_submit` before Ctrl-C can
         // arm, and any pending window belonged to the session being replaced.
         self.abort_pending_cancel(terminal_view_id);
@@ -740,32 +609,6 @@ impl CLIAgentSessionsModel {
             terminal_view_id,
             agent,
         });
-    }
-
-    /// Saves draft text from the rich input composer for the given terminal.
-    /// Stores `None` for empty or whitespace-only text.
-    pub fn set_draft(&mut self, terminal_view_id: EntityId, text: String) {
-        if let Some(session) = self.sessions.get_mut(&terminal_view_id) {
-            session.draft_text = if text.trim().is_empty() {
-                None
-            } else {
-                Some(text)
-            };
-        }
-    }
-
-    /// Clears any saved draft text for the given terminal.
-    pub fn clear_draft(&mut self, terminal_view_id: EntityId) {
-        if let Some(session) = self.sessions.get_mut(&terminal_view_id) {
-            session.draft_text = None;
-        }
-    }
-
-    /// Returns and clears the draft text for the given terminal, if any.
-    pub fn take_draft(&mut self, terminal_view_id: EntityId) -> Option<String> {
-        self.sessions
-            .get_mut(&terminal_view_id)
-            .and_then(|s| s.draft_text.take())
     }
 }
 

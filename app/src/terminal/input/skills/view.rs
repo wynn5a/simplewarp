@@ -1,6 +1,6 @@
 use ai::skills::SkillReference;
 use warpui::elements::ChildView;
-use warpui::{Element, Entity, EntityId, ModelHandle, View, ViewContext, ViewHandle};
+use warpui::{Element, Entity, ModelHandle, View, ViewContext, ViewHandle};
 
 use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::search::data_source::Query;
@@ -40,17 +40,11 @@ impl InlineSkillSelectorView {
         input_buffer_model: &ModelHandle<InputBufferModel>,
         positioner: &ModelHandle<InlineMenuPositioner>,
         active_session: ModelHandle<ActiveSession>,
-        terminal_view_id: EntityId,
         ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let data_source = ctx.add_model(|ctx| {
-            SkillSelectorDataSource::new(
-                active_session,
-                terminal_view_id,
-                ambient_agent_view_model,
-                ctx,
-            )
+            SkillSelectorDataSource::new(active_session, ambient_agent_view_model, ctx)
         });
 
         let mixer = ctx.add_model(|_| {

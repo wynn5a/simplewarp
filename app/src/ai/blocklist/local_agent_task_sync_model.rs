@@ -192,7 +192,6 @@ impl LocalAgentTaskSyncModel {
             // Pane-scoped CLI agent sessions can end between preflight, the
             // harness, and follow-ups, but the mapping belongs to the driver run.
             CLIAgentSessionsModelEvent::Started { .. }
-            | CLIAgentSessionsModelEvent::InputSessionChanged { .. }
             | CLIAgentSessionsModelEvent::Ended { .. }
             | CLIAgentSessionsModelEvent::SessionUpdated { .. } => {}
         }

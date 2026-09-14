@@ -625,7 +625,6 @@ default = [
     "agent_toolbar_editor",
     "configurable_toolbar",
     "transfer_control_tool",
-    "cli_agent_rich_input",
     "vertical_tabs",
     "vertical_tabs_summary_mode",
     "tab_configs",
@@ -772,7 +771,6 @@ simplewarp = [
     "agent_toolbar_editor",
     "configurable_toolbar",
     "transfer_control_tool",
-    "cli_agent_rich_input",
     "vertical_tabs",
     "vertical_tabs_summary_mode",
     "tab_configs",
@@ -859,7 +857,6 @@ kitty_images = []
 kitty_keyboard_protocol = []
 ligatures = []
 trim_trailing_blank_lines = []
-cli_agent_rich_input = []
 list_skills = []
 # This feature is enabled in build.rs when compiling for platforms which
 # support having a local tty/shell session.  It can be used to conditionally

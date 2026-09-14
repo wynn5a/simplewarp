@@ -53,7 +53,6 @@ use crate::settings::import::config::ParsedTerminalSetting;
 use crate::settings::import::model::TerminalType;
 use crate::tab::TabTelemetryAction;
 use crate::terminal::block_list_viewport::InputMode;
-use crate::terminal::cli_agent_sessions::{CLIAgentInputEntrypoint, CLIAgentRichInputCloseReason};
 use crate::terminal::input::TelemetryInputSuggestionsMode;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::model::session::SessionId;
@@ -2525,27 +2524,6 @@ pub enum TelemetryEvent {
         /// The CLI agent being shown.
         cli_agent: CLIAgentType,
     },
-    /// Emitted when the user opens the CLI agent rich input editor.
-    CLIAgentRichInputOpened {
-        /// The CLI agent being used.
-        cli_agent: CLIAgentType,
-        /// How the editor was opened (Ctrl-G or footer button).
-        entrypoint: CLIAgentInputEntrypoint,
-    },
-    /// Emitted when the CLI agent rich input editor is closed.
-    CLIAgentRichInputClosed {
-        /// The CLI agent being used.
-        cli_agent: CLIAgentType,
-        /// Why the editor was closed.
-        reason: CLIAgentRichInputCloseReason,
-    },
-    /// Emitted when the user submits a prompt via the CLI agent rich input editor.
-    CLIAgentRichInputSubmitted {
-        /// The CLI agent being used.
-        cli_agent: CLIAgentType,
-        /// Length of the submitted prompt in characters.
-        prompt_length: usize,
-    },
     /// Emitted when a CLI agent plugin is first recognized (SessionStart event received).
     CLIAgentPluginDetected {
         /// The CLI agent whose plugin was detected.
@@ -4350,24 +4328,6 @@ impl TelemetryEvent {
             TelemetryEvent::CLIAgentToolbarShown { cli_agent } => Some(json!({
                 "agent_name": cli_agent,
             })),
-            TelemetryEvent::CLIAgentRichInputOpened {
-                cli_agent,
-                entrypoint,
-            } => Some(json!({
-                "agent_name": cli_agent,
-                "entrypoint": entrypoint,
-            })),
-            TelemetryEvent::CLIAgentRichInputClosed { cli_agent, reason } => Some(json!({
-                "agent_name": cli_agent,
-                "reason": reason,
-            })),
-            TelemetryEvent::CLIAgentRichInputSubmitted {
-                cli_agent,
-                prompt_length,
-            } => Some(json!({
-                "agent_name": cli_agent,
-                "prompt_length": prompt_length,
-            })),
             TelemetryEvent::CLIAgentPluginDetected { cli_agent } => Some(json!({
                 "agent_name": cli_agent,
             })),
@@ -4852,9 +4812,6 @@ impl TelemetryEvent {
             | TelemetryEvent::CLIAgentToolbarImageAttached { .. }
             | TelemetryEvent::CLIAgentToolbarShown { .. }
             | TelemetryEvent::CLIAgentPluginDetected { .. }
-            | TelemetryEvent::CLIAgentRichInputOpened { .. }
-            | TelemetryEvent::CLIAgentRichInputClosed { .. }
-            | TelemetryEvent::CLIAgentRichInputSubmitted { .. }
             | TelemetryEvent::ToggleCLIAgentToolbarSetting { .. }
             | TelemetryEvent::ToggleUseAgentToolbarSetting { .. }
             | TelemetryEvent::CodexModalOpened
@@ -5356,11 +5313,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CLIAgentToolbarImageAttached { .. } => EnablementState::Always,
             Self::CLIAgentToolbarShown { .. } => EnablementState::Always,
             Self::CLIAgentPluginDetected { .. } => EnablementState::Always,
-            Self::CLIAgentRichInputOpened { .. }
-            | Self::CLIAgentRichInputClosed { .. }
-            | Self::CLIAgentRichInputSubmitted { .. } => {
-                EnablementState::Flag(FeatureFlag::CLIAgentRichInput)
-            }
             Self::ToggleCLIAgentToolbarSetting { .. } => EnablementState::Always,
             Self::ToggleUseAgentToolbarSetting { .. } => EnablementState::Always,
             Self::CodexModalOpened | Self::CodexModalUseCodexClicked => EnablementState::Always,
@@ -5877,9 +5829,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CLIAgentToolbarImageAttached { .. } => "CLIAgentFooter.ImageAttached",
             Self::CLIAgentToolbarShown { .. } => "CLIAgentFooter.Shown",
             Self::CLIAgentPluginDetected { .. } => "CLIAgentPlugin.Detected",
-            Self::CLIAgentRichInputOpened { .. } => "CLIAgentRichInput.Opened",
-            Self::CLIAgentRichInputClosed { .. } => "CLIAgentRichInput.Closed",
-            Self::CLIAgentRichInputSubmitted { .. } => "CLIAgentRichInput.Submitted",
             Self::ToggleCLIAgentToolbarSetting { .. } => "CLIAgentFooter.SettingToggled",
             Self::ToggleUseAgentToolbarSetting { .. } => "UseAgentToolbar.SettingToggled",
             Self::CodexModalOpened => "CodexModal.Opened",
@@ -6634,11 +6583,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CLIAgentToolbarShown { .. } => "CLI agent footer was shown to the user",
             Self::CLIAgentPluginDetected { .. } => {
                 "A CLI agent plugin was detected via a SessionStart event"
-            }
-            Self::CLIAgentRichInputOpened { .. } => "User opened CLI agent Rich Input",
-            Self::CLIAgentRichInputClosed { .. } => "CLI agent Rich Input was closed",
-            Self::CLIAgentRichInputSubmitted { .. } => {
-                "User submitted a prompt via CLI agent Rich Input"
             }
             Self::ToggleCLIAgentToolbarSetting { .. } => {
                 "User toggled the CLI agent footer setting"

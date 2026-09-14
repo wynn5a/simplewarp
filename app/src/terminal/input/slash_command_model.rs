@@ -285,7 +285,6 @@ impl SlashCommandModel {
                 return;
             }
         } else if !self.data_source.as_ref(ctx).is_agent_view_active(ctx)
-            && !self.data_source.as_ref(ctx).is_cli_agent_input_open(ctx)
             && !*InputSettings::as_ref(ctx)
                 .enable_slash_commands_in_terminal
                 .value()

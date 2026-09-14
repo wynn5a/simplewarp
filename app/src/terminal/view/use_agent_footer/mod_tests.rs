@@ -20,8 +20,7 @@ use crate::ai::llms::LLMId;
 use crate::features::FeatureFlag;
 use crate::settings::AISettings;
 use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus,
-    CLIAgentSessionsModel,
+    CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
 };
 use crate::terminal::model::ansi::{BootstrappedValue, Handler as _, InitShellValue};
 use crate::terminal::{CLIAgent, Event};
@@ -307,13 +306,10 @@ fn cli_agent_footer_renders_for_active_cli_agent_session() {
                         agent: CLIAgent::Claude,
                         status: CLIAgentSessionStatus::InProgress,
                         session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
                         listener: None,
                         plugin_version: None,
                         remote_host: None,
-                        draft_text: None,
                         received_rich_notification: false,
-                        should_auto_toggle_input: false,
                     },
                     ctx,
                 );
@@ -353,13 +349,10 @@ fn cli_agent_footer_does_not_render_for_warp_tui_session() {
                         agent: CLIAgent::WarpTui,
                         status: CLIAgentSessionStatus::InProgress,
                         session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
                         listener: None,
                         plugin_version: None,
                         remote_host: None,
-                        draft_text: None,
                         received_rich_notification: false,
-                        should_auto_toggle_input: false,
                     },
                     ctx,
                 );
@@ -421,12 +414,9 @@ fn insert_cli_agent_voice_text_hermes_multiline_uses_bracketed_paste_without_sub
                         agent: CLIAgent::Hermes,
                         status: CLIAgentSessionStatus::InProgress,
                         session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: false,
                         listener: None,
                         remote_host: None,
                         plugin_version: None,
-                        draft_text: None,
                         received_rich_notification: false,
                     },
                     ctx,

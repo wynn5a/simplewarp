@@ -12,7 +12,6 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::CloudViewModel;
 use crate::cloud_object::{ObjectType, Owner, WarpDriveItemId};
 use crate::drive::CloudObjectTypeAndId;
-use crate::menu::MenuItem;
 use crate::network::NetworkStatus;
 use crate::notebooks::{CloudNotebook, CloudNotebookModel};
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -21,8 +20,6 @@ use crate::server::server_api::ServerApiProvider;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workflows::workflow::Workflow;
-use crate::workflows::{CloudWorkflow, CloudWorkflowModel};
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
@@ -52,25 +49,6 @@ fn create_index(app: &mut App) -> ViewHandle<DriveIndex> {
     index
 }
 
-fn create_workflow(app: &mut App) -> SyncId {
-    CloudModel::handle(app).update(app, |cloud_model, ctx| {
-        let client_id = ClientId::new();
-        let sync_id = SyncId::ClientId(client_id);
-        let workflow = Workflow::new("my workflow", "my command");
-        cloud_model.create_object(
-            sync_id,
-            CloudWorkflow::new_local(
-                CloudWorkflowModel::new(workflow),
-                Owner::mock_current_user(),
-                None,
-                client_id,
-            ),
-            ctx,
-        );
-        sync_id
-    })
-}
-
 fn create_notebook(app: &mut App) -> SyncId {
     CloudModel::handle(app).update(app, |cloud_model, ctx| {
         let client_id = ClientId::new();
@@ -88,14 +66,6 @@ fn create_notebook(app: &mut App) -> SyncId {
         sync_id
     })
 }
-fn label_for_menu_item(item: &MenuItem<DriveIndexAction>) -> &str {
-    if let MenuItem::Item(item) = item {
-        item.label()
-    } else {
-        panic!("item provided wasn't of type MenuItem::Item")
-    }
-}
-
 #[test]
 fn test_warp_drive_navigation_states() {
     use crate::drive::index::DriveIndexAction;

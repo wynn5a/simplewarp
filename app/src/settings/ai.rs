@@ -1512,61 +1512,7 @@ define_settings_group!(AISettings, settings: [
         toml_path: "agents.third_party.should_render_cli_agent_toolbar",
         description: "Whether to show the CLI agent footer for coding agent commands.",
     }
-    // When enabled and a CLI agent session has a plugin listener, rich input
-    // auto-closes when the session enters a Blocked state (the agent requires
-    // direct keyboard interaction) and auto-opens when it leaves Blocked.
-    auto_toggle_rich_input: AutoToggleRichInput {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.third_party.auto_toggle_composer",
-        description: "Whether CLI agent Rich Input automatically closes and reopens based on the agent's blocked state.",
-    }
-
-    // When enabled and a CLI agent session has a plugin listener, rich input
-    // auto-opens once when the session starts or when the listener is registered.
-    auto_open_rich_input_on_cli_agent_start: AutoOpenRichInputOnCLIAgentStart {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.third_party.auto_open_composer_on_cli_agent_start",
-        description: "Whether CLI agent Rich Input automatically opens when a CLI agent session starts.",
-    }
-
-    // When enabled and a CLI agent session does NOT have a plugin listener,
-    // rich input auto-closes after the user submits a prompt.
-    // When the plugin IS present, this setting has no effect (auto-show/hide
-    // from auto_toggle_rich_input handles rich input lifecycle).
-    auto_dismiss_rich_input_after_submit: AutoDismissRichInputAfterSubmit {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.third_party.auto_dismiss_composer_after_submit",
-        description: "Whether CLI agent Rich Input automatically closes after the user submits a prompt.",
-    }
-
-    // When enabled, the Rich Input editor submits on Ctrl+Enter instead of Enter.
-    // Enter inserts a newline; Ctrl+Enter submits.
-    submit_on_ctrl_enter: SubmitRichInputOnCtrlEnter {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.third_party.submit_on_ctrl_enter",
-        description: "When enabled, the Rich Input editor submits on Ctrl+Enter instead of Enter. Enter inserts a newline.",
-    }
-
+    // When enabled and a CLI agent session has a pl
     // Maps custom toolbar command regex patterns to specific CLI agents.
     // Keys are regex patterns matched against the full command string.
     // Values are serialized CLIAgent names (empty string = any agent).

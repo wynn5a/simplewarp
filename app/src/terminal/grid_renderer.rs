@@ -310,7 +310,6 @@ pub fn render_grid<'a>(
     respect_displayed_output: RespectDisplayedOutput,
     image_metadata: &HashMap<u32, StoredImageMetadata>,
     bg_color_sampler: Option<&mut ColorSampler>,
-    hide_cursor_cell: bool,
     ctx: &mut PaintContext,
     app: &AppContext,
 ) {
@@ -348,7 +347,6 @@ pub fn render_grid<'a>(
                 visible_cursor_shape,
                 image_metadata,
                 bg_color_sampler,
-                hide_cursor_cell,
                 ctx,
                 app,
             );
@@ -381,7 +379,6 @@ pub fn render_grid<'a>(
                 visible_cursor_shape,
                 image_metadata,
                 bg_color_sampler,
-                hide_cursor_cell,
                 ctx,
                 app,
             );
@@ -416,7 +413,6 @@ pub fn render_grid<'a>(
                 visible_cursor_shape,
                 image_metadata,
                 bg_color_sampler,
-                hide_cursor_cell,
                 ctx,
                 app,
             );
@@ -450,7 +446,6 @@ pub fn render_grid<'a>(
                 visible_cursor_shape,
                 image_metadata,
                 bg_color_sampler,
-                hide_cursor_cell,
                 ctx,
                 app,
             );
@@ -488,7 +483,6 @@ fn render_grid_without_ligatures<'a>(
     visible_cursor_shape: Option<CursorShape>,
     image_metadata: &HashMap<u32, StoredImageMetadata>,
     mut bg_color_sampler: Option<&mut ColorSampler>,
-    hide_cursor_cell: bool,
     ctx: &mut PaintContext,
     app: &AppContext,
 ) {
@@ -639,17 +633,6 @@ fn render_grid_without_ligatures<'a>(
 
         for col in 0..grid.columns() {
             let current_point = Point::new(row_idx, col);
-
-            // Skip the cursor cell when CLI agent rich input is open
-            // AND the agent draws its own cursor (SHOW_CURSOR is off).
-            // When Warp draws the cursor (SHOW_CURSOR on), we keep the cell
-            // and only suppress the draw_cursor call.
-            if hide_cursor_cell
-                && visible_cursor_shape.is_none()
-                && current_point == grid.cursor_render_point()
-            {
-                continue;
-            }
 
             // Determine if we need to override the cell to display the marked text.
             if current_point >= grid.cursor_point() {
@@ -805,11 +788,7 @@ fn render_grid_without_ligatures<'a>(
                 });
             }
 
-            // Don't apply cursor contrast colouring when hide_cursor_cell
-            // is active — the cursor itself won't be drawn, so the cell
-            // should render with its normal colours.
-            let cursor_color = (!hide_cursor_cell
-                && grid.cursor_point() == Point::new(offset_row, col)
+            let cursor_color = (grid.cursor_point() == Point::new(offset_row, col)
                 && visible_cursor_shape == Some(CursorShape::Block))
             .then(|| theme.cursor().into_solid());
             cached_background_color = render_cell(
@@ -1001,7 +980,6 @@ fn render_grid_with_ligatures<'a>(
     visible_cursor_shape: Option<CursorShape>,
     image_metadata: &HashMap<u32, StoredImageMetadata>,
     mut bg_color_sampler: Option<&mut ColorSampler>,
-    hide_cursor_cell: bool,
     ctx: &mut PaintContext,
     app: &AppContext,
 ) {
@@ -1183,17 +1161,6 @@ fn render_grid_with_ligatures<'a>(
 
             let current_point = Point::new(row_idx, col);
 
-            // Skip the cursor cell when CLI agent rich input is open
-            // AND the agent draws its own cursor (SHOW_CURSOR is off).
-            // When Warp draws the cursor (SHOW_CURSOR on), we keep the cell
-            // and only suppress the draw_cursor call.
-            if hide_cursor_cell
-                && visible_cursor_shape.is_none()
-                && current_point == grid.cursor_render_point()
-            {
-                continue;
-            }
-
             // Determine if we need to override the cell to display the marked text.
             if current_point >= grid.cursor_point() {
                 // Account for a wide char spacer cell if necessary.
@@ -1353,11 +1320,7 @@ fn render_grid_with_ligatures<'a>(
                 });
             }
 
-            // Don't apply cursor contrast colouring when hide_cursor_cell
-            // is active — the cursor itself won't be drawn, so the cell
-            // should render with its normal colours.
-            let cursor_color = (!hide_cursor_cell
-                && grid.cursor_point() == Point::new(offset_row, col)
+            let cursor_color = (grid.cursor_point() == Point::new(offset_row, col)
                 && visible_cursor_shape == Some(CursorShape::Block))
             .then(|| theme.cursor().into_solid());
             let cell_colors = cell_colors(

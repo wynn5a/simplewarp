@@ -142,7 +142,6 @@ impl AltScreenElement {
                         .as_f32(),
                 ),
                 use_ligature_rendering: false,
-                hide_cursor_cell: false,
             },
             scroll_top,
             visible_lines: None,
@@ -155,11 +154,6 @@ impl AltScreenElement {
 
     pub fn with_ligature_rendering(mut self) -> Self {
         self.grid_render_params.use_ligature_rendering = true;
-        self
-    }
-
-    pub fn with_hide_cursor_cell(mut self) -> Self {
-        self.grid_render_params.hide_cursor_cell = true;
         self
     }
 
@@ -672,15 +666,13 @@ impl Element for AltScreenElement {
             RespectDisplayedOutput::Yes,
             &model.image_id_to_metadata,
             Some(&mut sampler),
-            self.grid_render_params.hide_cursor_cell,
             ctx,
             app,
         );
         record_trace_event!("alt_screen_element:paint:grid_rendered");
 
         // Render cursor if the escape sequence is set.
-        // Also suppress the cursor when hide_cursor_cell is active (CLI agent rich input is open).
-        if cursor_visible && !self.grid_render_params.hide_cursor_cell {
+        if cursor_visible {
             grid_renderer::render_cursor(
                 &self.grid_render_params,
                 grid.cursor_render_point(),

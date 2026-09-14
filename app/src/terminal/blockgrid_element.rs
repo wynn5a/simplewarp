@@ -54,7 +54,6 @@ impl BlockGridElement {
                     size_info,
                     cell_size,
                     use_ligature_rendering: false,
-                    hide_cursor_cell: false,
                 },
                 colors: color::List::from(&color::Colors::from(theme.clone())),
                 override_colors: color::OverrideList::empty(),
