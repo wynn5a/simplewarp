@@ -117,7 +117,6 @@ fn dispatch_command(
         CliCommand::MCP(mcp_cmd) => mcp::run(ctx, global_options, mcp_cmd),
         CliCommand::Run(task_cmd) => run_task(ctx, global_options, task_cmd),
         CliCommand::Model(model_cmd) => model::run(ctx, global_options, model_cmd),
-        CliCommand::Login => admin::login(ctx),
         CliCommand::Logout => admin::logout(ctx),
         CliCommand::Whoami => admin::whoami(ctx, global_options.output_format),
         CliCommand::Provider(provider_cmd) => {
@@ -1246,7 +1245,6 @@ fn command_requires_auth(command: &CliCommand) -> bool {
         CliCommand::Model(model_cmd) => match model_cmd {
             ModelCommand::List => true,
         },
-        CliCommand::Login => false,
         CliCommand::Logout => false,
         CliCommand::Whoami => true,
         CliCommand::Provider(_) => true,
@@ -1419,7 +1417,6 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
             },
         },
         CliCommand::Model(ModelCommand::List) => CliTelemetryEvent::ModelList,
-        CliCommand::Login => CliTelemetryEvent::Login,
         CliCommand::Logout => CliTelemetryEvent::Logout,
         CliCommand::Whoami => CliTelemetryEvent::Whoami,
         CliCommand::Provider(ProviderCommand::Setup(_)) => CliTelemetryEvent::ProviderSetup,

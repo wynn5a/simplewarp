@@ -15119,7 +15119,6 @@ dependencies = [
  "log",
  "mockall",
  "mockito",
- "oauth2",
  "parking_lot",
  "pathfinder_geometry",
  "rand 0.8.6",

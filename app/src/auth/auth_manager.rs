@@ -1,20 +1,13 @@
-use std::future::Future;
 use std::result::Result as StdResult;
 use std::sync::Arc;
-use std::time::Duration;
 
-use anyhow::Result;
-use futures::future::Either;
 use settings::Setting as _;
-#[cfg(target_family = "wasm")]
-use url::Url;
 use uuid::Uuid;
 use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
 use warp_errors::{report_error, report_if_error};
 use warp_server_auth::API_KEY_PREFIX;
 use warp_server_auth::user::persistence::PersistedUser;
-use warpui::r#async::Timer;
 use warpui::{Entity, ModelContext, SingletonEntity, UpdateModel};
 
 use super::auth_state::{AuthState, PersistAction};
@@ -29,17 +22,11 @@ use crate::autoupdate::AutoupdateState;
 use crate::persistence::ModelEvent;
 use crate::server::server_api::ServerApi;
 use crate::server::server_api::auth::{AuthClient, FetchUserResult, UserAuthenticationError};
-use crate::server::telemetry::AnonymousUserSignupEntrypoint;
 use crate::settings::PrivacySettings;
 use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
 use crate::settings::initializer::SettingsInitializer;
 use crate::terminal::general_settings::GeneralSettings;
-#[cfg(target_family = "wasm")]
-use crate::uri::browser_url_handler::{parse_current_url, update_browser_url};
-use crate::{
-    GlobalResourceHandlesProvider, TelemetryEvent, persistence, send_telemetry_from_ctx,
-    send_telemetry_sync_from_ctx,
-};
+use crate::{GlobalResourceHandlesProvider, TelemetryEvent, persistence, send_telemetry_from_ctx};
 
 #[derive(Debug)]
 pub enum AuthManagerEvent {
@@ -56,62 +43,9 @@ pub enum AuthManagerEvent {
     // The current user is anonymous and the client has received a browser intent to sign in with a different Warp account.
     // Holds an auth payload from the received browser intent.
     LoginOverrideDetected(AuthRedirectPayload),
-    /// Failed to mint a new custom token for an anonymous user.
-    MintCustomTokenFailed,
-    /// Received a device authorization code as part of the device auth flow.
-    ReceivedDeviceAuthorizationCode {
-        #[cfg_attr(target_family = "wasm", allow(unused))]
-        verification_url: String,
-        #[cfg_attr(target_family = "wasm", allow(unused))]
-        verification_url_complete: Option<String>,
-        #[cfg_attr(target_family = "wasm", allow(unused))]
-        user_code: String,
-    },
 }
 
 pub type LoginGatedFeature = &'static str;
-
-type URLConstructorCallback = Box<dyn FnOnce(Option<&str>) -> String>;
-const DEVICE_CODE_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-const DEVICE_CODE_REQUEST_ATTEMPTS: usize = 2;
-
-async fn request_device_code_with_timeout<F, Fut>(
-    mut request: F,
-    timeout: Duration,
-    attempts: usize,
-) -> StdResult<oauth2::StandardDeviceAuthorizationResponse, UserAuthenticationError>
-where
-    F: FnMut() -> Fut,
-    Fut: Future<
-        Output = StdResult<oauth2::StandardDeviceAuthorizationResponse, UserAuthenticationError>,
-    >,
-{
-    assert!(
-        attempts > 0,
-        "device code request requires at least one attempt"
-    );
-
-    for attempt in 1..=attempts {
-        let request = request();
-        let timeout = Timer::after(timeout);
-        futures::pin_mut!(request);
-        futures::pin_mut!(timeout);
-
-        match futures::future::select(request, timeout).await {
-            Either::Left((result, _)) => return result,
-            Either::Right(_) if attempt < attempts => {
-                log::info!(
-                    "Device authorization code request timed out; retrying ({attempt}/{attempts})"
-                );
-            }
-            Either::Right(_) => {
-                return Err(UserAuthenticationError::DeviceCodeRequestTimedOut { attempts });
-            }
-        }
-    }
-
-    unreachable!("attempt count is asserted to be nonzero")
-}
 
 /// AuthManager is a singleton model which manages the currently logged-in user's state.
 /// If you need to access the state, use `AuthStateProvider`.
@@ -308,67 +242,6 @@ impl AuthManager {
             },
             Self::on_user_fetched,
         );
-    }
-
-    /// Authenticate asynchronously using the OAuth2 device authorization flow.
-    ///
-    /// This is only used by the Warp CLI if running on a device that does not have the Warp app installed.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub fn authorize_device(&self, ctx: &mut ModelContext<Self>) {
-        // Clear any stale user state so old credentials don't interfere
-        // with the fresh device auth flow.
-        self.auth_state.set_credentials(None);
-
-        let auth_client = self.auth_client.clone();
-        // Request a device code the user can enter in their browser.
-        ctx.spawn(
-            async move {
-                request_device_code_with_timeout(
-                    || auth_client.request_device_code(),
-                    DEVICE_CODE_REQUEST_TIMEOUT,
-                    DEVICE_CODE_REQUEST_ATTEMPTS,
-                )
-                .await
-            },
-            Self::on_device_code_received,
-        );
-    }
-
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    fn on_device_code_received(
-        &mut self,
-        result: Result<oauth2::StandardDeviceAuthorizationResponse, UserAuthenticationError>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Ok(details) => {
-                // Emit the device authorization details so that they can be shown to the user.
-                ctx.emit(AuthManagerEvent::ReceivedDeviceAuthorizationCode {
-                    verification_url: details.verification_uri().to_string(),
-                    verification_url_complete: details
-                        .verification_uri_complete()
-                        .map(|complete| complete.secret().to_string()),
-                    user_code: details.user_code().secret().to_string(),
-                });
-
-                let auth_client = self.auth_client.clone();
-                ctx.spawn(
-                    async move {
-                        // Wait for the user to approve the device authorization request.
-                        let token = auth_client
-                            .exchange_device_access_token(&details, Duration::from_secs(600))
-                            .await?;
-
-                        // Exchange the custom access token for Firebase auth tokens and fetch the user.
-                        auth_client
-                            .fetch_user(LoginToken::Firebase(token), false)
-                            .await
-                    },
-                    Self::on_user_fetched,
-                );
-            }
-            Err(err) => ctx.emit(AuthManagerEvent::AuthFailed(err)),
-        }
     }
 
     /// Callback for handling a successful fetch of a user from warp-server and Firebase.
@@ -620,89 +493,6 @@ impl AuthManager {
         };
     }
 
-    pub fn initiate_anonymous_user_linking(
-        &self,
-        entrypoint: AnonymousUserSignupEntrypoint,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let auth_client = self.auth_client.clone();
-        let _ = ctx.spawn(
-            async move { auth_client.fetch_new_custom_token().await },
-            move |me, response, ctx| {
-                let custom_token = me.auth_client.on_custom_token_fetched(response);
-
-                match custom_token {
-                    Ok(custom_token) => {
-                        // Send synchronously since this is an important event in the sign up funnel and we
-                        // don't want to lose events if the user quits before the event queue is flushed.
-                        send_telemetry_sync_from_ctx!(
-                            TelemetryEvent::InitiateAnonymousUserSignup { entrypoint },
-                            ctx
-                        );
-                        let login_options_url = me.login_options_url(&custom_token);
-                        if cfg!(target_family = "wasm") {
-                            #[cfg(target_family = "wasm")]
-                            if let Some(current_url) = parse_current_url() {
-                                update_browser_url(
-                                    Url::parse(&format!(
-                                        "{}?redirect_to={}",
-                                        login_options_url,
-                                        current_url.path()
-                                    ))
-                                    .ok(),
-                                    true,
-                                );
-                            } else {
-                                update_browser_url(Url::parse(&login_options_url).ok(), true);
-                            }
-                        } else {
-                            ctx.open_url(&login_options_url);
-                        }
-                    }
-                    Err(_) => {
-                        ctx.emit(AuthManagerEvent::MintCustomTokenFailed);
-                    }
-                }
-            },
-        );
-    }
-
-    // Opens a page in the web app and logs the user in using a customToken if they are an anonymous user.
-    // Accepts a callback that constructs the URL using the customToken to open a page and log in an anonymous user.
-    pub fn open_url_maybe_with_anonymous_token(
-        &self,
-        ctx: &mut ModelContext<Self>,
-        construct_url: URLConstructorCallback,
-    ) {
-        if !self.auth_state.is_user_anonymous().unwrap_or_default()
-            || !self.auth_state.is_logged_in()
-        {
-            // Not an anonymous Firebase user, or fully logged out — open URL without token.
-            let url: String = construct_url(None);
-            ctx.open_url(&url);
-            return;
-        }
-
-        let auth_client = self.auth_client.clone();
-        let _ = ctx.spawn(
-            async move { auth_client.fetch_new_custom_token().await },
-            move |me, response, ctx| {
-                let custom_token = me.auth_client.on_custom_token_fetched(response);
-                match custom_token {
-                    Ok(custom_token) => {
-                        let url: String = construct_url(Some(&custom_token));
-                        ctx.open_url(&url);
-                    }
-                    Err(e) => {
-                        report_error!(anyhow::Error::new(e).context(
-                            "Failed to fetch custom token for authenticating anonymous user in browser"
-                        ))
-                }
-                };
-            },
-        );
-    }
-
     /// Generates a unique state parameter for the authentication flow.
     fn generate_auth_state(&mut self) -> String {
         let state = Uuid::new_v4().to_string();
@@ -728,16 +518,6 @@ impl AuthManager {
             "{}/upgrade?scheme={}&state={}",
             ChannelState::server_root_url(),
             ChannelState::url_scheme(),
-            state,
-        )
-    }
-
-    pub fn login_options_url(&mut self, custom_token: &str) -> String {
-        let state = self.generate_auth_state();
-        format!(
-            "{}/login_options/{}?state={}",
-            ChannelState::server_root_url(),
-            custom_token,
             state,
         )
     }

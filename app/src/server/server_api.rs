@@ -23,7 +23,6 @@ use warp_server_client::base_client::{
     AuthenticatedGraphqlConfig, BaseClient, GraphqlRoutingConfig,
 };
 use warp_server_client::network_logging::NetworkLogModel;
-use warpui::r#async::BoxFuture;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::ambient_agents::AmbientAgentTaskId;
@@ -403,17 +402,6 @@ impl ServerApi {
     pub fn set_ambient_agent_task_id(&self, task_id: Option<AmbientAgentTaskId>) {
         self.base_client
             .set_ambient_agent_task_id(task_id.map(|task_id| task_id.to_string()));
-    }
-
-    pub fn send_graphql_request<'a, QF, O: warp_graphql::client::Operation<QF> + Send + 'a>(
-        &'a self,
-        _operation: O,
-        _timeout: Option<Duration>,
-    ) -> BoxFuture<'a, Result<QF>>
-    where
-        QF: 'a,
-    {
-        Box::pin(async { Err(local_only_error()) })
     }
 
     /// Opens an SSE stream to the agent event-push endpoint.

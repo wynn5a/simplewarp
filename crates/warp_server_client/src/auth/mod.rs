@@ -7,7 +7,6 @@ use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
 use cynic::{MutationBuilder, QueryBuilder};
 use firebase::FirebaseError;
-use instant::Duration;
 #[cfg(any(test, feature = "test-util"))]
 use mockall::automock;
 pub use session::*;
@@ -15,16 +14,12 @@ use thiserror::Error;
 pub use user_uid::{TEST_USER_EMAIL, TEST_USER_UID, UserUid};
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
 use warp_graphql::client::Operation;
-use warp_graphql::mutations::create_anonymous_user::{
-    AnonymousUserType, CreateAnonymousUser, CreateAnonymousUserResult, CreateAnonymousUserVariables,
-};
 use warp_graphql::mutations::expire_api_key::{
     ExpireApiKey, ExpireApiKeyResult, ExpireApiKeyVariables,
 };
 use warp_graphql::mutations::generate_api_key::{
     GenerateApiKey, GenerateApiKeyInput, GenerateApiKeyResult, GenerateApiKeyVariables,
 };
-use warp_graphql::mutations::mint_custom_token::{MintCustomTokenResult, MintCustomTokenVariables};
 use warp_graphql::mutations::set_user_is_onboarded::{
     SetUserIsOnboarded, SetUserIsOnboardedResult, SetUserIsOnboardedVariables,
 };
@@ -37,7 +32,7 @@ use warp_graphql::queries::api_keys::{
 };
 use warp_graphql::queries::get_user::{GetUser, GetUserVariables, UserOutput as GqlUserOutput};
 use warp_graphql::queries::get_user_settings::{GetUserSettings, GetUserSettingsVariables};
-use warp_server_auth::credentials::{AuthToken, Credentials, FirebaseToken, LoginToken};
+use warp_server_auth::credentials::{AuthToken, Credentials, LoginToken};
 pub use warp_server_auth::user_uid;
 
 use crate::base_client::BaseClient;
@@ -82,14 +77,6 @@ pub struct FetchUserResult {
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 pub trait AuthClient: Send + Sync {
-    /// Creates an anonymous user who is allowed to use Warp but may lack the ability
-    /// to interact with particular features.
-    async fn create_anonymous_user(
-        &self,
-        referral_code: Option<String>,
-        anonymous_user_type: AnonymousUserType,
-    ) -> Result<CreateAnonymousUserResult>;
-
     /// Returns the cached access token if it is still valid.
     ///
     /// If it has expired, this fetches a new access token using the user's refresh
@@ -103,21 +90,6 @@ pub trait AuthClient: Send + Sync {
         token: LoginToken,
         for_refresh: bool,
     ) -> StdResult<FetchUserResult, UserAuthenticationError>;
-
-    /// Creates and fetches a new custom token for the current user from Firebase.
-    ///
-    /// This only works for anonymous users and surfaces an error if the user is not anonymous.
-    async fn fetch_new_custom_token(&self) -> Result<MintCustomTokenResult>;
-
-    /// Handles the response from [`Self::fetch_new_custom_token`] by returning the newly minted custom token.
-    fn on_custom_token_fetched(
-        &self,
-        response: Result<MintCustomTokenResult>,
-    ) -> Result<String, MintCustomTokenError>;
-
-    /// Queries warp-server for a set of the currently logged-in user's fields.
-    async fn fetch_user_properties<'a>(&self, auth_token: Option<&'a str>)
-    -> Result<GqlUserOutput>;
 
     /// Returns the user's settings retrieved from the server, if any.
     ///
@@ -138,18 +110,6 @@ pub trait AuthClient: Send + Sync {
     async fn update_user_settings(&self, input: UpdateUserSettingsInput) -> Result<()>;
 
     async fn set_user_is_onboarded(&self) -> Result<bool>;
-
-    /// Requests a device authorization code from the server for headless CLI or SDK authentication.
-    async fn request_device_code(
-        &self,
-    ) -> StdResult<oauth2::StandardDeviceAuthorizationResponse, UserAuthenticationError>;
-
-    /// Waits for the request to be approved or rejected and exchanges it for a short-lived custom access token.
-    async fn exchange_device_access_token(
-        &self,
-        details: &oauth2::StandardDeviceAuthorizationResponse,
-        timeout: Duration,
-    ) -> StdResult<FirebaseToken, UserAuthenticationError>;
 
     async fn list_api_keys(&self) -> Result<Vec<ApiKeyProperties>>;
 
@@ -209,36 +169,35 @@ impl AuthClientImpl {
             UpdateUserSettingsResult::Unknown => Err(anyhow!(unknown_error_message)),
         }
     }
+
+    async fn fetch_user_properties(&self, auth_token: Option<&str>) -> Result<GqlUserOutput> {
+        let operation = GetUser::build(GetUserVariables {
+            request_context: warp_graphql::client::get_request_context(),
+        });
+        let mut options = self
+            .base_client
+            .graphql_request_options_with_token(auth_token.map(ToOwned::to_owned));
+        options.headers.insert(
+            EXPERIMENT_ID_HEADER.to_string(),
+            self.base_client.anonymous_id(),
+        );
+        let response = operation
+            .send_request(self.base_client.owned_http_client(), options)
+            .await?
+            .data
+            .ok_or_else(|| anyhow!("Expected valid response.data"))?;
+        match response.user {
+            warp_graphql::queries::get_user::UserResult::UserOutput(user_output) => Ok(user_output),
+            warp_graphql::queries::get_user::UserResult::Unknown => {
+                Err(anyhow!("Unable to fetch user"))
+            }
+        }
+    }
 }
 
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 impl AuthClient for AuthClientImpl {
-    async fn create_anonymous_user(
-        &self,
-        referral_code: Option<String>,
-        anonymous_user_type: AnonymousUserType,
-    ) -> Result<CreateAnonymousUserResult> {
-        let operation = CreateAnonymousUser::build(CreateAnonymousUserVariables {
-            input: warp_graphql::mutations::create_anonymous_user::CreateAnonymousUserInput {
-                anonymous_user_type,
-                expiration_type: warp_graphql::mutations::create_anonymous_user::AnonymousUserExpirationType::NoExpiration,
-                referral_code,
-            },
-            request_context: warp_graphql::client::get_request_context(),
-        });
-        let response = operation
-            .send_request(
-                self.base_client.owned_http_client(),
-                self.base_client.graphql_request_options_with_token(None),
-            )
-            .await?;
-        Ok(response
-            .data
-            .ok_or_else(|| anyhow!("missing data in response"))?
-            .create_anonymous_user)
-    }
-
     async fn get_or_refresh_access_token(&self) -> Result<AuthToken> {
         self.auth_session.get_or_refresh_access_token().await
     }
@@ -268,58 +227,6 @@ impl AuthClient for AuthClientImpl {
             credentials: new_credentials,
             from_refresh: for_refresh,
         })
-    }
-
-    async fn fetch_new_custom_token(&self) -> Result<MintCustomTokenResult> {
-        let operation = warp_graphql::mutations::mint_custom_token::MintCustomToken::build(
-            MintCustomTokenVariables {
-                request_context: warp_graphql::client::get_request_context(),
-            },
-        );
-        let response = send_graphql_request(&self.base_client, operation, None).await?;
-        Ok(response.mint_custom_token)
-    }
-
-    fn on_custom_token_fetched(
-        &self,
-        response: Result<MintCustomTokenResult>,
-    ) -> Result<String, MintCustomTokenError> {
-        match response {
-            Ok(MintCustomTokenResult::MintCustomTokenOutput(output)) => Ok(output.custom_token),
-            Ok(MintCustomTokenResult::UserFacingError(error)) => {
-                Err(MintCustomTokenError::UserFacingError(
-                    warp_graphql::client::get_user_facing_error_message(error),
-                ))
-            }
-            Ok(MintCustomTokenResult::Unknown) | Err(_) => Err(MintCustomTokenError::Unknown),
-        }
-    }
-
-    async fn fetch_user_properties<'a>(
-        &self,
-        auth_token: Option<&'a str>,
-    ) -> Result<GqlUserOutput> {
-        let operation = GetUser::build(GetUserVariables {
-            request_context: warp_graphql::client::get_request_context(),
-        });
-        let mut options = self
-            .base_client
-            .graphql_request_options_with_token(auth_token.map(ToOwned::to_owned));
-        options.headers.insert(
-            EXPERIMENT_ID_HEADER.to_string(),
-            self.base_client.anonymous_id(),
-        );
-        let response = operation
-            .send_request(self.base_client.owned_http_client(), options)
-            .await?
-            .data
-            .ok_or_else(|| anyhow!("Expected valid response.data"))?;
-        match response.user {
-            warp_graphql::queries::get_user::UserResult::UserOutput(user_output) => Ok(user_output),
-            warp_graphql::queries::get_user::UserResult::Unknown => {
-                Err(anyhow!("Unable to fetch user"))
-            }
-        }
     }
 
     async fn get_user_settings(&self) -> Result<Option<SyncedUserSettings>> {
@@ -397,22 +304,6 @@ impl AuthClient for AuthClientImpl {
             )),
             SetUserIsOnboardedResult::Unknown => Err(anyhow!("failed to set user is onboarded")),
         }
-    }
-
-    async fn request_device_code(
-        &self,
-    ) -> StdResult<oauth2::StandardDeviceAuthorizationResponse, UserAuthenticationError> {
-        self.auth_session.request_device_code().await
-    }
-
-    async fn exchange_device_access_token(
-        &self,
-        details: &oauth2::StandardDeviceAuthorizationResponse,
-        timeout: Duration,
-    ) -> StdResult<FirebaseToken, UserAuthenticationError> {
-        self.auth_session
-            .exchange_device_access_token(details, timeout)
-            .await
     }
 
     async fn list_api_keys(&self) -> Result<Vec<ApiKeyProperties>> {
@@ -537,15 +428,6 @@ impl From<FirebaseError> for UserAuthenticationError {
             )
         }
     }
-}
-
-/// Error type when minting a new custom token for an anonymous user.
-#[derive(Error, Debug)]
-pub enum MintCustomTokenError {
-    #[error("Received a user facing error: {0}")]
-    UserFacingError(String),
-    #[error("Failed to create new custom token with unknown error")]
-    Unknown,
 }
 
 #[cfg(test)]

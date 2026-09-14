@@ -34,7 +34,6 @@ itertools.workspace = true
 lasso.workspace = true
 log.workspace = true
 mockall = { workspace = true, optional = true }
-oauth2.workspace = true
 parking_lot.workspace = true
 pathfinder_geometry.workspace = true
 reqwest.workspace = true

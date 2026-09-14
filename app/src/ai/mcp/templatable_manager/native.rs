@@ -367,9 +367,7 @@ impl TemplatableMCPServerManager {
                     me.sync_builtin_servers(false, ctx)
                 }
                 AuthManagerEvent::AttemptedLoginGatedFeature
-                | AuthManagerEvent::LoginOverrideDetected(_)
-                | AuthManagerEvent::MintCustomTokenFailed
-                | AuthManagerEvent::ReceivedDeviceAuthorizationCode { .. } => {}
+                | AuthManagerEvent::LoginOverrideDetected(_) => {}
             });
 
             let server_api_provider = ServerApiProvider::handle(ctx);

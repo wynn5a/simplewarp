@@ -1,11 +1,11 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::anyhow;
 use warpui::{App, SingletonEntity};
 
-use super::{AuthManager, AuthManagerEvent, request_device_code_with_timeout};
+use super::{AuthManager, AuthManagerEvent};
 use crate::ServerApiProvider;
 use crate::auth::auth_view_modal::AuthRedirectPayload;
 use crate::auth::credentials::{Credentials, LoginToken, RefreshToken};
@@ -163,35 +163,6 @@ fn validated_api_key_is_promoted_with_its_user() {
         assert_eq!(auth_state.api_key().as_deref(), Some("wk-validated-key"));
         assert_eq!(auth_state.user_id(), Some(UserUid::new(TEST_USER_UID)));
         assert!(auth_state.is_logged_in());
-    });
-}
-
-#[test]
-fn test_device_code_request_retries_then_times_out() {
-    App::test((), |_app| async move {
-        let attempts = Arc::new(AtomicUsize::new(0));
-        let attempts_for_request = attempts.clone();
-
-        let result = request_device_code_with_timeout(
-            move || {
-                attempts_for_request.fetch_add(1, Ordering::Relaxed);
-                futures::future::pending()
-            },
-            Duration::from_millis(1),
-            2,
-        )
-        .await;
-
-        assert_eq!(attempts.load(Ordering::Relaxed), 2);
-        let error = result.unwrap_err();
-        assert!(matches!(
-            &error,
-            UserAuthenticationError::DeviceCodeRequestTimedOut { attempts: 2 }
-        ));
-        assert_eq!(
-            error.to_string(),
-            "Timed out requesting a sign-in link after 2 attempts"
-        );
     });
 }
 

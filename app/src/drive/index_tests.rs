@@ -10,7 +10,7 @@ use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::CloudViewModel;
-use crate::cloud_object::{CloudObjectSyncStatus, ObjectType, Owner, Space, WarpDriveItemId};
+use crate::cloud_object::{ObjectType, Owner, WarpDriveItemId};
 use crate::drive::CloudObjectTypeAndId;
 use crate::menu::MenuItem;
 use crate::network::NetworkStatus;

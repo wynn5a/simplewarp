@@ -36,9 +36,7 @@ impl ConnectedSelfHostedWorkersModel {
                 me.clear_workers(ctx);
             }
             AuthManagerEvent::AttemptedLoginGatedFeature
-            | AuthManagerEvent::LoginOverrideDetected(_)
-            | AuthManagerEvent::MintCustomTokenFailed
-            | AuthManagerEvent::ReceivedDeviceAuthorizationCode { .. } => {}
+            | AuthManagerEvent::LoginOverrideDetected(_) => {}
         });
 
         ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, _, event, ctx| {

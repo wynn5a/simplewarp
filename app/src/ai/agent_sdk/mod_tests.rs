@@ -20,11 +20,6 @@ fn logout_does_not_require_auth() {
 }
 
 #[test]
-fn login_does_not_require_auth() {
-    assert!(!command_requires_auth(&CliCommand::Login));
-}
-
-#[test]
 fn pending_api_key_is_selected_for_command_authentication() {
     assert_eq!(
         command_authentication(Some("api-key".to_owned()), false),
