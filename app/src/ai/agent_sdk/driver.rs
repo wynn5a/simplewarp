@@ -2089,18 +2089,7 @@ impl AgentDriver {
         let setup_span = tracing::info_span!("agent_run_setup", tags.cloud_agent = true);
         let (setup_events, task_id_for_refresh, ai_client_for_refresh) = async {
             let setup_events = foreground
-            .spawn(|me, ctx| {
-                let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client().clone();
-                match me.task_id {
-                    Some(task_id) => {
-                        SetupClientEventReporter::new(task_id, ai_client, ctx.background_executor())
-                    }
-                    None => {
-                        report_error!("No task ID found for driver - cannot report client events");
-                        SetupClientEventReporter::noop(ai_client, ctx.background_executor())
-                    }
-                }
-            })
+            .spawn(|_me, ctx| SetupClientEventReporter::new(ctx.background_executor()))
             .await?;
 
         foreground
@@ -2514,13 +2503,7 @@ impl AgentDriver {
                 let runtime_error_patterns = harness.runtime_error_patterns();
 
                 with_credential_refreshes(
-                    Self::run_harness(
-                        runner,
-                        runtime_error_patterns,
-                        &foreground,
-                        harness_exit_rx,
-                        &setup_events,
-                    ),
+                    Self::run_harness(runner, runtime_error_patterns, &foreground, harness_exit_rx),
                     task_id_for_refresh,
                     ai_client_for_refresh,
                 )
@@ -3017,12 +3000,11 @@ impl AgentDriver {
         runtime_error_patterns: &'static [&'static str],
         foreground: &ModelSpawner<Self>,
         harness_exit_rx: oneshot::Receiver<()>,
-        setup_events: &SetupClientEventReporter,
     ) -> Result<(), AgentDriverError> {
         let harness_name = runner.harness_name().to_owned();
 
         // Start the third-party harness.
-        let command_handle = runner.start(foreground, setup_events).await?;
+        let command_handle = runner.start(foreground).await?;
         let block_id = command_handle.block_id().clone();
         let mut command_handle = command_handle.fuse();
         let mut harness_exit_rx = harness_exit_rx.fuse();

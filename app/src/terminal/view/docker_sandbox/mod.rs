@@ -222,12 +222,7 @@ impl TerminalView {
         ctx: &mut ViewContext<V>,
     ) {
         let terminal_driver = TerminalDriver::create_from_existing_view(terminal_view.clone(), ctx);
-        // Local Docker sandbox tabs are not backed by an Oz run ID, so setup event reporting is
-        // intentionally disabled for this environment preparation path.
-        let setup_events = SetupClientEventReporter::noop(
-            ServerApiProvider::as_ref(ctx).get_ai_client().clone(),
-            ctx.background_executor().clone(),
-        );
+        let setup_events = SetupClientEventReporter::new(ctx.background_executor().clone());
 
         let spawner = terminal_driver.update(ctx, |_, ctx| ctx.spawner());
         ctx.spawn(

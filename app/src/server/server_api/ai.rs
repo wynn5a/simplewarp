@@ -199,64 +199,6 @@ pub struct AgentRunEvent {
     pub sequence: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct AgentRunClientEventRequest {
-    pub event_uuid: String,
-    pub event_name: String,
-    pub timestamp: DateTime<Utc>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payload: Option<AgentRunClientEventPayload>,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(untagged)]
-pub enum AgentRunClientEventPayload {
-    SetupMetric(AgentRunClientSetupMetricPayload),
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct AgentRunClientSetupMetricPayload {
-    pub start_ts: DateTime<Utc>,
-    pub finish_ts: DateTime<Utc>,
-    pub latency_ms: i64,
-    pub is_error: bool,
-}
-
-impl AgentRunClientEventRequest {
-    pub fn timeline_event(event_name: impl Into<String>, timestamp: DateTime<Utc>) -> Self {
-        Self {
-            event_uuid: uuid::Uuid::new_v4().to_string(),
-            event_name: event_name.into(),
-            timestamp,
-            payload: None,
-        }
-    }
-
-    pub fn setup_metric_event(
-        event_name: impl Into<String>,
-        start_timestamp: DateTime<Utc>,
-        finish_timestamp: DateTime<Utc>,
-        is_error: bool,
-    ) -> Self {
-        Self {
-            event_uuid: uuid::Uuid::new_v4().to_string(),
-            event_name: event_name.into(),
-            timestamp: finish_timestamp,
-            payload: Some(AgentRunClientEventPayload::SetupMetric(
-                AgentRunClientSetupMetricPayload {
-                    start_ts: start_timestamp,
-                    finish_ts: finish_timestamp,
-                    latency_ms: finish_timestamp
-                        .signed_duration_since(start_timestamp)
-                        .num_milliseconds()
-                        .max(0),
-                    is_error,
-                },
-            )),
-        }
-    }
-}
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ReadAgentMessageResponse {
     pub message_id: String,
@@ -753,22 +695,6 @@ pub trait AIClient: 'static + Send + Sync {
         request: ListAgentMessagesRequest,
     ) -> anyhow::Result<Vec<AgentMessageHeader>, anyhow::Error>;
 
-    /// Persists the latest observed event sequence number for a run on the
-    /// server. Used to keep the server-side cursor in sync with the client so
-    /// that driver/cloud restores can resume without replaying events the
-    /// parent has already acted on.
-    async fn update_event_sequence_on_server(
-        &self,
-        run_id: &str,
-        sequence: i64,
-    ) -> anyhow::Result<(), anyhow::Error>;
-
-    async fn post_agent_run_client_event(
-        &self,
-        run_id: &AmbientAgentTaskId,
-        request: AgentRunClientEventRequest,
-    ) -> anyhow::Result<(), anyhow::Error>;
-
     async fn mark_message_delivered(&self, message_id: &str) -> anyhow::Result<(), anyhow::Error>;
 
     async fn read_agent_message(
@@ -1103,22 +1029,6 @@ impl AIClient for ServerApi {
         _run_id: &str,
         _request: ListAgentMessagesRequest,
     ) -> anyhow::Result<Vec<AgentMessageHeader>, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn update_event_sequence_on_server(
-        &self,
-        _run_id: &str,
-        _sequence: i64,
-    ) -> anyhow::Result<(), anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn post_agent_run_client_event(
-        &self,
-        _run_id: &AmbientAgentTaskId,
-        _request: AgentRunClientEventRequest,
-    ) -> anyhow::Result<(), anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 

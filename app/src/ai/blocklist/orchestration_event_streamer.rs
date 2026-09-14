@@ -328,23 +328,21 @@ impl OrchestrationEventStreamer {
         sequence: i64,
         ctx: &mut ModelContext<Self>,
     ) {
-        let (own_run_id, is_viewer_mode, persisted_sequence) = BlocklistAIHistoryModel::as_ref(ctx)
+        let (is_viewer_mode, persisted_sequence) = BlocklistAIHistoryModel::as_ref(ctx)
             .conversation(&conversation_id)
             .map(|conversation| {
                 (
-                    conversation.run_id(),
                     conversation.is_viewing_shared_session(),
                     conversation.last_event_sequence().unwrap_or(0),
                 )
             })
-            .unwrap_or((None, false, 0));
+            .unwrap_or((false, 0));
 
-        // Enforce monotonicity at the call site: `update_event_sequence`
-        // and the server-side write are both set-not-max, so fold every
-        // known prior value (in-memory stream cursor + persisted SQLite
-        // cursor) into the effective sequence before persisting. Reading
-        // `streams` without inserting keeps viewer-mode placeholders out
-        // of the owner-side map below.
+        // Enforce monotonicity at the call site: fold every known prior
+        // value (in-memory stream cursor + persisted SQLite cursor) into the
+        // effective sequence before persisting. Reading `streams` without
+        // inserting keeps viewer-mode placeholders out of the owner-side map
+        // below.
         let existing_stream_cursor = self
             .streams
             .get(&conversation_id)
@@ -361,9 +359,7 @@ impl OrchestrationEventStreamer {
         });
 
         // Viewer-mode placeholders do not participate in the owner-side
-        // `self.streams` map and must not push the cursor to the server
-        // (the orchestrator-owner's process is the authoritative writer of
-        // the server-side cursor for its run).
+        // `self.streams` map.
         if is_viewer_mode {
             return;
         }
@@ -372,24 +368,6 @@ impl OrchestrationEventStreamer {
             .entry(conversation_id)
             .or_default()
             .event_cursor = effective_sequence;
-
-        if let Some(run_id) = own_run_id {
-            let ai_client = self.ai_client.clone();
-            ctx.spawn(
-                async move {
-                    ai_client
-                        .update_event_sequence_on_server(&run_id, effective_sequence)
-                        .await
-                },
-                move |_, result, _| {
-                    if let Err(err) = result {
-                        log::warn!(
-                            "Failed to persist event cursor to server for {conversation_id:?}: {err:#}"
-                        );
-                    }
-                },
-            );
-        }
     }
 
     // ---- Unified family drain (OrchestrationUnifiedStack) --------------

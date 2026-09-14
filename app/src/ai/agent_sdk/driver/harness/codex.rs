@@ -17,7 +17,6 @@ use super::super::terminal::{CommandHandle, TerminalDriver};
 use super::super::{AgentDriver, AgentDriverError};
 use super::json_utils::read_json_file_or_default;
 use super::{HarnessRunner, JSONMCPServer, ThirdPartyHarness, write_temp_file};
-use crate::ai::agent_sdk::setup_observability::{OzRunTimelineEvent, SetupClientEventReporter};
 use crate::ai::ambient_agents::task::HarnessModelConfig;
 use crate::ai::mcp::JSONTransportType;
 use crate::terminal::CLIAgent;
@@ -186,7 +185,6 @@ impl HarnessRunner for CodexHarnessRunner {
     async fn start(
         &self,
         foreground: &ModelSpawner<AgentDriver>,
-        setup_events: &SetupClientEventReporter,
     ) -> Result<CommandHandle, AgentDriverError> {
         let command = self.command.clone();
         let terminal_driver = self.terminal_driver.clone();
@@ -196,10 +194,6 @@ impl HarnessRunner for CodexHarnessRunner {
             })
             .await??
             .await?;
-
-        setup_events
-            .post_timeline_event(OzRunTimelineEvent::AgentStarted)
-            .await;
 
         Ok(command_handle)
     }

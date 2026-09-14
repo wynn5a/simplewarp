@@ -18,7 +18,6 @@ use super::super::{AgentDriver, AgentDriverError};
 use super::claude_transcript::{claude_config_dir, home_dir_for_claude_config};
 use super::json_utils::{read_json_file_or_default, write_json_file};
 use super::{HarnessRunner, JSONMCPServer, ThirdPartyHarness, write_temp_file};
-use crate::ai::agent_sdk::setup_observability::{OzRunTimelineEvent, SetupClientEventReporter};
 use crate::ai::ambient_agents::task::HarnessModelConfig;
 use crate::ai::mcp::JSONTransportType;
 use crate::terminal::CLIAgent;
@@ -238,7 +237,6 @@ impl HarnessRunner for ClaudeHarnessRunner {
     async fn start(
         &self,
         foreground: &ModelSpawner<AgentDriver>,
-        setup_events: &SetupClientEventReporter,
     ) -> Result<CommandHandle, AgentDriverError> {
         let command = self.command.clone();
         let terminal_driver = self.terminal_driver.clone();
@@ -248,10 +246,6 @@ impl HarnessRunner for ClaudeHarnessRunner {
             })
             .await??
             .await?;
-
-        setup_events
-            .post_timeline_event(OzRunTimelineEvent::AgentStarted)
-            .await;
 
         Ok(command_handle)
     }

@@ -1,42 +1,21 @@
 use std::future::Future;
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
 use futures::FutureExt as _;
 use tracing::Instrument as _;
 use warpui::r#async::executor::Background;
 
-use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::server::server_api::ai::{AIClient, AgentRunClientEventRequest};
-
 #[derive(Clone)]
 pub(crate) struct SetupClientEventReporter {
-    run_id: Option<AmbientAgentTaskId>,
-    ai_client: Arc<dyn AIClient>,
     background: Arc<Background>,
 }
 
 impl SetupClientEventReporter {
-    /// Constructs a reporter for setup events associated with an existing Oz run.
-    pub(crate) fn new(
-        run_id: AmbientAgentTaskId,
-        ai_client: Arc<dyn AIClient>,
-        background: Arc<Background>,
-    ) -> Self {
-        Self {
-            run_id: Some(run_id),
-            ai_client,
-            background,
-        }
-    }
-
-    /// Constructs a reporter for setup paths that are intentionally not backed by an Oz run.
-    pub(crate) fn noop(ai_client: Arc<dyn AIClient>, background: Arc<Background>) -> Self {
-        Self {
-            run_id: None,
-            ai_client,
-            background,
-        }
+    /// Constructs a reporter for setup paths. Previously this also carried the
+    /// Oz run id and API client for posting setup metrics to the server; the
+    /// only remaining job is timing setup steps into local tracing spans.
+    pub(crate) fn new(background: Arc<Background>) -> Self {
+        Self { background }
     }
 
     pub(crate) async fn record_result<T, E: std::error::Error>(
@@ -44,26 +23,16 @@ impl SetupClientEventReporter {
         step: SetupStep,
         future: impl Future<Output = Result<T, E>>,
     ) -> Result<T, E> {
-        let (step_name, span) = step.to_event_name_and_span();
+        let (_, span) = step.to_event_name_and_span();
 
-        let start_timestamp = Utc::now();
-        let result = future
+        future
             .map(|result| {
                 result.inspect_err(|err| {
                     tracing::error!(error = %err);
                 })
             })
             .instrument(span)
-            .await;
-        let finish_timestamp = Utc::now();
-
-        self.post_setup_metric_event_best_effort(
-            step_name,
-            start_timestamp,
-            finish_timestamp,
-            result.is_err(),
-        );
-        result
+            .await
     }
 
     pub(crate) async fn record_value<T>(
@@ -71,20 +40,11 @@ impl SetupClientEventReporter {
         step: SetupStep,
         future: impl Future<Output = T>,
     ) -> T {
-        let (step_name, span) = step.to_event_name_and_span();
+        let (_, span) = step.to_event_name_and_span();
 
-        let start_timestamp = Utc::now();
-        let value = future.instrument(span).await;
-        let finish_timestamp = Utc::now();
-
-        self.post_setup_metric_event_best_effort(
-            step_name,
-            start_timestamp,
-            finish_timestamp,
-            false,
-        );
-        value
+        future.instrument(span).await
     }
+
     pub(crate) fn record_value_detached<T>(
         &self,
         step: SetupStep,
@@ -92,88 +52,13 @@ impl SetupClientEventReporter {
     ) where
         T: Send + 'static,
     {
-        let (step_name, span) = step.to_event_name_and_span();
+        let (_, span) = step.to_event_name_and_span();
 
-        let reporter = self.clone();
         self.background
             .spawn(async move {
-                let start_timestamp = Utc::now();
                 future.instrument(span).await;
-                let finish_timestamp = Utc::now();
-                reporter.post_setup_metric_event_best_effort(
-                    step_name,
-                    start_timestamp,
-                    finish_timestamp,
-                    false,
-                );
             })
             .detach();
-    }
-
-    pub(crate) async fn post_timeline_event(&self, event: OzRunTimelineEvent) {
-        let Some(run_id) = self.run_id else {
-            return;
-        };
-        let timestamp = Utc::now();
-        let event_name = event.as_event_name();
-        let request = AgentRunClientEventRequest::timeline_event(event_name, timestamp);
-        Self::post_client_event(run_id, self.ai_client.clone(), event_name, request).await;
-    }
-
-    fn post_setup_metric_event_best_effort(
-        &self,
-        event_name: &'static str,
-        start_timestamp: DateTime<Utc>,
-        finish_timestamp: DateTime<Utc>,
-        is_error: bool,
-    ) {
-        let Some(run_id) = self.run_id else {
-            return;
-        };
-
-        let ai_client = self.ai_client.clone();
-        self.background
-            .spawn(async move {
-                let request = AgentRunClientEventRequest::setup_metric_event(
-                    event_name,
-                    start_timestamp,
-                    finish_timestamp,
-                    is_error,
-                );
-                Self::post_client_event(run_id, ai_client, event_name, request).await;
-            })
-            .detach();
-    }
-
-    async fn post_client_event(
-        run_id: AmbientAgentTaskId,
-        ai_client: Arc<dyn AIClient>,
-        event_name: &'static str,
-        request: AgentRunClientEventRequest,
-    ) {
-        tracing::info!(event_name, tags.cloud_agent = true);
-
-        if let Err(err) = ai_client
-            .post_agent_run_client_event(&run_id, request)
-            .await
-        {
-            log::warn!("Failed to post setup client event {event_name} for run {run_id}: {err:#}");
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub(crate) enum OzRunTimelineEvent {
-    AgentStarted,
-    WorkerContainerReady,
-}
-
-impl OzRunTimelineEvent {
-    fn as_event_name(self) -> &'static str {
-        match self {
-            Self::AgentStarted => "agent_started",
-            Self::WorkerContainerReady => "worker_container_ready",
-        }
     }
 }
 

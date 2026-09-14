@@ -22,7 +22,6 @@ use super::{
     LEGACY_OZ_PARENT_STATE_ROOT_ENV, OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV,
     OZ_MESSAGE_LISTENER_STATE_ROOT_ENV,
 };
-use crate::ai::agent_sdk::setup_observability::SetupClientEventReporter;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::ambient_agents::task::HarnessModelConfig;
 use crate::ai::mcp::JSONMCPServer;
@@ -369,7 +368,6 @@ pub(crate) trait HarnessRunner: Send + Sync {
     async fn start(
         &self,
         foreground: &ModelSpawner<AgentDriver>,
-        setup_events: &SetupClientEventReporter,
     ) -> Result<CommandHandle, AgentDriverError>;
 
     /// Gracefully ask the harness to exit.

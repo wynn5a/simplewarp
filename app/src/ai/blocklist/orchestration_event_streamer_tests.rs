@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use mockall::predicate::eq;
 use warp_core::features::FeatureFlag;
 use warpui::App;
 
@@ -359,11 +358,7 @@ fn persist_event_cursor_keeps_the_max_sequence_and_updates_history_model() {
             model.restore_conversations(terminal_view_id, vec![conversation], ctx);
         });
 
-        let mut mock = MockAIClient::new();
-        mock.expect_update_event_sequence_on_server()
-            .with(eq(run_id.clone()), eq(42))
-            .times(1)
-            .returning(|_, _| Ok(()));
+        let mock = MockAIClient::new();
         let ai_client: Arc<dyn AIClient> = Arc::new(mock);
         let server_api = ServerApiProvider::new_for_test().get();
 
@@ -772,10 +767,7 @@ fn handle_event_batch_persists_max_seq_to_history_model() {
             model.restore_conversations(terminal_view_id, vec![conversation], ctx);
         });
 
-        let mut mock = MockAIClient::new();
-        // The fire-and-forget server PATCH should be issued; permissive Ok.
-        mock.expect_update_event_sequence_on_server()
-            .returning(|_, _| Ok(()));
+        let mock = MockAIClient::new();
         let ai_client: Arc<dyn AIClient> = Arc::new(mock);
         let server_api = ServerApiProvider::new_for_test().get();
 
@@ -858,9 +850,7 @@ fn handle_event_batch_drops_events_for_killed_run_ids_after_persisting_cursor() 
             model.restore_conversations(terminal_view_id, vec![parent_conversation], ctx);
         });
 
-        let mut mock = MockAIClient::new();
-        mock.expect_update_event_sequence_on_server()
-            .returning(|_, _| Ok(()));
+        let mock = MockAIClient::new();
         let ai_client: Arc<dyn AIClient> = Arc::new(mock);
         let server_api = ServerApiProvider::new_for_test().get();
 
@@ -2230,10 +2220,7 @@ fn drain_family_events_primary_routes_mixed_batch_and_delivers_inbox() {
             model.restore_conversations(terminal_view_id, vec![conversation], ctx);
         });
 
-        let mut mock = MockAIClient::new();
-        // Primary consumer is the authoritative server-cursor writer.
-        mock.expect_update_event_sequence_on_server()
-            .returning(|_, _| Ok(()));
+        let mock = MockAIClient::new();
         let ai_client: Arc<dyn AIClient> = Arc::new(mock);
         let server_api = ServerApiProvider::new_for_test().get();
         let streamer = app.add_singleton_model(|ctx| {

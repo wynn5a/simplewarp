@@ -39,9 +39,7 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_sdk::driver::harness::{HarnessKind, harness_kind};
 use crate::ai::agent_sdk::driver::{AgentDriverOptions, AgentRunPrompt, Task};
 use crate::ai::agent_sdk::mcp_config::build_mcp_servers_from_specs;
-use crate::ai::agent_sdk::setup_observability::{
-    OzRunTimelineEvent, SetupClientEventReporter, SetupStep,
-};
+use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::ambient_agents::task::HarnessConfig;
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
@@ -526,13 +524,7 @@ impl AgentDriverRunner {
             args.task_id.as_deref().and_then(|s| s.parse().ok());
         Self::set_ambient_agent_task_id(&foreground, task_id).await?;
         let background = foreground.spawn(|_, ctx| ctx.background_executor()).await?;
-        let setup_events = match task_id {
-            Some(task_id) => SetupClientEventReporter::new(task_id, server_api.clone(), background),
-            None => SetupClientEventReporter::noop(server_api.clone(), background),
-        };
-        setup_events
-            .post_timeline_event(OzRunTimelineEvent::WorkerContainerReady)
-            .await;
+        let setup_events = SetupClientEventReporter::new(background);
         // Set up and run the driver, reporting any errors back to the server.
         let result: Result<(), AgentDriverError> = async {
             // Pull relevant variables out of args before moving it into the closure.
