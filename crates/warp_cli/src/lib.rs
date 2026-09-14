@@ -28,7 +28,6 @@ pub mod environment;
 pub mod json_filter;
 pub mod local_control;
 pub mod mcp;
-pub mod memory_store;
 pub mod model;
 pub mod provider;
 pub mod share;
@@ -439,12 +438,6 @@ pub enum CliCommand {
     /// Manage available models.
     #[command(subcommand)]
     Model(crate::model::ModelCommand),
-    /// Manage memory stores.
-    #[command(subcommand, alias = "memory-stores")]
-    MemoryStore(crate::memory_store::MemoryStoreCommand),
-    /// Manage memories.
-    #[command(subcommand)]
-    Memory(crate::memory_store::MemoryCommand),
 
     /// Log in to Warp.
     Login,
@@ -480,8 +473,6 @@ impl CliCommand {
             CliCommand::Provider(command) => command.as_str_for_tracing(),
             CliCommand::Artifact(command) => command.as_str_for_tracing(),
             CliCommand::ApiKey(command) => command.as_str_for_tracing(),
-            CliCommand::MemoryStore(command) => command.as_str_for_tracing(),
-            CliCommand::Memory(command) => command.as_str_for_tracing(),
         }
     }
 }
