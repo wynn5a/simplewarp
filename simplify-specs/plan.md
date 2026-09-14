@@ -3805,6 +3805,46 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             5284, `warp_server_client`+`warp_cli` 167). Not re-run in the app — no reachable
             surface changed: the deleted UI was all provably unreachable, and the privacy
             page's link still opens the same URL it always opened in a logged-out client.
+      - [x] **The `CLIAgentRichInput` flag is folded away** (4bo, 2026-09-14, 48 files,
+            +1,065/−5,220 — the first flag-vertical round since 4bb): the
+            `cli_agent_rich_input` cargo feature was absent from the simplewarp set, so the
+            rich-input composer was permanently inert there — `open_cli_agent_rich_input`
+            always early-returned, `open_input` had no other production caller, and the whole
+            input-session lifecycle was unreachable. Deleted the flag with the vertical:
+            the input-session half of `CLIAgentSessionsModel` (`CLIAgentInputState`,
+            `CLIAgentInputEntrypoint`, `CLIAgentRichInputCloseReason`, `open_input`/
+            `close_input`, drafts, `is_input_open`, `InputSessionChanged` + its six
+            subscriber arms, and the `input_state`/`should_auto_toggle_input`/`draft_text`
+            session fields), the composer flow in `use_agent_footer` and the footer
+            RichInput button/chip (`AgentToolbarItemKind::RichInput` stays in the persisted
+            toolbar enum with `is_available()` false, HandoffToCloud precedent), all of
+            `terminal/input/cli_agent.rs`, the Ctrl-G binding with its context flags,
+            four settings with their page rows (`auto_toggle_rich_input`,
+            `auto_open_rich_input_on_cli_agent_start`,
+            `auto_dismiss_rich_input_after_submit`, `submit_on_ctrl_enter`), the three
+            `CLIAgentRichInput*` telemetry events, and the `hide_cursor_cell` render
+            plumbing whose only writer was the rich-input cursor suppression.
+            **Kept**: the session-detection half of the sessions model (status, listeners,
+            Ctrl-C cancel windows), `write_cli_agent_text*` for the live driver
+            `submit_text_to_cli_agent_pty` path, `submit_text_to_cli_agent_pty` itself,
+            and live-path test coverage (dropped-image paste, voice insert-to-PTY now
+            unconditional, status→conversation-status, Ctrl-C arming) — five tests
+            initially over-deleted with the rich-input batch were recovered from HEAD and
+            re-kept with the dead fields stripped. `SkillManager`'s provider-variant
+            helpers (`skill_exists_for_any_provider`, `best_supported_provider`) went with
+            the CLI-agent skill filtering they served. Also removed two dead
+            `drive/index_tests` helpers (`create_workflow`, `label_for_menu_item`) that
+            were already dead on HEAD's clippy baseline.
+
+            Acceptance: check both feature sets at the 4-warning baseline (verified
+            byte-identical to HEAD via stash diff), clippy error set a strict subset of the
+            HEAD baseline in both configs, format clean, nextest green (warp lib 5250
+            default / 5248 simplewarp vs 5284 before — delta = tests deleted with their
+            subject; `warp_server_client`+`warp_cli`+`warp_features` 168). Not re-run in
+            the app — no reachable surface changed in the product build. **Next flag
+            targets by site count**: `WarpControlCli` (24), `GeminiEnterprise` (23,
+            live-by-design per 4at), `EditableMarkdownMermaid` (23); 98 constant-false
+            flags remain of 208 enum variants.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
