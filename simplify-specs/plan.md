@@ -4113,6 +4113,58 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             feature in neither build set, and the legacy suggestion banners
             use the same render code as before.
             **Remaining remote-dependent queue**: `PredictAMQueries`.
+      - [x] **Predicted Agent Mode queries are deleted** (4bu, 2026-09-15, 16
+            files, +1/−326): fourth and final round under the
+            remote-dependent-only scope — the queue is now empty.
+            The flag ("prediction of Agent Mode queries") gated the
+            `PredictAMQueries` warp-server endpoint chain: after each block
+            completed, the input debounced a request carrying the block's
+            summarized command/output plus the partial AI-query buffer, and
+            rendered the returned suggestion as ghosted text. The cargo
+            feature was in neither the default nor the simplewarp set, so the
+            chain never ran in any SimpleWarp binary. Gone end to end:
+
+            - *Request chain*: `ai/predict/predict_am_queries/` with its
+              request/response wire types (whole modules served this round),
+              `ServerApi::predict_am_queries`, and in `terminal/input.rs` the
+              `predict_am_query` method, the
+              `DEBOUNCE_AI_QUERY_PREDICTION_PERIOD` debounce channel + worker,
+              `predict_am_queries_future_handle`, the
+              `is_nl_ai_autosuggestion_triggering_event` helper (sole caller
+              was the trigger block), and the flag-gated trigger in
+              `handle_editor_event`.
+            - *Setting*: `natural_language_autosuggestions_enabled_internal`
+              with its `is_natural_language_autosuggestions_enabled` getter —
+              after the chain died it had zero behavioral consumers (the
+              accept-path for `AutosuggestionType::AgentModeQuery` never
+              checked it), so the whole user-facing toggle went with it: the
+              Active AI section, `ToggleNaturalLanguageAutosuggestions` action
+              + binding pair, the `NATURAL_LANGUAGE_AUTOSUGGESTIONS_FLAG`
+              context flag (its only consumer was the toggle's own
+              search-binding registration), and the
+              `ToggleNaturalLanguageAutosuggestionsSetting` telemetry event
+              whose `EnablementState` was this flag.
+            - *Periphery*: the integration-testing user-defaults key, and the
+              workspace context-flag insertion. `WarpAiExecutionContext`,
+              `last_user_block_completed`, and the `AgentModeQuery`
+              autosuggestion type all keep other live users (next-command
+              model, ask-AI flow, legacy prompt suggestions) and stay.
+
+            Acceptance: check both feature sets at the 4-warning lib baseline
+            (same four as HEAD — two transient dead-code warnings from this
+            round's own deletions were also removed: the `json!` import and
+            `Input`'s `server_api` field, whose last reader was
+            `predict_am_query`; the constructor parameter stays,
+            `NextCommandModel` still consumes it), clippy 0 errors in both
+            configs (warnings = the known set, all pre-existing), format
+            clean, nextest green (warp lib 5191 default / 5190 simplewarp —
+            identical to HEAD; no tests referenced the deleted code).
+            Not re-run in the app — the flag was off in every SimpleWarp
+            binary, so the ghost-text path and the Settings toggle were
+            already invisible/inert; no reachable surface changed.
+            **Remaining remote-dependent queue**: empty — remote-dependent
+            flag rounds complete; next up per plan: feature rounds for
+            local-but-disabled flags.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
