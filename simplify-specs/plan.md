@@ -4060,6 +4060,59 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             before.
             **Remaining remote-dependent queue**: `PromptSuggestionsViaMAA`,
             `PredictAMQueries`.
+      - [x] **Prompt suggestions via MAA are deleted** (4bt, 2026-09-15, 29 files,
+            +55/−2,112): third round under the remote-dependent-only scope.
+            The flag ("prompt suggestions sourced via MAA") gated the
+            server-driven suggestion path — the `MaaPassiveSuggestionsModel`
+            issued `PassiveSuggestions` requests at the Warp backend and
+            rendered the returned prompt/code-diff banners; the cargo feature
+            was in neither the default nor the simplewarp set, so the path
+            never ran in any SimpleWarp binary. Gone end to end:
+
+            - *Model*: `passive_suggestions/maa.rs` with its tests (whole
+              modules served this vertical) and the `PassiveSuggestionsModels`
+              pair struct — `TerminalView` keeps a single
+              `legacy_passive_suggestions_model` with its existing event
+              subscription; the local legacy path (static + AI-query
+              suggestions, passive code diffs) is untouched.
+            - *Agent plumbing*: `AIAgentInput::PassiveSuggestionResult` with
+              `PassiveSuggestionResultType`/`PassiveCodeDiffEntry`, its
+              `Display`/`query-text` arms, the `convert_to` MAA-proto
+              conversion, the `convert_conversation` transcript arms, the
+              redaction arms, the persistence `Query` mapping, the
+              controller's `pending_passive_suggestion_results` queue with
+              `send_passive_suggestion_result` and the drain/append sites,
+              and the telemetry `AIAgentInput::PassiveSuggestionResult`
+              event.
+            - *Action*: the `SuggestPrompt` executor's flag-gated
+              `NewPromptSuggestion` emit is gone (the action still resolves
+              through its result channel); `PromptSuggestionExecutorEvent`
+              collapses to `()` with zero remaining references.
+            - *UI*: the `passive_code_diff` inline banner module (whole
+              file), the prompt-suggestion banner's dogfood-only server
+              request token with its debug-link token plumbing and the
+              `CopyServerRequestId` context-menu action (no other
+              constructors), and the MAA-only `DiffStorageHelper`/`FileDiff`
+              imports.
+            - *Flag*: the variant, the cargo feature, and the `features.rs`
+              mapping.
+
+            `maa_api` (`warp_multi_agent_api`) usages stay — that is the
+            multi-agent transport, a different thing from MAA-sourced
+            suggestions.
+
+            Acceptance: check both feature sets at the 4-warning lib baseline
+            (same four as HEAD), clippy 0 errors in both configs (warnings =
+            the known set plus the pre-existing lifecycle `for loop over a
+            single element`), format clean, nextest green (warp lib 5191
+            default / 5190 simplewarp vs 5194/5193 — delta = the 3 tests
+            deleted with their subject; `warp_features`+`warp_server_client`+
+            `warp_core` 72; dependent crates
+            `warp_features`/`input_classifier`/`settings`/`warp_core` check
+            clean). Not re-run in the app — the MAA path sat behind a cargo
+            feature in neither build set, and the legacy suggestion banners
+            use the same render code as before.
+            **Remaining remote-dependent queue**: `PredictAMQueries`.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
