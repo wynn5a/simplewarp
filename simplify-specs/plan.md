@@ -4165,6 +4165,83 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             **Remaining remote-dependent queue**: empty — remote-dependent
             flag rounds complete; next up per plan: feature rounds for
             local-but-disabled flags.
+      - [x] **Server LLM model directory refresh chain is deleted** (4bv,
+            2026-09-15, 25 files, +65/−1580, `7b883bd47`): takes two of the
+            4bm-surveyed AIClient methods — `get_feature_model_choices`
+            (login-gated refresh group) and `get_free_available_models`
+            (ungated but reached only through the `agent_mode_evals`-gated
+            startup fetch) — plus the entire consumption chain. AIClient
+            34 → 32 methods. Both were pure-remote paths: with no Warp
+            server, `LLMPreferences` now starts from the compiled-in
+            `ModelsByFeature::default()` catalog with local providers,
+            custom endpoints, and custom routers layered on top. Gone end
+            to end:
+
+            - *Client surface*: the two `AIClient` trait methods and their
+              `ServerApi` local-only stubs, with all `TryFrom`/`From`
+              conversion impls in `server_api/ai.rs`
+              (`FeatureModelChoice`/`AvailableLlms`/`LlmInfo`/
+              `RoutingHostConfig`/`LlmSpec`/`LlmUsageMetadata`/
+              `DisableReason` from both the query and workspace shapes).
+            - *GraphQL*: `free_available_models.rs` and
+              `get_feature_model_choices.rs` deleted, the `llms` selection
+              removed from `get_user.rs`, and `workspace.rs` loses
+              `FeatureModelChoice`/`AvailableLlms`/`LlmInfo`/`LlmPricing`/
+              `LlmSpec`/`LlmUsageMetadata`/`DisableReason`
+              (`LlmProvider`/`LlmModelHost` stay — still used by the
+              surviving workspace conversions, e.g. `crates/ai`).
+            - *Preferences*: the server refresh paths
+              (`refresh_authed_models`/`refresh_public_models`/
+              `refresh_available_models`, `update_feature_model_choices`,
+              `on_server_update`, `get_cached_models` with
+              `MODELS_BY_FEATURE_CACHE_KEY`), the
+              `agent_mode_models_unavailable` flag with its getter/setter,
+              the new-model popup state (`AvailableLLMsUpdate`,
+              `new_choices_since_last_update`,
+              `should_show/mark/hide_*_popup`), and
+              `sanitize_disabled_custom_model_preferences` (subsumed by the
+              surviving `reconcile_disabled_model_preferences`); the
+              constructor no longer subscribes to auth/network/workspaces
+              for refreshes. `set_models_by_feature_for_test` added so
+              tests pin the catalog directly.
+            - *Consumers*: the `AuthManager` `llms` passthrough with
+              `UserProperties::llms`; the controller's
+              `should_refresh_available_llms_on_stream_finish` and
+              `should_refresh_model_config` refresh arms; the agent-SDK
+              classifier's list-unavailable branch (genuinely-unknown ids
+              still get "Unknown model id" with suggestions);
+              integration-testing assertions/steps simplified to the same;
+              the `ProfileModelSelector` popup with its `input_model`/
+              `controller` parameters (callers in `terminal/input.rs`,
+              `universal_developer_input.rs`, `agent_input_footer`
+              trimmed); `BlocklistAIInputModel::last_ai_autodetection_ts`;
+              `FeaturePopup::FromCallable` (remaining callers all
+              `FromString`); `dedupe_model_display_names`. Tests
+              re-pointed at `set_models_by_feature_for_test` /
+              `reconcile_disabled_model_preferences`; deleted tests covered
+              only the removed server behavior.
+            - *Kept*: `ModelsByFeature::default()`, provider listing,
+              custom endpoints/routers, `AvailableLLMs::new` (tests),
+              `LLMInfo::new_for_test` (narrowed to `cfg(test)` —
+              integration-testing no longer uses it).
+
+            Acceptance: `check -p warp --tests` clean in both feature sets
+            (warnings = the pre-existing set in untouched files),
+            `warp_graphql` 7 / `ai` 332 green, targeted warp lib suites
+            green (`llms` 31, `agent_sdk::common` 4,
+            execution-profiles+ambient 88, `ai::` 1811), format clean.
+            Full-workspace nextest is not runnable on this machine
+            (missing `xcrun metal` — environmental, pre-existing,
+            unrelated to this round); verified via a fake-`xcrun` shim
+            that only stubs the shader bytecode step. Clippy under this
+            toolchain reports pre-existing errors in untouched files
+            (`notebook_tests`, `snapshots`, `profiles`,
+            `retry_strategies`, `lifecycle`, `warp_completer`) — no new
+            lints from this round.
+            **Remaining queue**: the login-gated refresh group is down to
+            `get_request_limit_info`, `get_available_harnesses`,
+            `list_connected_self_hosted_workers`; then `AuthClient` (12),
+            `ServerApi`/`Provider`/`BaseClient`, then the crates.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
