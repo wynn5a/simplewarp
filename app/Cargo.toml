@@ -760,6 +760,7 @@ simplewarp = [
     "github_pr_prompt_chip",
     "conversations_as_context",
     "markdown_tables",
+    "jupyter_notebook_rendering",
     "blocklist_markdown_table_rendering",
     "markdown_mermaid",
     "blocklist_markdown_images",

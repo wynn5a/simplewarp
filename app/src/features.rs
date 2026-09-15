@@ -400,3 +400,16 @@ fn enabled_features() -> HashSet<FeatureFlag> {
 pub const fn warp_account_available() -> bool {
     !cfg!(feature = "local_only")
 }
+
+#[cfg(test)]
+mod tests {
+    // SimpleWarp keeps Jupyter notebook rendering on: it is purely local
+    // (parse + render in-process) and turns `.ipynb` files from raw JSON
+    // into the notebook viewer.
+    #[test]
+    #[cfg(feature = "jupyter_notebook_rendering")]
+    fn jupyter_notebook_rendering_is_compiled_into_the_build() {
+        use super::*;
+        assert!(enabled_features().contains(&FeatureFlag::JupyterNotebookRendering));
+    }
+}
