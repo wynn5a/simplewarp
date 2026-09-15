@@ -23,7 +23,7 @@ Target experience:
 | Code removal | Gate, then hide, then delete. |
 | TUI (`crates/warp_tui`) | Delete. It is not part of the GUI app. |
 | Name | SimpleWarp. Bin `simplewarp`, id `dev.simplewarp.SimpleWarp`, scheme `simplewarp`. |
-| Deletion scope (2026-09-15) | Delete only what **requires a remote service**. A feature that works fully locally stays, even when its flag is constant-false in the simplewarp build — site-count ranking of constant-false flags is not a deletion reason by itself. An attempt to fold `JupyterNotebookRendering` (purely local: local JSON parse + local render, no network) was reverted before commit for exactly this reason. Local-but-disabled features (JupyterNotebookRendering, EditableMarkdownMermaid, ImeMarkedText, ITermImages, …) are instead *enable-in-simplewarp* candidates, a separate decision per feature. |
+| Deletion scope (2026-09-15) | Delete only what **requires a remote service**. A feature that works fully locally stays, even when its flag is constant-false in the simplewarp build — site-count ranking of constant-false flags is not a deletion reason by itself. An attempt to fold `JupyterNotebookRendering` (purely local: local JSON parse + local render, no network) was reverted before commit for exactly this reason. Local-but-disabled features are instead *enable-in-simplewarp* candidates, a separate decision per feature. **JupyterNotebookRendering is now enabled** (2026-09-15, commit "Enable JupyterNotebookRendering in the simplewarp build"): `.ipynb` files open in the notebook viewer instead of raw JSON; a `features::tests` pinning test fails if the feature ever drops out of the set. Remaining enable-candidates: EditableMarkdownMermaid, ImeMarkedText, ITermImages. |
 
 ## Reconnaissance
 
