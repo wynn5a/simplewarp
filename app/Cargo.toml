@@ -915,7 +915,6 @@ local_only = ["warp_server_client/local_only"]
 skip_login = ["warp_server_client/skip_login"]
 # This feature should only be enabled when building a self-contained binary with the bundle script.
 standalone = ["warp_assets/standalone", "warp_core/standalone"]
-prompt_suggestions_via_maa = []
 voice_input = ["dep:voice_input"]
 system_theme = []
 tab_close_button_on_left = []

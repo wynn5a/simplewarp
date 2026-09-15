@@ -47,10 +47,7 @@ pub use action_model::{
     BlocklistAIActionEvent, BlocklistAIActionModel, ShellCommandExecutor, ShellCommandExecutorEvent,
 };
 #[cfg_attr(target_family = "wasm", allow(unused_imports))]
-pub(crate) use action_model::{
-    FileReadResult, ReadFileContextResult, RequestFileEditsFormatKind, apply_edits,
-    read_local_file_context,
-};
+pub(crate) use action_model::{ReadFileContextResult, read_local_file_context};
 #[allow(unused_imports)]
 pub use action_model::{
     StartAgentExecutor, StartAgentExecutorEvent, StartAgentOutcome, StartAgentRequest,
@@ -98,8 +95,7 @@ pub use input_model::{
     BlocklistAIInputModel, InputConfig, InputType, InputTypeAutoDetectionSource,
 };
 pub(crate) use passive_suggestions::{
-    LegacyPassiveSuggestionsEvent, LegacyPassiveSuggestionsModel, MaaPassiveSuggestionsEvent,
-    MaaPassiveSuggestionsModel, PassiveSuggestionsModels,
+    LegacyPassiveSuggestionsEvent, LegacyPassiveSuggestionsModel,
 };
 pub use permissions::{BlocklistAIPermissions, CommandExecutionPermissionAllowedReason};
 #[cfg_attr(target_family = "wasm", allow(unused))]

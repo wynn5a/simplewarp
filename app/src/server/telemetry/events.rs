@@ -960,7 +960,6 @@ pub enum AIAgentInput {
     StartFromAmbientRunPrompt,
     MessagesReceivedFromAgents { message_count: usize },
     EventsFromAgents { event_count: usize },
-    PassiveSuggestionResult,
     OrchestrationConfigUpdate,
 }
 
@@ -1000,7 +999,6 @@ impl From<FullAIAgentInput> for AIAgentInput {
             FullAIAgentInput::EventsFromAgents { events } => Self::EventsFromAgents {
                 event_count: events.len(),
             },
-            FullAIAgentInput::PassiveSuggestionResult { .. } => Self::PassiveSuggestionResult,
             FullAIAgentInput::OrchestrationConfigUpdate { .. } => Self::OrchestrationConfigUpdate,
         }
     }

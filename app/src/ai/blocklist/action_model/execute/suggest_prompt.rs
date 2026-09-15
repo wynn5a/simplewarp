@@ -1,14 +1,10 @@
 use futures::FutureExt;
 use futures::channel::oneshot;
 use futures::future::BoxFuture;
-use warp_core::features::FeatureFlag;
 use warpui::{Entity, ModelContext};
 
 use crate::AIAgentActionResultType;
-use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent::{
-    AIAgentAction, AIAgentActionId, AIAgentActionType, SuggestPromptRequest, SuggestPromptResult,
-};
+use crate::ai::agent::{AIAgentAction, AIAgentActionType, SuggestPromptResult};
 use crate::ai::blocklist::action_model::execute::{
     ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput,
 };
@@ -41,26 +37,15 @@ impl PromptSuggestionExecutor {
     pub(super) fn execute(
         &mut self,
         input: ExecuteActionInput,
-        ctx: &mut ModelContext<Self>,
+        _ctx: &mut ModelContext<Self>,
     ) -> impl Into<AnyActionExecution> + use<> {
         let AIAgentAction {
-            action: AIAgentActionType::SuggestPrompt(request),
+            action: AIAgentActionType::SuggestPrompt(_),
             ..
         } = input.action
         else {
             return ActionExecution::InvalidAction;
         };
-
-        if FeatureFlag::PromptSuggestionsViaMAA.is_enabled()
-            && let SuggestPromptRequest::PromptSuggestion { prompt, label } = request
-        {
-            ctx.emit(PromptSuggestionExecutorEvent::NewPromptSuggestion {
-                prompt: prompt.clone(),
-                label: label.clone(),
-                conversation_id: input.conversation_id,
-                action_id: input.action.id.clone(),
-            });
-        }
 
         let (result_tx, result_rx) = oneshot::channel();
         self.suggest_prompt_result_tx = Some(result_tx);
@@ -91,15 +76,5 @@ impl PromptSuggestionExecutor {
 }
 
 impl Entity for PromptSuggestionExecutor {
-    type Event = PromptSuggestionExecutorEvent;
-}
-
-#[derive(Debug)]
-pub enum PromptSuggestionExecutorEvent {
-    NewPromptSuggestion {
-        prompt: String,
-        label: Option<String>,
-        conversation_id: AIConversationId,
-        action_id: AIAgentActionId,
-    },
+    type Event = ();
 }

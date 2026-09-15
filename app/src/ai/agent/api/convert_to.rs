@@ -7,8 +7,8 @@ use warp_multi_agent_api as api;
 
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext, AIAgentInput,
-    DriveObjectPayload, MCPContext, PassiveSuggestionResultType, PassiveSuggestionTrigger,
-    RunningCommand, StaticQueryType, Suggestions, UserQueryMode,
+    DriveObjectPayload, MCPContext, PassiveSuggestionTrigger, RunningCommand, StaticQueryType,
+    Suggestions, UserQueryMode,
 };
 use crate::ai::block_context::BlockContext;
 
@@ -364,62 +364,6 @@ fn convert_input_to_user_input(
                 },
             ),
         ),
-        AIAgentInput::PassiveSuggestionResult {
-            trigger,
-            suggestion,
-            ..
-        } => {
-            let api_trigger = match trigger {
-                Some(PassiveSuggestionTrigger::ShellCommandCompleted(shell_trigger)) => Some(
-                    api::passive_suggestion_result_type::Trigger::ExecutedShellCommand(
-                        (*shell_trigger.executed_shell_command).into(),
-                    ),
-                ),
-                Some(PassiveSuggestionTrigger::AgentResponseCompleted { .. }) => Some(
-                    api::passive_suggestion_result_type::Trigger::AgentResponseCompleted(
-                        api::passive_suggestion_result_type::AgentResponseCompleted {},
-                    ),
-                ),
-                _ => None,
-            };
-            let api_suggestion = match suggestion {
-                PassiveSuggestionResultType::Prompt { prompt } => Some(
-                    api::passive_suggestion_result_type::Suggestion::Prompt(
-                        api::passive_suggestion_result_type::Prompt { prompt },
-                    ),
-                ),
-                PassiveSuggestionResultType::CodeDiff {
-                    diffs,
-                    summary,
-                    accepted,
-                } => Some(
-                    api::passive_suggestion_result_type::Suggestion::CodeDiff(
-                        api::passive_suggestion_result_type::CodeDiff {
-                            diffs: diffs
-                                .into_iter()
-                                .map(|d| api::passive_suggestion_result_type::code_diff::Diff {
-                                    file_path: d.file_path,
-                                    search: d.search,
-                                    replace: d.replace,
-                                })
-                                .collect(),
-                            summary,
-                            accepted,
-                        },
-                    ),
-                ),
-            };
-            Ok(
-                api::request::input::user_inputs::user_input::Input::PassiveSuggestionResult(
-                    api::request::input::user_inputs::PassiveSuggestionResultInput {
-                        result: Some(api::PassiveSuggestionResultType {
-                            trigger: api_trigger,
-                            suggestion: api_suggestion,
-                        }),
-                    },
-                ),
-            )
-        }
         AIAgentInput::OrchestrationConfigUpdate {
             plan_id,
             config,

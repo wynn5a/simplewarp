@@ -4,7 +4,6 @@ mod model_impl;
 use chrono::TimeDelta;
 pub use helper::AIBlockModelHelper;
 pub use model_impl::*;
-use warp_core::features::FeatureFlag;
 use warpui::{AppContext, ViewContext};
 
 use crate::ai::agent::conversation::AIConversationId;
@@ -49,13 +48,6 @@ impl AIRequestType {
 
     pub fn is_passive_code_diff(&self) -> bool {
         matches!(self, AIRequestType::Passive(PassiveRequestType::CodeDiff))
-            || (FeatureFlag::PromptSuggestionsViaMAA.is_enabled()
-                && matches!(
-                    self,
-                    AIRequestType::Passive(PassiveRequestType::PassiveSuggestion(
-                        PassiveSuggestionTriggerType::ShellCommandCompleted
-                    ))
-                ))
     }
 
     pub fn is_passive_unit_test_suggestion(&self) -> bool {

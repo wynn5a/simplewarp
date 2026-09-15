@@ -9,7 +9,6 @@ use chrono::Utc;
 use command::r#async::Command;
 use parking_lot::FairMutex;
 use serde_json::json;
-use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warpui::r#async::{FutureExt as AsyncFutureExt, SpawnedFutureHandle, Timer};
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
@@ -162,10 +161,6 @@ impl PassiveSuggestionsModel {
                 self.abort_pending_requests(ctx);
             }
             ModelEvent::AfterBlockCompleted(after_block_completed_event) => {
-                if FeatureFlag::PromptSuggestionsViaMAA.is_enabled() {
-                    self.abort_pending_requests(ctx);
-                    return;
-                }
                 let BlockType::User(block_completed) = &after_block_completed_event.block_type
                 else {
                     return;

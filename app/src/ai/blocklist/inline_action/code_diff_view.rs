@@ -646,34 +646,6 @@ impl CodeDiffView {
         view
     }
 
-    /// Creates a passive `CodeDiffView` for out-of-band code diff suggestions.
-    ///
-    /// Unlike [`Self::new`], this does not require an `AIBlockModel` or
-    /// `BlocklistAIActionModel` — the view is standalone and not tied to the
-    /// action executor pipeline.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_passive(
-        action_id: &AIAgentActionId,
-        title: Option<String>,
-        identifiers: AIIdentifiers,
-        edit_format_kind: RequestFileEditsFormatKind,
-        should_show_speedbump: bool,
-        session_platform: Option<SessionPlatform>,
-        ctx: &mut ViewContext<Self>,
-    ) -> Self {
-        Self::build(
-            action_id,
-            true,
-            CodeDiffState::WaitingForUser,
-            title,
-            identifiers,
-            edit_format_kind,
-            should_show_speedbump,
-            session_platform,
-            ctx,
-        )
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn build(
         action_id: &AIAgentActionId,

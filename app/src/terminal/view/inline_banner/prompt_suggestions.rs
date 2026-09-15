@@ -1,7 +1,6 @@
 use std::rc::Rc;
 
 use serde::Serialize;
-use warp_core::channel::ChannelState;
 use warp_core::ui::theme::color::internal_colors::{neutral_2, neutral_3};
 use warpui::elements::{
     ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Fill, Flex,
@@ -16,7 +15,6 @@ use warpui::{
     ViewContext, ViewHandle,
 };
 
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{PassiveSuggestionTrigger, StaticQueryType};
 use crate::ai::blocklist::BlocklistAIInputModel;
@@ -26,7 +24,7 @@ use crate::appearance::Appearance;
 use crate::server::telemetry::InteractionSource;
 use crate::settings::InputSettings;
 use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
-use crate::terminal::view::{ContextMenuAction, InputType, PromptSuggestion, TerminalAction};
+use crate::terminal::view::{InputType, PromptSuggestion, TerminalAction};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon as WarpUIIcon;
 use crate::util::bindings::keybinding_name_to_keystroke;
@@ -103,9 +101,6 @@ pub struct PromptSuggestionBannerState {
     /// The conversation that this suggestion should be associated with.
     /// Only populated when a prompt suggestion is generated in the agent view.
     pub conversation_id: Option<AIConversationId>,
-
-    /// The server request token, used to construct a debug link (dogfood only).
-    pub server_request_token: Option<String>,
 }
 
 /// Renders the Prompt Suggestions button, with appropriate hover and click effects.
@@ -117,7 +112,6 @@ fn render_button(
     keystroke: Option<Keystroke>,
     mouse_state: MouseStateHandle,
     on_click: Rc<impl Fn(&mut EventContext) + 'static>,
-    debug_request_token: Option<ServerConversationToken>,
     prompt_alert_state: &PromptAlertState,
     should_shrink: bool,
     force_enabled: bool,
@@ -228,18 +222,6 @@ fn render_button(
     })
     .with_cursor(Cursor::PointingHand);
 
-    let hoverable = if let Some(token) = debug_request_token {
-        hoverable.on_right_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(TerminalAction::ContextMenu(
-                ContextMenuAction::CopyServerRequestId {
-                    request_id: token.clone(),
-                },
-            ));
-        })
-    } else {
-        hoverable
-    };
-
     if is_button_disabled {
         hoverable.finish()
     } else {
@@ -305,15 +287,6 @@ impl View for PromptSuggestionsView {
         };
         let prompt_suggestion = &banner_state.prompt_suggestion;
 
-        let debug_request_token = if ChannelState::enable_debug_features() {
-            banner_state
-                .server_request_token
-                .as_ref()
-                .map(|t| ServerConversationToken::new(t.clone()))
-        } else {
-            None
-        };
-
         inner_banner_flex.add_child(
             Shrinkable::new(
                 1.0,
@@ -330,7 +303,6 @@ impl View for PromptSuggestionsView {
                             },
                         ));
                     }),
-                    debug_request_token,
                     prompt_alert_state,
                     true, // should_shrink
                     false,

@@ -145,9 +145,6 @@ pub enum FeatureFlag {
     /// Enables validation of autosuggestions.
     ValidateAutosuggestions,
 
-    /// Enables prompt suggestions sourced via MAA.
-    PromptSuggestionsViaMAA,
-
     /// Enables using `esc` to clear autosuggestions.
     ClearAutosuggestionOnEscape,
 

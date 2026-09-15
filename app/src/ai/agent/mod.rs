@@ -34,7 +34,6 @@ use task::TaskId;
 pub use telemetry::AIIdentifiers;
 use uuid::Uuid;
 use warp_core::channel::ChannelState;
-use warp_core::features::FeatureFlag;
 use warp_editor::render::model::LineCount;
 use warp_multi_agent_api::{AgentEvent, AgentType, diff_hunk as diff_hunk_api};
 
@@ -2674,27 +2673,6 @@ pub struct RunningCommand {
     pub is_alt_screen_active: bool,
 }
 
-/// A single search/replace diff entry for a passive code suggestion.
-#[derive(Clone, Debug, PartialEq)]
-pub struct PassiveCodeDiffEntry {
-    pub file_path: String,
-    pub search: String,
-    pub replace: String,
-}
-
-/// The outcome of a passive suggestion that the user interacted with.
-#[derive(Clone, Debug, PartialEq)]
-pub enum PassiveSuggestionResultType {
-    Prompt {
-        prompt: String,
-    },
-    CodeDiff {
-        diffs: Vec<PassiveCodeDiffEntry>,
-        summary: String,
-        accepted: bool,
-    },
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum AIAgentInput {
     /// A user's query to the AI.
@@ -2790,14 +2768,6 @@ pub enum AIAgentInput {
     /// Events received from other agent conversations.
     EventsFromAgents {
         events: Vec<AgentEvent>,
-    },
-
-    /// The result of a passive suggestion that should be
-    /// handled in the active conversation.
-    PassiveSuggestionResult {
-        trigger: Option<PassiveSuggestionTrigger>,
-        suggestion: PassiveSuggestionResultType,
-        context: Arc<[AIAgentContext]>,
     },
 
     /// Piggybacked orchestration config update from the plan card.
@@ -2899,7 +2869,6 @@ impl Display for AIAgentInput {
             Self::EventsFromAgents { events } => {
                 write!(f, "EventsFromAgents({} events)", events.len())
             }
-            Self::PassiveSuggestionResult { .. } => write!(f, "PassiveSuggestionResult"),
             Self::OrchestrationConfigUpdate { .. } => write!(f, "OrchestrationConfigUpdate"),
         }
     }
@@ -2949,10 +2918,6 @@ impl AIAgentInput {
                     },
                 ..
             } => Some(query.clone()),
-            Self::PassiveSuggestionResult {
-                suggestion: PassiveSuggestionResultType::Prompt { prompt },
-                ..
-            } => Some(prompt.clone()),
             Self::AutoCodeDiffQuery { .. }
             | Self::ActionResult { .. }
             | Self::TriggerPassiveSuggestion { .. }
@@ -2961,7 +2926,6 @@ impl AIAgentInput {
             | Self::StartFromAmbientRunPrompt { .. }
             | Self::MessagesReceivedFromAgents { .. }
             | Self::EventsFromAgents { .. }
-            | Self::PassiveSuggestionResult { .. }
             | Self::OrchestrationConfigUpdate { .. } => None,
         }
     }
@@ -3062,8 +3026,7 @@ impl AIAgentInput {
             | Self::CloneRepository { context, .. }
             | Self::CodeReview { context, .. }
             | Self::InvokeSkill { context, .. }
-            | Self::StartFromAmbientRunPrompt { context, .. }
-            | Self::PassiveSuggestionResult { context, .. } => Some(context),
+            | Self::StartFromAmbientRunPrompt { context, .. } => Some(context),
             Self::SummarizeConversation { context, .. } => Some(context),
             Self::MessagesReceivedFromAgents { .. }
             | Self::EventsFromAgents { .. }
@@ -3097,7 +3060,6 @@ impl AIAgentInput {
             | Self::StartFromAmbientRunPrompt { .. }
             | Self::MessagesReceivedFromAgents { .. }
             | Self::EventsFromAgents { .. }
-            | Self::PassiveSuggestionResult { .. }
             | Self::OrchestrationConfigUpdate { .. } => None,
         }
     }
@@ -3277,13 +3239,6 @@ impl AIAgentExchange {
         self.input
             .iter()
             .any(|input| input.auto_code_diff_query().is_some())
-            || (FeatureFlag::PromptSuggestionsViaMAA.is_enabled()
-                && self.has_passive_request()
-                && self.output_status.output().is_some_and(|output| {
-                    output.get().actions().any(|action| {
-                        matches!(action.action, AIAgentActionType::RequestFileEdits { .. })
-                    })
-                }))
     }
 
     pub fn passive_suggestion_trigger(&self) -> Option<&PassiveSuggestionTrigger> {

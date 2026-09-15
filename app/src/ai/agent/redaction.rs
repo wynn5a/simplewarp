@@ -5,8 +5,8 @@ use super::super::blocklist::block::secret_redaction::{
 };
 use crate::ai::agent::{
     AIAgentActionResultType, AIAgentAttachment, AIAgentContext, AIAgentInput, AnyFileContent,
-    AskUserQuestionAnswerItem, AskUserQuestionResult, BlockContext, PassiveSuggestionResultType,
-    PassiveSuggestionTrigger, RequestCommandOutputResult, TransferShellCommandControlToUserResult,
+    AskUserQuestionAnswerItem, AskUserQuestionResult, BlockContext, PassiveSuggestionTrigger,
+    RequestCommandOutputResult, TransferShellCommandControlToUserResult,
 };
 
 /// Redact all detected secrets in-place within the given string.
@@ -285,34 +285,6 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
                     redact_secrets(&mut user_query.query);
                     for attachment in user_query.referenced_attachments.values_mut() {
                         redact_attachment(attachment);
-                    }
-                }
-            }
-            AIAgentInput::PassiveSuggestionResult {
-                trigger,
-                suggestion,
-                context,
-            } => {
-                redact_context(Arc::make_mut(context));
-                match suggestion {
-                    PassiveSuggestionResultType::Prompt { prompt } => redact_secrets(prompt),
-                    PassiveSuggestionResultType::CodeDiff { diffs, .. } => {
-                        for diff in diffs {
-                            redact_secrets(&mut diff.file_path);
-                            redact_secrets(&mut diff.search);
-                            redact_secrets(&mut diff.replace);
-                        }
-                    }
-                }
-                if let Some(PassiveSuggestionTrigger::ShellCommandCompleted(shell_trigger)) =
-                    trigger
-                {
-                    redact_secrets(&mut shell_trigger.executed_shell_command.command);
-                    redact_secrets(&mut shell_trigger.executed_shell_command.output);
-                    for file in shell_trigger.relevant_files.iter_mut() {
-                        if let AnyFileContent::StringContent(content) = &mut file.content {
-                            redact_secrets(content);
-                        }
                     }
                 }
             }

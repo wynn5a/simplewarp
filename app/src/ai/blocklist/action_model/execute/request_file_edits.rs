@@ -8,7 +8,6 @@ use std::path::PathBuf;
 use ai::diff_validation::AIRequestedCodeDiff;
 use apply_diff_model::ApplyDiffModel;
 use diff_application::DiffApplicationError;
-pub(crate) use diff_application::{FileReadResult, apply_edits};
 use futures::FutureExt;
 use futures::channel::oneshot;
 use futures::future::BoxFuture;
