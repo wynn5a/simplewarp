@@ -10,9 +10,6 @@ use std::sync::Arc;
 use ai::AIClient;
 use anyhow::{Result, anyhow};
 use auth::AuthClient;
-use channel_versions::ChannelVersions;
-use chrono::{DateTime, FixedOffset};
-use instant::Instant;
 use serde::{Deserialize, Serialize};
 use warp_core::context_flag::ContextFlag;
 use warp_core::telemetry::TelemetryEvent;
@@ -72,20 +69,6 @@ impl Deref for ServerApi {
 pub struct CloudAgentCapacityError {
     pub error: String,
     pub running_agents: i32,
-}
-
-#[derive(Debug, Clone)]
-pub struct ServerTime {
-    time_at_fetch: DateTime<FixedOffset>,
-    fetched_at: Instant,
-}
-
-impl ServerTime {
-    pub fn current_time(&self) -> DateTime<FixedOffset> {
-        let elapsed = chrono::Duration::from_std(self.fetched_at.elapsed())
-            .expect("duration should not be bigger than limit");
-        self.time_at_fetch + elapsed
-    }
 }
 
 /// Wrapper for deserialization errors. This covers both:
@@ -530,23 +513,6 @@ impl ServerApi {
         _request: &TranscribeRequest,
     ) -> Result<TranscribeResponse, TranscribeError> {
         Err(TranscribeError::Other(local_only_error()))
-    }
-
-    pub async fn server_time(&self) -> Result<ServerTime> {
-        Err(local_only_error())
-    }
-
-    /// Fetches updated Warp Channel Versions from Warp Server. If it is the first such request of
-    /// the current calendar day, first attempts to call the '/client_version/daily'. If that call
-    /// fails or if it not the first request of the calendar day, returns the result of a call to
-    /// `/client_version'. The caller can specify whether or not changelog information should be
-    /// included in the response based on whether or not it will be used.
-    pub async fn fetch_channel_versions(
-        &self,
-        _include_changelogs: bool,
-        _is_daily: bool,
-    ) -> Result<ChannelVersions> {
-        Err(local_only_error())
     }
 }
 
