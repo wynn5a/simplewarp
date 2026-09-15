@@ -90,7 +90,7 @@ use crate::settings::{
     AwsBedrockCredentialsEnabled, CanUseWarpCreditsForFallback, GeminiEnterpriseCredentialsEnabled,
     GitOperationsAutogenEnabled, IncludeAgentCommandsInHistory, InputSettings,
     IntelligentAutosuggestionsEnabled, LongRunningCommandSubmissionMode, NLDInTerminalEnabled,
-    NaturalLanguageAutosuggestionsEnabled, OrchestrationMessageDisplayMode, PromptSubmissionMode,
+    OrchestrationMessageDisplayMode, PromptSubmissionMode,
     ShouldRenderUseAgentToolbarForUserCommands, ShowAgentTips, ShowConversationHistory,
     ShowHintText, ThinkingDisplayMode, VOICE_INPUT_LANGUAGES, VoiceInputEnabled,
     VoiceInputLanguage, VoiceInputToggleKey,
@@ -112,8 +112,6 @@ const AI_SETTINGS_DROPDOWN_MAX_HEIGHT: f32 = 250.;
 const NEXT_COMMAND_DESCRIPTION: &str = "Let AI suggest the next command to run based on your command history, outputs, and common workflows.";
 const PROMPT_SUGGESTIONS_DESCRIPTION: &str = "Let AI suggest natural language prompts, as inline banners in the input, based on recent commands and their outputs.";
 const SUGGESTED_CODE_BANNERS_DESCRIPTION: &str = "Let AI suggest code diffs and queries as inline banners in the blocklist, based on recent commands and their outputs.";
-const NATURAL_LANGUAGE_AUTOSUGGESTIONS: &str =
-    "Let AI suggest natural language autosuggestions, based on recent commands and their outputs.";
 const GIT_OPERATIONS_AUTOGEN_DESCRIPTION: &str =
     "Let AI generate commit messages and pull request titles and descriptions.";
 const WISPR_FLOW_URL: &str = "https://wisprflow.ai/";
@@ -362,21 +360,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             .collect();
         app.register_fixed_bindings(lrc_mode_bindings);
     }
-    ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
-        vec![
-            ToggleSettingActionPair::new(
-                "natural language autosuggestions",
-                builder(SettingsAction::WarpAgent(
-                    WarpAgentPageAction::ToggleNaturalLanguageAutosuggestions,
-                )),
-                &(context.clone() & id!(flags::IS_ACTIVE_AI_ENABLED)),
-                flags::NATURAL_LANGUAGE_AUTOSUGGESTIONS_FLAG,
-            )
-            .with_group(bindings::BindingGroup::WarpAi)
-            .with_enabled(|| FeatureFlag::PredictAMQueries.is_enabled()),
-        ],
-        app,
-    );
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![
             ToggleSettingActionPair::new(
@@ -1547,10 +1530,6 @@ impl WarpAgentPageView {
             || ai_settings
                 .prompt_suggestions_enabled_internal
                 .is_supported_on_current_platform()
-            || (FeatureFlag::PredictAMQueries.is_enabled()
-                && ai_settings
-                    .natural_language_autosuggestions_enabled_internal
-                    .is_supported_on_current_platform())
             || (FeatureFlag::GitOperationsInCodeReview.is_enabled()
                 && ai_settings
                     .git_operations_autogen_enabled_internal
@@ -1689,7 +1668,6 @@ pub enum WarpAgentPageAction {
     ToggleIntelligentAutosuggestions,
     TogglePromptSuggestions,
     ToggleCodeSuggestions,
-    ToggleNaturalLanguageAutosuggestions,
     ToggleGitOperationsAutogen,
     ToggleAIInputAutoDetection,
     ToggleNLDInTerminal,
@@ -1849,28 +1827,6 @@ impl TypedActionView for WarpAgentPageView {
                     }
                     Err(e) => {
                         log::warn!("Failed to set value for Code Suggestions setting: {e:?}");
-                    }
-                }
-                ctx.notify();
-            }
-            WarpAgentPageAction::ToggleNaturalLanguageAutosuggestions => {
-                match AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    settings
-                        .natural_language_autosuggestions_enabled_internal
-                        .toggle_and_save_value(ctx)
-                }) {
-                    Ok(new_value) => {
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::ToggleNaturalLanguageAutosuggestionsSetting {
-                                is_natural_language_autosuggestions_enabled: new_value,
-                            },
-                            ctx
-                        );
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to set value for Natural Language Autosuggestions setting: {e:?}"
-                        );
                     }
                 }
                 ctx.notify();
@@ -2342,7 +2298,6 @@ struct ActiveAIWidget {
     intelligent_autosuggestions_toggle: SwitchStateHandle,
     prompt_suggestions_toggle: SwitchStateHandle,
     code_suggestions_toggle: SwitchStateHandle,
-    natural_language_autosuggestions_toggle: SwitchStateHandle,
     git_operations_autogen_toggle: SwitchStateHandle,
 }
 
@@ -2353,7 +2308,6 @@ impl ActiveAIWidget {
             intelligent_autosuggestions_toggle: Default::default(),
             prompt_suggestions_toggle: Default::default(),
             code_suggestions_toggle: Default::default(),
-            natural_language_autosuggestions_toggle: Default::default(),
             git_operations_autogen_toggle: Default::default(),
         }
     }
@@ -2376,13 +2330,6 @@ impl ActiveAIWidget {
             || UserWorkspaces::as_ref(app).is_code_suggestions_toggleable())
             && AISettings::as_ref(app)
                 .code_suggestions_enabled_internal
-                .is_supported_on_current_platform()
-    }
-
-    fn is_natural_language_autosuggestions_toggleable(&self, app: &AppContext) -> bool {
-        FeatureFlag::PredictAMQueries.is_enabled()
-            && AISettings::as_ref(app)
-                .natural_language_autosuggestions_enabled_internal
                 .is_supported_on_current_platform()
     }
 
@@ -2476,33 +2423,6 @@ impl ActiveAIWidget {
             .finish()
     }
 
-    fn render_natural_language_autosuggestions_section(
-        &self,
-        view: &WarpAgentPageView,
-        app: &warpui::AppContext,
-    ) -> Box<dyn warpui::Element> {
-        let ai_settings = AISettings::as_ref(app);
-        let is_toggleable = ai_settings.is_active_ai_enabled(app);
-        Flex::column()
-            .with_child(render_ai_setting_toggle::<
-                NaturalLanguageAutosuggestionsEnabled,
-            >(
-                "Natural Language Autosuggestions",
-                WarpAgentPageAction::ToggleNaturalLanguageAutosuggestions,
-                *ai_settings.natural_language_autosuggestions_enabled_internal,
-                is_toggleable,
-                self.natural_language_autosuggestions_toggle.clone(),
-                &view.local_only_icon_tooltip_states,
-                app,
-            ))
-            .with_child(render_ai_setting_description(
-                NATURAL_LANGUAGE_AUTOSUGGESTIONS,
-                is_toggleable,
-                app,
-            ))
-            .finish()
-    }
-
     fn render_git_operations_autogen_section(
         &self,
         view: &WarpAgentPageView,
@@ -2540,7 +2460,6 @@ impl SettingsWidget for ActiveAIWidget {
         self.is_next_command_toggleable(app)
             || self.is_prompt_suggestions_toggleable(app)
             || self.is_suggested_code_banners_toggleable(app)
-            || self.is_natural_language_autosuggestions_toggleable(app)
             || self.is_git_operations_autogen_toggleable(app)
     }
 
@@ -2594,10 +2513,6 @@ impl SettingsWidget for ActiveAIWidget {
 
         if self.is_suggested_code_banners_toggleable(app) {
             column.add_child(self.render_suggested_code_banners_section(view, app));
-        }
-
-        if self.is_natural_language_autosuggestions_toggleable(app) {
-            column.add_child(self.render_natural_language_autosuggestions_section(view, app));
         }
 
         if self.is_git_operations_autogen_toggleable(app) {

@@ -171,9 +171,6 @@ pub enum FeatureFlag {
     /// Forces users to login.
     ForceLogin,
 
-    /// Enables prediction of Agent Mode queries.
-    PredictAMQueries,
-
     /// Enables full source code embedding of repos when using codebase context.
     FullSourceCodeEmbedding,
 

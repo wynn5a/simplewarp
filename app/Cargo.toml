@@ -892,7 +892,6 @@ plugin_host = ["dep:rquickjs", "dep:warp_js", "warp_cli/plugin_host"]
 # generated profile will be written to profile.pb in the current directory.
 # NOTE: This may slow down program execution.
 pprof_cpu_profiling = ["dep:pprof"]
-predict_am_queries = []
 quake_mode = []
 record_app_active_events = []
 recording_mode = []
