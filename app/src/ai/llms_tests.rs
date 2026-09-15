@@ -394,8 +394,6 @@ fn custom_endpoint_usage_display_label_resolves_alias_name_and_generic_fallback(
     };
     let preferences = LLMPreferences {
         models_by_feature: ModelsByFeature::default(),
-        agent_mode_models_unavailable: false,
-        last_update: None,
         base_llm_for_terminal_view: HashMap::new(),
         custom_llms: build_custom_llm_infos(&keys),
         provider_llms: Vec::new(),
@@ -538,8 +536,6 @@ fn is_cloud_runnable_oz_model_id_classifies_ids() {
     };
     let preferences = LLMPreferences {
         models_by_feature: ModelsByFeature::default(),
-        agent_mode_models_unavailable: false,
-        last_update: None,
         base_llm_for_terminal_view: HashMap::new(),
         custom_llms: build_custom_llm_infos(&keys),
         provider_llms: Vec::new(),
@@ -602,8 +598,8 @@ fn available(default_id: &str, choices: Vec<LLMInfo>) -> AvailableLLMs {
 #[test]
 fn deserialized_available_llms_with_missing_default_does_not_panic() {
     // `AvailableLLMs::new()` guarantees `default_id` is one of `choices`, but
-    // deserialization (e.g. a stale persisted cache or a server payload)
-    // bypasses `new()`. Build such a struct, round-trip it through serde, and
+    // deserialization of a stale persisted snapshot bypasses `new()`. Build
+    // such a struct, round-trip it through serde, and
     // confirm `default_llm_info()` falls back to the first choice instead of
     // panicking (Sentry: "Default LLM ID must be present in choices").
     let original = available(
@@ -615,91 +611,6 @@ fn deserialized_available_llms_with_missing_default_does_not_panic() {
 
     assert_eq!(deserialized.default_id.as_str(), "missing-default");
     assert_eq!(deserialized.default_llm_info().id.as_str(), "gpt-x");
-}
-
-#[test]
-fn active_models_fall_back_to_usable_choice_or_custom_endpoint_when_default_disabled() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AuthManager::new_for_test);
-        app.add_singleton_model(|_| NetworkStatus::new());
-        app.add_singleton_model(UserWorkspaces::default_mock);
-        app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(|_| UpdateManager::mock());
-        app.add_singleton_model(|_| TemplatableMCPServerManager::default());
-
-        app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        let llm_preferences = app.add_singleton_model(LLMPreferences::new);
-
-        let custom_model_id = LLMId::from("custom-config-key");
-        ApiKeyManager::handle(&app).update(&mut app, |api_key_manager, ctx| {
-            api_key_manager.add_custom_endpoint(
-                ai::api_keys::CustomEndpointParams {
-                    name: "local".to_string(),
-                    url: "https://example.com/v1".to_string(),
-                    api_key: "test-key".to_string(),
-                    models: vec![(
-                        "custom-model".to_string(),
-                        None,
-                        Some(custom_model_id.to_string()),
-                    )],
-                    schema: ai::api_keys::CustomEndpointSchema::default(),
-                },
-                ctx,
-            );
-        });
-
-        // The base/coding default is admin-disabled but another hosted choice
-        // is usable; every hosted CLI agent choice is admin-disabled.
-        let models = ModelsByFeature {
-            agent_mode: available(
-                "auto",
-                vec![
-                    server_llm("auto", Some(DisableReason::AdminDisabled)),
-                    server_llm("gpt-x", None),
-                ],
-            ),
-            coding: available(
-                "auto",
-                vec![
-                    server_llm("auto", Some(DisableReason::AdminDisabled)),
-                    server_llm("gpt-x", None),
-                ],
-            ),
-            cli_agent: Some(available(
-                "cli-agent-auto",
-                vec![server_llm(
-                    "cli-agent-auto",
-                    Some(DisableReason::AdminDisabled),
-                )],
-            )),
-            computer_use: None,
-        };
-        llm_preferences.update(&mut app, |preferences, ctx| {
-            preferences.update_feature_model_choices(Ok(models), ctx);
-        });
-
-        llm_preferences.read(&app, |preferences, app| {
-            // Falls back to the first usable hosted choice.
-            assert_eq!(
-                preferences.get_active_base_model(app, None).id.as_str(),
-                "gpt-x"
-            );
-            assert_eq!(
-                preferences.get_active_coding_model(app, None).id.as_str(),
-                "gpt-x"
-            );
-            // No usable hosted CLI choice → falls back to the custom endpoint.
-            assert_eq!(
-                preferences.get_active_cli_agent_model(app, None).id,
-                custom_model_id
-            );
-        });
-    });
 }
 
 /// Runs picker-query assertions with searchable, selectable, and disabled model fixtures plus
@@ -724,64 +635,12 @@ fn with_model_picker_query_test_context(f: impl FnOnce(&LLMPreferences, &AppCont
                     agent_mode,
                     ..Default::default()
                 },
-                agent_mode_models_unavailable: false,
-                last_update: None,
                 base_llm_for_terminal_view: HashMap::new(),
                 custom_llms: Vec::new(),
                 provider_llms: Vec::new(),
                 custom_model_routers: Vec::new(),
             };
             f(&preferences, app_ctx);
-        });
-    });
-}
-
-#[test]
-fn active_models_use_default_when_usable() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AuthManager::new_for_test);
-        app.add_singleton_model(|_| NetworkStatus::new());
-        app.add_singleton_model(UserWorkspaces::default_mock);
-        app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(|_| UpdateManager::mock());
-        app.add_singleton_model(|_| TemplatableMCPServerManager::default());
-
-        app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        let llm_preferences = app.add_singleton_model(LLMPreferences::new);
-
-        let models = ModelsByFeature {
-            agent_mode: available(
-                "auto",
-                vec![server_llm("auto", None), server_llm("gpt-x", None)],
-            ),
-            coding: available("auto", vec![server_llm("auto", None)]),
-            cli_agent: Some(available(
-                "cli-agent-auto",
-                vec![server_llm("cli-agent-auto", None)],
-            )),
-            computer_use: None,
-        };
-        llm_preferences.update(&mut app, |preferences, ctx| {
-            preferences.update_feature_model_choices(Ok(models), ctx);
-        });
-
-        llm_preferences.read(&app, |preferences, app| {
-            assert_eq!(
-                preferences.get_active_base_model(app, None).id.as_str(),
-                "auto"
-            );
-            assert_eq!(
-                preferences
-                    .get_active_cli_agent_model(app, None)
-                    .id
-                    .as_str(),
-                "cli-agent-auto"
-            );
         });
     });
 }
@@ -831,7 +690,7 @@ fn reconcile_preserves_custom_models_saved_on_execution_profile() {
         });
 
         llm_preferences.update(&mut app, |preferences, ctx| {
-            preferences.update_feature_model_choices(Ok(ModelsByFeature::default()), ctx);
+            preferences.reconcile_disabled_model_preferences(ctx);
         });
 
         profiles_model.read(&app, |profiles, ctx| {
@@ -910,9 +769,9 @@ fn reconcile_preserves_custom_endpoint_models_not_configured_locally() {
             );
         });
 
-        // Trigger a model list refresh (as happens on login, network reconnect, etc.).
+        // Run the reconcile pass directly.
         llm_preferences.update(&mut app, |preferences, ctx| {
-            preferences.update_feature_model_choices(Ok(ModelsByFeature::default()), ctx);
+            preferences.reconcile_disabled_model_preferences(ctx);
         });
 
         // The model IDs should be PRESERVED even though no matching custom endpoint
@@ -1048,8 +907,6 @@ fn preferences_for_profile_model_tests() -> LLMPreferences {
             agent_mode,
             ..Default::default()
         },
-        agent_mode_models_unavailable: false,
-        last_update: None,
         base_llm_for_terminal_view: HashMap::new(),
         custom_llms: Vec::new(),
         provider_llms: Vec::new(),

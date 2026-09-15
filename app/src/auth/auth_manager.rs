@@ -16,7 +16,6 @@ use super::user::User;
 use super::user_properties::UserProperties;
 use super::{AuthStateProvider, UserUid};
 use crate::ai::AIRequestUsageModel;
-use crate::ai::llms::LLMPreferences;
 use crate::persistence::ModelEvent;
 use crate::server::server_api::ServerApi;
 use crate::server::server_api::auth::{AuthClient, FetchUserResult, UserAuthenticationError};
@@ -258,7 +257,7 @@ impl AuthManager {
                     credentials,
                     ..
                 } = fetch_user_result;
-                let UserProperties { user, llms } = user_output.into();
+                let UserProperties { user } = user_output.into();
 
                 self.complete_authentication(user.clone(), credentials, ctx);
 
@@ -283,10 +282,6 @@ impl AuthManager {
 
                 AIRequestUsageModel::handle(ctx).update(ctx, |usage_model, ctx| {
                     usage_model.refresh_request_usage_async(ctx);
-                });
-
-                LLMPreferences::handle(ctx).update(ctx, |prefs, ctx| {
-                    prefs.update_feature_model_choices(Ok(llms), ctx);
                 });
 
                 if !user.is_user_anonymous() {

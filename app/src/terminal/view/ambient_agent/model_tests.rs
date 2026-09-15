@@ -65,8 +65,8 @@ fn install_default_agent_mode_model(
                 .expect("valid available llms"),
             ..Default::default()
         };
-        LLMPreferences::handle(ctx).update(ctx, |prefs, ctx| {
-            prefs.update_feature_model_choices(Ok(models), ctx);
+        LLMPreferences::handle(ctx).update(ctx, |prefs, _| {
+            prefs.set_models_by_feature_for_test(models);
         });
     });
 }
@@ -120,7 +120,7 @@ fn spawn_config_honors_pane_model_override() {
                 ..Default::default()
             };
             LLMPreferences::handle(ctx).update(ctx, |prefs, ctx| {
-                prefs.update_feature_model_choices(Ok(models), ctx);
+                prefs.set_models_by_feature_for_test(models);
                 prefs.update_preferred_agent_mode_llm(
                     &LLMId::from("auto-genius"),
                     terminal_view_id,

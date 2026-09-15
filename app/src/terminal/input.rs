@@ -2318,7 +2318,6 @@ impl Input {
             AgentInputFooter::new(
                 menu_positioning_provider.clone(),
                 terminal_view_id,
-                ai_input_model.clone(),
                 model.clone(),
                 // Wired post-construction via `attach_ambient_agent_view_model`.
                 None,

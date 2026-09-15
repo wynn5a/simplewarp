@@ -6,7 +6,6 @@ use super::user::User;
 /// Intermediate app model state converted from a user response returned by the auth client.
 pub(crate) struct UserProperties {
     pub(crate) user: User,
-    pub(crate) llms: crate::ai::llms::ModelsByFeature,
 }
 
 impl From<GqlUserOutput> for UserProperties {
@@ -37,9 +36,6 @@ impl From<GqlUserOutput> for UserProperties {
         let local_id = UserUid::new(user_profile.uid.as_str());
         let needs_sso_link = user_profile.needs_sso_link;
 
-        // Convert LLM model choices from the GraphQL response.
-        let llms = user_properties.llms.try_into().unwrap_or_default();
-
         let user = User {
             is_onboarded,
             local_id,
@@ -53,6 +49,6 @@ impl From<GqlUserOutput> for UserProperties {
             global_skills,
         };
 
-        UserProperties { user, llms }
+        UserProperties { user }
     }
 }

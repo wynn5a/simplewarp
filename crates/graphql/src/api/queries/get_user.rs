@@ -4,7 +4,6 @@ use crate::object_permissions::OwnerType;
 use crate::request_context::RequestContext;
 use crate::scalars::Time;
 use crate::schema;
-use crate::workspace::FeatureModelChoice;
 
 /*
 query GetUser($requestContext: RequestContext!) {
@@ -33,71 +32,6 @@ query GetUser($requestContext: RequestContext!) {
           photoUrl
           uid
         }
-        llms {
-          agentMode {
-            defaultId
-            choices {
-              id
-              displayName
-              baseModelName
-              reasoningLevel
-              description
-              disableReason
-              visionSupported
-              onboardingInfo {
-                title
-                description
-              }
-            }
-          }
-          planning {
-            defaultId
-            choices {
-              id
-              displayName
-              baseModelName
-              reasoningLevel
-              description
-              disableReason
-              visionSupported
-              onboardingInfo {
-                title
-                description
-              }
-            }
-          }
-          coding {
-            defaultId
-            choices {
-              id
-              displayName
-              baseModelName
-              reasoningLevel
-              description
-              disableReason
-              visionSupported
-              onboardingInfo {
-                title
-                description
-              }
-            }
-          }
-          cliAgent {
-            defaultId
-            choices {
-              id
-              displayName
-              baseModelName
-              reasoningLevel
-              description
-              disableReason
-              visionSupported
-              onboardingInfo {
-                title
-                description
-              }
-            }
-          }
         }
       }
     }
@@ -141,7 +75,6 @@ pub struct User {
     pub is_onboarded: bool,
     pub is_on_work_domain: bool,
     pub profile: FirebaseProfile,
-    pub llms: FeatureModelChoice,
 }
 
 #[derive(cynic::QueryFragment, Debug)]

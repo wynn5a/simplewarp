@@ -39,7 +39,6 @@ use warpui::{
 };
 
 use crate::ai::AIRequestUsageModel;
-use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::blocklist::agent_view::is_in_cloud_context;
 use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
@@ -218,7 +217,6 @@ impl AgentInputFooter {
     pub fn new(
         menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
         terminal_view_id: EntityId,
-        ai_input_model: ModelHandle<BlocklistAIInputModel>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
         prompt: ModelHandle<PromptType>,
@@ -386,10 +384,8 @@ impl AgentInputFooter {
             let mut selector = ProfileModelSelector::new(
                 menu_positioning_provider.clone(),
                 terminal_view_id,
-                ai_input_model,
                 None,
                 terminal_model.clone(),
-                None,
                 ctx,
             );
             selector.set_render_compact(false, ctx);

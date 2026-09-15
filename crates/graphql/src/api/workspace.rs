@@ -16,94 +16,7 @@ pub struct Workspace {
     pub pending_email_invites: Vec<EmailInvite>,
     pub invite_link_domain_restrictions: Vec<InviteLinkDomainRestriction>,
     pub is_eligible_for_discovery: bool,
-    pub feature_model_choice: FeatureModelChoice,
     pub total_requests_used_since_last_refresh: i32,
-}
-
-#[derive(cynic::QueryFragment, Debug, Clone)]
-pub struct FeatureModelChoice {
-    pub agent_mode: AvailableLlms,
-    pub planning: AvailableLlms,
-    pub coding: AvailableLlms,
-    pub cli_agent: AvailableLlms,
-    pub computer_use_agent: AvailableLlms,
-}
-
-#[derive(cynic::QueryFragment, Debug, Clone)]
-pub struct AvailableLlms {
-    pub default_id: String,
-    pub choices: Vec<LlmInfo>,
-    pub preferred_codex_model_id: Option<String>,
-}
-
-#[derive(cynic::QueryFragment, Debug, Clone)]
-pub struct RoutingHostConfig {
-    pub enabled: bool,
-    pub model_routing_host: LlmModelHost,
-}
-
-#[derive(cynic::QueryFragment, Debug, Clone)]
-pub struct LlmContextWindow {
-    pub is_configurable: bool,
-    pub min: crate::scalars::Uint32,
-    pub max: crate::scalars::Uint32,
-    pub default: crate::scalars::Uint32,
-}
-
-#[derive(cynic::QueryFragment, Debug, Clone)]
-pub struct LlmInfo {
-    pub display_name: String,
-    pub base_model_name: String,
-    pub id: String,
-    pub reasoning_level: Option<String>,
-    pub usage_metadata: LlmUsageMetadata,
-    pub description: Option<String>,
-    pub disable_reason: Option<DisableReason>,
-    pub vision_supported: bool,
-    pub spec: Option<LlmSpec>,
-    pub provider: LlmProvider,
-    pub host_configs: Vec<RoutingHostConfig>,
-    pub pricing: LlmPricing,
-    pub context_window: LlmContextWindow,
-}
-
-#[derive(cynic::QueryFragment, Debug, Clone)]
-pub struct LlmPricing {
-    pub discount_percentage: Option<f64>,
-}
-
-#[derive(cynic::Enum, Clone, Debug)]
-pub enum LlmProvider {
-    Openai,
-    Anthropic,
-    Google,
-    Xai,
-    Unknown,
-    #[cynic(fallback)]
-    Other(String),
-}
-
-#[derive(cynic::QueryFragment, Debug, Clone)]
-pub struct LlmSpec {
-    pub cost: f64,
-    pub quality: f64,
-    pub speed: f64,
-}
-
-#[derive(cynic::Enum, Clone, Debug)]
-pub enum DisableReason {
-    AdminDisabled,
-    OutOfRequests,
-    ProviderOutage,
-    RequiresUpgrade,
-    #[cynic(fallback)]
-    Other(String),
-}
-
-#[derive(cynic::QueryFragment, Debug, Clone)]
-pub struct LlmUsageMetadata {
-    pub credit_multiplier: Option<f64>,
-    pub request_multiplier: i32,
 }
 
 #[derive(cynic::QueryFragment, Debug, Clone)]
@@ -448,6 +361,17 @@ pub enum LlmModelHost {
     #[cynic(fallback)]
     Other(String),
 }
+#[derive(cynic::Enum, Clone, Debug)]
+pub enum LlmProvider {
+    Openai,
+    Anthropic,
+    Google,
+    Xai,
+    Unknown,
+    #[cynic(fallback)]
+    Other(String),
+}
+
 #[derive(cynic::Enum, Clone, Debug)]
 pub enum HostEnablementSetting {
     Enforce,

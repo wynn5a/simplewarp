@@ -31,10 +31,6 @@ use crate::ai::generate_code_review_content::api::{
     GenerateCodeReviewContentRequest, GenerateCodeReviewContentResponse,
 };
 use crate::ai::harness_availability::HarnessAvailability;
-use crate::ai::llms::{
-    AvailableLLMs, DisableReason, LLMContextWindow, LLMInfo, LLMModelHost, LLMSpec,
-    LLMUsageMetadata, ModelsByFeature, RoutingHostConfig,
-};
 #[cfg(feature = "agent_mode_evals")]
 use crate::ai::request_usage_model::RequestLimitInfo;
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
@@ -507,20 +503,10 @@ pub trait AIClient: 'static + Send + Sync {
 
     async fn get_request_limit_info(&self) -> Result<RequestUsageInfo, anyhow::Error>;
 
-    async fn get_feature_model_choices(&self) -> Result<ModelsByFeature, anyhow::Error>;
-
     async fn get_available_harnesses(&self) -> Result<Vec<HarnessAvailability>, anyhow::Error>;
     async fn list_connected_self_hosted_workers(
         &self,
     ) -> Result<ListConnectedSelfHostedWorkersResponse, anyhow::Error>;
-
-    /// Fetches the free-tier available models without requiring authentication.
-    /// Used during pre-login onboarding so logged-out users see an accurate model list
-    /// instead of the hard-coded `ModelsByFeature::default()` fallback.
-    async fn get_free_available_models(
-        &self,
-        referrer: Option<String>,
-    ) -> Result<ModelsByFeature, anyhow::Error>;
 
     async fn provide_negative_feedback_response_for_ai_conversation(
         &self,
@@ -792,18 +778,7 @@ impl AIClient for ServerApi {
         Err(crate::server::server_api::local_only_error())
     }
 
-    async fn get_feature_model_choices(&self) -> Result<ModelsByFeature, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
     async fn get_available_harnesses(&self) -> Result<Vec<HarnessAvailability>, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn get_free_available_models(
-        &self,
-        _referrer: Option<String>,
-    ) -> Result<ModelsByFeature, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 
@@ -1019,259 +994,6 @@ impl AIClient for ServerApi {
         _request: GenerateCodeReviewContentRequest,
     ) -> Result<GenerateCodeReviewContentResponse, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
-    }
-}
-
-impl TryFrom<warp_graphql::queries::get_feature_model_choices::FeatureModelChoice>
-    for ModelsByFeature
-{
-    type Error = anyhow::Error;
-
-    fn try_from(
-        value: warp_graphql::queries::get_feature_model_choices::FeatureModelChoice,
-    ) -> Result<Self, Self::Error> {
-        Ok(Self {
-            agent_mode: value.agent_mode.try_into()?,
-            coding: value.coding.try_into()?,
-            cli_agent: Some(value.cli_agent.try_into()?),
-            computer_use: Some(value.computer_use_agent.try_into()?),
-        })
-    }
-}
-
-impl TryFrom<warp_graphql::workspace::FeatureModelChoice> for ModelsByFeature {
-    type Error = anyhow::Error;
-
-    fn try_from(value: warp_graphql::workspace::FeatureModelChoice) -> Result<Self, Self::Error> {
-        Ok(Self {
-            agent_mode: value.agent_mode.try_into()?,
-            coding: value.coding.try_into()?,
-            cli_agent: Some(value.cli_agent.try_into()?),
-            computer_use: Some(value.computer_use_agent.try_into()?),
-        })
-    }
-}
-
-impl TryFrom<warp_graphql::queries::get_feature_model_choices::AvailableLlms> for AvailableLLMs {
-    type Error = anyhow::Error;
-
-    fn try_from(
-        value: warp_graphql::queries::get_feature_model_choices::AvailableLlms,
-    ) -> Result<Self, Self::Error> {
-        Self::new(
-            value.default_id.into(),
-            value.choices.into_iter().map(LLMInfo::from),
-            value.preferred_codex_model_id.map(Into::into),
-        )
-    }
-}
-
-impl TryFrom<warp_graphql::workspace::AvailableLlms> for AvailableLLMs {
-    type Error = anyhow::Error;
-
-    fn try_from(value: warp_graphql::workspace::AvailableLlms) -> Result<Self, Self::Error> {
-        Self::new(
-            value.default_id.into(),
-            value.choices.into_iter().map(LLMInfo::from),
-            value.preferred_codex_model_id.map(Into::into),
-        )
-    }
-}
-
-impl From<warp_graphql::queries::get_feature_model_choices::LlmInfo> for LLMInfo {
-    fn from(value: warp_graphql::queries::get_feature_model_choices::LlmInfo) -> Self {
-        let host_configs = {
-            let mut map = std::collections::HashMap::new();
-            for config in value.host_configs {
-                let config: RoutingHostConfig = config.into();
-                let host = config.model_routing_host.clone();
-                if map.insert(host.clone(), config).is_some() {
-                    log::warn!(
-                        "Duplicate LlmModelHost entry for {:?}, using latest value",
-                        host
-                    );
-                }
-            }
-            map
-        };
-        Self {
-            id: value.id.into(),
-            display_name: value.display_name,
-            base_model_name: value.base_model_name,
-            reasoning_level: value.reasoning_level,
-            usage_metadata: value.usage_metadata.into(),
-            description: value.description,
-            disable_reason: value.disable_reason.map(DisableReason::from),
-            vision_supported: value.vision_supported,
-            spec: value.spec.map(Into::into),
-            provider: value.provider.into(),
-            host_configs,
-            discount_percentage: value.pricing.discount_percentage.map(|v| v as f32),
-            context_window: LLMContextWindow {
-                is_configurable: value.context_window.is_configurable,
-                min: value.context_window.min.into(),
-                max: value.context_window.max.into(),
-                default_max: value.context_window.default.into(),
-            },
-        }
-    }
-}
-
-impl From<warp_graphql::workspace::LlmInfo> for LLMInfo {
-    fn from(value: warp_graphql::workspace::LlmInfo) -> Self {
-        let host_configs = {
-            let mut map = std::collections::HashMap::new();
-            for config in value.host_configs {
-                let config: RoutingHostConfig = config.into();
-                let host = config.model_routing_host.clone();
-                if map.insert(host.clone(), config).is_some() {
-                    log::warn!(
-                        "Duplicate LlmModelHost entry for {:?}, using latest value",
-                        host
-                    );
-                }
-            }
-            map
-        };
-        Self {
-            id: value.id.into(),
-            display_name: value.display_name,
-            base_model_name: value.base_model_name,
-            reasoning_level: value.reasoning_level,
-            usage_metadata: value.usage_metadata.into(),
-            description: value.description,
-            disable_reason: value.disable_reason.map(DisableReason::from),
-            vision_supported: value.vision_supported,
-            spec: value.spec.map(Into::into),
-            provider: value.provider.into(),
-            host_configs,
-            discount_percentage: value.pricing.discount_percentage.map(|v| v as f32),
-            context_window: LLMContextWindow {
-                is_configurable: value.context_window.is_configurable,
-                min: value.context_window.min.into(),
-                max: value.context_window.max.into(),
-                default_max: value.context_window.default.into(),
-            },
-        }
-    }
-}
-
-impl From<warp_graphql::queries::get_feature_model_choices::RoutingHostConfig>
-    for RoutingHostConfig
-{
-    fn from(value: warp_graphql::queries::get_feature_model_choices::RoutingHostConfig) -> Self {
-        Self {
-            enabled: value.enabled,
-            model_routing_host: value.model_routing_host.into(),
-        }
-    }
-}
-
-impl From<warp_graphql::workspace::RoutingHostConfig> for RoutingHostConfig {
-    fn from(value: warp_graphql::workspace::RoutingHostConfig) -> Self {
-        Self {
-            enabled: value.enabled,
-            model_routing_host: value.model_routing_host.into(),
-        }
-    }
-}
-
-impl From<warp_graphql::queries::get_feature_model_choices::LlmModelHost> for LLMModelHost {
-    fn from(value: warp_graphql::queries::get_feature_model_choices::LlmModelHost) -> Self {
-        match value {
-            warp_graphql::queries::get_feature_model_choices::LlmModelHost::DirectApi => {
-                LLMModelHost::DirectApi
-            }
-            warp_graphql::queries::get_feature_model_choices::LlmModelHost::AwsBedrock => {
-                LLMModelHost::AwsBedrock
-            }
-            warp_graphql::queries::get_feature_model_choices::LlmModelHost::CustomEndpoint => {
-                LLMModelHost::CustomEndpoint
-            }
-            warp_graphql::queries::get_feature_model_choices::LlmModelHost::GeminiEnterprise => {
-                LLMModelHost::GeminiEnterprise
-            }
-            warp_graphql::queries::get_feature_model_choices::LlmModelHost::Other(value) => {
-                log::warn!(
-                    "Unknown LlmModelHost '{value}'. Make sure to update client GraphQL types!"
-                );
-                LLMModelHost::Unknown
-            }
-        }
-    }
-}
-
-impl From<warp_graphql::queries::get_feature_model_choices::LlmSpec> for LLMSpec {
-    fn from(value: warp_graphql::queries::get_feature_model_choices::LlmSpec) -> Self {
-        Self {
-            cost: value.cost as f32,
-            quality: value.quality as f32,
-            speed: value.speed as f32,
-        }
-    }
-}
-
-impl From<warp_graphql::workspace::LlmSpec> for LLMSpec {
-    fn from(value: warp_graphql::workspace::LlmSpec) -> Self {
-        Self {
-            cost: value.cost as f32,
-            quality: value.quality as f32,
-            speed: value.speed as f32,
-        }
-    }
-}
-
-impl From<warp_graphql::queries::get_feature_model_choices::LlmUsageMetadata> for LLMUsageMetadata {
-    fn from(value: warp_graphql::queries::get_feature_model_choices::LlmUsageMetadata) -> Self {
-        Self {
-            request_multiplier: value.request_multiplier.max(1) as usize,
-            credit_multiplier: value.credit_multiplier.map(|v| v as f32),
-        }
-    }
-}
-
-impl From<warp_graphql::workspace::LlmUsageMetadata> for LLMUsageMetadata {
-    fn from(value: warp_graphql::workspace::LlmUsageMetadata) -> Self {
-        Self {
-            request_multiplier: value.request_multiplier.max(1) as usize,
-            credit_multiplier: value.credit_multiplier.map(|v| v as f32),
-        }
-    }
-}
-
-impl From<warp_graphql::queries::get_feature_model_choices::DisableReason> for DisableReason {
-    fn from(value: warp_graphql::queries::get_feature_model_choices::DisableReason) -> Self {
-        match value {
-            warp_graphql::queries::get_feature_model_choices::DisableReason::AdminDisabled => {
-                DisableReason::AdminDisabled
-            }
-            warp_graphql::queries::get_feature_model_choices::DisableReason::OutOfRequests => {
-                DisableReason::OutOfRequests
-            }
-            warp_graphql::queries::get_feature_model_choices::DisableReason::ProviderOutage => {
-                DisableReason::ProviderOutage
-            }
-            warp_graphql::queries::get_feature_model_choices::DisableReason::RequiresUpgrade => {
-                DisableReason::RequiresUpgrade
-            }
-            warp_graphql::queries::get_feature_model_choices::DisableReason::Other(_) => {
-                DisableReason::Unavailable
-            }
-        }
-    }
-}
-
-impl From<warp_graphql::workspace::DisableReason> for DisableReason {
-    fn from(value: warp_graphql::workspace::DisableReason) -> Self {
-        match value {
-            warp_graphql::workspace::DisableReason::AdminDisabled => DisableReason::AdminDisabled,
-            warp_graphql::workspace::DisableReason::OutOfRequests => DisableReason::OutOfRequests,
-            warp_graphql::workspace::DisableReason::ProviderOutage => DisableReason::ProviderOutage,
-            warp_graphql::workspace::DisableReason::RequiresUpgrade => {
-                DisableReason::RequiresUpgrade
-            }
-            warp_graphql::workspace::DisableReason::Other(_) => DisableReason::Unavailable,
-        }
     }
 }
 

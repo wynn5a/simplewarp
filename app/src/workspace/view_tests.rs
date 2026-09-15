@@ -647,7 +647,7 @@ fn copy_model_and_profile_preserves_explicit_model_over_source_profile_default()
 
         app.update(|ctx| {
             // Catalog containing both slugs so profile/override ids resolve.
-            LLMPreferences::handle(ctx).update(ctx, |prefs, ctx| {
+            LLMPreferences::handle(ctx).update(ctx, |prefs, _| {
                 let models = ModelsByFeature {
                     agent_mode: AvailableLLMs::new(
                         "auto".into(),
@@ -660,7 +660,7 @@ fn copy_model_and_profile_preserves_explicit_model_over_source_profile_default()
                     .expect("valid available llms"),
                     ..Default::default()
                 };
-                prefs.update_feature_model_choices(Ok(models), ctx);
+                prefs.set_models_by_feature_for_test(models);
             });
 
             // Default profile default = M (the destination pane's current profile).

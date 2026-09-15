@@ -810,19 +810,11 @@ pub fn validate_agent_mode_llm_step(model: &'static str) -> TestStep {
         "Judge model is an available agent-mode LLM",
         move |app, _window_id| {
             let llm_id = llm_id.clone();
-            let (is_available, list_unavailable) =
-                LLMPreferences::handle(app).read(app, |llm_preferences, _| {
-                    (
-                        llm_preferences.is_available_agent_mode_llm(&llm_id),
-                        llm_preferences.agent_mode_models_unavailable(),
-                    )
-                });
+            let is_available = LLMPreferences::handle(app).read(app, |llm_preferences, _| {
+                llm_preferences.is_available_agent_mode_llm(&llm_id)
+            });
             if is_available {
                 AssertionOutcome::Success
-            } else if list_unavailable {
-                AssertionOutcome::immediate_failure(format!(
-                    "Agent-mode model list is unavailable from the server (it may be unhealthy); cannot validate judge model '{llm_id}'"
-                ))
             } else {
                 AssertionOutcome::immediate_failure(format!(
                     "Judge model '{llm_id}' is not a valid agent mode LLM"

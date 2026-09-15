@@ -76,15 +76,12 @@ fn assert_context_window_limit_for_request(
 
         let profile_model_id = model.id.clone();
         let available_model_id = profile_model_id.clone();
-        llm_preferences.update(&mut app, move |preferences, ctx| {
-            preferences.update_feature_model_choices(
-                Ok(ModelsByFeature {
-                    agent_mode: AvailableLLMs::new(available_model_id, [model], None)
-                        .expect("test model should create available LLMs"),
-                    ..Default::default()
-                }),
-                ctx,
-            );
+        llm_preferences.update(&mut app, move |preferences, _| {
+            preferences.set_models_by_feature_for_test(ModelsByFeature {
+                agent_mode: AvailableLLMs::new(available_model_id, [model], None)
+                    .expect("test model should create available LLMs"),
+                ..Default::default()
+            });
         });
 
         let profile = AIExecutionProfile {

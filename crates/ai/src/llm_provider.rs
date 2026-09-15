@@ -61,31 +61,6 @@ impl LLMProvider {
     }
 }
 
-impl From<warp_graphql::queries::get_feature_model_choices::LlmProvider> for LLMProvider {
-    fn from(value: warp_graphql::queries::get_feature_model_choices::LlmProvider) -> Self {
-        match value {
-            warp_graphql::queries::get_feature_model_choices::LlmProvider::Openai => Self::OpenAI,
-            warp_graphql::queries::get_feature_model_choices::LlmProvider::Anthropic => {
-                Self::Anthropic
-            }
-            warp_graphql::queries::get_feature_model_choices::LlmProvider::Google => Self::Google,
-            // xAI has no client-side credential (the Grok subscription OAuth was removed).
-            warp_graphql::queries::get_feature_model_choices::LlmProvider::Xai
-            | warp_graphql::queries::get_feature_model_choices::LlmProvider::Unknown => {
-                Self::Unknown
-            }
-            warp_graphql::queries::get_feature_model_choices::LlmProvider::Other(value) => {
-                report_error!(
-                    "Invalid LlmProvider; update client GraphQL types",
-                    extra: { "provider" => %value },
-                    warp_errors::ReportErrorLogMode::OncePerRun
-                );
-                Self::Unknown
-            }
-        }
-    }
-}
-
 impl From<warp_graphql::workspace::LlmProvider> for LLMProvider {
     fn from(value: warp_graphql::workspace::LlmProvider) -> Self {
         match value {

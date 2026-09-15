@@ -398,10 +398,8 @@ impl UniversalDeveloperInputButtonBar {
             let mut selector = ProfileModelSelector::new(
                 menu_positioning_provider.clone(),
                 terminal_view_id,
-                input_model.clone(),
                 ambient_agent_view_model.clone(),
                 terminal_model.clone(),
-                None,
                 ctx,
             );
             selector.set_render_compact(false, ctx);
@@ -412,10 +410,8 @@ impl UniversalDeveloperInputButtonBar {
             let mut selector = ProfileModelSelector::new(
                 menu_positioning_provider.clone(),
                 terminal_view_id,
-                input_model.clone(),
                 ambient_agent_view_model.clone(),
                 terminal_model.clone(),
-                None,
                 ctx,
             );
             selector.set_render_compact(true, ctx);
