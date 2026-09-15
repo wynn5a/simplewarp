@@ -29,7 +29,7 @@ message HostScopedRequest {
   // 4 (open_buffer) and 7 (get_diff_state) moved to SessionScopedRequest:
   // they establish per-connection subscription state, so they must be
   // delivered on (and answered by) a specific connection, never failed over.
-  reserved 4, 7;
+  reserved 4, 7, 9, 10, 11, 13;
   oneof message {
     WriteFile write_file = 1;
     DeleteFile delete_file = 2;
@@ -37,11 +37,7 @@ message HostScopedRequest {
     SaveBuffer save_buffer = 5;
     ResolveConflict resolve_conflict = 6;
     DiscardFilesRequest discard_files = 8;
-    IndexCodebase index_codebase = 9;
-    DropCodebaseIndex drop_codebase_index = 10;
-    GetFragmentMetadataFromHash get_fragment_metadata_from_hash = 11;
     GetBranches get_branches = 12;
-    ResyncCodebase resync_codebase = 13;
     GitCommitChainRequest git_commit_chain = 15;
     GitPushRequest git_push = 16;
     GitCreatePrRequest git_create_pr = 17;
@@ -88,6 +84,7 @@ message Notification {
 // request/response pairs.
 message ServerMessage {
   string request_id = 1;
+  reserved 12, 13, 24;
   oneof message {
     InitializeResponse initialize_response = 2;
     ErrorResponse error = 3;
@@ -99,8 +96,6 @@ message ServerMessage {
     DeleteFileResponse delete_file_response = 9;
     RunCommandResponse run_command_response = 10;
     ReadFileContextResponse read_file_context_response = 11;
-    CodebaseIndexStatusesSnapshot codebase_index_statuses_snapshot = 12;
-    CodebaseIndexStatusUpdated codebase_index_status_updated = 13;
     OpenBufferResponse open_buffer_response = 14;
     BufferUpdatedPush buffer_updated = 15;
     SaveBufferResponse save_buffer_response = 16;
@@ -111,7 +106,6 @@ message ServerMessage {
     DiffStateFileDelta diff_state_file_delta = 21;
     DiscardFilesResponse discard_files_response = 22;
     BufferConflictDetected buffer_conflict_detected = 23;
-    GetFragmentMetadataFromHashResponse get_fragment_metadata_from_hash_response = 24;
     GetBranchesResponse get_branches_response = 25;
     GitCommitChainResponse git_commit_chain_response = 27;
     GitPushResponse git_push_response = 28;
@@ -138,8 +132,8 @@ message Initialize {
   string user_email = 3;
   // Whether the user has enabled crash reporting in their privacy settings.
   bool crash_reporting_enabled = 4;
-  // Client-resolved codebase index limits for parity with local indexing.
-  optional CodebaseIndexLimits codebase_index_limits = 5;
+
+  reserved 5;
 }
 
 // Sent by the client when its bearer credential rotates after initialization.
@@ -155,14 +149,8 @@ message Authenticate {
 // This is a notification (fire-and-forget) — the server does not send a response.
 message UpdatePreferences {
   bool crash_reporting_enabled = 1;
-  optional CodebaseIndexLimits codebase_index_limits = 2;
-}
 
-message CodebaseIndexLimits {
-  // Empty means unlimited.
-  optional uint64 max_indices_allowed = 1;
-  uint64 max_files_per_repo = 2;
-  uint64 embedding_generation_batch_size = 3;
+  reserved 2;
 }
 
 // Sent by the client to cancel an in-progress request.
@@ -497,101 +485,6 @@ message RipgrepSearchMatch {
 message RipgrepSearchSubmatch {
   uint64 byte_start = 1;
   uint64 byte_end = 2;
-}
-
-// ── Remote codebase indexing status ───────────────────────────────
-
-message IndexCodebase {
-  string repo_path = 1;
-  string auth_token = 2;
-}
-message ResyncCodebase {
-  string repo_path = 1;
-  string auth_token = 2;
-  CodebaseResyncMode mode = 3;
-}
-enum CodebaseResyncMode {
-  CODEBASE_RESYNC_MODE_FULL = 0;
-  CODEBASE_RESYNC_MODE_INCREMENTAL = 1;
-}
-
-message DropCodebaseIndex {
-  string repo_path = 1;
-  string auth_token = 2;
-}
-message GetFragmentMetadataFromHash {
-  string repo_path = 1;
-  string root_hash = 2;
-  repeated string content_hashes = 3;
-}
-
-message FragmentMetadata {
-  string content_hash = 1;
-  string path = 2;
-  uint32 start_line = 3;
-  uint32 end_line = 4;
-  uint64 byte_start = 5;
-  uint64 byte_end = 6;
-}
-
-message MissingFragmentMetadata {
-  string content_hash = 1;
-  FileOperationError error = 2;
-}
-enum FragmentMetadataLookupErrorCode {
-  FRAGMENT_METADATA_LOOKUP_ERROR_CODE_UNSPECIFIED = 0;
-  REMOTE_CODEBASE_INDEXING_NOT_ENABLED = 1;
-  INVALID_REPO_PATH = 2;
-  INVALID_ROOT_HASH = 3;
-  INDEX_NOT_FOUND = 4;
-  INDEX_NOT_SYNCED = 5;
-  ROOT_HASH_MISMATCH = 6;
-}
-
-message FragmentMetadataLookupError {
-  FragmentMetadataLookupErrorCode code = 1;
-  string message = 2;
-  optional string current_root_hash = 3;
-}
-message GetFragmentMetadataFromHashSuccess {
-  repeated FragmentMetadata fragments = 1;
-  repeated MissingFragmentMetadata missing_hashes = 2;
-}
-
-message GetFragmentMetadataFromHashResponse {
-  oneof result {
-    GetFragmentMetadataFromHashSuccess success = 1;
-    FragmentMetadataLookupError error = 2;
-  }
-}
-
-enum CodebaseIndexStatusState {
-  CODEBASE_INDEX_STATUS_STATE_UNSPECIFIED = 0;
-  CODEBASE_INDEX_STATUS_STATE_NOT_ENABLED = 1;
-  CODEBASE_INDEX_STATUS_STATE_UNAVAILABLE = 2;
-  CODEBASE_INDEX_STATUS_STATE_DISABLED = 3;
-  CODEBASE_INDEX_STATUS_STATE_QUEUED = 4;
-  CODEBASE_INDEX_STATUS_STATE_INDEXING = 5;
-  CODEBASE_INDEX_STATUS_STATE_READY = 6;
-  CODEBASE_INDEX_STATUS_STATE_STALE = 7;
-  CODEBASE_INDEX_STATUS_STATE_FAILED = 8;
-}
-message CodebaseIndexStatus {
-  string repo_path = 1;
-  CodebaseIndexStatusState state = 2;
-  optional uint64 last_updated_epoch_millis = 3;
-  optional uint64 progress_completed = 4;
-  optional uint64 progress_total = 5;
-  optional string failure_message = 6;
-  optional string root_hash = 7;
-}
-
-message CodebaseIndexStatusesSnapshot {
-  repeated CodebaseIndexStatus statuses = 1;
-}
-
-message CodebaseIndexStatusUpdated {
-  CodebaseIndexStatus status = 1;
 }
 
 // ── Server → client push messages ─────────────────────────────────

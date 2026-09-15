@@ -9,18 +9,13 @@ use futures::channel::oneshot;
 use futures::io::{AsyncRead, AsyncWrite};
 use warpui_core::r#async::{FutureExt as _, executor};
 
-use crate::codebase_index_proto::{
-    RemoteCodebaseIndexStatus, proto_to_codebase_index_status_updated,
-    proto_to_codebase_index_statuses_snapshot,
-};
 use crate::proto::{
-    Abort, Authenticate, BufferEdit, ClientMessage, CloseBuffer, CodebaseIndexLimits, DiffMode,
-    DiffStateFileDelta, DiffStateMetadataUpdate, DiffStateSnapshot, ErrorCode, GitStatusMetadata,
-    Initialize, InitializeResponse, LoadRepoMetadataDirectoryResponse,
-    NavigatedToDirectoryResponse, PrInfo, RemoteAgentContextSnapshot, RepositoryInfo,
-    RunCommandRequest, RunCommandResponse, ServerMessage, SessionBootstrapped, TextEdit,
-    UnsubscribeDiffState, UpdateGitHubPrInfo, UpdateGitHubRepoInfo, UpdateGitStatus, notification,
-    server_message, session_scoped_request,
+    Abort, Authenticate, BufferEdit, ClientMessage, CloseBuffer, DiffMode, DiffStateFileDelta,
+    DiffStateMetadataUpdate, DiffStateSnapshot, ErrorCode, GitStatusMetadata, Initialize,
+    InitializeResponse, LoadRepoMetadataDirectoryResponse, NavigatedToDirectoryResponse, PrInfo,
+    RemoteAgentContextSnapshot, RepositoryInfo, RunCommandRequest, RunCommandResponse,
+    ServerMessage, SessionBootstrapped, TextEdit, UnsubscribeDiffState, UpdateGitHubPrInfo,
+    UpdateGitHubRepoInfo, UpdateGitStatus, notification, server_message, session_scoped_request,
 };
 use crate::repo_metadata_proto::{proto_snapshot_to_update, proto_to_repo_metadata_update};
 
@@ -78,12 +73,6 @@ pub enum ClientEvent {
     RepoMetadataUpdated {
         update: repo_metadata::RepoMetadataUpdate,
     },
-    /// A full remote codebase-index status snapshot was pushed by the server.
-    CodebaseIndexStatusesSnapshotReceived {
-        statuses: Vec<RemoteCodebaseIndexStatus>,
-    },
-    /// A single remote codebase-index status update was pushed by the server.
-    CodebaseIndexStatusUpdated { status: RemoteCodebaseIndexStatus },
     /// A server message could not be decoded and had no parseable request_id.
     MessageDecodingError,
     /// The writer task failed while writing a host-scoped request before it
@@ -156,7 +145,6 @@ pub struct InitializeParams {
     pub user_id: String,
     pub user_email: String,
     pub crash_reporting_enabled: bool,
-    pub codebase_index_limits: Option<CodebaseIndexLimits>,
 }
 
 /// A request-failure notification emitted by [`RemoteServerClient::send_request`].
@@ -351,7 +339,6 @@ impl RemoteServerClient {
                 user_id: params.user_id,
                 user_email: params.user_email,
                 crash_reporting_enabled: params.crash_reporting_enabled,
-                codebase_index_limits: params.codebase_index_limits,
             }),
         );
 
@@ -380,15 +367,10 @@ impl RemoteServerClient {
 
     /// Sends an `UpdatePreferences` notification when the user's privacy
     /// settings change (e.g. toggling crash reporting).
-    pub fn update_preferences(
-        &self,
-        crash_reporting_enabled: bool,
-        codebase_index_limits: Option<CodebaseIndexLimits>,
-    ) {
+    pub fn update_preferences(&self, crash_reporting_enabled: bool) {
         let msg = ClientMessage::notification(notification::Message::UpdatePreferences(
             crate::proto::UpdatePreferences {
                 crash_reporting_enabled,
-                codebase_index_limits,
             },
         ));
         self.send_notification(msg);
@@ -586,41 +568,6 @@ impl RemoteServerClient {
             server_message::Message::RepoMetadataUpdate(push) => {
                 let update = proto_to_repo_metadata_update(&push)?;
                 Some(ClientEvent::RepoMetadataUpdated { update })
-            }
-            server_message::Message::CodebaseIndexStatusesSnapshot(snapshot) => {
-                let statuses = proto_to_codebase_index_statuses_snapshot(&snapshot);
-                log::info!(
-                    "[Remote codebase indexing] Client received codebase index statuses push: \
-                     status_count={}",
-                    statuses.len()
-                );
-                for status in &statuses {
-                    log::info!(
-                        "[Remote codebase indexing] Client received codebase index status in snapshot: \
-                         repo_path={} state={:?} root_hash_present={} \
-                         progress_completed={:?} progress_total={:?} \
-                         failure_message={:?}",
-                        status.repo_path,
-                        status.state,
-                        status.root_hash.is_some(),
-                        status.progress_completed,
-                        status.progress_total,
-                        status.failure_message,
-                    );
-                }
-                Some(ClientEvent::CodebaseIndexStatusesSnapshotReceived { statuses })
-            }
-            server_message::Message::CodebaseIndexStatusUpdated(update) => {
-                let status = proto_to_codebase_index_status_updated(&update)?;
-                log::info!(
-                    "[Remote codebase indexing] Client received codebase index status push: \
-                     repo_path={} state={:?} root_hash_present={} failure_message={:?}",
-                    status.repo_path,
-                    status.state,
-                    status.root_hash.is_some(),
-                    status.failure_message,
-                );
-                Some(ClientEvent::CodebaseIndexStatusUpdated { status })
             }
             server_message::Message::BufferUpdated(push) => Some(ClientEvent::BufferUpdated {
                 path: push.path,

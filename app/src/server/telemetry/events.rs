@@ -1189,21 +1189,6 @@ pub enum CLISubagentControlState {
     AgentTaggedIn,
     AgentTaggedOut,
 }
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RemoteCodebaseIndexStatusTelemetrySource {
-    Snapshot,
-    PushUpdate,
-    MutationResponse,
-}
-
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RemoteCodebaseAutoIndexTrigger {
-    NavigatedToGitRepo,
-    CodebaseContextEnablementChanged,
-}
-
 #[derive(Clone, EnumDiscriminants)]
 #[strum_discriminants(derive(EnumIter))]
 pub enum TelemetryEvent {
@@ -2668,26 +2653,6 @@ pub enum TelemetryEvent {
         exit_code: Option<i32>,
         signal_killed: Option<bool>,
     },
-    /// Emitted when the remote codebase index status changes.
-    RemoteCodebaseIndexStatusChanged {
-        state: remote_server::codebase_index_proto::RemoteCodebaseIndexState,
-        previous_state: Option<remote_server::codebase_index_proto::RemoteCodebaseIndexState>,
-        has_root_hash: bool,
-        has_failure_message: bool,
-        progress_completed: Option<u64>,
-        progress_total: Option<u64>,
-        mutation_kind: Option<remote_server::manager::RemoteCodebaseIndexUpdateOperation>,
-        source: RemoteCodebaseIndexStatusTelemetrySource,
-        remote_os: Option<String>,
-        remote_arch: Option<String>,
-    },
-    /// Emitted when auto-indexing requests one or more remote codebases.
-    RemoteCodebaseAutoIndexRequested {
-        trigger: RemoteCodebaseAutoIndexTrigger,
-        requested_count: usize,
-        remote_os: Option<String>,
-        remote_arch: Option<String>,
-    },
     /// Emitted when the user commits a non-empty edit to a queued prompt row.
     QueuedPromptEdited {
         origin: TelemetryQueuedQueryOrigin,
@@ -3978,40 +3943,6 @@ impl TelemetryEvent {
                 "remote_os": remote_os,
                 "remote_arch": remote_arch,
             })),
-            TelemetryEvent::RemoteCodebaseIndexStatusChanged {
-                state,
-                previous_state,
-                has_root_hash,
-                has_failure_message,
-                progress_completed,
-                progress_total,
-                mutation_kind,
-                source,
-                remote_os,
-                remote_arch,
-            } => Some(json!({
-                "state": state,
-                "previous_state": previous_state,
-                "has_root_hash": has_root_hash,
-                "has_failure_message": has_failure_message,
-                "progress_completed": progress_completed,
-                "progress_total": progress_total,
-                "mutation_kind": mutation_kind,
-                "source": source,
-                "remote_os": remote_os,
-                "remote_arch": remote_arch,
-            })),
-            TelemetryEvent::RemoteCodebaseAutoIndexRequested {
-                trigger,
-                requested_count,
-                remote_os,
-                remote_arch,
-            } => Some(json!({
-                "trigger": trigger,
-                "requested_count": requested_count,
-                "remote_os": remote_os,
-                "remote_arch": remote_arch,
-            })),
             TelemetryEvent::RemoteServerDaemonStartup { timing_data } => {
                 Some(json!({ "timing_data": timing_data }))
             }
@@ -4795,9 +4726,7 @@ impl TelemetryEvent {
             | TelemetryEvent::RemoteServerSetupDuration { .. }
             | TelemetryEvent::RemoteServerHostUnsupported { .. }
             | TelemetryEvent::RemoteServerReconnection { .. }
-            | TelemetryEvent::RemoteServerReconnectExhausted { .. }
-            | TelemetryEvent::RemoteCodebaseIndexStatusChanged { .. }
-            | TelemetryEvent::RemoteCodebaseAutoIndexRequested { .. } => false,
+            | TelemetryEvent::RemoteServerReconnectExhausted { .. } => false,
             #[cfg(feature = "local_fs")]
             TelemetryEvent::CodePaneOpened { .. }
             | TelemetryEvent::CodePanelsFileOpened { .. }
@@ -5283,9 +5212,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             | Self::RemoteServerSetupDuration
             | Self::RemoteServerHostUnsupported
             | Self::RemoteServerReconnection
-            | Self::RemoteServerReconnectExhausted
-            | Self::RemoteCodebaseIndexStatusChanged
-            | Self::RemoteCodebaseAutoIndexRequested => {
+            | Self::RemoteServerReconnectExhausted => {
                 EnablementState::Flag(FeatureFlag::SshRemoteServer)
             }
             Self::QueuedPromptEdited
@@ -5661,8 +5588,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::RemoteServerHostUnsupported => "RemoteServer.HostUnsupported",
             Self::RemoteServerReconnection => "RemoteServer.Reconnection",
             Self::RemoteServerReconnectExhausted => "RemoteServer.ReconnectExhausted",
-            Self::RemoteCodebaseIndexStatusChanged => "RemoteCodebaseIndex.StatusChanged",
-            Self::RemoteCodebaseAutoIndexRequested => "RemoteCodebaseIndex.AutoIndexRequested",
             Self::QueuedPromptEdited => "QueuedPrompt.Edited",
             Self::QueuedPromptDeleted => "QueuedPrompt.Deleted",
             Self::QueuedPromptReordered => "QueuedPrompt.Reordered",
@@ -6545,10 +6470,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::RemoteServerReconnectExhausted => {
                 "All reconnection attempts were exhausted after a spontaneous disconnect"
-            }
-            Self::RemoteCodebaseIndexStatusChanged => "The remote codebase index status changed",
-            Self::RemoteCodebaseAutoIndexRequested => {
-                "Remote codebase auto-indexing requested one or more repositories"
             }
             Self::QueuedPromptEdited => "User committed a non-empty edit to a queued prompt row",
             Self::QueuedPromptDeleted => "User deleted a queued prompt row",

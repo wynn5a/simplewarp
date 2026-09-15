@@ -1373,10 +1373,6 @@ impl CodebaseIndex {
         self.embedding_config
     }
 
-    pub(super) fn update_embedding_generation_batch_size(&mut self, new_batch_size: usize) {
-        self.embedding_generation_batch_size = new_batch_size;
-    }
-
     fn merkle_tree(&self) -> Option<&MerkleTree> {
         match &self.tree_sync_state {
             TreeSourceSyncState::Synced { tree, .. } => Some(tree),

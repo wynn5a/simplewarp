@@ -5,10 +5,9 @@ use warpui_core::r#async::executor;
 
 use super::*;
 use crate::proto::{
-    ClientMessage, CodebaseIndexStatus, CodebaseIndexStatusState, CodebaseIndexStatusUpdated,
-    CodebaseIndexStatusesSnapshot, ErrorCode, GetDiffStateResponse, InitializeResponse,
-    OpenBufferResponse, RemoteAgentContextSnapshot, RemoteContextFileProto, RunCommandResponse,
-    RunCommandSuccess, ServerMessage, WriteFile, client_message, host_scoped_request, notification,
+    ClientMessage, ErrorCode, GetDiffStateResponse, InitializeResponse, OpenBufferResponse,
+    RemoteAgentContextSnapshot, RemoteContextFileProto, RunCommandResponse, RunCommandSuccess,
+    ServerMessage, WriteFile, client_message, host_scoped_request, notification,
     run_command_response, server_message, session_scoped_request,
 };
 use crate::protocol;
@@ -112,73 +111,6 @@ async fn mock_server_with<F>(
     }
 }
 
-fn not_enabled_codebase_status(repo_path: &str) -> CodebaseIndexStatus {
-    CodebaseIndexStatus {
-        repo_path: repo_path.to_string(),
-        state: CodebaseIndexStatusState::NotEnabled.into(),
-        last_updated_epoch_millis: Some(123),
-        progress_completed: None,
-        progress_total: None,
-        failure_message: None,
-        root_hash: None,
-    }
-}
-
-#[tokio::test]
-async fn codebase_index_push_messages_become_client_events() {
-    let (client_stream, server_stream) = tokio::io::duplex(4096);
-    let (server_read, server_write) = tokio::io::split(server_stream);
-    let (client_read, client_write) = tokio::io::split(client_stream);
-    drop(server_read);
-
-    let executor = executor::Background::default();
-    let (_client, event_rx, _failure_rx, _host_rx) =
-        RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
-    let mut writer = server_write.compat_write();
-
-    protocol::write_server_message(
-        &mut writer,
-        &ServerMessage {
-            request_id: String::new(),
-            message: Some(server_message::Message::CodebaseIndexStatusesSnapshot(
-                CodebaseIndexStatusesSnapshot {
-                    statuses: vec![not_enabled_codebase_status("/repo")],
-                },
-            )),
-        },
-    )
-    .await
-    .unwrap();
-    protocol::write_server_message(
-        &mut writer,
-        &ServerMessage {
-            request_id: String::new(),
-            message: Some(server_message::Message::CodebaseIndexStatusUpdated(
-                CodebaseIndexStatusUpdated {
-                    status: Some(not_enabled_codebase_status("/repo")),
-                },
-            )),
-        },
-    )
-    .await
-    .unwrap();
-    writer.flush().await.unwrap();
-
-    match event_rx.recv().await.unwrap() {
-        ClientEvent::CodebaseIndexStatusesSnapshotReceived { statuses } => {
-            assert_eq!(statuses.len(), 1);
-            assert_eq!(statuses[0].repo_path, "/repo");
-        }
-        other => panic!("Expected CodebaseIndexStatusesSnapshotReceived, got {other:?}"),
-    }
-    match event_rx.recv().await.unwrap() {
-        ClientEvent::CodebaseIndexStatusUpdated { status } => {
-            assert_eq!(status.repo_path, "/repo");
-        }
-        other => panic!("Expected CodebaseIndexStatusUpdated, got {other:?}"),
-    }
-}
-
 /// Sets up a duplex stream, spawns `mock_server_with` with the given responder,
 /// and returns a connected `RemoteServerClient`, its event receiver, and the
 /// background executor (which must be kept alive for the test duration).
@@ -224,7 +156,6 @@ async fn initialize_round_trip() {
                 user_id: String::new(),
                 user_email: String::new(),
                 crash_reporting_enabled: true,
-                codebase_index_limits: None,
             },
         )
         .await
@@ -253,7 +184,6 @@ async fn initialize_sends_empty_auth_token_when_none() {
                 user_id: String::new(),
                 user_email: String::new(),
                 crash_reporting_enabled: true,
-                codebase_index_limits: None,
             },
         )
         .await
@@ -280,7 +210,6 @@ async fn initialize_sends_auth_token_when_provided() {
                 user_id: String::new(),
                 user_email: String::new(),
                 crash_reporting_enabled: true,
-                codebase_index_limits: None,
             },
         )
         .await
@@ -358,7 +287,6 @@ async fn disconnected_on_closed_stream() {
                 user_id: String::new(),
                 user_email: String::new(),
                 crash_reporting_enabled: true,
-                codebase_index_limits: None,
             },
         )
         .await;
@@ -441,7 +369,6 @@ async fn concurrent_in_flight_requests() {
                     user_id: String::new(),
                     user_email: String::new(),
                     crash_reporting_enabled: true,
-                    codebase_index_limits: None,
                 },
             )
             .await

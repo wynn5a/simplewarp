@@ -255,7 +255,6 @@ pub struct CodebaseIndexManagerConfig {
     embedding_generation_batch_size: usize,
     store_client: Arc<dyn StoreClient>,
     indexing_enabled: bool,
-    restore_persisted_indices_on_startup: bool,
 }
 
 impl CodebaseIndexManagerConfig {
@@ -274,13 +273,7 @@ impl CodebaseIndexManagerConfig {
             embedding_generation_batch_size,
             store_client,
             indexing_enabled,
-            restore_persisted_indices_on_startup: true,
         }
-    }
-
-    pub fn defer_persisted_index_restore(mut self) -> Self {
-        self.restore_persisted_indices_on_startup = false;
-        self
     }
 }
 
@@ -370,7 +363,6 @@ impl CodebaseIndexManager {
             embedding_generation_batch_size,
             store_client,
             indexing_enabled,
-            restore_persisted_indices_on_startup,
         } = config;
         cfg_if::cfg_if! {
             if #[cfg(feature = "local_fs")] {
@@ -426,8 +418,7 @@ impl CodebaseIndexManager {
         }
 
         // For the moment, we've decided to load all snapshots regardless of the index count.
-        let build_queue =
-            BuildQueue::new_with_persisted(valid_metadata, restore_persisted_indices_on_startup);
+        let build_queue = BuildQueue::new_with_persisted(valid_metadata);
 
         let mut me = Self {
             codebase_indices: HashMap::new(),
@@ -700,51 +691,6 @@ impl CodebaseIndexManager {
             .update_path_priority(root_path, Priority::ActiveSession);
     }
 
-    pub fn update_max_limits(
-        &mut self,
-        new_max_indices: Option<usize>,
-        new_max_files_per_repo: usize,
-        new_embedding_generation_batch_size: usize,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-        self.max_indices = new_max_indices;
-
-        if self.max_files_repo_limit != new_max_files_per_repo {
-            self.max_files_repo_limit = new_max_files_per_repo;
-
-            #[cfg(feature = "local_fs")]
-            for index in self.codebase_indices.values() {
-                // If the max file repo limit changed, kick off a new full sync to retry indexing.
-                if matches!(
-                    index
-                        .as_ref(_ctx)
-                        .codebase_index_status()
-                        .last_sync_result(),
-                    Some(CodebaseIndexFinishedStatus::Failed(
-                        CodebaseIndexingError::ExceededMaxFileLimit
-                    ))
-                ) {
-                    index.update(_ctx, |code_index, ctx| {
-                        let _ = code_index.full_sync_index(self.max_files_repo_limit, ctx);
-                    });
-                }
-            }
-        }
-
-        // Update the embedding generation batch size for existing indices
-        if self.embedding_generation_batch_size != new_embedding_generation_batch_size {
-            self.embedding_generation_batch_size = new_embedding_generation_batch_size;
-
-            for index in self.codebase_indices.values() {
-                index.update(_ctx, |code_index, _| {
-                    code_index.update_embedding_generation_batch_size(
-                        new_embedding_generation_batch_size,
-                    );
-                });
-            }
-        }
-    }
-
     /// Ensures the current number of indices is below the maximum.
     pub fn can_create_new_indices(&self) -> bool {
         if !self.is_indexing_enabled() {
@@ -815,15 +761,6 @@ impl CodebaseIndexManager {
 
     pub fn is_indexing_enabled(&self) -> bool {
         self.indexing_enabled
-    }
-
-    pub fn start_persisted_index_restore(&mut self, ctx: &mut ModelContext<Self>) {
-        if !self.is_indexing_enabled() {
-            return;
-        }
-        if self.build_queue.start() {
-            self.start_next_queued_index(ctx);
-        }
     }
 
     pub fn index_directory(&mut self, directory: PathBuf, ctx: &mut ModelContext<Self>) -> bool {
