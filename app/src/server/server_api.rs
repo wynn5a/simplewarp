@@ -6,7 +6,6 @@ pub(crate) mod presigned_upload;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
 
 use ai::AIClient;
 use anyhow::{Result, anyhow};
@@ -37,7 +36,6 @@ use crate::auth::auth_state::AuthState;
 use crate::server::telemetry::TelemetryApi;
 use crate::settings::PrivacySettingsSnapshot;
 
-pub const FETCH_CHANNEL_VERSIONS_TIMEOUT: std::time::Duration = Duration::from_secs(60);
 /// We use a special error code header `X-Warp-Error-Code` to allow the server to send
 /// more specific error code information, so that the client can discern between different
 /// errors with the same error code.

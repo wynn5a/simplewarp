@@ -274,9 +274,6 @@ BUNDLE_ID="dev.warp.$APP_NAME"
 EXECUTABLE_PATH="$CARGO_TARGET_OUTPUT_DIR/$WARP_BIN"
 DEBUG_EXECUTABLE_PATH="$EXECUTABLE_PATH.debug"
 
-# Note that this variable must be set (and exported!) before we compile the
-# binary, as it is read at compile time by Linux autoupdate logic (to know the
-# expected name of the AppImage when downloading updates).
 export APPIMAGE_NAME="$APP_NAME-$BUILD_ARCH.AppImage"
 
 # If we only want to check that compilation will succeed, perform the checks

@@ -265,7 +265,6 @@ use crate::antivirus::AntivirusInfo;
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_state::AuthState;
-use crate::autoupdate::{self, AutoupdateStage, get_update_state};
 use crate::banner::{
     Banner, BannerAction, BannerEvent, BannerState, BannerTextButton, BannerTextContent,
     DismissalType,
@@ -11647,26 +11646,6 @@ impl TerminalView {
                 }
             }
             ModelEvent::Handler(_) => {}
-            ModelEvent::FinishUpdate(data) => {
-                let AutoupdateStage::UpdateReady {
-                    update_id: expected_update_id,
-                    ..
-                } = get_update_state(ctx)
-                else {
-                    log::warn!(
-                        "Got a FinishUpdate event without AutoupdateState being UpdateReady!"
-                    );
-                    return;
-                };
-                if expected_update_id == data.update_id {
-                    // Terminate this shell session so that it doesn't come
-                    // back when we restore sessions after the relaunch.
-                    self.shutdown_pty(ctx);
-                    autoupdate::initiate_relaunch_for_update(ctx);
-                } else {
-                    log::warn!("Got a FinishUpdate event with non-matching update id!");
-                }
-            }
             ModelEvent::SelectedTextChanged => {
                 ctx.emit(Event::SelectedTextChanged);
             }

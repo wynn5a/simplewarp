@@ -46,7 +46,6 @@ impl ChannelState {
                 server_config: WarpServerConfig::production(),
                 oz_config: OzConfig::production(),
                 telemetry_config: None,
-                autoupdate_config: None,
                 crash_reporting_config: None,
                 mcp_static_config: None,
             },
@@ -203,16 +202,6 @@ impl ChannelState {
         CHANNEL_STATE.lock().config.crash_reporting_config.is_some()
     }
 
-    pub fn releases_base_url() -> Cow<'static, str> {
-        CHANNEL_STATE
-            .lock()
-            .config
-            .autoupdate_config
-            .as_ref()
-            .map(|ac| ac.releases_base_url.clone())
-            .unwrap_or_default()
-    }
-
     pub fn firebase_api_key() -> Cow<'static, str> {
         CHANNEL_STATE
             .lock()
@@ -348,16 +337,6 @@ impl ChannelState {
             .crash_reporting_config
             .as_ref()
             .map(|crc| crc.sentry_url.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn show_autoupdate_menu_items() -> bool {
-        CHANNEL_STATE
-            .lock()
-            .config
-            .autoupdate_config
-            .as_ref()
-            .map(|ac| ac.show_autoupdate_menu_items)
             .unwrap_or_default()
     }
 

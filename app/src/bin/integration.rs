@@ -42,7 +42,6 @@ pub fn main() -> Result<()> {
             },
             telemetry_config: None,
             crash_reporting_config: None,
-            autoupdate_config: None,
             mcp_static_config: None,
         },
     ));

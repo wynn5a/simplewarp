@@ -29,10 +29,6 @@ pub fn teardown(ctx: &mut AppContext) {
 pub fn pass_startup_args_to_existing_instance(
     args: &warp_cli::AppArgs,
 ) -> Result<(), StartupArgsForwardingError> {
-    if args.finish_update {
-        return Err(StartupArgsForwardingError::IgnoredAfterAutoUpdate);
-    }
-
     warpui::r#async::block_on(async {
         let conn = zbus::Connection::session().await?;
         let proxy = ExistingApplicationProxy::builder(&conn)
@@ -68,10 +64,6 @@ pub enum StartupArgsForwardingError {
     /// There's no instance of Warp already running.
     #[error("no existing instance found to forward args to")]
     NoExistingInstance,
-    /// This instance was launched after an auto-update and should not forward
-    /// arguments to the old (terminating) instance.
-    #[error("should not forward args after an auto-update")]
-    IgnoredAfterAutoUpdate,
     /// An unknown D-Bus error occurred.
     #[error("unknown dbus error")]
     Unknown(zbus::Error),

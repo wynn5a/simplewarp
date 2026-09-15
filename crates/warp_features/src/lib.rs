@@ -9,7 +9,6 @@ pub enum FeatureFlag {
     CocoaSentry,
     CrashReporting,
     DebugMode,
-    Autoupdate,
     WithSandboxTelemetry,
     RecordAppActiveEvents,
 
@@ -154,9 +153,6 @@ pub enum FeatureFlag {
 
     /// If enabled, the default theme is set to Adeberry for new users.
     DefaultAdeberryTheme,
-
-    /// New, less intrusive autoupdate UI.
-    AutoupdateUIRevamp,
 
     /// Enables Kitty image rendering
     KittyImages,
@@ -764,7 +760,6 @@ pub const PREVIEW_FLAGS: &[FeatureFlag] = &[];
 /// NOTE: if you are promoting a feature from Preview to launch, you'll likely
 /// want to enable the feature by default in app/Cargo.toml, rather than add it to RELEASE_FLAGS.
 pub const RELEASE_FLAGS: &[FeatureFlag] = &[
-    FeatureFlag::Autoupdate,
     FeatureFlag::CrashReporting,
     FeatureFlag::VideoRecording,
     // Marked text is currently only supported on MacOS.

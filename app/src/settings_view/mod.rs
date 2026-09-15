@@ -252,7 +252,6 @@ pub(super) fn render_model_chips(
 pub enum SettingsViewEvent {
     Pane(PaneEvent),
     StartResize,
-    CheckForUpdate,
     LaunchNetworkLogging,
     SignupAnonymousUser,
     ShowToast {
@@ -1591,7 +1590,6 @@ impl SettingsView {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            MainSettingsPageEvent::CheckForUpdate => ctx.emit(SettingsViewEvent::CheckForUpdate),
             MainSettingsPageEvent::SignupAnonymousUser => {
                 ctx.emit(SettingsViewEvent::SignupAnonymousUser)
             }

@@ -23,8 +23,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
     }
 
     flags.extend([
-        #[cfg(feature = "autoupdate")]
-        FeatureFlag::Autoupdate,
         #[cfg(feature = "cocoa_sentry")]
         FeatureFlag::CocoaSentry,
         #[cfg(feature = "crash_reporting")]
@@ -99,8 +97,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::PromptSuggestionsViaMAA,
         #[cfg(feature = "clear_autosuggestion_on_escape")]
         FeatureFlag::ClearAutosuggestionOnEscape,
-        #[cfg(feature = "autoupdate_ui_revamp")]
-        FeatureFlag::AutoupdateUIRevamp,
         #[cfg(all(not(windows), feature = "kitty_images"))]
         FeatureFlag::KittyImages,
         #[cfg(feature = "global_ai_analytics_banner")]

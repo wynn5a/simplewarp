@@ -1108,28 +1108,6 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::SearchDrive),
     ]);
 
-    if FeatureFlag::Autoupdate.is_enabled() {
-        app.register_editable_bindings([
-            EditableBinding::new(
-                "workspace:update_and_relaunch",
-                "Install update and relaunch",
-                // TODO(vorporeal): I wonder if we should change wording here?
-                WorkspaceAction::ApplyUpdate,
-            )
-            .with_group(bindings::BindingGroup::AutoUpdate.as_str())
-            .with_context_predicate(id!("Workspace") & id!("AutoupdateState_UpdateReady"))
-            .with_enabled(|| ContextFlag::PromptForVersionUpdates.is_enabled()),
-            EditableBinding::new(
-                "workspace:check_for_updates",
-                "Check for updates",
-                WorkspaceAction::CheckForUpdate,
-            )
-            .with_group(bindings::BindingGroup::AutoUpdate.as_str())
-            .with_context_predicate(id!("Workspace") & !id!("AutoupdateState_UpdateReady"))
-            .with_enabled(|| ContextFlag::PromptForVersionUpdates.is_enabled()),
-        ]);
-    }
-
     app.register_editable_bindings([EditableBinding::new(
         "workspace:log_out",
         "Log out",

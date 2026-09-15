@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::mpsc::SyncSender;
 
-use anyhow::Result;
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use pathfinder_geometry::rect::RectF;
@@ -35,7 +34,6 @@ use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::AuthRedirectPayload;
-use crate::autoupdate::{AutoupdateState, AutoupdateStateEvent, RequestType, UpdateReady};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{ObjectType, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
 use crate::interval_timer::IntervalTimer;
@@ -45,7 +43,7 @@ use crate::pane_group::{NewTerminalOptions, PanesLayout};
 use crate::persistence::ModelEvent;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::auth::UserAuthenticationError;
-use crate::server::server_api::{ServerApi, ServerApiProvider, ServerTime};
+use crate::server::server_api::{ServerApi, ServerApiProvider};
 use crate::server::telemetry::{LaunchConfigUiLocation, TelemetryEvent};
 use crate::settings::QuakeModeSettings;
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
@@ -1386,7 +1384,6 @@ impl NewWorkspaceSource {
 #[derive(Clone)]
 struct WorkspaceArgs {
     global_resource_handles: GlobalResourceHandles,
-    server_time: Option<Arc<ServerTime>>,
     workspace_setting: NewWorkspaceSource,
 }
 
@@ -1406,7 +1403,6 @@ pub(crate) fn has_completed_local_onboarding(ctx: &AppContext) -> bool {
 
 pub struct RootView {
     workspace: ViewHandle<Workspace>,
-    server_time: Option<Arc<ServerTime>>,
     pub server_api: Arc<ServerApi>,
     pub model_event_sender: Option<SyncSender<ModelEvent>>,
 }
@@ -1432,86 +1428,21 @@ impl RootView {
         let model_event_sender = global_resource_handles.model_event_sender.clone();
         let workspace_args = WorkspaceArgs {
             global_resource_handles,
-            server_time: None,
             workspace_setting,
         };
 
         // SimpleWarp is local-only and never shows a login screen: startup always lands
         // directly in the workspace.
-        let workspace = workspace_args.create_workspace(ctx);
-
-        let root_view = Self {
-            workspace,
-            server_time: None,
+        Self {
+            workspace: workspace_args.create_workspace(ctx),
             server_api: server_api.clone(),
             model_event_sender,
-        };
-
-        let autoupdate_handle = AutoupdateState::handle(ctx);
-        ctx.subscribe_to_model(&autoupdate_handle, |root_view, _handle, evt, ctx| {
-            if let AutoupdateStateEvent::CheckComplete {
-                result,
-                request_type: RequestType::Poll,
-            } = evt
-            {
-                root_view.polling_update_check_complete(result, ctx)
-            }
-        });
-
-        // For users who bypass onboarding (already logged in, or onboarding flags not active),
-        // start autoupdate polling immediately. For new users in onboarding, this is a no-op;
-        // polling will be started once onboarding completes.
-        root_view.start_autoupdate_polling(ctx);
-
-        root_view
-    }
-
-    fn start_autoupdate_polling(&self, ctx: &mut ViewContext<Self>) {
-        AutoupdateState::handle(ctx).update(ctx, |state, ctx| state.start_polling(ctx));
+        }
     }
 
     /// Used for integration tests.
     pub fn workspace_view(&self) -> Option<&ViewHandle<Workspace>> {
         Some(&self.workspace)
-    }
-
-    fn polling_update_check_complete(
-        &mut self,
-        result: &Result<UpdateReady>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if let Ok(UpdateReady::Yes { new_version, .. }) = result {
-            log::info!("Update ready for channel version {new_version:?}");
-            if new_version.update_by.is_some() {
-                log::info!("Update ready, there is an update-by time, checking for server time.");
-                let server_api = self.server_api.clone();
-                let _ = ctx.spawn(
-                    async move { server_api.server_time().await },
-                    Self::server_time_updated,
-                );
-            }
-        }
-    }
-
-    fn server_time_updated(
-        &mut self,
-        server_time: Result<ServerTime>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if let Ok(server_time) = server_time {
-            let server_time = Arc::new(server_time);
-            self.server_time = Some(server_time.clone());
-
-            self.workspace.update(ctx, |workspace, ctx| {
-                workspace.set_server_time(server_time);
-                ctx.notify();
-            })
-        } else {
-            report_error!(anyhow::anyhow!(
-                "Error fetching server time {:?}",
-                server_time.err()
-            ));
-        }
     }
 
     /// "Logging out" in a local-only build has no account to sign out of: it just resets the
@@ -1528,7 +1459,6 @@ impl RootView {
         };
         let workspace_args = WorkspaceArgs {
             global_resource_handles,
-            server_time: None,
             workspace_setting,
         };
 
@@ -1824,7 +1754,6 @@ impl RootView {
         match event {
             AuthManagerEvent::AuthComplete => {
                 Self::sync_local_onboarding_to_server(&auth_state, ctx);
-                self.start_autoupdate_polling(ctx);
                 self.focus(ctx);
             }
             AuthManagerEvent::AuthFailed(err) => match err {
@@ -1979,12 +1908,7 @@ impl TypedActionView for RootView {
 impl WorkspaceArgs {
     fn create_workspace(self, ctx: &mut ViewContext<RootView>) -> ViewHandle<Workspace> {
         ctx.add_typed_action_view(|ctx| {
-            Workspace::new(
-                self.global_resource_handles,
-                self.server_time,
-                self.workspace_setting,
-                ctx,
-            )
+            Workspace::new(self.global_resource_handles, self.workspace_setting, ctx)
         })
     }
 }

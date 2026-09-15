@@ -118,7 +118,6 @@ pub struct AppStartupInfo {
     /// Whether or not a screen reader is enabled at the time the app is
     /// launched.  Should be set to None if we do not know for sure.
     pub is_screen_reader_enabled: Option<bool>,
-    pub from_relaunch: bool,
     pub is_crash_reporting_enabled: bool,
     pub timing_data: Vec<TimingDataPoint>,
 }
@@ -1299,11 +1298,6 @@ pub enum TelemetryEvent {
     CreateCustomTheme,
     DeleteCustomTheme,
     SplitPane,
-    UnableToAutoUpdateToNewVersion,
-    /// An update was successfully installed, and we're attempting to relaunch the app.
-    AutoupdateRelaunchAttempt {
-        new_version: String,
-    },
     SkipOnboardingSurvey,
     ToggleRestoreSession(bool),
     DatabaseStartUpError(String),
@@ -2207,20 +2201,6 @@ pub enum TelemetryEvent {
     /// This typically means the user hasn't installed or enabled WSL.
     #[cfg(windows)]
     WSLRegistryError,
-    #[cfg(windows)]
-    AutoupdateUnableToCloseApplications,
-    #[cfg(windows)]
-    AutoupdateFileInUse,
-    #[cfg(windows)]
-    AutoupdateMutexTimeout,
-    #[cfg(windows)]
-    AutoupdateForcekillFailed {
-        exit_code: i32,
-    },
-    #[cfg(windows)]
-    AutoupdateMinidumpCleanupFailed {
-        exit_code: i32,
-    },
     ExecutedWarpDrivePrompt {
         id: Option<WorkflowId>,
         selection_source: WorkflowSelectionSource,
@@ -3605,9 +3585,6 @@ impl TelemetryEvent {
                 "env_vars_id": env_vars_id,
                 "env_vars_space": env_vars_space,
             })),
-            TelemetryEvent::AutoupdateRelaunchAttempt { new_version } => Some(json!({
-                "new_version": new_version,
-            })),
             TelemetryEvent::ToggledAgentModeAutoexecuteReadonlyCommandsSetting { src, enabled } => {
                 Some(json!({
                     "source": src,
@@ -3806,7 +3783,6 @@ impl TelemetryEvent {
             | TelemetryEvent::CreateCustomTheme
             | TelemetryEvent::DeleteCustomTheme
             | TelemetryEvent::SplitPane
-            | TelemetryEvent::UnableToAutoUpdateToNewVersion
             | TelemetryEvent::SkipOnboardingSurvey
             | TelemetryEvent::LoggedOutStartup
             | TelemetryEvent::OpenWorkflowSearch
@@ -4170,18 +4146,7 @@ impl TelemetryEvent {
                 "action": action,
             })),
             #[cfg(windows)]
-            TelemetryEvent::WSLRegistryError
-            | TelemetryEvent::AutoupdateUnableToCloseApplications
-            | TelemetryEvent::AutoupdateFileInUse
-            | TelemetryEvent::AutoupdateMutexTimeout => None,
-            #[cfg(windows)]
-            TelemetryEvent::AutoupdateForcekillFailed { exit_code } => Some(json!({
-                "exit_code": exit_code,
-            })),
-            #[cfg(windows)]
-            TelemetryEvent::AutoupdateMinidumpCleanupFailed { exit_code } => Some(json!({
-                "exit_code": exit_code,
-            })),
+            TelemetryEvent::WSLRegistryError => None,
             TelemetryEvent::InputBufferSubmitted {
                 input_type,
                 is_locked,
@@ -4484,8 +4449,6 @@ impl TelemetryEvent {
             | TelemetryEvent::CreateCustomTheme
             | TelemetryEvent::DeleteCustomTheme
             | TelemetryEvent::SplitPane
-            | TelemetryEvent::UnableToAutoUpdateToNewVersion
-            | TelemetryEvent::AutoupdateRelaunchAttempt { .. }
             | TelemetryEvent::SkipOnboardingSurvey
             | TelemetryEvent::ToggleRestoreSession(_)
             | TelemetryEvent::DatabaseStartUpError(_)
@@ -4840,12 +4803,7 @@ impl TelemetryEvent {
             | TelemetryEvent::CodePanelsFileOpened { .. }
             | TelemetryEvent::PreviewPanePromoted => false,
             #[cfg(windows)]
-            TelemetryEvent::WSLRegistryError
-            | TelemetryEvent::AutoupdateUnableToCloseApplications
-            | TelemetryEvent::AutoupdateFileInUse
-            | TelemetryEvent::AutoupdateMutexTimeout
-            | TelemetryEvent::AutoupdateForcekillFailed { .. }
-            | TelemetryEvent::AutoupdateMinidumpCleanupFailed { .. } => false,
+            TelemetryEvent::WSLRegistryError => false,
         }
     }
 
@@ -4991,9 +4949,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CreateCustomTheme => EnablementState::Always,
             Self::DeleteCustomTheme => EnablementState::Always,
             Self::SplitPane => EnablementState::Always,
-            Self::UnableToAutoUpdateToNewVersion | Self::AutoupdateRelaunchAttempt => {
-                EnablementState::Always
-            }
             Self::SkipOnboardingSurvey => EnablementState::Always,
             Self::ToggleRestoreSession => EnablementState::Always,
             Self::DatabaseStartUpError => EnablementState::Always,
@@ -5242,12 +5197,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 EnablementState::Flag(FeatureFlag::ImageAsContext)
             }
             #[cfg(windows)]
-            Self::WSLRegistryError
-            | Self::AutoupdateUnableToCloseApplications
-            | Self::AutoupdateFileInUse
-            | Self::AutoupdateMutexTimeout
-            | Self::AutoupdateForcekillFailed { .. }
-            | Self::AutoupdateMinidumpCleanupFailed { .. } => EnablementState::Always,
+            Self::WSLRegistryError => EnablementState::Always,
             Self::ToggleCodebaseContext => EnablementState::Always,
             Self::ToggleAutoIndexing => EnablementState::Always,
             Self::AgentModeRatedResponse => {
@@ -5435,8 +5385,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::OpenThemeCreatorModal => "Open Theme Creator Modal",
             Self::CreateCustomTheme => "Create Custom Theme",
             Self::DeleteCustomTheme => "Delete Custom Theme",
-            Self::UnableToAutoUpdateToNewVersion => "Unable to Update To New Version",
-            Self::AutoupdateRelaunchAttempt => "Attempting to Relaunch for Update",
             Self::SplitPane => "Split Pane",
             Self::SkipOnboardingSurvey => "Skip Onboarding Survey",
             Self::ToggleRestoreSession => "Toggle Restore Session",
@@ -5722,20 +5670,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::QueuedPromptSentNow => "QueuedPrompt.SentNow",
             #[cfg(windows)]
             Self::WSLRegistryError => "WSL Distribution Registry Error",
-            #[cfg(windows)]
-            Self::AutoupdateUnableToCloseApplications => {
-                "Windows Autoupdate: Setup Unable to Close Applications"
-            }
-            #[cfg(windows)]
-            Self::AutoupdateFileInUse => "Windows Autoupdate: File In Use Error",
-            #[cfg(windows)]
-            Self::AutoupdateMutexTimeout => "Windows Autoupdate: Mutex Timeout",
-            #[cfg(windows)]
-            Self::AutoupdateForcekillFailed { .. } => "Windows Autoupdate: Forcekill Failed",
-            #[cfg(windows)]
-            Self::AutoupdateMinidumpCleanupFailed { .. } => {
-                "Windows Autoupdate: Minidump Cleanup Failed"
-            }
             Self::ToggleCodebaseContext => "Toggle Agent Mode Codebase Context",
             Self::ToggleAutoIndexing => "Toggle Codebase Context Autoindexing",
             Self::AttachedImagesToAgentModeQuery => "AgentMode.AttachedImages",
@@ -5955,12 +5889,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CreateCustomTheme => "Created a custom theme using the built-in theme creator",
             Self::DeleteCustomTheme => "Deleted a custom theme using the built-in theme creator",
             Self::SplitPane => "Split tab into multiple panes",
-            Self::UnableToAutoUpdateToNewVersion => {
-                "Update available but not authorized to install"
-            }
-            Self::AutoupdateRelaunchAttempt => {
-                "Attempted to relaunch the app after installing an update"
-            }
             Self::SkipOnboardingSurvey => "Skipped onboarding survey as a whole",
             Self::ToggleRestoreSession => {
                 "Toggled session restoration (\"Restore windows, tabs, panes, on startup\")"
@@ -6444,26 +6372,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             #[cfg(windows)]
             Self::WSLRegistryError => {
                 "Encountered an error while fetching WSL distributions from the registry"
-            }
-            #[cfg(windows)]
-            Self::AutoupdateUnableToCloseApplications => {
-                "The Windows auto-update installer was unable to automatically close all applications before installing the update"
-            }
-            #[cfg(windows)]
-            Self::AutoupdateFileInUse => {
-                "The Windows auto-update installer encountered a file-in-use error during installation"
-            }
-            #[cfg(windows)]
-            Self::AutoupdateMutexTimeout => {
-                "The Windows auto-update installer timed out waiting for Warp to release its mutex; a force-kill was attempted"
-            }
-            #[cfg(windows)]
-            Self::AutoupdateForcekillFailed { .. } => {
-                "The Windows auto-update installer failed to force-kill Warp after the mutex timeout"
-            }
-            #[cfg(windows)]
-            Self::AutoupdateMinidumpCleanupFailed { .. } => {
-                "The Windows auto-update installer failed to clean up the orphaned minidump server process"
             }
             Self::ToggleCodebaseContext => {
                 "Toggled on/off the enablement of codebase context usage for Agent Mode."

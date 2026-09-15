@@ -471,7 +471,6 @@ embed-resource = "3.0"
 # Note that we support channel-specific enables for these features
 [features]
 ai_resume_button = []
-autoupdate = []
 figma_detection = []
 bundled_skills = []
 gemini_enterprise = []
@@ -521,7 +520,6 @@ default = [
     "ai_rules",
     "suggested_rules",
     "am_workflows",
-    "autoupdate_ui_revamp",
     "render_agent_mode_output_markdown",
     "command_correction_key",
     "kitty_images",
@@ -672,7 +670,6 @@ simplewarp = [
     "ai_rules",
     "suggested_rules",
     "am_workflows",
-    "autoupdate_ui_revamp",
     "render_agent_mode_output_markdown",
     "command_correction_key",
     "kitty_images",
@@ -963,7 +960,6 @@ ime_marked_text = []
 partial_next_command_suggestions = []
 iterm_images = []
 validate_autosuggestions = []
-autoupdate_ui_revamp = []
 suggested_rules = []
 command_correction_key = []
 full_source_code_embedding = []

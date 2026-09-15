@@ -17,12 +17,6 @@ pub(crate) fn run() -> anyhow::Result<()> {
         println!("uname(1) output: {}", uname.trim_end());
     }
 
-    #[cfg(target_os = "linux")]
-    println!(
-        "Package type: {:?}",
-        crate::autoupdate::linux::UpdateMethod::detect()
-    );
-
     #[cfg_attr(windows, expect(unused_mut))]
     #[cfg_attr(any(target_os = "macos", target_family = "wasm"), expect(unused))]
     let mut windowing_system: Option<windowing::System> = None;

@@ -317,10 +317,6 @@ pub trait Handler {
     /// Otherwise, it's ignored.
     fn sourced_rc_file(&mut self, _data: SourcedRcFileForWarpValue) {}
 
-    /// Callback emitted to notify the app that we're ready to complete an
-    /// assisted auto-update.
-    fn finish_update(&mut self, _data: FinishUpdateValue) {}
-
     /// Callback to handle an "in-band command output start" OSC.
     ///
     /// Chars received via `handler::input()` represent the in-band command output itself.

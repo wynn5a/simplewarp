@@ -1681,16 +1681,7 @@ pub fn test_open_and_close_context_menu_with_keybinding() -> Builder {
         .with_step(
             new_step_with_default_assertions("Press keybinding again to close context menu")
                 .with_keystrokes(&["ctrl-m"])
-                .add_assertion(|app, window_id| {
-                    let views = app.views_of_type(window_id).unwrap();
-                    let workspace: &ViewHandle<Workspace> = views.first().unwrap();
-                    let is_overflow_menu_showing =
-                        workspace.read(app, |workspace, _| workspace.is_overflow_menu_showing());
-                    async_assert!(
-                        !is_overflow_menu_showing,
-                        "Expected overflow menu not to be showing",
-                    )
-                }),
+                .add_assertion(assert_context_menu_is_open(false)),
         )
 }
 

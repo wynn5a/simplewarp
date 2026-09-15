@@ -4,7 +4,6 @@ use std::sync::Arc;
 use settings::Setting as _;
 use uuid::Uuid;
 use warp_core::channel::ChannelState;
-use warp_core::features::FeatureFlag;
 use warp_errors::{report_error, report_if_error};
 use warp_server_auth::API_KEY_PREFIX;
 use warp_server_auth::user::persistence::PersistedUser;
@@ -18,7 +17,6 @@ use super::user_properties::UserProperties;
 use super::{AuthStateProvider, UserUid};
 use crate::ai::AIRequestUsageModel;
 use crate::ai::llms::LLMPreferences;
-use crate::autoupdate::AutoupdateState;
 use crate::persistence::ModelEvent;
 use crate::server::server_api::ServerApi;
 use crate::server::server_api::auth::{AuthClient, FetchUserResult, UserAuthenticationError};
@@ -327,13 +325,6 @@ impl AuthManager {
                 ctx.update_model(&privacy_settings_handle, |privacy_settings, ctx| {
                     privacy_settings.fetch_or_update_settings(ctx);
                 });
-
-                // Now that the user is logged in, do the daily version check.
-                if FeatureFlag::Autoupdate.is_enabled() {
-                    AutoupdateState::handle(ctx).update(ctx, |autoupdate_state, ctx| {
-                        autoupdate_state.maybe_daily_check_for_update(ctx);
-                    });
-                }
 
                 let server_api = self.server_api.clone();
                 let user_id = self.auth_state.user_id().unwrap_or_default();

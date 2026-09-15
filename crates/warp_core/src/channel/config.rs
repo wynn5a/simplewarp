@@ -19,8 +19,6 @@ pub struct ChannelConfig {
     /// Configuration for telemetry sending, or [`None`] if telemetry should be
     /// disabled for this build.
     pub telemetry_config: Option<TelemetryConfig>,
-    /// Configuration for autoupdate functionality.
-    pub autoupdate_config: Option<AutoupdateConfig>,
     /// Configuration for crash reporting.
     pub crash_reporting_config: Option<CrashReportingConfig>,
     /// Configuration for statically-bundled MCP OAuth credentials.
@@ -130,14 +128,6 @@ impl RudderStackConfig {
 pub struct RudderStackDestination {
     pub root_url: Cow<'static, str>,
     pub write_key: Cow<'static, str>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct AutoupdateConfig {
-    /// The base URL for fetching autoupdate versions and updated release bundles.
-    pub releases_base_url: Cow<'static, str>,
-    /// Whether or not to display menu items relating to autoupdate.
-    pub show_autoupdate_menu_items: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -166,10 +166,6 @@ pub struct Args {
 /// along with their own flags, or convert their flags into an `AppArgs` value.
 #[derive(Debug, Default, clap::Args, Clone)]
 pub struct AppArgs {
-    /// True if this instance of Warp was launched at the end of the auto-update process.
-    #[arg(long = "finish-update", hide = true)]
-    pub finish_update: bool,
-
     /// Crash recovery mechanism to use if we detect the parent process terminated.
     #[cfg(enable_crash_recovery)]
     #[arg(long = "crash-recovery-mechanism", value_enum, requires = "ParentOpts")]
@@ -582,18 +578,6 @@ pub fn ripgrep_search_subcommand() -> String {
         .expect("ripgrep-search subcommand not found")
         .get_name()
         .to_string()
-}
-
-/// Returns the flag to use when finishing the auto-update process.
-pub fn finish_update_flag() -> String {
-    let command = <Args as CommandFactory>::command();
-    let flag = command
-        .get_arguments()
-        .find(|arg| arg.get_long() == Some("finish-update"))
-        .expect("finish-update flag not found")
-        .get_long()
-        .unwrap();
-    format!("--{flag}")
 }
 
 /// Returns the flag to use for the dump-debug-info subcommand.

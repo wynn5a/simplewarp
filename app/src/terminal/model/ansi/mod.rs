@@ -614,7 +614,6 @@ impl<'a, H: Handler + 'a, W: io::Write> Performer<'a, H, W> {
                 // debugability.
                 report_error!("Received hex-encoded SourcedRcFileForWarp escape sequence.");
             }
-            Ok(DProtoHook::FinishUpdate { value }) => self.handler.finish_update(value),
             Ok(DProtoHook::ExitShell { value }) => self.handler.exit_shell(value),
 
             Err(e) => safe_error!(

@@ -8,7 +8,7 @@ use warp_core::channel::{Channel, ChannelConfig, ChannelState, OzConfig, WarpSer
 
 // SimpleWarp: a local-only terminal with bring-your-own-key AI.
 //
-// This binary has no telemetry, no crash reporting, and no autoupdate. The `simplewarp`
+// This binary has no telemetry and no crash reporting. The `simplewarp`
 // cargo feature set leaves out login, Warp Drive, billing, shared sessions, cloud mode,
 // ambient agents, and the remote server. Startup goes straight to a terminal because
 // `skip_firebase_anonymous_user` is on and the pre-login onboarding features are off.
@@ -27,7 +27,6 @@ fn main() -> Result<()> {
             oz_config: OzConfig::local_only(),
             telemetry_config: None,
             crash_reporting_config: None,
-            autoupdate_config: None,
             mcp_static_config: None,
         },
     );
