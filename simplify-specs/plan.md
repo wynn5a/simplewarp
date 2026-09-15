@@ -3893,6 +3893,80 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             **Next flag targets by site count**: `EditableMarkdownMermaid` (23;
             `GeminiEnterprise` (23) is live-by-design per 4at — treat carefully);
             97 constant-false flags remain of 207 enum variants.
+      - [x] **The Autoupdate vertical is deleted** (4br, 2026-09-15, 50 files,
+            +42/−4,771): first round under the remote-dependent-only scope. The
+            update pipeline talked to the Warp server (`/client_version[/daily]`
+            via `ServerApi::fetch_channel_versions`, installers from
+            `releases_base_url`), and the `autoupdate` cargo feature was absent
+            from both the default and simplewarp sets — the polling loop never
+            started in any SimpleWarp binary. Gone end to end:
+
+            - *Core*: all of `app/src/autoupdate/` (3,676 lines — the
+              `AutoupdateState` request-queue/download state machine, the
+              macOS/Windows/Linux installers with their platform tests, and the
+              `fetch_channel_versions` wrapper), `AutoupdateState::register`,
+              the `RelaunchModel` singleton with the terminate-path
+              `apply_pending_update`/`spawn_child_if_necessary`/`cancel_relaunch`
+              hooks, `remove_old_executable`, the startup `check_and_report_update_errors`
+              call, and `AppExecutionMode::can_autoupdate` (no other callers).
+            - *Server-side surface*: `ServerApi::fetch_channel_versions`,
+              `ServerApi::server_time`, and the `ServerTime` type — the
+              server-time chain existed only to date the "your build expired"
+              nag, so `RootView`/`Workspace`/`WorkspaceArgs` lost their
+              `server_time` fields and `set_server_time`.
+            - *UI*: the tab-bar overflow "Update Warp" menu with its pill
+              button, `ToggleTabBarOverflowMenu` action, overflow-menu getter,
+              and the `AutoupdateUIRevamp` avatar red dot (the
+              `AutoupdateUIRevamp` flag folded away with them); the
+              autoupdate workspace banners (`UnableToUpdateToNewVersion`,
+              `UnableToLaunchNewVersion`, `VersionDeprecated`) with their
+              dismissed flags; five `WorkspaceAction`s (`ApplyUpdate`,
+              `CheckForUpdate`, `DownloadNewVersion`, `AutoupdateFailureLink`,
+              `ToggleTabBarOverflowMenu`) and the assisted-update Linux tab
+              (`add_tab_for_assisted_autoupdate`) plus the
+              `AutoupdateState_UpdateReady` dynamic context id; the settings
+              Account page's update status/CTA (`VersionInfoWidget` keeps the
+              plain version + copy row) and the
+              `MainPageAction`/`MainSettingsPageEvent`/`SettingsViewEvent`
+              `CheckForUpdate` chain; the two editable bindings and
+              `BindingGroup::AutoUpdate`; `Icon::AutoUpdate` with its svg.
+            - *Config & flags*: `AutoupdateConfig` and the
+              `autoupdate_config` channel-config field (the `None`s in the four
+              bins went with it), `ChannelState::releases_base_url`/
+              `show_autoupdate_menu_items`, `ContextFlag::PromptForVersionUpdates`
+              (variant, five `disable_flag` calls, `FromStr` arm),
+              `FeatureFlag::Autoupdate` (also removed from `RELEASE_FLAGS` —
+              release bundles of the default build lose autoupdate too, which
+              is the point) and `AutoupdateUIRevamp`, both cargo features, and
+              the two `features.rs` mappings.
+            - *Periphery*: the `--finish-update` CLI arg with
+              `finish_update_flag()`, the `IgnoredAfterAutoUpdate` arg-forward
+              error and its match arms, `AppStartupInfo::from_relaunch`, the
+              `warp_finish_update` DCS hook chain (`DProtoHook::FinishUpdate` →
+              `FinishUpdateValue` → `ModelEvent::FinishUpdate` → the
+              terminal-view relaunch arm), the debug dump's Linux package-type
+              line, and seven telemetry events (two generic, five
+              Windows-installer) — no emitters remain. The stale
+              `APPIMAGE_NAME` comment in `script/linux/bundle` was trimmed; the
+              export itself stays (bundle_appimage names the artifact with it).
+
+            **Kept**: the `channel_versions` crate (live users in warpify,
+            block context, warp_terminal, secure_storage) — only the
+            autoupdate-local wrapper and `is_incoming_version_past_current`
+            went. The integration test that asserted "overflow menu not
+            showing" was re-pointed at `assert_context_menu_is_open(false)` —
+            the old assertion had always been trivially true.
+
+            Acceptance: check both feature sets at the 4-warning lib baseline
+            (same four as HEAD), clippy 0 errors in both configs (warnings =
+            the known set plus nothing new), format clean, nextest green (warp
+            lib 5202 default / 5201 simplewarp vs 5213/5211 — delta = the
+            deleted module's tests; `warp_cli`+`warp_features`+`warp_core`+
+            `warp_server_client` 198). Not re-run in the app — no reachable
+            surface changed: every deleted UI sat behind the never-enabled
+            flag, and the version row in Settings still shows the same string.
+            **Remaining remote-dependent queue**: `PromptSuggestionsViaMAA`,
+            `PredictAMQueries`, `RemoteCodebaseIndexing`.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
