@@ -4242,6 +4242,25 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             `get_request_limit_info`, `get_available_harnesses`,
             `list_connected_self_hosted_workers`; then `AuthClient` (12),
             `ServerApi`/`Provider`/`BaseClient`, then the crates.
+      - [x] **Zero-caller ServerApi time/channel stubs are deleted** (4bw,
+            2026-09-15, 1 file, +0/−34, `6be66104`): 4br deleted the
+            callers and left the stubs. `server_time` / `ServerTime` (the
+            "your build expired" nag clock) and `fetch_channel_versions`
+            (the autoupdate poll entry) had zero callers in any config,
+            so the struct, both methods, and the now-unused
+            `channel_versions::ChannelVersions` / `chrono` / `instant`
+            imports went. The `channel_versions` crate and the
+            `app/Cargo.toml` edge stay — `warpify`, `block_context`, and
+            `warp_terminal` still use `overrides::TargetOS`.
+
+            Acceptance: `check -p warp --tests` clean in both feature
+            sets (warnings byte-identical to HEAD via stash diff: the
+            3 pre-existing lib-test warnings), clippy 0 errors in both
+            configs with no `server_api` mentions, format clean,
+            nextest green (`server_api` 31 both sets,
+            `channel_versions` 14). Not re-run in the app — deleted
+            code was unreachable (no callers).
+            **Remaining queue**: unchanged from 4bv.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
