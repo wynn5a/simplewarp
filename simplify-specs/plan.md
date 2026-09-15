@@ -3967,6 +3967,99 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             flag, and the version row in Settings still shows the same string.
             **Remaining remote-dependent queue**: `PromptSuggestionsViaMAA`,
             `PredictAMQueries`, `RemoteCodebaseIndexing`.
+      - [x] **Remote codebase indexing is deleted** (4bs, 2026-09-15, 28 files,
+            +46/−2,104): second round under the remote-dependent-only scope.
+            The flag ("codebase indexing inside remote server daemon
+            processes") gated a full daemon↔client vertical for indexing repos
+            on remote hosts and syncing embeddings through the Warp indexing
+            backend (`CodebaseIndexManagerConfig` carries the `store_client`);
+            the cargo feature was in the default set only, so SimpleWarp builds
+            never had it. Gone end to end:
+
+            - *Daemon*: all four request handlers (`IndexCodebase`,
+              `ResyncCodebase`, `DropCodebaseIndex`,
+              `GetFragmentMetadataFromHash`) with
+              `prepare_codebase_index_request`,
+              `validate_remote_codebase_index_auth`,
+              `validate_fragment_metadata_lookup`, the
+              `FragmentMetadataLookupError` response mapping, and the
+              proto-conversion free fns; the bootstrap statuses snapshot and
+              `CodebaseIndexManagerEvent` subscription with the status-push
+              helpers; `apply_codebase_index_limits` and its
+              `Initialize`/`UpdatePreferences` call sites; and
+              `codebase_index_status.rs` with its tests (whole file served
+              this vertical).
+            - *Client*: `RemoteServerManager`'s `mutate_codebase_index` family
+              (`ensure_codebase_indexed`, `resync_codebase`,
+              `trigger_codebase_incremental_sync`, `drop_codebase_index`),
+              `get_fragment_metadata_from_hash`,
+              `update_codebase_index_limits`, the
+              `RemoteCodebaseIndexUpdateOperation` enum, the
+              `CodebaseIndexStatusesSnapshot`/`CodebaseIndexStatusUpdated`/
+              `CodebaseIndexMutationFailed` events with their session-id arms,
+              `remote_path_for_status`,
+              `RemoteCodebaseIndexStatusWithPath`,
+              `connected_session_for_host` (only caller was
+              `mutate_codebase_index`), and the `codebase_index_limits` field
+              threaded through `ReconnectParams`, `run_connect_and_handshake`,
+              and `InitializeParams`; `RemoteServerClient` loses the two
+              status-decode arms and the `UpdatePreferences` limits argument;
+              `codebase_index_proto.rs` with its tests (whole module).
+            - *Limits sync*: `current_codebase_index_limits` and the
+              `wire_auth_token_rotation` plumbing that pushed app-resolved
+              limits to daemons (auth-token rotation and crash-report
+              forwarding stay); `Initialize`/`UpdatePreferences` lose the
+              `codebase_index_limits` field.
+            - *Protocol*: 15 messages/enums removed from
+              `remote_server.proto` (`IndexCodebase`, `ResyncCodebase`,
+              `CodebaseResyncMode`, `DropCodebaseIndex`,
+              `GetFragmentMetadataFromHash` + its success/response/error
+              chain, `FragmentMetadata`, `MissingFragmentMetadata`,
+              `CodebaseIndexStatus*`, `CodebaseIndexLimits`), oneof slots 9–11
+              and 13 (host-scoped), 12–13 and 24 (server messages), and field
+              5/2 reserved.
+            - *Agent API*: `SearchCodebase` is no longer advertised for
+              `WarpifiedRemote` sessions (the flag never added it locally);
+              the flag-off and not-connected tests re-point into two
+              omission tests, the flag-on test deleted.
+            - *Flag*: the variant and its DOGFOOD_FLAGS entry, the cargo
+              feature (removed from the default set; `features.rs` mapping
+              gone), and `supports_indexing()`'s daemon arm, now a plain
+              `false` like the proxy.
+            - *Cascade into local indexing*: the daemon-only deferred restore
+              path (`defer_persisted_index_restore`,
+              `start_persisted_index_restore`,
+              `restore_persisted_indices_on_startup`,
+              `BuildQueue::start`/`BuildQueueState::Paused` — the queue is now
+              unconditionally running), `update_max_limits` and
+              `update_embedding_generation_batch_size` (runtime limit updates
+              only existed to serve daemons), and
+              `daemon_codebase_index_snapshot_storage` in `app/src/lib.rs`
+              (`new_with_snapshot_storage` stays — test-covered app-default
+              path).
+            - *Periphery*: two dead telemetry events with no emitters
+              (`RemoteCodebaseIndex.StatusChanged`,
+              `RemoteCodebaseIndex.AutoIndexRequested`) with their
+              `RemoteCodebaseIndexStatusTelemetrySource`/
+              `RemoteCodebaseAutoIndexTrigger` enums, and the three
+              ignore-arms over `RemoteServerManagerEvent` (terminal session,
+              terminal view, remote server controller).
+
+            `specs/APP-3792/` stays — no spec has ever been deleted in this
+            repo.
+
+            Acceptance: check both feature sets at the 4-warning lib baseline,
+            clippy output byte-identical to HEAD in both configs via stash
+            diff, format clean, nextest green (warp lib 5194 default / 5193
+            simplewarp vs 5202/5201 — delta = tests deleted with their
+            subject; `remote_server`+`warp_features`+`ai` 426). Not re-run in
+            the app — remote-host indexing was unreachable in SimpleWarp (the
+            cargo feature was not in the simplewarp set) and no local surface
+            changed: the settings Code Indexing page, agent SDK, and
+            init-project flows use the same `CodebaseIndexManager` methods as
+            before.
+            **Remaining remote-dependent queue**: `PromptSuggestionsViaMAA`,
+            `PredictAMQueries`.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
