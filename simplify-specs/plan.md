@@ -4701,8 +4701,69 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             126). Not re-run in the app — every deleted path required
             warp-server to answer; the kept surfaces (login gating, refresh
             error paths) behave identically.
-      - [ ] **Next per 4ca's order**: StoreClient + full_source_code_embedding
-            (the 12,111-line vertical whose every store call fails).
+      - [x] **StoreClient + full_source_code_embedding is deleted, walls
+            and callers together** (4ce, 2026-09-16, 83 files, +130/−15,894,
+            40 files removed outright): the whole 4ca item (4). Every store
+            call was already a guaranteed `local_only_error`, so indexing
+            could never progress; the settings page, the init-project step,
+            and the driver environment wait were UI around a dead core.
+
+            *Deleted*: `crates/ai/src/index/full_source_code_embedding`
+            (manager, codebase_index, chunker, merkle_tree, snapshot,
+            sync/store clients, search shaping, ~12k lines with tests); the
+            seven `StoreClient` walls on `ServerApi`; the seven GraphQL
+            operations (generate/populate/update/sync/rerank/fragments/
+            config); the "Indexing and projects" settings page (2,015 lines)
+            with its nav section, `SettingsViewEvent::OpenLspLogs` /
+            `OpenProjectRulesPane` pair, and `IS_AUTOINDEXING_ENABLED` flag;
+            `CodeSettings::auto_indexing_enabled`;
+            `FeatureFlag::FullSourceCodeEmbedding` /
+            `CodebaseIndexPersistence` / `CodebaseIndexSpeedbump` with the
+            `full_source_code_embedding`, `codebase_index_persistence`, and
+            `codebase_index_speedbump` cargo features; the
+            `CodebaseIndexManager` singleton + `SyncQueue<SyncTask>` + daemon
+            restore log in `lib.rs`; the init-project `CodebaseContext` step
+            (`CodebaseIndexingResult`, mouse handles, onboarding permission
+            copy); the driver `prepare_environment` indexing wait
+            (`subscribe_to_codebase_index_events`, `index_repo_codebase`,
+            `record_codebase_indexing`, the `Harness::Oz` gate and `harness`
+            arg); the `ToggleAutoIndexing` / `FullEmbed*` /
+            `AgentModeSetupCodebaseContextAction` telemetry events; the
+            `codebase_context` integration-testing step; and the orphaned
+            `all_lsp_servers` / `total_lsp_server_count` helpers (only the
+            deleted page called them).
+
+            *Collapses*: `PersistedWorkspace` project-rules subscription is
+            now unconditional (the flag gate only ever hid it in tests);
+            `UserWorkspaces` CodeSettings subscription drops the
+            `AutoIndexingEnabled` arm (single-arm `match` → `if let` per
+            clippy); init-project step indices renumber 5 → 4.
+
+            *Kept deliberately*: `SettingsSection::CodeIndexing` + slug /
+            `from_slug("Code")` compat — old sessions restoring that page hit
+            the existing `settings_page().is_none()` guard and stay on the
+            default page. `codebase_context_enabled` setting,
+            `IS_CODEBASE_INDEXING_ENABLED`, and the index-metadata
+            persistence stay: they now front outline-based context, not the
+            embedding pipeline.
+
+            *Acceptance repairs (both suite-caught)*: (1) the unconditional
+            subscription exposed a test-init ordering bug —
+            `PersistedWorkspace::new` before `ProjectContextModel` in
+            `pane_group/mod_tests.rs` and `workspace/view_tests.rs`
+            (production `lib.rs` already had the right order); swapped both.
+            (2) `arrow_down_across_adjacent_collapsed_umbrellas` still pinned
+            the deleted first subpage — re-pinned to `EditorAndCodeReview`
+            like the four sibling tests this round already updated.
+
+            Acceptance: `check -p warp --tests` clean in both feature sets;
+            clippy matches the stash-captured HEAD baseline modulo one
+            deletion-shifted line number; format clean; nextest green (warp
+            lib 5,087, small crates 126).
+      - [ ] **Next per 4ca's order**: the four assistant surfaces (palette
+            search, dialogue answer, workflow metadata, the
+            `provide_negative_feedback` refund — AIRequestUsageModel's last
+            `ai_client` caller, taking the model to a client-less singleton).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
