@@ -1,25 +1,16 @@
 use std::fmt::Display;
-use std::sync::Arc;
 
-use anyhow::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use settings::macros::{define_settings_group, maybe_define_setting, register_settings_events};
 use settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
 use warp_core::features::FeatureFlag;
 use warp_errors::{report_error, report_if_error};
-use warp_graphql::mutations::update_user_settings::UpdateUserSettingsInput;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity, UpdateModel};
 
 use super::cloud_preferences_syncer::CloudPreferencesSyncer;
 use crate::ai::blocklist::telemetry_banner::should_collect_ai_ugc_telemetry;
-use crate::auth::AuthStateProvider;
-use crate::auth::auth_state::AuthState;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::server::server_api::ServerApiProvider;
-#[cfg(any(test, feature = "test-util"))]
-use crate::server::server_api::auth::MockAuthClient;
-use crate::server::server_api::auth::{AuthClient, SyncedUserSettings};
 use crate::terminal::safe_mode_settings::SafeModeSettings;
 use crate::workspaces::workspace::EnterpriseSecretRegex;
 
@@ -145,8 +136,6 @@ maybe_define_setting!(HasInitializedDefaultSecretRegexes, group: PrivacySettings
 /// Singleton model for managing the user's privacy settings (whether the user has enabled crash
 /// reporting and/or telemetry).
 pub struct PrivacySettings {
-    auth_state: Arc<AuthState>,
-    auth_client: Arc<dyn AuthClient>,
     pub is_telemetry_enabled: bool,
     pub is_crash_reporting_enabled: bool,
     pub is_cloud_conversation_storage_enabled: bool,
@@ -239,13 +228,8 @@ impl PrivacySettings {
         );
     }
 
-    /// Returns a new PrivacySettings object initialized from locally cached values. Server-side
-    /// settings are fetched later via `fetch_or_update_settings`, which is called from
-    /// `on_user_fetched` after the user's auth state is established.
+    /// Returns a new PrivacySettings object initialized from locally cached values.
     fn new(ctx: &mut ModelContext<Self>) -> Self {
-        let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
-        let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
-
         // Initialize from `WarpDrivePrivacySettings`, which is the source of truth for these
         // booleans.
         let warp_drive_privacy = WarpDrivePrivacySettings::as_ref(ctx);
@@ -293,8 +277,6 @@ impl PrivacySettings {
             HasInitializedDefaultSecretRegexes::new_from_storage(ctx);
 
         Self {
-            auth_state,
-            auth_client,
             is_crash_reporting_enabled,
             is_telemetry_enabled,
             is_cloud_conversation_storage_enabled,
@@ -375,91 +357,10 @@ impl PrivacySettings {
         self.is_enterprise_secret_redaction_enabled = false;
     }
 
-    /// Fetch the user's privacy settings from the server if any or update the server settings.
-    pub fn fetch_or_update_settings(&self, ctx: &mut ModelContext<Self>) {
-        let auth_client_clone = self.auth_client.clone();
-        let _ = ctx.spawn(
-            async move { auth_client_clone.get_user_settings().await },
-            Self::initialize_from_fetched_settings_or_update_settings,
-        );
-    }
-
-    /// Initializes state from the [`SyncedUserSettings`] fetched from the server, if any.
-    /// If there are no settings from the server, updates the server settings with local settings.
-    /// TODO: Make this a server-side db transaction.
-    fn initialize_from_fetched_settings_or_update_settings(
-        &mut self,
-        fetched_settings: Result<Option<SyncedUserSettings>>,
-        ctx: &mut ModelContext<PrivacySettings>,
-    ) {
-        match fetched_settings {
-            Ok(Some(fetched_settings)) => {
-                // Until the login experience stops hiding the telemetry settings,
-                // we assume that locally enabled telemetry is unintentional.
-                // As such, where settings differ, we respect whichever setting that is disabled.
-                self.overwrite_local_settings_if_cloud_disabled(fetched_settings, ctx);
-                // If any local setting is disabled, we have to update the server.
-                if !self.is_telemetry_enabled
-                    || !self.is_crash_reporting_enabled
-                    || !self.is_cloud_conversation_storage_enabled
-                {
-                    self.update_server_with_local_settings(ctx);
-                }
-            }
-            Ok(None) => {
-                // This indicates the user had not logged in before.
-                log::info!("User has no synced privacy settings.");
-                self.update_server_with_local_settings(ctx);
-            }
-            Err(err) => {
-                report_error!(err.context("Failed to fetch user settings."));
-            }
-        }
-
-        self.maybe_sync_with_warp_drive_prefs(ctx);
-    }
-
-    fn overwrite_local_settings_if_cloud_disabled(
-        &mut self,
-        fetched_settings: SyncedUserSettings,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // For now, only overwrite the user's locally stored setting if the cloud version
-        // has is_crash_reporting disabled. Until we implement a more reliable retry
-        // mechanism for update settings requests, in addition to possibly a UI for the
-        // user to resolve the conflicting settings themselves, default to "safe" behavior.
-        // Namely, we want to avoid incidentally overwriting is_crash_reporting_enabled to
-        // `true`.
-        if self.is_crash_reporting_enabled && !fetched_settings.is_crash_reporting_enabled {
-            self.set_is_crash_reporting_enabled(fetched_settings.is_crash_reporting_enabled, ctx);
-        }
-
-        // For now, only overwrite the user's locally stored setting if the cloud version
-        // has is_telemetry_enabled disabled. Until we implement a more reliable retry
-        // mechanism for update settings requests, in addition to possibly a UI for the
-        // user to resolve the conflicting settings themselves, default to "safe" behavior.
-        // Namely, we want to avoid incidentally overwriting is_telemetry_enabled to
-        // `true`.
-        if self.is_telemetry_enabled && !fetched_settings.is_telemetry_enabled {
-            self.set_is_telemetry_enabled(fetched_settings.is_telemetry_enabled, ctx);
-        }
-
-        if self.is_cloud_conversation_storage_enabled
-            && !fetched_settings.is_cloud_conversation_storage_enabled
-        {
-            self.set_is_cloud_conversation_storage_enabled(
-                fetched_settings.is_cloud_conversation_storage_enabled,
-                ctx,
-            );
-        }
-    }
-
     /// Constructor for tests only.
     #[cfg(any(test, feature = "test-util"))]
     pub fn mock(_ctx: &mut ModelContext<Self>) -> Self {
         Self {
-            auth_state: Arc::new(AuthState::new_for_test()),
-            auth_client: Arc::new(MockAuthClient::new()),
             is_crash_reporting_enabled: true,
             is_telemetry_enabled: true,
             is_cloud_conversation_storage_enabled: true,
@@ -488,9 +389,8 @@ impl PrivacySettings {
 
     /// Sets `is_crash_reporting_enabled` to the given value.
     ///
-    /// Additionally, this writes the given value to the user's local defaults, and additionally
-    /// sends a request to update the user's `is_crash_reporting_enabled` value stored server-side.
-    /// Finally, emits a `PrivacySettingsEvent::UpdateIsCrashReportingEnabled` event.
+    /// Additionally, this writes the given value to the user's local defaults, and emits a
+    /// `PrivacySettingsEvent::UpdateIsCrashReportingEnabled` event.
     pub fn set_is_crash_reporting_enabled(
         &mut self,
         new_value: bool,
@@ -507,13 +407,6 @@ impl PrivacySettings {
                     .set_value(new_value, ctx);
             });
 
-            if self.auth_state.is_logged_in() {
-                let auth_client = self.auth_client.clone();
-                let _ = ctx.spawn(
-                    async move { auth_client.set_is_crash_reporting_enabled(new_value).await },
-                    |_, _, _| (),
-                );
-            }
             ctx.emit(PrivacySettingsChangedEvent::UpdateIsCrashReportingEnabled {
                 old_value,
                 new_value,
@@ -524,9 +417,8 @@ impl PrivacySettings {
 
     /// Sets `is_telemetry_enabled` to the given value.
     ///
-    /// Additionally, this writes the given value to the user's local defaults, and additionally
-    /// sends a request to update the user's `is_telemetry_enabled` value stored server-side.
-    /// Finally, emits a `PrivacySettingsEvent::UpdateIsTelemetryEnabled` event.
+    /// Additionally, this writes the given value to the user's local defaults, and emits a
+    /// `PrivacySettingsEvent::UpdateIsTelemetryEnabled` event.
     pub fn set_is_telemetry_enabled(
         &mut self,
         new_value: bool,
@@ -541,13 +433,6 @@ impl PrivacySettings {
                 let _ = settings.is_telemetry_enabled.set_value(new_value, ctx);
             });
 
-            if self.auth_state.is_logged_in() {
-                let auth_client = self.auth_client.clone();
-                let _ = ctx.spawn(
-                    async move { auth_client.set_is_telemetry_enabled(new_value).await },
-                    |_, _, _| (),
-                );
-            }
             ctx.emit(PrivacySettingsChangedEvent::UpdateIsTelemetryEnabled {
                 old_value,
                 new_value,
@@ -574,18 +459,6 @@ impl PrivacySettings {
                 .is_cloud_conversation_storage_enabled
                 .set_value(new_value, ctx);
         });
-
-        if self.auth_state.is_logged_in() {
-            let auth_client = self.auth_client.clone();
-            let _ = ctx.spawn(
-                async move {
-                    auth_client
-                        .set_is_cloud_conversation_storage_enabled(new_value)
-                        .await
-                },
-                |_, _, _| (),
-            );
-        }
 
         ctx.emit(
             PrivacySettingsChangedEvent::UpdateIsCloudConversationStorageEnabled {
@@ -677,32 +550,6 @@ impl PrivacySettings {
             {
                 report_error!("Failed to set has_initialized_default_secret_regexes flag");
             }
-        }
-    }
-
-    /// Sends request(s) to update server-side user settings with current local values.
-    fn update_server_with_local_settings(&self, ctx: &mut ModelContext<Self>) {
-        if self.auth_state.is_logged_in() {
-            let auth_client = self.auth_client.clone();
-            let snapshot = self.get_snapshot(ctx);
-            let _ = ctx.spawn(
-                async move {
-                    let result = auth_client
-                        .update_user_settings(UpdateUserSettingsInput {
-                            telemetry_enabled: Some(snapshot.is_telemetry_enabled()),
-                            crash_reporting_enabled: Some(snapshot.is_crash_reporting_enabled()),
-                            cloud_conversation_storage_enabled: snapshot
-                                .cloud_conversation_storage_enabled(),
-                        })
-                        .await;
-                    if let Err(err) = result {
-                        report_error!(
-                            err.context("Failed to update server with local privacy settings.")
-                        )
-                    }
-                },
-                |_, _, _| (),
-            );
         }
     }
 

@@ -715,10 +715,6 @@ fn test_settings_section_for_simple_subpage() {
         Some(SettingsSection::Appearance),
     );
     assert_eq!(
-        settings_section_for_simple_subpage("platform"),
-        Some(SettingsSection::OzCloudAPIKeys),
-    );
-    assert_eq!(
         settings_section_for_simple_subpage("warp_agent"),
         Some(SettingsSection::WarpAgent),
     );
@@ -726,6 +722,9 @@ fn test_settings_section_for_simple_subpage() {
     // `billing_and_usage` went with the Billing and Usage page; the route must
     // no longer resolve rather than silently landing somewhere else.
     assert!(settings_section_for_simple_subpage("billing_and_usage").is_none());
+    // `platform` went with the Oz Cloud API Keys page; the route must no
+    // longer resolve rather than silently landing somewhere else.
+    assert!(settings_section_for_simple_subpage("platform").is_none());
 }
 
 // Regression coverage for issue #9005: shell scripts opened via `file://` should run,

@@ -17,7 +17,6 @@ pub mod get_scheduled_agent_history;
 pub mod get_simple_integrations;
 pub mod get_updated_cloud_objects;
 pub mod get_user;
-pub mod get_user_settings;
 pub mod get_workspaces_metadata_for_user;
 pub mod list_ai_conversations;
 pub mod list_warp_dev_images;

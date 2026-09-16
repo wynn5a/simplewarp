@@ -20,18 +20,10 @@ use warp_graphql::mutations::expire_api_key::{
 use warp_graphql::mutations::generate_api_key::{
     GenerateApiKey, GenerateApiKeyInput, GenerateApiKeyResult, GenerateApiKeyVariables,
 };
-use warp_graphql::mutations::set_user_is_onboarded::{
-    SetUserIsOnboarded, SetUserIsOnboardedResult, SetUserIsOnboardedVariables,
-};
-use warp_graphql::mutations::update_user_settings::{
-    UpdateUserSettings, UpdateUserSettingsInput, UpdateUserSettingsResult,
-    UpdateUserSettingsVariables,
-};
 use warp_graphql::queries::api_keys::{
     ApiKeyProperties, ApiKeyPropertiesResult, ApiKeys, ApiKeysVariables,
 };
 use warp_graphql::queries::get_user::{GetUser, GetUserVariables, UserOutput as GqlUserOutput};
-use warp_graphql::queries::get_user_settings::{GetUserSettings, GetUserSettingsVariables};
 use warp_server_auth::credentials::{AuthToken, Credentials, LoginToken};
 pub use warp_server_auth::user_uid;
 
@@ -41,28 +33,6 @@ use crate::ids::ApiKeyUid;
 
 /// Header key used to associate unauthenticated requests with an experiment identity.
 pub const EXPERIMENT_ID_HEADER: &str = "X-Warp-Experiment-Id";
-
-/// A named agent identity from the public API.
-#[derive(Clone, Debug, serde::Deserialize)]
-pub struct AgentIdentity {
-    pub uid: String,
-    pub name: String,
-    pub available: bool,
-}
-
-/// Wrapper for the `GET /api/v1/agent/identities` response.
-#[derive(serde::Deserialize)]
-struct AgentIdentitiesResponse {
-    agents: Vec<AgentIdentity>,
-}
-
-/// User settings that are stored server-side on a per-user basis.
-#[derive(Copy, Clone, Debug, Default)]
-pub struct SyncedUserSettings {
-    pub is_cloud_conversation_storage_enabled: bool,
-    pub is_crash_reporting_enabled: bool,
-    pub is_telemetry_enabled: bool,
-}
 
 /// Protocol-level results of fetching the current user.
 pub struct FetchUserResult {
@@ -91,26 +61,6 @@ pub trait AuthClient: Send + Sync {
         for_refresh: bool,
     ) -> StdResult<FetchUserResult, UserAuthenticationError>;
 
-    /// Returns the user's settings retrieved from the server, if any.
-    ///
-    /// The user may not have server-side settings if they onboarded before telemetry
-    /// opt-out launched, have not logged in since the launch, and have never changed
-    /// defaults for any setting in [`SyncedUserSettings`]. If the fetched settings
-    /// object exists but is missing required fields, or if the request itself fails,
-    /// this returns an error.
-    async fn get_user_settings(&self) -> Result<Option<SyncedUserSettings>>;
-
-    async fn set_is_telemetry_enabled(&self, value: bool) -> Result<()>;
-
-    async fn set_is_crash_reporting_enabled(&self, value: bool) -> Result<()>;
-
-    async fn set_is_cloud_conversation_storage_enabled(&self, value: bool) -> Result<()>;
-
-    /// Sends a request to update the user's settings on the server with values in the given input.
-    async fn update_user_settings(&self, input: UpdateUserSettingsInput) -> Result<()>;
-
-    async fn set_user_is_onboarded(&self) -> Result<bool>;
-
     async fn list_api_keys(&self) -> Result<Vec<ApiKeyProperties>>;
 
     async fn create_api_key(
@@ -122,9 +72,6 @@ pub trait AuthClient: Send + Sync {
     ) -> Result<GenerateApiKeyResult>;
 
     async fn expire_api_key(&self, key_uid: &ApiKeyUid) -> Result<ExpireApiKeyResult>;
-
-    /// Fetches the list of named agent identities for the user's team.
-    async fn list_agent_identities(&self) -> Result<Vec<AgentIdentity>>;
 }
 
 /// Implements the [`AuthClient`] trait on top of a base client and auth session.
@@ -139,34 +86,6 @@ impl AuthClientImpl {
         Self {
             base_client,
             auth_session,
-        }
-    }
-
-    async fn update_settings(
-        &self,
-        input: UpdateUserSettingsInput,
-        unknown_error_message: &'static str,
-    ) -> Result<()> {
-        let operation = UpdateUserSettings::build(UpdateUserSettingsVariables {
-            input,
-            request_context: warp_graphql::client::get_request_context(),
-        });
-        let result = send_graphql_request(&self.base_client, operation, None)
-            .await?
-            .update_user_settings;
-        Self::on_settings_updated(result, unknown_error_message)
-    }
-
-    fn on_settings_updated(
-        result: UpdateUserSettingsResult,
-        unknown_error_message: &'static str,
-    ) -> Result<()> {
-        match result {
-            UpdateUserSettingsResult::UpdateUserSettingsOutput(_) => Ok(()),
-            UpdateUserSettingsResult::UserFacingError(error) => Err(anyhow!(
-                warp_graphql::client::get_user_facing_error_message(error)
-            )),
-            UpdateUserSettingsResult::Unknown => Err(anyhow!(unknown_error_message)),
         }
     }
 
@@ -229,83 +148,6 @@ impl AuthClient for AuthClientImpl {
         })
     }
 
-    async fn get_user_settings(&self) -> Result<Option<SyncedUserSettings>> {
-        let operation = GetUserSettings::build(GetUserSettingsVariables {
-            request_context: warp_graphql::client::get_request_context(),
-        });
-        let response = send_graphql_request(self.base_client.as_ref(), operation, None).await?;
-        match response.user {
-            warp_graphql::queries::get_user_settings::UserResult::UserOutput(user_output) => {
-                Ok(user_output
-                    .user
-                    .settings
-                    .map(|settings| SyncedUserSettings {
-                        is_cloud_conversation_storage_enabled: settings
-                            .is_cloud_conversation_storage_enabled,
-                        is_crash_reporting_enabled: settings.is_crash_reporting_enabled,
-                        is_telemetry_enabled: settings.is_telemetry_enabled,
-                    }))
-            }
-            warp_graphql::queries::get_user_settings::UserResult::Unknown => {
-                Err(anyhow!("Unable to fetch user settings"))
-            }
-        }
-    }
-
-    async fn set_is_telemetry_enabled(&self, value: bool) -> Result<()> {
-        self.update_settings(
-            UpdateUserSettingsInput {
-                telemetry_enabled: Some(value),
-                ..Default::default()
-            },
-            "failed to set telemetry enabled",
-        )
-        .await
-    }
-
-    async fn set_is_crash_reporting_enabled(&self, value: bool) -> Result<()> {
-        self.update_settings(
-            UpdateUserSettingsInput {
-                crash_reporting_enabled: Some(value),
-                ..Default::default()
-            },
-            "failed to set crash reporting enabled",
-        )
-        .await
-    }
-
-    async fn set_is_cloud_conversation_storage_enabled(&self, value: bool) -> Result<()> {
-        self.update_settings(
-            UpdateUserSettingsInput {
-                cloud_conversation_storage_enabled: Some(value),
-                ..Default::default()
-            },
-            "failed to set cloud conversation storage enabled",
-        )
-        .await
-    }
-
-    async fn update_user_settings(&self, input: UpdateUserSettingsInput) -> Result<()> {
-        self.update_settings(input, "failed to update user settings")
-            .await
-    }
-
-    async fn set_user_is_onboarded(&self) -> Result<bool> {
-        let operation = SetUserIsOnboarded::build(SetUserIsOnboardedVariables {
-            request_context: warp_graphql::client::get_request_context(),
-        });
-        let result = send_graphql_request(self.base_client.as_ref(), operation, None)
-            .await?
-            .set_user_is_onboarded;
-        match result {
-            SetUserIsOnboardedResult::SetUserIsOnboardedOutput(_) => Ok(true),
-            SetUserIsOnboardedResult::UserFacingError(error) => Err(anyhow!(
-                warp_graphql::client::get_user_facing_error_message(error)
-            )),
-            SetUserIsOnboardedResult::Unknown => Err(anyhow!("failed to set user is onboarded")),
-        }
-    }
-
     async fn list_api_keys(&self) -> Result<Vec<ApiKeyProperties>> {
         let operation = ApiKeys::build(ApiKeysVariables {
             request_context: warp_graphql::client::get_request_context(),
@@ -347,12 +189,6 @@ impl AuthClient for AuthClientImpl {
         });
         let response = send_graphql_request(self.base_client.as_ref(), operation, None).await?;
         Ok(response.expire_api_key)
-    }
-
-    async fn list_agent_identities(&self) -> Result<Vec<AgentIdentity>> {
-        let response: AgentIdentitiesResponse =
-            self.base_client.get_public_api("agent/identities").await?;
-        Ok(response.agents)
     }
 }
 
@@ -429,7 +265,3 @@ impl From<FirebaseError> for UserAuthenticationError {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "mod_tests.rs"]
-mod tests;

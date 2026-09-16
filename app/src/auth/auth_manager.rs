@@ -7,7 +7,7 @@ use warp_core::channel::ChannelState;
 use warp_errors::{report_error, report_if_error};
 use warp_server_auth::API_KEY_PREFIX;
 use warp_server_auth::user::persistence::PersistedUser;
-use warpui::{Entity, ModelContext, SingletonEntity, UpdateModel};
+use warpui::{Entity, ModelContext, SingletonEntity};
 
 use super::auth_state::{AuthState, PersistAction};
 use super::auth_view_modal::AuthRedirectPayload;
@@ -308,13 +308,8 @@ impl AuthManager {
                     );
                 };
 
-                // Fetch the user's privacy settings from the server if any or update the server settings.
-                let privacy_settings_handle = PrivacySettings::handle(ctx);
                 let privacy_settings_snapshot =
-                    privacy_settings_handle.as_ref(ctx).get_snapshot(ctx);
-                ctx.update_model(&privacy_settings_handle, |privacy_settings, ctx| {
-                    privacy_settings.fetch_or_update_settings(ctx);
-                });
+                    PrivacySettings::handle(ctx).as_ref(ctx).get_snapshot(ctx);
 
                 let server_api = self.server_api.clone();
                 let user_id = self.auth_state.user_id().unwrap_or_default();
@@ -530,19 +525,8 @@ impl AuthManager {
         }
     }
 
-    /// Sets the user as onboarded both on the server and locally.
-    /// This method:
-    /// 1. Updates the server by calling set_user_is_onboarded
-    /// 2. Updates the local auth state and persists the user data
+    /// Sets the user as onboarded locally.
     pub fn set_user_onboarded(&self, ctx: &mut ModelContext<Self>) {
-        // Update server
-        let auth_client = self.auth_client.clone();
-        let _ = ctx.spawn(
-            async move { auth_client.set_user_is_onboarded().await },
-            |_, _, _| {},
-        );
-
-        // Update local auth state and persist
         self.auth_state.set_is_onboarded(true);
 
         self.persist(ctx);
