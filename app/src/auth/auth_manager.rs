@@ -5,7 +5,6 @@ use settings::Setting as _;
 use uuid::Uuid;
 use warp_core::channel::ChannelState;
 use warp_errors::{report_error, report_if_error};
-use warp_server_auth::API_KEY_PREFIX;
 use warp_server_auth::user::persistence::PersistedUser;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
@@ -217,29 +216,6 @@ impl AuthManager {
             Self::on_user_fetched,
         );
     }
-    /// Validates a startup API key without exposing it through shared auth state.
-    ///
-    /// [`Self::on_user_fetched`] promotes the returned user and credentials only
-    /// after the server accepts the key. A failed request leaves the client
-    /// fully logged out.
-    pub fn authenticate_api_key(&self, api_key: String, ctx: &mut ModelContext<Self>) {
-        log::info!("Authenticating via pending API key");
-        let api_key = if api_key.starts_with(API_KEY_PREFIX) {
-            api_key
-        } else {
-            format!("{API_KEY_PREFIX}{api_key}")
-        };
-        let auth_client = self.auth_client.clone();
-        let _ = ctx.spawn(
-            async move {
-                auth_client
-                    .fetch_user(LoginToken::ApiKey(api_key), false)
-                    .await
-            },
-            Self::on_user_fetched,
-        );
-    }
-
     /// Callback for handling a successful fetch of a user from warp-server and Firebase.
     /// This does the heavy-lifting of setting up all components of the application that depend
     /// on a user's authenticated state, and emits events to subscribers that let them know

@@ -14,9 +14,7 @@ use warp_core::context_flag::ContextFlag;
 use warp_core::telemetry::TelemetryEvent;
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
 use warp_server_client::auth::{AuthClientImpl, AuthEvent};
-use warp_server_client::base_client::{
-    AuthenticatedGraphqlConfig, BaseClient, GraphqlRoutingConfig,
-};
+use warp_server_client::base_client::{BaseClient, GraphqlRoutingConfig};
 use warp_server_client::network_logging::NetworkLogModel;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
@@ -333,14 +331,12 @@ impl ServerApi {
             #[cfg(not(feature = "agent_mode_evals"))]
             path_prefix: None,
         };
-        let authenticated_graphql = AuthenticatedGraphqlConfig::default();
         let base_client = Arc::new(BaseClient::new(
             client,
             auth_state,
             event_sender,
             agent_source.map(|source| source.as_str().to_string()),
             graphql_routing,
-            authenticated_graphql,
         ));
 
         Self {

@@ -2,8 +2,6 @@ use serde_json::{Value, json};
 use strum_macros::{EnumDiscriminants, EnumIter};
 use warp_core::telemetry::{EnablementState, TelemetryEvent, TelemetryEventDesc};
 
-use crate::features::FeatureFlag;
-
 #[derive(Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(EnumIter))]
 pub(super) enum CliTelemetryEvent {
@@ -49,12 +47,6 @@ pub(super) enum CliTelemetryEvent {
     ProviderSetup,
     /// Executing `warp provider list`
     ProviderList,
-    /// Executing `warp api-key list`
-    ApiKeyList,
-    /// Executing `warp api-key create`
-    ApiKeyCreate,
-    /// Executing `warp api-key expire`
-    ApiKeyExpire,
 }
 
 impl TelemetryEvent for CliTelemetryEvent {
@@ -95,9 +87,6 @@ impl TelemetryEvent for CliTelemetryEvent {
             CliTelemetryEvent::Whoami => None,
             CliTelemetryEvent::ProviderSetup => None,
             CliTelemetryEvent::ProviderList => None,
-            CliTelemetryEvent::ApiKeyList => None,
-            CliTelemetryEvent::ApiKeyCreate => None,
-            CliTelemetryEvent::ApiKeyExpire => None,
         }
     }
 
@@ -142,9 +131,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::Whoami => "CLI.Execute.Whoami",
             CliTelemetryEventDiscriminants::ProviderSetup => "CLI.Execute.Provider.Setup",
             CliTelemetryEventDiscriminants::ProviderList => "CLI.Execute.Provider.List",
-            CliTelemetryEventDiscriminants::ApiKeyList => "CLI.Execute.ApiKey.List",
-            CliTelemetryEventDiscriminants::ApiKeyCreate => "CLI.Execute.ApiKey.Create",
-            CliTelemetryEventDiscriminants::ApiKeyExpire => "CLI.Execute.ApiKey.Expire",
         }
     }
 
@@ -183,17 +169,11 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::Whoami => "Printed current user info from the Warp CLI",
             CliTelemetryEventDiscriminants::ProviderSetup => "Set up a provider via the Warp CLI",
             CliTelemetryEventDiscriminants::ProviderList => "Listed providers from the Warp CLI",
-            CliTelemetryEventDiscriminants::ApiKeyList => "Listed API keys from the Warp CLI",
-            CliTelemetryEventDiscriminants::ApiKeyCreate => "Created an API key from the Warp CLI",
-            CliTelemetryEventDiscriminants::ApiKeyExpire => "Expired an API key from the Warp CLI",
         }
     }
 
     fn enablement_state(&self) -> EnablementState {
         match self {
-            Self::ApiKeyList | Self::ApiKeyCreate | Self::ApiKeyExpire => {
-                EnablementState::Flag(FeatureFlag::APIKeyManagement)
-            }
             Self::RunMessageWatch
             | Self::RunMessageSend
             | Self::RunMessageList

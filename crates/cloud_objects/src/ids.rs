@@ -182,9 +182,6 @@ pub type ObjectUid = String;
 /// Other than sqlite model events, this id is used for embedded objects within notebooks.
 pub type HashedSqliteId = String;
 
-/// UID for API keys.
-pub type ApiKeyUid = String;
-
 #[derive(Debug, thiserror::Error)]
 pub enum ParseServerIdError {
     #[error("ServerId must be exactly {SERVER_ID_LENGTH} characters, got {len}")]

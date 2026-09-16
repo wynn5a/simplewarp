@@ -169,31 +169,6 @@ impl AuthState {
         state
     }
 
-    /// Creates auth state for a client that must validate an explicit credential
-    /// before making it available to shared authenticated clients.
-    ///
-    /// This installs neither the pending credential nor persisted identity. The
-    /// credential remains outside [`AuthState`] until its user fetch succeeds,
-    /// so failed validation leaves the client fully logged out. Persisted state
-    /// is skipped because an explicit credential takes precedence over secure
-    /// storage.
-    pub fn initialize_for_credential_validation(ctx: &AppContext) -> Self {
-        let state = Self::new(ctx);
-
-        if Self::should_use_test_user() {
-            state.set_user(Some(User::test()));
-            #[cfg(any(
-                test,
-                feature = "integration_tests",
-                feature = "skip_login",
-                feature = "test-util"
-            ))]
-            state.set_credentials(Some(Self::test_credentials()));
-        }
-
-        state
-    }
-
     fn should_use_test_user() -> bool {
         // A `local_only` build must report itself as logged out. Every cloud call site already
         // guards on `is_logged_in()`, so a stand-in test user would make all of them start work

@@ -9,7 +9,6 @@ use serde::de::DeserializeOwned;
 use warp_core::channel::ChannelState;
 use warp_core::operating_system_info::OperatingSystemInfo;
 
-use crate::error::{UserFacingError, UserFacingErrorInterface};
 use crate::request_context::{ClientContext, OsContext, RequestContext};
 
 #[cfg(not(target_family = "wasm"))]
@@ -179,20 +178,6 @@ pub fn get_request_context() -> RequestContext {
             name,
             version: os_version,
         },
-    }
-}
-
-/// Returns a user-facing error message for the given [`UserFacingError`].
-pub fn get_user_facing_error_message(e: UserFacingError) -> String {
-    match e.error {
-        UserFacingErrorInterface::SharedObjectsLimitExceeded(e) => e.message,
-        UserFacingErrorInterface::PersonalObjectsLimitExceeded(e) => e.message,
-        UserFacingErrorInterface::AccountDelinquencyError(e) => e.message,
-        UserFacingErrorInterface::GenericStringObjectUniqueKeyConflict(e) => e.message,
-        UserFacingErrorInterface::BudgetExceededError(e) => e.message,
-        UserFacingErrorInterface::PaymentMethodDeclinedError(e) => e.message,
-        UserFacingErrorInterface::InvalidAttachmentError(e) => e.message,
-        UserFacingErrorInterface::Unknown(fallback) => fallback.message,
     }
 }
 

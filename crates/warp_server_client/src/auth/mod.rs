@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
-use cynic::{MutationBuilder, QueryBuilder};
+use cynic::QueryBuilder;
 use firebase::FirebaseError;
 #[cfg(any(test, feature = "test-util"))]
 use mockall::automock;
@@ -13,23 +13,12 @@ pub use session::*;
 use thiserror::Error;
 pub use user_uid::{TEST_USER_EMAIL, TEST_USER_UID, UserUid};
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
-use warp_graphql::client::Operation;
-use warp_graphql::mutations::expire_api_key::{
-    ExpireApiKey, ExpireApiKeyResult, ExpireApiKeyVariables,
-};
-use warp_graphql::mutations::generate_api_key::{
-    GenerateApiKey, GenerateApiKeyInput, GenerateApiKeyResult, GenerateApiKeyVariables,
-};
-use warp_graphql::queries::api_keys::{
-    ApiKeyProperties, ApiKeyPropertiesResult, ApiKeys, ApiKeysVariables,
-};
+use warp_graphql::client::Operation as _;
 use warp_graphql::queries::get_user::{GetUser, GetUserVariables, UserOutput as GqlUserOutput};
 use warp_server_auth::credentials::{AuthToken, Credentials, LoginToken};
 pub use warp_server_auth::user_uid;
 
 use crate::base_client::BaseClient;
-use crate::graphql_helpers::send_graphql_request;
-use crate::ids::ApiKeyUid;
 
 /// Header key used to associate unauthenticated requests with an experiment identity.
 pub const EXPERIMENT_ID_HEADER: &str = "X-Warp-Experiment-Id";
@@ -60,18 +49,6 @@ pub trait AuthClient: Send + Sync {
         token: LoginToken,
         for_refresh: bool,
     ) -> StdResult<FetchUserResult, UserAuthenticationError>;
-
-    async fn list_api_keys(&self) -> Result<Vec<ApiKeyProperties>>;
-
-    async fn create_api_key(
-        &self,
-        name: String,
-        team_id: Option<cynic::Id>,
-        agent_uid: Option<cynic::Id>,
-        expires_at: Option<warp_graphql::scalars::Time>,
-    ) -> Result<GenerateApiKeyResult>;
-
-    async fn expire_api_key(&self, key_uid: &ApiKeyUid) -> Result<ExpireApiKeyResult>;
 }
 
 /// Implements the [`AuthClient`] trait on top of a base client and auth session.
@@ -146,49 +123,6 @@ impl AuthClient for AuthClientImpl {
             credentials: new_credentials,
             from_refresh: for_refresh,
         })
-    }
-
-    async fn list_api_keys(&self) -> Result<Vec<ApiKeyProperties>> {
-        let operation = ApiKeys::build(ApiKeysVariables {
-            request_context: warp_graphql::client::get_request_context(),
-        });
-        let response = send_graphql_request(self.base_client.as_ref(), operation, None).await?;
-        match response.api_keys {
-            ApiKeyPropertiesResult::ApiKeyPropertiesOutput(output) => Ok(output.api_keys),
-            ApiKeyPropertiesResult::UserFacingError(error) => Err(anyhow!(
-                warp_graphql::client::get_user_facing_error_message(error)
-            )),
-            ApiKeyPropertiesResult::Unknown => Err(anyhow!("failed to fetch API keys")),
-        }
-    }
-
-    async fn create_api_key(
-        &self,
-        name: String,
-        team_id: Option<cynic::Id>,
-        agent_uid: Option<cynic::Id>,
-        expires_at: Option<warp_graphql::scalars::Time>,
-    ) -> Result<GenerateApiKeyResult> {
-        let operation = GenerateApiKey::build(GenerateApiKeyVariables {
-            input: GenerateApiKeyInput {
-                name,
-                team_id,
-                agent_uid,
-                expires_at,
-            },
-            request_context: warp_graphql::client::get_request_context(),
-        });
-        let response = send_graphql_request(self.base_client.as_ref(), operation, None).await?;
-        Ok(response.generate_api_key)
-    }
-
-    async fn expire_api_key(&self, key_uid: &ApiKeyUid) -> Result<ExpireApiKeyResult> {
-        let operation = ExpireApiKey::build(ExpireApiKeyVariables {
-            key_uid: key_uid.into(),
-            request_context: warp_graphql::client::get_request_context(),
-        });
-        let response = send_graphql_request(self.base_client.as_ref(), operation, None).await?;
-        Ok(response.expire_api_key)
     }
 }
 

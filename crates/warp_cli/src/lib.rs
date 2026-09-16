@@ -19,7 +19,6 @@ mod sort_order;
 pub use sort_order::SortOrderArg;
 
 pub mod agent;
-pub mod api_key;
 pub mod completions;
 pub mod config_file;
 mod date_time;
@@ -82,15 +81,6 @@ pub struct RemoteServerIdentityArgs {
 /// Global options that apply to all CLI commands.
 #[derive(Debug, Default, Clone, clap::Args)]
 pub struct GlobalOptions {
-    /// API key for server authentication.
-    #[arg(
-        long = "api-key",
-        global = true,
-        env = "WARP_API_KEY",
-        hide_env_values = true
-    )]
-    pub api_key: Option<String>,
-
     /// Set the output format.
     #[arg(
         long = "output-format",
@@ -199,15 +189,6 @@ impl Args {
                     }
                 }
 
-                if !FeatureFlag::APIKeyManagement.is_enabled() {
-                    let args: Vec<String> = env::args().collect();
-                    if args.len() > 1 && args[1] == "api-key" {
-                        eprintln!("error: unrecognized subcommand 'api-key'\n");
-                        eprintln!("For more information, try '--help'");
-                        std::process::exit(2);
-                    }
-                }
-
                 let command = Self::clap_command();
 
                 command.try_get_matches()
@@ -266,11 +247,6 @@ impl Args {
             });
         }
 
-        // Hide the api-key subcommand from help text.
-        if !FeatureFlag::APIKeyManagement.is_enabled() {
-            command = command.mut_subcommand("api-key", |c| c.hide(true));
-        }
-
         // Wire up `--version` / `-V` using the same version metadata used elsewhere in the
         // app, so the CLI reports the build's release tag.
         command = command.version(version_string());
@@ -312,11 +288,6 @@ impl Args {
     /// Returns the global options.
     pub fn global_options(&self) -> &GlobalOptions {
         &self.global_options
-    }
-
-    /// Returns the API key if provided.
-    pub fn api_key(&self) -> Option<&String> {
-        self.global_options.api_key.as_ref()
     }
 
     /// Returns the output format.
@@ -426,10 +397,6 @@ pub enum CliCommand {
     /// Manage providers.
     #[command(subcommand)]
     Provider(crate::provider::ProviderCommand),
-
-    /// Manage API keys.
-    #[command(subcommand)]
-    ApiKey(crate::api_key::ApiKeyCommand),
 }
 
 impl CliCommand {
@@ -443,7 +410,6 @@ impl CliCommand {
             CliCommand::Logout => "logout",
             CliCommand::Whoami => "whoami",
             CliCommand::Provider(command) => command.as_str_for_tracing(),
-            CliCommand::ApiKey(command) => command.as_str_for_tracing(),
         }
     }
 }

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
@@ -97,12 +96,6 @@ pub struct GraphqlRoutingConfig {
     pub path_prefix: Option<String>,
 }
 
-/// Provides headers added only to session-authenticated GraphQL operations.
-#[derive(Clone, Debug, Default)]
-pub struct AuthenticatedGraphqlConfig {
-    pub headers: HashMap<String, String>,
-}
-
 /// Owns shared transport, authentication, and authenticated request decoration.
 pub struct BaseClient {
     client: Arc<http_client::Client>,
@@ -113,7 +106,6 @@ pub struct BaseClient {
     ambient_agent_task_id: Arc<RwLock<Option<String>>>,
     agent_source: Option<String>,
     graphql_routing: GraphqlRoutingConfig,
-    authenticated_graphql: AuthenticatedGraphqlConfig,
 }
 
 impl BaseClient {
@@ -123,16 +115,7 @@ impl BaseClient {
         event_sender: async_channel::Sender<AuthEvent>,
         agent_source: Option<String>,
         graphql_routing: GraphqlRoutingConfig,
-        mut authenticated_graphql: AuthenticatedGraphqlConfig,
     ) -> Self {
-        authenticated_graphql.headers.retain(|name, _| {
-            if Self::is_reserved_authenticated_graphql_header(name) {
-                log::warn!("Ignoring reserved authenticated GraphQL header configuration: {name}");
-                false
-            } else {
-                true
-            }
-        });
         // We generate one random user ID per client so evals can run in parallel.
         #[cfg(feature = "agent_mode_evals")]
         let eval_user_id = {
@@ -167,22 +150,7 @@ impl BaseClient {
             ambient_agent_task_id: Arc::new(RwLock::new(None)),
             agent_source,
             graphql_routing,
-            authenticated_graphql,
         }
-    }
-
-    /// Returns whether authenticated GraphQL decoration would override BaseClient-owned headers.
-    fn is_reserved_authenticated_graphql_header(name: &str) -> bool {
-        [
-            http::header::AUTHORIZATION.as_str(),
-            http::header::CONTENT_TYPE.as_str(),
-            http::header::CONTENT_LENGTH.as_str(),
-            AMBIENT_WORKLOAD_TOKEN_HEADER,
-            CLOUD_AGENT_ID_HEADER,
-            AGENT_SOURCE_HEADER,
-        ]
-        .iter()
-        .any(|reserved| name.eq_ignore_ascii_case(reserved))
     }
 
     /// Returns the shared HTTP client for request construction.
@@ -311,25 +279,6 @@ impl BaseClient {
             path_prefix: self.graphql_routing.path_prefix.clone(),
             ..RequestOptions::default()
         }
-    }
-
-    /// Returns GraphQL options for a session-authenticated operation.
-    pub async fn graphql_request_options(
-        &self,
-        timeout: Option<Duration>,
-    ) -> Result<RequestOptions> {
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .context("Failed to get access token for GraphQL request")?;
-        let mut options = self.graphql_request_options_with_token(auth_token.bearer_token());
-        options.timeout = timeout;
-        options.headers = self.authenticated_graphql.headers.clone();
-        options.headers.extend(
-            self.ambient_headers(AmbientHeaderPolicy::inherit_all())
-                .await?,
-        );
-        Ok(options)
     }
 }
 

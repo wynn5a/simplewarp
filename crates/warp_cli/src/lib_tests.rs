@@ -4,7 +4,6 @@ use clap::Parser;
 
 use super::*;
 use crate::agent::{AgentCommand, Harness, OutputFormat};
-use crate::model::ModelCommand;
 use crate::task::{MessageCommand, TaskCommand};
 
 #[test]
@@ -15,36 +14,6 @@ fn identifies_worker_subcommands() {
     #[cfg(feature = "plugin_host")]
     assert!(is_worker_invocation("--plugin-host"));
     assert!(!is_worker_invocation("--prompt"));
-}
-#[test]
-#[serial_test::serial]
-fn help_hides_api_key_env_value() {
-    const API_KEY: &str = "warp-cli-test-api-key-NOT-REAL";
-
-    let previous_api_key = set_env_var("WARP_API_KEY", API_KEY);
-
-    let mut command = <Args as clap::CommandFactory>::command();
-    let top_level_help = command.render_long_help().to_string();
-    let subcommand_help = command
-        .find_subcommand_mut("agent")
-        .expect("agent subcommand exists")
-        .render_long_help()
-        .to_string();
-    let args = Args::try_parse_from(["warp", "whoami"]).expect("API key env var should parse");
-
-    restore_env_var("WARP_API_KEY", previous_api_key);
-
-    for help in [&top_level_help, &subcommand_help] {
-        assert!(
-            help.contains("WARP_API_KEY"),
-            "help should identify the API key environment variable:\n{help}"
-        );
-        assert!(
-            !help.contains(API_KEY),
-            "help should not reveal the API key environment value:\n{help}"
-        );
-    }
-    assert_eq!(args.api_key().map(String::as_str), Some(API_KEY));
 }
 fn set_env_var(name: &str, value: &str) -> Option<OsString> {
     let previous = std::env::var_os(name);
@@ -97,20 +66,6 @@ fn model_list_parses() {
 }
 
 #[test]
-fn api_key_before_subcommand_parses() {
-    // Regression test: `warp --api-key KEY <subcommand>` should work.
-    // Previously the top-level [URLS] positional would swallow the subcommand
-    // when --api-key preceded it.
-    let args = Args::try_parse_from(["warp", "--api-key", "test-key", "whoami"]).unwrap();
-
-    assert_eq!(args.api_key(), Some(&"test-key".to_string()));
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp whoami` command");
-    };
-    assert!(matches!(boxed_cmd.as_ref(), CliCommand::Whoami));
-}
-
-#[test]
 fn debug_before_subcommand_parses() {
     // Regression test: `warp --debug <subcommand>` should work.
     // Global flags like --debug must not prevent subcommand detection.
@@ -125,11 +80,11 @@ fn debug_before_subcommand_parses() {
 
 #[test]
 fn multiple_global_flags_before_subcommand_parse() {
-    // Both --api-key and --debug before the subcommand should work.
+    // Both --output-format and --debug before the subcommand should work.
     let args =
-        Args::try_parse_from(["warp", "--api-key", "test-key", "--debug", "whoami"]).unwrap();
+        Args::try_parse_from(["warp", "--output-format", "json", "--debug", "whoami"]).unwrap();
 
-    assert_eq!(args.api_key(), Some(&"test-key".to_string()));
+    assert_eq!(args.global_options.output_format, OutputFormat::Json);
     assert!(args.debug());
     let Some(Command::CommandLine(boxed_cmd)) = args.command else {
         panic!("Expected `warp whoami` command");

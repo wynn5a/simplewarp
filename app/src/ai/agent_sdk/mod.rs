@@ -14,7 +14,6 @@ use tracing::Instrument as _;
 use warp_cli::agent::{
     AgentCommand, AgentProfileCommand, Harness, OutputFormat, Prompt, RunAgentArgs,
 };
-use warp_cli::api_key::ApiKeyCommand;
 use warp_cli::mcp::MCPCommand;
 use warp_cli::model::ModelCommand;
 use warp_cli::provider::ProviderCommand;
@@ -23,7 +22,6 @@ use warp_cli::task::{MessageCommand, TaskCommand};
 use warp_cli::{CliCommand, GlobalOptions, OZ_HARNESS_ENV};
 use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
-use warp_graphql::object_permissions::OwnerType;
 use warp_isolation_platform::IsolationPlatformError;
 #[cfg(not(target_family = "wasm"))]
 use warp_logging::log_file_path;
@@ -59,7 +57,6 @@ use crate::workflows::workflow::Workflow;
 
 mod admin;
 mod ambient;
-mod api_key;
 mod common;
 mod config_file;
 pub(crate) mod driver;
@@ -75,20 +72,6 @@ pub(crate) mod retry;
 pub(crate) mod setup_observability;
 mod telemetry;
 mod text_layout;
-
-/// Prints a non-blocking warning to stderr when the CLI is invoked with a team-scoped API key.
-fn maybe_warn_team_api_key(ctx: &AppContext) {
-    let auth_state = AuthStateProvider::handle(ctx).as_ref(ctx).get();
-    let owner_type = auth_state.api_key_owner_type();
-    if !matches!(owner_type, Some(OwnerType::Team)) {
-        return;
-    }
-
-    eprintln!(
-        "\x1b[33mWarning: Free cloud credits apply to personal runs only but this run uses \
-         a team API key. If you want to use free cloud credits, consider using a personal API key instead.\x1b[0m"
-    );
-}
 
 /// Run a Warp CLI command.
 #[tracing::instrument(name = "agent_sdk::run", skip_all, err, fields(tags.cloud_agent = true))]
@@ -121,12 +104,6 @@ fn dispatch_command(
                 return Err(anyhow::anyhow!("invalid value 'provider'"));
             }
             provider::run(ctx, global_options, provider_cmd)
-        }
-        CliCommand::ApiKey(api_key_cmd) => {
-            if !FeatureFlag::APIKeyManagement.is_enabled() {
-                return Err(anyhow::anyhow!("invalid value 'api-key'"));
-            }
-            api_key::run(ctx, global_options, api_key_cmd)
         }
     }
 }
@@ -1167,8 +1144,6 @@ impl AgentDriverRunner {
         share_requests: Option<Vec<ShareRequest>>,
         task: driver::Task,
     ) {
-        maybe_warn_team_api_key(ctx);
-
         // Initializing the driver will fail if not logged in. Since we check that above, panic here - it's difficult to
         // fallibly instantiate a UI framework model.
         let driver = ctx.add_singleton_model(|ctx| {
@@ -1198,23 +1173,6 @@ impl AgentDriverRunner {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-enum CommandAuthentication {
-    PendingApiKey(String),
-    RefreshUser,
-}
-
-fn command_authentication(
-    pending_api_key: Option<String>,
-    is_logged_in: bool,
-) -> Option<CommandAuthentication> {
-    match pending_api_key {
-        Some(api_key) => Some(CommandAuthentication::PendingApiKey(api_key)),
-        None if is_logged_in => Some(CommandAuthentication::RefreshUser),
-        None => None,
-    }
-}
-
 /// Returns `true` if the given CLI command requires authentication.
 fn command_requires_auth(command: &CliCommand) -> bool {
     match command {
@@ -1239,15 +1197,14 @@ fn command_requires_auth(command: &CliCommand) -> bool {
         CliCommand::Logout => false,
         CliCommand::Whoami => true,
         CliCommand::Provider(_) => true,
-        CliCommand::ApiKey(_) => true,
     }
 }
 
 /// Launch a CLI command, checking authentication first if needed.
 ///
 /// If auth is not required, dispatches the command immediately.
-/// If auth is required, validates an explicit API key or refreshes persisted
-/// credentials before launching the command.
+/// If auth is required, refreshes persisted credentials before launching the
+/// command.
 fn launch_command(
     ctx: &mut AppContext,
     command: CliCommand,
@@ -1263,26 +1220,23 @@ fn launch_command(
     let cli_name = warp_cli::binary_name().unwrap_or_else(|| "warp".to_string());
 
     let auth_state = AuthStateProvider::handle(ctx).as_ref(ctx).get();
-    let Some(authentication) =
-        command_authentication(global_options.api_key.clone(), auth_state.is_logged_in())
-    else {
+    if !auth_state.is_logged_in() {
         return Err(anyhow::anyhow!(
             "You are not logged in - please log in with `{cli_name} login` to continue."
         ));
-    };
+    }
 
-    authenticate_and_dispatch(ctx, command, global_options, authentication, parent_span);
+    authenticate_and_dispatch(ctx, command, global_options, parent_span);
 
     Ok(())
 }
 
-/// Subscribes to auth events, authenticates, and dispatches the command once
-/// auth completes.
+/// Subscribes to auth events, refreshes credentials, and dispatches the
+/// command once auth completes.
 fn authenticate_and_dispatch(
     ctx: &mut AppContext,
     command: CliCommand,
     global_options: GlobalOptions,
-    authentication: CommandAuthentication,
     parent_span: tracing::Span,
 ) {
     let cli_name = warp_cli::binary_name().unwrap_or_else(|| "warp".to_string());
@@ -1303,12 +1257,9 @@ fn authenticate_and_dispatch(
             }
             AuthManagerEvent::NeedsReauth => {
                 dispatched = true;
-                let auth_state = AuthStateProvider::handle(ctx).as_ref(ctx).get();
-                let message = if auth_state.is_api_key_authenticated() {
-                    "Your API key is invalid. Please provide a valid key via '--api-key' or the WARP_API_KEY environment variable.".to_string()
-                } else {
-                    format!("Your credentials are invalid. Please log in again with `{cli_name} login`.")
-                };
+                let message = format!(
+                    "Your credentials are invalid. Please log in again with `{cli_name} login`."
+                );
                 report_fatal_error(anyhow::anyhow!(message), ctx);
             }
             AuthManagerEvent::AuthFailed(err) => {
@@ -1320,12 +1271,7 @@ fn authenticate_and_dispatch(
     });
 
     // Trigger authentication - the subscription above will handle the result.
-    AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| match authentication {
-        CommandAuthentication::PendingApiKey(api_key) => {
-            auth_manager.authenticate_api_key(api_key, ctx);
-        }
-        CommandAuthentication::RefreshUser => auth_manager.refresh_user(ctx),
-    });
+    AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| auth_manager.refresh_user(ctx));
 }
 
 /// Report a fatal error and terminate the app.
@@ -1411,11 +1357,6 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
         CliCommand::Whoami => CliTelemetryEvent::Whoami,
         CliCommand::Provider(ProviderCommand::Setup(_)) => CliTelemetryEvent::ProviderSetup,
         CliCommand::Provider(ProviderCommand::List) => CliTelemetryEvent::ProviderList,
-        CliCommand::ApiKey(api_key_cmd) => match api_key_cmd {
-            ApiKeyCommand::List(_) => CliTelemetryEvent::ApiKeyList,
-            ApiKeyCommand::Create(_) => CliTelemetryEvent::ApiKeyCreate,
-            ApiKeyCommand::Expire(_) => CliTelemetryEvent::ApiKeyExpire,
-        },
     }
 }
 

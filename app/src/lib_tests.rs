@@ -1,55 +1,9 @@
 use super::*;
 
 #[test]
-fn app_api_key_requires_validation() {
-    let app = LaunchMode::App {
-        args: Default::default(),
-        api_key: Some("app-api-key".to_owned()),
-    };
-
-    assert!(matches!(
-        app.auth_initialization(),
-        AuthInitialization::PendingApiKey(api_key) if api_key == "app-api-key"
-    ));
-}
-
-#[test]
-fn command_line_api_key_requires_validation() {
-    let command_line = LaunchMode::CommandLine {
-        command: CliCommand::Whoami,
-        global_options: GlobalOptions {
-            api_key: Some("cli-api-key".to_owned()),
-            ..Default::default()
-        },
-        debug: false,
-        is_sandboxed: false,
-        computer_use_override: None,
-    };
-
-    assert!(matches!(
-        command_line.auth_initialization(),
-        AuthInitialization::PendingApiKey(api_key) if api_key == "cli-api-key"
-    ));
-}
-
-#[test]
-fn startup_without_api_key_loads_persisted_auth() {
-    let app = LaunchMode::App {
-        args: Default::default(),
-        api_key: None,
-    };
-
-    assert!(matches!(
-        app.auth_initialization(),
-        AuthInitialization::Persisted
-    ));
-}
-
-#[test]
 fn app_keeps_default_secure_storage_service_name() {
     let launch_mode = LaunchMode::App {
         args: Default::default(),
-        api_key: None,
     };
 
     assert_eq!(
@@ -62,7 +16,6 @@ fn app_keeps_default_secure_storage_service_name() {
 fn launch_modes_select_expected_logging_frontend() {
     let app = LaunchMode::App {
         args: Default::default(),
-        api_key: None,
     };
     let test = LaunchMode::Test {
         driver: Box::new(None),

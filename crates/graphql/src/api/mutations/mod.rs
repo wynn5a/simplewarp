@@ -18,8 +18,6 @@ pub mod delete_object;
 pub mod delete_runner;
 pub mod delete_team_invite;
 pub mod empty_trash;
-pub mod expire_api_key;
-pub mod generate_api_key;
 pub mod generate_code_embeddings;
 pub mod generate_commands;
 pub mod generate_dialogue;
