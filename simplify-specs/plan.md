@@ -4261,6 +4261,30 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             `channel_versions` 14). Not re-run in the app — deleted
             code was unreachable (no callers).
             **Remaining queue**: unchanged from 4bv.
+      - [x] **Agent-tip analytics stub + self-hosted workers refresh chain
+            are deleted** (4bx, 2026-09-16, 19 files, +19/−438,
+            `accd2e9c`): takes the last two entries of the 4bv queue.
+            `ServerApi::send_agent_tip_shown_analytics_event` was an
+            always-`local_only_error` stub — the status-bar gating
+            helpers that consulted it (`should_show_*_tip`) and the one
+            call site went with it; `TelemetryEvent::AgentTipShown`
+            stays (analytics events are catalog-wide). And
+            `AIClient::list_connected_self_hosted_workers` plus its
+            structs and stub: `ConnectedSelfHostedWorkersModel` and
+            every refresh/subscription call site (snapshots,
+            host_selector, input, run_agents_card,
+            orchestration_config_block) are gone; the host pickers keep
+            default/warp/recent/custom. AIClient 32 → 31 methods.
+
+            Acceptance: `check -p warp --tests` clean in both feature
+            sets, clippy 0 errors in both configs, format clean,
+            nextest green. Not re-run in the app — deleted code was
+            unreachable in SimpleWarp (the stub could only error, and
+            the workers list required a Warp server).
+            **Remaining queue**: the login-gated refresh group is down
+            to `get_request_limit_info`, `get_available_harnesses`;
+            then `AuthClient` (12), `ServerApi`/`Provider`/`BaseClient`,
+            then the crates.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
