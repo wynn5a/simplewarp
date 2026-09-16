@@ -4622,12 +4622,87 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             Not re-run in the app — every deleted path required a
             warp-server artifact; every kept surface now shows the same failure
             state it already showed.
-      - [ ] **Next per 4ca's order**: the `warp api-key` round — answer the 3k
-            question first (with every server surface a wall, an API key buys
-            nothing), then the CLI, the api-key trio, and the two
-            `authenticate_api_key` paths together; that falls graphql_helpers
-            and BaseClient's graphql_request_options machinery. Then
-            StoreClient + full_source_code_embedding.
+      - [x] **The `warp api-key` round is deleted, 3k question answered, walls
+            and callers together** (4cd, 2026-09-16, 33 files, +28/−1,961, 9
+            files removed outright): AuthClient 5 → 2 methods, and the two
+            fallen mechanisms were exactly 4ca's predicted ones.
+
+            *The 3k answer*: an API key bought nothing. The credential wrap
+            (`exchange_credentials(LoginToken::ApiKey)`) is local, but the only
+            thing that turns a key into a session is `fetch_user_properties` —
+            a `GetUser` GraphQL call to warp-server, the server this fork does
+            not run. Success would buy the logged-in gating of surfaces that
+            are all walls; `get_or_refresh_access_token` would hand back
+            `AuthToken::ApiKey` to decorate those same walls; `warp api-key`
+            list/create/expire were three more warp-server operations; and
+            nothing durable — `persist_action()` is `DoNothing` for API-key
+            credentials. The only world where the path completes is pointing
+            `SERVER_ROOT_URL` at a real Warp deployment, the out-of-scope call
+            3k already made for the upstream channel binaries.
+
+            *Deleted*: the `warp api-key` CLI vertical — `warp_cli/src/api_key.rs`
+            (+tests), `agent_sdk/api_key.rs` (+tests), `CliCommand::ApiKey` with
+            its dispatch/auth/telemetry arms, the `ApiKey{List,Create,Expire}`
+            telemetry variants with all four arms, and the
+            `APIKeyManagement`-gated reject/hide blocks; `FeatureFlag::
+            APIKeyManagement` itself with the `api_key_management` cargo
+            feature (in both the default and simplewarp sets); the global
+            `--api-key`/`WARP_API_KEY` flag on `GlobalOptions` with its getter,
+            `LaunchMode::App { api_key }`, `LaunchMode::api_key()`, and
+            `AuthInitialization::PendingApiKey` (startup collapses to
+            refresh-if-logged-in); both `authenticate_api_key` paths —
+            `StartupUserAuthentication::ApiKey` (deleted: its one variant
+            inlined) and `CommandAuthentication::PendingApiKey` (the enum and
+            its `command_authentication` helper deleted, the logged-out check
+            inlined into `launch_command`); `AuthManager::authenticate_api_key`;
+            and the team-API-key warning (`maybe_warn_team_api_key`), whose
+            `api_key_owner_type()` could only be `Some` through the deleted
+            authentication — a no-op the moment the paths went.
+
+            *The falling mechanisms*: `graphql_helpers` (`send_graphql_request`
+            had exactly the trio left as callers) with its six tests;
+            `BaseClient::graphql_request_options` and with it
+            `AuthenticatedGraphqlConfig` — always constructed `default()` in
+            production, its reserved-header filtering and the two tests
+            exercising it — plus `is_reserved_authenticated_graphql_header`;
+            the three GraphQL operations `ApiKeys`/`GenerateApiKey`/
+            `ExpireApiKey` (only the trio built them) and
+            `get_user_facing_error_message` (only the trio and the deleted CLI
+            formatted its errors); the orphaned `ApiKeyUid` alias; and, one hop
+            out in warp_server_auth, `AuthState::initialize_for_credential_
+            validation`, whose only caller was the deleted startup path.
+            `Credentials::ApiKey`/`AuthToken::ApiKey`/`exchange_credentials`'s
+            ApiKey arm stay — `agent_mode_evals` constructs those credentials
+            in `BaseClient::new`, and warp_server_auth's local-identity
+            plumbing is explicitly out of this round's scope. The `fetch_user`
+            refresh pair and `graphql_request_options_with_token` (now
+            `fetch_user_properties`'s only helper) stay.
+
+            *Tests re-pointed, 4bn precedent*: the two
+            `command_authentication` mapping tests and the api-key
+            failure-promotion test went with their subjects;
+            `multiple_global_flags_before_subcommand_parse` now pins
+            `--output-format` + `--debug` instead of `--api-key` + `--debug`;
+            `api_key_before_subcommand_parses` was deleted outright — its
+            regression (global flag before subcommand) is already covered by
+            `debug_before_subcommand_parses`. `validated_api_key_is_promoted`
+            and `test_persist_skips_when_api_key_authenticated` stay — they pin
+            kept AuthState/Credentials behavior.
+
+            Acceptance: `check -p warp --tests` clean in both feature sets,
+            simplewarp and warp-oss bins included; clippy diffed against a
+            stash-captured HEAD baseline is byte-identical in both configs,
+            and the small-crate run is *cleaner* than baseline (HEAD carried a
+            pre-existing unused-import warning in warp_cli that this round's
+            deletion removed); format clean; nextest green (warp lib 5,087
+            default / 5,086 simplewarp — 11 deleted tests, exactly the
+            accounting; one unrelated notebooks flake passed on rerun;
+            `warp_cli`+`warp_features`+`warp_server_client`+`warp_graphql`
+            126). Not re-run in the app — every deleted path required
+            warp-server to answer; the kept surfaces (login gating, refresh
+            error paths) behave identically.
+      - [ ] **Next per 4ca's order**: StoreClient + full_source_code_embedding
+            (the 12,111-line vertical whose every store call fails).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
