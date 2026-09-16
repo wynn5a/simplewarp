@@ -100,7 +100,7 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(UndoCloseStack::new);
 
     app.add_singleton_model(|ctx| {
-        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
+        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client())
     });
     app.add_singleton_model(|_| KeybindingChangedNotifier::new());
     app.add_singleton_model(TerminalKeybindings::new);

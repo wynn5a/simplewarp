@@ -16,8 +16,6 @@ pub enum NewFeaturePopupLabel {
 pub enum FeaturePopupBadge {
     // Displays "NEW" badge prior to the label
     New,
-    // Displays an alert icon prior to the label
-    AlertIcon,
 }
 
 /// A dismissable popup that displays a label indicating that a new feature is available.
@@ -41,14 +39,6 @@ impl FeaturePopup {
         }
     }
 
-    pub fn alert_icon(label: NewFeaturePopupLabel) -> Self {
-        Self {
-            dismiss_mouse_state: Default::default(),
-            label,
-            badge: FeaturePopupBadge::AlertIcon,
-        }
-    }
-
     fn render_badge(&self, appearance: &Appearance) -> Box<dyn Element> {
         let background = appearance.theme().background();
         match self.badge {
@@ -69,19 +59,6 @@ impl FeaturePopup {
                     .ansi_bg(appearance.theme().terminal_colors().normal.green),
             )
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(2.)))
-            .finish(),
-            FeaturePopupBadge::AlertIcon => Container::new(
-                ConstrainedBox::new(
-                    Icon::AlertCircle
-                        .to_warpui_icon(appearance.theme().main_text_color(
-                            appearance.theme().terminal_colors().normal.green.into(),
-                        ))
-                        .finish(),
-                )
-                .with_height(16.)
-                .with_width(16.)
-                .finish(),
-            )
             .finish(),
         }
     }

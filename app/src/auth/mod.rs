@@ -21,7 +21,6 @@ use crate::ai::blocklist::agent_view::orchestration_pill_bar_model::Orchestratio
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::mcp::TemplatableMCPServerManager;
-use crate::ai_assistant::requests::REQUEST_LIMIT_INFO_CACHE_KEY;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code::editor_management::{CodeEditorStatus, CodeEditorSummary};
 use crate::env_vars::manager::EnvVarCollectionManager;
@@ -300,16 +299,6 @@ fn remove_cloud_persisted_settings(app: &mut AppContext) {
             anyhow::Error::new(e).context(
                 "Failed to remove Crash Reporting Enabled Defaults Key from user defaults"
             )
-        );
-    }
-
-    if let Err(e) = app
-        .private_user_preferences()
-        .remove_value(REQUEST_LIMIT_INFO_CACHE_KEY)
-    {
-        report_error!(
-            anyhow::Error::new(e)
-                .context("Failed to remove Request Limit Defaults Key from user defaults")
         );
     }
 

@@ -46,7 +46,7 @@ use crate::ai::blocklist::telemetry::{
     BlocklistOrchestrationTelemetryEvent, OrchestrationEnteredEvent, OrchestrationEntrySource,
     RunAgentsCardDecision, run_agents_card_decision_event,
 };
-use crate::ai::harness_availability::{HarnessAvailabilityEvent, HarnessAvailabilityModel};
+use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
 use crate::features::FeatureFlag;
@@ -427,26 +427,18 @@ impl RunAgentsCardView {
             }
         });
 
-        // Repopulate pickers when the server-provided harness list or
-        // harness model catalogs change, or when an auth-secrets fetch
-        // fails (to replace the "Loading…" placeholder).
-        ctx.subscribe_to_model(
-            &HarnessAvailabilityModel::handle(ctx),
-            |me, _, event, ctx| match event {
-                HarnessAvailabilityEvent::Changed
-                | HarnessAvailabilityEvent::AuthSecretsFetchFailed => {
-                    // Repopulate even on fetch failure to replace "Loading…".
-                    oc::repopulate_all_pickers(
-                        &mut me.orchestration_edit_state.orchestration_config_state,
-                        &me.handles.pickers,
-                        ctx,
-                    );
-                    me.refresh_accept_button_state(ctx);
-                    me.maybe_auto_open_create_modal(ctx);
-                    ctx.notify();
-                }
-            },
-        );
+        // Repopulate pickers when a harness auth-secrets fetch fails
+        // (to replace the "Loading…" placeholder).
+        ctx.subscribe_to_model(&HarnessAvailabilityModel::handle(ctx), |me, _, _, ctx| {
+            oc::repopulate_all_pickers(
+                &mut me.orchestration_edit_state.orchestration_config_state,
+                &me.handles.pickers,
+                ctx,
+            );
+            me.refresh_accept_button_state(ctx);
+            me.maybe_auto_open_create_modal(ctx);
+            ctx.notify();
+        });
 
         // When auto_launched is true, execution is deferred to the
         // ActionBlockedOnUserConfirmation subscription above — the action

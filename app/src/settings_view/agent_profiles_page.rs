@@ -42,6 +42,7 @@ use super::settings_page::{
     render_settings_info_banner,
 };
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
+use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::model_menu_items::available_model_menu_items;
 use crate::ai::execution_profiles::profiles::{
@@ -54,7 +55,6 @@ use crate::ai::execution_profiles::{
 use crate::ai::llms::{LLMContextWindow, LLMId, LLMPreferences, LLMPreferencesEvent};
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::paths::host_native_absolute_path;
-use crate::ai::{AIRequestUsageModel, AIRequestUsageModelEvent};
 use crate::appearance::Appearance;
 use crate::cloud_object::GenericStringObjectFormat::Json;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
@@ -825,12 +825,7 @@ impl AgentProfilesPageView {
         });
 
         let ai_request_model = AIRequestUsageModel::handle(ctx);
-        ctx.subscribe_to_model(&ai_request_model, |me, _, event, ctx| {
-            match event {
-                AIRequestUsageModelEvent::RequestUsageUpdated => ctx.notify(),
-                AIRequestUsageModelEvent::RequestBonusRefunded { .. } => ctx.notify(),
-                AIRequestUsageModelEvent::AmbientCreditsBannerDismissed => {}
-            }
+        ctx.subscribe_to_model(&ai_request_model, |me, _, _, ctx| {
             Self::refresh_base_model_menu(&me.base_model_dropdown, ctx);
             Self::refresh_coding_model_menu(&me.coding_model_dropdown, ctx);
         });
@@ -1719,14 +1714,6 @@ impl SettingsPageMeta for AgentProfilesPageView {
 
     fn should_render(&self, _ctx: &AppContext) -> bool {
         FeatureFlag::AgentMode.is_enabled()
-    }
-
-    fn on_page_selected(&mut self, _: bool, ctx: &mut ViewContext<Self>) {
-        // The model dropdowns refresh on request-usage events, so the page
-        // still refreshes the usage model when it is selected.
-        AIRequestUsageModel::handle(ctx).update(ctx, |ai_request_usage_model, ctx| {
-            ai_request_usage_model.refresh_request_usage_async(ctx)
-        });
     }
 
     fn update_filter(&mut self, query: &str, ctx: &mut ViewContext<Self>) -> MatchData {

@@ -1284,27 +1284,26 @@ impl AIBlock {
         });
 
         ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |me, _, event, ctx| {
-            if let AIRequestUsageModelEvent::RequestBonusRefunded {
+            let AIRequestUsageModelEvent::RequestBonusRefunded {
                 requests_refunded,
                 server_conversation_id,
                 request_id,
-            } = event
+            } = event;
+
+            let server_conversation_token = BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(&me.client_ids.conversation_id)
+                .and_then(|conversation| conversation.server_conversation_token())
+                .cloned();
+
+            let server_output_id = me.model.server_output_id(ctx);
+
+            if let (Some(server_conversation_token), Some(server_output_id)) =
+                (server_conversation_token, server_output_id)
+                && request_id.eq(server_output_id.to_string().as_str())
+                && server_conversation_id.eq(server_conversation_token.as_str())
             {
-                let server_conversation_token = BlocklistAIHistoryModel::as_ref(ctx)
-                    .conversation(&me.client_ids.conversation_id)
-                    .and_then(|conversation| conversation.server_conversation_token())
-                    .cloned();
-
-                let server_output_id = me.model.server_output_id(ctx);
-
-                if let (Some(server_conversation_token), Some(server_output_id)) =
-                    (server_conversation_token, server_output_id)
-                    && request_id.eq(server_output_id.to_string().as_str())
-                    && server_conversation_id.eq(server_conversation_token.as_str())
-                {
-                    me.request_refunded_count = Some(*requests_refunded);
-                    ctx.notify();
-                }
+                me.request_refunded_count = Some(*requests_refunded);
+                ctx.notify();
             }
         });
 

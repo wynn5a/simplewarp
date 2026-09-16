@@ -11,7 +11,6 @@ use warpui::prelude::Vector2F;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use super::{AmbientAgentEntryBlock, AmbientAgentViewModel, AmbientAgentViewModelEvent};
-use crate::ai::AIRequestUsageModel;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::agent::{RenderableAIError, display_user_query_with_mode};
 #[cfg(not(target_family = "wasm"))]
@@ -76,10 +75,6 @@ impl TerminalView {
         if is_on_paid_plan {
             ctx.emit(crate::terminal::view::Event::ShowCloudAgentCapacityModal {
                 variant: CloudAgentCapacityModalVariant::OutOfCredits,
-            });
-        } else {
-            AIRequestUsageModel::handle(ctx).update(ctx, |model, ctx| {
-                model.refresh_request_usage_async(ctx);
             });
         }
     }

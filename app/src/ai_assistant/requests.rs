@@ -2,15 +2,13 @@
 // app/src/ai/request_usage_model duplicates much of this logic.
 use std::sync::Arc;
 
-use anyhow::Result;
 use chrono::{OutOfRangeError, Utc};
 use futures::stream::AbortHandle;
-use warp_core::user_preferences::GetUserPreferences as _;
-use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
+use warpui::{Entity, ModelContext, SingletonEntity};
 
 use super::execution_context::WarpAiExecutionContext;
 use super::utils::{FormattedTranscriptMessage, TranscriptPart, markdown_segments_from_text};
-use crate::ai::{RequestLimitInfo, RequestUsageInfo};
+use crate::ai::RequestLimitInfo;
 use crate::ai_assistant::utils::{AssistantTranscriptPart, TranscriptPartSubType};
 use crate::auth::AuthStateProvider;
 use crate::send_telemetry_from_ctx;
@@ -19,10 +17,6 @@ use crate::server::server_api::ServerApi;
 use crate::server::server_api::ai::AIClient;
 use crate::server::telemetry::{TelemetryEvent, WarpAIRequestResult};
 use crate::workspaces::user_workspaces::UserWorkspaces;
-
-/// The key for the corresponding entry in UserDefaults.
-/// Not wiring through Settings for now since this data is only needed by the panel view.
-pub const REQUEST_LIMIT_INFO_CACHE_KEY: &str = "AIAssistantRequestLimitInfo";
 
 /// Tracks the current request status for making Warp AI requests against server.
 pub enum RequestStatus {
@@ -36,22 +30,6 @@ pub enum RequestStatus {
         /// A handle to abort the request if desired.
         abort_handle: AbortHandle,
     },
-}
-
-fn cache_request_limit_info(request_limit_info: RequestLimitInfo, app_mut: &mut AppContext) {
-    if let Ok(serialized) = serde_json::to_string(&request_limit_info) {
-        let _ = app_mut
-            .private_user_preferences()
-            .write_value(REQUEST_LIMIT_INFO_CACHE_KEY, serialized);
-    }
-}
-
-fn get_cached_request_limit_info(app_mut: &mut AppContext) -> Option<RequestLimitInfo> {
-    app_mut
-        .private_user_preferences()
-        .read_value(REQUEST_LIMIT_INFO_CACHE_KEY)
-        .unwrap_or_default()
-        .and_then(|serialized| serde_json::from_str(serialized.as_str()).ok())
 }
 
 #[derive(Debug, Clone)]
@@ -69,7 +47,6 @@ pub enum GenerateDialogueResult {
 
 pub struct Requests {
     server_api: Arc<ServerApi>,
-    ai_client: Arc<dyn AIClient>,
     request_status: RequestStatus,
     request_limit_info: RequestLimitInfo,
 
@@ -108,38 +85,16 @@ impl Requests {
 
 /// Public interface.
 impl Requests {
-    pub fn new(
-        server_api: Arc<ServerApi>,
-        ai_client: Arc<dyn AIClient>,
-        ctx: &mut ModelContext<Self>,
-    ) -> Self {
-        // Check if the user has cached request limit info from before.
-        // If not, let's just make an assumption about the server's default request limit
-        // and fetch the true request limit later.
-        let cached_request_limit_info = get_cached_request_limit_info(ctx);
-        let request_limit_info = cached_request_limit_info.unwrap_or_default();
-
-        let requests = Self {
+    pub fn new(server_api: Arc<ServerApi>) -> Self {
+        Self {
             server_api,
-            ai_client,
             current_transcript: Vec::new(),
             current_transcript_summarized: false,
             old_transcript_parts: Vec::new(),
             request_status: RequestStatus::NotInFlight,
-            request_limit_info,
+            request_limit_info: RequestLimitInfo::default(),
             ai_execution_context: None,
-        };
-
-        if cached_request_limit_info.is_none()
-            && AuthStateProvider::as_ref(ctx).get().is_logged_in()
-        {
-            let ai_client = requests.ai_client.clone();
-            let _ = ctx.spawn(
-                async move { ai_client.get_request_limit_info().await },
-                Self::update_request_limit_info,
-            );
         }
-        requests
     }
 
     pub fn update_ai_execution_context(
@@ -147,23 +102,6 @@ impl Requests {
         ai_execution_context: Option<WarpAiExecutionContext>,
     ) {
         self.ai_execution_context = ai_execution_context;
-    }
-
-    pub fn update_request_limit_info(
-        &mut self,
-        result: Result<RequestUsageInfo>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Ok(usage_info) => {
-                self.request_limit_info = usage_info.request_limit_info;
-                ctx.notify();
-                cache_request_limit_info(usage_info.request_limit_info, ctx);
-            }
-            Err(e) => {
-                log::warn!("Failed to retrieve initial request limit info: {e:#}");
-            }
-        }
     }
 
     /// Starts a Warp AI request against the server with the given request prompt.
@@ -228,7 +166,6 @@ impl Requests {
                                 },
                             });
 
-                            cache_request_limit_info(request_limit_info, ctx);
                             model.request_limit_info = request_limit_info;
 
                             // If the transcript was already marked as summarized before,
@@ -243,7 +180,6 @@ impl Requests {
                             );
                         }
                         Ok(GenerateDialogueResult::Failure { request_limit_info }) if request_limit_info.limit <= request_limit_info.num_requests_used_since_refresh => {
-                            cache_request_limit_info(request_limit_info, ctx);
                             model.request_limit_info = request_limit_info;
                             let next_time = if let Some(next_refresh_time) = model.serialized_time_until_refresh() {
                                 format!("after {next_refresh_time}")
@@ -428,7 +364,6 @@ impl Requests {
 
         Self {
             server_api: ServerApiProvider::new_for_test().get(),
-            ai_client: ServerApiProvider::new_for_test().get_ai_client(),
             current_transcript: transcript,
             current_transcript_summarized: false,
             old_transcript_parts: Vec::new(),

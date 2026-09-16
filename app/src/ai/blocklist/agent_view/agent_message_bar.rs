@@ -18,9 +18,7 @@ use crate::ai::agent::{
     AIAgentExchangeId, AIAgentOutputStatus, FinishedAIAgentOutput, RenderableAIError,
 };
 use crate::ai::blocklist::agent_view::shortcuts::AgentShortcutViewModel;
-use crate::ai::blocklist::agent_view::zero_state_block::{
-    render_ambient_credits_banner, render_dismissible_promo_pill,
-};
+use crate::ai::blocklist::agent_view::zero_state_block::render_dismissible_promo_pill;
 use crate::ai::blocklist::agent_view::{
     AgentViewController, AgentViewControllerEvent, is_in_cloud_context,
 };
@@ -33,9 +31,6 @@ use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::mcp::templatable_manager::{FigmaMcpStatus, TemplatableMCPServerManagerEvent};
 use crate::ai::pricing_promotion::{
     PricingPromotionState, PricingPromotionStateEvent, PricingPromotionSurface,
-};
-use crate::ai::request_usage_model::{
-    AIRequestUsageModel, AIRequestUsageModelEvent, AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD,
 };
 use crate::auth::auth_manager::AuthManager;
 use crate::search::slash_command_menu::static_commands::commands;
@@ -77,8 +72,6 @@ pub struct AgentMessageBarMouseStates {
     pub figma_install_button: MouseStateHandle,
     /// Mouse state handle for the "Enable Figma MCP" contextual button.
     pub figma_enable_button: MouseStateHandle,
-    /// Mouse state handle for dismissing the ambient credits banner.
-    pub ambient_credits_banner_close: MouseStateHandle,
     pub pricing_promotion: MouseStateHandle,
     pub pricing_promotion_close: MouseStateHandle,
 }
@@ -105,7 +98,6 @@ impl Entity for AgentMessageBar {
 }
 #[derive(Clone, Debug)]
 pub enum AgentMessageBarAction {
-    DismissAmbientCreditsBanner,
     UpgradePricingPromotion,
     DismissPricingPromotion,
 }
@@ -234,16 +226,6 @@ impl AgentMessageBar {
                 },
             );
         }
-
-        ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |_, _, event, ctx| {
-            if matches!(
-                event,
-                AIRequestUsageModelEvent::RequestUsageUpdated
-                    | AIRequestUsageModelEvent::AmbientCreditsBannerDismissed
-            ) {
-                ctx.notify();
-            }
-        });
 
         let message_bar = Self {
             agent_view_controller,
@@ -389,31 +371,17 @@ impl View for AgentMessageBar {
 
         let right_element = if cfg!(target_family = "wasm") {
             None
-        } else if let Some(message) = PricingPromotionState::as_ref(app)
-            .visible_message(PricingPromotionSurface::AgentMessageBar, app)
-        {
-            Some(render_dismissible_promo_pill(
-                message,
-                appearance.theme().ansi_fg_green(),
-                Some(self.mouse_states.pricing_promotion.clone()),
-                Some(AgentMessageBarAction::UpgradePricingPromotion),
-                self.mouse_states.pricing_promotion_close.clone(),
-                AgentMessageBarAction::DismissPricingPromotion,
-                app,
-            ))
         } else {
-            let request_usage_model = AIRequestUsageModel::as_ref(app);
-            request_usage_model
-                .ambient_only_credits_remaining()
-                .filter(|credits| {
-                    *credits >= AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD
-                        && !request_usage_model.is_ambient_credits_banner_dismissed()
-                })
-                .map(|credits| {
-                    render_ambient_credits_banner(
-                        credits,
-                        self.mouse_states.ambient_credits_banner_close.clone(),
-                        AgentMessageBarAction::DismissAmbientCreditsBanner,
+            PricingPromotionState::as_ref(app)
+                .visible_message(PricingPromotionSurface::AgentMessageBar, app)
+                .map(|message| {
+                    render_dismissible_promo_pill(
+                        message,
+                        appearance.theme().ansi_fg_green(),
+                        Some(self.mouse_states.pricing_promotion.clone()),
+                        Some(AgentMessageBarAction::UpgradePricingPromotion),
+                        self.mouse_states.pricing_promotion_close.clone(),
+                        AgentMessageBarAction::DismissPricingPromotion,
                         app,
                     )
                 })
@@ -457,11 +425,6 @@ impl TypedActionView for AgentMessageBar {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
-            AgentMessageBarAction::DismissAmbientCreditsBanner => {
-                AIRequestUsageModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.dismiss_ambient_credits_banner(ctx);
-                });
-            }
             AgentMessageBarAction::UpgradePricingPromotion => {
                 PricingPromotionState::handle(ctx).update(ctx, |state, ctx| {
                     state.record_clicked(PricingPromotionSurface::AgentMessageBar, ctx);

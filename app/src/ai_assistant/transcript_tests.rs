@@ -51,7 +51,7 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|ctx| {
-        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
+        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client())
     });
 }
 

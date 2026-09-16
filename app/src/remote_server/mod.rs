@@ -9,8 +9,6 @@ use warp_server_client::auth::AuthEvent;
 use warpui::SingletonEntity as _;
 
 #[cfg(not(target_family = "wasm"))]
-use crate::ai::{AIRequestUsageModel, AIRequestUsageModelEvent};
-#[cfg(not(target_family = "wasm"))]
 use crate::server::server_api::ServerApiProvider;
 
 #[cfg(not(target_family = "wasm"))]
@@ -77,19 +75,6 @@ pub fn wire_auth_token_rotation(ctx: &mut warpui::AppContext) {
             for client in manager.as_ref(ctx).all_connected_clients() {
                 client.update_preferences(new_value);
             }
-        }
-    });
-
-    let request_usage = AIRequestUsageModel::handle(ctx);
-    let manager = RemoteServerManager::handle(ctx);
-    ctx.subscribe_to_model(&request_usage, move |_, event, ctx| {
-        if matches!(event, AIRequestUsageModelEvent::RequestUsageUpdated) {
-            let crash_reporting_enabled = PrivacySettings::as_ref(ctx).is_crash_reporting_enabled;
-            manager.update(ctx, |manager, _| {
-                for client in manager.all_connected_clients() {
-                    client.update_preferences(crash_reporting_enabled);
-                }
-            });
         }
     });
 }

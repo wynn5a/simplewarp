@@ -898,28 +898,6 @@ fn render_recent_conversations_section(
     )
 }
 
-/// Renders the ambient credits banner showing free cloud credits.
-pub fn render_ambient_credits_banner<A>(
-    credits: i32,
-    close_button_mouse_state: MouseStateHandle,
-    dismiss_action: A,
-    app: &AppContext,
-) -> Box<dyn Element>
-where
-    A: Action + Clone + 'static,
-{
-    let appearance = Appearance::as_ref(app);
-    render_dismissible_promo_pill(
-        format!("{credits} free cloud agent credits"),
-        appearance.theme().terminal_colors().normal.blue.into(),
-        None,
-        None,
-        close_button_mouse_state,
-        dismiss_action,
-        app,
-    )
-}
-
 pub fn render_dismissible_promo_pill<A>(
     label: String,
     text_color: ColorU,

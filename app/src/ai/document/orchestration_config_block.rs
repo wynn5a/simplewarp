@@ -29,7 +29,7 @@ use crate::ai::blocklist::telemetry::{
     OrchestrationExecutionModeKind, OrchestrationHarnessKind, PlanConfigApprovalToggledEvent,
 };
 use crate::ai::document::ai_document_model::AIDocumentModel;
-use crate::ai::harness_availability::{HarnessAvailabilityEvent, HarnessAvailabilityModel};
+use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
 use crate::ui_components::blended_colors;
@@ -192,27 +192,19 @@ impl OrchestrationConfigBlockView {
             }
         });
 
-        // Repopulate pickers when the server-provided harness list or
-        // harness model catalogs change, or when an auth-secrets fetch
-        // fails (to replace the "Loading…" placeholder).
-        ctx.subscribe_to_model(
-            &HarnessAvailabilityModel::handle(ctx),
-            |me, _, event, ctx| match event {
-                HarnessAvailabilityEvent::Changed
-                | HarnessAvailabilityEvent::AuthSecretsFetchFailed => {
-                    // Repopulate even on fetch failure to replace "Loading…".
-                    if me.pickers_initialized {
-                        oc::repopulate_all_pickers(
-                            &mut me.orchestration_edit_state.orchestration_config_state,
-                            &me.pickers,
-                            ctx,
-                        );
-                    }
-                    me.maybe_auto_open_create_modal(ctx);
-                    ctx.notify();
-                }
-            },
-        );
+        // Repopulate pickers when a harness auth-secrets fetch fails
+        // (to replace the "Loading…" placeholder).
+        ctx.subscribe_to_model(&HarnessAvailabilityModel::handle(ctx), |me, _, _, ctx| {
+            if me.pickers_initialized {
+                oc::repopulate_all_pickers(
+                    &mut me.orchestration_edit_state.orchestration_config_state,
+                    &me.pickers,
+                    ctx,
+                );
+            }
+            me.maybe_auto_open_create_modal(ctx);
+            ctx.notify();
+        });
 
         let mut view = Self {
             conversation_id,

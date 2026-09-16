@@ -5,18 +5,10 @@ use instant::Instant;
 use serde::{Deserialize, Serialize};
 use warp_cli::agent::Harness;
 use warp_core::features::FeatureFlag;
-use warp_core::user_preferences::GetUserPreferences;
-use warp_errors::report_error;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::harness_display;
-use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
-use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
-use crate::server::server_api::ServerApiProvider;
-use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 
-const CACHE_KEY: &str = "AvailableHarnesses";
 const AUTH_SECRET_FETCH_FAILURE_COOLDOWN: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -36,9 +28,8 @@ pub struct HarnessAvailability {
     pub available_models: Vec<HarnessModelInfo>,
 }
 
-/// Default fallback used before the server responds.
-/// Oz is enabled by default so the UI is usable pre-fetch; the server
-/// list (which respects admin overrides) replaces this once available.
+/// There is no server to list harnesses in this build, so this is the only
+/// state the model ever holds: Oz enabled so the UI is usable.
 fn default_harnesses() -> Vec<HarnessAvailability> {
     vec![HarnessAvailability {
         harness: Harness::Oz,
@@ -55,7 +46,6 @@ pub enum AuthSecretFetchState {
 }
 
 pub enum HarnessAvailabilityEvent {
-    Changed,
     /// Emitted when a lazy auth-secrets fetch fails. Subscribers should
     /// re-render so any "Loading…" placeholders can transition to an
     /// error state — without this signal the picker would otherwise be
@@ -70,41 +60,12 @@ pub struct HarnessAvailabilityModel {
 }
 
 impl HarnessAvailabilityModel {
-    pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        let harnesses = get_cached(ctx).unwrap_or_else(default_harnesses);
-
-        ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |me, _, event, ctx| {
-            if let NetworkStatusEvent::NetworkStatusChanged {
-                new_status: NetworkStatusKind::Online,
-            } = event
-            {
-                me.refresh(ctx);
-            }
-        });
-
-        ctx.subscribe_to_model(&AuthManager::handle(ctx), |me, _, event, ctx| {
-            if let AuthManagerEvent::AuthComplete = event {
-                let cached_harnesses: Vec<Harness> = me.auth_secrets.keys().copied().collect();
-                for harness in cached_harnesses {
-                    me.invalidate_auth_secrets(harness);
-                }
-                me.refresh(ctx);
-            }
-        });
-
-        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, _, event, ctx| {
-            if let UserWorkspacesEvent::TeamsChanged = event {
-                me.refresh(ctx);
-            }
-        });
-
-        let me = Self {
-            harnesses,
+    pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
+        Self {
+            harnesses: default_harnesses(),
             auth_secrets: HashMap::new(),
             auth_secret_retry_after: HashMap::new(),
-        };
-        me.refresh(ctx);
-        me
+        }
     }
 
     pub fn available_harnesses(&self) -> &[HarnessAvailability] {
@@ -168,10 +129,6 @@ impl HarnessAvailabilityModel {
             return;
         }
 
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
-            return;
-        }
-
         self.auth_secrets.insert(
             harness,
             AuthSecretFetchState::Failed("Auth secrets are not available".to_string()),
@@ -187,75 +144,6 @@ impl HarnessAvailabilityModel {
             .map(|retry_after| Instant::now() >= *retry_after)
             .unwrap_or(true)
     }
-
-    pub fn invalidate_auth_secrets(&mut self, harness: Harness) {
-        self.auth_secrets.remove(&harness);
-        self.auth_secret_retry_after.remove(&harness);
-    }
-
-    pub fn refresh(&self, ctx: &mut ModelContext<Self>) {
-        // The endpoint queries `user`, which requires auth.
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
-            return;
-        }
-
-        let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
-        ctx.spawn(
-            async move { ai_client.get_available_harnesses().await },
-            |me, result, ctx| match result {
-                Ok(new_harnesses) => {
-                    let new_harnesses = normalize_harness_display_names(new_harnesses);
-                    if new_harnesses != me.harnesses {
-                        me.harnesses = new_harnesses;
-                        me.cache(ctx);
-                        // Invalidate cached auth secrets so the next menu open refetches.
-                        let stale: Vec<Harness> = me.auth_secrets.keys().copied().collect();
-                        for harness in stale {
-                            me.invalidate_auth_secrets(harness);
-                        }
-                        ctx.emit(HarnessAvailabilityEvent::Changed);
-                    }
-                }
-                Err(e) => {
-                    report_error!(e.context("Failed to fetch available harnesses"));
-                }
-            },
-        );
-    }
-
-    fn cache(&self, ctx: &ModelContext<Self>) {
-        if let Ok(serialized) = serde_json::to_string(&self.harnesses)
-            && let Err(e) = ctx
-                .private_user_preferences()
-                .write_value(CACHE_KEY, serialized)
-        {
-            report_error!(anyhow::anyhow!(e).context("Failed to cache available harnesses"));
-        }
-    }
-}
-
-fn get_cached(ctx: &ModelContext<HarnessAvailabilityModel>) -> Option<Vec<HarnessAvailability>> {
-    let raw = ctx
-        .private_user_preferences()
-        .read_value(CACHE_KEY)
-        .ok()??;
-    serde_json::from_str::<Vec<HarnessAvailability>>(&raw)
-        .ok()
-        .map(normalize_harness_display_names)
-}
-
-fn normalize_harness_display_names(
-    harnesses: Vec<HarnessAvailability>,
-) -> Vec<HarnessAvailability> {
-    harnesses
-        .into_iter()
-        .map(|mut harness| {
-            if harness.harness == Harness::Oz {
-                harness.display_name = harness_display::display_name(Harness::Oz).to_string();
-            }
-            harness
-        })
-        .collect()
 }
 
 fn harness_to_graphql_harness(harness: Harness) -> Option<warp_graphql::ai::AgentHarness> {

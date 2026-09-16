@@ -28,7 +28,7 @@ fn initialize_app_with_workspaces(app: &mut App, workspaces: Vec<Workspace>) {
     });
     app.add_singleton_model(|_| crate::pricing::PricingInfoModel::new());
     app.add_singleton_model(|ctx| {
-        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
+        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client())
     });
 }
 

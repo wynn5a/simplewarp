@@ -13,10 +13,6 @@ fn add_request_usage_model(app: &mut App) -> ModelHandle<AIRequestUsageModel> {
     add_request_usage_model_without_auth(app)
 }
 
-fn add_request_usage_model_for_logged_out_users(app: &mut App) -> ModelHandle<AIRequestUsageModel> {
-    app.add_singleton_model(|_| AuthStateProvider::new_logged_out_for_test());
-    add_request_usage_model_without_auth(app)
-}
 fn register_user_preferences_for_tests(app: &mut App) {
     if app
         .models_of_type::<settings::PrivatePreferences>()
@@ -35,21 +31,11 @@ fn add_request_usage_model_without_auth(app: &mut App) -> ModelHandle<AIRequestU
         ctx.add_singleton_model(ApiKeyManager::new);
     });
     app.add_singleton_model(|_| PricingInfoModel::new());
-    app.add_singleton_model(|ctx| {
-        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
+    app.add_singleton_model(|_| {
+        AIRequestUsageModel::new_for_test(ServerApiProvider::new_for_test().get_ai_client())
     })
 }
 
-#[test]
-fn refresh_request_usage_returns_no_fresh_limit_when_logged_out() {
-    App::test((), |mut app| async move {
-        let request_usage_model = add_request_usage_model_for_logged_out_users(&mut app);
-        let refresh =
-            request_usage_model.update(&mut app, |model, ctx| model.refresh_request_usage(ctx));
-
-        assert_eq!(refresh.await.unwrap(), None);
-    });
-}
 #[test]
 fn test_request_limit_info() {
     App::test((), |mut app| async move {
@@ -146,44 +132,6 @@ fn test_request_limit_info_is_unlimited_true() {
     });
 }
 
-#[test]
-fn test_ambient_credits_banner_dismissal_is_persisted() {
-    App::test((), |mut app| async move {
-        let request_usage_model = add_request_usage_model(&mut app);
-
-        request_usage_model.update(&mut app, |model, ctx| {
-            assert!(!model.is_ambient_credits_banner_dismissed());
-            model.dismiss_ambient_credits_banner(ctx);
-            assert!(model.is_ambient_credits_banner_dismissed());
-        });
-
-        app.update(|ctx| {
-            let stored_value = ctx
-                .private_user_preferences()
-                .read_value(AMBIENT_CREDITS_BANNER_DISMISSED_KEY)
-                .unwrap();
-            assert_eq!(stored_value, Some("true".to_owned()));
-        });
-    });
-}
-
-#[test]
-fn test_ambient_credits_banner_dismissal_loads_from_preferences() {
-    App::test((), |mut app| async move {
-        register_user_preferences_for_tests(&mut app);
-        app.update(|ctx| {
-            ctx.private_user_preferences()
-                .write_value(AMBIENT_CREDITS_BANNER_DISMISSED_KEY, "true".to_owned())
-                .unwrap();
-        });
-
-        let request_usage_model = add_request_usage_model(&mut app);
-
-        request_usage_model.update(&mut app, |model, _ctx| {
-            assert!(model.is_ambient_credits_banner_dismissed());
-        });
-    });
-}
 /// The 30 tests this replaces each described a way to *earn* the right to make
 /// an AI request — base quota, bonus grants, overages, pay-as-you-go, auto
 /// reload, a BYO key. SimpleWarp does not meter requests, so there is nothing
@@ -195,7 +143,6 @@ fn has_any_ai_remaining_is_true_with_no_workspace_no_credits_and_no_key() {
 
         request_usage_model.update(&mut app, |model, ctx| {
             model.request_limit_info = RequestLimitInfo::new_for_test(0, 0);
-            model.bonus_grants.clear();
 
             assert!(
                 model.has_any_ai_remaining(ctx),

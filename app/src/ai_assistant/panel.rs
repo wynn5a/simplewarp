@@ -41,7 +41,6 @@ use crate::editor::{
 use crate::input_suggestions::{Event as InputSuggestionsEvent, InputSuggestions};
 use crate::send_telemetry_from_ctx;
 use crate::server::server_api::ServerApi;
-use crate::server::server_api::ai::AIClient;
 use crate::server::telemetry::{TelemetryEvent, WarpAIActionType};
 use crate::terminal::resizable_data::{DEFAULT_WARP_AI_WIDTH, ModalType, ResizableData};
 use crate::ui_components::blended_colors;
@@ -177,11 +176,7 @@ pub fn init(app: &mut AppContext) {
 }
 
 impl AIAssistantPanelView {
-    pub fn new(
-        server_api: Arc<ServerApi>,
-        ai_client: Arc<dyn AIClient>,
-        ctx: &mut ViewContext<Self>,
-    ) -> Self {
+    pub fn new(server_api: Arc<ServerApi>, ctx: &mut ViewContext<Self>) -> Self {
         let editor = {
             ctx.add_typed_action_view(|ctx| {
                 let appearance = Appearance::as_ref(ctx);
@@ -208,8 +203,7 @@ impl AIAssistantPanelView {
         let active_session_model = ActiveSession::handle(ctx);
         ctx.observe(&active_session_model, Self::on_active_session_change);
 
-        let requests_model =
-            ctx.add_model(|ctx| Requests::new(server_api.clone(), ai_client.clone(), ctx));
+        let requests_model = ctx.add_model(|_| Requests::new(server_api.clone()));
         ctx.subscribe_to_model(&requests_model, move |me, _, event, ctx| {
             me.handle_requests_model_event(event, ctx);
         });

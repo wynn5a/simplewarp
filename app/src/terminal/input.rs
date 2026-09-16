@@ -11703,12 +11703,6 @@ impl Input {
 
             self.model.lock().set_is_input_dirty(false);
         }
-
-        AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
-            // Don't show the quota banner once a user has run a command or AI query.
-            ai_settings.mark_quota_banner_as_dismissed(ctx);
-            ctx.notify();
-        });
     }
 
     /// Handles the user's Ctrl+Enter keypress. Exposed `pub(crate)` for unit tests.
@@ -12197,20 +12191,6 @@ impl Input {
         }
 
         if PromptAlertView::does_alert_block_ai_requests(ctx) {
-            AIRequestUsageModel::handle(ctx).update(ctx, |usage_model, ctx| {
-                // Rate limit requests to fetch the user's AI usage if triggered by enter
-                // keypress.
-                const USAGE_LIMIT_UPDATE_REQUEST_RATE_LIMIT: Duration = Duration::from_secs(10);
-
-                let last_update_time = usage_model.last_update_time();
-                if last_update_time
-                    .is_some_and(|time| time.elapsed() >= USAGE_LIMIT_UPDATE_REQUEST_RATE_LIMIT)
-                    || last_update_time.is_none()
-                {
-                    usage_model.refresh_request_usage_async(ctx);
-                }
-            });
-
             return;
         }
 

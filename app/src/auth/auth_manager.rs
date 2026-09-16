@@ -15,7 +15,6 @@ use super::credentials::{Credentials, FirebaseToken, LoginToken};
 use super::user::User;
 use super::user_properties::UserProperties;
 use super::{AuthStateProvider, UserUid};
-use crate::ai::AIRequestUsageModel;
 use crate::persistence::ModelEvent;
 use crate::server::server_api::ServerApi;
 use crate::server::server_api::auth::{AuthClient, FetchUserResult, UserAuthenticationError};
@@ -278,10 +277,6 @@ impl AuthManager {
                 // Reset the initial-load condition so that any cloud preference
                 CloudPreferencesSyncer::handle(ctx).update(ctx, |model, ctx| {
                     model.handle_user_fetched(self.auth_state.clone(), ctx)
-                });
-
-                AIRequestUsageModel::handle(ctx).update(ctx, |usage_model, ctx| {
-                    usage_model.refresh_request_usage_async(ctx);
                 });
 
                 if !user.is_user_anonymous() {

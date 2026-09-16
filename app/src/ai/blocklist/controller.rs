@@ -38,7 +38,6 @@ use super::orchestration_event_streamer::{
 use super::orchestration_events::{OrchestrationEventService, OrchestrationEventServiceEvent};
 use super::queued_query::{QueuedQueryId, QueuedQueryModel};
 use super::{BlocklistAIInputModel, ResponseStreamId};
-use crate::ai::AIRequestUsageModel;
 use crate::ai::agent::api::{self, ServerConversationToken};
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
 use crate::ai::agent::task::TaskId;
@@ -2733,9 +2732,6 @@ impl BlocklistAIController {
                 ctx.emit(BlocklistAIControllerEvent::FinishedReceivingOutput {
                     stream_id,
                     conversation_id,
-                });
-                AIRequestUsageModel::handle(ctx).update(ctx, |request_usage_model, ctx| {
-                    request_usage_model.refresh_request_usage_async(ctx);
                 });
             }
         }

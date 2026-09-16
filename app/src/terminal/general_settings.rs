@@ -166,12 +166,4 @@ define_settings_group!(GeneralSettings, settings: [
         toml_path: "code.editor.auto_open_code_review_pane_on_first_agent_change",
         description: "Whether to automatically open the code review pane when the agent makes its first change.",
     },
-    bonus_grants_shown: BonusGrantsShown {
-        type: HashSet<String>,
-        default: HashSet::new(),
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    },
 ]);

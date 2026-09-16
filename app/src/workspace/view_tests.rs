@@ -167,7 +167,7 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| GPUState::new());
     app.add_singleton_model(|_| RestoredAgentConversations::new_seeded(vec![]));
     app.add_singleton_model(|ctx| {
-        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
+        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client())
     });
     app.add_singleton_model(OneTimeModalModel::new);
     let global_resource_handles = GlobalResourceHandles::mock(app);
@@ -195,9 +195,6 @@ pub(crate) fn initialize_app(app: &mut App) {
 
     app.update(experiments::init);
 
-    app.add_singleton_model(
-        crate::workspace::bonus_grant_notification_model::BonusGrantNotificationModel::new,
-    );
     app.add_singleton_model(|ctx| {
         CodebaseIndexManager::new_for_test(ServerApiProvider::as_ref(ctx).get(), ctx)
     });

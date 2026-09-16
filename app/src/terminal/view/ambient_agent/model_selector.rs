@@ -20,7 +20,7 @@ use crate::ai::blocklist::agent_view::agent_input_footer::AgentInputButtonTheme;
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::ai::custom_model_routers::is_custom_router_id;
 use crate::ai::execution_profiles::model_menu_items::is_auto;
-use crate::ai::harness_availability::{HarnessAvailabilityEvent, HarnessAvailabilityModel};
+use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display::icon_for as harness_icon_for;
 use crate::ai::llms::{LLMId, LLMPreferences, LLMPreferencesEvent};
 use crate::editor::{
@@ -178,19 +178,6 @@ impl ModelSelector {
                     me.refresh_menu(ctx);
                 }
                 LLMPreferencesEvent::UpdatedActiveCodingLLM => {}
-            },
-        );
-
-        ctx.subscribe_to_model(
-            &HarnessAvailabilityModel::handle(ctx),
-            |me, _, event, ctx| match event {
-                HarnessAvailabilityEvent::Changed => {
-                    // Retry restore in case model metadata just arrived.
-                    me.maybe_restore_harness_model_from_settings(ctx);
-                    me.refresh_button(ctx);
-                    me.refresh_menu(ctx);
-                }
-                HarnessAvailabilityEvent::AuthSecretsFetchFailed => {}
             },
         );
 

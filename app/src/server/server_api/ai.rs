@@ -16,7 +16,6 @@ use warp_multi_agent_api::ConversationData;
 
 use super::ServerApi;
 use super::presigned_upload::UploadField;
-use crate::ai::RequestUsageInfo;
 pub use crate::ai::agent::UserQueryMode;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIAgentHarness, ServerAIConversationMetadata};
@@ -30,9 +29,6 @@ use crate::ai::artifacts::Artifact;
 use crate::ai::generate_code_review_content::api::{
     GenerateCodeReviewContentRequest, GenerateCodeReviewContentResponse,
 };
-use crate::ai::harness_availability::HarnessAvailability;
-#[cfg(feature = "agent_mode_evals")]
-use crate::ai::request_usage_model::RequestLimitInfo;
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::ai_assistant::requests::GenerateDialogueResult;
 use crate::ai_assistant::utils::TranscriptPart;
@@ -488,10 +484,6 @@ pub trait AIClient: 'static + Send + Sync {
         command: String,
     ) -> Result<GeneratedCommandMetadata, GeneratedCommandMetadataError>;
 
-    async fn get_request_limit_info(&self) -> Result<RequestUsageInfo, anyhow::Error>;
-
-    async fn get_available_harnesses(&self) -> Result<Vec<HarnessAvailability>, anyhow::Error>;
-
     async fn provide_negative_feedback_response_for_ai_conversation(
         &self,
         conversation_id: String,
@@ -750,20 +742,6 @@ impl AIClient for ServerApi {
         _command: String,
     ) -> Result<GeneratedCommandMetadata, GeneratedCommandMetadataError> {
         Err(GeneratedCommandMetadataError::Other)
-    }
-
-    #[cfg(feature = "agent_mode_evals")]
-    async fn get_request_limit_info(&self) -> Result<RequestUsageInfo, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    #[cfg(not(feature = "agent_mode_evals"))]
-    async fn get_request_limit_info(&self) -> Result<RequestUsageInfo, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn get_available_harnesses(&self) -> Result<Vec<HarnessAvailability>, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
     }
 
     async fn provide_negative_feedback_response_for_ai_conversation(

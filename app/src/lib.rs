@@ -1387,7 +1387,7 @@ pub(crate) fn initialize_app(
         );
     }
 
-    ctx.add_singleton_model(|ctx| AIRequestUsageModel::new(ai_client, ctx));
+    ctx.add_singleton_model(|_| AIRequestUsageModel::new(ai_client));
 
     ctx.add_singleton_model(|ctx| {
         UserWorkspaces::new(cached_workspaces, current_workspace_uid, ctx)
@@ -1703,9 +1703,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|_| ToastStack);
     ctx.add_singleton_model(|_| GlobalCodeReviewModel);
     ctx.add_singleton_model(workspace::OneTimeModalModel::new);
-    ctx.add_singleton_model(
-        workspace::bonus_grant_notification_model::BonusGrantNotificationModel::new,
-    );
     #[cfg(feature = "local_fs")]
     ctx.add_singleton_model(FileModel::new);
     ctx.add_singleton_model(GlobalBufferModel::new);

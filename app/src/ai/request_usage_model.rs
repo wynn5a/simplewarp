@@ -1,59 +1,16 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use chrono::{DateTime, Utc};
-use futures::channel::oneshot::{self, Receiver};
-use instant::Instant;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use warp_core::user_preferences::GetUserPreferences as _;
 use warp_errors::report_error;
-pub use warp_graphql::billing::BonusGrantType;
 use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::conversation::AIConversationId;
-use crate::auth::AuthStateProvider;
 use crate::server::server_api::ai::AIClient;
-use crate::settings::AISettings;
-use crate::workspaces::workspace::WorkspaceUid;
-
-/// Threshold of ambient-only credits at which we surface upgrade/CTA UI.
-pub const AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD: i32 = 20;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BonusGrantScope {
-    User,
-    Team(WorkspaceUid),
-    Workspace(WorkspaceUid),
-}
-
-impl BonusGrantScope {
-    pub fn workspace_uid(&self) -> Option<WorkspaceUid> {
-        match self {
-            BonusGrantScope::User => None,
-            BonusGrantScope::Team(uid) | BonusGrantScope::Workspace(uid) => Some(*uid),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct BonusGrant {
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub cost_cents: i32,
-    pub expiration: Option<chrono::DateTime<chrono::Utc>>,
-    pub grant_type: BonusGrantType,
-    pub reason: String,
-    pub user_facing_message: Option<String>,
-    pub request_credits_granted: i32,
-    pub request_credits_remaining: i32,
-    pub scope: BonusGrantScope,
-}
-
-/// The key for the corresponding entry in UserDefaults.
-const REQUEST_LIMIT_INFO_CACHE_KEY: &str = "AIRequestLimitInfo";
-const AMBIENT_CREDITS_BANNER_DISMISSED_KEY: &str = "AmbientCreditsBannerDismissed";
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum RequestLimitRefreshDuration {
@@ -126,12 +83,6 @@ pub struct CodebaseContextUsageLimit {
     pub embedding_generation_batch_size: usize,
 }
 
-/// Contains all usage-related information fetched from the server.
-pub struct RequestUsageInfo {
-    pub request_limit_info: RequestLimitInfo,
-    pub bonus_grants: Vec<BonusGrant>,
-}
-
 #[cfg(feature = "agent_mode_evals")]
 impl RequestLimitInfo {
     pub fn new_for_evals() -> Self {
@@ -152,49 +103,10 @@ impl RequestLimitInfo {
     }
 }
 
-fn cache_request_limit_info(request_limit_info: RequestLimitInfo, app_mut: &mut AppContext) {
-    if let Ok(serialized) = serde_json::to_string(&request_limit_info) {
-        let _ = app_mut
-            .private_user_preferences()
-            .write_value(REQUEST_LIMIT_INFO_CACHE_KEY, serialized);
-    }
-}
-
-fn get_cached_request_limit_info(app_mut: &mut AppContext) -> Option<RequestLimitInfo> {
-    app_mut
-        .private_user_preferences()
-        .read_value(REQUEST_LIMIT_INFO_CACHE_KEY)
-        .unwrap_or_default()
-        .and_then(|serialized| serde_json::from_str(serialized.as_str()).ok())
-}
-
-fn cache_ambient_credits_banner_dismissed(dismissed: bool, app_mut: &mut AppContext) {
-    let _ = app_mut
-        .private_user_preferences()
-        .write_value(AMBIENT_CREDITS_BANNER_DISMISSED_KEY, dismissed.to_string());
-}
-
-fn get_cached_ambient_credits_banner_dismissed(app_mut: &mut AppContext) -> bool {
-    app_mut
-        .private_user_preferences()
-        .read_value(AMBIENT_CREDITS_BANNER_DISMISSED_KEY)
-        .unwrap_or_default()
-        .and_then(|value| value.parse::<bool>().ok())
-        .unwrap_or_default()
-}
-
 pub struct AIRequestUsageModel {
     ai_client: Arc<dyn AIClient>,
 
-    /// The last time at which `request_limit_info` was updated.
-    last_update_time: Option<Instant>,
-
     request_limit_info: RequestLimitInfo,
-
-    bonus_grants: Vec<BonusGrant>,
-
-    /// Whether the ambient trial credits banner has been dismissed by the user.
-    ambient_credits_banner_dismissed: bool,
 }
 
 impl Entity for AIRequestUsageModel {
@@ -202,8 +114,6 @@ impl Entity for AIRequestUsageModel {
 }
 
 pub enum AIRequestUsageModelEvent {
-    RequestUsageUpdated,
-    AmbientCreditsBannerDismissed,
     RequestBonusRefunded {
         requests_refunded: i32,
         server_conversation_id: String,
@@ -212,96 +122,19 @@ pub enum AIRequestUsageModelEvent {
 }
 
 impl AIRequestUsageModel {
-    pub fn new(ai_client: Arc<dyn AIClient>, ctx: &mut ModelContext<Self>) -> Self {
-        // Check if the user has cached request limit info from before.
-        // This is only used to show the latest known value before we finish refreshing from the server below.
-        let cached_request_limit_info = get_cached_request_limit_info(ctx);
-        let request_limit_info = cached_request_limit_info.unwrap_or_default();
-        let ambient_credits_banner_dismissed = get_cached_ambient_credits_banner_dismissed(ctx);
-
+    pub fn new(ai_client: Arc<dyn AIClient>) -> Self {
         Self {
             ai_client,
-            request_limit_info,
-            last_update_time: None,
-            bonus_grants: vec![],
-            ambient_credits_banner_dismissed,
+            request_limit_info: RequestLimitInfo::default(),
         }
     }
 
     #[cfg(test)]
-    pub fn new_for_test(ai_client: Arc<dyn AIClient>, ctx: &mut ModelContext<Self>) -> Self {
+    pub fn new_for_test(ai_client: Arc<dyn AIClient>) -> Self {
         Self {
             ai_client,
-            last_update_time: None,
             request_limit_info: RequestLimitInfo::default(),
-            bonus_grants: vec![],
-            ambient_credits_banner_dismissed: get_cached_ambient_credits_banner_dismissed(ctx),
         }
-    }
-
-    pub fn last_update_time(&self) -> Option<Instant> {
-        self.last_update_time
-    }
-
-    /// Refreshes the latest AI request usage and bonus grants from the server.
-    ///
-    /// The receiver resolves to the freshly fetched base request limit. It
-    /// resolves to `None` if the user is logged out or the request fails, so
-    /// callers making entitlement decisions do not fall back to cached data.
-    pub fn refresh_request_usage(
-        &mut self,
-        ctx: &mut ModelContext<Self>,
-    ) -> Receiver<Option<usize>> {
-        let (sender, receiver) = oneshot::channel();
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
-            let _ = sender.send(None);
-            return receiver;
-        }
-
-        let ai_client = self.ai_client.clone();
-        let mut sender = Some(sender);
-        ctx.spawn(
-            async move { ai_client.get_request_limit_info().await },
-            move |model, result, ctx| {
-                let request_limit = match result {
-                    Ok(usage_info) => {
-                        let request_limit = usage_info.request_limit_info.limit;
-                        model.bonus_grants = usage_info.bonus_grants;
-                        model.update_request_limit_info(usage_info.request_limit_info, ctx);
-                        Some(request_limit)
-                    }
-                    Err(e) => {
-                        log::warn!("Failed to retrieve request limit info: {e:#}");
-                        None
-                    }
-                };
-                if let Some(sender) = sender.take() {
-                    let _ = sender.send(request_limit);
-                }
-            },
-        );
-        receiver
-    }
-
-    /// Spawns a task to refresh the latest AI request usage and bonus grants.
-    pub fn refresh_request_usage_async(&mut self, ctx: &mut ModelContext<Self>) {
-        drop(self.refresh_request_usage(ctx));
-    }
-
-    pub fn update_request_limit_info(
-        &mut self,
-        request_limit_info: RequestLimitInfo,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.last_update_time = Some(Instant::now());
-        self.request_limit_info = request_limit_info;
-        cache_request_limit_info(request_limit_info, ctx);
-
-        AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
-            ai_settings.update_quota_info(&request_limit_info, ctx);
-        });
-
-        ctx.emit(AIRequestUsageModelEvent::RequestUsageUpdated);
     }
 
     pub fn provide_negative_feedback_response_for_ai_conversation(
@@ -397,7 +230,9 @@ impl AIRequestUsageModel {
     /// Returns the number of remaining requests the user has based on their latest rate limit info.
     /// If the current time is past the next refresh time, then the number of remaining reqs is the limit.
     fn requests_remaining(&self) -> usize {
-        if self.next_refresh_time() <= Utc::now() || self.is_unlimited() {
+        if self.request_limit_info.next_refresh_time.utc() <= Utc::now()
+            || self.request_limit_info.is_unlimited
+        {
             self.request_limit_info.limit
         } else {
             self.request_limit_info
@@ -436,51 +271,6 @@ impl AIRequestUsageModel {
                 .embedding_generation_batch_size,
         }
     }
-
-    pub fn next_refresh_time(&self) -> DateTime<Utc> {
-        self.request_limit_info.next_refresh_time.utc()
-    }
-
-    pub fn is_unlimited(&self) -> bool {
-        self.request_limit_info.is_unlimited
-    }
-
-    pub fn bonus_grants(&self) -> &[BonusGrant] {
-        &self.bonus_grants
-    }
-
-    /// Returns the total remaining ambient-only credits for the user.
-    /// Returns None if the user has never received any ambient-only grants.
-    pub fn ambient_only_credits_remaining(&self) -> Option<i32> {
-        let ambient_grants: Vec<_> = self
-            .bonus_grants
-            .iter()
-            .filter(|g| g.grant_type == BonusGrantType::AmbientOnly)
-            .collect();
-        if ambient_grants.is_empty() {
-            None
-        } else {
-            Some(
-                ambient_grants
-                    .iter()
-                    .map(|g| g.request_credits_remaining)
-                    .sum(),
-            )
-        }
-    }
-
-    pub fn is_ambient_credits_banner_dismissed(&self) -> bool {
-        self.ambient_credits_banner_dismissed
-    }
-
-    pub fn dismiss_ambient_credits_banner(&mut self, ctx: &mut ModelContext<Self>) {
-        if self.ambient_credits_banner_dismissed {
-            return;
-        }
-        self.ambient_credits_banner_dismissed = true;
-        cache_ambient_credits_banner_dismissed(true, ctx);
-        ctx.emit(AIRequestUsageModelEvent::AmbientCreditsBannerDismissed);
-    }
 }
 
 /// Voice request usage, only available if built with voice input support.
@@ -502,7 +292,9 @@ impl AIRequestUsageModel {
     /// Returns the number of remaining requests the user has based on their latest rate limit info.
     /// If the current time is past the next refresh time, then the number of remaining reqs is the limit.
     fn voice_requests_remaining(&self) -> usize {
-        if self.next_refresh_time() <= Utc::now() || self.is_unlimited_voice_requests() {
+        if self.request_limit_info.next_refresh_time.utc() <= Utc::now()
+            || self.is_unlimited_voice_requests()
+        {
             self.voice_requests_limit()
         } else {
             self.voice_requests_limit()

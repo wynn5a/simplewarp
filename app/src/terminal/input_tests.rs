@@ -229,7 +229,7 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|ctx| {
-        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
+        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client())
     });
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
     // QueuedQueryModel subscribes to history events; register after the

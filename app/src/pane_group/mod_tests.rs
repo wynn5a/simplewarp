@@ -163,7 +163,7 @@ fn initialize_app_with_history(app: &mut App, conversations: Vec<AgentConversati
         AIExecutionProfilesModel::new(&crate::LaunchMode::new_for_unit_test(), ctx)
     });
     app.add_singleton_model(|ctx| {
-        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
+        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client())
     });
     app.add_singleton_model(LLMPreferences::new);
     app.add_singleton_model(HarnessAvailabilityModel::new);

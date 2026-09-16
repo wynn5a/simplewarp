@@ -35,7 +35,7 @@ use warpui::{
     ViewHandle, WeakViewHandle,
 };
 
-use crate::ai::request_usage_model::{AIRequestUsageModel, AIRequestUsageModelEvent};
+use crate::ai::request_usage_model::AIRequestUsageModel;
 use crate::appearance::Appearance;
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::editor::comment_editor::DEFAULT_COMMENT_MAX_WIDTH;
@@ -231,13 +231,6 @@ impl CommentListView {
                 me.close_overflow_menu(ctx);
             }
             Event::ItemHovered => {}
-        });
-
-        // Keep the stored button state in sync when AI availability changes.
-        ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |me, _, event, ctx| {
-            if matches!(event, AIRequestUsageModelEvent::RequestUsageUpdated) {
-                me.sync_send_button(ctx);
-            }
         });
 
         Self {

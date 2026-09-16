@@ -39,9 +39,7 @@ use crate::ai::execution_profiles::model_menu_items::{
 use crate::ai::execution_profiles::profiles::{
     AIExecutionProfilesModel, AIExecutionProfilesModelEvent,
 };
-use crate::ai::harness_availability::{
-    HarnessAvailabilityEvent, HarnessAvailabilityModel, HarnessModelInfo,
-};
+use crate::ai::harness_availability::{HarnessAvailabilityModel, HarnessModelInfo};
 use crate::ai::llms::{
     ByoKeySource, LLMId, LLMInfo, LLMPreferences, LLMPreferencesEvent, LLMSpec,
     byo_key_source_for_model, should_show_key_icon_for_model,
@@ -425,15 +423,6 @@ impl ProfileModelSelector {
                         me.refresh_state(ctx);
                     }
                     _ => (),
-                }
-            },
-        );
-
-        ctx.subscribe_to_model(
-            &HarnessAvailabilityModel::handle(ctx),
-            |me, _, event, ctx| {
-                if let HarnessAvailabilityEvent::Changed = event {
-                    me.refresh_state(ctx);
                 }
             },
         );
