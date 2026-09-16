@@ -4368,6 +4368,67 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             **Remaining queue**: login-gated refresh group complete;
             next is `AuthClient` (12), then
             `ServerApi`/`Provider`/`BaseClient`, then the crates.
+      - [x] **Seven dead AuthClient surfaces are deleted** (4bz, 2026-09-16,
+            20 files, +14/−2736, `72d9fa1e`): the AuthClient round.
+            Trait 12 → 5 methods — `get_or_refresh_access_token`/`fetch_user`
+            (load-bearing: `AuthManager` refresh/API-key auth, remote-server
+            auth context) and `list_api_keys`/`create_api_key`/
+            `expire_api_key` (the `warp api-key` CLI subcommand, live via
+            `api_key_management` in the simplewarp set — `--agent-uid` comes
+            straight from a flag, never from identities).
+
+            *Privacy-settings sync group* (`get_user_settings`, the three
+            `set_is_*`, `update_user_settings`): all `is_logged_in`-gated
+            server pushes behind `PrivacySettings`, so the 4bv–4by precedent
+            applies. The local toggle behavior is byte-for-byte unchanged —
+            the three setters keep persisting through
+            `WarpDrivePrivacySettings` and emitting; the
+            `is_logged_in()`-gated spawns, `fetch_or_update_settings` +
+            `initialize_from_fetched_settings_or_update_settings` +
+            `overwrite_local_settings_if_cloud_disabled` +
+            `update_server_with_local_settings` (the fetch fired only from
+            AuthComplete), `SyncedUserSettings`, `PrivacySettings`'s
+            `auth_state`/`auth_client` fields, and the auth_manager
+            fetch block (its snapshot binding stays — telemetry flush still
+            reads it) went. `maybe_sync_with_warp_drive_prefs` survives via
+            its other caller, `CloudPreferencesSyncer::sync`.
+
+            *Onboarding push*: `set_user_is_onboarded` was reachable only as
+            the server half of `AuthManager::set_user_onboarded`; the method
+            is now local-only (`set_is_onboarded(true)` + persist), and its
+            three callers (root_view sync-on-AuthComplete, the two
+            workspace-view onboarding triggers) keep the local marking.
+
+            *Agent identities + the GUI key manager*: `list_agent_identities`
+            had one caller — the create-key modal's agent dropdown on
+            `SettingsSection::OzCloudAPIKeys`, whose page is dropped from the
+            sidebar by `needs_warp_account()` and remapped by `available()`
+            at every entry point (deeplink, session restore). Deleted the
+            page (`platform_page.rs`, `platform/` — modal, expire button,
+            their tests) with its settings wiring: the view handle variant,
+            registration, event handler, modal-content and should_render
+            arms, the "Cloud platform" umbrella (single subpage), and the
+            `platform` deeplink route (tests re-pointed at the
+            billing_and_usage precedent: route no longer resolves). The
+            `SettingsSection::OzCloudAPIKeys` variant itself stays, like
+            Account, for SQLite session-restore mapping. The two
+            `filterable_dropdown` test helpers (`set_filter_query_for_test`,
+            `visible_items_len_for_test`) lost their last caller with the
+            modal tests. GraphQL `get_user_settings`/`update_user_settings`/
+            `set_user_is_onboarded` operations deleted;
+            `auth/mod_tests.rs` (only tested `on_settings_updated`) deleted.
+
+            Acceptance: `check -p warp --tests` clean in both feature sets
+            (warnings = the pre-existing set), clippy diffed against a
+            stash-captured HEAD baseline is byte-identical in both configs
+            (the work-tree-only diff first surfaced the two orphaned test
+            helpers, folded), format clean, nextest green (warp lib 5162
+            default / 5161 simplewarp, warp_graphql+warp_server_client 28).
+            Not re-run in the app — the toggles, the onboarding marking, and
+            the settings sidebar all behave identically; every deleted path
+            required a login SimpleWarp cannot have or a page it cannot show.
+            **Remaining queue**: `AuthClient` is done; next is
+            `ServerApi`/`Provider`/`BaseClient`, then the crates.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
