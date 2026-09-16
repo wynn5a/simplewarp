@@ -4429,6 +4429,125 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             required a login SimpleWarp cannot have or a page it cannot show.
             **Remaining queue**: `AuthClient` is done; next is
             `ServerApi`/`Provider`/`BaseClient`, then the crates.
+      - [x] **ServerApi/Provider/BaseClient survey** (4ca, 2026-09-16 — no
+            code change except one latent compile fix, below): the picture for
+            the last stretch of the client chain, so the rounds don't re-derive
+            it.
+
+            *Provider*: 4 getters — `get`, `get_auth_client`, `get_ai_client`,
+            `get_http_client`. The event loop keeps two special arms
+            (`UserAccountDisabled` → `app:log_out`, `NeedsReauth` → AuthManager)
+            and re-emits the rest; `AuthEvent` is down to 4 variants, and the
+            only external listeners of the re-emit are remote_server's bearer
+            forwarder (`wire_auth_token_rotation`) and the builtin-MCP re-sync,
+            both on `AccessTokenRefreshed`, which fires only after a real
+            refresh. 86 non-test provider access sites, 30 of them `.get()`
+            (the whole `ServerApi`); 81 files reference the symbol at all.
+
+            *ServerApi inherent*: the only live payload is **telemetry** —
+            `TelemetryApi` (Rudderstack) is 8,024 lines in `server/telemetry/`
+            with 767 send-macro call sites. Everything else is walls with
+            live-shaped callers: three SSE `stream_agent_events*` (ambient.rs,
+            agent_events/driver.rs), `notify_login` (no-op log; one
+            AuthComplete caller), `set_ambient_agent_task_id` (header
+            decoration, 10 sites), and the ai.rs inherent helpers
+            (`*_for_task`) feeding the ambient messaging loop.
+
+            *Trait impls left on ServerApi*: `AIClient` — 29 walls in 4bm's
+            groups minus the taken rounds: assistant surfaces 4 (palette
+            search, dialogue answer, workflow metadata, the
+            `provide_negative_feedback` refund — AIRequestUsageModel's last
+            `ai_client` caller), cloud-run lifecycle 11, conversation sync 10,
+            artifacts 3, code review 1. Plus **`StoreClient` (7 walls), which
+            4n's table missed**: it backs the whole
+            `full_source_code_embedding` vertical — 12,111 lines in crates/ai,
+            the "Indexing and projects" settings page, init_project,
+            driver/environment — and `CodebaseIndexManager` receives
+            `ServerApiProvider…get()` as its `Arc<dyn StoreClient>`, so every
+            store call fails and indexing can never progress.
+
+            *AuthClient* (5): the refresh pair is live in shape — `fetch_user`
+            only from AuthManager (5 sites, including `authenticate_api_key`
+            via launch mode `ApiKey` and the CLI `CommandAuthentication::
+            PendingApiKey` path), `get_or_refresh_access_token` from
+            remote_server's auth_context (remote-daemon bearer), the workspace
+            `CopyAccessTokenToClipboard` dev action, and tests. The api-key
+            trio is `warp api-key` (`agent_sdk/api_key.rs`;
+            `api_key_management` is in the simplewarp set).
+
+            *BaseClient* (338 lines): live duties are the http client,
+            AuthState identity (`user_id` 51 sites, `anonymous_id` 13, via the
+            Deref), the refresh pair, and header decoration. Zero callers
+            outside the crate: `access_token_ignoring_validity`,
+            `allowed_to_refresh_token`, `event_sender`, `send_auth_event`,
+            `is_auth_refresh_allowed`, `get_or_create_ambient_workload_token`,
+            `ambient_headers`, `graphql_request_options*` — the last two feed
+            only graphql_helpers and `fetch_user_properties`; the ambient
+            workload-token machinery decorates requests that are all walls.
+
+            *warp_server_client* remaining modules: `auth/` (trait + impl +
+            session + events), `base_client`; `graphql_helpers`, whose
+            `send_graphql_request` has exactly **three** callers left — the
+            api-key trio (`fetch_user_properties` sends its operation
+            directly); `network_logging` — live, backs the in-app network log
+            view, needs a new home when the crate falls; `public_api` —
+            **orphaned**: `get_public_api`/`get_public_api_response` have zero
+            production callers (their own tests only; the app's
+            `get_public_api_response_for_task` is unrelated), and the module
+            survives only as the `HttpStatusError` re-export that app
+            presigned_upload re-exports; `drive.rs`/`ids.rs` — one-line
+            cloud_objects re-export shims (app folders, generic_string_model,
+            server/ids).
+
+            *The crates, in fall order*: `firebase` (145 lines, 2 importers —
+            both warp_server_client/auth exchange-credential types) falls with
+            the AuthClient refresh pair. `warp_server_client` needs the traits
+            gone plus a network_logging decision. `warp_server_auth` (1,270
+            lines, 12 importers) is local identity — AuthState holds
+            user_id/anonymous_id for telemetry and local persistence — and
+            outlives the chain; not on the critical path. `warp_graphql`
+            (9,079 lines, 49 importers) has exactly **four** GraphQL
+            operations still built workspace-wide — `GetUser`, `ApiKeys`,
+            `GenerateApiKey`, `ExpireApiKey`, all in AuthClientImpl — so its
+            client half falls with the api-key trio, but its *type* half
+            (CloudObject, GenericStringObjectFormat,
+            EmbeddingConfig/NodeHash/ContentHash, AgentHarness, LlmProvider,
+            AIConversation types, Time, GuestSubject) is the data model of
+            cloud_objects and full_source_code_embedding and falls with them.
+            `cloud_objects` (2,346 lines, 105 importer files) is the last
+            layer: local Drive object models + persistence after 4bg removed
+            the sync.
+
+            *Recommended round order, smallest genuine first*: (1) delete the
+            orphaned `public_api` functions (quick win, rides along anywhere);
+            (2) the artifacts AIClient group — sandwiched between its own
+            walls (create/confirm targets are walls, so the presigned-S3
+            middle never receives a URL): artifact_upload.rs,
+            presigned_upload.rs, the download path, and retry_strategies'
+            HttpStatusError classification; (3) the `warp api-key` round —
+            answer the 3k question first (with every server surface a wall,
+            an API key buys nothing), then take the CLI, the api-key trio, and
+            the two `authenticate_api_key` paths together; this falls
+            graphql_helpers and BaseClient's graphql_request_options
+            machinery; (4) StoreClient + full_source_code_embedding; (5) the
+            four assistant surfaces (each a UI fallback to collapse); (6)
+            conversation sync + cloud-run lifecycle — the ambient terminal UI
+            verticals, largest; (7) **telemetry — a scope decision**: it is
+            the one live remote payload left in ServerApi, and deleting it
+            empties ServerApi to identity + transport; (8) the fold —
+            ServerApi/Provider/BaseClient collapse, warp_server_client and
+            firebase fall, network_logging moves, warp_server_auth stays as
+            local identity, and cloud_objects + the warp_graphql types are the
+            endgame.
+
+            *Latent compile break found and fixed here*: the
+            `#[cfg(all(test, feature = "skip_login"))]`
+            `new_for_test_with_bearer_token` passed six args to the
+            five-param `new_with_parts` — `agent_source` was added to the
+            signature and this cfg'd call site, which presubmit never
+            compiles, kept both `None`s. Dropped one; any `fast_dev` test
+            build would have failed to compile. Accepted with a
+            `cargo check -p warp --tests --features skip_login`.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
