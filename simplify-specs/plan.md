@@ -4285,6 +4285,89 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             to `get_request_limit_info`, `get_available_harnesses`;
             then `AuthClient` (12), `ServerApi`/`Provider`/`BaseClient`,
             then the crates.
+      - [x] **The last two login-gated refresh chains are deleted** (4by,
+            2026-09-16, 45 files, +190/−1843, `1ec2452c`): takes
+            `get_request_limit_info` and `get_available_harnesses` —
+            with them the login-gated refresh group from the 4bv queue
+            is complete. AIClient 31 → 29 methods.
+
+            *Request-limit chain*: the `AIClient` method, its two
+            `agent_mode_evals`-split local-only stubs, and the
+            `GetRequestLimitInfo` GraphQL query. `AIRequestUsageModel`
+            keeps only what local code still reads — the default
+            `RequestLimitInfo`, `requests_remaining`/
+            `has_base_plan_requests_remaining`, the always-true
+            `has_any_ai_remaining`, `codebase_context_limits`, and the
+            `provide_negative_feedback_response_for_ai_conversation`
+            refund path (still a live `AIClient` method, deferred to
+            the AIClient round). Deleted from the model:
+            `refresh_request_usage`(+`_async`), `update_request_limit_info`,
+            `last_update_time`, the `AIRequestLimitInfo` pref cache,
+            `bonus_grants` + `BonusGrant`/`BonusGrantScope` + the
+            already-orphaned `gql_convert` conversions,
+            `ambient_only_credits_remaining`, the whole ambient-credits
+            banner state, `AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD`, and
+            the `RequestUsageUpdated` event. `RequestUsageInfo` is gone.
+
+            *Downstream-dead consumers removed with it*: the constructor
+            loses `ctx`; refresh blocks in `auth_manager` (AuthComplete),
+            `blocklist/controller` (stream finish), the PromptAlertView
+            enter-key path in `terminal/input`, the out-of-credits
+            modal's non-paid branch, drive `ai_assist` and
+            `workflow_view` (AI-metadata assist), and
+            `agent_profiles_page::on_page_selected` (trait default
+            restored); `search/command_search/warp_ai::on_query_finished`
+            had zero callers and went whole; `agent_profiles_page` and
+            `blocklist/block` subscriptions narrow to
+            `RequestBonusRefunded` (now a single-variant enum);
+            `comment_list_view`'s button-sync subscription deleted;
+            `remote_server`'s RequestUsageUpdated→crash-prefs forwarder
+            deleted; `BonusGrantNotificationModel` (only fired on
+            RequestUsageUpdated) deleted with its registration, its
+            `GeneralSettings::bonus_grants_shown` key, and the
+            workspace-view toast hookup; the settings quota-banner chain
+            (`AIRequestQuotaInfo` setting + `CycleInfo`/`BannerState`
+            schemars types + `should_display_quota_reset_banner` +
+            `mark_quota_banner_as_dismissed` + `update_quota_info` + 9
+            tests + the never-shown `display_chip` quota popup +
+            `FeaturePopup::AlertIcon`, whose last constructor user it
+            was); the old AI-assistant panel's startup fetch,
+            `Requests::update_request_limit_info`, the
+            `AIAssistantRequestLimitInfo` cache and its logout cleanup,
+            and `Requests::ai_client` (never read after the fetch left)
+            — which let `AIAssistantPanelView::new` drop the `ai_client`
+            parameter end to end.
+
+            *Harness chain*: the `AIClient` method, its stub, and the
+            `GetAvailableHarnesses` query. `HarnessAvailabilityModel`
+            keeps its reads (`available_harnesses`, `display_name_for`,
+            `should_show_harness_selector`, `has_any_enabled_harness`,
+            `is_harness_enabled`, `models_for`, and the local
+            auth-secrets stub that always resolves `Failed`) but is now
+            a static `default_harnesses()` (Oz): the refresh/cache/
+            `normalize_harness_display_names` machinery, the
+            NetworkStatus/AuthManager/UserWorkspaces subscriptions, and
+            the now-unconstructible `Changed` event variant with its
+            subscribers went (the two orchestration pickers resubscribe
+            for `AuthSecretsFetchFailed` alone);
+            `invalidate_auth_secrets` had no caller left.
+
+            Acceptance: `check -p warp --tests` clean in both feature
+            sets (warnings = the pre-existing set), clippy shows no new
+            findings — one new lint from this round's own edit
+            (`Option::map` in agent_message_bar) folded; the 13
+            `needless_return` lints in `terminal/input.rs` sit in code
+            this round did not touch, exposed by a cold clippy cache in
+            the simplewarp config. `./script/format` clean. nextest
+            green: warp lib 5170 default / 5169 simplewarp
+            (`--no-fail-fast`; one unrelated notebooks flake on the
+            first pass, clean on rerun), warp_graphql 7. Not re-run in
+            the app — with no login every refresh short-circuited, so
+            `bonus_grants` was always empty and the harness list always
+            the default; no reachable surface changed.
+            **Remaining queue**: login-gated refresh group complete;
+            next is `AuthClient` (12), then
+            `ServerApi`/`Provider`/`BaseClient`, then the crates.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
