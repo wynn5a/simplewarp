@@ -4548,6 +4548,86 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             compiles, kept both `None`s. Dropped one; any `fast_dev` test
             build would have failed to compile. Accepted with a
             `cargo check -p warp --tests --features skip_login`.
+      - [x] **The orphaned `public_api` request functions are deleted** (4cb,
+            2026-09-16, 2 files, −201): `get_public_api`/`get_public_api_response`
+            had zero production callers — only their own tests (the app's
+            `get_public_api_response_for_task` is a different, task-scoped
+            helper). The module keeps `HttpStatusError`, which the app
+            presigned_upload re-export and the retry classifiers still used.
+            4ca survey item (1).
+      - [x] **The artifacts upload/download group is deleted, walls and callers
+            together** (4cc, 2026-09-16, 47 files, +92/−4,025, 10 files removed
+            outright): AIClient 29 → 26. Every wall in the group sat inside its
+            own dead pipeline — create/confirm targets were the only producers
+            of the presigned-S3 middle's input, and `get_artifact_download` the
+            only producer of the lightbox's URLs.
+
+            *Deleted*: `presigned_upload.rs` (the presigned-POST middle:
+            `UploadField`, `UploadBody`/`FileUploadBody`, request building) with
+            its tests; `agent_sdk/artifact_upload.rs` (`FileArtifactUploader`
+            and the association resolver) with its tests; the `warp artifact`
+            CLI vertical — `warp_cli/src/artifact.rs`, `agent_sdk/artifact.rs`
+            (get/download/upload dispatcher + output writers), `CliCommand::
+            Artifact` with its dispatch/auth/telemetry arms, the reject block
+            and `mut_subcommand` hide (the 4m landmine, grepped for the literal
+            up front), eight parse/auth tests, `CliTelemetryEvent::
+            Artifact{Upload,Get,Download}` with all four arms, the
+            `artifact_command` cargo feature (it was in *both* the default and
+            simplewarp sets — the subcommands were live-shaped but all three
+            hit walls), and `FeatureFlag::ArtifactCommand` itself; the
+            `UploadArtifact` executor (255 lines of tests with it); the
+            download fetches behind the UI; and `recording_artifact_view_url`
+            with its two tests.
+
+            *Collapses rather than deletions* (the recording vertical stays for
+            its own round): the `UploadArtifactExecutor`'s dispatch arms became
+            the same `Sync` "not synced to the server yet" error the executor
+            already returned on every local conversation — `should_autoexecute`
+            now `false`, so the action needs explicit approval before erroring
+            (a permission-conservative change: the executor's file-read
+            permission check is gone with it); recording finalize keeps the
+            `!should_upload` discard/cancel paths and the empty-actions error,
+            and the upload path becomes an immediate error — the capture, smart
+            cut, overlay burn-in, thumbnail generation, and all three
+            `ActiveRecording` fields they read (`frame_rate`, `summary`,
+            `description` on the struct — the `StartRecording` *variant* keeps
+            its summary/description; the output renderer reads the summary for
+            the block title) are gone, along with `FinalizeReason::
+            termination_reason`, whose only caller built the deleted
+            `RecordingStopped` payload. The screenshot lightbox and
+            file-download buttons open in their failure states directly (the
+            same failure UI the wall's `Err` arm produced), and
+            `OpenRecordingArtifact` degrades to the same "Failed to open
+            recording." toast.
+
+            *One judgement call*: `api::ToolType::UploadFileArtifact` is no
+            longer advertised to local agent sessions (`get_supported_tools`
+            dropped the flag-gated push). The tool could never succeed — its
+            execution was the deleted wall — so offering it to local runners
+            was a trap; the wire enum and the `AIAgentActionType::
+            UploadArtifact` variant stay for protocol compatibility.
+
+            *HttpStatusError moved, not deleted*: driver.rs still synthesizes
+            it from SSE invalid-status errors, and the retry classifiers plus
+            five test files downcast to it, so the type now lives in
+            `server/retry_strategies.rs` (its only remaining role), and
+            warp_server_client's `public_api` module — orphaned since 4cb's
+            trim — is gone entirely.
+
+            Acceptance: `check -p warp --tests` clean in both feature sets at
+            the baseline warning set; clippy diffed **byte-identical** against
+            a stash-captured HEAD baseline in both configs; format clean;
+            nextest green (warp lib 5,102 default / 5,101 simplewarp,
+            `warp_cli`+`warp_features`+`warp_server_client`+`warp_graphql` 142).
+            Not re-run in the app — every deleted path required a
+            warp-server artifact; every kept surface now shows the same failure
+            state it already showed.
+      - [ ] **Next per 4ca's order**: the `warp api-key` round — answer the 3k
+            question first (with every server surface a wall, an API key buys
+            nothing), then the CLI, the api-key trio, and the two
+            `authenticate_api_key` paths together; that falls graphql_helpers
+            and BaseClient's graphql_request_options machinery. Then
+            StoreClient + full_source_code_embedding.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
