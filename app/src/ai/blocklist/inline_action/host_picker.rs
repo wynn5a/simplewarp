@@ -4,9 +4,8 @@
 //! pickers; in custom mode it swaps the top bar for an inline editor that
 //! accepts a self-hosted worker slug. The layout mirrors the Oz webapp's
 //! host selector: workspace default first (badged "Default"), then warp,
-//! then connected worker hosts, then the user's most recent custom slug
-//! marked as disconnected if it is not currently connected, then a
-//! "Custom host…" entry.
+//! then the user's most recent custom slug marked as disconnected when it
+//! is not the default, then a "Custom host…" entry.
 
 use warp_core::ui::theme::Fill;
 use warpui::elements::{

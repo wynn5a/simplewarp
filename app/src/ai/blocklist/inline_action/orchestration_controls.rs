@@ -482,8 +482,8 @@ pub fn populate_runner_picker<A: OrchestrationControlAction, V: View>(
 }
 
 /// Repopulates the host picker rows from [`host_snapshot`] (workspace
-/// default, connected workers, recent custom slug), then sets the
-/// current selection to `initial_host`.
+/// default, recent custom slug), then sets the current selection to
+/// `initial_host`.
 pub fn populate_host_picker<V: View>(
     picker: &ViewHandle<HostPicker>,
     initial_host: &str,

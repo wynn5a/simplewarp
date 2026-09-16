@@ -1,7 +1,7 @@
 use super::{
     AgentMessageHeader, AgentRunEvent, Artifact, ArtifactDownloadResponse,
-    ConnectedSelfHostedWorker, ForkConversationResponse, ListConnectedSelfHostedWorkersResponse,
-    ReadAgentMessageResponse, RunFollowupRequest, SpawnAgentRequest, UserQueryMode,
+    ForkConversationResponse, ReadAgentMessageResponse, RunFollowupRequest, SpawnAgentRequest,
+    UserQueryMode,
 };
 use crate::notebooks::NotebookId;
 
@@ -32,46 +32,6 @@ fn spawn_agent_request_serializes_agent_uid_as_agent_identity_uid() {
         Some("agent_123")
     );
     assert!(value.get("agent_uid").is_none());
-}
-
-#[test]
-fn deserialize_connected_self_hosted_workers_response() {
-    let json = r#"{
-        "workers": [
-            {
-                "worker_host": "worker-2",
-                "connection_count": 2,
-                "connected_at": "2026-05-18T19:00:00Z",
-                "last_seen_at": "2026-05-18T19:05:00Z"
-            },
-            {
-                "worker_host": "worker-1",
-                "connection_count": 1,
-                "connected_at": "2026-05-18T18:00:00Z",
-                "last_seen_at": "2026-05-18T18:05:00Z"
-            }
-        ]
-    }"#;
-
-    let response: ListConnectedSelfHostedWorkersResponse = serde_json::from_str(json).unwrap();
-
-    assert_eq!(
-        response.workers,
-        vec![
-            ConnectedSelfHostedWorker {
-                worker_host: "worker-2".to_string(),
-                connection_count: 2,
-                connected_at: "2026-05-18T19:00:00Z".to_string(),
-                last_seen_at: "2026-05-18T19:05:00Z".to_string(),
-            },
-            ConnectedSelfHostedWorker {
-                worker_host: "worker-1".to_string(),
-                connection_count: 1,
-                connected_at: "2026-05-18T18:00:00Z".to_string(),
-                last_seen_at: "2026-05-18T18:05:00Z".to_string(),
-            },
-        ]
-    );
 }
 
 #[test]

@@ -37,7 +37,6 @@ use crate::ai::agent::{
 };
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::blocklist::{AIQueryHistory, BlocklistAIPermissions, ResponseStreamId};
-use crate::ai::connected_self_hosted_workers::ConnectedSelfHostedWorkersModel;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::{LLMId, LLMPreferences};
@@ -262,7 +261,6 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(AuthManager::new_for_test);
     app.add_singleton_model(LLMPreferences::new);
     app.add_singleton_model(HarnessAvailabilityModel::new);
-    app.add_singleton_model(ConnectedSelfHostedWorkersModel::new);
     app.add_singleton_model(DirectoryWatcher::new);
     app.add_singleton_model(|_| DetectedRepositories::default());
     app.add_singleton_model(crate::remote_server::manager::RemoteServerManager::new);
@@ -1286,9 +1284,8 @@ fn attach_ambient_view_model_skips_composer_selectors_for_non_composer_pane() {
 }
 
 #[test]
-fn cloud_mode_host_selector_shown_when_connected_workers_present() {
-    // Regression: connected self-hosted workers must surface the host dropdown even
-    // with no default host set.
+fn cloud_mode_host_selector_hidden_without_default_host() {
+    // Local-only: with no workspace default host the dropdown stays hidden.
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -1310,7 +1307,7 @@ fn cloud_mode_host_selector_shown_when_connected_workers_present() {
             input.attach_ambient_agent_view_model(view_model, ctx);
         });
 
-        // No workspace default host and no connected workers -> the dropdown stays hidden.
+        // No workspace default host -> the dropdown stays hidden.
         input.read(&app, |input, ctx| {
             assert!(
                 input.host_selector().is_some(),
@@ -1318,19 +1315,7 @@ fn cloud_mode_host_selector_shown_when_connected_workers_present() {
             );
             assert!(
                 input.visible_host_selector(ctx).is_none(),
-                "host selector must be hidden with no default host and no connected workers"
-            );
-        });
-
-        // A self-hosted worker connects -> the dropdown becomes visible.
-        ConnectedSelfHostedWorkersModel::handle(&app).update(&mut app, |model, ctx| {
-            model.set_workers_for_test(&["oz-k8s-worker"], ctx);
-        });
-
-        input.read(&app, |input, ctx| {
-            assert!(
-                input.visible_host_selector(ctx).is_some(),
-                "host selector must be shown once a self-hosted worker is connected"
+                "host selector must be hidden with no default host"
             );
         });
     });

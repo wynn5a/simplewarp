@@ -20,7 +20,6 @@ use crate::ai::blocklist::agent_view::AgentViewState;
 use crate::ai::blocklist::agent_view::shortcuts::{
     AgentShortcutsViewContext, render_agent_shortcuts_view,
 };
-use crate::ai::connected_self_hosted_workers::ConnectedSelfHostedWorkersModel;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::appearance::Appearance;
 use crate::context_chips::spacing::{self};
@@ -504,10 +503,7 @@ impl Input {
         app: &AppContext,
     ) -> Option<&ViewHandle<HostSelector>> {
         let host_selector = self.host_selector()?;
-        let should_show = host_selector.as_ref(app).has_default_host()
-            || !ConnectedSelfHostedWorkersModel::as_ref(app)
-                .worker_hosts_excluding(None)
-                .is_empty();
+        let should_show = host_selector.as_ref(app).has_default_host();
         should_show.then_some(host_selector)
     }
 

@@ -19,7 +19,6 @@ use warpui::{
 
 use crate::ai::blocklist::inline_action::orchestration_controls::ORCHESTRATION_WARP_WORKER_HOST;
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
-use crate::ai::connected_self_hosted_workers::ConnectedSelfHostedWorkersModel;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::view_components::action_button::{
@@ -43,8 +42,6 @@ const BUTTON_TOOLTIP: &str = "Execution host";
 const MENU_HEADER_LABEL: &str = "Execution host";
 
 const DEFAULT_BADGE: &str = "Default";
-
-const CONNECTED_BADGE: &str = "Connected";
 
 const DISCONNECTED_BADGE: &str = "Disconnected";
 
@@ -132,12 +129,6 @@ impl HostSelector {
         ctx.subscribe_to_model(&Appearance::handle(ctx), |me, _, _, ctx| {
             me.refresh_menu(ctx);
         });
-        ctx.subscribe_to_model(
-            &ConnectedSelfHostedWorkersModel::handle(ctx),
-            |me, _, _, ctx| {
-                me.refresh_menu(ctx);
-            },
-        );
 
         let mut me = Self {
             button,
@@ -229,9 +220,6 @@ impl HostSelector {
         }
         self.is_menu_open = is_open;
         if is_open {
-            ConnectedSelfHostedWorkersModel::handle(ctx).update(ctx, |model, ctx| {
-                model.refresh(ctx);
-            });
             ctx.focus(&self.menu);
             self.highlight_selected_host(ctx);
         }
@@ -250,7 +238,6 @@ impl HostSelector {
             header_text_color,
             self.default_host.as_ref(),
             &self.selected,
-            ctx,
         );
         self.menu.update(ctx, |menu, ctx| {
             menu.set_border(Some(border));
@@ -281,7 +268,6 @@ fn build_menu_items(
     header_text_color: ColorU,
     default_host: Option<&Host>,
     selected: &Host,
-    ctx: &mut ViewContext<HostSelector>,
 ) -> Vec<MenuItem<HostSelectorAction>> {
     let header = MenuItem::Header {
         fields: MenuItemFields::new(MENU_HEADER_LABEL)
@@ -323,24 +309,9 @@ fn build_menu_items(
         Some(Host::SelfHosted { slug }) => Some(slug.as_str()),
         Some(Host::Warp) | None => None,
     };
-    let mut connected_hosts = ConnectedSelfHostedWorkersModel::as_ref(ctx)
-        .worker_hosts_excluding(default_slug)
-        .into_iter()
-        .collect::<Vec<_>>();
-    connected_hosts.sort();
-    connected_hosts.dedup();
-    for host in &connected_hosts {
-        items.push(item_for(
-            Host::SelfHosted { slug: host.clone() },
-            Some(CONNECTED_BADGE),
-        ));
-    }
     if let Host::SelfHosted { slug } = selected {
         let is_default = default_slug == Some(slug.as_str());
-        let is_connected = connected_hosts
-            .iter()
-            .any(|host| host.eq_ignore_ascii_case(slug));
-        if !is_default && !is_connected {
+        if !is_default {
             items.push(item_for(
                 Host::SelfHosted { slug: slug.clone() },
                 Some(DISCONNECTED_BADGE),

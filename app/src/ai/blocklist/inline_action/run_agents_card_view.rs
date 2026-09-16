@@ -46,9 +46,6 @@ use crate::ai::blocklist::telemetry::{
     BlocklistOrchestrationTelemetryEvent, OrchestrationEnteredEvent, OrchestrationEntrySource,
     RunAgentsCardDecision, run_agents_card_decision_event,
 };
-use crate::ai::connected_self_hosted_workers::{
-    ConnectedSelfHostedWorkersEvent, ConnectedSelfHostedWorkersModel,
-};
 use crate::ai::harness_availability::{HarnessAvailabilityEvent, HarnessAvailabilityModel};
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
@@ -451,20 +448,6 @@ impl RunAgentsCardView {
             },
         );
 
-        ctx.subscribe_to_model(
-            &ConnectedSelfHostedWorkersModel::handle(ctx),
-            |me, _, event, ctx| match event {
-                ConnectedSelfHostedWorkersEvent::Changed => {
-                    oc::repopulate_all_pickers(
-                        &mut me.orchestration_edit_state.orchestration_config_state,
-                        &me.handles.pickers,
-                        ctx,
-                    );
-                    me.refresh_accept_button_state(ctx);
-                    ctx.notify();
-                }
-            },
-        );
         // When auto_launched is true, execution is deferred to the
         // ActionBlockedOnUserConfirmation subscription above — the action
         // hasn't been queued in pending_actions yet at construction time.
@@ -843,11 +826,7 @@ impl RunAgentsCardView {
             });
             oc::populate_host_picker(&handle, initial_host, ctx);
             ctx.subscribe_to_view(&handle, |me, _, event, ctx| match event {
-                HostPickerEvent::Opened => {
-                    ConnectedSelfHostedWorkersModel::handle(ctx).update(ctx, |model, ctx| {
-                        model.refresh(ctx);
-                    });
-                }
+                HostPickerEvent::Opened => {}
                 HostPickerEvent::HostChanged { slug } => {
                     ctx.dispatch_typed_action(&RunAgentsCardViewAction::WorkerHostChanged {
                         worker_host: slug.clone(),

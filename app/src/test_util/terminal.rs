@@ -24,7 +24,6 @@ use crate::ai::blocklist::{
     BlocklistAIHistoryModel, BlocklistAIPermissions, QueuedQueryModel, SerializedBlockListItem,
 };
 use crate::ai::cloud_environments::CloudEnvironmentCatalog;
-use crate::ai::connected_self_hosted_workers::ConnectedSelfHostedWorkersModel;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
@@ -112,7 +111,6 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(LLMPreferences::new);
     app.add_singleton_model(HarnessAvailabilityModel::new);
     app.add_singleton_model(|ctx| AITipModel::new_for_agent_tips(ctx));
-    app.add_singleton_model(ConnectedSelfHostedWorkersModel::new);
     app.add_singleton_model(DirectoryWatcher::new);
     app.add_singleton_model(|_| DetectedRepositories::default());
     #[cfg(feature = "local_fs")]

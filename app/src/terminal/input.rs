@@ -160,9 +160,6 @@ use crate::ai::blocklist::{
     QueuedQuery, QueuedQueryEvent, QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin,
     SlashCommandRequest, ai_indicator_height, render_ai_agent_mode_icon, render_ai_follow_up_icon,
 };
-use crate::ai::connected_self_hosted_workers::{
-    ConnectedSelfHostedWorkersEvent, ConnectedSelfHostedWorkersModel,
-};
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::conversation_export::export_conversation_markdown;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
@@ -2171,16 +2168,6 @@ impl Input {
                 view_model.clone(),
                 self.menu_positioning_provider.clone(),
                 ctx,
-            );
-            // Re-render when connected workers change so the host selector shows/hides
-            // (it isn't mounted while hidden to drive this itself).
-            ctx.subscribe_to_model(
-                &ConnectedSelfHostedWorkersModel::handle(ctx),
-                |_me, _, event, ctx| {
-                    if matches!(event, ConnectedSelfHostedWorkersEvent::Changed) {
-                        ctx.notify();
-                    }
-                },
             );
             Some(host_selector)
         } else {

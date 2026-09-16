@@ -10,7 +10,6 @@ use warpui::{AppContext, SingletonEntity};
 use crate::LLMPreferences;
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::ai::cloud_environments::CloudEnvironmentCatalog;
-use crate::ai::connected_self_hosted_workers::WARP_WORKER_HOST;
 use crate::ai::harness_availability::{AuthSecretFetchState, HarnessAvailabilityModel};
 use crate::ai::llms::LLMInfo;
 use crate::ai::orchestration::config_state::AuthSecretSelection;
@@ -20,7 +19,7 @@ use crate::workspaces::user_workspaces::UserWorkspaces;
 /// Mirrors the single-agent ambient flow.
 const DEFAULT_HOST_ENV_VAR: &str = "WARP_CLOUD_MODE_DEFAULT_HOST";
 
-pub const ORCHESTRATION_WARP_WORKER_HOST: &str = WARP_WORKER_HOST;
+pub const ORCHESTRATION_WARP_WORKER_HOST: &str = "warp";
 pub const ORCHESTRATION_ENV_NONE_LABEL: &str = "Empty environment";
 pub const ORCHESTRATION_RUNNER_NONE_LABEL: &str = "Use default";
 

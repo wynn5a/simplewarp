@@ -16,7 +16,6 @@ use super::providers::{
 };
 use crate::LLMPreferences;
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
-use crate::ai::connected_self_hosted_workers::ConnectedSelfHostedWorkersModel;
 use crate::ai::harness_availability::{AuthSecretFetchState, HarnessAvailabilityModel};
 use crate::ai::harness_display;
 use crate::ai::local_harness_setup::{
@@ -464,15 +463,12 @@ fn build_api_key_snapshot(
 // ── Host ────────────────────────────────────────────────────────────
 
 /// Builds the host options in the GUI host picker's order: workspace
-/// default (badged), warp, connected worker hosts (badged), the recent
-/// custom slug (badged), then a custom-host text-entry footer.
+/// default (badged), warp, the recent custom slug (badged), then a
+/// custom-host text-entry footer.
 pub fn host_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> OptionSnapshot {
     let default_host = resolve_default_host_slug(ctx);
     let recent_host = resolve_recent_host_slug(ctx);
-    let mut connected_hosts = ConnectedSelfHostedWorkersModel::as_ref(ctx)
-        .worker_hosts_excluding(default_host.as_deref());
-    connected_hosts.sort();
-    connected_hosts.dedup();
+    let connected_hosts: Vec<String> = Vec::new();
     let current = match &state.execution_mode {
         RunAgentsExecutionMode::Remote { worker_host, .. } if !worker_host.trim().is_empty() => {
             worker_host.trim().to_string()

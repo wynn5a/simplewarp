@@ -441,10 +441,6 @@ impl ServerApi {
             .await
     }
 
-    pub async fn send_agent_tip_shown_analytics_event(&self, _tip: String) -> Result<()> {
-        Err(local_only_error())
-    }
-
     /// Drains all queued [`TelemetryEvent`]s into Rudderstack requests containing the corresponding
     /// batch of events. Events are queued using the [`send_telemetry_from_ctx`] or
     /// [`send_telemetry_from_app_ctx`] macros. If telemetry is disabled for the user, this flushes

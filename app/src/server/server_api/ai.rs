@@ -466,19 +466,6 @@ impl RunSortOrder {
     }
 }
 
-#[derive(Clone, serde::Deserialize, Debug, PartialEq, Eq)]
-pub struct ConnectedSelfHostedWorker {
-    pub worker_host: String,
-    pub connection_count: u32,
-    pub connected_at: String,
-    pub last_seen_at: String,
-}
-
-#[derive(Clone, serde::Deserialize, Debug, PartialEq, Eq)]
-pub struct ListConnectedSelfHostedWorkersResponse {
-    pub workers: Vec<ConnectedSelfHostedWorker>,
-}
-
 #[cfg_attr(test, automock)]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
@@ -504,9 +491,6 @@ pub trait AIClient: 'static + Send + Sync {
     async fn get_request_limit_info(&self) -> Result<RequestUsageInfo, anyhow::Error>;
 
     async fn get_available_harnesses(&self) -> Result<Vec<HarnessAvailability>, anyhow::Error>;
-    async fn list_connected_self_hosted_workers(
-        &self,
-    ) -> Result<ListConnectedSelfHostedWorkersResponse, anyhow::Error>;
 
     async fn provide_negative_feedback_response_for_ai_conversation(
         &self,
@@ -822,12 +806,6 @@ impl AIClient for ServerApi {
         &self,
         _request: SpawnAgentRequest,
     ) -> anyhow::Result<SpawnAgentResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn list_connected_self_hosted_workers(
-        &self,
-    ) -> anyhow::Result<ListConnectedSelfHostedWorkersResponse, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 
