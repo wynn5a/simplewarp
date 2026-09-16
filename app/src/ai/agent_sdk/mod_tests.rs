@@ -1,9 +1,6 @@
 use serde_json::json;
 use warp_cli::CliCommand;
 use warp_cli::agent::Harness;
-use warp_cli::artifact::{
-    ArtifactCommand, DownloadArtifactArgs, GetArtifactArgs, UploadArtifactArgs,
-};
 use warp_cli::task::{MessageCommand, MessageSendArgs, MessageWatchArgs, TaskCommand};
 use warp_core::telemetry::TelemetryEvent;
 
@@ -49,16 +46,6 @@ fn logged_out_command_has_no_authentication_source() {
 }
 
 #[test]
-fn artifact_download_requires_auth() {
-    assert!(command_requires_auth(&CliCommand::Artifact(
-        ArtifactCommand::Download(DownloadArtifactArgs {
-            artifact_uid: "artifact-123".to_string(),
-            out: None,
-        },)
-    )));
-}
-
-#[test]
 fn run_message_send_requires_auth() {
     assert!(command_requires_auth(&CliCommand::Run(
         TaskCommand::Message(MessageCommand::Send(MessageSendArgs {
@@ -67,27 +54,6 @@ fn run_message_send_requires_auth() {
             body: "body".to_string(),
             sender_run_id: "run-123".to_string(),
         }),)
-    )));
-}
-
-#[test]
-fn artifact_get_requires_auth() {
-    assert!(command_requires_auth(&CliCommand::Artifact(
-        ArtifactCommand::Get(GetArtifactArgs {
-            artifact_uid: "artifact-123".to_string(),
-        },)
-    )));
-}
-
-#[test]
-fn artifact_upload_requires_auth() {
-    assert!(command_requires_auth(&CliCommand::Artifact(
-        ArtifactCommand::Upload(UploadArtifactArgs {
-            path: "artifact.txt".into(),
-            run_id: Some("run-123".to_string()),
-            conversation_id: None,
-            description: None,
-        },)
     )));
 }
 

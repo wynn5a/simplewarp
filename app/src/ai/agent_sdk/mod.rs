@@ -15,7 +15,6 @@ use warp_cli::agent::{
     AgentCommand, AgentProfileCommand, Harness, OutputFormat, Prompt, RunAgentArgs,
 };
 use warp_cli::api_key::ApiKeyCommand;
-use warp_cli::artifact::ArtifactCommand;
 use warp_cli::mcp::MCPCommand;
 use warp_cli::model::ModelCommand;
 use warp_cli::provider::ProviderCommand;
@@ -61,8 +60,6 @@ use crate::workflows::workflow::Workflow;
 mod admin;
 mod ambient;
 mod api_key;
-mod artifact;
-pub(crate) mod artifact_upload;
 mod common;
 mod config_file;
 pub(crate) mod driver;
@@ -124,12 +121,6 @@ fn dispatch_command(
                 return Err(anyhow::anyhow!("invalid value 'provider'"));
             }
             provider::run(ctx, global_options, provider_cmd)
-        }
-        CliCommand::Artifact(artifact_cmd) => {
-            if !FeatureFlag::ArtifactCommand.is_enabled() {
-                return Err(anyhow::anyhow!("invalid value 'artifact'"));
-            }
-            artifact::run(ctx, global_options, artifact_cmd)
         }
         CliCommand::ApiKey(api_key_cmd) => {
             if !FeatureFlag::APIKeyManagement.is_enabled() {
@@ -1248,7 +1239,6 @@ fn command_requires_auth(command: &CliCommand) -> bool {
         CliCommand::Logout => false,
         CliCommand::Whoami => true,
         CliCommand::Provider(_) => true,
-        CliCommand::Artifact(_) => true,
         CliCommand::ApiKey(_) => true,
     }
 }
@@ -1421,11 +1411,6 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
         CliCommand::Whoami => CliTelemetryEvent::Whoami,
         CliCommand::Provider(ProviderCommand::Setup(_)) => CliTelemetryEvent::ProviderSetup,
         CliCommand::Provider(ProviderCommand::List) => CliTelemetryEvent::ProviderList,
-        CliCommand::Artifact(artifact_cmd) => match artifact_cmd {
-            ArtifactCommand::Upload(_) => CliTelemetryEvent::ArtifactUpload,
-            ArtifactCommand::Get(_) => CliTelemetryEvent::ArtifactGet,
-            ArtifactCommand::Download(_) => CliTelemetryEvent::ArtifactDownload,
-        },
         CliCommand::ApiKey(api_key_cmd) => match api_key_cmd {
             ApiKeyCommand::List(_) => CliTelemetryEvent::ApiKeyList,
             ApiKeyCommand::Create(_) => CliTelemetryEvent::ApiKeyCreate,

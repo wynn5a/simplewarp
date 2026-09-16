@@ -47,11 +47,11 @@ use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::server::retry_strategies::{
-    OUT_OF_BAND_REQUEST_RETRY_STRATEGY, PERIODIC_POLL_RETRY_STRATEGY, is_transient_http_error,
+    HttpStatusError, OUT_OF_BAND_REQUEST_RETRY_STRATEGY, PERIODIC_POLL_RETRY_STRATEGY,
+    is_transient_http_error,
 };
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::TaskListFilter;
-use crate::server::server_api::presigned_upload::HttpStatusError;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::workspace::{RestoreConversationLayout, WorkspaceAction};

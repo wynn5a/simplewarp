@@ -9,10 +9,9 @@ use instant::Instant;
 use warp_errors::{AnyhowErrorExt as _, report_error};
 use warpui::r#async::Timer;
 
-use crate::server::retry_strategies::{is_auth_error, is_transient_http_error};
+use crate::server::retry_strategies::{HttpStatusError, is_auth_error, is_transient_http_error};
 use crate::server::server_api::ServerApi;
 use crate::server::server_api::ai::AgentRunEvent;
-use crate::server::server_api::presigned_upload::HttpStatusError;
 
 pub(crate) const DEFAULT_AGENT_EVENT_RECONNECT_BACKOFF_STEPS: &[u64] = &[1, 2, 5, 10];
 pub(crate) const DEFAULT_PERMANENT_ERROR_BACKOFF_STEPS: &[u64] = &[30];

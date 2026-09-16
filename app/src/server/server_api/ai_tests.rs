@@ -1,7 +1,6 @@
 use super::{
-    AgentMessageHeader, AgentRunEvent, Artifact, ArtifactDownloadResponse,
-    ForkConversationResponse, ReadAgentMessageResponse, RunFollowupRequest, SpawnAgentRequest,
-    UserQueryMode,
+    AgentMessageHeader, AgentRunEvent, Artifact, ForkConversationResponse,
+    ReadAgentMessageResponse, RunFollowupRequest, SpawnAgentRequest, UserQueryMode,
 };
 use crate::notebooks::NotebookId;
 
@@ -57,69 +56,6 @@ fn spawn_agent_request_omits_prompt_when_none() {
     let value = serde_json::to_value(&request).unwrap();
 
     assert!(value.get("prompt").is_none());
-}
-
-#[test]
-fn test_deserialize_file_artifact_download_response() {
-    let json = r#"{
-        "artifact_uid": "artifact-123",
-        "artifact_type": "FILE",
-        "created_at": "2024-01-15T10:30:00Z",
-        "data": {
-            "download_url": "https://storage.example.com/report.txt",
-            "expires_at": "2024-01-15T11:30:00Z",
-            "content_type": "text/plain",
-            "filepath": "outputs/report.txt",
-            "filename": "report.txt",
-            "description": "daily summary",
-            "size_bytes": 42
-        }
-    }"#;
-
-    let artifact: ArtifactDownloadResponse = serde_json::from_str(json).unwrap();
-
-    let ArtifactDownloadResponse::File { common, data } = artifact else {
-        panic!("expected File artifact download response");
-    };
-    assert_eq!(common.artifact_uid, "artifact-123");
-    assert_eq!(common.created_at.to_rfc3339(), "2024-01-15T10:30:00+00:00");
-    assert_eq!(data.download_url, "https://storage.example.com/report.txt");
-    assert_eq!(data.expires_at.to_rfc3339(), "2024-01-15T11:30:00+00:00");
-    assert_eq!(data.content_type, "text/plain");
-    assert_eq!(data.filepath, "outputs/report.txt");
-    assert_eq!(data.filename, "report.txt");
-    assert_eq!(data.description.as_deref(), Some("daily summary"));
-    assert_eq!(data.size_bytes, Some(42));
-}
-
-#[test]
-fn test_deserialize_screenshot_artifact_download_response() {
-    let json = r#"{
-        "artifact_uid": "screenshot-123",
-        "artifact_type": "SCREENSHOT",
-        "created_at": "2024-01-15T10:30:00Z",
-        "data": {
-            "download_url": "https://storage.example.com/screenshot.png",
-            "expires_at": "2024-01-15T11:30:00Z",
-            "content_type": "image/png",
-            "description": "dashboard screenshot"
-        }
-    }"#;
-
-    let artifact: ArtifactDownloadResponse = serde_json::from_str(json).unwrap();
-
-    let ArtifactDownloadResponse::Screenshot { common, data } = artifact else {
-        panic!("expected Screenshot artifact download response");
-    };
-    assert_eq!(common.artifact_uid, "screenshot-123");
-    assert_eq!(common.created_at.to_rfc3339(), "2024-01-15T10:30:00+00:00");
-    assert_eq!(
-        data.download_url,
-        "https://storage.example.com/screenshot.png"
-    );
-    assert_eq!(data.expires_at.to_rfc3339(), "2024-01-15T11:30:00+00:00");
-    assert_eq!(data.content_type, "image/png");
-    assert_eq!(data.description.as_deref(), Some("dashboard screenshot"));
 }
 
 #[test]

@@ -681,7 +681,7 @@ fn run_id() -> crate::ai::ambient_agents::AmbientAgentTaskId {
 }
 
 fn transient_http_error() -> anyhow::Error {
-    use crate::server::server_api::presigned_upload::HttpStatusError;
+    use crate::server::retry_strategies::HttpStatusError;
     anyhow::Error::new(HttpStatusError {
         status: 429,
         body: "Too Many Requests".to_string(),
@@ -690,7 +690,7 @@ fn transient_http_error() -> anyhow::Error {
 }
 
 fn permanent_http_error() -> anyhow::Error {
-    use crate::server::server_api::presigned_upload::HttpStatusError;
+    use crate::server::retry_strategies::HttpStatusError;
     anyhow::Error::new(HttpStatusError {
         status: 403,
         body: "Forbidden".to_string(),

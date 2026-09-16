@@ -63,8 +63,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AIRules,
         #[cfg(feature = "shell_selector")]
         FeatureFlag::ShellSelector,
-        #[cfg(feature = "artifact_command")]
-        FeatureFlag::ArtifactCommand,
         #[cfg(feature = "cloud_environments")]
         FeatureFlag::CloudEnvironments,
         #[cfg(feature = "cloud_runners")]

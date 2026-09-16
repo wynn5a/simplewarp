@@ -47,10 +47,9 @@ impl StartRecordingExecutor {
             frame_rate,
             max_duration,
             max_size_bytes,
-            summary,
-            description,
             playback_speed_multiplier,
             window,
+            ..
         } = action.action.clone()
         else {
             return ActionExecution::InvalidAction;
@@ -99,12 +98,9 @@ impl StartRecordingExecutor {
                     playback_speed_multiplier,
                     target,
                 };
-                // Carry the resolved frame rate to the completion callback so the
-                // controller can store it for the post-stop smart cut's one-frame
-                // minimum, even though it is not echoed back to the server.
-                (recorder.start(config).await, resolved_frame_rate)
+                recorder.start(config).await
             },
-            move |(result, frame_rate), ctx| match result {
+            move |result, ctx| match result {
                 Ok(handle) => {
                     let recording_id = Uuid::new_v4().to_string();
                     let started_at = SystemTime::now();
@@ -127,9 +123,6 @@ impl StartRecordingExecutor {
                             recording_id.clone(),
                             conversation_id,
                             handle,
-                            frame_rate,
-                            summary,
-                            description,
                             target,
                         );
                     });

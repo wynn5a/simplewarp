@@ -15,7 +15,6 @@ use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
 use warp_multi_agent_api::ConversationData;
 
 use super::ServerApi;
-use super::presigned_upload::UploadField;
 pub use crate::ai::agent::UserQueryMode;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIAgentHarness, ServerAIConversationMetadata};
@@ -208,166 +207,6 @@ pub struct SpawnAgentResponse {
     pub run_id: String,
     #[serde(default)]
     pub at_capacity: bool,
-}
-
-/// Response from the artifact endpoint.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(tag = "artifact_type")]
-pub enum ArtifactDownloadResponse {
-    #[serde(rename = "SCREENSHOT")]
-    Screenshot {
-        #[serde(flatten)]
-        common: ArtifactDownloadCommonFields,
-        data: ScreenshotArtifactResponseData,
-    },
-    #[serde(rename = "FILE")]
-    File {
-        #[serde(flatten)]
-        common: ArtifactDownloadCommonFields,
-        data: FileArtifactResponseData,
-    },
-}
-
-impl ArtifactDownloadResponse {
-    fn common(&self) -> &ArtifactDownloadCommonFields {
-        match self {
-            ArtifactDownloadResponse::Screenshot { common, .. }
-            | ArtifactDownloadResponse::File { common, .. } => common,
-        }
-    }
-
-    pub fn artifact_uid(&self) -> &str {
-        &self.common().artifact_uid
-    }
-
-    pub fn artifact_type(&self) -> &'static str {
-        match self {
-            ArtifactDownloadResponse::Screenshot { .. } => "SCREENSHOT",
-            ArtifactDownloadResponse::File { .. } => "FILE",
-        }
-    }
-
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.common().created_at
-    }
-
-    pub fn download_url(&self) -> &str {
-        match self {
-            ArtifactDownloadResponse::Screenshot { data, .. } => &data.download_url,
-            ArtifactDownloadResponse::File { data, .. } => &data.download_url,
-        }
-    }
-
-    pub fn expires_at(&self) -> DateTime<Utc> {
-        match self {
-            ArtifactDownloadResponse::Screenshot { data, .. } => data.expires_at,
-            ArtifactDownloadResponse::File { data, .. } => data.expires_at,
-        }
-    }
-
-    pub fn content_type(&self) -> &str {
-        match self {
-            ArtifactDownloadResponse::Screenshot { data, .. } => &data.content_type,
-            ArtifactDownloadResponse::File { data, .. } => &data.content_type,
-        }
-    }
-
-    pub fn filepath(&self) -> Option<&str> {
-        match self {
-            ArtifactDownloadResponse::Screenshot { .. } => None,
-            ArtifactDownloadResponse::File { data, .. } => Some(&data.filepath),
-        }
-    }
-
-    pub fn filename(&self) -> Option<&str> {
-        match self {
-            ArtifactDownloadResponse::Screenshot { .. } => None,
-            ArtifactDownloadResponse::File { data, .. } => Some(&data.filename),
-        }
-    }
-
-    pub fn description(&self) -> Option<&str> {
-        match self {
-            ArtifactDownloadResponse::Screenshot { data, .. } => data.description.as_deref(),
-            ArtifactDownloadResponse::File { data, .. } => data.description.as_deref(),
-        }
-    }
-
-    pub fn size_bytes(&self) -> Option<i64> {
-        match self {
-            ArtifactDownloadResponse::Screenshot { .. } => None,
-            ArtifactDownloadResponse::File { data, .. } => data.size_bytes,
-        }
-    }
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct ArtifactDownloadCommonFields {
-    pub artifact_uid: String,
-    pub created_at: DateTime<Utc>,
-}
-
-/// Screenshot-specific data from the artifact endpoint.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct ScreenshotArtifactResponseData {
-    pub download_url: String,
-    pub expires_at: DateTime<Utc>,
-    pub content_type: String,
-    pub description: Option<String>,
-}
-
-/// File-specific data from the artifact endpoint.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct FileArtifactResponseData {
-    pub download_url: String,
-    pub expires_at: DateTime<Utc>,
-    pub content_type: String,
-    pub filepath: String,
-    pub filename: String,
-    pub description: Option<String>,
-    pub size_bytes: Option<i64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CreateFileArtifactUploadRequest {
-    pub conversation_id: Option<String>,
-    pub run_id: Option<String>,
-    pub filepath: String,
-    /// Short badge-visible title for the artifact (e.g. a recording title).
-    pub title: Option<String>,
-    pub description: Option<String>,
-    pub mime_type: Option<String>,
-    pub size_bytes: Option<i32>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FileArtifactRecord {
-    pub artifact_uid: String,
-    pub filepath: String,
-    pub description: Option<String>,
-    pub mime_type: String,
-    pub size_bytes: Option<i32>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FileArtifactUploadHeaderInfo {
-    pub name: String,
-    pub value: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct FileArtifactUploadTargetInfo {
-    pub url: String,
-    pub method: String,
-    pub headers: Vec<FileArtifactUploadHeaderInfo>,
-    /// Ordered multipart form fields for presigned POST uploads.
-    pub fields: Vec<UploadField>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CreateFileArtifactUploadResponse {
-    pub artifact: FileArtifactRecord,
-    pub upload_target: FileArtifactUploadTargetInfo,
 }
 
 /// A single git credential entry returned by `taskGitCredentials`.
@@ -590,22 +429,6 @@ pub trait AIClient: 'static + Send + Sync {
         task_id: String,
         workload_token: String,
     ) -> anyhow::Result<Vec<GitCredential>, anyhow::Error>;
-
-    async fn create_file_artifact_upload_target(
-        &self,
-        request: CreateFileArtifactUploadRequest,
-    ) -> anyhow::Result<CreateFileArtifactUploadResponse, anyhow::Error>;
-
-    async fn confirm_file_artifact_upload(
-        &self,
-        artifact_uid: String,
-        checksum: String,
-    ) -> anyhow::Result<FileArtifactRecord, anyhow::Error>;
-
-    async fn get_artifact_download(
-        &self,
-        artifact_uid: &str,
-    ) -> anyhow::Result<ArtifactDownloadResponse, anyhow::Error>;
 
     // --- Orchestrations V2 messaging ---
 
@@ -869,28 +692,6 @@ impl AIClient for ServerApi {
         _task_id: String,
         _workload_token: String,
     ) -> anyhow::Result<Vec<GitCredential>, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn create_file_artifact_upload_target(
-        &self,
-        _request: CreateFileArtifactUploadRequest,
-    ) -> anyhow::Result<CreateFileArtifactUploadResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn confirm_file_artifact_upload(
-        &self,
-        _artifact_uid: String,
-        _checksum: String,
-    ) -> anyhow::Result<FileArtifactRecord, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn get_artifact_download(
-        &self,
-        _artifact_uid: &str,
-    ) -> anyhow::Result<ArtifactDownloadResponse, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 

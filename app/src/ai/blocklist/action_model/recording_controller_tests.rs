@@ -18,9 +18,6 @@ fn active_controller(recording_id: &str, conversation_id: AIConversationId) -> R
         recording_id.to_string(),
         conversation_id,
         handle,
-        15,
-        None,
-        None,
         computer_use::Target::Screen,
     );
     controller

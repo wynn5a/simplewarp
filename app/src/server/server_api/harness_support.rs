@@ -4,8 +4,6 @@
 use anyhow::{Context, Result};
 
 use super::ServerApi;
-#[cfg(feature = "local_fs")]
-pub use super::presigned_upload::FileUploadBody;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::agent_sdk::retry::with_bounded_retry;
 use crate::ai::ambient_agents::AmbientAgentTaskId;

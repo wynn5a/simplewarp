@@ -6,7 +6,22 @@ use warpui::r#async::Timer;
 use warpui::{RetryOption, duration_with_jitter};
 
 use crate::server::graphql::GraphQLError;
-use crate::server::server_api::presigned_upload::HttpStatusError;
+
+/// Typed error for HTTP operations so retry classifiers can inspect status failures.
+#[derive(Debug, thiserror::Error)]
+#[error("HTTP request failed with status {status}: {body}")]
+pub(crate) struct HttpStatusError {
+    pub(crate) status: u16,
+    pub(crate) body: String,
+}
+
+impl warp_errors::ErrorExt for HttpStatusError {
+    fn is_actionable(&self) -> bool {
+        !matches!(self.status, 408 | 429)
+    }
+}
+
+warp_errors::register_error!(HttpStatusError);
 
 /// Common duration for a periodic poll. In our app, we generally have the following to update the same data:
 /// - RTC messages

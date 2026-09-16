@@ -236,10 +236,6 @@ fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {
                 api::ToolType::ApplyFileDiffs,
                 api::ToolType::SearchCodebase,
             ]);
-
-            if FeatureFlag::ArtifactCommand.is_enabled() {
-                supported_tools.push(api::ToolType::UploadFileArtifact);
-            }
         }
         Some(SessionType::WarpifiedRemote { host_id: Some(_) }) => {
             // Remote session with a known host — enable tools that route

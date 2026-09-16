@@ -4,7 +4,6 @@ use clap::Parser;
 
 use super::*;
 use crate::agent::{AgentCommand, Harness, OutputFormat};
-use crate::artifact::ArtifactCommand;
 use crate::model::ModelCommand;
 use crate::task::{MessageCommand, TaskCommand};
 
@@ -693,64 +692,6 @@ fn agent_run_rejects_prompt_and_saved_prompt() {
     ]);
     assert!(result.is_err());
 }
-#[test]
-fn artifact_upload_accepts_run_id() {
-    let args = Args::try_parse_from([
-        "warp",
-        "artifact",
-        "upload",
-        "path/to/file.json",
-        "--run-id",
-        "run-123",
-    ])
-    .unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp artifact upload` command");
-    };
-    let CliCommand::Artifact(ArtifactCommand::Upload(args)) = boxed_cmd.as_ref() else {
-        panic!("Expected `warp artifact upload` command");
-    };
-
-    assert_eq!(args.path.to_str(), Some("path/to/file.json"));
-    assert_eq!(args.run_id.as_deref(), Some("run-123"));
-    assert_eq!(args.conversation_id, None);
-}
-
-#[test]
-fn artifact_help_hides_upload_but_keeps_download_visible() {
-    warp_core::features::mark_initialized();
-
-    let mut command = Args::clap_command();
-    command.build();
-
-    let artifact = command
-        .find_subcommand("artifact")
-        .expect("artifact subcommand should exist");
-    let upload = artifact
-        .find_subcommand("upload")
-        .expect("upload subcommand should exist");
-    let download = artifact
-        .find_subcommand("download")
-        .expect("download subcommand should exist");
-    let get = artifact
-        .find_subcommand("get")
-        .expect("get subcommand should exist");
-
-    assert!(upload.is_hide_set());
-    assert!(!get.is_hide_set());
-    assert!(!download.is_hide_set());
-
-    let visible_subcommands: Vec<_> = artifact
-        .get_subcommands()
-        .filter(|subcommand| !subcommand.is_hide_set())
-        .map(|subcommand| subcommand.get_name())
-        .collect();
-    assert!(visible_subcommands.contains(&"get"));
-
-    assert!(visible_subcommands.contains(&"download"));
-    assert!(!visible_subcommands.contains(&"upload"));
-}
 
 #[test]
 fn raw_command_keeps_message_visible_before_runtime_help_customization() {
@@ -775,132 +716,6 @@ fn raw_command_keeps_message_visible_before_runtime_help_customization() {
     assert!(visible_subcommands.contains(&"message"));
 }
 
-#[test]
-fn artifact_upload_accepts_run_id_and_description() {
-    let args = Args::try_parse_from([
-        "warp",
-        "artifact",
-        "upload",
-        "path/to/file.json",
-        "--run-id",
-        "run-123",
-        "--description",
-        "Test artifact",
-    ])
-    .unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp artifact upload` command");
-    };
-    let CliCommand::Artifact(ArtifactCommand::Upload(args)) = boxed_cmd.as_ref() else {
-        panic!("Expected `warp artifact upload` command");
-    };
-
-    assert_eq!(args.run_id.as_deref(), Some("run-123"));
-    assert_eq!(args.conversation_id, None);
-    assert_eq!(args.description.as_deref(), Some("Test artifact"));
-}
-
-#[test]
-fn artifact_upload_accepts_conversation_id_and_description() {
-    let args = Args::try_parse_from([
-        "warp",
-        "artifact",
-        "upload",
-        "path/to/file.json",
-        "--conversation-id",
-        "conversation-123",
-        "--description",
-        "Test artifact",
-    ])
-    .unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp artifact upload` command");
-    };
-    let CliCommand::Artifact(ArtifactCommand::Upload(args)) = boxed_cmd.as_ref() else {
-        panic!("Expected `warp artifact upload` command");
-    };
-
-    assert_eq!(args.path.to_str(), Some("path/to/file.json"));
-    assert_eq!(args.run_id, None);
-    assert_eq!(args.conversation_id.as_deref(), Some("conversation-123"));
-    assert_eq!(args.description.as_deref(), Some("Test artifact"));
-}
-
-#[test]
-fn artifact_upload_accepts_missing_association_target_for_env_fallback() {
-    let args = Args::try_parse_from(["warp", "artifact", "upload", "path/to/file.json"]).unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp artifact upload` command");
-    };
-    let CliCommand::Artifact(ArtifactCommand::Upload(args)) = boxed_cmd.as_ref() else {
-        panic!("Expected `warp artifact upload` command");
-    };
-
-    assert_eq!(args.path.to_str(), Some("path/to/file.json"));
-    assert_eq!(args.run_id, None);
-    assert_eq!(args.conversation_id, None);
-}
-
-#[test]
-fn artifact_upload_rejects_both_association_targets() {
-    let err = Args::try_parse_from([
-        "warp",
-        "artifact",
-        "upload",
-        "path/to/file.json",
-        "--run-id",
-        "run-123",
-        "--conversation-id",
-        "conversation-123",
-    ])
-    .unwrap_err();
-    let err = err.to_string();
-
-    assert!(err.contains("--run-id"));
-    assert!(err.contains("--conversation-id"));
-}
-
-#[test]
-fn artifact_download_parses_artifact_id_and_out() {
-    let args = Args::try_parse_from([
-        "warp",
-        "artifact",
-        "download",
-        "artifact-123",
-        "--out",
-        "downloads/file.json",
-    ])
-    .unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp artifact download` command");
-    };
-    let CliCommand::Artifact(ArtifactCommand::Download(args)) = boxed_cmd.as_ref() else {
-        panic!("Expected `warp artifact download` command");
-    };
-
-    assert_eq!(args.artifact_uid, "artifact-123");
-    assert_eq!(
-        args.out.as_ref().and_then(|path| path.to_str()),
-        Some("downloads/file.json")
-    );
-}
-#[test]
-fn artifact_get_parses_artifact_uid() {
-    let args = Args::try_parse_from(["warp", "artifact", "get", "artifact-123"]).unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp artifact get` command");
-    };
-    let CliCommand::Artifact(ArtifactCommand::Get(args)) = boxed_cmd.as_ref() else {
-        panic!("Expected `warp artifact get` command");
-    };
-
-    assert_eq!(args.artifact_uid, "artifact-123");
-}
 #[test]
 fn agent_run_accepts_computer_use_flag() {
     let args = Args::try_parse_from([

@@ -49,12 +49,6 @@ pub(super) enum CliTelemetryEvent {
     ProviderSetup,
     /// Executing `warp provider list`
     ProviderList,
-    /// Executing `warp artifact upload`
-    ArtifactUpload,
-    /// Executing `warp artifact get`
-    ArtifactGet,
-    /// Executing `warp artifact download`
-    ArtifactDownload,
     /// Executing `warp api-key list`
     ApiKeyList,
     /// Executing `warp api-key create`
@@ -101,9 +95,6 @@ impl TelemetryEvent for CliTelemetryEvent {
             CliTelemetryEvent::Whoami => None,
             CliTelemetryEvent::ProviderSetup => None,
             CliTelemetryEvent::ProviderList => None,
-            CliTelemetryEvent::ArtifactUpload => None,
-            CliTelemetryEvent::ArtifactGet => None,
-            CliTelemetryEvent::ArtifactDownload => None,
             CliTelemetryEvent::ApiKeyList => None,
             CliTelemetryEvent::ApiKeyCreate => None,
             CliTelemetryEvent::ApiKeyExpire => None,
@@ -151,9 +142,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::Whoami => "CLI.Execute.Whoami",
             CliTelemetryEventDiscriminants::ProviderSetup => "CLI.Execute.Provider.Setup",
             CliTelemetryEventDiscriminants::ProviderList => "CLI.Execute.Provider.List",
-            CliTelemetryEventDiscriminants::ArtifactUpload => "CLI.Execute.Artifact.Upload",
-            CliTelemetryEventDiscriminants::ArtifactGet => "CLI.Execute.Artifact.Get",
-            CliTelemetryEventDiscriminants::ArtifactDownload => "CLI.Execute.Artifact.Download",
             CliTelemetryEventDiscriminants::ApiKeyList => "CLI.Execute.ApiKey.List",
             CliTelemetryEventDiscriminants::ApiKeyCreate => "CLI.Execute.ApiKey.Create",
             CliTelemetryEventDiscriminants::ApiKeyExpire => "CLI.Execute.ApiKey.Expire",
@@ -195,15 +183,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::Whoami => "Printed current user info from the Warp CLI",
             CliTelemetryEventDiscriminants::ProviderSetup => "Set up a provider via the Warp CLI",
             CliTelemetryEventDiscriminants::ProviderList => "Listed providers from the Warp CLI",
-            CliTelemetryEventDiscriminants::ArtifactUpload => {
-                "Uploaded an artifact from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::ArtifactGet => {
-                "Got artifact metadata from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::ArtifactDownload => {
-                "Downloaded an artifact from the Warp CLI"
-            }
             CliTelemetryEventDiscriminants::ApiKeyList => "Listed API keys from the Warp CLI",
             CliTelemetryEventDiscriminants::ApiKeyCreate => "Created an API key from the Warp CLI",
             CliTelemetryEventDiscriminants::ApiKeyExpire => "Expired an API key from the Warp CLI",
@@ -212,9 +191,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
 
     fn enablement_state(&self) -> EnablementState {
         match self {
-            Self::ArtifactUpload | Self::ArtifactGet | Self::ArtifactDownload => {
-                EnablementState::Flag(FeatureFlag::ArtifactCommand)
-            }
             Self::ApiKeyList | Self::ApiKeyCreate | Self::ApiKeyExpire => {
                 EnablementState::Flag(FeatureFlag::APIKeyManagement)
             }

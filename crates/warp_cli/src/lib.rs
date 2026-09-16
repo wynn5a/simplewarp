@@ -13,7 +13,6 @@ use crate::agent::OutputFormat;
 #[cfg(windows)]
 mod process_handle;
 
-pub mod artifact;
 pub mod scope;
 pub mod skill;
 mod sort_order;
@@ -200,15 +199,6 @@ impl Args {
                     }
                 }
 
-                if !FeatureFlag::ArtifactCommand.is_enabled() {
-                    let args: Vec<String> = env::args().collect();
-                    if args.len() > 1 && args[1] == "artifact" {
-                        eprintln!("error: unrecognized subcommand 'artifact'\n");
-                        eprintln!("For more information, try '--help'");
-                        std::process::exit(2);
-                    }
-                }
-
                 if !FeatureFlag::APIKeyManagement.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "api-key" {
@@ -274,11 +264,6 @@ impl Args {
                         get_cmd.mut_arg("conversation", |arg| arg.hide(true))
                     })
             });
-        }
-
-        // Hide the artifact subcommand from help text.
-        if !FeatureFlag::ArtifactCommand.is_enabled() {
-            command = command.mut_subcommand("artifact", |c| c.hide(true));
         }
 
         // Hide the api-key subcommand from help text.
@@ -442,10 +427,6 @@ pub enum CliCommand {
     #[command(subcommand)]
     Provider(crate::provider::ProviderCommand),
 
-    /// Manage artifacts.
-    #[command(subcommand)]
-    Artifact(crate::artifact::ArtifactCommand),
-
     /// Manage API keys.
     #[command(subcommand)]
     ApiKey(crate::api_key::ApiKeyCommand),
@@ -462,7 +443,6 @@ impl CliCommand {
             CliCommand::Logout => "logout",
             CliCommand::Whoami => "whoami",
             CliCommand::Provider(command) => command.as_str_for_tracing(),
-            CliCommand::Artifact(command) => command.as_str_for_tracing(),
             CliCommand::ApiKey(command) => command.as_str_for_tracing(),
         }
     }

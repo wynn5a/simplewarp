@@ -44,38 +44,6 @@ impl FinalizeReason {
             FinalizeReason::FinalizationDropped => "finalization_dropped",
         }
     }
-
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn termination_reason(
-        self,
-        completion_status: computer_use::RecordingCompletionStatus,
-    ) -> String {
-        match self {
-            FinalizeReason::StoppedByAgent => match completion_status {
-                computer_use::RecordingCompletionStatus::Completed => {
-                    "Stopped by agent".to_string()
-                }
-                computer_use::RecordingCompletionStatus::StoppedEarly => {
-                    "Recording stopped before the agent requested it".to_string()
-                }
-            },
-            FinalizeReason::RunEnded => {
-                "Finalized because the agent run ended without stopping the recording".to_string()
-            }
-            FinalizeReason::LimitReached => {
-                "Stopped at the configured duration or size limit".to_string()
-            }
-            FinalizeReason::FfmpegExited => {
-                "Capture process exited before the recording was stopped".to_string()
-            }
-            FinalizeReason::RunCancelled => {
-                "Recording was interrupted when the conversation was cancelled".to_string()
-            }
-            FinalizeReason::FinalizationDropped => {
-                "Recording finalization ended without producing a result".to_string()
-            }
-        }
-    }
 }
 
 /// The finalized outcome of a recording, paired with the actual
@@ -114,9 +82,6 @@ pub(crate) struct ActiveRecording {
     pub(crate) handle: computer_use::RecordingHandle,
     /// When capture went live; action offsets are measured from here.
     pub(crate) started_at: Instant,
-    /// The capture frame rate, used by the post-stop smart cut to enforce the
-    /// one-source-frame minimum for instantaneous action groups.
-    pub(crate) frame_rate: u32,
     /// The surface being recorded, used to resolve pointer-event coordinates
     /// into capture space for the post-stop burn-in.
     pub(crate) target: computer_use::Target,
@@ -127,10 +92,6 @@ pub(crate) struct ActiveRecording {
     pub(crate) pointer_session: computer_use::PointerSession,
     /// Action groups committed to the video, in completion order.
     pub(crate) actions: Vec<computer_use::ActionLogEntry>,
-    /// Short agent-authored title shown in badges (from StartRecording.summary).
-    pub(crate) summary: Option<String>,
-    /// Optional longer description shown in detail views (from StartRecording.description).
-    pub(crate) description: Option<String>,
     /// The currently in-flight `UseComputer` group, if any. It is committed with
     /// its finish offset on success or discarded on failure/cancellation.
     pub(crate) pending_group: Option<PendingActionGroup>,
@@ -244,9 +205,6 @@ impl RecordingController {
         recording_id: String,
         conversation_id: AIConversationId,
         handle: computer_use::RecordingHandle,
-        frame_rate: u32,
-        summary: Option<String>,
-        description: Option<String>,
         target: computer_use::Target,
     ) {
         if matches!(
@@ -260,12 +218,9 @@ impl RecordingController {
                 conversation_id,
                 handle,
                 started_at: Instant::now(),
-                frame_rate,
                 target,
                 pointer_session: computer_use::PointerSession::new(),
                 actions: Vec::new(),
-                summary,
-                description,
                 pending_group: None,
             }));
         }
