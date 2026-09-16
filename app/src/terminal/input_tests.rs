@@ -4,7 +4,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 use chrono::Local;
 use fuzzy_match::FuzzyMatchResult;
 use repo_metadata::RepoMetadataModel;
@@ -270,9 +269,6 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(RepoOutlines::new_for_test);
     #[cfg(feature = "voice_input")]
     app.add_singleton_model(voice_input::VoiceInput::new);
-    app.add_singleton_model(|ctx| {
-        CodebaseIndexManager::new_for_test(ServerApiProvider::as_ref(ctx).get(), ctx)
-    });
     app.add_singleton_model(|_| IgnoredSuggestionsModel::new(vec![]));
     app.add_singleton_model(|_| TemplatableMCPServerManager::default());
     app.add_singleton_model(|ctx| {

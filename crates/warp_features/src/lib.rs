@@ -171,9 +171,6 @@ pub enum FeatureFlag {
     /// Forces users to login.
     ForceLogin,
 
-    /// Enables full source code embedding of repos when using codebase context.
-    FullSourceCodeEmbedding,
-
     /// If enabled, command palette searches will use Tantivy search instead of the default fuzzy search.
     UseTantivySearch,
 
@@ -192,9 +189,6 @@ pub enum FeatureFlag {
     /// Enables cross-repo codebase context.
     CrossRepoContext,
 
-    /// Persist codebase indices to disk.
-    CodebaseIndexPersistence,
-
     /// Enables the AI context menu, or at-menu.
     AIContextMenuEnabled,
 
@@ -206,9 +200,6 @@ pub enum FeatureFlag {
 
     /// Enables the agent to decide whether to execute a command.
     AgentDecidesCommandExecution,
-
-    /// Show speed bump when enabling codebase indexing.
-    CodebaseIndexSpeedbump,
 
     /// Enables the fast-forward autoexecute button
     FastForwardAutoexecuteButton,
@@ -713,9 +704,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     // These are enabled via 100% experiment on prod warp-server,
     // but we need to enable here for dogfood builds.
     FeatureFlag::CrossRepoContext,
-    FeatureFlag::CodebaseIndexPersistence,
-    FeatureFlag::FullSourceCodeEmbedding,
-    FeatureFlag::CodebaseIndexSpeedbump,
     // End manually enabled Code features.
     FeatureFlag::EditableMarkdownMermaid,
     FeatureFlag::CodeReviewScrollPreservation,

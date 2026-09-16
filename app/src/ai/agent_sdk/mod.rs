@@ -488,8 +488,7 @@ impl AgentDriverRunner {
         let mut task_id: Option<AmbientAgentTaskId> =
             args.task_id.as_deref().and_then(|s| s.parse().ok());
         Self::set_ambient_agent_task_id(&foreground, task_id).await?;
-        let background = foreground.spawn(|_, ctx| ctx.background_executor()).await?;
-        let setup_events = SetupClientEventReporter::new(background);
+        let setup_events = SetupClientEventReporter::new();
         // Set up and run the driver, reporting any errors back to the server.
         let result: Result<(), AgentDriverError> = async {
             // Pull relevant variables out of args before moving it into the closure.

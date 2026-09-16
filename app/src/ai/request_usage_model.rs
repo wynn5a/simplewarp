@@ -77,12 +77,6 @@ impl RequestLimitInfo {
     }
 }
 
-pub struct CodebaseContextUsageLimit {
-    pub max_files_per_repo: usize,
-    pub max_indices_allowed: Option<usize>,
-    pub embedding_generation_batch_size: usize,
-}
-
 #[cfg(feature = "agent_mode_evals")]
 impl RequestLimitInfo {
     pub fn new_for_evals() -> Self {
@@ -253,23 +247,6 @@ impl AIRequestUsageModel {
     /// and nothing is counted against a quota.
     pub fn has_any_ai_remaining(&self, _ctx: &AppContext) -> bool {
         true
-    }
-
-    /// Returns the number of indices the user's tier allows them to create and the number of files
-    /// the user's tier allows them to index. If the user is allowed unlimited indices, then the
-    /// max_indices_allowed is None.
-    pub fn codebase_context_limits(&self) -> CodebaseContextUsageLimit {
-        CodebaseContextUsageLimit {
-            max_files_per_repo: self.request_limit_info.max_files_per_repo,
-            max_indices_allowed: if self.request_limit_info.is_unlimited_codebase_indices {
-                None
-            } else {
-                Some(self.request_limit_info.max_codebase_indices)
-            },
-            embedding_generation_batch_size: self
-                .request_limit_info
-                .embedding_generation_batch_size,
-        }
     }
 }
 

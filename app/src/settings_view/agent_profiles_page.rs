@@ -1754,19 +1754,17 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ],
         app,
     );
-    if !FeatureFlag::FullSourceCodeEmbedding.is_enabled() {
-        ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
-            vec![ToggleSettingActionPair::new(
-                "codebase index",
-                builder(SettingsAction::AgentProfiles(
-                    AgentProfilesPageAction::ToggleCodebaseContext,
-                )),
-                &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
-                flags::IS_CODEBASE_INDEXING_ENABLED,
-            )],
-            app,
-        );
-    }
+    ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
+        vec![ToggleSettingActionPair::new(
+            "codebase index",
+            builder(SettingsAction::AgentProfiles(
+                AgentProfilesPageAction::ToggleCodebaseContext,
+            )),
+            &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
+            flags::IS_CODEBASE_INDEXING_ENABLED,
+        )],
+        app,
+    );
 }
 
 fn render_ai_list(
@@ -2236,17 +2234,15 @@ impl AgentsWidget {
             widget_children.push(mcp_permissions);
         }
 
-        if !FeatureFlag::FullSourceCodeEmbedding.is_enabled() {
-            let codebase_context = Self::render_codebase_context_outline_generation_setting(
-                self.codebase_context_toggle.clone(),
-                self.codebase_context_link_index.clone(),
-                view,
-                ai_settings,
-                appearance,
-                app,
-            );
-            widget_children.push(codebase_context);
-        }
+        let codebase_context = Self::render_codebase_context_outline_generation_setting(
+            self.codebase_context_toggle.clone(),
+            self.codebase_context_link_index.clone(),
+            view,
+            ai_settings,
+            appearance,
+            app,
+        );
+        widget_children.push(codebase_context);
 
         Flex::column().with_children(widget_children).finish()
     }

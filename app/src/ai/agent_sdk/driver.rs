@@ -2089,7 +2089,7 @@ impl AgentDriver {
         let setup_span = tracing::info_span!("agent_run_setup", tags.cloud_agent = true);
         let (setup_events, task_id_for_refresh, ai_client_for_refresh) = async {
             let setup_events = foreground
-            .spawn(|_me, ctx| SetupClientEventReporter::new(ctx.background_executor()))
+            .spawn(|_me, _ctx| SetupClientEventReporter::new())
             .await?;
 
         foreground
@@ -2322,7 +2322,6 @@ impl AgentDriver {
                 HarnessKind::ThirdParty(_) | HarnessKind::Unsupported(_) => None,
             };
 
-            let harness = task.harness.harness();
             let setup_events_for_environment = setup_events.clone();
             let source_repos_for_prepare = source_repos;
             let prepare_outcome = foreground
@@ -2334,7 +2333,6 @@ impl AgentDriver {
                             setup_commands,
                             working_dir,
                             false, /* is_sandbox */
-                            harness,
                             setup_events_for_environment,
                             ctx,
                         )

@@ -483,7 +483,6 @@ ask_user_question = []
 async_find = []
 clear_autosuggestion_on_escape = []
 cloud_object_initial_load = ["enforce_revisions_to_cloud_objects"]
-codebase_index_speedbump = []
 cocoa_sentry = ["crash_reporting"]
 command_predictor = []
 completions_v2 = [
@@ -501,7 +500,6 @@ crash_reporting = [
     "ai/crash_reporting",
 ]
 cross_repo_context = []
-codebase_index_persistence = ["full_source_code_embedding"]
 well_known_mcp_ids = []
 factory_mcp = []
 default = [
@@ -821,7 +819,6 @@ create_project_flow = []
 agent_mode_evals = [
     "integration_tests",
     "warpui/defer_scene_build",
-    "full_source_code_embedding",
     "cross_repo_context",
     "cloud_object_models/agent_mode_evals",
     "rust-embed/debug-embed",
@@ -954,7 +951,6 @@ iterm_images = []
 validate_autosuggestions = []
 suggested_rules = []
 command_correction_key = []
-full_source_code_embedding = []
 use_tantivy_search = []
 agent_management_popup = []
 ai_context_menu = []

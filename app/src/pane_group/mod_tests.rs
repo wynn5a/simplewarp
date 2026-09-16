@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 use ai::project_context::model::ProjectContextModel;
 use chrono::Utc;
 use instant::Instant;
@@ -178,11 +177,8 @@ fn initialize_app_with_history(app: &mut App, conversations: Vec<AgentConversati
     crate::terminal::available_shells::register(app);
     app.update(experiments::init);
     AltScreenReporting::register(app);
-    app.add_singleton_model(|ctx| {
-        CodebaseIndexManager::new_for_test(ServerApiProvider::as_ref(ctx).get(), ctx)
-    });
-    app.add_singleton_model(|ctx| PersistedWorkspace::new(vec![], HashMap::new(), None, ctx));
     app.add_singleton_model(|_| ProjectContextModel::default());
+    app.add_singleton_model(|ctx| PersistedWorkspace::new(vec![], HashMap::new(), None, ctx));
     app.add_singleton_model(|ctx| crate::ai::agent_tips::AITipModel::new_for_agent_tips(ctx));
     app.add_singleton_model(|_| RestoredAgentConversations::new_seeded(vec![]));
     app.add_singleton_model(OneTimeModalModel::new);

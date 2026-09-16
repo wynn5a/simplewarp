@@ -32,7 +32,6 @@ use super::agent_profiles_page::AgentProfilesPageView;
 use super::appearance_page::AppearanceSettingsPageView;
 use super::cli_agents_page::CLIAgentsPageView;
 use super::code_editor_review_page::EditorAndCodeReviewPageView;
-use super::code_indexing_page::CodeIndexingPageView;
 use super::features_page::FeaturesPageView;
 use super::keybindings::KeybindingsView;
 use super::knowledge_page::KnowledgePageView;
@@ -104,7 +103,6 @@ pub enum SettingsPageViewHandle {
     Features(ViewHandle<FeaturesPageView>),
     Keybindings(ViewHandle<KeybindingsView>),
     About(ViewHandle<AboutPageView>),
-    CodeIndexing(ViewHandle<CodeIndexingPageView>),
     EditorAndCodeReview(ViewHandle<EditorAndCodeReviewPageView>),
     Privacy(ViewHandle<PrivacyPageView>),
     Warpify(ViewHandle<WarpifyPageView>),
@@ -124,7 +122,6 @@ impl SettingsPageViewHandle {
             Features(view_handle) => ChildView::new(view_handle).finish(),
             Keybindings(view_handle) => ChildView::new(view_handle).finish(),
             About(view_handle) => ChildView::new(view_handle).finish(),
-            CodeIndexing(view_handle) => ChildView::new(view_handle).finish(),
             EditorAndCodeReview(view_handle) => ChildView::new(view_handle).finish(),
             Privacy(view_handle) => ChildView::new(view_handle).finish(),
             Warpify(view_handle) => ChildView::new(view_handle).finish(),

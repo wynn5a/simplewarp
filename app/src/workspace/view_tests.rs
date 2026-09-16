@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 use ai::project_context::model::ProjectContextModel;
 use pane_group::{NotebookPane, PaneState, SplitPaneState, TerminalPaneId};
 #[cfg(feature = "local_fs")]
@@ -195,11 +194,8 @@ pub(crate) fn initialize_app(app: &mut App) {
 
     app.update(experiments::init);
 
-    app.add_singleton_model(|ctx| {
-        CodebaseIndexManager::new_for_test(ServerApiProvider::as_ref(ctx).get(), ctx)
-    });
-    app.add_singleton_model(|ctx| PersistedWorkspace::new(vec![], HashMap::new(), None, ctx));
     app.add_singleton_model(|_| ProjectContextModel::default());
+    app.add_singleton_model(|ctx| PersistedWorkspace::new(vec![], HashMap::new(), None, ctx));
     app.add_singleton_model(|_| PricingInfoModel::new());
     app.add_singleton_model(crate::ai::pricing_promotion::PricingPromotionState::new);
     app.add_singleton_model(AIDocumentModel::new);

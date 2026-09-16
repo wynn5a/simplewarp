@@ -265,7 +265,6 @@ dependencies = [
  "async-channel",
  "async-fs",
  "async-trait",
- "base16ct",
  "bincode",
  "bytes",
  "cfg-if",
@@ -274,20 +273,15 @@ dependencies = [
  "derivative",
  "dirs 6.0.0",
  "dunce",
- "filetime",
  "futures",
- "generic-array",
  "ignore",
- "instant",
  "itertools 0.14.0",
  "languages",
  "lazy_static",
- "line-span",
  "log",
  "nix 0.26.4",
  "notify-debouncer-full",
  "persistence",
- "priority-queue",
  "prost-types",
  "rayon",
  "regex",
@@ -298,7 +292,6 @@ dependencies = [
  "serde_json",
  "serde_yaml 0.8.26",
  "serial_test",
- "sha2 0.10.9",
  "shellexpand",
  "streaming-iterator",
  "string-offset",
@@ -7417,12 +7410,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "834e592123b39b7b3ba3fdc4b7e4822fad3ced449010f8229f843fe6dd1a33f1"
 
 [[package]]
-name = "line-span"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29fc123b2f6600099ca18248f69e3ee02b09c4188c0d98e9a690d90dec3e408a"
-
-[[package]]
 name = "line-wrap"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9963,17 +9950,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
 dependencies = [
  "elliptic-curve",
-]
-
-[[package]]
-name = "priority-queue"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5676d703dda103cbb035b653a9f11448c0a7216c7926bd35fcb5865475d0c970"
-dependencies = [
- "autocfg",
- "equivalent",
- "indexmap 2.12.0",
 ]
 
 [[package]]

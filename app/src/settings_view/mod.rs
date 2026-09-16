@@ -5,7 +5,6 @@ use agent_profiles_page::{AgentProfilesPageAction, AgentProfilesPageEvent, Agent
 use appearance_page::{AppearancePageAction, AppearanceSettingsPageView};
 use cli_agents_page::{CLIAgentsPageAction, CLIAgentsPageEvent, CLIAgentsPageView};
 use code_editor_review_page::{EditorAndCodeReviewPageAction, EditorAndCodeReviewPageView};
-use code_indexing_page::{CodeIndexingPageAction, CodeIndexingPageEvent};
 use features_page::{FeaturesPageView, FeaturesSettingsPageEvent};
 use itertools::Itertools as _;
 use keybindings::KeybindingsView;
@@ -72,7 +71,6 @@ mod ai_shared;
 mod appearance_page;
 mod cli_agents_page;
 mod code_editor_review_page;
-mod code_indexing_page;
 pub(crate) mod custom_inference_modal;
 mod custom_router_view;
 mod directory_color_add_picker;
@@ -97,7 +95,6 @@ mod warpify_page;
 
 #[cfg(not(target_family = "wasm"))]
 pub use cli_agents_page::cli_agent_settings_widget_id;
-pub use code_indexing_page::CodeIndexingPageView;
 pub use features_page::FeaturesPageAction;
 pub use privacy_page::PrivacyPageAction;
 pub use settings_page::{
@@ -261,12 +258,6 @@ pub enum SettingsViewEvent {
     OpenCustomRouterEditor(Option<CustomModelRouter>),
     OpenCustomRouterFile(PathBuf),
     OpenExecutionProfileEditor(ExecutionProfileId),
-    OpenLspLogs {
-        log_path: PathBuf,
-    },
-    OpenProjectRulesPane {
-        rule_paths: Vec<PathBuf>,
-    },
 }
 
 /// Different navigation sections within the settings view
@@ -579,7 +570,6 @@ pub mod flags {
     pub const IS_VOICE_INPUT_ENABLED: &str = "IsVoiceInputEnabled";
     pub const IS_BLOCK_AI_SUMMARIES_ENABLED: &str = "IsBlockAISummariesEnabled";
     pub const IS_CODEBASE_INDEXING_ENABLED: &str = "IsCodebaseIndexingEnabled";
-    pub const IS_AUTOINDEXING_ENABLED: &str = "IsAutoIndexingEnabled";
     pub const LIGATURE_RENDERING_CONTEXT_FLAG: &str = "Ligature_Rendering_Enabled";
     pub const HAS_SETTINGS_TO_IMPORT_FLAG: &str = "HasSettingsToImport";
     /// The user's setting enabled UDI, but we may show a classic input (e.g. ssh/subshell warpification)
@@ -629,7 +619,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     agent_profiles_page::init_actions_from_parent_view(app, context, builder);
     knowledge_page::init_actions_from_parent_view(app, context, builder);
     cli_agents_page::init_actions_from_parent_view(app, context, builder);
-    code_indexing_page::init_actions_from_parent_view(app, context, builder);
 
     if ChannelState::enable_debug_features() || cfg!(windows) {
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
@@ -935,7 +924,6 @@ pub enum SettingsAction {
     AgentProfiles(AgentProfilesPageAction),
     Knowledge(KnowledgePageAction),
     CLIAgents(CLIAgentsPageAction),
-    CodeIndexing(CodeIndexingPageAction),
     EditorAndCodeReview(EditorAndCodeReviewPageAction),
     WarpifyPageToggle(WarpifyPageAction),
     Tab,
@@ -1088,7 +1076,6 @@ macro_rules! update_page {
             SettingsPageViewHandle::Knowledge(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::CLIAgents(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::About(handle) => $ctx.update_view(handle, $update),
-            SettingsPageViewHandle::CodeIndexing(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::EditorAndCodeReview(handle) => {
                 $ctx.update_view(handle, $update)
             }
@@ -1180,10 +1167,6 @@ impl SettingsView {
         let keybindings_handle = ctx.add_typed_action_view(KeybindingsView::new);
 
         // Code umbrella pages
-        let code_indexing_page_handle = ctx.add_typed_action_view(CodeIndexingPageView::new);
-        ctx.subscribe_to_view(&code_indexing_page_handle, |me, _, event, ctx| {
-            me.handle_code_indexing_page_event(event, ctx);
-        });
         let editor_review_page_handle = ctx.add_typed_action_view(EditorAndCodeReviewPageView::new);
 
         let warpify_page_handle = ctx.add_typed_action_view(WarpifyPageView::new);
@@ -1237,7 +1220,6 @@ impl SettingsView {
             SettingsPage::new(agent_profiles_page_handle),
             SettingsPage::new(knowledge_page_handle),
             SettingsPage::new(cli_agents_page_handle),
-            SettingsPage::new(code_indexing_page_handle),
             SettingsPage::new(editor_review_page_handle),
             SettingsPage::new(appearance_page_handle),
             SettingsPage::new(features_page_handle),
@@ -1267,10 +1249,7 @@ impl SettingsView {
             )),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
                 "Code",
-                vec![
-                    SettingsSection::CodeIndexing,
-                    SettingsSection::EditorAndCodeReview,
-                ],
+                vec![SettingsSection::EditorAndCodeReview],
             )),
             SettingsNavItem::Page(SettingsSection::Appearance),
             SettingsNavItem::Page(SettingsSection::Features),
@@ -1729,28 +1708,6 @@ impl SettingsView {
         }
     }
 
-    fn handle_code_indexing_page_event(
-        &mut self,
-        event: &CodeIndexingPageEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            CodeIndexingPageEvent::SignupAnonymousUser => {
-                ctx.emit(SettingsViewEvent::SignupAnonymousUser)
-            }
-            CodeIndexingPageEvent::OpenLspLogs { log_path } => {
-                ctx.emit(SettingsViewEvent::OpenLspLogs {
-                    log_path: log_path.clone(),
-                });
-            }
-            CodeIndexingPageEvent::OpenProjectRules { rule_paths } => {
-                ctx.emit(SettingsViewEvent::OpenProjectRulesPane {
-                    rule_paths: rule_paths.clone(),
-                });
-            }
-        }
-    }
-
     pub fn current_settings_section(&self) -> SettingsSection {
         self.current_settings_page
     }
@@ -1861,7 +1818,6 @@ impl SettingsView {
             SettingsPageViewHandle::Knowledge(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::CLIAgents(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::MCPServers(v) => v.as_ref(app).should_render(app),
-            SettingsPageViewHandle::CodeIndexing(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::EditorAndCodeReview(v) => v.as_ref(app).should_render(app),
         }
     }
@@ -2473,15 +2429,6 @@ impl TypedActionView for SettingsView {
                 {
                     view.update(ctx, |view, ctx| {
                         view.handle_action(cli_agents_action, ctx);
-                    })
-                }
-            }
-            SettingsAction::CodeIndexing(code_action) => {
-                if let Some(page) = self.settings_page(SettingsSection::CodeIndexing)
-                    && let SettingsPageViewHandle::CodeIndexing(view) = &page.view_handle
-                {
-                    view.update(ctx, |view, ctx| {
-                        view.handle_action(code_action, ctx);
                     })
                 }
             }

@@ -3751,25 +3751,6 @@ impl TerminalView {
             }
         });
 
-        if FeatureFlag::CodebaseIndexSpeedbump.is_enabled() {
-            // Check whether or not to show the codebase index speedbump when the codebase indexing settings change.
-            ctx.subscribe_to_model(&CodeSettings::handle(ctx), |me, _, _, ctx| {
-                me.check_codebase_index_speedbump_on_settings_changed(ctx);
-            });
-
-            // Check whether or not to show the codebase index speedbump when AI settings change.
-            ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, ai_settings_event, ctx| {
-                match ai_settings_event {
-                    AISettingsChangedEvent::IsAnyAIEnabled { .. }
-                    | AISettingsChangedEvent::AgentModeCodingPermissions { .. }
-                    | AISettingsChangedEvent::AgentModeCodingFileReadAllowlist { .. } => {
-                        me.check_codebase_index_speedbump_on_settings_changed(ctx);
-                    }
-                    _ => {}
-                }
-            });
-        }
-
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, ai_settings_event, ctx| {
             if let AISettingsChangedEvent::AwsBedrockCredentialsEnabled { .. } = ai_settings_event
                 && !UserWorkspaces::as_ref(ctx).is_aws_bedrock_credentials_enabled(ctx)
@@ -12631,13 +12612,6 @@ impl TerminalView {
         self.init_project(true, ctx);
     }
 
-    /// Show or hide codebase index speedbump depending when a settings change happens.
-    fn check_codebase_index_speedbump_on_settings_changed(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(working_directory) = self.active_session_path_if_local(ctx) {
-            self.update_repo_banner_state(working_directory, ctx);
-        }
-    }
-
     fn summarize_conversation(&mut self, ctx: &mut ViewContext<Self>) {
         self.ai_controller.update(ctx, |controller, ctx| {
             controller
@@ -12789,9 +12763,6 @@ impl TerminalView {
                     });
                     // Clicking this button doesn't mark the step as running, so we don't need to
                     // register anything to mark the step as complete.
-                }
-                InitProjectModelEvent::ViewCodebaseContextStatus => {
-                    ctx.emit(Event::OpenSettings(SettingsSection::CodeIndexing));
                 }
                 InitProjectModelEvent::LanguageServerInstalledAndEnabled => {
                     #[cfg(feature = "local_fs")]

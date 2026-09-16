@@ -283,10 +283,7 @@ fn realistic_nav_items() -> Vec<SettingsNavItem> {
         SettingsNavItem::Umbrella(SettingsUmbrella::new("Agents", AGENT_SUBPAGES.to_vec())),
         SettingsNavItem::Umbrella(SettingsUmbrella::new(
             "Code",
-            vec![
-                SettingsSection::CodeIndexing,
-                SettingsSection::EditorAndCodeReview,
-            ],
+            vec![SettingsSection::EditorAndCodeReview],
         )),
         SettingsNavItem::Umbrella(SettingsUmbrella::new(
             "Cloud platform",
@@ -330,7 +327,7 @@ fn collapsed_umbrella_is_a_single_nav_stop() {
         stops[2],
         NavStop::CollapsedUmbrella {
             nav_index: 2,
-            first_subpage: SettingsSection::CodeIndexing,
+            first_subpage: SettingsSection::EditorAndCodeReview,
             last_subpage: SettingsSection::EditorAndCodeReview,
         }
     ));
@@ -578,7 +575,7 @@ fn arrow_up_from_the_next_stop_with_collapsed_agents_lands_on_last_subpage() {
     let next = simulate_cycle(
         &nav_items,
         &stops,
-        SettingsSection::CodeIndexing,
+        SettingsSection::EditorAndCodeReview,
         CycleDirection::Up,
     );
     assert_eq!(next, SettingsSection::ThirdPartyCLIAgents);
@@ -603,7 +600,7 @@ fn arrow_up_into_collapsed_umbrella_respects_search_filter_for_last_subpage() {
     let next = simulate_cycle(
         &nav_items,
         &stops,
-        SettingsSection::CodeIndexing,
+        SettingsSection::EditorAndCodeReview,
         CycleDirection::Up,
     );
     assert_eq!(next, SettingsSection::AgentMCPServers);
@@ -624,7 +621,7 @@ fn arrow_down_from_expanded_last_subpage_leaves_umbrella() {
         SettingsSection::ThirdPartyCLIAgents,
         CycleDirection::Down,
     );
-    assert_eq!(next, SettingsSection::CodeIndexing);
+    assert_eq!(next, SettingsSection::EditorAndCodeReview);
 }
 
 #[test]
@@ -643,15 +640,15 @@ fn arrow_down_across_adjacent_collapsed_umbrellas() {
         SettingsSection::Knowledge,
         CycleDirection::Down,
     );
-    assert_eq!(next_after_agents, SettingsSection::CodeIndexing);
+    assert_eq!(next_after_agents, SettingsSection::EditorAndCodeReview);
 
-    // From the Code umbrella stop (i.e. the user is "on" CodeIndexing which
-    // maps back to the collapsed umbrella), pressing Down again should land
-    // on the Cloud platform umbrella's first subpage.
+    // From the Code umbrella stop (i.e. the user is "on" EditorAndCodeReview
+    // which maps back to the collapsed umbrella), pressing Down again should
+    // land on the Cloud platform umbrella's first subpage.
     let next_after_code = simulate_cycle(
         &nav_items,
         &stops,
-        SettingsSection::CodeIndexing,
+        SettingsSection::EditorAndCodeReview,
         CycleDirection::Down,
     );
     assert_eq!(next_after_code, SettingsSection::OzCloudAPIKeys);

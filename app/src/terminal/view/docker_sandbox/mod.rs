@@ -6,7 +6,6 @@ use std::path::PathBuf;
 use std::sync::mpsc::SyncSender;
 
 #[cfg(not(target_family = "wasm"))]
-use warp_cli::agent::Harness;
 #[cfg(any(feature = "local_tty", not(target_family = "wasm")))]
 use warp_errors::report_error;
 #[cfg(feature = "local_tty")]
@@ -222,7 +221,7 @@ impl TerminalView {
         ctx: &mut ViewContext<V>,
     ) {
         let terminal_driver = TerminalDriver::create_from_existing_view(terminal_view.clone(), ctx);
-        let setup_events = SetupClientEventReporter::new(ctx.background_executor().clone());
+        let setup_events = SetupClientEventReporter::new();
 
         let spawner = terminal_driver.update(ctx, |_, ctx| ctx.spawner());
         ctx.spawn(
@@ -262,7 +261,6 @@ impl TerminalView {
                             setup_commands,
                             DOCKER_SANDBOX_HOME_DIR.into(),
                             true, /* is_sandbox */
-                            Harness::Oz,
                             setup_events,
                             ctx,
                         )

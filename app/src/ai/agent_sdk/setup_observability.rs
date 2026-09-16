@@ -1,21 +1,17 @@
 use std::future::Future;
-use std::sync::Arc;
 
 use futures::FutureExt as _;
 use tracing::Instrument as _;
-use warpui::r#async::executor::Background;
 
 #[derive(Clone)]
-pub(crate) struct SetupClientEventReporter {
-    background: Arc<Background>,
-}
+pub(crate) struct SetupClientEventReporter;
 
 impl SetupClientEventReporter {
     /// Constructs a reporter for setup paths. Previously this also carried the
     /// Oz run id and API client for posting setup metrics to the server; the
     /// only remaining job is timing setup steps into local tracing spans.
-    pub(crate) fn new(background: Arc<Background>) -> Self {
-        Self { background }
+    pub(crate) fn new() -> Self {
+        Self
     }
 
     pub(crate) async fn record_result<T, E: std::error::Error>(
@@ -44,22 +40,6 @@ impl SetupClientEventReporter {
 
         future.instrument(span).await
     }
-
-    pub(crate) fn record_value_detached<T>(
-        &self,
-        step: SetupStep,
-        future: impl Future<Output = T> + Send + 'static,
-    ) where
-        T: Send + 'static,
-    {
-        let (_, span) = step.to_event_name_and_span();
-
-        self.background
-            .spawn(async move {
-                future.instrument(span).await;
-            })
-            .detach();
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -77,7 +57,6 @@ pub(crate) enum SetupStep {
     EnvironmentRepoClone,
     CacheSetup,
     EnvironmentSetupCommands,
-    EnvironmentCodebaseIndexing,
     FileBasedMcpDiscovery,
     FileBasedMcpReadiness,
     EnvironmentSkillLoading,
@@ -140,9 +119,6 @@ impl SetupStep {
             }
             Self::EnvironmentSetupCommands => {
                 span_and_name!("setup_environment_setup_commands")
-            }
-            Self::EnvironmentCodebaseIndexing => {
-                span_and_name!("setup_environment_codebase_indexing")
             }
             Self::FileBasedMcpDiscovery => {
                 span_and_name!("setup_file_based_mcp_discovery")

@@ -1,11 +1,6 @@
-use std::collections::{HashMap, HashSet};
 #[cfg(not(target_family = "wasm"))]
 use std::path::Path;
 
-use ai::index::full_source_code_embedding::store_client::{IntermediateNode, StoreClient};
-use ai::index::full_source_code_embedding::{
-    self, CodebaseContextConfig, ContentHash, EmbeddingConfig, NodeHash, RepoMetadata,
-};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 #[cfg(test)]
@@ -850,83 +845,6 @@ impl TryFrom<warp_graphql::queries::list_ai_conversations::AIConversationMetadat
             server_conversation_token,
             artifacts,
         })
-    }
-}
-
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
-impl StoreClient for ServerApi {
-    async fn update_intermediate_nodes(
-        &self,
-        _embedding_config: EmbeddingConfig,
-        _nodes: Vec<IntermediateNode>,
-    ) -> Result<HashMap<NodeHash, bool>, full_source_code_embedding::Error> {
-        Err(full_source_code_embedding::Error::Other(
-            crate::server::server_api::local_only_error(),
-        ))
-    }
-
-    async fn generate_embeddings(
-        &self,
-        _embedding_config: EmbeddingConfig,
-        _fragments: Vec<full_source_code_embedding::Fragment>,
-        _root_hash: NodeHash,
-        _repo_metadata: RepoMetadata,
-    ) -> Result<HashMap<ContentHash, bool>, full_source_code_embedding::Error> {
-        Err(full_source_code_embedding::Error::Other(
-            crate::server::server_api::local_only_error(),
-        ))
-    }
-
-    async fn populate_merkle_tree_cache(
-        &self,
-        _embedding_config: EmbeddingConfig,
-        _root_hash: NodeHash,
-        _repo_metadata: RepoMetadata,
-    ) -> Result<bool, full_source_code_embedding::Error> {
-        Err(full_source_code_embedding::Error::Other(
-            crate::server::server_api::local_only_error(),
-        ))
-    }
-
-    async fn sync_merkle_tree(
-        &self,
-        _nodes: Vec<NodeHash>,
-        _embedding_config: EmbeddingConfig,
-    ) -> Result<HashSet<NodeHash>, full_source_code_embedding::Error> {
-        Err(full_source_code_embedding::Error::Other(
-            crate::server::server_api::local_only_error(),
-        ))
-    }
-
-    async fn rerank_fragments(
-        &self,
-        _query: String,
-        _fragments: Vec<full_source_code_embedding::Fragment>,
-    ) -> Result<Vec<full_source_code_embedding::Fragment>, full_source_code_embedding::Error> {
-        Err(full_source_code_embedding::Error::Other(
-            crate::server::server_api::local_only_error(),
-        ))
-    }
-
-    async fn get_relevant_fragments(
-        &self,
-        _embedding_config: EmbeddingConfig,
-        _query: String,
-        _root_hash: NodeHash,
-        _repo_metadata: RepoMetadata,
-    ) -> Result<Vec<ContentHash>, full_source_code_embedding::Error> {
-        Err(full_source_code_embedding::Error::Other(
-            crate::server::server_api::local_only_error(),
-        ))
-    }
-
-    async fn codebase_context_config(
-        &self,
-    ) -> Result<CodebaseContextConfig, full_source_code_embedding::Error> {
-        Err(full_source_code_embedding::Error::Other(
-            crate::server::server_api::local_only_error(),
-        ))
     }
 }
 

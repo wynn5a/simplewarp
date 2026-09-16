@@ -120,12 +120,6 @@ pub mod settings_view;
 pub mod tab_configs;
 pub mod terminal;
 pub mod themes;
-use ::ai::index::DEFAULT_SYNC_REQUESTS_PER_MIN;
-#[cfg(feature = "local_fs")]
-use ::ai::index::full_source_code_embedding::SyncTask;
-use ::ai::index::full_source_code_embedding::manager::{
-    CodebaseIndexManager, CodebaseIndexManagerConfig,
-};
 use ::ai::project_context::model::ProjectContextModel;
 pub use ai::agent::todos::AIAgentTodoList;
 pub use ai::agent::{AIAgentActionResultType, FileEdit, TodoOperation};
@@ -1327,15 +1321,6 @@ pub(crate) fn initialize_app(
             )
         });
 
-    // The daemon's `PersistedDataScope::CodebaseIndicesOnly` read already
-    // skips everything except codebase index metadata.
-    if matches!(launch_mode, LaunchMode::RemoteServerDaemon { .. }) {
-        let codebase_index_count = persisted_workspaces.len();
-        log::debug!(
-            "[Remote codebase indexing] Restored daemon codebase index metadata: metadata_count={codebase_index_count}"
-        );
-    }
-
     ctx.add_singleton_model(|_| AIRequestUsageModel::new(ai_client));
 
     ctx.add_singleton_model(|ctx| {
@@ -1744,12 +1729,6 @@ pub(crate) fn initialize_app(
     } else {
         ctx.add_singleton_model(|ctx| RepoOutlines::new_with_indexing_enabled(false, ctx));
     }
-    ctx.add_singleton_model(|ctx| {
-        warp_core::sync_queue::SyncQueue::<SyncTask>::new_with_rate_limit(
-            &ctx.background_executor(),
-            Some(DEFAULT_SYNC_REQUESTS_PER_MIN),
-        )
-    });
 
     ctx.add_singleton_model(|_| UserProfiles::new(restored_user_profiles));
 
@@ -1887,28 +1866,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|ctx| AIExecutionProfilesModel::new(launch_mode, ctx));
 
     ctx.add_singleton_model(DefaultTerminal::new);
-
-    ctx.add_singleton_model(|ctx| {
-        let should_restore_indices = launch_mode.supports_indexing()
-            && UserWorkspaces::as_ref(ctx).is_codebase_context_enabled(ctx);
-        let indices_to_restore = if should_restore_indices {
-            persisted_workspaces.clone()
-        } else {
-            vec![]
-        };
-
-        let codebase_limits = AIRequestUsageModel::as_ref(ctx).codebase_context_limits();
-        let codebase_index_config = CodebaseIndexManagerConfig::new(
-            indices_to_restore,
-            codebase_limits.max_indices_allowed,
-            codebase_limits.max_files_per_repo,
-            codebase_limits.embedding_generation_batch_size,
-            server_api_provider.as_ref(ctx).get(),
-            launch_mode.supports_indexing(),
-        );
-
-        CodebaseIndexManager::new_with_config(codebase_index_config, ctx)
-    });
 
     ctx.add_singleton_model(|ctx| {
         ProjectContextModel::new_from_persisted(

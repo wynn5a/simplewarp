@@ -21,7 +21,7 @@ pub struct FileFragmentLocation {
 pub enum CodeContextLocation {
     /// Represent an entire file (used in outline-based context)
     WholeFile(PathBuf),
-    /// Represent a specific fragment of a file (used with FullSourceCodeEmbedding)
+    /// Represent a specific fragment of a file
     Fragment(FileFragmentLocation),
 }
 

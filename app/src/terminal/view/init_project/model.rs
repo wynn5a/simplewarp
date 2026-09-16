@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 use ai::project_context::model::ProjectContextModel;
 use enum_iterator::Sequence;
 use lsp::supported_servers::LSPServerType;
@@ -10,13 +9,11 @@ use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::{Entity, ModelContext, SingletonEntity as _};
 
 use crate::ai::persisted_workspace::PersistedWorkspace;
-use crate::settings::CodeSettings;
 use crate::terminal::view::init_project::lsp_server_selector::LSPServerInfo;
 use crate::terminal::view::init_project::{
-    CodebaseIndexingResult, CreateEnvironmentResult, FILES_TO_CHECK, InitActionResult,
-    LINKABLE_FILES, LanguageServersResult, ProjectScopedRulesResult,
+    CreateEnvironmentResult, FILES_TO_CHECK, InitActionResult, LINKABLE_FILES,
+    LanguageServersResult, ProjectScopedRulesResult,
 };
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const INIT_STEP_COUNT: usize = enum_iterator::cardinality::<InitStepKind>();
 
@@ -25,18 +22,14 @@ const INIT_STEP_COUNT: usize = enum_iterator::cardinality::<InitStepKind>();
 #[repr(usize)]
 pub enum InitStepKind {
     Welcome = 0,
-    CodebaseContext = 1,
-    LanguageServers = 2,
-    ProjectScopedRules = 3,
-    CreateEnvironment = 4,
+    LanguageServers = 1,
+    ProjectScopedRules = 2,
+    CreateEnvironment = 3,
 }
 
 /// Data needed for views to render ready steps, used to create [`InitStepBlock`]s
 #[derive(Clone, Debug)]
 pub enum InitStepData {
-    CodebaseContext {
-        pwd_path: PathBuf,
-    },
     LanguageServers {
         servers: Vec<LSPServerInfo>,
         repo_path: PathBuf,
@@ -127,7 +120,7 @@ impl InitProjectModel {
         let is_already_setup = !Self::should_have_available_steps(&pwd_path, ctx);
 
         Self {
-            steps: [None, None, None, None, None],
+            steps: [None, None, None, None],
             current_step_index: 0,
             is_cancelled: false,
             is_already_setup,
@@ -154,7 +147,6 @@ impl InitProjectModel {
         );
 
         // Start async computations for subsequent steps
-        self.compute_codebase_context_step(&pwd_path, ctx);
         if self.path_env_var.is_some() {
             self.compute_language_servers_step(&pwd_path, ctx);
         }
@@ -176,20 +168,9 @@ impl InitProjectModel {
 
     /// Check if there are any steps that need user action
     pub fn should_have_available_steps(path: &Path, ctx: &warpui::AppContext) -> bool {
-        // Note that we consider auto-indexing setting to true to satisfy the codebase context step.
-        // This avoids the potential race condition with the banner showing just when we start auto-indexing.
-        let has_pending_codebase_context = UserWorkspaces::as_ref(ctx)
-            .is_codebase_context_enabled(ctx)
-            && CodebaseIndexManager::as_ref(ctx)
-                .get_codebase_index_status_for_path(path, ctx)
-                .is_none()
-            && !*CodeSettings::as_ref(ctx).auto_indexing_enabled;
-
-        let has_pending_project_scoped_rules = ProjectContextModel::as_ref(ctx)
+        ProjectContextModel::as_ref(ctx)
             .find_applicable_project_rules(&LocalOrRemotePath::Local(path.to_path_buf()))
-            .is_none();
-
-        has_pending_codebase_context || has_pending_project_scoped_rules
+            .is_none()
     }
 
     pub fn get_step(&self, kind: InitStepKind) -> Option<&InitStep> {
@@ -297,9 +278,6 @@ impl InitProjectModel {
             ) {
                 let skipped_result = match step.kind {
                     InitStepKind::Welcome => continue,
-                    InitStepKind::CodebaseContext => {
-                        InitActionResult::CodebaseContext(CodebaseIndexingResult::Skipped)
-                    }
                     InitStepKind::LanguageServers => {
                         InitActionResult::LanguageServers(LanguageServersResult::Skipped)
                     }
@@ -359,41 +337,6 @@ impl InitProjectModel {
             Some(_) => {
                 // Still Pending, wait for async to finish
             }
-        }
-    }
-
-    fn compute_codebase_context_step(&mut self, pwd_path: &Path, ctx: &mut ModelContext<Self>) {
-        if !UserWorkspaces::as_ref(ctx).is_codebase_context_enabled(ctx) {
-            // Feature disabled, leave as None
-            return;
-        }
-
-        let codebase_index_manager = CodebaseIndexManager::handle(ctx);
-        let is_indexed = codebase_index_manager
-            .as_ref(ctx)
-            .get_codebase_index_status_for_path(pwd_path, ctx)
-            .is_some();
-
-        if is_indexed {
-            // Already indexed, mark as completed
-            self.set_step(
-                InitStepKind::CodebaseContext,
-                Some(InitStep::new_completed(
-                    InitStepKind::CodebaseContext,
-                    InitActionResult::CodebaseContext(CodebaseIndexingResult::Accepted),
-                )),
-            );
-        } else {
-            // Ready for user interaction
-            self.set_step(
-                InitStepKind::CodebaseContext,
-                Some(InitStep::new_ready(
-                    InitStepKind::CodebaseContext,
-                    InitStepData::CodebaseContext {
-                        pwd_path: pwd_path.to_path_buf(),
-                    },
-                )),
-            );
         }
     }
 
@@ -583,8 +526,6 @@ pub enum InitProjectModelEvent {
     GenerateProjectRules,
     /// Trigger AGENTS.md regeneration
     RegenerateProjectRules,
-    /// View codebase context status
-    ViewCodebaseContextStatus,
     /// Language server installed and enabled
     LanguageServerInstalledAndEnabled,
     /// Trigger create environment slash command

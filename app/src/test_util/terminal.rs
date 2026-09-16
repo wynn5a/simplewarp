@@ -1,4 +1,3 @@
-use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 #[cfg(feature = "local_fs")]
 use ai::skills::SKILL_PROVIDER_DEFINITIONS;
 #[cfg(feature = "local_fs")]
@@ -136,9 +135,6 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
     app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
     app.add_singleton_model(SkillManager::new);
-    app.add_singleton_model(|ctx| {
-        CodebaseIndexManager::new_for_test(ServerApiProvider::as_ref(ctx).get(), ctx)
-    });
     app.add_singleton_model(|_| TemplatableMCPServerManager::default());
     app.add_singleton_model(|ctx| {
         AIExecutionProfilesModel::new(&crate::LaunchMode::new_for_unit_test(), ctx)

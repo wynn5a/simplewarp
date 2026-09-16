@@ -107,8 +107,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::SuggestedAgentModeWorkflows,
         #[cfg(feature = "command_correction_key")]
         FeatureFlag::CommandCorrectionKey,
-        #[cfg(feature = "full_source_code_embedding")]
-        FeatureFlag::FullSourceCodeEmbedding,
         #[cfg(feature = "use_tantivy_search")]
         FeatureFlag::UseTantivySearch,
         #[cfg(feature = "mcp_server")]
@@ -133,8 +131,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ReadImageFiles,
         #[cfg(feature = "cross_repo_context")]
         FeatureFlag::CrossRepoContext,
-        #[cfg(feature = "codebase_index_persistence")]
-        FeatureFlag::CodebaseIndexPersistence,
         #[cfg(feature = "ai_context_menu")]
         FeatureFlag::AIContextMenuEnabled,
         #[cfg(feature = "at_menu_outside_of_ai_mode")]
@@ -145,8 +141,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::FigmaDetection,
         #[cfg(feature = "agent_decides_command_execution")]
         FeatureFlag::AgentDecidesCommandExecution,
-        #[cfg(feature = "codebase_index_speedbump")]
-        FeatureFlag::CodebaseIndexSpeedbump,
         #[cfg(feature = "fast_forward_autoexecute_button")]
         FeatureFlag::FastForwardAutoexecuteButton,
         #[cfg(feature = "code_find_replace")]
