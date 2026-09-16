@@ -373,7 +373,6 @@ impl ServerApi {
             auth_state,
             event_sender,
             None,
-            None,
             TelemetryApi::new(),
         )
     }
