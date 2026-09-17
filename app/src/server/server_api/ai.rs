@@ -23,11 +23,6 @@ use crate::ai::artifacts::Artifact;
 use crate::ai::generate_code_review_content::api::{
     GenerateCodeReviewContentRequest, GenerateCodeReviewContentResponse,
 };
-use crate::ai_assistant::execution_context::WarpAiExecutionContext;
-use crate::ai_assistant::requests::GenerateDialogueResult;
-use crate::ai_assistant::utils::TranscriptPart;
-use crate::ai_assistant::{AIGeneratedCommand, GenerateCommandsFromNaturalLanguageError};
-use crate::drive::workflows::ai_assist::{GeneratedCommandMetadata, GeneratedCommandMetadataError};
 use crate::persistence::model::ConversationUsageMetadata;
 
 /// A status update for a task, optionally including a platform error code.
@@ -300,30 +295,6 @@ impl RunSortOrder {
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 pub trait AIClient: 'static + Send + Sync {
-    async fn generate_commands_from_natural_language(
-        &self,
-        prompt: String,
-        ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> Result<Vec<AIGeneratedCommand>, GenerateCommandsFromNaturalLanguageError>;
-
-    async fn generate_dialogue_answer(
-        &self,
-        transcript: Vec<TranscriptPart>,
-        prompt: String,
-        ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> anyhow::Result<GenerateDialogueResult>;
-
-    async fn generate_metadata_for_command(
-        &self,
-        command: String,
-    ) -> Result<GeneratedCommandMetadata, GeneratedCommandMetadataError>;
-
-    async fn provide_negative_feedback_response_for_ai_conversation(
-        &self,
-        conversation_id: String,
-        request_ids: Vec<String>,
-    ) -> anyhow::Result<i32, anyhow::Error>;
-
     async fn create_agent_task(
         &self,
         prompt: String,
@@ -536,40 +507,6 @@ impl ServerApi {
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 impl AIClient for ServerApi {
-    async fn generate_commands_from_natural_language(
-        &self,
-        _prompt: String,
-        // TODO: use relevant context from RequestContext and deprecate usage of ai_execution_context
-        _ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> Result<Vec<AIGeneratedCommand>, GenerateCommandsFromNaturalLanguageError> {
-        Err(GenerateCommandsFromNaturalLanguageError::Other)
-    }
-
-    async fn generate_dialogue_answer(
-        &self,
-        _transcript: Vec<TranscriptPart>,
-        _prompt: String,
-        // TODO: use relevant context from RequestContext and deprecate usage of ai_execution_context
-        _ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> anyhow::Result<GenerateDialogueResult> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn generate_metadata_for_command(
-        &self,
-        _command: String,
-    ) -> Result<GeneratedCommandMetadata, GeneratedCommandMetadataError> {
-        Err(GeneratedCommandMetadataError::Other)
-    }
-
-    async fn provide_negative_feedback_response_for_ai_conversation(
-        &self,
-        _conversation_id: String,
-        _request_ids: Vec<String>,
-    ) -> anyhow::Result<i32, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
     #[tracing::instrument(skip_all, err, fields(
         tags.cloud_agent = true,
         config.worker_host = tracing::field::Empty,

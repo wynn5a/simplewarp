@@ -1,5 +1,5 @@
+use warpui::App;
 use warpui::platform::WindowStyle;
-use warpui::{App, SingletonEntity};
 
 use super::Transcript;
 use crate::ai::AIRequestUsageModel;
@@ -50,9 +50,7 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-    app.add_singleton_model(|ctx| {
-        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client())
-    });
+    app.add_singleton_model(|_| AIRequestUsageModel::new());
 }
 
 #[test]

@@ -2,6 +2,8 @@ use warpui::App;
 use warpui::platform::WindowStyle;
 
 use super::*;
+use crate::auth::AuthStateProvider;
+use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -37,7 +39,7 @@ fn test_render_view() {
         initialize_app(&mut app);
 
         let (_window_id, _view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
-            CommandSearchView::new(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
+            CommandSearchView::new(ctx)
         });
 
         app.update(|_| {

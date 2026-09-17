@@ -1080,7 +1080,6 @@ impl View for AIBlock {
                 manage_rules_button: &self.manage_rules_button,
                 keyboard_navigable_buttons: self.keyboard_navigable_buttons.as_ref(),
                 response_rating: &self.response_rating,
-                request_refunded_count: self.request_refunded_count,
                 search_codebase_view: &self.search_codebase_view,
                 web_search_views: &self.web_search_views,
                 web_fetch_views: &self.web_fetch_views,

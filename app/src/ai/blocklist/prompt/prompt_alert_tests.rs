@@ -27,9 +27,7 @@ fn initialize_app_with_workspaces(app: &mut App, workspaces: Vec<Workspace>) {
         ctx.add_singleton_model(ApiKeyManager::new);
     });
     app.add_singleton_model(|_| crate::pricing::PricingInfoModel::new());
-    app.add_singleton_model(|ctx| {
-        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client())
-    });
+    app.add_singleton_model(|_| AIRequestUsageModel::new());
 }
 
 fn determine_state(app: &mut App) -> PromptAlertState {

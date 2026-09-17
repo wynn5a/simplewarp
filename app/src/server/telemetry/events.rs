@@ -1637,10 +1637,6 @@ pub enum TelemetryEvent {
         interaction: SecretInteraction,
     },
     CopySecret,
-    AutoGenerateMetadataSuccess,
-    AutoGenerateMetadataError {
-        error_payload: Value,
-    },
     UpdateSortingChoice {
         sorting_choice: DriveSortOrder,
     },
@@ -3084,9 +3080,6 @@ impl TelemetryEvent {
             TelemetryEvent::ToggleObfuscateSecret { interaction } => {
                 Some(json!({ "interaction": interaction }))
             }
-            TelemetryEvent::AutoGenerateMetadataError { error_payload } => {
-                Some(json!({ "error": error_payload }))
-            }
             TelemetryEvent::UpdateSortingChoice { sorting_choice } => {
                 Some(json!({ "sorting_choice": sorting_choice }))
             }
@@ -3756,7 +3749,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AnonymousUserHitCloudObjectLimit
             | TelemetryEvent::CustomSecretRegexAdded
             | TelemetryEvent::CopySecret
-            | TelemetryEvent::AutoGenerateMetadataSuccess
             | TelemetryEvent::CommandFileRun
             | TelemetryEvent::LogOut
             | TelemetryEvent::UpdateBlockFilterQuery
@@ -4474,8 +4466,6 @@ impl TelemetryEvent {
             | TelemetryEvent::CustomSecretRegexAdded
             | TelemetryEvent::ToggleObfuscateSecret { .. }
             | TelemetryEvent::CopySecret
-            | TelemetryEvent::AutoGenerateMetadataSuccess
-            | TelemetryEvent::AutoGenerateMetadataError { .. }
             | TelemetryEvent::UpdateSortingChoice { .. }
             | TelemetryEvent::UndoClose { .. }
             | TelemetryEvent::PtyThroughput { .. }
@@ -4953,8 +4943,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CustomSecretRegexAdded => EnablementState::Always,
             Self::ToggleObfuscateSecret => EnablementState::Always,
             Self::CopySecret => EnablementState::Always,
-            Self::AutoGenerateMetadataSuccess => EnablementState::Always,
-            Self::AutoGenerateMetadataError => EnablementState::Always,
             Self::UpdateSortingChoice => EnablementState::Always,
             Self::UndoClose => EnablementState::Always,
             Self::DuplicateObject => EnablementState::Always,
@@ -5382,8 +5370,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CustomSecretRegexAdded => "Custom Secret Regex Added",
             Self::ToggleObfuscateSecret => "Toggle Obfuscate Secret",
             Self::CopySecret => "Copy Obfuscated Secret",
-            Self::AutoGenerateMetadataSuccess => "Generate Metadata For Workflow Success",
-            Self::AutoGenerateMetadataError => "Generate Metadata For Workflow Error",
             Self::UpdateSortingChoice => "Updated Sorting Choice",
             Self::UndoClose => "Undo Close",
             Self::OpenPromptEditor => "Prompt Editor Opened",
@@ -6007,12 +5993,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CustomSecretRegexAdded => "Custom Secret Regex Added",
             Self::ToggleObfuscateSecret => "Revealed or hid a secret",
             Self::CopySecret => "Copied a secret's obfuscated contents to clipboard",
-            Self::AutoGenerateMetadataSuccess => {
-                "Successfully generated metadata for a workflow using Warp AI"
-            }
-            Self::AutoGenerateMetadataError => {
-                "Failed to generate metadata for a workflow using Warp AI"
-            }
             Self::UpdateSortingChoice => "Modified the sorting scheme for Warp Drive objects",
             Self::UndoClose => "Re-opened a closed tab or window (undo closing a tab or window)",
             Self::PtyThroughput => "A sample of the max PTY throughput in bytes/sec",

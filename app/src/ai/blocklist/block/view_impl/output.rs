@@ -2,7 +2,6 @@
 //!
 //! This includes text, code snippets, suggested commands, and interactive inline action UX.
 use std::cell::OnceCell;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 #[allow(unused_imports)]
 use std::path::{Component, Path};
@@ -170,7 +169,6 @@ pub(crate) struct Props<'a> {
     pub(super) manage_rules_button: &'a ViewHandle<ActionButton>,
     pub(super) keyboard_navigable_buttons: Option<&'a ViewHandle<KeyboardNavigableButtons>>,
     pub(super) response_rating: &'a OnceCell<AIBlockResponseRating>,
-    pub(super) request_refunded_count: Option<i32>,
     pub(super) search_codebase_view: &'a HashMap<AIAgentActionId, ViewHandle<SearchCodebaseView>>,
     pub(super) web_search_views: &'a HashMap<MessageId, ViewHandle<WebSearchView>>,
     pub(super) web_fetch_views: &'a HashMap<MessageId, ViewHandle<WebFetchView>>,
@@ -1170,34 +1168,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                     .flatten()
                 {
                     output_items.add_child(footer);
-                }
-
-                if let Some(request_refunded_count) = props.request_refunded_count {
-                    match request_refunded_count.cmp(&1) {
-                        Ordering::Equal | Ordering::Less => {
-                            output_items.add_child(
-                                render_informational_footer(
-                                    app,
-                                    "Sorry you had a bad experience with this interaction. We've refunded you 1 credit. We appreciate your feedback!"
-                                        .to_string(),
-                                )
-                                .with_agent_output_item_spacing(app)
-                                .finish(),
-                            );
-                        }
-                        Ordering::Greater => {
-                            output_items.add_child(
-                                render_informational_footer(
-                                    app,
-                                    format!(
-                                        "Sorry you had a bad experience with this interaction. We've refunded you {request_refunded_count} credits. We appreciate your feedback!"
-                                    ),
-                                )
-                                .with_agent_output_item_spacing(app)
-                                .finish(),
-                            );
-                        }
-                    }
                 }
             }
         }

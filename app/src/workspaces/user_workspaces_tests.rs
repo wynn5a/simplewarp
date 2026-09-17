@@ -857,24 +857,3 @@ fn test_team_switcher_visible_with_multiple_teams() {
         });
     })
 }
-#[test]
-fn test_member_team_settings_win_over_workspace_settings() {
-    let mut team = team_for_test();
-    team.name = "Member Team".to_string();
-    team.settings.llm_settings.enabled = false;
-    let mut workspace = workspace_for_test(&team);
-    workspace.settings.llm_settings.enabled = true;
-
-    App::test((), |mut app| async move {
-        initialize_window_team_test_app(&mut app, vec![workspace]);
-        app.read(|ctx| {
-            let user_workspaces = UserWorkspaces::as_ref(ctx);
-            let team = user_workspaces.sole_team();
-            assert!(team.is_some(), "the member team should be present");
-            assert!(
-                !user_workspaces.is_custom_llm_enabled_for_team(team),
-                "the team's own settings should win when the user has a team"
-            );
-        });
-    })
-}

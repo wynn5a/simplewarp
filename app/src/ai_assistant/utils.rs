@@ -1,26 +1,16 @@
 /// Common functionality used across different AI Assistant components.
 use markdown_parser::{CodeBlockText, FormattedText, FormattedTextLine, parse_markdown};
-use pathfinder_color::ColorU;
-use warpui::elements::{
-    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, HighlightedHyperlink, Icon,
-    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Text,
-};
+use warpui::Element;
+use warpui::elements::{CornerRadius, HighlightedHyperlink, MouseStateHandle, Radius};
 use warpui::platform::Cursor;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{AppContext, Element, ModelHandle};
 
 use super::panel::AIAssistantAction;
-use super::requests::Requests;
 use super::transcript::CodeBlockMouseStateHandles;
 use crate::appearance::Appearance;
-use crate::ui_components::blended_colors;
 
 const PREPARED_RESPONSE_FONT_SIZE: f32 = 11.;
-const REQUEST_LIMIT_INFO_FONT_SIZE: f32 = 11.;
-
-const SQUARE_ALERT_SVG_PATH: &str = "bundled/svg/alert-square.svg";
-const TRIANGLE_ALERT_SVG_PATH: &str = "bundled/svg/alert-triangle.svg";
 
 /// A transcript part is a question and answer _pair_. This is to enforce
 /// the invariant that every question has an answer.
@@ -306,82 +296,6 @@ pub fn render_prepared_response_button(
             ctx.dispatch_typed_action(AIAssistantAction::PreparedPrompt(prompt))
         })
         .finish()
-}
-
-pub fn render_request_limit_info(
-    request_model: &ModelHandle<Requests>,
-    app: &AppContext,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    let text_color: ColorU =
-        blended_colors::text_sub(appearance.theme(), appearance.theme().background());
-
-    let num_requests_used = request_model.as_ref(app).num_requests_used();
-    let num_requests_remaining = request_model.as_ref(app).num_remaining_reqs();
-    let request_limit = request_model.as_ref(app).request_limit();
-    let next_refresh_time = request_model.as_ref(app).serialized_time_until_refresh();
-
-    // Always show the remaining requests count.
-    let mut row = Flex::row()
-        .with_main_axis_size(MainAxisSize::Max)
-        .with_main_axis_alignment(MainAxisAlignment::Center)
-        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-        .with_child(
-            Text::new_inline(
-                format!("Credits used: {num_requests_used} / {request_limit}.",),
-                appearance.ui_font_family(),
-                REQUEST_LIMIT_INFO_FONT_SIZE,
-            )
-            .with_color(text_color)
-            .finish(),
-        );
-
-    // Add the warning icon if necessary.
-    let icon = if num_requests_remaining == 0 {
-        Some(Icon::new(
-            TRIANGLE_ALERT_SVG_PATH,
-            appearance.theme().ui_error_color(),
-        ))
-    } else if num_requests_remaining <= 10 {
-        Some(Icon::new(
-            SQUARE_ALERT_SVG_PATH,
-            appearance.theme().ui_warning_color(),
-        ))
-    } else {
-        None
-    };
-
-    if let Some(icon) = icon {
-        row.add_child(
-            Container::new(
-                ConstrainedBox::new(icon.finish())
-                    .with_height(16.)
-                    .with_width(16.)
-                    .finish(),
-            )
-            .with_margin_left(5.)
-            .finish(),
-        );
-    }
-
-    // Show the next refresh time if it's valid.
-    if let Some(next_refresh_time) = next_refresh_time {
-        row.add_child(
-            Container::new(
-                Text::new_inline(
-                    format!("{next_refresh_time} until refresh."),
-                    appearance.ui_font_family(),
-                    REQUEST_LIMIT_INFO_FONT_SIZE,
-                )
-                .with_color(text_color)
-                .finish(),
-            )
-            .with_margin_left(5.)
-            .finish(),
-        );
-    }
-
-    row.finish()
 }
 
 pub fn code_block_position_id(code_block_index: CodeBlockIndex) -> String {

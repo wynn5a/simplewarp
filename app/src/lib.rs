@@ -1181,8 +1181,6 @@ pub(crate) fn initialize_app(
         });
     #[cfg(not(target_family = "wasm"))]
     server_api.set_ambient_agent_task_id(ambient_agent_task_id);
-    let ai_client = server_api_provider.as_ref(ctx).get_ai_client();
-
     ctx.add_singleton_model(|_ctx| AuthStateProvider::new(auth_state.clone()));
 
     ctx.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
@@ -1321,7 +1319,7 @@ pub(crate) fn initialize_app(
             )
         });
 
-    ctx.add_singleton_model(|_| AIRequestUsageModel::new(ai_client));
+    ctx.add_singleton_model(|_| AIRequestUsageModel::new());
 
     ctx.add_singleton_model(|ctx| {
         UserWorkspaces::new(cached_workspaces, current_workspace_uid, ctx)

@@ -213,13 +213,6 @@ impl UserWorkspaces {
         }
     }
 
-    pub fn team_from_uid_across_all_workspaces(&self, team_uid: ServerId) -> Option<&Team> {
-        self.workspaces
-            .iter()
-            .flat_map(|w| w.teams.iter())
-            .find(|t| t.uid == team_uid)
-    }
-
     pub fn workspace_from_uid(&self, workspace_uid: WorkspaceUid) -> Option<&Workspace> {
         self.workspaces.iter().find(|w| w.uid == workspace_uid)
     }
@@ -335,15 +328,6 @@ impl UserWorkspaces {
         self.current_workspace_uid
             .and_then(|workspace_uid| self.workspace_from_uid(workspace_uid))
     }
-    pub fn is_custom_llm_enabled_for_team(&self, team: Option<&Team>) -> bool {
-        team.map(Team::is_custom_llm_enabled)
-            .or_else(|| {
-                self.current_workspace()
-                    .map(Workspace::is_custom_llm_enabled)
-            })
-            .unwrap_or(false)
-    }
-
     pub fn workspaces(&self) -> &Vec<Workspace> {
         &self.workspaces
     }

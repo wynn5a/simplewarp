@@ -31,9 +31,7 @@ fn add_request_usage_model_without_auth(app: &mut App) -> ModelHandle<AIRequestU
         ctx.add_singleton_model(ApiKeyManager::new);
     });
     app.add_singleton_model(|_| PricingInfoModel::new());
-    app.add_singleton_model(|_| {
-        AIRequestUsageModel::new_for_test(ServerApiProvider::new_for_test().get_ai_client())
-    })
+    app.add_singleton_model(|_| AIRequestUsageModel::new())
 }
 
 #[test]

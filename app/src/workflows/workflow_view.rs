@@ -69,12 +69,9 @@ use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
 use crate::server::ids::{ClientId, SyncId};
-use crate::server::server_api::ServerApiProvider;
-use crate::server::server_api::ai::AIClient;
 use crate::server::telemetry::{
     CloudObjectTelemetryMetadata, TelemetryCloudObjectType, TelemetryEvent,
 };
-use crate::settings::AISettings;
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
@@ -158,10 +155,6 @@ const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_BORDER_RADIUS: f32 = 4.;
 const BUTTON_HEIGHT: f32 = 32.;
 
-const AI_ASSIST_BUTTON_SIZE: f32 = 92.;
-const AI_ASSIST_BUTTON_TEXT: &str = "Autofill";
-const AI_ASSIST_LOADING_TEXT: &str = "Loading";
-
 const ALIAS_HELP_TEXT: &str = "Aliases allow you to create short strings to execute workflows. Each alias can have different argument values and environment variables, and aliases are personal to you.";
 
 const RUN_ON_DESKTOP_BUTTON_TEXT: &str = "Run in Warp";
@@ -172,12 +165,6 @@ const KEEP_EDITING_TEXT: &str = "Keep editing";
 const DISCARD_CHANGES_TEXT: &str = "Discard changes";
 const DIALOG_WIDTH: f32 = 460.;
 const MODAL_HORIZONTAL_MARGIN: f32 = 28.;
-
-pub(super) enum AiAssistState {
-    PreRequest,
-    RequestInFlight,
-    Generated,
-}
 
 /// A grouping of various error states the modal can be in. Any of these being
 /// `true` prevents the save button from being clickable.
@@ -215,7 +202,6 @@ pub enum WorkflowAction {
     ForceClose,
     Save,
     Cancel,
-    AiAssist,
     Duplicate,
     CopyLink(String),
     OpenLinkOnDesktop(Url),
@@ -260,8 +246,6 @@ struct UiStateHandles {
     restore_from_trash_button: MouseStateHandle,
     keep_editing_state: MouseStateHandle,
     discard_changes_state: MouseStateHandle,
-    ai_assist_state: MouseStateHandle,
-    ai_assist_tool_tip: MouseStateHandle,
     edit_mode_button_mouse_state: MouseStateHandle,
     copy_content_button_mouse_state: MouseStateHandle,
     execute_command_mouse_state: MouseStateHandle,
@@ -295,9 +279,7 @@ pub struct WorkflowView {
     /// to append a number to the default argument name (argument_1, argument_2,
     /// etc.).
     default_argument_id: usize,
-    pub(super) ai_metadata_assist_state: AiAssistState,
     revision_ts: Option<Revision>,
-    pub(super) ai_client: Arc<dyn AIClient>,
     owner: Option<Owner>,
     initial_folder_id: Option<SyncId>,
 
@@ -392,8 +374,6 @@ impl WorkflowView {
             me.handle_content_editor_event(event, ctx);
         });
 
-        let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
-
         let enum_creation_dialog = ctx.add_typed_action_view(EnumCreationDialog::new);
         ctx.subscribe_to_view(&enum_creation_dialog, |me, _, event, ctx| {
             me.handle_enum_creation_dialog_event(event, ctx);
@@ -438,12 +418,10 @@ impl WorkflowView {
             ui_state_handles: Default::default(),
             show_unsaved_changes: None,
             default_argument_id: 0,
-            ai_metadata_assist_state: AiAssistState::PreRequest,
             owner: None,
             initial_folder_id: None,
             revision_ts: None,
             command_display_data: WorkflowCommandDisplayData::new_empty(),
-            ai_client,
             pending_argument_editor_row: None,
             show_enum_creation_dialog: false,
             enum_creation_dialog,
@@ -1605,13 +1583,6 @@ impl WorkflowView {
         self.workflow_view_mode.is_editable()
     }
 
-    fn is_ai_assist_button_disabled(&self, app: &AppContext) -> bool {
-        // Autofill button should be disabled when there is no content or when there are secrets in the workflow.
-        self.content_editor.as_ref(app).is_empty(app)
-            || self.show_enum_creation_dialog
-            || self.workflow_contains_secrets(app)
-    }
-
     fn clear_content_formatting(&mut self, num_chars_content: usize, ctx: &mut ViewContext<Self>) {
         self.content_editor.update(ctx, |editor, ctx| {
             editor.update_buffer_styles(
@@ -2275,58 +2246,6 @@ impl WorkflowView {
 
         let mut button_row = Flex::row();
 
-        let label_and_icon = match self.ai_metadata_assist_state {
-            AiAssistState::PreRequest => Some((AI_ASSIST_BUTTON_TEXT, Icon::AiAssistant)),
-            AiAssistState::RequestInFlight => Some((AI_ASSIST_LOADING_TEXT, Icon::Refresh)),
-            AiAssistState::Generated => None,
-        };
-
-        if let Some((label, icon)) = label_and_icon {
-            // AI-generated workflow metadata is only supported for Command workflows currently.
-            if AISettings::as_ref(app).is_any_ai_enabled(app)
-                && self.is_editable()
-                && !self.is_for_agent_mode
-            {
-                let mut button = self
-                    .build_footer_button(
-                        ButtonVariant::Secondary,
-                        label.to_string(),
-                        Some((icon, TextAndIconAlignment::TextFirst)),
-                        self.ui_state_handles.ai_assist_state.clone(),
-                        appearance,
-                    )
-                    .with_style(UiComponentStyles {
-                        width: Some(AI_ASSIST_BUTTON_SIZE),
-                        ..Default::default()
-                    });
-
-                if self.is_ai_assist_button_disabled(app) {
-                    button = button.disabled();
-                }
-
-                let rendered_button = button
-                    .build()
-                    .with_cursor(Cursor::PointingHand)
-                    .on_click(move |ctx, _, _| ctx.dispatch_typed_action(WorkflowAction::AiAssist))
-                    .finish();
-
-                let button_with_tool_tip = appearance.ui_builder().tool_tip_on_element(
-                    "Generate a title, descriptions, or parameters with Warp AI".to_string(),
-                    self.ui_state_handles.ai_assist_tool_tip.clone(),
-                    rendered_button,
-                    ParentAnchor::TopMiddle,
-                    ChildAnchor::BottomMiddle,
-                    vec2f(0., 5.),
-                );
-
-                button_row.add_child(
-                    Container::new(button_with_tool_tip)
-                        .with_margin_right(8.)
-                        .finish(),
-                )
-            }
-        }
-
         if self.is_editable() {
             // If we are in a context where we can't run workflows and are in the edit mode, then
             // show the cancel button
@@ -2451,141 +2370,6 @@ impl WorkflowView {
 
             editor
         })
-    }
-
-    fn issue_request(&mut self, ctx: &mut ViewContext<Self>) {
-        let ai_client = self.ai_client.clone();
-        let command = self.content_editor.as_ref(ctx).buffer_text(ctx);
-        let raw_request = command.trim().to_string();
-
-        ctx.spawn(
-            async move { ai_client.generate_metadata_for_command(raw_request).await },
-            move |pane, response, ctx| match response {
-                Ok(metadata) => {
-                    pane.ai_metadata_assist_state = AiAssistState::Generated;
-                    pane.enable_editors(ctx);
-
-                    let arguments = metadata
-                        .arguments
-                        .into_iter()
-                        .map(|parameter| Argument {
-                            name: parameter.name,
-                            description: Some(parameter.description),
-                            default_value: Some(parameter.default_value),
-                            arg_type: Default::default(),
-                        })
-                        .collect_vec();
-
-                    let workflow = Workflow::Command {
-                        name: metadata.title,
-                        description: Some(metadata.description),
-                        command: metadata.command,
-                        arguments,
-                        tags: vec![],
-                        source_url: None,
-                        author: None,
-                        author_url: None,
-                        shells: vec![],
-                        environment_variables: None,
-                    };
-
-                    send_telemetry_from_ctx!(TelemetryEvent::AutoGenerateMetadataSuccess, ctx);
-
-                    pane.populate_missing_field_with_suggestion(workflow, ctx);
-                    ctx.notify();
-                }
-                Err(err) => {
-                    let message = err.user_facing_message();
-                    pane.display_error_toast(message.clone(), ctx);
-
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::AutoGenerateMetadataError {
-                            error_payload: serde_json::json!(err)
-                        },
-                        ctx
-                    );
-
-                    pane.ai_metadata_assist_state = AiAssistState::PreRequest;
-                    pane.enable_editors(ctx);
-                    ctx.notify();
-                }
-            },
-        );
-
-        self.ai_metadata_assist_state = AiAssistState::RequestInFlight;
-        self.disable_editors(ctx);
-        ctx.notify();
-    }
-
-    // Populate only the missing field in the workflow editor with the generated suggestion from AI.
-    fn populate_missing_field_with_suggestion(
-        &mut self,
-        workflow: Workflow,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.name_editor.update(ctx, |editor, ctx| {
-            if editor.is_empty(ctx) {
-                editor.set_buffer_text(workflow.name(), ctx);
-            }
-        });
-
-        self.description_editor.update(ctx, |editor, ctx| {
-            if editor.is_empty(ctx) {
-                editor.set_buffer_text(
-                    workflow
-                        .description()
-                        .map(String::as_str)
-                        .unwrap_or_default(),
-                    ctx,
-                );
-            }
-        });
-
-        let content_parsed = !self.arguments_state.arguments.is_empty();
-        if !content_parsed {
-            self.content_editor.update(ctx, |editor, ctx| {
-                editor.set_buffer_text(workflow.content(), ctx);
-            });
-
-            // note: normally, we wouldn't have to do this, since editing the command
-            // editor's text will trigger the event that does this automatically.
-            // however, that happens in a callback, yet we need to know what the args
-            // are right away to populate the description/default value editors.
-            self.arguments_state = ArgumentsState::for_command_workflow(
-                &self.arguments_state,
-                workflow.content().to_string(),
-            );
-            self.update_arguments_rows(ctx);
-
-            workflow
-                .arguments()
-                .iter()
-                .enumerate()
-                .for_each(|(index, argument)| {
-                    // Since suggestion generated by AI is non-deterministic, we should make sure to handle each
-                    // operation safely.
-                    if index >= self.arguments_rows.len() {
-                        return;
-                    }
-
-                    if let Some(description) = &argument.description {
-                        self.arguments_rows[index]
-                            .description_editor
-                            .update(ctx, |editor, ctx| {
-                                editor.set_buffer_text(description.as_str(), ctx);
-                            });
-                    }
-
-                    if let Some(default_value) = &argument.default_value {
-                        self.arguments_rows[index].default_value_editor.update(
-                            ctx,
-                            |editor, ctx| {
-                                editor.set_buffer_text(default_value.as_str(), ctx);
-                            },
-                        );
-                    }
-                });
-        }
     }
 
     pub(super) fn render_trash_banner(&self, app: &AppContext) -> Option<Box<dyn Element>> {
@@ -2923,7 +2707,6 @@ impl TypedActionView for WorkflowView {
             }
             WorkflowAction::RunWorkflow => self.copy_to_command_line(ctx),
             WorkflowAction::CopyContent => self.copy_content(ctx),
-            WorkflowAction::AiAssist => self.issue_request(ctx),
             WorkflowAction::Duplicate => self.duplicate_object(ctx),
             WorkflowAction::CopyLink(link) => {
                 send_telemetry_from_ctx!(

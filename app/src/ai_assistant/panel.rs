@@ -1,11 +1,9 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use chrono::Local;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
 use warp_editor::editor::NavigationKey;
 use warp_errors::report_error;
-use warpui::r#async::Timer;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Align, Border, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
@@ -22,13 +20,12 @@ use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
     AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle, WeakViewHandle,
+    ViewContext, ViewHandle,
 };
 
-use super::execution_context::WarpAiExecutionContext;
-use super::requests::{Event as RequestsEvent, RequestStatus, Requests};
+use super::requests::{Event as RequestsEvent, Requests};
 use super::transcript::{Transcript, TranscriptEvent};
-use super::utils::{TranscriptPart, render_prepared_response_button, render_request_limit_info};
+use super::utils::{TranscriptPart, render_prepared_response_button};
 use super::{
     AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR, AI_ASSISTANT_SVG_PATH,
     ASK_AI_ASSISTANT_TEXT, AskAIType, PROMPT_CHARACTER_LIMIT,
@@ -40,14 +37,12 @@ use crate::editor::{
 };
 use crate::input_suggestions::{Event as InputSuggestionsEvent, InputSuggestions};
 use crate::send_telemetry_from_ctx;
-use crate::server::server_api::ServerApi;
 use crate::server::telemetry::{TelemetryEvent, WarpAIActionType};
 use crate::terminal::resizable_data::{DEFAULT_WARP_AI_WIDTH, ModalType, ResizableData};
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
 use crate::util::bindings::{CustomAction, cmd_or_ctrl_shift};
-use crate::workspace::{ActiveSession, TAB_BAR_HEIGHT};
-use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::workspace::TAB_BAR_HEIGHT;
 
 const INFO_ICON_SVG_PATH: &str = "bundled/svg/info.svg";
 pub const HEXAGON_ALERT_SVG_PATH: &str = "bundled/svg/alert-hexagon.svg";
@@ -116,7 +111,6 @@ enum InputSuggestionsMode {
 /// TODO: we should eventually refactor this and other panels into a more
 /// general Panel view.
 pub struct AIAssistantPanelView {
-    view_handle: WeakViewHandle<Self>,
     editor: ViewHandle<EditorView>,
     transcript_view: ViewHandle<Transcript>,
     input_suggestions_view: ViewHandle<InputSuggestions>,
@@ -176,7 +170,7 @@ pub fn init(app: &mut AppContext) {
 }
 
 impl AIAssistantPanelView {
-    pub fn new(server_api: Arc<ServerApi>, ctx: &mut ViewContext<Self>) -> Self {
+    pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let editor = {
             ctx.add_typed_action_view(|ctx| {
                 let appearance = Appearance::as_ref(ctx);
@@ -200,10 +194,7 @@ impl AIAssistantPanelView {
             me.handle_editor_event(event, ctx);
         });
 
-        let active_session_model = ActiveSession::handle(ctx);
-        ctx.observe(&active_session_model, Self::on_active_session_change);
-
-        let requests_model = ctx.add_model(|_| Requests::new(server_api.clone()));
+        let requests_model = ctx.add_model(|_| Requests::new());
         ctx.subscribe_to_model(&requests_model, move |me, _, event, ctx| {
             me.handle_requests_model_event(event, ctx);
         });
@@ -232,8 +223,7 @@ impl AIAssistantPanelView {
             }
         };
 
-        let mut panel = Self {
-            view_handle: ctx.handle(),
+        Self {
             editor,
             transcript_view,
             input_suggestions_view,
@@ -243,41 +233,7 @@ impl AIAssistantPanelView {
 
             resizable_state_handle,
             mouse_state_handles: Default::default(),
-        };
-
-        panel.tick(ctx);
-        panel.on_active_session_change(active_session_model, ctx);
-        panel
-    }
-
-    fn on_active_session_change(
-        &mut self,
-        active_session_handle: ModelHandle<ActiveSession>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let window_id = ctx.window_id();
-        let ai_execution_context = active_session_handle
-            .as_ref(ctx)
-            .session(window_id)
-            .as_ref()
-            .map(WarpAiExecutionContext::new);
-        self.requests_model.update(ctx, |requests, _| {
-            requests.update_ai_execution_context(ai_execution_context);
-        });
-    }
-
-    // Every minute, we re-render to make the next refresh time tick.
-    fn tick(&self, ctx: &mut ViewContext<Self>) {
-        ctx.spawn(
-            async move { Timer::after(Duration::from_secs(60)).await },
-            |view, _, ctx| {
-                view.transcript_view.update(ctx, |_, ctx| {
-                    ctx.notify();
-                });
-                ctx.notify();
-                view.tick(ctx);
-            },
-        );
+        }
     }
 
     fn format_as_code_block(&self, content: &str) -> String {
@@ -609,11 +565,8 @@ impl AIAssistantPanelView {
     }
 
     fn issue_request(&mut self, request: String, ctx: &mut ViewContext<Self>) {
-        let team_uid = UserWorkspaces::as_ref(ctx)
-            .team_for_view(ctx)
-            .map(|team| team.uid);
         self.requests_model.update(ctx, |requests_model, ctx| {
-            requests_model.issue_request(request, team_uid, ctx);
+            requests_model.issue_request(request, ctx);
         });
         self.transcript_view.update(ctx, |transcript_view, ctx| {
             transcript_view.clear_selected_block(ctx);
@@ -623,13 +576,6 @@ impl AIAssistantPanelView {
     }
 
     fn reset_context(&mut self, ctx: &mut ViewContext<Self>) {
-        let request_status = self.requests_model.as_ref(ctx).request_status();
-        if matches!(request_status, &RequestStatus::InFlight { .. }) {
-            self.editor.update(ctx, |editor, ctx| {
-                editor.clear_buffer_and_reset_undo_stack(ctx);
-            });
-        }
-
         self.editor.update(ctx, |editor, ctx| {
             editor.set_placeholder_text(INIT_PLACEHOLDER_TEXT, ctx);
         });
@@ -672,15 +618,10 @@ impl AIAssistantPanelView {
 
     fn should_render_zero_state(&self, app: &AppContext) -> bool {
         self.transcript(app).is_empty()
-            && matches!(self.request_status(app), RequestStatus::NotInFlight)
     }
 
     fn transcript<'a>(&self, app: &'a AppContext) -> &'a [TranscriptPart] {
         self.requests_model.as_ref(app).transcript()
-    }
-
-    fn request_status<'a>(&self, app: &'a AppContext) -> &'a RequestStatus {
-        self.requests_model.as_ref(app).request_status()
     }
 
     #[cfg(feature = "integration_tests")]
@@ -725,10 +666,8 @@ impl AIAssistantPanelView {
             )
             .with_child(Shrinkable::new(1., Empty::new().finish()).finish());
 
-        // Add the copy and restart buttons iff the transcript is non-empty or there's a request in flight;
-        if !self.transcript(app).is_empty()
-            || matches!(self.request_status(app), RequestStatus::InFlight { .. })
-        {
+        // Add the copy and restart buttons iff the transcript is non-empty.
+        if !self.transcript(app).is_empty() {
             header.add_child(
                 Container::new(Align::new(self.render_restart_button(appearance)).finish())
                     .with_margin_right(4.)
@@ -980,23 +919,6 @@ impl AIAssistantPanelView {
             .finish(),
         );
 
-        let user_workspaces = UserWorkspaces::as_ref(app);
-        let is_custom_llm_enabled = user_workspaces.is_custom_llm_enabled_for_team(
-            user_workspaces.team_for_view_handle(&self.view_handle, app),
-        );
-
-        if !is_custom_llm_enabled {
-            column.add_child(
-                Container::new(render_request_limit_info(
-                    &self.requests_model,
-                    app,
-                    appearance,
-                ))
-                .with_margin_top(18.)
-                .finish(),
-            );
-        }
-
         Container::new(column.finish())
             .with_margin_left(12.)
             .with_margin_right(12.)
@@ -1097,26 +1019,24 @@ impl View for AIAssistantPanelView {
         };
         panel.add_child(Shrinkable::new(1., body).finish());
 
-        if matches!(self.request_status(app), RequestStatus::NotInFlight) {
-            let buffer_text = self.editor.as_ref(app).buffer_text(app);
-            if self.is_prompt_too_long(buffer_text.as_str()) {
-                panel.add_child(
-                    Container::new(
-                        self.render_editor_size_warning(appearance, buffer_text.chars().count()),
-                    )
-                    .with_padding_left(PANEL_HORIZONTAL_PADDING)
-                    .with_padding_bottom(5.)
-                    .with_padding_top(10.)
-                    .finish(),
-                );
-            }
-
+        let buffer_text = self.editor.as_ref(app).buffer_text(app);
+        if self.is_prompt_too_long(buffer_text.as_str()) {
             panel.add_child(
-                Container::new(self.render_editor())
-                    .with_uniform_padding(EDITOR_MARGIN)
-                    .finish(),
+                Container::new(
+                    self.render_editor_size_warning(appearance, buffer_text.chars().count()),
+                )
+                .with_padding_left(PANEL_HORIZONTAL_PADDING)
+                .with_padding_bottom(5.)
+                .with_padding_top(10.)
+                .finish(),
             );
         }
+
+        panel.add_child(
+            Container::new(self.render_editor())
+                .with_uniform_padding(EDITOR_MARGIN)
+                .finish(),
+        );
 
         let mut stack = Stack::new().with_child(panel.finish());
 
