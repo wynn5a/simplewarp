@@ -4861,10 +4861,92 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             `test_member_team_settings_win_over_workspace_settings`, and a
             feature-gated test; small crates 126). Built and launched
             `./target/debug/simplewarp` — alive, no output, no connections.
-      - [ ] **Next per 4ca's order**: conversation sync (10 walls) +
-            cloud-run lifecycle (11 walls) — the ambient terminal UI
-            verticals, largest; take them as separate rounds, then the
-            telemetry scope decision, then the fold.
+      - [x] **Conversation sync is deleted, walls and callers together** (4cg,
+            2026-09-17, 42 files, +241/−4,261, 3 files removed outright): 4ca
+            item (6), all ten conversation-sync walls on `AIClient` —
+            `fork_conversation`, `rename_conversation`, `get_ai_conversation`,
+            `list_ai_conversation_metadata`, the Orchestrations-V2
+            `send/list/read/mark` message quartet, `get_public_conversation`,
+            `get_run_conversation` — plus the four task-scoped inherent
+            helpers (`*_for_task`), which were themselves walls over
+            `get/post_public_api_response_for_task`. `AIClient` 26 → 16.
+
+            *The `warp run` CLI vertical*: `TaskCommand::Message`
+            (send/list/watch/read/mark-delivered), `TaskCommand::Conversation
+            get`, and `TaskGetArgs --conversation` deleted from `warp_cli`
+            with their args structs, tracing strings, telemetry variants
+            (`ConversationGet`, `RunConversationGet`,
+            `RunMessage*`), auth arms, and nine parse tests; the
+            `agent run --conversation` flag and its
+            `CloudConversations` accept/hide checks went too, so
+            `FeatureFlag::ConversationApi` and `FeatureFlag::CloudConversations`
+            are deleted with the `conversation_api` (both sets) and
+            `cloud_conversations` (default) cargo features. `OZ_RUN_ID_ENV`
+            task-scoping helpers (`task_id_from_oz_run_id_env`,
+            `task_id_for_message_send`) died with the commands that read them.
+            *The fork flow*: the server-side fork branch in
+            `Workspace::fork_ai_conversation` is gone — it fired on every plain
+            fork (local StreamInit tokens exist), logged a guaranteed
+            "Server-side fork failed" warning, and fell back to the local-only
+            fork that is now the only path; `create_local_fork` loses
+            `server_forked_conversation_id`. *Rename becomes local-only*: the
+            `/rename` slash command and conversation-list rename stay; the
+            begin/complete/fail in-flight machinery
+            (`InFlightConversationRename`,
+            `BeginConversationRenameError`, `restore_conversation_title`) is
+            replaced by `rename_conversation_locally` (validate → apply →
+            success toast) — the old flow optimistically applied the title and
+            then always reverted it with "Failed to rename conversation:"
+            because local StreamInit tokens made `begin_conversation_rename`
+            pass its server-token gate into a guaranteed wall error. The 3n
+            local-first precedent: the local half worked, only the remote half
+            was dead. *Resume*: `fetch_and_validate_conversation_harness`
+            deleted with the flag; `load_conversation_information`'s Oz arm
+            collapses to its `ConversationLoadFailed` error (the `--task-id`
+            path that still calls it fails earlier at the task fetch — that
+            path is 4ch's). `AgentDriverError::ConversationHarnessMismatch`
+            and the harness-mismatch classification arm went with the
+            validator; `convert_conversation_data_to_ai_conversation` +
+            `RestorationMode` lost their last caller and are deleted
+            (three `set_server_metadata` semantics tests re-pointed at a local
+            `new_restored` factory). `ResumeOptions::Oz` is deliberately kept
+            (driver machinery still consumes it; its last producer is 4ch's).
+
+            *Orchestration messaging*: `MessageHydrator` is deleted whole —
+            its only duties were the read/mark walls. The
+            `SendMessageToAgentExecutor` resolves synchronously to the same
+            `SendMessageToAgentResult::Error` its server-failure arm produced
+            (no spawn, no 15s timeout, no request types), keeping the
+            `TeamAgentCommunicationFailed` telemetry; the
+            `SseForwardingConsumer` forwards events unhydrated;
+            `on_streaming_exchange_updated` and the `pending_message_ids`
+            state machine are gone; `prime_parent_bridge_staged_for_self_managed_wake`
+            stages the wake record without hydration. The SSE streamer,
+            wake listener, and parent-bridge plumbing stay for 4ch. The
+            agent-management page's cloud-metadata fetch half collapses
+            (`list_ai_conversation_metadata` join, missing-id refetch, and the
+            always-false `cloud_metadata_loaded` gone — the fetch lands in
+            `CloudFailed` exactly as before); `merge_cloud_conversation_metadata`
+            stays for the entry-projection tests and 4ch's page removal.
+            *Falling with them*: the seven wire types
+            (`ForkConversationResponse` … `ReadAgentMessageResponse`),
+            `write_json`, `resolve_orchestration_harness_label`, and
+            `parse_ambient_task_id`; `CliCommand::Run(Box<TaskCommand>)` +
+            `TaskCommand::List(Box<ListTasksArgs>)` (clippy
+            large_enum_variant surfaced by the deletions; the lint is
+            allowed on `CliCommand` for `Agent`'s 456-byte run args).
+
+            Acceptance: `check -p warp --tests` clean in both feature sets,
+            both bins; clippy diffed against pre-round baselines in both
+            configs (workspace `-D` and `-p warp --all-targets -D`) shows zero
+            new lints — only the four HEAD-carried `as_query_param` lints
+            shifted line numbers inside `server_api/ai.rs`; format clean;
+            nextest green (warp lib 5,045 default / 5,044 simplewarp — 40
+            deleted tests; small crates 117 — 9 deleted parse tests). Built
+            and launched `./target/debug/simplewarp` — alive, no output.
+      - [ ] **Next per 4ca's order**: cloud-run lifecycle (11 walls) —
+            the ambient terminal UI vertical, largest; then the telemetry
+            scope decision, then the fold.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
