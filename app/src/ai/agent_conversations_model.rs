@@ -769,96 +769,27 @@ impl AgentConversationsModel {
                 let creator_uid = creator_uid.clone();
                 async move {
                     // Fetch personal tasks only on initialization; team tasks fetched by the view model when filters applied
-                    let personal_future = ai_client.list_ambient_agent_tasks(
-                        INITIAL_TASK_AMOUNT,
-                        TaskListFilter {
-                            creator_uid: Some(creator_uid),
-                            ..Default::default()
-                        },
-                    );
-                    let conversation_metadata_future =
-                        ai_client.list_ai_conversation_metadata(None);
-
-                    let (personal_result, conversation_metadata_result) =
-                        futures::future::join(personal_future, conversation_metadata_future).await;
-
-                    // Handle tasks result
-                    let tasks = match personal_result {
-                        Ok(tasks) => tasks,
-                        Err(e) => {
+                    let tasks = ai_client
+                        .list_ambient_agent_tasks(
+                            INITIAL_TASK_AMOUNT,
+                            TaskListFilter {
+                                creator_uid: Some(creator_uid),
+                                ..Default::default()
+                            },
+                        )
+                        .await
+                        .unwrap_or_else(|e| {
                             log::warn!("Failed to fetch ambient agent tasks: {e:?}");
                             vec![]
-                        }
-                    };
+                        });
 
-                    // Handle conversation metadata result
-                    let (mut conversation_metadata, cloud_metadata_loaded) =
-                        match conversation_metadata_result {
-                            Ok(metadata) => (metadata, true),
-                            Err(e) => {
-                                log::warn!("Failed to fetch conversation metadata: {e:?}");
-                                (vec![], false)
-                            }
-                        };
-
-                    // Collect all conversation IDs from tasks
-                    let task_conversation_ids: HashSet<String> = tasks
-                        .iter()
-                        .filter_map(|task| task.conversation_id().map(str::to_string))
-                        .collect();
-
-                    // Build a set of conversation IDs we already have
-                    let fetched_conversation_ids: HashSet<String> = conversation_metadata
-                        .iter()
-                        .map(|meta| meta.server_conversation_token.as_str().to_string())
-                        .collect();
-
-                    // Find conversation IDs that are in tasks but not in the initial metadata fetch
-                    let missing_conversation_ids: Vec<String> = task_conversation_ids
-                        .difference(&fetched_conversation_ids)
-                        .cloned()
-                        .collect();
-
-                    // If there are missing conversation IDs, fetch their metadata
-                    if !missing_conversation_ids.is_empty() {
-                        log::info!(
-                            "Fetching {} missing conversation metadata entries for ambient agent tasks",
-                            missing_conversation_ids.len()
-                        );
-                        match ai_client
-                            .list_ai_conversation_metadata(Some(missing_conversation_ids))
-                            .await
-                        {
-                            Ok(additional_metadata) => {
-                                log::info!(
-                                    "Fetched {} additional conversation metadata entries",
-                                    additional_metadata.len()
-                                );
-                                conversation_metadata.extend(additional_metadata);
-                            }
-                            Err(e) => {
-                                log::warn!("Failed to fetch additional conversation metadata: {e:?}");
-                            }
-                        }
-                    }
-
-                    // Always return success - we handle failures individually above
-                    Ok((tasks, conversation_metadata, cloud_metadata_loaded))
+                    Ok(tasks)
                 }
             },
             OUT_OF_BAND_REQUEST_RETRY_STRATEGY,
             |model, result, ctx| {
-                if let RequestState::RequestSucceeded((
-                    tasks,
-                    conversation_metadata,
-                    cloud_metadata_loaded,
-                )) = result
-                {
-                    model.initial_load_state = if cloud_metadata_loaded {
-                        InitialConversationLoadState::Loaded
-                    } else {
-                        InitialConversationLoadState::CloudFailed
-                    };
+                if let RequestState::RequestSucceeded(tasks) = result {
+                    model.initial_load_state = InitialConversationLoadState::CloudFailed;
 
                     // Update tasks if we got any
                     if !tasks.is_empty() {
@@ -866,17 +797,6 @@ impl AgentConversationsModel {
                         for task in tasks {
                             model.tasks.insert(task.task_id, task);
                         }
-                    }
-
-                    // Update BlocklistAIHistoryModel with cloud conversation metadata if we got any
-                    if !conversation_metadata.is_empty() {
-                        log::info!(
-                            "Fetched {} cloud conversation metadata entries total",
-                            conversation_metadata.len()
-                        );
-                        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, _| {
-                            history_model.merge_cloud_conversation_metadata(conversation_metadata);
-                        });
                     }
 
                     // Sync conversations to refresh local cache

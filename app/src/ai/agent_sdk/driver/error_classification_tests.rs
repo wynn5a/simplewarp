@@ -194,22 +194,6 @@ fn environment_not_found_is_failed_with_resource_not_found() {
     );
 }
 
-#[test]
-fn conversation_harness_mismatch_is_failed_with_env_setup() {
-    let (state, update) = classify_driver_error(&AgentDriverError::ConversationHarnessMismatch {
-        conversation_id: "conv-123".into(),
-        expected: "claude".into(),
-        got: "oz".into(),
-    });
-    assert_eq!(state, AgentTaskState::Failed);
-    assert_eq!(
-        update.error_code,
-        Some(PlatformErrorCode::EnvironmentSetupFailed)
-    );
-    assert!(update.message.contains("conv-123"));
-    assert!(update.message.contains("--harness claude"));
-}
-
 // --- ShareSessionFailed variants ---
 
 #[test]

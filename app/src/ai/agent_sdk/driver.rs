@@ -323,6 +323,10 @@ fn cli_session_status_log_outcome(status: &CLIAgentSessionStatus) -> &'static st
 /// The Oz harness restores the full conversation transcript into the terminal pane and treats
 /// any new prompt as a follow-up.
 pub enum ResumeOptions {
+    // No production path constructs a resume payload while conversation fetching is a
+    // local-only error; the driver-side restoration machinery stays wired for the
+    // cloud-run lifecycle round that owns the remaining server paths.
+    #[allow(dead_code)]
     Oz(Box<ConversationRestorationInNewPaneType>),
 }
 
@@ -572,15 +576,6 @@ pub enum AgentDriverError {
     TaskMetadataFetchFailed(#[source] anyhow::Error),
     #[error("Failed to load conversation: {0}")]
     ConversationLoadFailed(String),
-    #[error(
-        "Conversation {conversation_id} was produced by the {expected} harness, but --harness {got} was requested. \
-         Re-run with --harness {expected} (or omit --harness to match) to continue this conversation."
-    )]
-    ConversationHarnessMismatch {
-        conversation_id: String,
-        expected: String,
-        got: String,
-    },
     #[error(
         "Task {task_id} was created with the {expected} harness, but --harness {got} was requested. \
          Re-run with --harness {expected} (or omit --harness to match) to continue this task."

@@ -101,8 +101,8 @@ pub fn convert_persisted_conversation_to_ai_conversation_with_metadata(
 /// Loads a conversation from the server asynchronously.
 /// This is a free-floating function that can be called without a model reference.
 ///
-/// Cloud conversation storage requires a Warp account/server, which this build never has
-/// (see `FeatureFlag::CloudConversations`), so this always returns `None`.
+/// Cloud conversation storage requires a Warp account/server, which this build never
+/// has, so this always returns `None`.
 pub async fn load_conversation_from_server(
     _conversation_id: AIConversationId,
     _server_conversation_token: ServerConversationToken,

@@ -195,8 +195,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::FileTree,
         #[cfg(feature = "allow_ignoring_input_suggestions")]
         FeatureFlag::AllowIgnoringInputSuggestions,
-        #[cfg(feature = "conversation_api")]
-        FeatureFlag::ConversationApi,
         #[cfg(feature = "code_launch_modal")]
         FeatureFlag::CodeLaunchModal,
         #[cfg(feature = "mcp_oauth")]
@@ -263,8 +261,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::LocalClaudeCodexChildHarnesses,
         #[cfg(feature = "named_agents")]
         FeatureFlag::NamedAgents,
-        #[cfg(feature = "cloud_conversations")]
-        FeatureFlag::CloudConversations,
         #[cfg(feature = "agent_toolbar_editor")]
         FeatureFlag::AgentToolbarEditor,
         #[cfg(feature = "configurable_toolbar")]

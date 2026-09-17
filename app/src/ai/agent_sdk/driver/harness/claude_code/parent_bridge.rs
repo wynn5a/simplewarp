@@ -13,7 +13,7 @@ use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
-use crate::ai::agent_events::{AgentMessageEventMetadata, MessageHydrator};
+use crate::ai::agent_events::AgentMessageEventMetadata;
 use crate::ai::agent_sdk::driver::OZ_MESSAGE_LISTENER_STATE_ROOT_ENV;
 
 const LEGACY_MESSAGE_LISTENER_STATE_ROOT_ENV: &str = "OZ_PARENT_STATE_ROOT";
@@ -142,7 +142,6 @@ pub(super) fn stage_parent_bridge_message(
 }
 
 pub(super) async fn prime_parent_bridge_staged_for_self_managed_wake(
-    hydrator: &MessageHydrator,
     state_dir: &Path,
     wake_message: Option<&AgentMessageEventMetadata>,
 ) -> Result<()> {
@@ -154,8 +153,8 @@ pub(super) async fn prime_parent_bridge_staged_for_self_managed_wake(
         return Ok(());
     };
 
-    let record = hydrate_parent_bridge_message_record(
-        hydrator,
+    stage_parent_bridge_message(
+        state_dir,
         &MessageBridgeMessageRecord {
             sequence: wake_message.sequence,
             message_id: wake_message.message_id.clone(),
@@ -164,9 +163,7 @@ pub(super) async fn prime_parent_bridge_staged_for_self_managed_wake(
             body: String::new(),
             occurred_at: wake_message.occurred_at.clone(),
         },
-    )
-    .await?;
-    stage_parent_bridge_message(state_dir, &record)?;
+    )?;
     write_parent_bridge_event_cursor(state_dir, wake_message.sequence)
 }
 
@@ -226,28 +223,6 @@ fn remove_file_if_exists(path: &Path) -> Result<()> {
             Err(anyhow::Error::from(err).context(format!("Failed to remove {}", path.display())))
         }
     }
-}
-
-async fn hydrate_parent_bridge_message_record(
-    hydrator: &MessageHydrator,
-    record: &MessageBridgeMessageRecord,
-) -> Result<MessageBridgeMessageRecord> {
-    if !record.sender_run_id.is_empty() {
-        return Ok(record.clone());
-    }
-
-    let message = hydrator
-        .read_message_with_timeout(&record.message_id)
-        .await
-        .with_context(|| format!("Failed to read lead-agent message {}", record.message_id))?;
-    Ok(MessageBridgeMessageRecord {
-        sequence: record.sequence,
-        message_id: message.message_id,
-        sender_run_id: message.sender_run_id,
-        subject: message.subject,
-        body: message.body,
-        occurred_at: record.occurred_at.clone(),
-    })
 }
 
 fn write_parent_bridge_json_atomically<T: Serialize>(path: &Path, value: &T) -> Result<()> {

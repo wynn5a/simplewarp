@@ -20,12 +20,12 @@ use super::orchestration_events::{
     LifecycleEventDetailPayload, LifecycleEventDetailStage, OrchestrationEventService,
     PendingEvent, PendingEventDetail, build_lifecycle_event,
 };
+use crate::ai::agent::ReceivedMessageInput;
 use crate::ai::agent::conversation::{AIAgentHarness, AIConversationId, ConversationStatus};
-use crate::ai::agent::{AIAgentExchangeId, AIAgentOutputMessageType, ReceivedMessageInput};
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::agent_events::{
     AgentEventConsumer, AgentEventConsumerControlFlow, AgentEventDriverConfig, AgentEventFilter,
-    AgentMessageEventMetadata, MessageHydrator, ServerApiAgentEventSource, run_agent_event_driver,
+    AgentMessageEventMetadata, ServerApiAgentEventSource, run_agent_event_driver,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::server::retry_strategies::is_transient_http_error;
@@ -72,9 +72,6 @@ struct SseConnectionState {
 
 struct SseForwardingConsumer {
     tx: mpsc::UnboundedSender<SseStreamItem>,
-    self_run_id: String,
-    hydrator: MessageHydrator,
-    hydrate_new_messages: bool,
 }
 
 /// State for a wake-only listener. Unlike `SseConnectionState`, this listener
@@ -126,18 +123,10 @@ impl AgentEventConsumer for SseForwardingConsumer {
         &mut self,
         event: AgentRunEvent,
     ) -> anyhow::Result<AgentEventConsumerControlFlow> {
-        let fetched_message = if self.hydrate_new_messages {
-            self.hydrator
-                .hydrate_event_for_recipient(&event, &self.self_run_id)
-                .await
-        } else {
-            None
-        };
-
         self.tx
             .unbounded_send(SseStreamItem {
                 event,
-                fetched_message,
+                fetched_message: None,
             })
             .map_err(|_| anyhow!("SSE event receiver dropped"))?;
 
@@ -159,10 +148,6 @@ struct ConversationStreamState {
     /// Last fully handled event sequence number. 0 means "no events
     /// processed yet".
     event_cursor: i64,
-    /// Message IDs awaiting server-side `mark_delivered` confirmation,
-    /// triggered when the recipient streams a `MessagesReceivedFromAgents`
-    /// chunk through `BlocklistAIHistoryEvent::UpdatedStreamingExchange`.
-    pending_message_ids: Vec<String>,
     /// Local consumers (terminal pane id for an open agent view, driver
     /// model id for `agent_sdk`) that need events delivered to this
     /// conversation.
@@ -315,13 +300,6 @@ fn classify_family_event(event: &AgentRunEvent, self_run_id: &str) -> FamilyEven
 }
 
 impl OrchestrationEventStreamer {
-    fn message_hydrator_for_run_id(&self, run_id: &str) -> MessageHydrator {
-        match run_id.parse::<AmbientAgentTaskId>() {
-            Ok(task_id) => MessageHydrator::for_task(self.server_api.clone(), task_id),
-            Err(_) => MessageHydrator::new(self.ai_client.clone()),
-        }
-    }
-
     fn persist_event_cursor(
         &mut self,
         conversation_id: AIConversationId,
@@ -980,11 +958,6 @@ impl OrchestrationEventStreamer {
             BlocklistAIHistoryEvent::ConversationServerTokenAssigned {
                 conversation_id, ..
             } => self.on_server_token_assigned(*conversation_id, ctx),
-            BlocklistAIHistoryEvent::UpdatedStreamingExchange {
-                conversation_id,
-                exchange_id,
-                ..
-            } => self.on_streaming_exchange_updated(*conversation_id, *exchange_id, ctx),
             BlocklistAIHistoryEvent::RemoveConversation {
                 conversation_id,
                 run_id,
@@ -1012,6 +985,7 @@ impl OrchestrationEventStreamer {
             | BlocklistAIHistoryEvent::CreatedSubtask { .. }
             | BlocklistAIHistoryEvent::UpgradedTask { .. }
             | BlocklistAIHistoryEvent::AppendedExchange { .. }
+            | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. }
             | BlocklistAIHistoryEvent::ReassignedExchange { .. }
             | BlocklistAIHistoryEvent::SetActiveConversation { .. }
             | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
@@ -1127,74 +1101,6 @@ impl OrchestrationEventStreamer {
             .or_default()
             .watched_run_ids
             .insert(run_id)
-    }
-
-    fn on_streaming_exchange_updated(
-        &mut self,
-        conversation_id: AIConversationId,
-        exchange_id: AIAgentExchangeId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // Snapshot pending IDs so the immutable borrow on `self.streams`
-        // doesn't collide with the history model lookup below.
-        let pending_ids: HashSet<String> = match self.streams.get(&conversation_id) {
-            Some(s) if !s.pending_message_ids.is_empty() => {
-                s.pending_message_ids.iter().cloned().collect()
-            }
-            _ => return,
-        };
-
-        let Some(conversation) =
-            BlocklistAIHistoryModel::as_ref(ctx).conversation(&conversation_id)
-        else {
-            return;
-        };
-        let Some(exchange) = conversation.exchange_with_id(exchange_id) else {
-            return;
-        };
-
-        // Check if the exchange output contains any of the messages we're
-        // waiting to confirm.
-        let mut confirmed_ids = Vec::new();
-        if let Some(output) = exchange.output_status.output() {
-            for msg in &output.get().messages {
-                if let AIAgentOutputMessageType::MessagesReceivedFromAgents { messages } =
-                    &msg.message
-                {
-                    for received in messages {
-                        if pending_ids.contains(received.message_id.as_str()) {
-                            confirmed_ids.push(received.message_id.clone());
-                        }
-                    }
-                }
-            }
-        }
-
-        if confirmed_ids.is_empty() {
-            return;
-        }
-
-        // Remove confirmed messages from pending.
-        if let Some(stream) = self.streams.get_mut(&conversation_id) {
-            stream
-                .pending_message_ids
-                .retain(|id| !confirmed_ids.contains(id));
-        }
-
-        let hydrator =
-            self.message_hydrator_for_run_id(conversation.run_id().as_deref().unwrap_or_default());
-        ctx.spawn(
-            async move {
-                hydrator
-                    .mark_messages_delivered_best_effort(confirmed_ids.iter().map(String::as_str))
-                    .await
-            },
-            |_, failures, _| {
-                for (message_id, err) in failures {
-                    log::warn!("Failed to confirm message delivery for {message_id}: {err:#}");
-                }
-            },
-        );
     }
 
     /// Cleans up local state for a removed/deleted conversation, then
@@ -1793,8 +1699,6 @@ impl OrchestrationEventStreamer {
 
         let server_api = self.server_api.clone();
 
-        let self_run_id = self.self_run_id(conversation_id, ctx).unwrap_or_default();
-
         let (tx, rx) = mpsc::unbounded();
         let generation = self.next_sse_generation;
         self.next_sse_generation += 1;
@@ -1807,16 +1711,10 @@ impl OrchestrationEventStreamer {
 
         let config = AgentEventDriverConfig::retry_forever(filter.clone(), cursor);
         let source = ServerApiAgentEventSource::new(server_api);
-        let hydrator = self.message_hydrator_for_run_id(&self_run_id);
 
         let handle = ctx.spawn(
             async move {
-                let mut consumer = SseForwardingConsumer {
-                    tx,
-                    self_run_id,
-                    hydrator,
-                    hydrate_new_messages: true,
-                };
+                let mut consumer = SseForwardingConsumer { tx };
                 run_agent_event_driver(source, config, &mut consumer).await
             },
             move |me, result, ctx| {
@@ -1982,18 +1880,6 @@ impl OrchestrationEventStreamer {
                     "Dropped {dropped_event_count} orchestration events for killed run IDs while handling {conversation_id:?}"
                 );
             }
-        }
-        // Track message IDs for server-side mark_delivered calls.
-        let message_ids: Vec<String> = messages
-            .iter()
-            .map(|message| message.message_id.clone())
-            .collect();
-        if !message_ids.is_empty() {
-            self.streams
-                .entry(conversation_id)
-                .or_default()
-                .pending_message_ids
-                .extend(message_ids);
         }
 
         // The owner-side event service delivers lifecycle notifications to the

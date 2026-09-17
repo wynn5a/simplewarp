@@ -52,6 +52,24 @@ fn test_server_metadata(
     }
 }
 
+/// Builds an empty conversation the way the deleted cloud-restorer used to, so
+/// `set_server_metadata` semantics can still be exercised against a real model.
+fn empty_restored_conversation() -> crate::ai::agent::conversation::AIConversation {
+    crate::ai::agent::conversation::AIConversation::new_restored(
+        AIConversationId::new(),
+        vec![api::Task {
+            id: "root".to_string(),
+            messages: vec![],
+            dependencies: None,
+            description: String::new(),
+            summary: String::new(),
+            server_data: String::new(),
+        }],
+        None,
+    )
+    .expect("conversation should restore")
+}
+
 fn test_skill() -> api::Skill {
     api::Skill {
         descriptor: Some(api::SkillDescriptor {
@@ -75,66 +93,14 @@ fn test_skill() -> api::Skill {
     }
 }
 
-#[test]
-#[allow(deprecated)]
-fn test_convert_conversation_data_to_ai_conversation_sets_restored_run_id() {
-    let conversation_id = AIConversationId::new();
-    let ambient_agent_task_id: AmbientAgentTaskId =
-        "550e8400-e29b-41d4-a716-446655440000".parse().unwrap();
-    let conversation_data = api::ConversationData {
-        tasks: vec![api::Task {
-            id: "root".to_string(),
-            messages: vec![],
-            dependencies: None,
-            description: String::new(),
-            summary: String::new(),
-            server_data: String::new(),
-        }],
-        ordered_message_ids: vec![],
-    };
-
-    let conversation = convert_conversation_data_to_ai_conversation(
-        conversation_id,
-        &conversation_data,
-        test_server_metadata("server-token", Some(ambient_agent_task_id)),
-        RestorationMode::Continue,
-    )
-    .expect("conversation should restore");
-
-    assert_eq!(conversation.id(), conversation_id);
-    assert_eq!(conversation.task_id(), Some(ambient_agent_task_id));
-    assert_eq!(
-        conversation.run_id(),
-        Some(ambient_agent_task_id.to_string())
-    );
-    assert_eq!(conversation.usage_totals().cost_in_cents, Some(3.2));
-    assert!(conversation.usage_totals().has_usage);
-}
-
 /// A later server-metadata snapshot without the provider-cost field (legacy
 /// server or conversation) must not erase a known baseline, and usage
 /// evidence must be derived from the metadata's contents.
 #[test]
 #[allow(deprecated)]
 fn set_server_metadata_keeps_known_baseline_when_cost_field_is_absent() {
-    let conversation_data = api::ConversationData {
-        tasks: vec![api::Task {
-            id: "root".to_string(),
-            messages: vec![],
-            dependencies: None,
-            description: String::new(),
-            summary: String::new(),
-            server_data: String::new(),
-        }],
-        ordered_message_ids: vec![],
-    };
-    let mut conversation = convert_conversation_data_to_ai_conversation(
-        AIConversationId::new(),
-        &conversation_data,
-        test_server_metadata("server-token", None),
-        RestorationMode::Continue,
-    )
-    .expect("conversation should restore");
+    let mut conversation = empty_restored_conversation();
+    conversation.set_server_metadata(test_server_metadata("server-token", None));
     assert_eq!(conversation.usage_totals().cost_in_cents, Some(3.2));
 
     let mut legacy_snapshot = test_server_metadata("server-token", None);
@@ -153,24 +119,8 @@ fn set_server_metadata_keeps_known_baseline_when_cost_field_is_absent() {
 #[test]
 #[allow(deprecated)]
 fn stale_server_metadata_snapshot_never_regresses_known_total() {
-    let conversation_data = api::ConversationData {
-        tasks: vec![api::Task {
-            id: "root".to_string(),
-            messages: vec![],
-            dependencies: None,
-            description: String::new(),
-            summary: String::new(),
-            server_data: String::new(),
-        }],
-        ordered_message_ids: vec![],
-    };
-    let mut conversation = convert_conversation_data_to_ai_conversation(
-        AIConversationId::new(),
-        &conversation_data,
-        test_server_metadata("server-token", None),
-        RestorationMode::Continue,
-    )
-    .expect("conversation should restore");
+    let mut conversation = empty_restored_conversation();
+    conversation.set_server_metadata(test_server_metadata("server-token", None));
     assert_eq!(conversation.usage_totals().cost_in_cents, Some(3.2));
 
     let mut newer_snapshot = test_server_metadata("server-token", None);
@@ -193,27 +143,11 @@ fn stale_server_metadata_snapshot_never_regresses_known_total() {
 #[test]
 #[allow(deprecated)]
 fn set_server_metadata_with_zero_usage_keeps_footer_usage_hidden() {
-    let conversation_data = api::ConversationData {
-        tasks: vec![api::Task {
-            id: "root".to_string(),
-            messages: vec![],
-            dependencies: None,
-            description: String::new(),
-            summary: String::new(),
-            server_data: String::new(),
-        }],
-        ordered_message_ids: vec![],
-    };
     let mut zero_usage_metadata = test_server_metadata("server-token", None);
     zero_usage_metadata.usage.total_provider_cost_in_cents = None;
 
-    let conversation = convert_conversation_data_to_ai_conversation(
-        AIConversationId::new(),
-        &conversation_data,
-        zero_usage_metadata,
-        RestorationMode::Continue,
-    )
-    .expect("conversation should restore");
+    let mut conversation = empty_restored_conversation();
+    conversation.set_server_metadata(zero_usage_metadata);
 
     let totals = conversation.usage_totals();
     assert!(!totals.has_usage);

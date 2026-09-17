@@ -414,9 +414,6 @@ pub enum FeatureFlag {
     /// Enables video recording of computer-use sessions for cloud agents.
     VideoRecording,
 
-    /// Enables cloud conversation loading via the CLI --conversation flag.
-    CloudConversations,
-
     /// Enables the "New agent" prompt chip in terminal mode when AgentView is enabled.
     ///
     /// When disabled (the default), the terminal message bar is shown instead.
@@ -558,9 +555,6 @@ pub enum FeatureFlag {
 
     /// Replaces the in-block warpification banner with a warpify footer.
     WarpifyFooter,
-
-    /// Enables conversation retrieval via the CLI (oz run conversation get, oz run get --conversation).
-    ConversationApi,
 
     /// Enables commit, push, and create-PR actions in the code review panel.
     GitOperationsInCodeReview,

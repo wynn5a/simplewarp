@@ -375,10 +375,6 @@ pub struct RunAgentArgs {
     #[command(flatten)]
     pub snapshot: SnapshotArgs,
     /// Identifier for the task that spawned this agent, used to report progress.
-    ///
-    /// When `--conversation` is omitted, the conversation id is read off the server-side
-    /// task metadata. Some worker follow-up call sites still pass both flags, so keep
-    /// accepting the compatibility shape until all producers have been updated.
     #[arg(long = "task-id", hide = true, conflicts_with_all = ["prompt", "saved_prompt", "file"])]
     pub task_id: Option<String>,
 
@@ -388,10 +384,6 @@ pub struct RunAgentArgs {
 
     #[command(flatten)]
     pub computer_use: HiddenComputerUseArgs,
-
-    /// Continue an existing cloud conversation by ID.
-    #[arg(long = "conversation", value_name = "ID")]
-    pub conversation: Option<String>,
 
     /// Agent profile to configure the terminal session.
     #[arg(long = "profile", value_name = "ID")]

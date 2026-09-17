@@ -235,20 +235,6 @@ pub fn classify_driver_error(error: &AgentDriverError) -> (AgentTaskState, TaskS
                 PlatformErrorCode::InternalError,
             ),
         ),
-        AgentDriverError::ConversationHarnessMismatch {
-            conversation_id,
-            expected,
-            got,
-        } => (
-            AgentTaskState::Failed,
-            TaskStatusUpdate::with_error_code(
-                format!(
-                    "Conversation {conversation_id} was produced by the {expected} harness, but --harness {got} was requested. \
-                     Re-run with --harness {expected} (or omit --harness) to continue this conversation."
-                ),
-                PlatformErrorCode::EnvironmentSetupFailed,
-            ),
-        ),
         AgentDriverError::TaskHarnessMismatch {
             task_id,
             expected,

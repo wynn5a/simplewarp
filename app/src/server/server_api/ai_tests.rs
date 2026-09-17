@@ -1,7 +1,5 @@
-use super::{
-    AgentMessageHeader, AgentRunEvent, Artifact, ForkConversationResponse,
-    ReadAgentMessageResponse, RunFollowupRequest, SpawnAgentRequest, UserQueryMode,
-};
+use super::{AgentRunEvent, RunFollowupRequest, SpawnAgentRequest, UserQueryMode};
+use crate::ai::artifacts::Artifact;
 use crate::notebooks::NotebookId;
 
 #[test]
@@ -247,59 +245,6 @@ fn test_artifact_plan_serialize_deserialize_roundtrip() {
 }
 
 #[test]
-fn test_deserialize_agent_message_headers() {
-    let json = r#"[
-        {
-            "message_id": "message-1",
-            "sender_run_id": "run-1",
-            "subject": "Build finished",
-            "sent_at": "2026-04-09T20:00:00Z",
-            "delivered_at": "2026-04-09T20:01:00Z",
-            "read_at": null
-        }
-    ]"#;
-
-    let headers: Vec<AgentMessageHeader> = serde_json::from_str(json).unwrap();
-
-    assert_eq!(headers.len(), 1);
-    assert_eq!(headers[0].message_id, "message-1");
-    assert_eq!(headers[0].sender_run_id, "run-1");
-    assert_eq!(headers[0].subject, "Build finished");
-    assert_eq!(headers[0].sent_at, "2026-04-09T20:00:00Z");
-    assert_eq!(
-        headers[0].delivered_at.as_deref(),
-        Some("2026-04-09T20:01:00Z")
-    );
-    assert_eq!(headers[0].read_at, None);
-}
-
-#[test]
-fn test_deserialize_read_agent_message_response_with_timestamps() {
-    let json = r#"{
-        "message_id": "message-1",
-        "sender_run_id": "run-1",
-        "subject": "Build finished",
-        "body": "Everything passed.",
-        "sent_at": "2026-04-09T20:00:00Z",
-        "delivered_at": "2026-04-09T20:01:00Z",
-        "read_at": "2026-04-09T20:02:00Z"
-    }"#;
-
-    let response: ReadAgentMessageResponse = serde_json::from_str(json).unwrap();
-
-    assert_eq!(response.message_id, "message-1");
-    assert_eq!(response.sender_run_id, "run-1");
-    assert_eq!(response.subject, "Build finished");
-    assert_eq!(response.body, "Everything passed.");
-    assert_eq!(response.sent_at, "2026-04-09T20:00:00Z");
-    assert_eq!(
-        response.delivered_at.as_deref(),
-        Some("2026-04-09T20:01:00Z")
-    );
-    assert_eq!(response.read_at.as_deref(), Some("2026-04-09T20:02:00Z"));
-}
-
-#[test]
 fn test_deserialize_agent_run_events_with_optional_fields() {
     let json = r#"[
         {
@@ -423,17 +368,5 @@ fn serialize_run_followup_request() {
         serde_json::json!({
             "message": "continue from here",
         })
-    );
-}
-
-#[test]
-fn deserialize_fork_conversation_response() {
-    let response: ForkConversationResponse = serde_json::from_value(serde_json::json!({
-        "forked_conversation_id": "abcdef01-2345-6789-abcd-ef0123456789",
-    }))
-    .unwrap();
-    assert_eq!(
-        response.forked_conversation_id,
-        "abcdef01-2345-6789-abcd-ef0123456789"
     );
 }

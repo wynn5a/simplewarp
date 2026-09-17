@@ -12123,9 +12123,6 @@ impl Workspace {
     }
     /// Fork an existing AI conversation.
     /// Optionally summarizes the conversation after forking and/or sends an initial prompt.
-    /// When cloud conversation storage is enabled and the source has a server token,
-    /// a server-side fork is created first so the new conversation immediately gets
-    /// cloud storage and a server identity.
     #[allow(clippy::too_many_arguments)]
     fn fork_ai_conversation(
         &mut self,
@@ -12165,9 +12162,6 @@ impl Workspace {
         // `ephemeral_message_model.current_message().is_none()` gate.
         let has_initial_query = summarize_after_fork || initial_prompt.is_some();
 
-        let cloud_storage_enabled =
-            PrivacySettings::as_ref(ctx).is_cloud_conversation_storage_enabled;
-
         // Load the conversation data asynchronously
         let future = history_model
             .as_ref(ctx)
@@ -12188,74 +12182,24 @@ impl Workspace {
                 return;
             };
 
-            let source_server_token = source_conversation
-                .server_conversation_token()
-                .map(|t| t.as_str().to_string());
-            let title_for_fork = source_conversation.title();
-
-            // Skip the server-side fork when forking from a specific exchange.
-            // The server's ForkConversation copies the entire GCS conversation
-            // data, which includes exchanges after the fork point. This creates
-            // a mismatch with the locally-truncated fork and causes TaskNotFound
-            // errors during cloud-to-cloud handoff replay.
-            let should_server_fork =
-                cloud_storage_enabled && fork_from_exchange.is_none();
-            if let Some(source_token) = source_server_token.filter(|_| should_server_fork) {
-                let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
-                ctx.spawn(
-                    async move {
-                        ai_client
-                            .fork_conversation(source_token, title_for_fork)
-                            .await
-                    },
-                    move |workspace, result, ctx| {
-                        let server_forked_id = match result {
-                            Ok(response) => Some(response.forked_conversation_id),
-                            Err(err) => {
-                                log::warn!("Server-side fork failed, proceeding with local-only fork: {err:#}");
-                                None
-                            }
-                        };
-                        workspace.create_local_fork(
-                            source_conversation,
-                            conversation_id,
-                            fork_from_exchange,
-                            summarize_after_fork,
-                            summarization_prompt,
-                            initial_prompt,
-                            initial_attachments,
-                            destination,
-                            has_initial_query,
-                            source_terminal_view_id,
-                            server_forked_id,
-                            window_id,
-                            ctx,
-                        );
-                    },
-                );
-            } else {
-                workspace.create_local_fork(
-                    source_conversation,
-                    conversation_id,
-                    fork_from_exchange,
-                    summarize_after_fork,
-                    summarization_prompt,
-                    initial_prompt,
-                    initial_attachments,
-                    destination,
-                    has_initial_query,
-                    source_terminal_view_id,
-                    None,
-                    window_id,
-                    ctx,
-                );
-            }
+            workspace.create_local_fork(
+                source_conversation,
+                conversation_id,
+                fork_from_exchange,
+                summarize_after_fork,
+                summarization_prompt,
+                initial_prompt,
+                initial_attachments,
+                destination,
+                has_initial_query,
+                source_terminal_view_id,
+                window_id,
+                ctx,
+            );
         });
     }
 
     /// Completes the fork by creating the local conversation and restoring it into a pane.
-    /// If `server_forked_conversation_id` is provided, the local fork is bound to the
-    /// server-side fork so it immediately has cloud storage and a server identity.
     #[allow(clippy::too_many_arguments)]
     fn create_local_fork(
         &mut self,
@@ -12269,7 +12213,6 @@ impl Workspace {
         destination: ForkedConversationDestination,
         has_initial_query: bool,
         source_terminal_view_id: Option<EntityId>,
-        server_forked_conversation_id: Option<String>,
         window_id: WindowId,
         ctx: &mut ViewContext<Self>,
     ) {
@@ -12295,7 +12238,7 @@ impl Workspace {
             }
         });
 
-        let mut forked_conversation = match fork_result {
+        let forked_conversation = match fork_result {
             Ok(forked_conversation) => forked_conversation,
             Err(e) => {
                 report_error!(e.context("Conversation forking failed"));
@@ -12306,16 +12249,6 @@ impl Workspace {
                 return;
             }
         };
-
-        if let Some(server_id) = server_forked_conversation_id {
-            let forked_id = forked_conversation.id();
-            forked_conversation.set_server_conversation_token(server_id.clone());
-            history_model.update(ctx, |history_model, ctx| {
-                history_model.set_server_conversation_token_for_conversation_and_persist(
-                    forked_id, server_id, ctx,
-                );
-            });
-        }
 
         // Handle forking into the current pane
         if destination.is_current_pane() {

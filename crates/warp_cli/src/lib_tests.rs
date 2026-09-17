@@ -4,7 +4,6 @@ use clap::Parser;
 
 use super::*;
 use crate::agent::{AgentCommand, Harness, OutputFormat};
-use crate::task::{MessageCommand, TaskCommand};
 
 #[test]
 fn identifies_worker_subcommands() {
@@ -649,29 +648,6 @@ fn agent_run_rejects_prompt_and_saved_prompt() {
 }
 
 #[test]
-fn raw_command_keeps_message_visible_before_runtime_help_customization() {
-    let mut command = <Args as clap::CommandFactory>::command();
-    command.build();
-
-    let run = command
-        .find_subcommand("run")
-        .expect("run subcommand should exist");
-    let message = run
-        .find_subcommand("message")
-        .expect("message subcommand should exist");
-
-    assert!(!message.is_hide_set());
-
-    let visible_subcommands: Vec<_> = run
-        .get_subcommands()
-        .filter(|subcommand| !subcommand.is_hide_set())
-        .map(|subcommand| subcommand.get_name())
-        .collect();
-
-    assert!(visible_subcommands.contains(&"message"));
-}
-
-#[test]
 fn agent_run_accepts_computer_use_flag() {
     let args = Args::try_parse_from([
         "warp",
@@ -750,29 +726,6 @@ fn agent_run_defaults_to_no_computer_use_override() {
     assert_eq!(run_args.computer_use.computer_use_override(), None);
 }
 #[test]
-fn agent_run_accepts_task_id_with_conversation_for_worker_followups() {
-    let args = Args::try_parse_from([
-        "warp",
-        "agent",
-        "run",
-        "--task-id",
-        "task-123",
-        "--conversation",
-        "conv-123",
-    ])
-    .unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp agent run` command");
-    };
-    let CliCommand::Agent(AgentCommand::Run(run_args)) = boxed_cmd.as_ref() else {
-        panic!("Expected `warp agent run` command");
-    };
-
-    assert_eq!(run_args.task_id.as_deref(), Some("task-123"));
-    assert_eq!(run_args.conversation.as_deref(), Some("conv-123"));
-}
-#[test]
 fn harness_parse_orchestration_harness_accepts_aliases() {
     assert_eq!(
         Harness::parse_orchestration_harness("claude-code"),
@@ -809,140 +762,6 @@ fn harness_parse_local_child_harness_accepts_codex() {
     );
 }
 #[test]
-fn run_message_send_parses() {
-    let args = Args::try_parse_from([
-        "warp",
-        "run",
-        "message",
-        "send",
-        "--to",
-        "run-1",
-        "--to",
-        "run-2",
-        "--subject",
-        "Build update",
-        "--body",
-        "Done",
-        "--sender-run-id",
-        "sender-1",
-    ])
-    .unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp run message send` command");
-    };
-    let CliCommand::Run(TaskCommand::Message(MessageCommand::Send(send_args))) = boxed_cmd.as_ref()
-    else {
-        panic!("Expected `warp run message send` command");
-    };
-
-    assert_eq!(send_args.to, vec!["run-1".to_string(), "run-2".to_string()]);
-    assert_eq!(send_args.subject, "Build update");
-    assert_eq!(send_args.body, "Done");
-    assert_eq!(send_args.sender_run_id, "sender-1");
-}
-
-#[test]
-fn run_message_list_parses_filters() {
-    let args = Args::try_parse_from([
-        "warp",
-        "run",
-        "message",
-        "list",
-        "run-123",
-        "--unread",
-        "--since",
-        "2026-04-09T20:00:00Z",
-        "--limit",
-        "25",
-    ])
-    .unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp run message list` command");
-    };
-    let CliCommand::Run(TaskCommand::Message(MessageCommand::List(list_args))) = boxed_cmd.as_ref()
-    else {
-        panic!("Expected `warp run message list` command");
-    };
-
-    assert_eq!(list_args.run_id, "run-123");
-    assert!(list_args.unread);
-    assert_eq!(list_args.since.as_deref(), Some("2026-04-09T20:00:00Z"));
-    assert_eq!(list_args.limit, 25);
-}
-
-#[test]
-fn run_message_list_rejects_non_positive_limit() {
-    assert!(
-        Args::try_parse_from(["warp", "run", "message", "list", "run-123", "--limit", "0",])
-            .is_err()
-    );
-}
-
-#[test]
-fn run_message_watch_parses() {
-    let args = Args::try_parse_from([
-        "warp",
-        "run",
-        "message",
-        "watch",
-        "--output-format",
-        "ndjson",
-        "run-123",
-        "--since-sequence",
-        "7",
-    ])
-    .unwrap();
-
-    assert_eq!(args.global_options.output_format, OutputFormat::Ndjson);
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp run message watch` command");
-    };
-    let CliCommand::Run(TaskCommand::Message(MessageCommand::Watch(watch_args))) =
-        boxed_cmd.as_ref()
-    else {
-        panic!("Expected `warp run message watch` command");
-    };
-
-    assert_eq!(watch_args.run_id, "run-123");
-    assert_eq!(watch_args.since_sequence, 7);
-}
-
-#[test]
-fn run_message_read_parses() {
-    let args = Args::try_parse_from(["warp", "run", "message", "read", "message-123"]).unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp run message read` command");
-    };
-    let CliCommand::Run(TaskCommand::Message(MessageCommand::Read(read_args))) = boxed_cmd.as_ref()
-    else {
-        panic!("Expected `warp run message read` command");
-    };
-
-    assert_eq!(read_args.message_id, "message-123");
-}
-
-#[test]
-fn run_message_mark_delivered_parses() {
-    let args =
-        Args::try_parse_from(["warp", "run", "message", "mark-delivered", "message-456"]).unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp run message mark-delivered` command");
-    };
-    let CliCommand::Run(TaskCommand::Message(MessageCommand::MarkDelivered(delivered_args))) =
-        boxed_cmd.as_ref()
-    else {
-        panic!("Expected `warp run message mark-delivered` command");
-    };
-
-    assert_eq!(delivered_args.message_id, "message-456");
-}
-
-#[test]
 #[serial_test::serial]
 fn hidden_server_overrides_parse_from_env() {
     let previous_server_root = set_env_var(SERVER_ROOT_URL_OVERRIDE_ENV, "http://localhost:8080");
@@ -967,21 +786,4 @@ fn hidden_server_overrides_parse_from_env() {
         args.session_sharing_server_url(),
         Some("ws://127.0.0.1:8081")
     );
-}
-
-#[test]
-fn run_message_delivered_alias_parses() {
-    let args =
-        Args::try_parse_from(["warp", "run", "message", "delivered", "message-456"]).unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp run message delivered` command");
-    };
-    let CliCommand::Run(TaskCommand::Message(MessageCommand::MarkDelivered(delivered_args))) =
-        boxed_cmd.as_ref()
-    else {
-        panic!("Expected `warp run message delivered` command");
-    };
-
-    assert_eq!(delivered_args.message_id, "message-456");
 }

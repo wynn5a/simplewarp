@@ -222,29 +222,9 @@ impl Args {
             });
         }
 
-        // Hide the --conversation flag from help text
-        if !FeatureFlag::CloudConversations.is_enabled() {
-            command = command.mut_subcommand("agent", |agent_cmd| {
-                agent_cmd.mut_subcommand("run", |run_cmd| {
-                    run_cmd.mut_arg("conversation", |arg| arg.hide(true))
-                })
-            });
-        }
-
         // Hide the provider subcommand from help text
         if !FeatureFlag::ProviderCommand.is_enabled() {
             command = command.mut_subcommand("provider", |c| c.hide(true));
-        }
-
-        // Hide the conversation subcommand and --conversation flag from help text.
-        if !FeatureFlag::ConversationApi.is_enabled() {
-            command = command.mut_subcommand("run", |run_cmd| {
-                run_cmd
-                    .mut_subcommand("conversation", |c| c.hide(true))
-                    .mut_subcommand("get", |get_cmd| {
-                        get_cmd.mut_arg("conversation", |arg| arg.hide(true))
-                    })
-            });
         }
 
         // Wire up `--version` / `-V` using the same version metadata used elsewhere in the
@@ -372,6 +352,7 @@ pub enum WorkerCommand {
 /// CLI-related subcommands. The command-line interface to Warp isn't a full SDK (e.g. with language bindings),
 /// but it allows scripting some Warp functionality.
 #[derive(Debug, Clone, Subcommand)]
+#[allow(clippy::large_enum_variant)] // `Agent`'s run args are large but always parsed by value
 pub enum CliCommand {
     /// Interact with Oz.
     #[command(subcommand)]
@@ -383,7 +364,7 @@ pub enum CliCommand {
 
     /// Manage runs.
     #[command(subcommand, alias = "task")]
-    Run(crate::task::TaskCommand),
+    Run(Box<crate::task::TaskCommand>),
 
     /// Manage available models.
     #[command(subcommand)]

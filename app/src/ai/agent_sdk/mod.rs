@@ -18,8 +18,8 @@ use warp_cli::mcp::MCPCommand;
 use warp_cli::model::ModelCommand;
 use warp_cli::provider::ProviderCommand;
 use warp_cli::share::ShareRequest;
-use warp_cli::task::{MessageCommand, TaskCommand};
-use warp_cli::{CliCommand, GlobalOptions, OZ_HARNESS_ENV};
+use warp_cli::task::TaskCommand;
+use warp_cli::{CliCommand, GlobalOptions};
 use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warp_isolation_platform::IsolationPlatformError;
@@ -28,11 +28,6 @@ use warp_logging::log_file_path;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelSpawner, SingletonEntity};
 
-use crate::ai::agent::api::ServerConversationToken;
-use crate::ai::agent::api::convert_conversation::{
-    RestorationMode, convert_conversation_data_to_ai_conversation,
-};
-use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_sdk::driver::harness::{HarnessKind, harness_kind};
 use crate::ai::agent_sdk::driver::{AgentDriverOptions, AgentRunPrompt, Task};
 use crate::ai::agent_sdk::mcp_config::build_mcp_servers_from_specs;
@@ -52,7 +47,6 @@ use crate::send_telemetry_sync_from_app_ctx;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::{AIClient, AgentConfigSnapshot, GitCredential};
-use crate::terminal::view::ConversationRestorationInNewPaneType;
 use crate::workflows::workflow::Workflow;
 
 mod admin;
@@ -95,7 +89,7 @@ fn dispatch_command(
     match command {
         CliCommand::Agent(agent_cmd) => run_agent(ctx, global_options, agent_cmd),
         CliCommand::MCP(mcp_cmd) => mcp::run(ctx, global_options, mcp_cmd),
-        CliCommand::Run(task_cmd) => run_task(ctx, global_options, task_cmd),
+        CliCommand::Run(task_cmd) => run_task(ctx, global_options, *task_cmd),
         CliCommand::Model(model_cmd) => model::run(ctx, global_options, model_cmd),
         CliCommand::Logout => admin::logout(ctx),
         CliCommand::Whoami => admin::whoami(ctx, global_options.output_format),
@@ -151,11 +145,6 @@ fn run_agent(
         AgentCommand::Run(args) => {
             if args.environment.is_some() && !FeatureFlag::CloudEnvironments.is_enabled() {
                 return Err(anyhow::anyhow!("unexpected argument '--environment' found"));
-            }
-            if args.conversation.is_some() && !FeatureFlag::CloudConversations.is_enabled() {
-                return Err(anyhow::anyhow!(
-                    "unexpected argument '--conversation' found"
-                ));
             }
             if args.skill.is_some() && !FeatureFlag::OzPlatformSkills.is_enabled() {
                 return Err(anyhow::anyhow!("unexpected argument '--skill' found"));
@@ -430,32 +419,8 @@ fn run_task(
     command: TaskCommand,
 ) -> anyhow::Result<()> {
     match command {
-        TaskCommand::List(args) => ambient::list_ambient_agent_tasks(ctx, global_options, args),
-        TaskCommand::Get(args) => {
-            if args.conversation {
-                if !FeatureFlag::ConversationApi.is_enabled() {
-                    return Err(anyhow::anyhow!(
-                        "The --conversation flag is not available in this build"
-                    ));
-                }
-                ambient::get_run_conversation(ctx, args.task_id)
-            } else {
-                ambient::get_ambient_agent_task_status(ctx, global_options, args)
-            }
-        }
-        TaskCommand::Conversation(conv_cmd) => {
-            if !FeatureFlag::ConversationApi.is_enabled() {
-                return Err(anyhow::anyhow!(
-                    "The 'conversation' subcommand is not available in this build"
-                ));
-            }
-            match conv_cmd {
-                warp_cli::task::ConversationCommand::Get(args) => {
-                    ambient::get_conversation(ctx, args.conversation_id)
-                }
-            }
-        }
-        TaskCommand::Message(message_cmd) => ambient::run_message(ctx, global_options, message_cmd),
+        TaskCommand::List(args) => ambient::list_ambient_agent_tasks(ctx, global_options, *args),
+        TaskCommand::Get(args) => ambient::get_ambient_agent_task_status(ctx, global_options, args),
     }
 }
 
@@ -493,24 +458,6 @@ impl AgentDriverRunner {
         let result: Result<(), AgentDriverError> = async {
             // Pull relevant variables out of args before moving it into the closure.
             let share_requests = args.share.share.clone();
-            let has_task_id = args.task_id.is_some();
-            let args_harness = args.harness;
-            // `--conversation` path (user-invoked local resume): validate before any task side
-            // effects so mismatches fail fast. The `--task-id` path derives its conversation id
-            // from the server-side task metadata inside `build_driver_options_and_task`. Both
-            // can currently be passed together (the worker server-side appends `--conversation`
-            // alongside `--task-id` for Slack/Linear followups); when both are set, the explicit
-            // `--conversation` value wins via the merge below.
-            if !has_task_id
-                && let Some(conversation_id) = args.conversation.as_deref() {
-                    common::fetch_and_validate_conversation_harness(
-                        server_api.clone(),
-                        conversation_id,
-                        args_harness,
-                    )
-                    .await?;
-                }
-            let resume_conversation_id = args.conversation.clone();
 
             // Build driver options and task, handling task creation or existing task setup.
             // For the `--task-id` path, `task_conversation_id` is the `conversation_id` read off
@@ -524,11 +471,7 @@ impl AgentDriverRunner {
             // This only matters if we created a task ID locally.
             task_id = driver_options.task_id.or(task_id);
 
-            // The `--task-id` branch already validated `args_harness` against the task's harness
-            // setting inside `build_driver_options_and_task`; the conversation that the task spawned
-            // necessarily uses the same harness, so no extra conversation-metadata roundtrip is
-            // needed here. Just merge the task's linked conversation id into the resume target.
-            let resume_conversation_id = resume_conversation_id.or(task_conversation_id);
+            let resume_conversation_id = task_conversation_id;
 
             match &task.harness {
                 HarnessKind::Unsupported(harness) => {
@@ -556,11 +499,7 @@ impl AgentDriverRunner {
                 driver_options.resume = setup_events
                     .record_result(
                         SetupStep::ConversationResumeLoading,
-                        Self::load_conversation_information(
-                            &foreground,
-                            conversation_id,
-                            &task.harness,
-                        ),
+                        Self::load_conversation_information(conversation_id, &task.harness),
                     )
                     .await?;
             }
@@ -1030,56 +969,20 @@ impl AgentDriverRunner {
         Ok(task_conversation_id)
     }
 
-    /// If we are starting this agent run from an existing conversation, load the conversation
-    /// data from the server and return the harness-specific [`ResumeOptions`] payload that the
-    /// caller plugs onto [`AgentDriverOptions::resume`].
+    /// If we are starting this agent run from an existing conversation, return the
+    /// harness-specific [`ResumeOptions`] payload that the caller plugs onto
+    /// [`AgentDriverOptions::resume`].
     ///
-    /// `harness` is the resolved harness from the task config (already validated against the
-    /// conversation's metadata up-front by [`common::fetch_and_validate_conversation_harness`]).
-    ///
-    /// For the Oz harness, fetches the full conversation and returns a [`driver::ResumeOptions::Oz`].
     /// Third-party harnesses cannot resume: their transcript lives on the Warp server, so this
     /// errors instead of returning a payload.
-    #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true, conversation_id = conversation_id))]
     async fn load_conversation_information(
-        foreground: &ModelSpawner<Self>,
         conversation_id: String,
         harness: &HarnessKind,
     ) -> Result<Option<driver::ResumeOptions>, AgentDriverError> {
         match harness {
-            HarnessKind::Oz => {
-                let server_api = foreground
-                    .spawn(|_, ctx| {
-                        ServerApiProvider::handle(ctx)
-                            .as_ref(ctx)
-                            .get_ai_client()
-                            .clone()
-                    })
-                    .await?;
-                let token = ServerConversationToken::new(conversation_id.clone());
-                let (conversation_data, metadata) = server_api
-                    .get_ai_conversation(token)
-                    .await
-                    .map_err(|err| AgentDriverError::ConversationLoadFailed(format!("{err}")))?;
-                let conversation = convert_conversation_data_to_ai_conversation(
-                    AIConversationId::default(),
-                    &conversation_data,
-                    metadata,
-                    RestorationMode::Continue,
-                )
-                .ok_or_else(|| {
-                    AgentDriverError::ConversationLoadFailed(
-                        "Failed to convert conversation data to AIConversation".into(),
-                    )
-                })?;
-                Ok(Some(driver::ResumeOptions::Oz(Box::new(
-                    ConversationRestorationInNewPaneType::Historical {
-                        conversation,
-                        should_use_live_appearance: false,
-                        ambient_agent_task_id: None,
-                    },
-                ))))
-            }
+            HarnessKind::Oz => Err(AgentDriverError::ConversationLoadFailed(format!(
+                "conversation {conversation_id} could not be loaded from the Warp server"
+            ))),
             HarnessKind::ThirdParty(_) => Err(AgentDriverError::ConversationLoadFailed(
                 "Resuming a third-party harness conversation requires the transcript stored on \
                  the Warp server."
@@ -1184,11 +1087,9 @@ fn command_requires_auth(command: &CliCommand) -> bool {
         CliCommand::MCP(mcp_cmd) => match mcp_cmd {
             MCPCommand::List => true,
         },
-        CliCommand::Run(task_cmd) => match task_cmd {
+        CliCommand::Run(task_cmd) => match task_cmd.as_ref() {
             TaskCommand::List { .. } => true,
             TaskCommand::Get { .. } => true,
-            TaskCommand::Conversation { .. } => true,
-            TaskCommand::Message { .. } => true,
         },
         CliCommand::Model(model_cmd) => match model_cmd {
             ModelCommand::List => true,
@@ -1297,20 +1198,6 @@ fn report_fatal_error(err: anyhow::Error, ctx: &mut AppContext) {
     ctx.terminate_app(TerminationMode::ForceTerminate, Some(Err(error)));
 }
 
-fn resolve_orchestration_harness_label() -> &'static str {
-    let Ok(raw) = std::env::var(OZ_HARNESS_ENV) else {
-        return "unknown";
-    };
-    match Harness::parse_orchestration_harness(&raw) {
-        Some(Harness::Oz) => "oz",
-        Some(Harness::Claude) => "claude",
-        Some(Harness::OpenCode) => "opencode",
-        Some(Harness::Gemini) => "gemini",
-        Some(Harness::Codex) => "codex",
-        Some(Harness::Unknown) | None => "unknown",
-    }
-}
-
 /// Map each CLI command into a telemetry event to emit when it's executed.
 fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
     match command {
@@ -1325,31 +1212,9 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
             AgentProfileCommand::List => CliTelemetryEvent::AgentProfileList,
         },
         CliCommand::MCP(MCPCommand::List) => CliTelemetryEvent::MCPList,
-        CliCommand::Run(TaskCommand::List(_)) => CliTelemetryEvent::TaskList,
-        CliCommand::Run(TaskCommand::Get(args)) => {
-            if args.conversation {
-                CliTelemetryEvent::RunConversationGet
-            } else {
-                CliTelemetryEvent::TaskGet
-            }
-        }
-        CliCommand::Run(TaskCommand::Conversation(_)) => CliTelemetryEvent::ConversationGet,
-        CliCommand::Run(TaskCommand::Message(message_cmd)) => match message_cmd {
-            MessageCommand::Watch(_) => CliTelemetryEvent::RunMessageWatch {
-                harness: resolve_orchestration_harness_label(),
-            },
-            MessageCommand::Send(_) => CliTelemetryEvent::RunMessageSend {
-                harness: resolve_orchestration_harness_label(),
-            },
-            MessageCommand::List(_) => CliTelemetryEvent::RunMessageList {
-                harness: resolve_orchestration_harness_label(),
-            },
-            MessageCommand::Read(_) => CliTelemetryEvent::RunMessageRead {
-                harness: resolve_orchestration_harness_label(),
-            },
-            MessageCommand::MarkDelivered(_) => CliTelemetryEvent::RunMessageMarkDelivered {
-                harness: resolve_orchestration_harness_label(),
-            },
+        CliCommand::Run(task_cmd) => match **task_cmd {
+            TaskCommand::List(_) => CliTelemetryEvent::TaskList,
+            TaskCommand::Get(_) => CliTelemetryEvent::TaskGet,
         },
         CliCommand::Model(ModelCommand::List) => CliTelemetryEvent::ModelList,
         CliCommand::Logout => CliTelemetryEvent::Logout,

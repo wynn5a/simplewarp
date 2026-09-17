@@ -42,17 +42,6 @@ where
     }
 }
 
-/// Write a serializable value to `output` as pretty JSON.
-pub fn write_json<T, W>(value: &T, mut output: W) -> anyhow::Result<()>
-where
-    T: Serialize,
-    W: std::io::Write,
-{
-    serde_json::to_writer_pretty(&mut output, value).context("unable to write JSON output")?;
-    writeln!(&mut output)?;
-    Ok(())
-}
-
 /// Write a serializable value to `output` as a single-line JSON record.
 pub fn write_json_line<T, W>(value: &T, mut output: W) -> anyhow::Result<()>
 where

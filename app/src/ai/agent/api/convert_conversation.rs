@@ -15,7 +15,6 @@ use ai::agent::action_result::{
 };
 use ai::skills::{ParsedSkill, SkillPathOrigin};
 use chrono::{DateTime, Local, TimeZone};
-use persistence::model::AgentConversationData;
 use warp_core::command::ExitCode;
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::ask_user_question_result::answer_item::Answer as AskUserQuestionAnswer;
@@ -24,9 +23,7 @@ use crate::ai::agent::api::convert_from::{
     ConversionParams, ConvertAPIMessageToClientOutputMessage, MaybeAIAgentOutputMessage,
     convert_user_query_mode,
 };
-use crate::ai::agent::conversation::{
-    AIConversation, AIConversationId, ServerAIConversationMetadata, update_todo_list_from_todo_op,
-};
+use crate::ai::agent::conversation::update_todo_list_from_todo_op;
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::todos::AIAgentTodoList;
 use crate::ai::agent::{
@@ -48,91 +45,6 @@ use crate::ai::llms::LLMId;
 use crate::ai_assistant::execution_context::{WarpAiExecutionContext, WarpAiOsContext};
 use crate::terminal::model::block::BlockId;
 use crate::terminal::model::terminal_model::BlockIndex;
-
-/// How to restore a conversation from the cloud.
-pub enum RestorationMode {
-    /// Continue the same conversation (use the same server ID).
-    Continue,
-    /// Fork from the original conversation.
-    #[allow(dead_code)]
-    Fork,
-}
-
-/// Converts a cloud ConversationData to an AIConversation.
-/// The `metadata` contains all server-side information about the conversation, including usage data.
-/// `restoration_mode` controls how the server metadata is handled - we should only keep the metadata when continuing, not forking
-pub fn convert_conversation_data_to_ai_conversation(
-    conversation_id: AIConversationId,
-    conversation_data: &api::ConversationData,
-    metadata: ServerAIConversationMetadata,
-    restoration_mode: RestorationMode,
-) -> Option<AIConversation> {
-    let usage_metadata = Some(metadata.usage.clone());
-
-    let agent_conversation_data = match restoration_mode {
-        RestorationMode::Fork => AgentConversationData {
-            server_conversation_token: None,
-            conversation_usage_metadata: usage_metadata,
-            reverted_action_ids: None,
-            forked_from_server_conversation_token: Some(
-                metadata.server_conversation_token.as_str().to_string(),
-            ),
-            // If we fork, new conversation, artifacts don't carry over
-            artifacts_json: None,
-            parent_agent_id: None,
-            agent_name: None,
-            orchestration_harness_type: None,
-            parent_conversation_id: None,
-            is_remote_child: false,
-            root_task_is_optimistic: None,
-            run_id: None,
-            autoexecute_override: None,
-            last_event_sequence: None,
-            pinned: false,
-        },
-        RestorationMode::Continue => AgentConversationData {
-            server_conversation_token: Some(
-                metadata.server_conversation_token.as_str().to_string(),
-            ),
-            conversation_usage_metadata: usage_metadata,
-            reverted_action_ids: None,
-            forked_from_server_conversation_token: None,
-            artifacts_json: serde_json::to_string(&metadata.artifacts).ok(),
-            parent_agent_id: None,
-            agent_name: None,
-            orchestration_harness_type: None,
-            parent_conversation_id: None,
-            is_remote_child: false,
-            root_task_is_optimistic: None,
-            run_id: metadata
-                .ambient_agent_task_id
-                .map(|task_id| task_id.to_string()),
-            autoexecute_override: None,
-            last_event_sequence: None,
-            pinned: false,
-        },
-    };
-
-    match AIConversation::new_restored(
-        conversation_id,
-        conversation_data.tasks.clone(),
-        Some(agent_conversation_data),
-    ) {
-        Ok(mut conversation) => {
-            // Set the server metadata only if we're continuing
-            // If we're forking, this should be treated as a brand new conversation that doesn't have server metadata yet.
-            // After the first request, server metadata will be populated.
-            if matches!(restoration_mode, RestorationMode::Continue) {
-                conversation.set_server_metadata(metadata);
-            }
-            Some(conversation)
-        }
-        Err(e) => {
-            log::warn!("Failed to convert ConversationData to AIConversation: {e:?}");
-            None
-        }
-    }
-}
 
 /// Converts InputContext from the API to the application type `Arc<[AIAgentContext]>`
 #[allow(clippy::single_range_in_vec_init)]

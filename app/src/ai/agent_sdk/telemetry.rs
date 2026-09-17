@@ -25,20 +25,6 @@ pub(super) enum CliTelemetryEvent {
     TaskList,
     /// Executing `warp task get`
     TaskGet,
-    /// Executing `warp run conversation get`
-    ConversationGet,
-    /// Executing `warp run get <id> --conversation`
-    RunConversationGet,
-    /// Executing `warp run message watch`
-    RunMessageWatch { harness: &'static str },
-    /// Executing `warp run message send`
-    RunMessageSend { harness: &'static str },
-    /// Executing `warp run message list`
-    RunMessageList { harness: &'static str },
-    /// Executing `warp run message read`
-    RunMessageRead { harness: &'static str },
-    /// Executing `warp run message mark-delivered`
-    RunMessageMarkDelivered { harness: &'static str },
     /// Executing `warp logout`
     Logout,
     /// Executing `warp whoami`
@@ -74,15 +60,6 @@ impl TelemetryEvent for CliTelemetryEvent {
             CliTelemetryEvent::ModelList => None,
             CliTelemetryEvent::TaskList => None,
             CliTelemetryEvent::TaskGet => None,
-            CliTelemetryEvent::ConversationGet => None,
-            CliTelemetryEvent::RunConversationGet => None,
-            CliTelemetryEvent::RunMessageWatch { harness } => Some(json!({ "harness": harness })),
-            CliTelemetryEvent::RunMessageSend { harness } => Some(json!({ "harness": harness })),
-            CliTelemetryEvent::RunMessageList { harness } => Some(json!({ "harness": harness })),
-            CliTelemetryEvent::RunMessageRead { harness } => Some(json!({ "harness": harness })),
-            CliTelemetryEvent::RunMessageMarkDelivered { harness } => {
-                Some(json!({ "harness": harness }))
-            }
             CliTelemetryEvent::Logout => None,
             CliTelemetryEvent::Whoami => None,
             CliTelemetryEvent::ProviderSetup => None,
@@ -116,17 +93,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::ModelList => "CLI.Execute.Model.List",
             CliTelemetryEventDiscriminants::TaskList => "CLI.Execute.Task.List",
             CliTelemetryEventDiscriminants::TaskGet => "CLI.Execute.Task.Get",
-            CliTelemetryEventDiscriminants::ConversationGet => "CLI.Execute.Conversation.Get",
-            CliTelemetryEventDiscriminants::RunConversationGet => {
-                "CLI.Execute.Run.Conversation.Get"
-            }
-            CliTelemetryEventDiscriminants::RunMessageWatch => "CLI.Execute.Run.Message.Watch",
-            CliTelemetryEventDiscriminants::RunMessageSend => "CLI.Execute.Run.Message.Send",
-            CliTelemetryEventDiscriminants::RunMessageList => "CLI.Execute.Run.Message.List",
-            CliTelemetryEventDiscriminants::RunMessageRead => "CLI.Execute.Run.Message.Read",
-            CliTelemetryEventDiscriminants::RunMessageMarkDelivered => {
-                "CLI.Execute.Run.Message.MarkDelivered"
-            }
             CliTelemetryEventDiscriminants::Logout => "CLI.Execute.Logout",
             CliTelemetryEventDiscriminants::Whoami => "CLI.Execute.Whoami",
             CliTelemetryEventDiscriminants::ProviderSetup => "CLI.Execute.Provider.Setup",
@@ -144,27 +110,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::ModelList => "Listed models from the Warp CLI",
             CliTelemetryEventDiscriminants::TaskList => "Listed tasks from the Warp CLI",
             CliTelemetryEventDiscriminants::TaskGet => "Got status of task from the Warp CLI",
-            CliTelemetryEventDiscriminants::ConversationGet => {
-                "Got conversation by ID from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::RunConversationGet => {
-                "Got run conversation from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::RunMessageWatch => {
-                "Watched run messages from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::RunMessageSend => {
-                "Sent a run message from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::RunMessageList => {
-                "Listed run messages from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::RunMessageRead => {
-                "Read a run message from the Warp CLI"
-            }
-            CliTelemetryEventDiscriminants::RunMessageMarkDelivered => {
-                "Marked a run message as delivered from the Warp CLI"
-            }
             CliTelemetryEventDiscriminants::Logout => "Logged out via the Warp CLI",
             CliTelemetryEventDiscriminants::Whoami => "Printed current user info from the Warp CLI",
             CliTelemetryEventDiscriminants::ProviderSetup => "Set up a provider via the Warp CLI",
@@ -173,14 +118,8 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
     }
 
     fn enablement_state(&self) -> EnablementState {
-        match self {
-            Self::RunMessageWatch
-            | Self::RunMessageSend
-            | Self::RunMessageList
-            | Self::RunMessageRead
-            | Self::RunMessageMarkDelivered => EnablementState::Always,
-            _ => EnablementState::Always,
-        }
+        let _ = self;
+        EnablementState::Always
     }
 }
 

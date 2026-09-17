@@ -1,22 +1,18 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::sync::Arc;
 
-use mockall::predicate::eq;
 use tempfile::TempDir;
 use uuid::Uuid;
 use warp_cli::{OZ_HARNESS_ENV, OZ_PARENT_RUN_ID_ENV, OZ_RUN_ID_ENV};
 
 use super::*;
-use crate::ai::agent_events::{AgentMessageEventMetadata, MessageHydrator};
+use crate::ai::agent_events::AgentMessageEventMetadata;
 use crate::ai::agent_sdk::driver::OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV;
 use crate::ai::agent_sdk::driver::harness::claude_transcript::{
     ClaudeTranscriptEnvelope, encode_cwd, read_envelope, write_session_index_entry,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::server::server_api::ServerApiProvider;
-use crate::server::server_api::ai::{AIClient, MockAIClient, ReadAgentMessageResponse};
 
 fn sample_parent_bridge_message(
     sequence: i64,
@@ -550,7 +546,6 @@ fn prepare_local_wake_command_rehydrates_transcript_with_self_managed_listener()
     let parent_run_id = "parent-run-456".to_string();
 
     let command = futures::executor::block_on(ClaudeHarness::prepare_local_wake_command(
-        ServerApiProvider::new_for_test().get(),
         task_id,
         Some(parent_run_id.clone()),
         Some(working_dir.clone()),
@@ -632,32 +627,7 @@ async fn prime_parent_bridge_staged_for_self_managed_wake_keeps_message_in_stage
         message_id: "msg-123".to_string(),
         occurred_at: "2026-04-17T15:47:00Z".to_string(),
     };
-    let expected = sample_parent_bridge_message(
-        42,
-        "msg-123",
-        "Please pivot",
-        "Inspect the failing tests first.",
-    );
-
-    let mut ai_client = MockAIClient::new();
-    let expected_message = expected.clone();
-    ai_client
-        .expect_read_agent_message()
-        .with(eq("msg-123"))
-        .times(1)
-        .returning(move |_| {
-            Ok(ReadAgentMessageResponse {
-                message_id: expected_message.message_id.clone(),
-                sender_run_id: expected_message.sender_run_id.clone(),
-                subject: expected_message.subject.clone(),
-                body: expected_message.body.clone(),
-                sent_at: "2026-04-17T15:46:00Z".to_string(),
-                delivered_at: None,
-                read_at: Some("2026-04-17T15:46:02Z".to_string()),
-            })
-        });
-    let hydrator = MessageHydrator::new(Arc::new(ai_client) as Arc<dyn AIClient>);
-    prime_parent_bridge_staged_for_self_managed_wake(&hydrator, &state_dir, Some(&wake_message))
+    prime_parent_bridge_staged_for_self_managed_wake(&state_dir, Some(&wake_message))
         .await
         .unwrap();
 
@@ -673,8 +643,8 @@ async fn prime_parent_bridge_staged_for_self_managed_wake_keeps_message_in_stage
 
     let staged_record: MessageBridgeMessageRecord =
         serde_json::from_slice(&fs::read(&staged_path).unwrap()).unwrap();
-    assert_eq!(staged_record.subject, expected.subject);
-    assert_eq!(staged_record.body, expected.body);
+    assert_eq!(staged_record.subject, "");
+    assert_eq!(staged_record.body, "");
     assert_eq!(staged_record.occurred_at, wake_message.occurred_at);
 }
 #[test]

@@ -83,9 +83,8 @@ pub(crate) use conversation_selection::{
     PendingQueryState,
 };
 pub(crate) use history_model::{
-    AIQueryHistory, AIQueryHistoryOutputStatus, BeginConversationRenameError,
-    BlocklistAIHistoryEvent, BlocklistAIHistoryModel, ConversationStatusUpdate, FORK_PREFIX,
-    PRE_REWIND_PREFIX,
+    AIQueryHistory, AIQueryHistoryOutputStatus, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
+    ConversationStatusUpdate, FORK_PREFIX, PRE_REWIND_PREFIX,
 };
 // The policy types are re-exported for the TUI frontend via `tui_export`.
 #[allow(unused_imports)]

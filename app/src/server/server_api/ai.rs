@@ -5,25 +5,19 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 #[cfg(test)]
 use mockall::automock;
-use warp_errors::report_error;
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
-use warp_multi_agent_api::ConversationData;
 
 use super::ServerApi;
 pub use crate::ai::agent::UserQueryMode;
-use crate::ai::agent::api::ServerConversationToken;
-use crate::ai::agent::conversation::{AIAgentHarness, ServerAIConversationMetadata};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 // Re-export ambient agent types for backwards compatibility
 pub use crate::ai::ambient_agents::{
     AgentConfigSnapshot, AgentSource, AmbientAgentTask, AmbientAgentTaskState, ExecutionLocation,
     TaskStatusMessage, task::AttachmentInput,
 };
-use crate::ai::artifacts::Artifact;
 use crate::ai::generate_code_review_content::api::{
     GenerateCodeReviewContentRequest, GenerateCodeReviewContentResponse,
 };
-use crate::persistence::model::ConversationUsageMetadata;
 
 /// A status update for a task, optionally including a platform error code.
 pub struct TaskStatusUpdate {
@@ -120,54 +114,9 @@ pub struct SpawnAgentRequest {
     pub orchestration_handoff: Option<bool>,
 }
 
-/// Response body for `POST /agent/conversations/{conversation_id}/fork`. The returned id is sent
-/// on the subsequent `POST /agent/runs` request under `conversation_id` (resume semantics).
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct ForkConversationResponse {
-    pub forked_conversation_id: String,
-}
-
-/// Response body for `POST /agent/conversations/{conversation_id}/rename`.
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct RenameConversationResponse {
-    pub title: String,
-}
-
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct RunFollowupRequest {
     pub message: String,
-}
-
-// --- Orchestrations V2 messaging types ---
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct SendAgentMessageRequest {
-    pub to: Vec<String>,
-    pub subject: String,
-    pub body: String,
-    pub sender_run_id: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct ListAgentMessagesRequest {
-    pub unread_only: bool,
-    pub since: Option<String>,
-    pub limit: i32,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct SendAgentMessageResponse {
-    pub message_ids: Vec<String>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct AgentMessageHeader {
-    pub message_id: String,
-    pub sender_run_id: String,
-    pub subject: String,
-    pub sent_at: String,
-    pub delivered_at: Option<String>,
-    pub read_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -178,17 +127,6 @@ pub struct AgentRunEvent {
     pub execution_id: Option<String>,
     pub occurred_at: String,
     pub sequence: i64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ReadAgentMessageResponse {
-    pub message_id: String,
-    pub sender_run_id: String,
-    pub subject: String,
-    pub body: String,
-    pub sent_at: String,
-    pub delivered_at: Option<String>,
-    pub read_at: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -324,20 +262,6 @@ pub trait AIClient: 'static + Send + Sync {
         request: SpawnAgentRequest,
     ) -> anyhow::Result<SpawnAgentResponse, anyhow::Error>;
 
-    /// Materialize a server-side fork of a conversation.
-    async fn fork_conversation(
-        &self,
-        conversation_id: String,
-        title: Option<String>,
-    ) -> anyhow::Result<ForkConversationResponse, anyhow::Error>;
-
-    /// Rename a server-side conversation and return the normalized title.
-    async fn rename_conversation(
-        &self,
-        conversation_id: String,
-        title: String,
-    ) -> anyhow::Result<RenameConversationResponse, anyhow::Error>;
-
     async fn list_ambient_agent_tasks(
         &self,
         limit: i32,
@@ -375,16 +299,6 @@ pub trait AIClient: 'static + Send + Sync {
         request: RunFollowupRequest,
     ) -> anyhow::Result<(), anyhow::Error>;
 
-    async fn get_ai_conversation(
-        &self,
-        server_conversation_token: ServerConversationToken,
-    ) -> anyhow::Result<(ConversationData, ServerAIConversationMetadata), anyhow::Error>;
-
-    async fn list_ai_conversation_metadata(
-        &self,
-        conversation_ids: Option<Vec<String>>,
-    ) -> anyhow::Result<Vec<ServerAIConversationMetadata>>;
-
     async fn cancel_ambient_agent_task(
         &self,
         task_id: &AmbientAgentTaskId,
@@ -396,38 +310,6 @@ pub trait AIClient: 'static + Send + Sync {
         workload_token: String,
     ) -> anyhow::Result<Vec<GitCredential>, anyhow::Error>;
 
-    // --- Orchestrations V2 messaging ---
-
-    async fn send_agent_message(
-        &self,
-        request: SendAgentMessageRequest,
-    ) -> anyhow::Result<SendAgentMessageResponse, anyhow::Error>;
-
-    async fn list_agent_messages(
-        &self,
-        run_id: &str,
-        request: ListAgentMessagesRequest,
-    ) -> anyhow::Result<Vec<AgentMessageHeader>, anyhow::Error>;
-
-    async fn mark_message_delivered(&self, message_id: &str) -> anyhow::Result<(), anyhow::Error>;
-
-    async fn read_agent_message(
-        &self,
-        message_id: &str,
-    ) -> anyhow::Result<ReadAgentMessageResponse, anyhow::Error>;
-
-    /// Fetch a normalized conversation by conversation ID.
-    async fn get_public_conversation(
-        &self,
-        conversation_id: &str,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error>;
-
-    /// Fetch a normalized conversation by run ID.
-    async fn get_run_conversation(
-        &self,
-        run_id: &str,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error>;
-
     /// Generates AI copy for code-review flows: commit messages at dialog-open
     /// time and PR titles / bodies at confirm time. `output_type` in the
     /// request picks which of the three the server returns.
@@ -435,73 +317,6 @@ pub trait AIClient: 'static + Send + Sync {
         &self,
         request: GenerateCodeReviewContentRequest,
     ) -> Result<GenerateCodeReviewContentResponse, anyhow::Error>;
-}
-
-impl ServerApi {
-    pub(crate) async fn send_agent_message_for_task(
-        &self,
-        task_id: &AmbientAgentTaskId,
-        request: SendAgentMessageRequest,
-    ) -> anyhow::Result<SendAgentMessageResponse, anyhow::Error> {
-        let response = self
-            .post_public_api_response_for_task(task_id, "agent/messages", &request)
-            .await?;
-        let response = response.json::<SendAgentMessageResponse>().await?;
-        Ok(response)
-    }
-
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub(crate) async fn list_agent_messages_for_task(
-        &self,
-        task_id: &AmbientAgentTaskId,
-        run_id: &str,
-        request: ListAgentMessagesRequest,
-    ) -> anyhow::Result<Vec<AgentMessageHeader>, anyhow::Error> {
-        let mut params = vec![format!("limit={}", request.limit)];
-        if request.unread_only {
-            params.push("unread=true".to_string());
-        }
-        if let Some(since) = request.since {
-            params.push(format!("since={}", urlencoding::encode(&since)));
-        }
-
-        let path = format!("agent/messages/{run_id}?{}", params.join("&"));
-        let response = self
-            .get_public_api_response_for_task(task_id, &path)
-            .await?;
-        let response = response.json::<Vec<AgentMessageHeader>>().await?;
-        Ok(response)
-    }
-
-    pub(crate) async fn mark_message_delivered_for_task(
-        &self,
-        task_id: &AmbientAgentTaskId,
-        message_id: &str,
-    ) -> anyhow::Result<(), anyhow::Error> {
-        self.post_public_api_response_for_task(
-            task_id,
-            &format!("agent/messages/{message_id}/delivered"),
-            &(),
-        )
-        .await?;
-        Ok(())
-    }
-
-    pub(crate) async fn read_agent_message_for_task(
-        &self,
-        task_id: &AmbientAgentTaskId,
-        message_id: &str,
-    ) -> anyhow::Result<ReadAgentMessageResponse, anyhow::Error> {
-        let response = self
-            .post_public_api_response_for_task(
-                task_id,
-                &format!("agent/messages/{message_id}/read"),
-                &(),
-            )
-            .await?;
-        let response = response.json::<ReadAgentMessageResponse>().await?;
-        Ok(response)
-    }
 }
 
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
@@ -539,22 +354,6 @@ impl AIClient for ServerApi {
         &self,
         _request: SpawnAgentRequest,
     ) -> anyhow::Result<SpawnAgentResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn fork_conversation(
-        &self,
-        _conversation_id: String,
-        _title: Option<String>,
-    ) -> anyhow::Result<ForkConversationResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn rename_conversation(
-        &self,
-        _conversation_id: String,
-        _title: String,
-    ) -> anyhow::Result<RenameConversationResponse, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
     }
 
@@ -597,21 +396,6 @@ impl AIClient for ServerApi {
         Err(crate::server::server_api::local_only_error())
     }
 
-    #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
-    async fn get_ai_conversation(
-        &self,
-        _server_conversation_token: ServerConversationToken,
-    ) -> anyhow::Result<(ConversationData, ServerAIConversationMetadata), anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn list_ai_conversation_metadata(
-        &self,
-        _conversation_ids: Option<Vec<String>>,
-    ) -> anyhow::Result<Vec<ServerAIConversationMetadata>> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
     async fn cancel_ambient_agent_task(
         &self,
         _task_id: &AmbientAgentTaskId,
@@ -636,152 +420,11 @@ impl AIClient for ServerApi {
         Err(crate::server::server_api::local_only_error())
     }
 
-    // --- Orchestrations V2 messaging ---
-
-    async fn send_agent_message(
-        &self,
-        _request: SendAgentMessageRequest,
-    ) -> anyhow::Result<SendAgentMessageResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn list_agent_messages(
-        &self,
-        _run_id: &str,
-        _request: ListAgentMessagesRequest,
-    ) -> anyhow::Result<Vec<AgentMessageHeader>, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn mark_message_delivered(&self, _message_id: &str) -> anyhow::Result<(), anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn read_agent_message(
-        &self,
-        _message_id: &str,
-    ) -> anyhow::Result<ReadAgentMessageResponse, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn get_public_conversation(
-        &self,
-        _conversation_id: &str,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
-    async fn get_run_conversation(
-        &self,
-        _run_id: &str,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        Err(crate::server::server_api::local_only_error())
-    }
-
     async fn generate_code_review_content(
         &self,
         _request: GenerateCodeReviewContentRequest,
     ) -> Result<GenerateCodeReviewContentResponse, anyhow::Error> {
         Err(crate::server::server_api::local_only_error())
-    }
-}
-
-// Conversions for AIConversationMetadata from GraphQL types
-
-fn convert_harness(harness: warp_graphql::ai::AgentHarness) -> AIAgentHarness {
-    match harness {
-        warp_graphql::ai::AgentHarness::Oz => AIAgentHarness::Oz,
-        warp_graphql::ai::AgentHarness::ClaudeCode => AIAgentHarness::ClaudeCode,
-        warp_graphql::ai::AgentHarness::Gemini => AIAgentHarness::Gemini,
-        warp_graphql::ai::AgentHarness::Codex => AIAgentHarness::Codex,
-        warp_graphql::ai::AgentHarness::Other(value) => {
-            report_error!(
-                "Invalid AgentHarness; update client GraphQL types",
-                extra: { "harness" => %value },
-                warp_errors::ReportErrorLogMode::OncePerRun
-            );
-            AIAgentHarness::Unknown
-        }
-    }
-}
-
-impl TryFrom<warp_graphql::ai::AIConversation> for ServerAIConversationMetadata {
-    type Error = anyhow::Error;
-
-    fn try_from(value: warp_graphql::ai::AIConversation) -> Result<Self, Self::Error> {
-        // Full conversion including per-model token usage and tool usage
-        // stats, so restored conversations render the same usage details
-        // (e.g. the credits-expansion "Models" rows) as live ones.
-        let usage: ConversationUsageMetadata = (&value.usage.usage_metadata).into();
-        let metadata = value.metadata.try_into()?;
-        let permissions = value.permissions.try_into()?;
-        let ambient_agent_task_id = value
-            .ambient_agent_task_id
-            .map(|id| id.into_inner().parse())
-            .transpose()?;
-        let server_conversation_token =
-            ServerConversationToken::new(value.conversation_id.into_inner());
-
-        // If we fail to parse any artifacts, don't fail the entire conversion -- just don't include them in the list
-        let artifacts = value
-            .artifacts
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|a| Artifact::try_from(a).ok())
-            .collect();
-
-        Ok(Self {
-            title: value.title,
-            working_directory: value.working_directory,
-            harness: convert_harness(value.harness),
-            usage,
-            metadata,
-            creator: value.creator.map(Into::into),
-            permissions,
-            ambient_agent_task_id,
-            server_conversation_token,
-            artifacts,
-        })
-    }
-}
-
-impl TryFrom<warp_graphql::queries::list_ai_conversations::AIConversationMetadata>
-    for ServerAIConversationMetadata
-{
-    type Error = anyhow::Error;
-
-    fn try_from(
-        value: warp_graphql::queries::list_ai_conversations::AIConversationMetadata,
-    ) -> Result<Self, Self::Error> {
-        let usage: ConversationUsageMetadata = (&value.usage.usage_metadata).into();
-        let metadata = value.metadata.try_into()?;
-        let permissions = value.permissions.try_into()?;
-        let ambient_agent_task_id = value
-            .ambient_agent_task_id
-            .map(|id| id.into_inner().parse())
-            .transpose()?;
-        let server_conversation_token =
-            ServerConversationToken::new(value.conversation_id.into_inner());
-
-        let artifacts = value
-            .artifacts
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|a| Artifact::try_from(a).ok())
-            .collect();
-
-        Ok(Self {
-            title: value.title,
-            working_directory: value.working_directory,
-            harness: convert_harness(value.harness),
-            usage,
-            metadata,
-            creator: value.creator.map(Into::into),
-            permissions,
-            ambient_agent_task_id,
-            server_conversation_token,
-            artifacts,
-        })
     }
 }
 

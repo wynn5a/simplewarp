@@ -9,15 +9,9 @@ use crate::json_filter::JsonOutput;
 #[derive(Debug, Clone, Subcommand)]
 pub enum TaskCommand {
     /// List ambient agent tasks.
-    List(ListTasksArgs),
+    List(Box<ListTasksArgs>),
     /// Get status of a specific ambient agent task.
     Get(TaskGetArgs),
-    /// Retrieve the conversation for a specific run or conversation.
-    #[command(subcommand)]
-    Conversation(ConversationCommand),
-    /// Messages sent to and from runs.
-    #[command(subcommand)]
-    Message(MessageCommand),
 }
 
 impl TaskCommand {
@@ -25,107 +19,8 @@ impl TaskCommand {
         match self {
             TaskCommand::List(_) => "run list",
             TaskCommand::Get(_) => "run get",
-            TaskCommand::Conversation(_) => "run conversation",
-            TaskCommand::Message(_) => "run message",
         }
     }
-}
-
-/// Conversation-related subcommands.
-#[derive(Debug, Clone, Subcommand)]
-pub enum ConversationCommand {
-    /// Get a conversation by conversation ID.
-    Get(ConversationGetArgs),
-}
-
-/// Message-related subcommands.
-#[derive(Debug, Clone, Subcommand)]
-pub enum MessageCommand {
-    /// Watch for new messages delivered to a run.
-    Watch(MessageWatchArgs),
-    /// Send a message from one run to one or more recipient runs.
-    Send(MessageSendArgs),
-    /// List inbox message headers for a run.
-    List(MessageListArgs),
-    /// Read a full message body.
-    Read(MessageReadArgs),
-    /// Mark a message as delivered.
-    #[command(alias = "delivered")]
-    MarkDelivered(MessageDeliveredArgs),
-}
-
-#[derive(Debug, Clone, Args)]
-pub struct ConversationGetArgs {
-    /// The conversation ID to retrieve.
-    pub conversation_id: String,
-}
-
-#[derive(Debug, Clone, Args)]
-pub struct MessageSendArgs {
-    /// Recipient run ID. Repeat the flag to send to multiple recipients.
-    #[arg(long = "to", required = true, num_args = 1.., value_delimiter = ',')]
-    pub to: Vec<String>,
-
-    /// Message subject.
-    #[arg(long = "subject")]
-    pub subject: String,
-
-    /// Message body.
-    #[arg(long = "body")]
-    pub body: String,
-
-    /// Sender run ID.
-    #[arg(long = "sender-run-id")]
-    pub sender_run_id: String,
-}
-
-#[derive(Debug, Clone, Args)]
-pub struct MessageListArgs {
-    /// The run ID whose inbox should be listed.
-    pub run_id: String,
-
-    /// Only return unread messages.
-    #[arg(long = "unread")]
-    pub unread: bool,
-
-    /// Only return messages sent at or after this RFC3339 timestamp.
-    #[arg(long = "since")]
-    pub since: Option<String>,
-
-    /// Maximum number of messages to return (default: 50).
-    #[arg(
-        short = 'L',
-        long = "limit",
-        default_value = "50",
-        value_parser = clap::value_parser!(i32).range(1..)
-    )]
-    pub limit: i32,
-}
-
-#[derive(Debug, Clone, Args)]
-pub struct MessageWatchArgs {
-    /// The run ID whose inbox should be watched.
-    pub run_id: String,
-
-    /// Resume after this event sequence (inclusive cursor for reconnects).
-    #[arg(
-        long = "since-sequence",
-        default_value = "0",
-        value_parser = clap::value_parser!(i64).range(0..)
-    )]
-    pub since_sequence: i64,
-}
-
-#[derive(Debug, Clone, Args)]
-pub struct MessageReadArgs {
-    /// The message ID to read.
-    pub message_id: String,
-}
-
-#[derive(Debug, Clone, Args)]
-pub struct MessageDeliveredArgs {
-    /// The message ID to mark as delivered.
-    pub message_id: String,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -299,10 +194,6 @@ pub enum RunSortByArg {
 pub struct TaskGetArgs {
     /// The task ID to get status for.
     pub task_id: String,
-
-    /// Retrieve the conversation for this run instead of the run status.
-    #[arg(long = "conversation")]
-    pub conversation: bool,
 
     /// JSON formatting configuration.
     #[command(flatten)]

@@ -4,9 +4,7 @@ use serde_json::json;
 use warp_cli::agent::OutputFormat;
 use warp_cli::json_filter::parse_jq_filter;
 
-use super::{
-    TableFormat, run_jq_filter, write_filter_output, write_json, write_json_line, write_list,
-};
+use super::{TableFormat, run_jq_filter, write_filter_output, write_json_line, write_list};
 
 #[derive(Serialize)]
 struct TestItem {
@@ -58,23 +56,6 @@ fn write_list_emits_ndjson_for_ndjson_output_format() {
     assert_eq!(
         rendered,
         "{\"id\":\"message-1\",\"subject\":\"Build update\"}\n{\"id\":\"message-2\",\"subject\":\"Pivot\"}\n"
-    );
-}
-
-#[test]
-fn write_json_emits_pretty_json_with_trailing_newline() {
-    let mut output = Vec::new();
-    let item = TestItem {
-        id: "message-1",
-        subject: "Build update",
-    };
-
-    write_json(&item, &mut output).unwrap();
-
-    let rendered = String::from_utf8(output).unwrap();
-    assert_eq!(
-        rendered,
-        "{\n  \"id\": \"message-1\",\n  \"subject\": \"Build update\"\n}\n"
     );
 }
 

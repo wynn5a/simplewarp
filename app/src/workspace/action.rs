@@ -718,8 +718,7 @@ pub enum WorkspaceAction {
         conversation_id: AIConversationId,
         terminal_view_id: Option<EntityId>,
     },
-    /// Load cloud conversation data into a transcript viewer.
-    /// Used when CloudConversations is enabled and the sandbox is not running.
+    /// Load conversation data into a transcript viewer when the sandbox is not running.
     OpenConversationTranscriptViewer {
         conversation_id: ServerConversationToken,
         ambient_agent_task_id: Option<AmbientAgentTaskId>,
