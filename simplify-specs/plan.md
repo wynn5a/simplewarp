@@ -4760,10 +4760,111 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             clippy matches the stash-captured HEAD baseline modulo one
             deletion-shifted line number; format clean; nextest green (warp
             lib 5,087, small crates 126).
-      - [ ] **Next per 4ca's order**: the four assistant surfaces (palette
-            search, dialogue answer, workflow metadata, the
-            `provide_negative_feedback` refund — AIRequestUsageModel's last
-            `ai_client` caller, taking the model to a client-less singleton).
+      - [x] **The four assistant surfaces are deleted, walls and callers
+            together** (4cf, 2026-09-17, 38 files, +124/−2,381, 5 files
+            removed outright): 4ca item (5). The four `AIClient` walls —
+            `generate_commands_from_natural_language`,
+            `generate_dialogue_answer`, `generate_metadata_for_command`,
+            `provide_negative_feedback_response_for_ai_conversation` — and
+            each surface collapsed to the failure state its error arm already
+            produced. `AIRequestUsageModel` becomes a client-less singleton
+            (`new()`, `type Event = ()`).
+
+            *Palette search*: `WarpAIDataSource`'s `AsyncDataSource` half is
+            gone (it could only return the wall's error), with its
+            `DataSourceRunError` impl, the
+            `GenerateCommandsFromNaturalLanguageError::RateLimited` downcast,
+            `render_error_header` + `render_error_header_with_upgrade_link`
+            (the team/billing/upgrade-link branching existed only for that
+            downcast), the `CommandSearchAction::{OpenUpgradeLink,
+            AttemptLoginGatedUpgrade}` variants with their dispatch arms, and
+            the sync source's never-read `ai_client`/`ai_execution_context`
+            plumbing — `CommandSearchView::new(ctx)` now, and
+            `reset_state`/`reset_command_search_mixer` lose the
+            `ai_execution_context` threading (computed in workspace view only
+            to feed the deleted source). The sync Translate/Open items and
+            their `AISettings` gate stay.
+
+            *Dialogue answer*: `Requests::issue_request` records the trimmed
+            question and appends the guaranteed "We're experiencing technical
+            difficulties…" answer synchronously — no spawn, no server. With
+            nothing in flight, `RequestStatus` falls whole (send/editor
+            gating became unconditional; the abort machinery, `team_uid`,
+            `GenerateDialogueResult`, the out-of-credits team/billing arm,
+            and `request_limit_info` + its getters go), as do the fake
+            "Credits used: 0 / 150." footers (panel zero-state and transcript
+            details, with `render_request_limit_info` and its alert consts in
+            `utils.rs`), `current_transcript_summarized` + the
+            missing-context notice it gated, the minute `tick` (existed to
+            move the refresh-time display), and the `ActiveSession`
+            execution-context feed. `AIAssistantPanelView::new(ctx)` — no
+            `server_api`. `new_with_transcript` is `#[cfg(test)]` now (the
+            three transcript tests keep it).
+
+            *Workflow metadata*: the "Autofill" button vertical is deleted
+            from BOTH `WorkflowModal` (drive) and `WorkflowView` —
+            `AiAssistState`, `ai_metadata_assist_state`, the
+            `RequestInFlight` arms of the new-argument/save disabled checks,
+            `is_ai_assist_button_disabled`, the button render + tooltip +
+            mouse handles, `issue_request`,
+            `populate_missing_field_with_suggestion` (success-path-only
+            helpers), `WorkflowModalAction::AiAssist`,
+            `WorkflowModalEvent::AiAssistError` with the workspace toast
+            handler, the `AI_ASSIST_*` consts, and `drive/workflows/
+            ai_assist.rs` whole (`GeneratedCommandMetadata`,
+            `GeneratedArgument`, the error enum). Both constructors lose
+            `ai_client`. `AutoGenerateMetadataSuccess/Error` telemetry gone
+            (all six arms).
+
+            *Refund*: the `provide_negative_feedback_response_for_ai_
+            conversation` request path,
+            `AIRequestUsageModelEvent::RequestBonusRefunded`, the block.rs
+            subscriber, and the "We've refunded you N credits" footer
+            (`request_refunded_count` through block/view_impl/output) are
+            gone; the thumbs-down handler keeps the rating, the thank-you
+            toast, and `AgentModeRatedResponse` telemetry.
+
+            *Falling with them*: the four GraphQL operations
+            (`generate_commands`, `generate_dialogue`,
+            `generate_metadata_for_command`, `request_bonus` — the latter
+            two already orphaned by the wall deletion) and
+            `warp_graphql::ai::{RequestLimitInfo,
+            RequestLimitRefreshDuration}` with the two `From` impls in
+            `ai_assistant/mod.rs`, which also loses `AIGeneratedCommand`/
+            `AIGeneratedCommandParameter`/`GenerateCommandsFromNaturalLangu
+            ageError`. One hop out:
+            `UserWorkspaces::{team_from_uid_across_all_workspaces,
+            is_custom_llm_enabled_for_team}` (callers were the out-of-credits
+            arm and the two credit footers) with its team-precedence test,
+            and the panel's never-read `view_handle`.
+            `AIRequestUsageModel::new_for_test(ai_client)` sites → `new()`
+            (9 files). `WorkflowType::AIGenerated` +
+            `AIWorkflowOrigin::{AgentMode, LegacyWarpAI}` stay — Agent Mode
+            still produces them.
+
+            *Baseline note*: today's HEAD captures emit four dead-code lints
+            in `server_api/ai.rs` that this round's diff cannot have caused —
+            `TaskListFilter`'s never-read fields and
+            `ArtifactType`/`RunSortBy`/`RunSortOrder`::`as_query_param`
+            (zero callers at HEAD by grep; the caller went with an earlier
+            round's deletion, 4ce's diff likely truncated them). They are
+            4bm cloud-run-group surfaces (`list_agent_runs` request shaping),
+            so they fall with the next rounds rather than here.
+
+            Acceptance: `check -p warp --tests` clean in both feature sets;
+            both bins; clippy diffed against a stash-captured HEAD baseline
+            in both configs (workspace −D and `--all-targets --tests -D`) is
+            clean apart from the four noted HEAD-carried lints — zero new;
+            format clean; nextest green (warp lib 5,085 default / 5,084
+            simplewarp — the 2/3 fewer tests are the deleted
+            `test_populating_missing_fields_with_suggestion`,
+            `test_member_team_settings_win_over_workspace_settings`, and a
+            feature-gated test; small crates 126). Built and launched
+            `./target/debug/simplewarp` — alive, no output, no connections.
+      - [ ] **Next per 4ca's order**: conversation sync (10 walls) +
+            cloud-run lifecycle (11 walls) — the ambient terminal UI
+            verticals, largest; take them as separate rounds, then the
+            telemetry scope decision, then the fold.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
