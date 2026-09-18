@@ -789,11 +789,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ForkSlashCommandMessageProducer {
         let is_fork_family = command_name == commands::FORK.name
             || command_name == commands::FORK_FROM.name
             || command_name == commands::FORK_AND_COMPACT.name;
-        #[cfg(not(target_family = "wasm"))]
-        let is_continue_locally = command_name == commands::CONTINUE_LOCALLY.name;
-        #[cfg(target_family = "wasm")]
-        let is_continue_locally = false;
-        if !is_fork_family && !is_continue_locally {
+        if !is_fork_family {
             return None;
         }
         let modifier_keystroke = if cfg!(target_os = "macos") {

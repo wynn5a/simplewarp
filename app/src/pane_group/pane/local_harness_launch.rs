@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use shell_words::quote as shell_quote;
 use uuid::Uuid;
@@ -14,12 +13,9 @@ use crate::ai::agent_sdk::driver::harness::{
     remove_claude_externally_managed_listener_env_vars,
 };
 use crate::ai::agent_sdk::{task_env_vars, validate_cli_installed};
-use crate::ai::ambient_agents::task::{
-    HarnessConfig, HarnessModelConfig, normalize_orchestrator_agent_name,
-};
-use crate::ai::ambient_agents::{AgentConfigSnapshot, AmbientAgentTaskId};
+use crate::ai::ambient_agents::AmbientAgentTaskId;
+use crate::ai::ambient_agents::task::HarnessModelConfig;
 use crate::ai::local_harness_setup::local_harness_product_disabled_message;
-use crate::server::server_api::ai::AIClient;
 use crate::terminal::cli_agent_sessions::plugin_manager::{
     CliAgentPluginManager, plugin_manager_for,
 };
@@ -135,35 +131,14 @@ pub(super) fn build_local_codex_child_command(prompt: &str) -> String {
     format!("codex --dangerously-bypass-approvals-and-sandbox {quoted_prompt}")
 }
 
-pub(super) fn local_child_task_config(
-    harness: Harness,
-    agent_name: Option<String>,
-) -> Option<AgentConfigSnapshot> {
-    let agent_name = agent_name
-        .as_deref()
-        .and_then(normalize_orchestrator_agent_name);
-    match harness {
-        Harness::Oz | Harness::Unknown => None,
-        Harness::Claude | Harness::OpenCode | Harness::Gemini | Harness::Codex => {
-            Some(AgentConfigSnapshot {
-                name: agent_name,
-                harness: Some(HarnessConfig::from_harness_type(harness)),
-                ..Default::default()
-            })
-        }
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn prepare_local_harness_child_launch(
     prompt: String,
     harness_type: String,
     model_id: Option<String>,
     parent_run_id: Option<String>,
-    agent_name: Option<String>,
     shell_type: Option<ShellType>,
     startup_directory: Option<PathBuf>,
-    ai_client: Arc<dyn AIClient>,
 ) -> Result<PreparedLocalHarnessLaunch, String> {
     let harness_model_config =
         model_id
@@ -240,20 +215,7 @@ pub(super) async fn prepare_local_harness_child_launch(
         Harness::Gemini => unreachable!("normalize_local_child_harness filters out Gemini"),
     };
 
-    let task_id = ai_client
-        .create_agent_task(
-            prompt.clone(),
-            None,
-            parent_run_id.clone(),
-            local_child_task_config(harness, agent_name),
-        )
-        .await
-        .map_err(|error| {
-            format!(
-                "Failed to create local {} child task: {error}",
-                harness.display_name()
-            )
-        })?;
+    let task_id = AmbientAgentTaskId::new();
 
     let mut env_vars = task_env_vars(Some(&task_id), parent_run_id.as_deref(), harness);
     if harness == Harness::Claude {

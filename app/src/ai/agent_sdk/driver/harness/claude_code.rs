@@ -21,24 +21,6 @@ use super::{HarnessRunner, JSONMCPServer, ThirdPartyHarness, write_temp_file};
 use crate::ai::ambient_agents::task::HarnessModelConfig;
 use crate::ai::mcp::JSONTransportType;
 use crate::terminal::CLIAgent;
-mod parent_bridge;
-mod wake_driver;
-
-#[cfg(test)]
-use parent_bridge::{
-    MessageBridgeMessageRecord, ensure_parent_bridge_state_dir, parent_bridge_event_cursor_file,
-    parent_bridge_hook_output_ack_file, parent_bridge_hook_output_file, parent_bridge_root,
-    parent_bridge_staged_message_path, parent_bridge_surfaced_message_path,
-    prime_parent_bridge_staged_for_self_managed_wake, read_parent_bridge_event_cursor,
-    stage_parent_bridge_message, write_parent_bridge_event_cursor,
-};
-#[cfg(test)]
-use shell_words::quote as shell_quote;
-#[cfg(test)]
-use wake_driver::{CLAUDE_WAKE_PROMPT_FILE_NAME, ClaudeWakeRemoteContext};
-
-#[cfg(test)]
-use super::super::OZ_MESSAGE_LISTENER_STATE_ROOT_ENV;
 
 pub(crate) struct ClaudeHarness;
 #[cfg_attr(not(target_family = "wasm"), async_trait)]

@@ -5,7 +5,6 @@
 //! interoperate with Codex's own `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl`
 //! layout (codex `rollout/src/recorder.rs`).
 use std::fs;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -64,11 +63,6 @@ pub(crate) struct CodexSessionMetadata {
     pub(crate) cwd: PathBuf,
     pub(crate) codex_version: Option<String>,
     pub(crate) session_start_timestamp: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug)]
-pub(crate) struct CodexLocalContinuation {
-    pub(crate) command: String,
 }
 
 /// Resolve the codex sessions root, honoring `$CODEX_HOME` then falling back to `~/.codex`.
@@ -179,24 +173,6 @@ pub(crate) fn write_envelope(
     fs::write(&file_path, entries_to_jsonl(&envelope.entries)?)
         .with_context(|| format!("Failed to write {}", file_path.display()))?;
     Ok(file_path)
-}
-
-/// Rehydrate a Codex transcript downloaded from a remote cloud run for local continuation.
-///
-/// The transcript's working directory is preserved as-is in the rollout: no `cwd` mutation
-/// and no `session_meta` patch.
-pub(crate) fn rehydrate_codex_transcript_from_reader(
-    reader: impl Read,
-) -> Result<CodexLocalContinuation> {
-    let envelope: CodexTranscriptEnvelope =
-        serde_json::from_reader(reader).context("Failed to parse codex transcript envelope")?;
-    let session_id = envelope.session_id;
-    let sessions_root = codex_sessions_root().context("Failed to resolve codex sessions root")?;
-    // Write as-is: no cwd mutation, no session_meta patch.
-    write_envelope(&envelope, &sessions_root).context("Failed to rehydrate codex transcript")?;
-    Ok(CodexLocalContinuation {
-        command: format!("codex resume {session_id}"),
-    })
 }
 
 #[cfg(test)]

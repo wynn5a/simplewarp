@@ -22,7 +22,6 @@ use warpui::{
 
 use crate::TelemetryEvent;
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
 use crate::code::buffer_location::LocalOrRemotePath;
@@ -185,18 +184,9 @@ mod active_view_state {
         new_view: ToolPanelView,
         ctx: &mut ViewContext<super::LeftPanelView>,
     ) {
-        let previous = left_panel.active_view.0;
         left_panel.active_view.0 = new_view;
         left_panel.update_button_active_states();
         ctx.notify();
-
-        let was_conversation_list_open = previous == ToolPanelView::ConversationListView;
-        let is_conversation_list_open = new_view == ToolPanelView::ConversationListView;
-        if was_conversation_list_open && !is_conversation_list_open {
-            left_panel.on_conversation_list_view_visibility_changed(false, ctx);
-        } else if !was_conversation_list_open && is_conversation_list_open {
-            left_panel.on_conversation_list_view_visibility_changed(true, ctx);
-        }
 
         left_panel.update_active_file_tree_subscription_state(ctx);
     }
@@ -526,17 +516,6 @@ impl LeftPanelView {
         } else {
             self.update_button_active_states();
         }
-        // The selected tab can remain the same while its account/AI
-        // availability changes. Reconcile the real conversation view's open
-        // registration so a locked placeholder never polls, and enabling AI
-        // while the panel is open starts polling without another click.
-        let is_left_panel_open = self
-            .active_pane_group
-            .as_ref()
-            .and_then(|pane_group| pane_group.upgrade(ctx))
-            .is_some_and(|pane_group| pane_group.as_ref(ctx).left_panel_open);
-        self.on_conversation_list_view_visibility_changed(is_left_panel_open, ctx);
-
         ctx.notify();
     }
 
@@ -809,7 +788,7 @@ impl LeftPanelView {
             }
         });
 
-        self.on_left_panel_visibility_changed(left_panel_open, ctx);
+        self.on_left_panel_visibility_changed(ctx);
 
         ctx.notify();
     }
@@ -1193,11 +1172,7 @@ impl LeftPanelView {
         }
     }
 
-    pub fn on_left_panel_visibility_changed(&self, is_now_open: bool, ctx: &mut ViewContext<Self>) {
-        if ToolPanelView::ConversationListView == self.active_view.get() {
-            self.on_conversation_list_view_visibility_changed(is_now_open, ctx);
-        }
-
+    pub fn on_left_panel_visibility_changed(&self, ctx: &mut ViewContext<Self>) {
         self.update_active_file_tree_subscription_state(ctx);
     }
 
@@ -1238,27 +1213,6 @@ impl LeftPanelView {
                 view.set_is_active(is_visible, ctx);
             });
         }
-    }
-
-    /// When the conversation list view's visibility changes,
-    /// we need to update the conversation and tasks model to reflect the new state
-    /// (this information is used to decide whether or not we should poll for new tasks).
-    fn on_conversation_list_view_visibility_changed(
-        &self,
-        is_now_open: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let is_available = self.active_view.get() == ToolPanelView::ConversationListView
-            && self.active_view_availability(ctx) == ToolPanelAvailability::Available;
-        let window_id = ctx.window_id();
-        let view_id = self.conversation_list_view.id();
-        AgentConversationsModel::handle(ctx).update(ctx, |model, ctx| {
-            if is_now_open && is_available {
-                model.register_view_open(window_id, view_id, ctx);
-            } else {
-                model.register_view_closed(window_id, view_id, ctx);
-            }
-        });
     }
 }
 

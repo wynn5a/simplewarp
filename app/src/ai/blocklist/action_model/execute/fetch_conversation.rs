@@ -39,8 +39,8 @@ impl FetchConversationExecutor {
         let conversation_id = conversation_id.clone();
         let server_token = ServerConversationToken::new(conversation_id.clone());
 
-        let load_future = BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-            history.load_conversation_by_server_token(&server_token, ctx)
+        let load_future = BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, _| {
+            history.load_conversation_by_server_token(&server_token)
         });
 
         ActionExecution::new_async(load_future, move |cloud_conversation, _ctx| {

@@ -4944,9 +4944,126 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             nextest green (warp lib 5,045 default / 5,044 simplewarp — 40
             deleted tests; small crates 117 — 9 deleted parse tests). Built
             and launched `./target/debug/simplewarp` — alive, no output.
-      - [ ] **Next per 4ca's order**: cloud-run lifecycle (11 walls) —
-            the ambient terminal UI vertical, largest; then the telemetry
-            scope decision, then the fold.
+      - [ ] **Cloud-run lifecycle (4ch) is IN PROGRESS — large uncommitted
+            WIP checkpoint (2026-09-18), committed as-is on user request
+            before acceptance ran.** Scope taken: the 11 cloud-run AIClient
+            walls plus the whole ambient terminal UI vertical. `AIClient` is
+            GONE as a trait: after the earlier rounds deleted their callers,
+            the last four zero-caller walls (`spawn_agent`,
+            `list_ambient_agent_tasks`, `get_ambient_agent_task`,
+            `submit_run_followup`) were deleted together with the entire
+            `server_api/ai.rs` module — wire types (`SpawnAgentRequest`,
+            `RunFollowupRequest`, `AgentRunEvent`, `SpawnAgentResponse`,
+            `TaskListFilter`), the `ai_tests.rs` spawn/followup/agent-run
+            tests, `ServerApiProvider::get_ai_client`, and the never-
+            constructed `ClientError`/`CloudAgentCapacityError`. The 15
+            Artifact serde tests moved from `ai_tests.rs` into
+            `artifacts/mod_tests.rs` (Artifact stays; one duplicate and the
+            AgentRunEvent test dropped).
+
+            *Deleted this round (previous session's uncommitted work,
+            verified and finished by this session)*: `terminal/view/
+            ambient_agent/` whole (the cloud-run terminal UI), `agent_events/`,
+            `agent_sdk/ambient.rs`, driver `git_credentials`, claude_code
+            `parent_bridge`/`wake_driver`, `text_layout`, ambient_agents
+            `spawn`/`scheduled`/`telemetry`/`github_auth_*`,
+            `orchestration_event_streamer`/`orchestration_events`/
+            `orchestration_child_tracker`, `local_agent_task_sync_model`,
+            `generate_code_review_content`, cloud_agent_capacity_modal,
+            workspace `auto_handoff`, pane_group child_agent
+            hydration/materialization, the `warp run|agent` CLI task
+            machinery (`task.rs`, `json_filter.rs`, `date_time.rs`,
+            `sort_order.rs`), and the four `/continue-locally` + v2
+            cloud-mode input surfaces (`GuiSlashCommandDataSource::
+            for_cloud_mode_v2`, `is_cloud_mode_v2`). The purely local
+            scheduled-ambient-agent *model* was preserved by moving it to
+            `cloud_object/model/scheduled_ambient_agent_model.rs`.
+            `cancel_task_with_toast`/`cancel_task_silently` collapsed to
+            warn+toast no-ops (same failure the wall produced).
+
+            *Conversation details panel*: the task-mode half deleted
+            (`PanelMode::Task`, `from_task`, fetch-error notice +
+            `TaskFetchError`, environment/platform rows, `OpenInOz` button +
+            `oz_run_url`, Copy RunId/EnvironmentId/DockerImage/FetchError/
+            Error actions, its 8 from_task tests). **The local half was
+            deliberately kept and its data feed RESTORED**: the deleted
+            ambient `view_impl.rs` owned `fetch_and_update_conversation_
+            details_panel`, including the local-conversation fallback
+            (APP-3595); it now lives in `terminal/view.rs` feeding from the
+            active local `AIConversation` via `from_conversation`, wired to
+            `ToggleConversationDetailsPanel`, the history-event filter, and
+            `FinishedReceivingOutput`. `ConversationDetailsPanel::new`
+            callers and `for_conversation`/`set_config` are live again.
+
+            *Also collapsed*: `load_conversation_from_server` and the whole
+            doomed transcript-viewer server-load flow
+            (`load_cloud_conversation_into_new_transcript_viewer` is now a
+            direct failure toast; pane_group's
+            `load_data_into_conversation_transcript_viewer` +
+            `load_data_into_transcript_viewer` +
+            `ambient_agent_task_id(&CloudConversationData)` deleted;
+            `load_conversation_data`/`load_conversation_by_server_token`
+            lost their server/ctx params), `mcp_config_tests` re-pointed to
+            serialize `AgentConfigSnapshot` directly, `zero_state.rs`
+            rewritten to the non-v2 behavior, status_bar `render` rebuilt
+            without the cloud-mode-setup and ambient branches,
+            `working_directory_chip`'s outer `Stack` restored, the
+            `is_ambient_agent` param dropped from
+            `MockTerminalManager::create_model` and all call sites,
+            `RichContentType::AmbientAgentBlock` deleted, the AI-context
+            menu's cloud-task source removed, `ProfileModelSelector::new`
+            call sites updated to the 4-arg signature, and `/continue-locally`
+            tests re-pinned (`input_tests` uses `/compact` as the negative
+            control; the registration test deleted).
+
+            *Dead-code cascade fixed so far*: `details_action_buttons::
+            for_task`, three `AgentManagementTelemetryEvent` variants
+            (CloudRunOpened, SessionLinkCopied, SlashCommandContinueLocally)
+            with all four arms, agent_tips `link`/`kind`/`AgentTipKind`/trait
+            `link()`/generic `AITipModel::new`, ten never-used
+            `AmbientAgentTask`/`AmbientAgentTaskState` methods (run_id,
+            conversation_id, active_execution_*, credits_used,
+            creator_display_name, is_working, is_failure_like, is_terminal,
+            status_icon_and_color), llms `cloud_runnable_oz_model_id_or_
+            fallback` + `CLOUD_FALLBACK_OZ_MODEL_ID`, the four
+            `TaskFetchError`-era imports in agent_conversations_model, and
+            assorted unused imports/variables.
+
+            *REMAINING before this round is done* (next session, in order):
+            (1) fix the ~15 dead-code warnings left at last count —
+            `uri/mod.rs` (`CLOUD_SETUP_SOURCE`,
+            `find_workspace_for_terminal_view`,
+            `active_terminal_view_id_in_window`,
+            `find_cloud_mode_terminal_view_id`,
+            `find_cloud_mode_terminal_in_workspace`),
+            `slash_commands/data_source/core.rs`
+            (`InlineItem::from_saved_prompt`, `with_compact_layout`),
+            `pending_user_query.rs`
+            (`insert_cloud_mode_queued_user_query_block`,
+            `remove_cloud_mode_queue_row`), `terminal/view.rs`
+            `PanelMode`-style `CloudMode` variant,
+            `harness_availability.rs` (`has_any_enabled_harness`,
+            `is_harness_enabled`), `server/retry_strategies.rs`
+            (`PERIODIC_POLL_RETRY_STRATEGY`,
+            `OUT_OF_BAND_REQUEST_RETRY_STRATEGY`),
+            `user_workspaces.rs`
+            (`get_cloud_conversation_storage_enablement_setting`),
+            `cloud_agent_settings.rs` (`persist_harness_model_selection`),
+            `skills/resolve_skill_spec.rs` (`parsed_skill` field),
+            `notebook_tests.rs` (`mock_server_notebook`), `view_tests.rs`
+            (`has_pending_user_query_block`,
+            `update_exchange_input_and_handle_event`,
+            `TestTerminalManager`), and check whether
+            `agent_view.rs::enter_agent_view_for_restored_cli_agent` lost
+            its last caller with the pane_group deletions; re-run check for
+            new cascades each time. (2) Full standard acceptance: check
+            both feature sets + both bins; clippy diffed against a
+            stash-captured HEAD baseline in both configs; format; nextest;
+            build and launch the app. (3) Rewrite this entry as the final
+            4ch ledger record with nextest counts. After 4ch: the telemetry
+            scope decision (4ca item 7), then the fold (item 8).
+      - [ ] **Next per 4ca's order after 4ch completes**: telemetry scope
+            decision, then the fold.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all

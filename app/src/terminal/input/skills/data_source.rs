@@ -25,7 +25,6 @@ use crate::terminal::input::inline_menu::{
 use crate::terminal::input::message_bar::{Message, MessageItem};
 use crate::terminal::input::skills::{SelectableSkill, query_selectable_skills};
 use crate::terminal::model::session::active_session::{ActiveSession, ActiveSessionEvent};
-use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 
 #[derive(Clone, Debug)]
 pub struct AcceptSkill {
@@ -65,17 +64,10 @@ pub struct SkillSelectorDataSource {
     /// Whether bundled skills should be included in results.
     /// False for `/open-skill` (bundled skills can't be edited), true for `/skills` (they can be invoked).
     include_bundled: bool,
-    /// Ambient agent view model for the pane, if it is a cloud pane. Used to detect when this
-    /// is a disconnected cloud follow-up composer and skills should be hidden (they run locally).
-    ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
 }
 
 impl SkillSelectorDataSource {
-    pub fn new(
-        active_session: ModelHandle<ActiveSession>,
-        ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
-        ctx: &mut ModelContext<Self>,
-    ) -> Self {
+    pub fn new(active_session: ModelHandle<ActiveSession>, ctx: &mut ModelContext<Self>) -> Self {
         ctx.subscribe_to_model(&active_session, |_, _, event, ctx| match event {
             // Emit event so the mixer can re-run its query with the new pwd
             ActiveSessionEvent::UpdatedPwd | ActiveSessionEvent::Bootstrapped => {
@@ -86,31 +78,7 @@ impl SkillSelectorDataSource {
         Self {
             active_session,
             include_bundled: false,
-            ambient_agent_view_model,
         }
-    }
-
-    /// Attaches an ambient agent view model after construction. Used on the shared-session viewer
-    /// path where the model is created lazily at `SessionJoined`. Idempotent: a no-op when a
-    /// model is already set.
-    pub fn set_ambient_agent_view_model(
-        &mut self,
-        view_model: ModelHandle<AmbientAgentViewModel>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if self.ambient_agent_view_model.is_some() {
-            return;
-        }
-        self.ambient_agent_view_model = Some(view_model);
-        // Re-run the query in case the menu is open so the routing state is re-evaluated.
-        ctx.emit(UpdatedAvailableSkills);
-    }
-
-    /// True when the pane is a cloud agent pane (viewer, disconnected follow-up, or read-only
-    /// tombstone). Skills invoke locally and must be hidden for any cloud pane since running a
-    /// skill locally is disconnected from the remote session.
-    fn is_cloud_pane(&self) -> bool {
-        self.ambient_agent_view_model.is_some()
     }
 
     pub fn set_include_bundled(&mut self, include_bundled: bool) {
@@ -133,15 +101,6 @@ impl SyncDataSource for SkillSelectorDataSource {
         query: &Query,
         app: &AppContext,
     ) -> Result<Vec<QueryResult<Self::Action>>, DataSourceRunErrorWrapper> {
-        // Skills invoke locally; hide them on any cloud pane (viewer, disconnected follow-up,
-        // or read-only tombstone) since running a skill locally is disconnected from the remote
-        // session. The execute-time guard in `execute_skill_command` provides a safety net for
-        // keybinding-triggered invocations.
-        // TODO: support skills over shared sessions and for handing off based on oz environment
-        if self.is_cloud_pane() {
-            return Ok(vec![]);
-        }
-
         let cwd = self.get_current_working_directory(app);
         Ok(
             query_selectable_skills(cwd.as_ref(), self.include_bundled, &query.text, app)

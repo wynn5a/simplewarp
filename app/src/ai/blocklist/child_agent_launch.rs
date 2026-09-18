@@ -1,16 +1,11 @@
 //! Frontend-neutral preparation and settings propagation for local Oz children.
-#[cfg(not(target_family = "wasm"))]
-use std::future::Future;
-
 use warpui::{AppContext, EntityId, SingletonEntity as _};
-#[cfg(not(target_family = "wasm"))]
-use {
-    crate::ai::ambient_agents::task::normalize_orchestrator_agent_name,
-    crate::ai::ambient_agents::{AgentConfigSnapshot, AmbientAgentTaskId},
-    crate::server::server_api::ServerApiProvider,
-};
 
 use crate::AIExecutionProfilesModel;
+#[cfg(not(target_family = "wasm"))]
+use crate::ai::ambient_agents::AmbientAgentTaskId;
+#[cfg(not(target_family = "wasm"))]
+use crate::ai::ambient_agents::task::normalize_orchestrator_agent_name;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::llms::LLMId;
 use crate::ai::llms::LLMPreferences;
@@ -22,36 +17,15 @@ pub struct PreparedLocalOzChildLaunch {
     pub conversation_name: String,
 }
 
-/// Creates the server task row shared by the GUI hidden-pane and TUI
-/// background-session launch paths.
+/// Mints the local-only task id shared by the GUI hidden-pane launch path.
+/// No server row is created: the id only stamps the child conversation and
+/// controller so local state can tell children apart.
 #[cfg(not(target_family = "wasm"))]
-pub fn prepare_local_oz_child_launch(
-    name: &str,
-    prompt: &str,
-    parent_run_id: Option<&str>,
-    ctx: &AppContext,
-) -> impl Future<Output = anyhow::Result<PreparedLocalOzChildLaunch>> + 'static + use<> {
-    let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
+pub fn prepare_local_oz_child_launch(name: &str) -> PreparedLocalOzChildLaunch {
     let agent_name = normalize_orchestrator_agent_name(name);
-    let conversation_name = agent_name.clone().unwrap_or_default();
-    let prompt = prompt.to_owned();
-    let parent_run_id = parent_run_id.map(str::to_owned);
-    async move {
-        let task_id = ai_client
-            .create_agent_task(
-                prompt,
-                None,
-                parent_run_id,
-                Some(AgentConfigSnapshot {
-                    name: agent_name,
-                    ..Default::default()
-                }),
-            )
-            .await?;
-        Ok(PreparedLocalOzChildLaunch {
-            task_id,
-            conversation_name,
-        })
+    PreparedLocalOzChildLaunch {
+        task_id: AmbientAgentTaskId::new(),
+        conversation_name: agent_name.unwrap_or_default(),
     }
 }
 

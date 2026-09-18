@@ -6,7 +6,6 @@ use warpui::{AppContext, SingletonEntity, ViewContext, ViewHandle};
 
 use super::PanelPosition;
 use crate::BlocklistAIHistoryModel;
-use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::conversation_details_panel::{
     ConversationDetailsData, ConversationDetailsPanel, ConversationDetailsPanelEvent,
 };
@@ -156,39 +155,8 @@ impl Workspace {
         }
 
         let terminal_view_id = terminal_view.id();
-        let task_id = terminal_view
-            .as_ref(ctx)
-            .ambient_agent_task_id_for_details_panel(ctx);
 
         self.transcript_details_panel.update(ctx, |panel, ctx| {
-            // If we have an ambient agent task ID, try to populate from task data
-            if let Some(task_id) = task_id {
-                let conversations_model_handle = AgentConversationsModel::handle(ctx);
-                let task = conversations_model_handle.update(ctx, |conversations_model, ctx| {
-                    conversations_model.get_or_async_fetch_task_data(&task_id, ctx)
-                });
-                if let Some(task) = task {
-                    let details = ConversationDetailsData::from_task(&task, None, None, ctx);
-                    panel.set_conversation_details(details, ctx);
-                    ctx.notify();
-                    return;
-                }
-
-                // Task not yet available - check if the fetch failed and show error state
-                if let Some(error_message) = conversations_model_handle
-                    .as_ref(ctx)
-                    .task_fetch_error(&task_id)
-                    .cloned()
-                {
-                    let details =
-                        ConversationDetailsData::from_task_id(task_id, Some(error_message));
-                    panel.set_conversation_details(details, ctx);
-                    ctx.notify();
-                    return;
-                }
-            }
-
-            // Otherwise, populate from conversation
             let history_model = BlocklistAIHistoryModel::handle(ctx).as_ref(ctx);
             if let Some(conversation) = history_model.active_conversation(terminal_view_id) {
                 let details = ConversationDetailsData::from_conversation(conversation, ctx);

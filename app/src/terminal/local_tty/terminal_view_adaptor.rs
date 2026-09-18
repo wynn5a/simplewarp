@@ -101,7 +101,6 @@ pub(crate) fn create_terminal_view_surface(
             initial_input_config,
             conversation_restoration,
             Some(inactive_pty_reads_rx),
-            false,
             ctx,
         )
     });

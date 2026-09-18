@@ -241,15 +241,6 @@ pub fn initialize_app(app: &mut App) {
         )
     });
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
-    // The blocklist controller created during terminal bootstrap subscribes to
-    // OrchestrationEventService and OrchestrationEventStreamer unconditionally,
-    // so both singletons must be registered before bootstrap.
-    app.add_singleton_model(
-        crate::ai::blocklist::orchestration_events::OrchestrationEventService::new,
-    );
-    app.add_singleton_model(
-        crate::ai::blocklist::orchestration_event_streamer::OrchestrationEventStreamer::new,
-    );
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
     app.add_singleton_model(AgentNotificationsModel::new);
     app.add_singleton_model(BlocklistAIPermissions::new);
@@ -306,9 +297,6 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| PricingInfoModel::new());
     app.add_singleton_model(crate::ai::pricing_promotion::PricingPromotionState::new);
     app.add_singleton_model(ByoLlmAuthBannerSessionState::new);
-    app.add_singleton_model(|_| {
-        crate::ai::ambient_agents::github_auth_notifier::GitHubAuthNotifier::new()
-    });
     app.add_singleton_model(AgentConversationsModel::new);
     app.add_singleton_model(PersistedWorkspace::new_for_test);
     app.add_singleton_model(|ctx| crate::ai::agent_tips::AITipModel::new_for_agent_tips(ctx));
@@ -728,14 +716,10 @@ fn zero_state_hint_text_only_registers_active_slash_command_placeholders() {
 
         let editor = input.read(&app, |input, _| input.editor().clone());
         let rename_tab_prefix = format!("{} ", commands::RENAME_TAB.name);
-        let continue_locally_prefix = format!("{} ", commands::CONTINUE_LOCALLY.name);
+        let compact_prefix = format!("{} ", commands::COMPACT.name);
 
         editor.update(&mut app, |editor, ctx| {
-            editor.set_placeholder_text_with_prefix(
-                continue_locally_prefix.clone(),
-                "stale hint",
-                ctx,
-            );
+            editor.set_placeholder_text_with_prefix(compact_prefix.clone(), "stale hint", ctx);
         });
         input.update(&mut app, |input, ctx| {
             input.set_zero_state_hint_text(ctx);
@@ -749,17 +733,13 @@ fn zero_state_hint_text_only_registers_active_slash_command_placeholders() {
         );
         assert!(
             editor.read(&app, |editor, _| editor
-                .placeholder_text(&continue_locally_prefix)
+                .placeholder_text(&compact_prefix)
                 .is_none()),
-            "/continue-locally should not be registered outside cloud conversation context"
+            "/compact should not be registered without an active conversation"
         );
 
         editor.update(&mut app, |editor, ctx| {
-            editor.set_placeholder_text_with_prefix(
-                continue_locally_prefix.clone(),
-                "stale hint",
-                ctx,
-            );
+            editor.set_placeholder_text_with_prefix(compact_prefix.clone(), "stale hint", ctx);
         });
 
         let repo_dir = tempfile::TempDir::new().expect("repo temp dir");
@@ -781,7 +761,7 @@ fn zero_state_hint_text_only_registers_active_slash_command_placeholders() {
 
         assert!(
             editor.read(&app, |editor, _| editor
-                .placeholder_text(&continue_locally_prefix)
+                .placeholder_text(&compact_prefix)
                 .is_none()),
             "active slash-command data source updates should refresh stale placeholders"
         );
@@ -1221,101 +1201,6 @@ fn test_history_up_buffer_restoration() {
 }
 
 #[test]
-fn attach_ambient_view_model_builds_composer_selectors_for_dummy_cloud_pane() {
-    // A dummy cloud-mode session composes a new run, so the composer-only host /
-    // auth-secret / FTUX selectors must be built for it.
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        let terminal_view_id = terminal.read(&app, |view, _| view.id());
-
-        // Simulate the initial cloud composer state: a dummy cloud-mode session.
-        terminal.update(&mut app, |view, _| {
-            view.model.lock().set_is_dummy_cloud_mode_session(true);
-        });
-
-        let input = terminal.read(&app, |view, _| view.input().clone());
-        input.update(&mut app, |input, ctx| {
-            let view_model = ctx.add_model(|ctx| AmbientAgentViewModel::new(terminal_view_id, ctx));
-            input.attach_ambient_agent_view_model(view_model, ctx);
-
-            assert!(
-                input.host_selector().is_some(),
-                "the initial cloud composer state must build the host selector"
-            );
-        });
-    });
-}
-
-#[test]
-fn attach_ambient_view_model_skips_composer_selectors_for_non_composer_pane() {
-    // A pane that is not a dummy cloud-mode session composes no new run, so it must not build
-    // the composer-only selectors even though its ambient VM is still `Composing`.
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        let terminal_view_id = terminal.read(&app, |view, _| view.id());
-
-        let input = terminal.read(&app, |view, _| view.input().clone());
-        input.update(&mut app, |input, ctx| {
-            let view_model = ctx.add_model(|ctx| AmbientAgentViewModel::new(terminal_view_id, ctx));
-            input.attach_ambient_agent_view_model(view_model, ctx);
-
-            assert!(
-                input.host_selector().is_none(),
-                "a non-composer pane must not build the host selector"
-            );
-        });
-    });
-}
-
-#[test]
-fn cloud_mode_host_selector_hidden_without_default_host() {
-    // Local-only: with no workspace default host the dropdown stays hidden.
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        let terminal_view_id = terminal.read(&app, |view, _| view.id());
-
-        // Fresh cloud-mode composer: a dummy cloud-mode session.
-        terminal.update(&mut app, |view, _| {
-            let mut model = view.model.lock();
-            model.set_is_dummy_cloud_mode_session(true);
-        });
-
-        let input = terminal.read(&app, |view, _| view.input().clone());
-        input.update(&mut app, |input, ctx| {
-            let view_model = ctx.add_model(|ctx| AmbientAgentViewModel::new(terminal_view_id, ctx));
-            input.attach_ambient_agent_view_model(view_model, ctx);
-        });
-
-        // No workspace default host -> the dropdown stays hidden.
-        input.read(&app, |input, ctx| {
-            assert!(
-                input.host_selector().is_some(),
-                "the cloud composer must build the host selector"
-            );
-            assert!(
-                input.visible_host_selector(ctx).is_none(),
-                "host selector must be hidden with no default host"
-            );
-        });
-    });
-}
-
-#[test]
 fn send_now_event_preserves_draft_and_clears_the_queued_row() {
     // A queued-prompt "send now" surfaces as a SendNow event on the input. The host should
     // immediately route the removed prompt through the active-pane submission path without
@@ -1650,40 +1535,6 @@ fn enter_with_nonempty_buffer_does_not_send_queued_row() {
 
         QueuedQueryModel::handle(&app).read(&app, |model, _| {
             assert_eq!(model.queue(conversation_id).len(), 1);
-        });
-    });
-}
-
-/// The locked initial cloud-mode head row never fires on Enter, and the locked head blocks the
-/// rows behind it (only the head row is Enter-sendable).
-#[test]
-fn empty_buffer_enter_skips_locked_initial_cloud_mode_head() {
-    App::test((), |mut app| async move {
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let terminal_view_id = terminal.read(&app, |view, _| view.id());
-        let conversation_id = seed_active_conversation(&mut app, terminal_view_id);
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.append(
-                conversation_id,
-                QueuedQuery::new("initial".to_owned(), QueuedQueryOrigin::InitialCloudMode),
-                ctx,
-            );
-            model.append(
-                conversation_id,
-                QueuedQuery::new("follow up".to_owned(), QueuedQueryOrigin::QueueSlashCommand),
-                ctx,
-            );
-        });
-
-        input.update(&mut app, |input, ctx| input.input_enter(ctx));
-
-        QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            assert_eq!(model.queue(conversation_id).len(), 2);
         });
     });
 }

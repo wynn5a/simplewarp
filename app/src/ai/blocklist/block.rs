@@ -96,11 +96,9 @@ use crate::ai::agent::{
     CreateDocumentsRequest, CreateDocumentsResult, DocumentToCreate, EditDocumentsResult,
     MessageId, PassiveSuggestionTrigger, ProgrammingLanguage, RenderableAIError,
     RequestCommandOutputResult, RequestFileEditsResult, SearchCodebaseResult, ServerOutputId,
-    SubagentCall, SubagentType, SuggestPromptRequest, SuggestPromptResult, SuggestedLoggingId,
-    SummarizationType, TodoOperation,
+    SuggestPromptRequest, SuggestPromptResult, SuggestedLoggingId, SummarizationType,
+    TodoOperation,
 };
-use crate::ai::agent_conversations_model::{AgentConversationsModel, AgentConversationsModelEvent};
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::action_model::NewConversationDecision;
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin};
 use crate::ai::blocklist::block::keyboard_navigable_buttons::{
@@ -183,7 +181,6 @@ use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::safe_mode_settings::{
     SafeModeSettings, SafeModeSettingsChangedEvent, get_secret_obfuscation_mode,
 };
-use crate::terminal::view::ambient_agent::{AmbientAgentViewModel, AmbientAgentViewModelEvent};
 use crate::terminal::view::{
     CodeDiffAction, RichContentLink, RichContentLinkTooltipInfo, TerminalAction,
 };
@@ -1062,7 +1059,6 @@ pub struct AIBlock {
     ///
     /// Only used when `FeatureFlag::AgentView` is enabled.
     agent_view_controller: ModelHandle<AgentViewController>,
-    ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
 
     /// View for AWS Bedrock credentials error, created lazily when the error occurs.
     aws_bedrock_credentials_error_view: Option<ViewHandle<AwsBedrockCredentialsErrorView>>,
@@ -1115,7 +1111,6 @@ impl AIBlock {
         cli_subagent_controller: &ModelHandle<CLISubagentController>,
         model_event_dispatcher: &ModelHandle<ModelEventDispatcher>,
         agent_view_controller: ModelHandle<AgentViewController>,
-        ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
         terminal_view_handle: WeakViewHandle<TerminalView>,
         terminal_view_id: EntityId,
         ctx: &mut ViewContext<Self>,
@@ -1192,13 +1187,6 @@ impl AIBlock {
                     ctx.notify();
                 }
                 _ => {}
-            },
-        );
-
-        ctx.subscribe_to_model(
-            &AgentConversationsModel::handle(ctx),
-            |me, _, event, ctx| {
-                me.handle_agent_conversations_model_event(event, ctx);
             },
         );
 
@@ -1333,23 +1321,6 @@ impl AIBlock {
 
         if FeatureFlag::AgentView.is_enabled() {
             ctx.subscribe_to_model(&agent_view_controller, |_, _, _, ctx| ctx.notify());
-        }
-
-        // Handoff prep emits ambient-agent events before submit, while still composing.
-        // Only the run lifecycle events can change `is_cloud_agent_pre_first_exchange`
-        // for this block's footer.
-        if let Some(ambient_agent_view_model) = ambient_agent_view_model.as_ref() {
-            ctx.subscribe_to_model(ambient_agent_view_model, |_, _, event, ctx| match event {
-                AmbientAgentViewModelEvent::DispatchedAgent
-                | AmbientAgentViewModelEvent::FollowupDispatched
-                | AmbientAgentViewModelEvent::SessionReady { .. }
-                | AmbientAgentViewModelEvent::ExecutionSessionReady { .. }
-                | AmbientAgentViewModelEvent::Failed { .. }
-                | AmbientAgentViewModelEvent::NeedsGithubAuth
-                | AmbientAgentViewModelEvent::Cancelled
-                | AmbientAgentViewModelEvent::HarnessCommandStarted { .. } => ctx.notify(),
-                _ => {}
-            });
         }
 
         ctx.subscribe_to_model(&context_model, |_, _, event, ctx| {
@@ -1500,7 +1471,6 @@ impl AIBlock {
             last_right_clicked_command: None,
             is_usage_footer_expanded: false,
             agent_view_controller,
-            ambient_agent_view_model,
             aws_bedrock_credentials_error_view: None,
             gemini_enterprise_credentials_error_view: None,
             imported_comments: Default::default(),
@@ -1956,8 +1926,6 @@ impl AIBlock {
             self.handle_web_fetch_messages(&output.messages, ctx);
         }
 
-        self.fetch_conversation_search_agent_run_titles(output, ctx);
-
         for action in output.actions() {
             let new_action_ids: HashSet<AIAgentActionId> =
                 output.actions().map(|action| action.id.clone()).collect();
@@ -2280,63 +2248,6 @@ impl AIBlock {
                     get_secret_obfuscation_mode(ctx).is_visually_obfuscated(),
                 );
         }
-    }
-
-    fn fetch_conversation_search_agent_run_titles(
-        &self,
-        output: &AIAgentOutput,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        for task_id in Self::conversation_search_agent_run_ids(output) {
-            AgentConversationsModel::handle(ctx).update(ctx, |model, ctx| {
-                model.get_or_async_fetch_task_data(&task_id, ctx);
-            });
-        }
-    }
-
-    fn handle_agent_conversations_model_event(
-        &mut self,
-        event: &AgentConversationsModelEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Conversation-search labels may render with an agent-run fallback before the
-        // async task title fetch completes. `TasksUpdated` is the signal that the real
-        // title may now be cached, so only notify blocks that render those labels.
-        if matches!(event, AgentConversationsModelEvent::TasksUpdated)
-            && self.output_references_agent_run_for_conversation_search(ctx)
-        {
-            ctx.notify();
-        }
-    }
-
-    fn output_references_agent_run_for_conversation_search(&self, app: &AppContext) -> bool {
-        self.model
-            .status(app)
-            .output_to_render()
-            .is_some_and(|output| {
-                !Self::conversation_search_agent_run_ids(&output.get()).is_empty()
-            })
-    }
-
-    fn conversation_search_agent_run_ids(output: &AIAgentOutput) -> Vec<AmbientAgentTaskId> {
-        let mut task_ids = HashSet::new();
-        for message in &output.messages {
-            let AIAgentOutputMessageType::Subagent(SubagentCall {
-                subagent_type:
-                    SubagentType::ConversationSearch {
-                        agent_run_id: Some(agent_run_id),
-                        ..
-                    },
-                ..
-            }) = &message.message
-            else {
-                continue;
-            };
-            if let Ok(task_id) = agent_run_id.parse() {
-                task_ids.insert(task_id);
-            }
-        }
-        task_ids.into_iter().collect()
     }
 
     fn set_keyboard_navigable_buttons(

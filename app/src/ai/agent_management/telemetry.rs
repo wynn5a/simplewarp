@@ -20,27 +20,14 @@ pub enum AgentManagementTelemetryEvent {
         conversation_id: String,
         opened_from: OpenedFrom,
     },
-    /// User opened a cloud run
-    CloudRunOpened {
-        task_id: String,
-        opened_from: OpenedFrom,
-    },
     /// User copied a conversation link
     ConversationLinkCopied {
         conversation_id: String,
         copied_from: OpenedFrom,
     },
-    /// User copied a session link
-    SessionLinkCopied {
-        task_id: String,
-        copied_from: OpenedFrom,
-    },
     /// User clicked "Continue locally" in the details panel
     #[cfg(not(target_family = "wasm"))]
     DetailsPanelContinueLocally,
-    /// User invoked the /continue-locally slash command
-    #[cfg(not(target_family = "wasm"))]
-    SlashCommandContinueLocally,
     /// User clicked "Open in Warp" in the tombstone (wasm)
     #[cfg(target_family = "wasm")]
     TombstoneOpenInWarp,
@@ -64,13 +51,6 @@ impl TelemetryEvent for AgentManagementTelemetryEvent {
                 "conversation_id": conversation_id,
                 "opened_from": opened_from,
             })),
-            AgentManagementTelemetryEvent::CloudRunOpened {
-                task_id,
-                opened_from,
-            } => Some(json!({
-                "task_id": task_id,
-                "opened_from": opened_from,
-            })),
             AgentManagementTelemetryEvent::ConversationLinkCopied {
                 conversation_id,
                 copied_from,
@@ -78,17 +58,8 @@ impl TelemetryEvent for AgentManagementTelemetryEvent {
                 "conversation_id": conversation_id,
                 "copied_from": copied_from,
             })),
-            AgentManagementTelemetryEvent::SessionLinkCopied {
-                task_id,
-                copied_from,
-            } => Some(json!({
-                "task_id": task_id,
-                "copied_from": copied_from,
-            })),
             #[cfg(not(target_family = "wasm"))]
             AgentManagementTelemetryEvent::DetailsPanelContinueLocally => None,
-            #[cfg(not(target_family = "wasm"))]
-            AgentManagementTelemetryEvent::SlashCommandContinueLocally => None,
             #[cfg(target_family = "wasm")]
             AgentManagementTelemetryEvent::TombstoneOpenInWarp => None,
             AgentManagementTelemetryEvent::CloudRunCancelled { task_id } => {
@@ -121,13 +92,9 @@ impl TelemetryEventDesc for AgentManagementTelemetryEventDiscriminants {
     fn name(&self) -> &'static str {
         match self {
             Self::ConversationOpened => "AgentManagement.ConversationOpened",
-            Self::CloudRunOpened => "AgentManagement.CloudRunOpened",
             Self::ConversationLinkCopied => "AgentManagement.ConversationLinkCopied",
-            Self::SessionLinkCopied => "AgentManagement.SessionLinkCopied",
             #[cfg(not(target_family = "wasm"))]
             Self::DetailsPanelContinueLocally => "AgentManagement.DetailsPanelContinueLocally",
-            #[cfg(not(target_family = "wasm"))]
-            Self::SlashCommandContinueLocally => "AgentManagement.SlashCommandContinueLocally",
             #[cfg(target_family = "wasm")]
             Self::TombstoneOpenInWarp => "AgentManagement.TombstoneOpenInWarp",
             Self::CloudRunCancelled => "AgentManagement.CloudRunCancelled",
@@ -138,16 +105,10 @@ impl TelemetryEventDesc for AgentManagementTelemetryEventDiscriminants {
     fn description(&self) -> &'static str {
         match self {
             Self::ConversationOpened => "User opened a conversation",
-            Self::CloudRunOpened => "User opened a cloud run",
             Self::ConversationLinkCopied => "User copied a conversation link",
-            Self::SessionLinkCopied => "User copied a session link",
             #[cfg(not(target_family = "wasm"))]
             Self::DetailsPanelContinueLocally => {
                 "User clicked Continue locally in the details panel"
-            }
-            #[cfg(not(target_family = "wasm"))]
-            Self::SlashCommandContinueLocally => {
-                "User invoked /continue-locally to fork a cloud conversation locally"
             }
             #[cfg(target_family = "wasm")]
             Self::TombstoneOpenInWarp => "User clicked Open in Warp in the tombstone",

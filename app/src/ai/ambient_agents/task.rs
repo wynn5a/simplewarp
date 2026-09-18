@@ -3,20 +3,15 @@
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 #[cfg(not(target_family = "wasm"))]
 pub use cloud_object_models::HarnessModelConfig;
-pub use cloud_object_models::{AgentConfigSnapshot, HarnessAuthSecretsConfig, HarnessConfig};
+pub use cloud_object_models::{AgentConfigSnapshot, HarnessConfig};
 use iso8601_duration::Duration as Iso8601Duration;
 use serde::{Deserialize, Serialize};
 use session_sharing_protocol::common::SessionId;
 use url::Url;
-use warp_core::ui::theme::WarpTheme;
-use warp_errors::report_error;
-use warpui::color::ColorU;
 use warpui::{SingletonEntity, View, ViewContext};
 
 use super::AmbientAgentTaskId;
 use crate::ai::artifacts::{Artifact, deserialize_artifacts};
-use crate::server::server_api::ServerApiProvider;
-use crate::ui_components::icons::Icon;
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
 
@@ -99,28 +94,6 @@ impl AgentSource {
             AgentSource::RunScorer => "Scorer",
             AgentSource::Autofix => "Self-improvement",
             AgentSource::BenchmarkTrial => "Benchmark",
-        }
-    }
-
-    /// Returns true when tasks from this source must not accept user-triggered cloud follow-ups.
-    pub fn blocks_cloud_followups(&self) -> bool {
-        match self {
-            AgentSource::GitHubAction
-            | AgentSource::GitHubWebhook
-            | AgentSource::GitLabWebhook
-            | AgentSource::RunScorer
-            | AgentSource::Autofix
-            | AgentSource::BenchmarkTrial => true,
-            AgentSource::Linear
-            | AgentSource::AgentWebhook
-            | AgentSource::Slack
-            | AgentSource::Cli
-            | AgentSource::ScheduledAgent
-            | AgentSource::Interactive
-            | AgentSource::WebApp
-            | AgentSource::CloudMode
-            | AgentSource::Orchestration
-            | AgentSource::Jira => false,
         }
     }
 
@@ -284,10 +257,6 @@ pub fn normalize_orchestrator_agent_name(raw: &str) -> Option<String> {
 }
 
 impl AmbientAgentTask {
-    pub fn run_id(&self) -> AmbientAgentTaskId {
-        self.task_id
-    }
-
     /// Returns the short label for this task: trimmed `agent_config_snapshot.name`,
     /// trimmed `title`, or `"Agent"`.
     pub fn display_name(&self) -> &str {
@@ -308,32 +277,12 @@ impl AmbientAgentTask {
         "Agent"
     }
 
-    pub fn conversation_id(&self) -> Option<&str> {
-        self.conversation_id.as_deref()
-    }
-
-    /// Returns true when this task's source must not accept user-triggered cloud follow-ups.
-    pub fn blocks_cloud_followups(&self) -> bool {
-        self.source
-            .as_ref()
-            .is_some_and(AgentSource::blocks_cloud_followups)
-    }
-
     pub fn active_run_execution(&self) -> RunExecution<'_> {
         RunExecution {
             session_id: self.session_id.as_deref(),
             session_link: self.session_link.as_deref().filter(|link| !link.is_empty()),
             request_usage: self.request_usage.as_ref(),
             is_sandbox_running: self.is_sandbox_running,
-        }
-    }
-
-    pub fn active_execution_session_id(&self) -> Option<&str> {
-        let execution = self.active_run_execution();
-        if self.supports_live_session() && execution.is_active() {
-            execution.session_id
-        } else {
-            None
         }
     }
 
@@ -355,53 +304,13 @@ impl AmbientAgentTask {
         }
     }
 
-    pub fn active_execution_conversation_id(&self) -> Option<&str> {
-        if self.has_active_execution() {
-            self.conversation_id()
-        } else {
-            None
-        }
-    }
-
     pub fn has_active_execution(&self) -> bool {
         self.supports_live_session() && self.active_run_execution().is_active()
-    }
-
-    pub fn is_terminal_run_state(&self) -> bool {
-        self.state.is_terminal()
-    }
-
-    pub fn can_submit_cloud_followup(&self) -> bool {
-        self.is_terminal_run_state() && !self.has_active_execution()
-    }
-
-    /// Total credits used (inference + compute + platform).
-    pub fn credits_used(&self) -> Option<f32> {
-        self.active_run_execution().request_usage.map(|u| {
-            (u.inference_cost.unwrap_or(0.0)
-                + u.compute_cost.unwrap_or(0.0)
-                + u.platform_cost.unwrap_or(0.0)) as f32
-        })
     }
 
     /// Server-reported run duration.
     pub fn run_time(&self) -> Option<ChronoDuration> {
         self.run_time.and_then(|run_time| run_time.to_chrono())
-    }
-
-    /// Creator's display name, if available.
-    pub fn creator_display_name(&self) -> Option<String> {
-        self.creator.as_ref().and_then(|c| c.display_name.clone())
-    }
-
-    /// Principal the run executed as, formatted for user-facing surfaces.
-    pub fn executor_display_name(&self) -> Option<String> {
-        self.executor.as_ref().and_then(|e| e.display_name.clone())
-    }
-
-    /// Returns true if the underlying session for the ambient agent is no longer running.
-    pub fn is_no_longer_running(&self) -> bool {
-        !self.active_run_execution().is_sandbox_running && !self.state.is_working()
     }
 
     fn supports_live_session(&self) -> bool {
@@ -429,93 +338,6 @@ pub enum AmbientAgentTaskState {
     Cancelled,
     #[serde(other)]
     Unknown,
-}
-
-impl AmbientAgentTaskState {
-    /// Returns the query param value for the server API.
-    pub fn as_query_param(&self) -> Option<&str> {
-        match self {
-            AmbientAgentTaskState::Queued => Some("QUEUED"),
-            AmbientAgentTaskState::Pending => Some("PENDING"),
-            AmbientAgentTaskState::Claimed => Some("CLAIMED"),
-            AmbientAgentTaskState::InProgress => Some("INPROGRESS"),
-            AmbientAgentTaskState::Succeeded => Some("SUCCEEDED"),
-            AmbientAgentTaskState::Failed => Some("FAILED"),
-            AmbientAgentTaskState::Error => Some("ERROR"),
-            AmbientAgentTaskState::Blocked => Some("BLOCKED"),
-            AmbientAgentTaskState::Cancelled => Some("CANCELLED"),
-            // Unknown states are only for resilient deserialization and should not be
-            // sent back as filter values.
-            AmbientAgentTaskState::Unknown => None,
-        }
-    }
-
-    pub fn is_working(&self) -> bool {
-        match self {
-            AmbientAgentTaskState::Queued
-            | AmbientAgentTaskState::Pending
-            | AmbientAgentTaskState::Claimed
-            | AmbientAgentTaskState::InProgress => true,
-            AmbientAgentTaskState::Succeeded
-            | AmbientAgentTaskState::Failed
-            | AmbientAgentTaskState::Error
-            | AmbientAgentTaskState::Blocked
-            | AmbientAgentTaskState::Cancelled
-            | AmbientAgentTaskState::Unknown => false,
-        }
-    }
-
-    pub fn is_cancellable(&self) -> bool {
-        self.is_working()
-    }
-
-    pub fn is_failure_like(&self) -> bool {
-        match self {
-            AmbientAgentTaskState::Failed
-            | AmbientAgentTaskState::Error
-            | AmbientAgentTaskState::Blocked
-            | AmbientAgentTaskState::Unknown => true,
-            AmbientAgentTaskState::Queued
-            | AmbientAgentTaskState::Pending
-            | AmbientAgentTaskState::Claimed
-            | AmbientAgentTaskState::InProgress
-            | AmbientAgentTaskState::Succeeded
-            | AmbientAgentTaskState::Cancelled => false,
-        }
-    }
-
-    pub fn is_terminal(&self) -> bool {
-        match self {
-            AmbientAgentTaskState::Succeeded
-            | AmbientAgentTaskState::Failed
-            | AmbientAgentTaskState::Error
-            | AmbientAgentTaskState::Blocked
-            | AmbientAgentTaskState::Cancelled
-            | AmbientAgentTaskState::Unknown => true,
-            AmbientAgentTaskState::Queued
-            | AmbientAgentTaskState::Pending
-            | AmbientAgentTaskState::Claimed
-            | AmbientAgentTaskState::InProgress => false,
-        }
-    }
-
-    pub fn status_icon_and_color(&self, theme: &WarpTheme) -> (Icon, ColorU) {
-        match self {
-            AmbientAgentTaskState::Queued
-            | AmbientAgentTaskState::Pending
-            | AmbientAgentTaskState::Claimed
-            | AmbientAgentTaskState::InProgress => (Icon::ClockLoader, theme.ansi_fg_magenta()),
-            AmbientAgentTaskState::Succeeded => (Icon::Check, theme.ansi_fg_green()),
-            AmbientAgentTaskState::Failed
-            | AmbientAgentTaskState::Error
-            | AmbientAgentTaskState::Unknown => (Icon::Triangle, theme.ansi_fg_red()),
-            AmbientAgentTaskState::Blocked => (Icon::StopFilled, theme.ansi_fg_yellow()),
-            AmbientAgentTaskState::Cancelled => (
-                Icon::Cancelled,
-                theme.disabled_text_color(theme.background()).into_solid(),
-            ),
-        }
-    }
 }
 
 impl std::fmt::Display for AmbientAgentTaskState {
@@ -580,38 +402,27 @@ pub struct RequestUsage {
     pub platform_cost: Option<f64>,
 }
 
-/// Cancel an ambient agent task and show a toast with the result.
+/// Cloud task cancellation is gone: task ids in this build are local-only,
+/// so there is no server task to cancel. Reports the same failure the wall
+/// produced, without the spawn.
 pub fn cancel_task_with_toast<V: View>(task_id: AmbientAgentTaskId, ctx: &mut ViewContext<V>) {
-    let ai_client = ServerApiProvider::handle(ctx).as_ref(ctx).get_ai_client();
     let window_id = ctx.window_id();
-    ctx.spawn(
-        async move { ai_client.cancel_ambient_agent_task(&task_id).await },
-        move |_view, result, ctx| {
-            let message = match result {
-                Ok(()) => "Task cancelled".to_string(),
-                Err(e) => {
-                    report_error!(&e);
-                    format!("Failed to cancel task: {e}")
-                }
-            };
-            ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                let toast = DismissibleToast::default(message);
-                toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-            });
-        },
+    log::warn!(
+        "Cannot cancel task {task_id}: cloud task cancellation is unavailable in this build"
     );
+    ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+        let toast = DismissibleToast::default(
+            "Failed to cancel task: cloud task cancellation is unavailable in this build"
+                .to_string(),
+        );
+        toast_stack.add_ephemeral_toast(toast, window_id, ctx);
+    });
 }
 
-/// Cancel an ambient agent task without surfacing a toast to the user.
-pub fn cancel_task_silently<V: View>(task_id: AmbientAgentTaskId, ctx: &mut ViewContext<V>) {
-    let ai_client = ServerApiProvider::handle(ctx).as_ref(ctx).get_ai_client();
-    ctx.spawn(
-        async move { ai_client.cancel_ambient_agent_task(&task_id).await },
-        move |_view, result, _| {
-            if let Err(e) = result {
-                report_error!(e.context("Failed to cancel task"));
-            }
-        },
+/// Cloud task cancellation is gone; nothing to cancel server-side.
+pub fn cancel_task_silently<V: View>(task_id: AmbientAgentTaskId, _ctx: &mut ViewContext<V>) {
+    log::warn!(
+        "Cannot cancel task {task_id}: cloud task cancellation is unavailable in this build"
     );
 }
 

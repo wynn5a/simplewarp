@@ -491,24 +491,6 @@ pub const FORK_FROM: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub static CONTINUE_LOCALLY: LazyLock<StaticCommand> = LazyLock::new(|| {
-    let hint_text = "<optional prompt to send in local conversation>";
-    StaticCommand {
-        name: "/continue-locally",
-        description: "Continue this cloud conversation locally",
-        kind: SlashCommandKind::ContinueLocally,
-        supported_surfaces: SlashCommandSurfaces::GuiOnly {
-            icon_path: "bundled/svg/arrow-split.svg",
-        },
-        availability: Availability::AGENT_VIEW
-            | Availability::ACTIVE_CONVERSATION
-            | Availability::AI_ENABLED
-            | Availability::CLOUD_AGENT,
-        auto_enter_ai_mode: true,
-        argument: Some(Argument::optional().with_hint_text(hint_text)),
-    }
-});
-
 pub const COST: StaticCommand = StaticCommand {
     name: "/cost",
     description: "Toggle credit usage details",
@@ -709,11 +691,7 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
     }
 
     if !cfg!(target_family = "wasm") {
-        commands.extend([
-            FORK.clone(),
-            FORK_AND_COMPACT.clone(),
-            CONTINUE_LOCALLY.clone(),
-        ]);
+        commands.extend([FORK.clone(), FORK_AND_COMPACT.clone()]);
 
         if FeatureFlag::ForkFromCommand.is_enabled() {
             commands.push(FORK_FROM);

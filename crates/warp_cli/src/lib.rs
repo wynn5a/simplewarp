@@ -15,20 +15,15 @@ mod process_handle;
 
 pub mod scope;
 pub mod skill;
-mod sort_order;
-pub use sort_order::SortOrderArg;
 
 pub mod agent;
 pub mod completions;
 pub mod config_file;
-mod date_time;
 pub mod environment;
-pub mod json_filter;
 pub mod mcp;
 pub mod model;
 pub mod provider;
 pub mod share;
-pub mod task;
 pub const OZ_RUN_ID_ENV: &str = "OZ_RUN_ID";
 pub const OZ_PARENT_RUN_ID_ENV: &str = "OZ_PARENT_RUN_ID";
 pub const OZ_CLI_ENV: &str = "OZ_CLI";
@@ -362,10 +357,6 @@ pub enum CliCommand {
     #[command(subcommand)]
     MCP(crate::mcp::MCPCommand),
 
-    /// Manage runs.
-    #[command(subcommand, alias = "task")]
-    Run(Box<crate::task::TaskCommand>),
-
     /// Manage available models.
     #[command(subcommand)]
     Model(crate::model::ModelCommand),
@@ -386,7 +377,6 @@ impl CliCommand {
         match self {
             CliCommand::Agent(command) => command.as_str_for_tracing(),
             CliCommand::MCP(command) => command.as_str_for_tracing(),
-            CliCommand::Run(command) => command.as_str_for_tracing(),
             CliCommand::Model(command) => command.as_str_for_tracing(),
             CliCommand::Logout => "logout",
             CliCommand::Whoami => "whoami",

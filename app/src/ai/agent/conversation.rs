@@ -963,27 +963,6 @@ impl AIConversation {
         &self.status
     }
 
-    /// Test-only setter for driving status-dependent logic directly.
-    #[cfg(test)]
-    pub(crate) fn set_status_for_test(&mut self, status: ConversationStatus) {
-        self.status = status;
-    }
-
-    /// Test-only setter for the structured status error, used to exercise the
-    /// `status_error` classification path in `map_conversation_status`.
-    #[cfg(test)]
-    pub(crate) fn set_status_error_for_test(&mut self, error: Option<RenderableAIError>) {
-        self.status_error = error;
-    }
-
-    /// Test-only helper: appends an exchange to the root task so status-derivation
-    /// logic (e.g. `map_conversation_status`) can be exercised end-to-end.
-    #[cfg(test)]
-    pub(crate) fn append_root_exchange_for_test(&mut self, exchange: AIAgentExchange) {
-        self.task_store
-            .modify_root_task(|root_task| root_task.append_exchange(exchange));
-    }
-
     /// The human-readable message for the current error status, derived from the
     /// structured `status_error`.
     pub fn status_error_message(&self) -> Option<String> {

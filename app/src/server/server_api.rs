@@ -1,15 +1,12 @@
-pub mod ai;
 pub mod auth;
-pub mod harness_support;
 
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
-use ai::AIClient;
 use anyhow::{Result, anyhow};
 use auth::AuthClient;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use warp_core::context_flag::ContextFlag;
 use warp_core::telemetry::TelemetryEvent;
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
@@ -18,7 +15,7 @@ use warp_server_client::base_client::{BaseClient, GraphqlRoutingConfig};
 use warp_server_client::network_logging::NetworkLogModel;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
-use crate::ai::ambient_agents::AmbientAgentTaskId;
+use crate::ai::ambient_agents::{AgentSource, AmbientAgentTaskId};
 use crate::ai::get_relevant_files::api::{GetRelevantFiles, GetRelevantFilesResponse};
 use crate::ai::predict::generate_ai_input_suggestions::GenerateAIInputSuggestionsRequest;
 use crate::ai::predict::generate_am_query_suggestions::GenerateAMQuerySuggestionsRequest;
@@ -40,32 +37,12 @@ const WARP_ERROR_CODE_HEADER: &str = "X-Warp-Error-Code";
 /// So we use this to distinguish between the two cases.
 const WARP_ERROR_CODE_OUT_OF_CREDITS: &str = "OUT_OF_CREDITS";
 
-/// ResponseType received by Client
-#[derive(thiserror::Error, Debug, Serialize, Deserialize)]
-#[error("{error}")]
-pub struct ClientError {
-    pub error: String,
-    // We unconditionally check for GitHub auth errors in any public API response. It'd be much better
-    // to have the server return error codes that we can parse, but this isn't yet supported.
-    // See REMOTE-666
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth_url: Option<String>,
-}
-
 impl Deref for ServerApi {
     type Target = BaseClient;
 
     fn deref(&self) -> &Self::Target {
         &self.base_client
     }
-}
-
-/// Error when the user is at their cloud agent concurrency limit.
-#[derive(thiserror::Error, Debug, Clone, Deserialize)]
-#[error("{error} (running agents: {running_agents})")]
-pub struct CloudAgentCapacityError {
-    pub error: String,
-    pub running_agents: i32,
 }
 
 /// Wrapper for deserialization errors. This covers both:
@@ -299,7 +276,7 @@ impl ServerApi {
     fn new(
         auth_state: Arc<AuthState>,
         event_sender: async_channel::Sender<AuthEvent>,
-        agent_source: Option<ai::AgentSource>,
+        agent_source: Option<AgentSource>,
         ctx: &mut ModelContext<ServerApiProvider>,
     ) -> Self {
         let mut client = http_client::Client::new();
@@ -322,7 +299,7 @@ impl ServerApi {
         client: Arc<http_client::Client>,
         auth_state: Arc<AuthState>,
         event_sender: async_channel::Sender<AuthEvent>,
-        agent_source: Option<ai::AgentSource>,
+        agent_source: Option<AgentSource>,
         telemetry_api: TelemetryApi,
     ) -> Self {
         let graphql_routing = GraphqlRoutingConfig {
@@ -518,7 +495,7 @@ impl ServerApiProvider {
     #[cfg_attr(target_family = "wasm", allow(unused_variables))]
     pub fn new(
         auth_state: Arc<AuthState>,
-        agent_source: Option<ai::AgentSource>,
+        agent_source: Option<AgentSource>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         let (event_sender, event_receiver) = async_channel::bounded(10);
@@ -580,10 +557,6 @@ impl ServerApiProvider {
 
     pub fn get_auth_client(&self) -> Arc<dyn AuthClient> {
         self.auth_client.clone()
-    }
-
-    pub fn get_ai_client(&self) -> Arc<dyn AIClient> {
-        self.server_api.clone()
     }
 
     /// Returns the shared HTTP client. This client is wired into network logging

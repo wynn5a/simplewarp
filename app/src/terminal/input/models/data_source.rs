@@ -16,10 +16,7 @@ use warpui::platform::{Cursor, OperatingSystem};
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{
-    AppContext, Element, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _,
-    WindowId,
-};
+use warpui::{AppContext, Element, Entity, EntityId, SingletonEntity as _, WindowId};
 
 use super::model_spec_scores::{
     CUSTOM_MODEL_ROUTER_DESCRIPTION, CUSTOM_MODEL_ROUTER_TITLE, CostRow, MODEL_SPECS_DESCRIPTION,
@@ -46,7 +43,6 @@ use crate::terminal::input::inline_menu::{
     default_navigation_message_items, styles as inline_styles,
 };
 use crate::terminal::input::message_bar::{Message, MessageItem};
-use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
@@ -210,44 +206,14 @@ pub fn query_model_picker_choices<'a>(
 pub struct ModelSelectorDataSource {
     terminal_view_id: EntityId,
     window_id: WindowId,
-    ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
 }
 
 impl ModelSelectorDataSource {
-    pub fn new(
-        terminal_view_id: EntityId,
-        window_id: WindowId,
-        ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
-    ) -> Self {
+    pub fn new(terminal_view_id: EntityId, window_id: WindowId) -> Self {
         Self {
             terminal_view_id,
             window_id,
-            ambient_agent_view_model,
         }
-    }
-
-    /// Attaches an ambient agent view model after construction so the picker treats this pane as a
-    /// cloud pane, which changes the listed models (custom-endpoint models are suppressed; see
-    /// [`Self::include_model_in_picker`]). Used on the shared-session viewer path where the model
-    /// is created lazily at `SessionJoined`. Idempotent: a no-op when a model is already set. The
-    /// next `run_query` (menu open / typing) picks up the new value.
-    pub fn set_ambient_agent_view_model(
-        &mut self,
-        ambient_agent_view_model: ModelHandle<AmbientAgentViewModel>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if self.ambient_agent_view_model.is_some() {
-            return;
-        }
-        self.ambient_agent_view_model = Some(ambient_agent_view_model);
-        ctx.notify();
-    }
-
-    /// Returns whether a model should appear in the inline picker.
-    /// Custom-endpoint models are suppressed in Oz cloud agent panes because
-    /// they cannot route through Warp's cloud inference infrastructure.
-    pub(crate) fn include_model_in_picker(is_cloud_pane: bool, is_custom_endpoint: bool) -> bool {
-        !is_cloud_pane || !is_custom_endpoint
     }
 
     fn order_model_choices<'a>(
@@ -305,22 +271,11 @@ impl SyncDataSource for ModelSelectorDataSource {
                 .clone()
         };
 
-        let is_cloud_pane = self.ambient_agent_view_model.is_some();
         let choices = if is_full_terminal {
-            llm_preferences
-                .get_cli_agent_llm_choices(app)
-                .filter(|llm| {
-                    let is_custom = llm_preferences.custom_llm_info_for_id(&llm.id).is_some();
-                    Self::include_model_in_picker(is_cloud_pane, is_custom)
-                })
-                .collect_vec()
+            llm_preferences.get_cli_agent_llm_choices(app).collect_vec()
         } else {
             llm_preferences
                 .get_base_llm_choices_for_agent_mode(app)
-                .filter(|llm| {
-                    let is_custom = llm_preferences.custom_llm_info_for_id(&llm.id).is_some();
-                    Self::include_model_in_picker(is_cloud_pane, is_custom)
-                })
                 .collect_vec()
         };
         Ok(

@@ -3,12 +3,10 @@
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
-use std::sync::Arc;
 
 use futures::FutureExt;
 use itertools::Itertools as _;
 use persistence::model::AgentConversationRecord;
-use warpui::{AppContext, SingletonEntity};
 
 use super::{
     AIConversationMetadata, BlocklistAIHistoryModel, MAX_HISTORICAL_CONVERSATIONS,
@@ -23,8 +21,6 @@ use crate::persistence::agent::read_agent_conversation_by_id;
 use crate::persistence::model::{
     AgentConversation, AgentConversationData, AgentConversationSummary,
 };
-use crate::server::server_api::ServerApiProvider;
-use crate::server::server_api::ai::AIClient;
 use crate::terminal::model::block::SerializedBlock;
 
 /// A conversation transcript from a CLI agent harness (e.g. Claude Code).
@@ -98,19 +94,6 @@ pub fn convert_persisted_conversation_to_ai_conversation_with_metadata(
     }
 }
 
-/// Loads a conversation from the server asynchronously.
-/// This is a free-floating function that can be called without a model reference.
-///
-/// Cloud conversation storage requires a Warp account/server, which this build never
-/// has, so this always returns `None`.
-pub async fn load_conversation_from_server(
-    _conversation_id: AIConversationId,
-    _server_conversation_token: ServerConversationToken,
-    _server_api: Arc<dyn AIClient>,
-) -> Option<CloudConversationData> {
-    None
-}
-
 /// Boxes a future with the right type for the platform.
 /// On WASM, futures must not implement Send.
 fn box_future<F>(f: F) -> warpui::r#async::BoxFuture<'static, Option<CloudConversationData>>
@@ -153,18 +136,14 @@ impl AIConversationMetadata {
 impl BlocklistAIHistoryModel {
     /// Loads conversation data from the appropriate source (DB or server).
     ///
-    /// This method automatically determines whether to load from the local database or
-    /// the server based on the conversation's metadata:
-    /// - If the conversation is already in memory, returns it immediately
-    /// - If has_local_data is true, loads from the local database synchronously
-    /// - Otherwise, loads from the server asynchronously
+    /// Loads the conversation from memory when present, otherwise from the
+    /// local database when its metadata says local data exists.
     ///
     /// Note: This does NOT insert the conversation into memory. Callers are responsible
     /// for inserting the loaded conversation if needed.
     pub fn load_conversation_data(
         &self,
         conversation_id: AIConversationId,
-        ctx: &AppContext,
     ) -> warpui::r#async::BoxFuture<'static, Option<CloudConversationData>> {
         // First check if the conversation is already in memory
         if let Some(conversation) = self.conversations_by_id.get(&conversation_id) {
@@ -190,62 +169,29 @@ impl BlocklistAIHistoryModel {
                 .map(|c| CloudConversationData::Oz(Box::new(c)));
             box_future(futures::future::ready(result))
         } else {
-            // Load from server asynchronously
-            if let Some(server_token) = metadata.server_conversation_token {
-                // Extract the server API before creating the async future
-                let server_api = ServerApiProvider::as_ref(ctx).get_ai_client();
-                box_future(load_conversation_from_server(
-                    conversation_id,
-                    server_token,
-                    server_api,
-                ))
-            } else {
-                log::warn!(
-                    "Cannot load conversation {conversation_id}: no local data and no server token"
-                );
-                box_future(futures::future::ready(None))
-            }
+            // Cloud conversation storage requires a Warp account/server, which
+            // this build never has; there is nothing beyond the local database.
+            log::warn!(
+                "Cannot load conversation {conversation_id}: no local data and no server fallback"
+            );
+            box_future(futures::future::ready(None))
         }
     }
 
-    /// Loads a conversation by its server token, with a server fallback.
+    /// Loads a conversation by its server token from local state.
     ///
     /// First attempts to find the conversation in local metadata and load it
-    /// via `load_conversation_data`. If the token is not present locally
-    /// (e.g. cloud metadata hasn't been merged yet), falls back to loading
-    /// the conversation directly from the server.
+    /// via `load_conversation_data`.
     ///
     /// Note: This does NOT insert the conversation into memory. Callers are responsible
     /// for inserting the loaded conversation if needed.
     pub fn load_conversation_by_server_token(
         &mut self,
         server_token: &ServerConversationToken,
-        ctx: &AppContext,
     ) -> warpui::r#async::BoxFuture<'static, Option<CloudConversationData>> {
         let conversation_id =
             self.get_or_set_canonical_conversation_id_for_server_token(server_token);
-        if self.conversations_by_id.contains_key(&conversation_id)
-            || self
-                .all_conversations_metadata
-                .contains_key(&conversation_id)
-        {
-            return self.load_conversation_data(conversation_id, ctx);
-        }
-
-        // Fallback: load directly from the server. This handles cases where
-        // cloud metadata hasn't been merged into the local history model yet
-        // (e.g. timing on startup, or conversations only surfaced via
-        // AgentConversationsModel).
-        log::warn!(
-            "No local metadata for server token {}, falling back to server fetch",
-            server_token.as_str()
-        );
-        let server_api = ServerApiProvider::as_ref(ctx).get_ai_client();
-        box_future(load_conversation_from_server(
-            conversation_id,
-            server_token.clone(),
-            server_api,
-        ))
+        self.load_conversation_data(conversation_id)
     }
 
     /// Loads a conversation from local DB and returns it.

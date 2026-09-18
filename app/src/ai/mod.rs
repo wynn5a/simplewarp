@@ -5,7 +5,6 @@
 pub(crate) mod active_agent_views_model;
 pub(crate) mod agent;
 pub(crate) mod agent_conversations_model;
-pub(crate) mod agent_events;
 pub(crate) mod agent_management;
 pub(crate) mod agent_tips;
 pub(crate) mod ai_document_view;
@@ -58,7 +57,6 @@ pub mod cloud_agent_settings;
 pub mod cloud_environments;
 pub mod execution_profiles;
 pub mod facts;
-pub(crate) mod generate_code_review_content;
 pub(crate) mod loading;
 pub mod mcp;
 pub mod outline;

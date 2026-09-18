@@ -29,7 +29,6 @@ use crate::terminal::model::grid::RespectDisplayedOutput;
 use crate::terminal::model::index::Point;
 use crate::terminal::model::session::ExecuteCommandOptions;
 use crate::terminal::shell::ShellType;
-use crate::terminal::view::ConversationRestorationInNewPaneType;
 
 /// Describes why a terminal session bootstrap failed.
 #[derive(Debug)]
@@ -97,7 +96,6 @@ pub(crate) struct TerminalDriverOptions {
     pub env_vars: HashMap<OsString, OsString>,
     pub should_share: bool,
     pub task_id: Option<AmbientAgentTaskId>,
-    pub conversation_restoration: Option<ConversationRestorationInNewPaneType>,
 }
 
 /// Events emitted by [`TerminalDriver`] for [`super::AgentDriver`] to react to.
@@ -170,7 +168,7 @@ fn create_terminal_view(
             options: Box::new(NewTerminalOptions {
                 initial_directory: Some(options.working_dir),
                 env_vars: options.env_vars,
-                conversation_restoration: options.conversation_restoration,
+                conversation_restoration: None,
                 ..Default::default()
             }),
         },

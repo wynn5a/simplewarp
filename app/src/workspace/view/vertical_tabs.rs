@@ -37,11 +37,9 @@ use warpui::{AppContext, EntityId, SingletonEntity, ViewHandle, WindowId};
 
 use super::{render_group_member_icon_collage, select_unique_pane_kinds};
 use crate::ai::agent::conversation::{ConversationStatus, StatusColorStyle};
-use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::conversation_status_ui::render_status_element;
 use crate::appearance::Appearance;
-use crate::cloud_object::model::generic_string_model::StringModel;
-use crate::cloud_object::{CloudObjectLookup as _, DriveObjectType};
+use crate::cloud_object::DriveObjectType;
 use crate::code::editor::{add_color, remove_color};
 use crate::code::icon_from_file_path;
 use crate::context_chips::display_chip::GitLineChanges;
@@ -1060,7 +1058,7 @@ fn summary_conversation_status_for_terminal(
         return Some(session.status.to_conversation_status());
     }
 
-    let is_ambient = terminal_view.is_ambient_agent_session(app);
+    let is_ambient = terminal_view.is_cloud_agent_session();
     let has_conversation = terminal_view
         .selected_conversation_display_title(app)
         .is_some();
@@ -1450,7 +1448,7 @@ fn render_detail_kind_badge_icon(
                 return icon.to_warpui_icon(color).finish();
             }
 
-            let icon = if terminal_view.is_ambient_agent_session(app) {
+            let icon = if terminal_view.is_cloud_agent_session() {
                 WarpIcon::CloudFilled
             } else if terminal_view
                 .selected_conversation_display_title(app)
@@ -4179,7 +4177,7 @@ fn preferred_agent_tab_titles(
 fn terminal_agent_text(terminal_view: &TerminalView, app: &AppContext) -> TerminalAgentText {
     let cli_agent_session = CLIAgentSessionsModel::as_ref(app).session(terminal_view.id());
     let is_plugin_backed = cli_agent_session.is_some_and(|session| session.listener.is_some());
-    let is_ambient_agent = terminal_view.is_ambient_agent_session(app);
+    let is_ambient_agent = terminal_view.is_cloud_agent_session();
 
     let mut agent_text = TerminalAgentText {
         is_oz_agent: is_ambient_agent,
@@ -4296,45 +4294,14 @@ pub(super) fn pane_summary_kind(
     Some(typed.summary_pane_kind(title, app))
 }
 
-/// Returns the best available working-directory string for a terminal pane,
-/// incorporating cloud environment name and setup status for ambient agent sessions.
+/// Returns the terminal pane's display working directory, if it is non-empty.
 fn resolved_terminal_working_directory(
     terminal_view: &TerminalView,
     app: &AppContext,
 ) -> Option<String> {
-    let working_directory = terminal_view
+    terminal_view
         .display_working_directory(app)
-        .filter(|wd| !wd.trim().is_empty());
-    cloud_agent_working_directory_and_env(terminal_view, working_directory.as_deref(), app)
-        .or(working_directory)
-}
-
-/// For cloud agent panes, builds a composite string from the environment name,
-/// setup status, and/or working directory. Returns `None` for non-cloud sessions.
-fn cloud_agent_working_directory_and_env(
-    terminal_view: &TerminalView,
-    working_directory: Option<&str>,
-    app: &AppContext,
-) -> Option<String> {
-    if !terminal_view.is_ambient_agent_session(app) {
-        return None;
-    }
-    let model_ref = terminal_view.ambient_agent_view_model()?.as_ref(app);
-
-    let env_name = model_ref
-        .selected_environment_id()
-        .and_then(|id| CloudAmbientAgentEnvironment::get_by_id(id, app))
-        .map(|env| env.model().string_model.display_name());
-
-    let setup_status: Option<&str> = model_ref.agent_progress().map(|p| p.setup_status_text());
-
-    match (env_name, setup_status, working_directory) {
-        (Some(env), Some(status), _) => Some(format!("{env} · {status}")),
-        (Some(env), None, Some(wd)) => Some(format!("{env} · {wd}")),
-        (Some(env), None, None) => Some(env),
-        (None, Some(status), _) => Some(status.to_string()),
-        (None, None, _) => None,
-    }
+        .filter(|wd| !wd.trim().is_empty())
 }
 
 fn render_terminal_row_content(

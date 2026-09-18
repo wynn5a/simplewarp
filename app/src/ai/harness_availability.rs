@@ -85,18 +85,6 @@ impl HarnessAvailabilityModel {
         FeatureFlag::AgentHarness.is_enabled() && self.harnesses.len() > 1
     }
 
-    /// Whether any harness is available at all (at least one enabled).
-    pub fn has_any_enabled_harness(&self) -> bool {
-        self.harnesses.iter().any(|h| h.enabled)
-    }
-
-    /// Whether a harness is both known and enabled.
-    pub fn is_harness_enabled(&self, harness: Harness) -> bool {
-        self.harnesses
-            .iter()
-            .any(|h| h.harness == harness && h.enabled)
-    }
-
     pub fn models_for(&self, harness: Harness) -> Option<&[HarnessModelInfo]> {
         self.harnesses
             .iter()

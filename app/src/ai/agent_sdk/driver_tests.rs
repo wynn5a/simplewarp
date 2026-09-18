@@ -26,8 +26,8 @@ use super::{
     AgentDriver, AgentDriverError, CLIAgentSessionStatus, IdleTimeoutSender,
     LEGACY_OZ_PARENT_LISTENER_MANAGED_EXTERNALLY_ENV, LEGACY_OZ_PARENT_STATE_ROOT_ENV,
     OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV, OZ_MESSAGE_LISTENER_STATE_ROOT_ENV,
-    PlatformErrorCode, SDKConversationOutputStatus, idle_window_for_cli_session_status,
-    idle_window_for_terminal_status, setup_failure_status_update, terminal_status_log_outcome,
+    SDKConversationOutputStatus, idle_window_for_cli_session_status,
+    idle_window_for_terminal_status, terminal_status_log_outcome,
 };
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
@@ -428,20 +428,6 @@ fn non_error_completion_defers_by_idle_on_complete() {
             "unexpected window for {label}"
         );
     }
-}
-
-#[test]
-fn setup_failure_is_reported_as_an_environment_setup_failure() {
-    // Not just a label: `TaskStatusMessage::is_environment_setup_failure` matches this variant
-    // alone, and the cloud-continuation resolver uses it to decide that a setup failure with no
-    // conversation gets a tombstone with no continue CTA. A generic code silently reroutes those
-    // runs into continuation handling that has nothing to continue.
-    let status = setup_failure_status_update("Environment setup failed: bad command".to_string());
-
-    assert_eq!(
-        status.error_code,
-        Some(PlatformErrorCode::EnvironmentSetupFailed)
-    );
 }
 
 #[test]

@@ -85,40 +85,6 @@ impl TerminalView {
         self.redetermine_global_focus(ctx);
     }
 
-    // Enters the agent view for a restored CLI agent transcript, setting the title using the
-    // restored CLI conversation metadata if we have it.
-    pub(crate) fn enter_agent_view_for_restored_cli_agent(
-        &mut self,
-        fallback_title: String,
-        ctx: &mut ViewContext<Self>,
-    ) -> Option<AIConversationId> {
-        let origin = AgentViewEntryOrigin::ThirdPartyCloudAgent;
-
-        match self.try_enter_agent_view(None, origin.clone(), None, ctx) {
-            Ok(conversation_id) => {
-                let title = fallback_title.trim();
-                if !title.is_empty() {
-                    BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, _| {
-                        if let Some(conversation) = history.conversation_mut(&conversation_id) {
-                            conversation.set_fallback_display_title(title.to_owned());
-                        }
-                    });
-                }
-                self.redetermine_global_focus(ctx);
-                Some(conversation_id)
-            }
-            Err(e) => {
-                report_error!(
-                    anyhow::Error::new(e).context("Failed to enter agent view for restored CLI agent"),
-                    extra: { "origin" => ?origin }
-                );
-                self.show_error_toast(e.to_string(), ctx);
-                self.redetermine_global_focus(ctx);
-                None
-            }
-        }
-    }
-
     pub fn enter_agent_view_for_conversation(
         &mut self,
         initial_prompt: Option<String>,
@@ -174,7 +140,7 @@ impl TerminalView {
             let conversation_id_copy = conversation_id;
             let future = history_model
                 .as_ref(ctx)
-                .load_conversation_data(conversation_id_copy, ctx);
+                .load_conversation_data(conversation_id_copy);
             ctx.spawn(future, move |me, conversation, ctx| {
                 let Some(conversation) = conversation else {
                     me.show_error_toast(

@@ -274,7 +274,7 @@ impl AgentCommand {
         clap::ArgGroup::new("prompt_group")
             .required(true)
             .multiple(true)
-            .args(["prompt", "saved_prompt", "task_id", "skill"])
+            .args(["prompt", "saved_prompt", "skill"])
     )
 )]
 pub struct RunAgentArgs {
@@ -374,9 +374,6 @@ pub struct RunAgentArgs {
 
     #[command(flatten)]
     pub snapshot: SnapshotArgs,
-    /// Identifier for the task that spawned this agent, used to report progress.
-    #[arg(long = "task-id", hide = true, conflicts_with_all = ["prompt", "saved_prompt", "file"])]
-    pub task_id: Option<String>,
 
     /// Whether we are running the agent in a sandboxed environment.
     #[arg(long = "sandboxed", hide = true)]
@@ -395,24 +392,6 @@ pub struct RunAgentArgs {
     /// "claude" delegates to the `claude` CLI.
     #[arg(long = "harness", value_name = "HARNESS", default_value_t = Harness::Oz, hide = true)]
     pub harness: Harness,
-
-    /// Skip the initial LLM turn for this run. Used by the empty-prompt cloud-handoff
-    /// path so the cloud agent comes up ready for follow-up without hallucinating a
-    /// response against an empty user message.
-    ///
-    /// Requires `--idle-on-complete` to also be set: with the initial turn skipped, the
-    /// driver has nothing to drive a completion event, so the process would exit
-    /// immediately on success without an idle window for the user's follow-up to arrive.
-    #[arg(
-        long = "skip-initial-turn",
-        hide = true,
-        requires_all = ["task_id", "idle_on_complete"],
-        conflicts_with_all = ["prompt", "saved_prompt", "file"]
-    )]
-    pub skip_initial_turn: bool,
-
-    #[arg(long = "configure-git-credentials-with-github", hide = true, requires_all = ["task_id"])]
-    pub configure_git_credentials_with_github: bool,
 }
 
 impl RunAgentArgs {

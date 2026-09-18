@@ -111,8 +111,7 @@ fn initial_cloud_mode_head_rejects_user_mutations_and_autofire() {
 #[test]
 fn pop_front_no_ops_when_head_is_locked() {
     // The Error/Cancelled drain path calls `pop_front` to restore a row to the editor. A locked
-    // initial Cloud Mode head must not be popped even if a status-transition arrives before the
-    // ambient-agent cleanup events fire `remove_initial_cloud_mode_row`.
+    // head must not be popped even if a status-transition arrives before the row unlocks.
     with_model(|mut app, model, _events| {
         let conv = AIConversationId::new();
         let initial_id = model.update(&mut app, |model, ctx| {
@@ -129,43 +128,6 @@ fn pop_front_no_ops_when_head_is_locked() {
             assert_eq!(queue[0].id(), initial_id);
             assert_eq!(queue[1].id(), followup_id);
         });
-    });
-}
-
-#[test]
-fn remove_initial_cloud_mode_row_only_removes_the_locked_head() {
-    with_model(|mut app, model, events| {
-        let conv = AIConversationId::new();
-        let initial_id = model.update(&mut app, |model, ctx| {
-            model.append(conv, initial_cloud_mode_query("initial"), ctx)
-        });
-        append_user(&model, &mut app, conv, "follow up");
-        events.borrow_mut().clear();
-
-        let removed = model.update(&mut app, |model, ctx| {
-            model.remove_initial_cloud_mode_row(conv, ctx)
-        });
-        assert_eq!(
-            removed.map(|query| query.text().to_owned()),
-            Some("initial".to_owned())
-        );
-
-        let removed_again = model.update(&mut app, |model, ctx| {
-            model.remove_initial_cloud_mode_row(conv, ctx)
-        });
-        assert!(removed_again.is_none());
-
-        let action = model.read(&app, |model, _| model.peek_autofire(conv));
-        match action {
-            Some(AutofireAction::Submit { text, .. }) => assert_eq!(text, "follow up"),
-            other => panic!("expected Submit, got {other:?}"),
-        }
-
-        let evts = events.borrow();
-        assert!(matches!(
-            evts.first(),
-            Some(QueuedQueryEvent::Removed { query_id, .. }) if *query_id == initial_id
-        ));
     });
 }
 

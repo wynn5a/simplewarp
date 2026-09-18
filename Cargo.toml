@@ -181,12 +181,6 @@ image = { version = "0.25.9", default-features = false, features = [
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 iso8601-duration = { version = "0.2.0", features = ["chrono", "serde"] }
 itertools = "0.14.0"
-jaq-json = { version = "2.0", features = ["serde"] }
-# Disabling the default `formats` feature is intended to avoid pulling in
-# CBOR/TOML/XML/YAML support, but `jaq-all` currently depends on `jaq-fmts`
-# with its default features enabled, which re-enables all those parsers transitively.
-# The long-term fix is https://github.com/01mf02/jaq/issues/431.
-jaq-all = { version = "0.1", default-features = false }
 jsonschema = { version = "0.45", default-features = false }
 lasso = { version = "0.7.3", features = ["multi-threaded"] }
 lazy_static = "1.4.0"

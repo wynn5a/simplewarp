@@ -1,3 +1,7 @@
+//! Persistence glue for previously synced scheduled-agent objects: the sync
+//! that produced them is gone, but locally persisted rows must still
+//! deserialize. No new objects are ever created in this build.
+
 pub use cloud_object_models::{CloudScheduledAmbientAgent, ScheduledAmbientAgent};
 
 use crate::cloud_object::model::generic_string_model::StringModel;

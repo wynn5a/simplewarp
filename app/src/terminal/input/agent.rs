@@ -1,13 +1,9 @@
 use warp_core::settings::Setting;
-use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
-    Align, AnchorPair, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    DispatchEventResult, DropTarget, Element, EventHandler, Expanded, Flex, Hoverable,
-    MainAxisSize, OffsetPositioning, OffsetType, ParentElement, PositionedElementOffsetBounds,
-    PositioningAxis, Radius, SavePosition, Stack, XAxisAnchor, YAxisAnchor,
+    Border, Container, DropTarget, Element, Flex, Hoverable, ParentElement, SavePosition, Stack,
 };
 use warpui::presenter::ChildView;
-use warpui::{AppContext, SingletonEntity as _, ViewHandle};
+use warpui::{AppContext, SingletonEntity as _};
 
 use super::common::{
     add_command_xray_overlay, add_input_suggestions_overlays, add_voltron_overlay,
@@ -20,56 +16,18 @@ use crate::ai::blocklist::agent_view::AgentViewState;
 use crate::ai::blocklist::agent_view::shortcuts::{
     AgentShortcutsViewContext, render_agent_shortcuts_view,
 };
-use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::appearance::Appearance;
 use crate::context_chips::spacing::{self};
-use crate::editor::position_id_for_cursor;
 use crate::features::FeatureFlag;
 use crate::settings::InputModeSettings;
 use crate::terminal::settings::TerminalSettings;
 use crate::terminal::view::TerminalAction;
-use crate::terminal::view::ambient_agent::HostSelector;
-
-pub(super) const CLOUD_MODE_V2_MAX_WIDTH: f32 = 720.;
-
-const CLOUD_MODE_V2_INPUT_RADIUS: f32 = 8.;
-
-const CLOUD_MODE_V2_TOP_ROW_GAP: f32 = 10.;
-
-const CLOUD_MODE_V2_INPUT_HORIZONTAL_PADDING: f32 = 16.;
-
-const CLOUD_MODE_V2_INPUT_TOP_PADDING: f32 = 16.;
-
-const CLOUD_MODE_V2_INPUT_EDITOR_BOTTOM_PADDING: f32 = 8.;
-
-const CLOUD_MODE_V2_INPUT_BOTTOM_PADDING: f32 = 16.;
-
-const CLOUD_MODE_V2_TOP_ROW_INNER_GAP: f32 = 4.;
-
-const CLOUD_MODE_V2_INPUT_MIN_EDITOR_HEIGHT: f32 = 80.;
-
-/// Horizontal gutter applied symmetrically on both sides of the V2 cloud-mode
-/// composing UI so the floating input has matching breathing room on the left
-/// and right at narrow widths.
-const CLOUD_MODE_V2_HORIZONTAL_GUTTER: f32 = 16.;
-
-// Top padding above the attachment chips row inside the V2 input container.
-const CLOUD_MODE_V2_CHIPS_ROW_TOP_PADDING: f32 = 4.;
 
 impl Input {
-    pub fn is_cloud_mode_input_v2_composing(&self, app: &AppContext) -> bool {
-        self.ambient_agent_view_model()
-            .is_some_and(|model| model.as_ref(app).is_configuring_ambient_agent())
-    }
-
     /// Renders the input when there is an active `AgentView`.
     ///
     /// Only used when `FeatureFlag::AgentView` is enabled.
     pub(super) fn render_agent_input(&self, app: &AppContext) -> Box<dyn Element> {
-        if self.is_cloud_mode_input_v2_composing(app) {
-            return self.render_cloud_mode_v2_composing_input(app);
-        }
-
         let appearance = Appearance::as_ref(app);
         let menu_positioning = self.menu_positioning(app);
 
@@ -100,29 +58,6 @@ impl Input {
             column.add_child(
                 Container::new(images)
                     .with_margin_top(spacing::UDI_CHIP_MARGIN)
-                    .finish(),
-            );
-        }
-
-        let show_harness_row = HarnessAvailabilityModel::as_ref(app).should_show_harness_selector()
-            && self
-                .ambient_agent_view_model()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model
-                        .as_ref(app)
-                        .is_configuring_ambient_agent()
-                });
-        if show_harness_row && let Some(harness_selector) = self.harness_selector() {
-            // Temporarily render the harness selector in the cloud mode UDI until we fully
-            // implement the new designs.
-            let harness_row = Flex::row()
-                .with_main_axis_size(MainAxisSize::Min)
-                .with_child(ChildView::new(harness_selector).finish())
-                .finish();
-            column.add_child(
-                Container::new(harness_row)
-                    .with_padding_top(spacing::UDI_CHIP_MARGIN)
-                    .with_padding_bottom(4.)
                     .finish(),
             );
         }
@@ -230,9 +165,7 @@ impl Input {
                 .is_profile_selector()
         {
             column.add_child(ChildView::new(&self.inline_profile_selector_view).finish());
-        } else if self.suggestions_mode_model.as_ref(app).is_slash_commands()
-            && !self.is_cloud_mode_input_v2_composing(app)
-        {
+        } else if self.suggestions_mode_model.as_ref(app).is_slash_commands() {
             column.add_child(ChildView::new(&self.inline_slash_commands_view).finish());
         } else if self
             .suggestions_mode_model
@@ -306,285 +239,6 @@ impl Input {
         let mut outer_stack = Stack::new().with_constrain_absolute_children();
         outer_stack.add_child(column.finish());
         SavePosition::new(outer_stack.finish(), &self.save_position_id()).finish()
-    }
-
-    fn render_cloud_mode_v2_composing_input(&self, app: &AppContext) -> Box<dyn Element> {
-        let appearance = Appearance::as_ref(app);
-        let menu_positioning = self.menu_positioning(app);
-
-        let mut stack = Stack::new();
-
-        // Apply the V2 gutter symmetrically (left + right) so the floating
-        // input keeps equal breathing room on both sides as the pane shrinks.
-        // The shared `wrap_input_with_terminal_padding_and_focus_handler`
-        // helper only pads the left, so V2 inlines its own padding + focus
-        // handler instead of routing through it.
-        let centered_content = Container::new(
-            Flex::column()
-                .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                .with_child(
-                    Expanded::new(1., self.render_cloud_mode_v2_content(appearance, app)).finish(),
-                )
-                .finish(),
-        )
-        .with_padding_left(CLOUD_MODE_V2_HORIZONTAL_GUTTER)
-        .with_padding_right(CLOUD_MODE_V2_HORIZONTAL_GUTTER)
-        .finish();
-
-        let centered_content = if self.is_active_session(app) {
-            EventHandler::new(centered_content)
-                .on_left_mouse_down(|ctx, _, _| {
-                    ctx.dispatch_typed_action(TerminalAction::ClearSelectionsWhenShellMode);
-                    ctx.dispatch_typed_action(InputAction::FocusInputBox);
-                    ctx.dispatch_typed_action(InputAction::DismissCloudModeV2SlashCommandsMenu);
-                    DispatchEventResult::StopPropagation
-                })
-                .finish()
-        } else {
-            centered_content
-        };
-
-        stack.add_child(centered_content);
-
-        if let Some(history_menu) = self.render_cloud_mode_v2_history_menu(app) {
-            let prompt_position = self.prompt_save_position_id();
-            stack.add_positioned_overlay_child(
-                ConstrainedBox::new(history_menu)
-                    .with_max_width(CLOUD_MODE_V2_MAX_WIDTH)
-                    .finish(),
-                OffsetPositioning::from_axes(
-                    PositioningAxis::relative_to_stack_child(
-                        &prompt_position,
-                        PositionedElementOffsetBounds::WindowByPosition,
-                        OffsetType::Pixel(0.),
-                        AnchorPair::new(XAxisAnchor::Left, XAxisAnchor::Left),
-                    ),
-                    PositioningAxis::relative_to_stack_child(
-                        &prompt_position,
-                        PositionedElementOffsetBounds::Unbounded,
-                        OffsetType::Pixel(-CLOUD_MODE_V2_TOP_ROW_GAP),
-                        AnchorPair::new(YAxisAnchor::Top, YAxisAnchor::Bottom),
-                    ),
-                ),
-            );
-        }
-
-        if self.suggestions_mode_model.as_ref(app).is_slash_commands()
-            && let Some(view) = self.cloud_mode_v2_slash_commands_view.as_ref()
-        {
-            let cursor_position = position_id_for_cursor(self.editor.id());
-            stack.add_positioned_overlay_child(
-                ChildView::new(view).finish(),
-                OffsetPositioning::from_axes(
-                    PositioningAxis::relative_to_stack_child(
-                        &cursor_position,
-                        PositionedElementOffsetBounds::WindowByPosition,
-                        OffsetType::Pixel(0.),
-                        AnchorPair::new(XAxisAnchor::Left, XAxisAnchor::Left),
-                    ),
-                    PositioningAxis::relative_to_stack_child(
-                        &cursor_position,
-                        PositionedElementOffsetBounds::Unbounded,
-                        OffsetType::Pixel(4.),
-                        AnchorPair::new(YAxisAnchor::Bottom, YAxisAnchor::Top),
-                    ),
-                ),
-            );
-        }
-
-        if let Some(selected_workflow_state) = self.workflows_state.selected_workflow_state.as_ref()
-            && selected_workflow_state.should_show_more_info_view
-        {
-            let prompt_position = self.prompt_save_position_id();
-            let workflows_info_view =
-                Container::new(ChildView::new(&selected_workflow_state.more_info_view).finish())
-                    .finish();
-            stack.add_positioned_overlay_child(
-                ConstrainedBox::new(workflows_info_view)
-                    .with_max_width(CLOUD_MODE_V2_MAX_WIDTH)
-                    .with_max_height(self.size_info(app).pane_height_px().as_f32() * 0.35)
-                    .finish(),
-                OffsetPositioning::from_axes(
-                    PositioningAxis::relative_to_stack_child(
-                        &prompt_position,
-                        PositionedElementOffsetBounds::WindowByPosition,
-                        OffsetType::Pixel(0.),
-                        AnchorPair::new(XAxisAnchor::Left, XAxisAnchor::Left),
-                    ),
-                    PositioningAxis::relative_to_stack_child(
-                        &prompt_position,
-                        PositionedElementOffsetBounds::Unbounded,
-                        OffsetType::Pixel(0.),
-                        AnchorPair::new(YAxisAnchor::Top, YAxisAnchor::Bottom),
-                    ),
-                ),
-            );
-        }
-        if self.is_voltron_open && self.is_pane_focused(app) {
-            add_voltron_overlay(&mut stack, &self.voltron_view, menu_positioning);
-        }
-        if self.is_pane_focused(app) {
-            add_input_suggestions_overlays(self, &mut stack, appearance, menu_positioning, app);
-        }
-        if let Some(token_description) = &self.command_x_ray_description {
-            add_command_xray_overlay(
-                self,
-                &mut stack,
-                token_description,
-                appearance,
-                menu_positioning,
-                app,
-            );
-        }
-
-        let drop_target = DropTarget::new(
-            SavePosition::new(stack.finish(), &self.status_free_input_save_position_id()).finish(),
-            InputDropTargetData::new(self.weak_view_handle.clone()),
-        )
-        .finish();
-
-        let input = Hoverable::new(self.hoverable_handle.clone(), |_| drop_target)
-            .on_hover(|is_hovered, ctx, _app, _position| {
-                ctx.dispatch_typed_action(InputAction::SetUDIHovered(is_hovered));
-            })
-            .on_middle_click(|ctx, _app, _position| {
-                ctx.dispatch_typed_action(TerminalAction::MiddleClickOnInput)
-            })
-            .finish();
-
-        let mut outer_stack = Stack::new().with_constrain_absolute_children();
-        outer_stack.add_child(input);
-        SavePosition::new(outer_stack.finish(), &self.save_position_id()).finish()
-    }
-
-    fn render_cloud_mode_v2_content(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let mut column = Flex::column()
-            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_spacing(CLOUD_MODE_V2_TOP_ROW_GAP);
-
-        column.add_child(self.render_cloud_mode_v2_top_row(app));
-
-        if let Some(panel) = self.queued_prompts_panel.as_ref()
-            && panel.as_ref(app).should_render(app)
-        {
-            column.add_child(ChildView::new(panel).finish());
-        }
-
-        column.add_child(self.render_cloud_mode_v2_input_container(appearance, app));
-
-        Align::new(
-            ConstrainedBox::new(column.finish())
-                .with_max_width(CLOUD_MODE_V2_MAX_WIDTH)
-                .finish(),
-        )
-        .finish()
-    }
-
-    fn render_cloud_mode_v2_history_menu(&self, app: &AppContext) -> Option<Box<dyn Element>> {
-        if !self
-            .suggestions_mode_model
-            .as_ref(app)
-            .is_inline_history_menu()
-        {
-            return None;
-        }
-        let view = self.cloud_mode_v2_history_menu_view.as_ref()?;
-        Some(ChildView::new(view).finish())
-    }
-
-    /// Returns the composer-only Execution host dropdown when it should be shown.
-    pub(super) fn visible_host_selector(
-        &self,
-        app: &AppContext,
-    ) -> Option<&ViewHandle<HostSelector>> {
-        let host_selector = self.host_selector()?;
-        let should_show = host_selector.as_ref(app).has_default_host();
-        should_show.then_some(host_selector)
-    }
-
-    fn render_cloud_mode_v2_top_row(&self, app: &AppContext) -> Box<dyn Element> {
-        let mut row = Flex::row()
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_spacing(CLOUD_MODE_V2_TOP_ROW_INNER_GAP);
-
-        if let Some(host) = self.visible_host_selector(app) {
-            row.add_child(ChildView::new(host).finish());
-        }
-        if let Some(harness_selector) = self.harness_selector() {
-            row.add_child(ChildView::new(harness_selector).finish());
-        }
-
-        row.finish()
-    }
-
-    fn render_cloud_mode_v2_input_container(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let theme = appearance.theme();
-        let background = internal_colors::fg_overlay_1(theme);
-        let border_color = internal_colors::neutral_2(theme);
-
-        let editor_with_min_height =
-            ConstrainedBox::new(self.render_input_box(/*show_vim_status=*/ false, appearance, app))
-                .with_min_height(CLOUD_MODE_V2_INPUT_MIN_EDITOR_HEIGHT)
-                .finish();
-
-        let mut editor_column = Flex::column()
-            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_main_axis_size(MainAxisSize::Min);
-
-        let ai_input_model = self.ai_input_model.as_ref(app);
-        let show_chips = FeatureFlag::ImageAsContext.is_enabled()
-            && matches!(ai_input_model.input_type(), InputType::AI);
-        if show_chips && let Some(chips) = self.render_attachment_chips(appearance) {
-            editor_column.add_child(
-                Container::new(chips)
-                    .with_padding_top(CLOUD_MODE_V2_CHIPS_ROW_TOP_PADDING)
-                    .with_padding_left(CLOUD_MODE_V2_INPUT_HORIZONTAL_PADDING)
-                    .with_padding_right(CLOUD_MODE_V2_INPUT_HORIZONTAL_PADDING)
-                    .finish(),
-            );
-        }
-
-        editor_column.add_child(
-            Container::new(editor_with_min_height)
-                .with_padding_top(CLOUD_MODE_V2_INPUT_TOP_PADDING)
-                .with_padding_bottom(CLOUD_MODE_V2_INPUT_EDITOR_BOTTOM_PADDING)
-                .with_padding_left(CLOUD_MODE_V2_INPUT_HORIZONTAL_PADDING)
-                .with_padding_right(CLOUD_MODE_V2_INPUT_HORIZONTAL_PADDING)
-                .finish(),
-        );
-
-        let editor = editor_column.finish();
-
-        let footer = Container::new(ChildView::new(&self.agent_input_footer).finish())
-            .with_padding_bottom(CLOUD_MODE_V2_INPUT_BOTTOM_PADDING)
-            .with_padding_left(CLOUD_MODE_V2_INPUT_HORIZONTAL_PADDING)
-            .with_padding_right(CLOUD_MODE_V2_INPUT_HORIZONTAL_PADDING)
-            .finish();
-
-        let stacked = Flex::column()
-            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_child(editor)
-            .with_child(footer)
-            .finish();
-
-        Container::new(SavePosition::new(stacked, &self.prompt_save_position_id()).finish())
-            .with_background(background)
-            .with_border(Border::all(1.).with_border_color(border_color))
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(
-                CLOUD_MODE_V2_INPUT_RADIUS,
-            )))
-            .finish()
     }
 }
 

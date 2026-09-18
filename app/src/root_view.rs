@@ -1300,7 +1300,6 @@ pub enum NewWorkspaceSource {
         initial_query: Option<String>,
     },
     /// Starts the workspace with the Cloud Agent setup tab.
-    AmbientAgent,
     /// Opens a new window pre-scoped to a specific team, chosen via the title-bar team switcher.
     TeamSwitched {
         team_uid: ServerId,
@@ -1363,8 +1362,7 @@ impl NewWorkspaceSource {
             | Self::NotebookFromFilePath { .. }
             | Self::NotebookById { .. }
             | Self::WorkflowById { .. }
-            | Self::AgentSession { .. }
-            | Self::AmbientAgent => None,
+            | Self::AgentSession { .. } => None,
             Self::TeamSwitched { team_uid } => return Some(*team_uid),
             Self::Restored {
                 window_snapshot, ..

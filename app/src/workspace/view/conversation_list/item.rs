@@ -16,9 +16,7 @@ use warpui::ui_components::text_input::TextInput;
 use warpui::{AppContext, SingletonEntity, ViewHandle};
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
-use crate::ai::agent_conversations_model::{
-    AgentConversationEntry, AgentConversationEntryId, AgentConversationProvenance,
-};
+use crate::ai::agent_conversations_model::{AgentConversationEntry, AgentConversationEntryId};
 use crate::ai::conversation_status_ui::STATUS_ELEMENT_PADDING;
 use crate::appearance::Appearance;
 use crate::editor::EditorView;
@@ -48,14 +46,8 @@ const LIST_ITEM_OVERLAY_EXTRA_OVERHANG: f32 = 0.05;
 
 /// Generate a position ID for a conversation list item
 fn conversation_item_position_id(id: &AgentConversationEntryId) -> String {
-    match id {
-        AgentConversationEntryId::Conversation(conv_id) => {
-            format!("conversation_list_item_{conv_id}")
-        }
-        AgentConversationEntryId::AmbientRun(task_id) => {
-            format!("conversation_list_task_{task_id}")
-        }
-    }
+    let AgentConversationEntryId::Conversation(conv_id) = id;
+    format!("conversation_list_item_{conv_id}")
 }
 
 /// Minimum height for static list items (section headers, StartNewConversation).
@@ -448,21 +440,8 @@ fn render_inline_rename_editor(
     .build()
     .finish()
 }
-/// Returns the secondary label for a conversation list item:
-/// - For local conversations: the working directory.
-/// - For tasks: the source (Linear, Slack, CLI, etc.)
+/// Returns the secondary label for a conversation list item: the working directory.
 fn format_item_subtext(conversation: &AgentConversationEntry, app: &AppContext) -> Option<String> {
-    if matches!(
-        conversation.provenance,
-        AgentConversationProvenance::AmbientRun
-    ) {
-        return conversation
-            .display
-            .source
-            .as_ref()
-            .map(|source| source.display_name().to_string());
-    }
-
     let live_pwd = conversation
         .identity
         .local_conversation_id

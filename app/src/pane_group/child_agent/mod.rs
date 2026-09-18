@@ -1,5 +1,3 @@
-pub(in crate::pane_group) mod hydration;
-pub(crate) mod materialization;
 pub(in crate::pane_group) mod restoration;
 
 use std::collections::HashMap;

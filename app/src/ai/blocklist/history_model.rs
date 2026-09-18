@@ -51,7 +51,7 @@ use crate::ui_components::icons::Icon;
 mod conversation_loader;
 pub use conversation_loader::{
     CLIAgentConversation, CloudConversationData,
-    convert_persisted_conversation_to_ai_conversation_with_metadata, load_conversation_from_server,
+    convert_persisted_conversation_to_ai_conversation_with_metadata,
 };
 use warp_errors::report_error;
 

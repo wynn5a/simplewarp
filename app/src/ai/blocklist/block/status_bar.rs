@@ -3,11 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use instant::Instant;
-use markdown_parser::FormattedTextFragment;
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
 use warp_core::features::FeatureFlag;
-use warp_core::ui::Icon as CoreIcon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warp_multi_agent_api as api;
@@ -54,14 +52,10 @@ use crate::settings::{InputModeSettings, InputSettings};
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::terminal::input::SET_INPUT_MODE_TERMINAL_ACTION_NAME;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
-use crate::terminal::input::message_bar::common::render_wrapping_standard_message_bar;
 use crate::terminal::input::slash_command_model::SlashCommandModel;
 use crate::terminal::input::suggestions_mode_model::InputSuggestionsModeModel;
 use crate::terminal::model::block::LONG_RUNNING_COMMAND_DURATION_MS;
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
-use crate::terminal::view::ambient_agent::{
-    AmbientAgentViewModel, AmbientAgentViewModelEvent, is_cloud_agent_pre_first_exchange,
-};
 use crate::terminal::warpify::render::LEFT_STRIPE_WIDTH;
 use crate::terminal::{
     CANCEL_COMMAND_KEYBINDING, TOGGLE_AUTOEXECUTE_MODE_KEYBINDING,
@@ -97,7 +91,6 @@ pub struct BlocklistAIStatusBar {
     terminal_model: Arc<FairMutex<TerminalModel>>,
     shimmering_text_handle: ShimmeringTextStateHandle,
     state_handles: StateHandles,
-    ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
 
     autoexecute_keystroke: Option<Keystroke>,
     queue_next_prompt_keystroke: Option<Keystroke>,
@@ -138,7 +131,6 @@ impl BlocklistAIStatusBar {
         model_event_dispatcher: &ModelHandle<ModelEventDispatcher>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         shortcut_view_model: ModelHandle<AgentShortcutViewModel>,
-        ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
         input_suggestions_model: ModelHandle<InputSuggestionsModeModel>,
         slash_command_model: ModelHandle<SlashCommandModel>,
         ephemeral_message_model: ModelHandle<EphemeralMessageModel>,
@@ -346,7 +338,7 @@ impl BlocklistAIStatusBar {
             )
         });
 
-        let mut me = Self {
+        let me = Self {
             active_exchange_model: None,
             shimmering_text_handle: ShimmeringTextStateHandle::new(),
             action_model,
@@ -368,52 +360,11 @@ impl BlocklistAIStatusBar {
             summarization_timer_handle: None,
             summarization_start_time: None,
             last_read_refresh_handle: None,
-            ambient_agent_view_model: None,
             current_tip: None,
             ephemeral_message_model,
             agent_message_bar,
         };
-        // Route ambient wiring through the setter so construction and the lazy shared-session
-        // viewer path share one implementation.
-        if let Some(ambient_agent_view_model) = ambient_agent_view_model {
-            me.set_ambient_agent_view_model(ambient_agent_view_model, ctx);
-        }
         me
-    }
-
-    /// Attaches an ambient agent view model to an already-constructed status bar. Used on the
-    /// shared-session viewer path where the model is created lazily at `SessionJoined` (a raw
-    /// `shared_session` link that turns out to be a cloud run), after the status bar was built
-    /// with `None`. Without this, `render_cloud_mode_setup_status` has no model and the
-    /// "connecting to host / creating environment" progress never renders for the viewer's
-    /// follow-up. Wires the same subscription as [`Self::new`] so the status bar re-renders as
-    /// setup progress updates. Idempotent: a no-op when a model is already set.
-    pub fn set_ambient_agent_view_model(
-        &mut self,
-        view_model: ModelHandle<AmbientAgentViewModel>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if self.ambient_agent_view_model.is_some() {
-            return;
-        }
-        ctx.subscribe_to_model(&view_model, |me, _, event, ctx| match event {
-            AmbientAgentViewModelEvent::DispatchedAgent
-            | AmbientAgentViewModelEvent::FollowupDispatched
-            | AmbientAgentViewModelEvent::ProgressUpdated => {
-                me.update_agent_tip(ctx);
-                ctx.notify();
-            }
-            AmbientAgentViewModelEvent::SessionReady { .. }
-            | AmbientAgentViewModelEvent::ExecutionSessionReady { .. }
-            | AmbientAgentViewModelEvent::Failed { .. }
-            | AmbientAgentViewModelEvent::NeedsGithubAuth
-            | AmbientAgentViewModelEvent::Cancelled => {
-                ctx.notify();
-            }
-            _ => (),
-        });
-        self.ambient_agent_view_model = Some(view_model);
-        ctx.notify();
     }
 
     pub fn should_show_summarization_cancel_dialog(&self, app: &AppContext) -> bool {
@@ -890,92 +841,6 @@ impl BlocklistAIStatusBar {
             app,
         ))
     }
-
-    fn render_cloud_mode_setup_status(&self, app: &AppContext) -> Option<Box<dyn Element>> {
-        let ambient_agent_model = self
-            .ambient_agent_view_model
-            .as_ref()
-            .map(|ambient_agent_view_model| ambient_agent_view_model.as_ref(app))?;
-
-        // The step indicator is only meaningful while a spawn is in flight. Terminal states
-        // (`Failed`, `NeedsGithubAuth`, `Cancelled`) still carry an `AgentProgress` for
-        // telemetry purposes, so guard on `is_waiting_for_session()` rather than relying on
-        // `agent_progress()` being `None`.
-        if !ambient_agent_model.is_waiting_for_session() {
-            return None;
-        }
-
-        let progress = ambient_agent_model.agent_progress()?;
-        let progress_text = progress.setup_status_text();
-        Some(render_warping_indicator_base(
-            WarpingIndicatorProps {
-                icon: None,
-                warping_indicator_text: MaybeShimmeringText::Shimmering {
-                    text: progress_text.into(),
-                    shimmering_text_handle: self.shimmering_text_handle.clone(),
-                },
-                non_shimmering_text: None,
-                non_shimmering_suffix: None,
-                buttons: None,
-                is_passive_code_diff: false,
-                secondary_element: self.render_tip(app),
-            },
-            app,
-        ))
-    }
-
-    fn render_cloud_mode_setup_terminal_message(
-        &self,
-        app: &AppContext,
-    ) -> Option<Box<dyn Element>> {
-        let ambient_agent_model = self
-            .ambient_agent_view_model
-            .as_ref()
-            .map(|ambient_agent_view_model| ambient_agent_view_model.as_ref(app))?;
-        let theme = Appearance::as_ref(app).theme();
-        let error_color = theme.ansi_fg_red();
-
-        if let Some(auth_url) = ambient_agent_model.github_auth_url() {
-            let error_message = ambient_agent_model
-                .github_auth_error_message()
-                .unwrap_or("Missing GitHub authentication.");
-            return Some(render_wrapping_standard_message_bar(
-                CoreIcon::Triangle,
-                error_color,
-                error_color,
-                vec![
-                    FormattedTextFragment::plain_text(format!("{error_message} ")),
-                    FormattedTextFragment::hyperlink("Authenticate GitHub", auth_url.to_owned()),
-                ],
-                app,
-            ));
-        }
-
-        if ambient_agent_model.is_cancelled() {
-            let color = theme.disabled_text_color(theme.background()).into_solid();
-            return Some(render_wrapping_standard_message_bar(
-                CoreIcon::StopFilled,
-                color,
-                color,
-                vec![FormattedTextFragment::plain_text(
-                    "Cloud agent run cancelled",
-                )],
-                app,
-            ));
-        }
-
-        if let Some(error_message) = ambient_agent_model.error_message() {
-            return Some(render_wrapping_standard_message_bar(
-                CoreIcon::Triangle,
-                error_color,
-                error_color,
-                vec![FormattedTextFragment::plain_text(error_message.to_owned())],
-                app,
-            ));
-        }
-
-        None
-    }
 }
 
 /// Checks only the immediately previous exchange for model info (from ModelUsed messages
@@ -1155,107 +1020,60 @@ impl View for BlocklistAIStatusBar {
     fn render(&self, app: &AppContext) -> Box<dyn warpui::Element> {
         let appearance = Appearance::as_ref(app);
         let agent_view_controller = self.agent_view_controller.as_ref(app);
-        if let Some(cloud_mode_setup_terminal_message) =
-            self.render_cloud_mode_setup_terminal_message(app)
+        let status_element = if self
+            .terminal_model
+            .lock()
+            .block_list()
+            .active_block()
+            .is_agent_tagged_in()
+            && self
+                .ephemeral_message_model
+                .as_ref(app)
+                .current_message()
+                .is_none()
         {
-            return cloud_mode_setup_terminal_message;
-        }
-        let status_element = match self.render_cloud_mode_setup_status(app) {
-            Some(cloud_mode_setup_status) => cloud_mode_setup_status,
-            _ => {
-                if self
-                    .ambient_agent_view_model
-                    .as_ref()
-                    .is_some_and(|ambient_agent_view_model| {
-                        let terminal_model = self.terminal_model.lock();
-                        is_cloud_agent_pre_first_exchange(
-                            Some(ambient_agent_view_model),
-                            &self.agent_view_controller,
-                            &terminal_model,
-                            app,
-                        )
-                    })
-                {
-                    render_warping_indicator_base(
-                        WarpingIndicatorProps {
-                            icon: None,
-                            warping_indicator_text: MaybeShimmeringText::Shimmering {
-                                text: "Setting up environment".into(),
-                                shimmering_text_handle: self.shimmering_text_handle.clone(),
-                            },
-                            non_shimmering_text: None,
-                            non_shimmering_suffix: None,
-                            buttons: None,
-                            is_passive_code_diff: false,
-                            secondary_element: self.render_tip(app),
+            render_warping_indicator_base(
+                WarpingIndicatorProps {
+                    icon: Some(icons::gray_clock_icon(appearance).finish()),
+                    warping_indicator_text: MaybeShimmeringText::Static(
+                        WAITING_FOR_USER_INPUT_MESSAGE.into(),
+                    ),
+                    non_shimmering_text: None,
+                    non_shimmering_suffix: None,
+                    buttons: Some(render_switch_control_to_user_button(
+                        "Exit",
+                        "Exit agent input",
+                        ButtonProps {
+                            button_handle: &self.state_handles.take_over_button,
+                            keystroke: self.set_terminal_input_keystroke.as_ref(),
+                            is_active: false,
                         },
-                        app,
-                    )
-                } else if self
-                    .terminal_model
-                    .lock()
-                    .block_list()
-                    .active_block()
-                    .is_agent_tagged_in()
-                    && self
-                        .ephemeral_message_model
-                        .as_ref(app)
-                        .current_message()
-                        .is_none()
-                {
-                    render_warping_indicator_base(
-                        WarpingIndicatorProps {
-                            icon: Some(icons::gray_clock_icon(appearance).finish()),
-                            warping_indicator_text: MaybeShimmeringText::Static(
-                                WAITING_FOR_USER_INPUT_MESSAGE.into(),
-                            ),
-                            non_shimmering_text: None,
-                            non_shimmering_suffix: None,
-                            buttons: Some(render_switch_control_to_user_button(
-                                "Exit",
-                                "Exit agent input",
-                                ButtonProps {
-                                    button_handle: &self.state_handles.take_over_button,
-                                    keystroke: self.set_terminal_input_keystroke.as_ref(),
-                                    is_active: false,
-                                },
-                                appearance,
-                            )),
-                            is_passive_code_diff: false,
-                            secondary_element: self.render_tip(app),
-                        },
-                        app,
-                    )
-                } else {
-                    match (
-                        self.render_warping_indicator_for_latest_exchange(app),
-                        self.ephemeral_message_model
-                            .as_ref(app)
-                            .current_message()
-                            .is_none(),
-                    ) {
-                        (Some(warping_indicator), true) => warping_indicator,
-                        _ => {
-                            if self.ambient_agent_view_model.as_ref().is_some_and(
-                                |ambient_agent_view_model| {
-                                    ambient_agent_view_model
-                                        .as_ref(app)
-                                        .is_waiting_for_session()
-                                },
-                            ) {
-                                // Don't render warping indicator - the loading screen is shown in the main view
-                                return Empty::new().finish();
-                            } else if agent_view_controller.is_active() {
-                                // The orchestration pill bar in the agent view header
-                                // replaces the legacy child-agent status card rows;
-                                // render only the message bar here.
-                                return Flex::column()
-                                    .with_child(ChildView::new(&self.agent_message_bar).finish())
-                                    .finish();
-                            } else {
-                                return Empty::new().finish();
-                            }
-                        }
+                        appearance,
+                    )),
+                    is_passive_code_diff: false,
+                    secondary_element: self.render_tip(app),
+                },
+                app,
+            )
+        } else {
+            match (
+                self.render_warping_indicator_for_latest_exchange(app),
+                self.ephemeral_message_model
+                    .as_ref(app)
+                    .current_message()
+                    .is_none(),
+            ) {
+                (Some(warping_indicator), true) => warping_indicator,
+                _ => {
+                    if agent_view_controller.is_active() {
+                        // The orchestration pill bar in the agent view header
+                        // replaces the legacy child-agent status card rows;
+                        // render only the message bar here.
+                        return Flex::column()
+                            .with_child(ChildView::new(&self.agent_message_bar).finish())
+                            .finish();
+                    } else {
+                        return Empty::new().finish();
                     }
                 }
             }

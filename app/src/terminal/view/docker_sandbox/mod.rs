@@ -129,7 +129,6 @@ fn create_docker_sandbox_view(
                 None, /* conversation_restoration */
                 initial_size,
                 ctx.window_id(),
-                /* is_ambient_agent */ false,
                 ctx,
             );
             let terminal_manager = terminal_init.manager;

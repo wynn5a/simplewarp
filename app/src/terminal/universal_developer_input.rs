@@ -58,7 +58,6 @@ use crate::terminal::profile_model_selector::{
     calculate_scaled_font_size,
 };
 use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
-use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, NakedTheme, TooltipAlignment,
@@ -172,7 +171,7 @@ impl AtContextMenuDisabledReason {
         if AIContextMenu::get_categories_for_mode(
             input_config.input_type.is_ai() || !input_config.is_locked,
             false,
-            false, /* is_in_ambient_agent */
+            false,
             false, /* is_cli_agent_input */
             ctx,
         )
@@ -330,7 +329,6 @@ impl UniversalDeveloperInputButtonBar {
         terminal_view_id: EntityId,
         input_model: ModelHandle<BlocklistAIInputModel>,
         cli_subagent_controller: ModelHandle<CLISubagentController>,
-        ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
         terminal_model: std::sync::Arc<parking_lot::FairMutex<crate::terminal::TerminalModel>>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
@@ -398,7 +396,6 @@ impl UniversalDeveloperInputButtonBar {
             let mut selector = ProfileModelSelector::new(
                 menu_positioning_provider.clone(),
                 terminal_view_id,
-                ambient_agent_view_model.clone(),
                 terminal_model.clone(),
                 ctx,
             );
@@ -410,7 +407,6 @@ impl UniversalDeveloperInputButtonBar {
             let mut selector = ProfileModelSelector::new(
                 menu_positioning_provider.clone(),
                 terminal_view_id,
-                ambient_agent_view_model.clone(),
                 terminal_model.clone(),
                 ctx,
             );

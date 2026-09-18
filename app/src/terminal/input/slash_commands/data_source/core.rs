@@ -14,7 +14,6 @@ use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::fonts::FamilyId;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-use crate::ai::agent_conversations_model::{AgentConversationsModel, AgentConversationsModelEvent};
 use crate::ai::blocklist::block::cli_controller::{CLISubagentController, CLISubagentEvent};
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::skills::{SkillDescriptor, SkillManager};
@@ -110,7 +109,7 @@ pub(super) fn subscribe_to_shared_dependencies<T>(
         }
     });
     // Recompute when the active conversation switches so commands gated on the active
-    // conversation's task (e.g. /continue-locally) update on navigation.
+    // conversation update on navigation.
     ctx.subscribe_to_model(
         &BlocklistAIHistoryModel::handle(ctx),
         move |me, _, event, ctx| {
@@ -118,20 +117,6 @@ pub(super) fn subscribe_to_shared_dependencies<T>(
                 event,
                 BlocklistAIHistoryEvent::SetActiveConversation { .. }
                     | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
-            ) {
-                recompute_active_commands(me, ctx);
-            }
-        },
-    );
-    // Recompute when task data is updated so commands gated on a conversation's task
-    // harness (e.g. /continue-locally) appear once the task fetch resolves.
-    ctx.subscribe_to_model(
-        &AgentConversationsModel::handle(ctx),
-        move |me, _, event, ctx| {
-            if matches!(
-                event,
-                AgentConversationsModelEvent::TasksUpdated
-                    | AgentConversationsModelEvent::NewTasksReceived
             ) {
                 recompute_active_commands(me, ctx);
             }
@@ -570,7 +555,6 @@ pub struct InlineItem {
     pub name_match_result: Option<FuzzyMatchResult>,
     pub description_match_result: Option<FuzzyMatchResult>,
     pub score: OrderedFloat<f64>,
-    pub compact_layout: bool,
 }
 
 impl InlineItem {
@@ -589,27 +573,6 @@ impl InlineItem {
             name_match_result: None,
             description_match_result: None,
             score: OrderedFloat(f64::MIN),
-            compact_layout: false,
-        }
-    }
-
-    pub(crate) fn from_saved_prompt(
-        saved_prompt: &crate::workflows::CloudWorkflow,
-        app: &AppContext,
-    ) -> Self {
-        let appearance = Appearance::as_ref(app);
-        Self {
-            action: AcceptSlashCommandOrSavedPrompt::SavedPrompt {
-                id: saved_prompt.id,
-            },
-            icon_path: Some("bundled/svg/prompt.svg"),
-            name: saved_prompt.model().data.name().to_owned(),
-            description: None,
-            font_family: appearance.ui_font_family(),
-            name_match_result: None,
-            description_match_result: None,
-            score: OrderedFloat(f64::MIN),
-            compact_layout: false,
         }
     }
 
@@ -642,7 +605,6 @@ impl InlineItem {
             name_match_result: None,
             description_match_result: None,
             score: OrderedFloat(f64::MIN),
-            compact_layout: false,
         }
     }
 
@@ -658,11 +620,6 @@ impl InlineItem {
 
     fn with_score(mut self, score: OrderedFloat<f64>) -> Self {
         self.score = score;
-        self
-    }
-
-    pub(crate) fn with_compact_layout(mut self, compact: bool) -> Self {
-        self.compact_layout = compact;
         self
     }
 }

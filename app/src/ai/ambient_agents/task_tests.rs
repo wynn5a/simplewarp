@@ -155,7 +155,6 @@ fn ambient_agent_task_deserializes_github_webhook_source() {
     let task: AmbientAgentTask = serde_json::from_value(task).unwrap();
 
     assert_eq!(task.source, Some(AgentSource::GitHubWebhook));
-    assert!(task.blocks_cloud_followups());
 }
 
 #[test]
@@ -166,7 +165,6 @@ fn ambient_agent_task_deserializes_orchestration_source() {
     let task: AmbientAgentTask = serde_json::from_value(task).unwrap();
 
     assert_eq!(task.source, Some(AgentSource::Orchestration));
-    assert!(!task.blocks_cloud_followups());
 }
 
 #[test]
@@ -180,7 +178,6 @@ fn retained_failed_and_error_tasks_have_attachable_live_sessions() {
         task.is_sandbox_running = true;
 
         assert!(task.has_active_execution());
-        assert!(!task.can_submit_cloud_followup());
         assert!(matches!(
             task.active_live_session_state(),
             AmbientAgentLiveSessionState::Attachable {
@@ -204,7 +201,6 @@ fn ended_failed_task_with_stale_session_metadata_is_inactive() {
         AmbientAgentLiveSessionState::Inactive
     );
     assert!(!task.has_active_execution());
-    assert!(task.can_submit_cloud_followup());
 }
 
 #[test]

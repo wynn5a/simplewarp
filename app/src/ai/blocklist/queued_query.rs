@@ -632,9 +632,7 @@ impl QueuedQueryModel {
     }
 
     /// Removes a specific row by id within `conversation_id`'s queue, if present. Returns the
-    /// removed row. No-ops when the target row is locked ([`QueuedQuery::is_locked`]); the
-    /// locked initial Cloud Mode row is only removable via
-    /// [`Self::remove_initial_cloud_mode_row`].
+    /// removed row. No-ops when the target row is locked ([`QueuedQuery::is_locked`]).
     pub fn remove_by_id(
         &mut self,
         conversation_id: AIConversationId,
@@ -653,32 +651,6 @@ impl QueuedQueryModel {
         ctx.emit(QueuedQueryEvent::Removed {
             conversation_id,
             query_id,
-        });
-        Some(removed)
-    }
-
-    /// Removes the locked initial Cloud Mode row from `conversation_id`'s queue, if it is still
-    /// at the queue head.
-    pub fn remove_initial_cloud_mode_row(
-        &mut self,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Option<QueuedQuery> {
-        let state = self.queues.get_mut(&conversation_id)?;
-        if !state
-            .queue
-            .first()
-            .is_some_and(|row| row.origin == QueuedQueryOrigin::InitialCloudMode)
-        {
-            return None;
-        }
-        let removed = state.queue.remove(0);
-        if state.editing == Some(removed.id) {
-            state.editing = None;
-        }
-        ctx.emit(QueuedQueryEvent::Removed {
-            conversation_id,
-            query_id: removed.id,
         });
         Some(removed)
     }

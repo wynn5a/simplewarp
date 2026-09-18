@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use chrono::{Duration, Utc};
 use itertools::Itertools;
 use warp_core::ui::appearance::Appearance;
 use warp_editor::editor::EditorView;
@@ -20,9 +19,7 @@ use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::{CloudViewModel, Editor, EditorState};
-use crate::cloud_object::{
-    OpenWarpDriveObjectSettings, Owner, Revision, ServerMetadata, ServerNotebook, ServerPermissions,
-};
+use crate::cloud_object::{OpenWarpDriveObjectSettings, Owner, ServerNotebook};
 use crate::editor::{DisplayPoint, EditorAction, SelectAction};
 use crate::network::NetworkStatus;
 use crate::notebooks::active_notebook_data::Mode;
@@ -35,7 +32,6 @@ use crate::pane_group::PaneEvent;
 use crate::search::files::model::FileSearchModel;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::ClientId;
-use crate::server::ids::SyncId::ServerId;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
@@ -140,37 +136,6 @@ fn cloud_notebook(title: impl Into<String>, data: impl Into<String>) -> CloudNot
         Owner::mock_current_user(),
         None,
         ClientId::new(),
-    )
-}
-
-/// Mock a server notebook
-fn mock_server_notebook(title: impl Into<String>, data: impl Into<String>) -> ServerNotebook {
-    let metadata_ts = Utc::now().into();
-    ServerNotebook::new(
-        ServerId(123.into()),
-        CloudNotebookModel {
-            title: title.into(),
-            data: data.into(),
-            ai_document_id: None,
-            conversation_id: None,
-        },
-        ServerMetadata {
-            uid: 123.into(),
-            revision: Revision::now(),
-            metadata_last_updated_ts: metadata_ts,
-            trashed_ts: None,
-            folder_id: None,
-            is_welcome_object: false,
-            creator_uid: None,
-            last_editor_uid: None,
-            current_editor_uid: None,
-        },
-        ServerPermissions {
-            space: Owner::mock_current_user(),
-            guests: Vec::new(),
-            anyone_link_sharing: None,
-            permissions_last_updated_ts: metadata_ts,
-        },
     )
 }
 

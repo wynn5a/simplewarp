@@ -9,22 +9,9 @@ use crate::ai::agent::{
     AIAgentOutputStatus, CancellationReason, FinishedAIAgentOutput, RenderableAIError,
 };
 
-pub mod github_auth_notifier;
-pub mod github_auth_url;
-pub mod scheduled;
-pub mod spawn;
 pub mod task;
-pub mod telemetry;
 
-pub use task::{
-    AgentConfigSnapshot, AgentSource, AmbientAgentLiveSessionState, AmbientAgentTask,
-    AmbientAgentTaskState, ExecutionLocation, TaskStatusMessage, cancel_task_silently,
-    cancel_task_with_toast,
-};
-pub const OUT_OF_CREDITS_TASK_FAILURE_MESSAGE: &str =
-    "Out of credits. Upgrade your Warp plan to continue running cloud agents.";
-pub const SERVER_OVERLOADED_TASK_FAILURE_MESSAGE: &str =
-    "Warp is temporarily overloaded. Please try again shortly.";
+pub use task::{AgentConfigSnapshot, AgentSource, cancel_task_silently, cancel_task_with_toast};
 
 #[derive(Debug, thiserror::Error)]
 #[error("Invalid task ID: {0}")]
@@ -33,6 +20,19 @@ pub struct ParseAmbientAgentTaskIdError(#[from] uuid::Error);
 /// A globally unique ID for an ambient agent task.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AmbientAgentTaskId(NonNilUuid);
+
+impl AmbientAgentTaskId {
+    /// Mints a task id without a server round-trip, for local-only children
+    /// whose server task row no longer exists.
+    pub fn new() -> Self {
+        let mut uuid = Uuid::new_v4();
+        while uuid.is_nil() {
+            uuid = Uuid::new_v4();
+        }
+        // `NonNilUuid::try_from` only fails on nil, which the loop excludes.
+        Self(NonNilUuid::try_from(uuid).expect("fresh v4 UUID is non-nil"))
+    }
+}
 
 impl Display for AmbientAgentTaskId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

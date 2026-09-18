@@ -483,11 +483,6 @@ pub enum FeatureFlag {
     /// flows while the default behavior temporarily keeps them disabled.
     LocalClaudeCodexChildHarnesses,
 
-    /// On `wait_for_events`, confirms parent status against the server and
-    /// registers an orchestrator for the owner-side ancestor stream so it
-    /// receives events for children created out-of-band (Oz CLI / web API).
-    WaitForEventsParentRegistration,
-
     /// Gates the client-side multi-level orchestration surfaces: child
     /// conversations auto-executing their own `run_agents` calls and the
     /// confirmation-card disclosure that launched agents may start
@@ -577,10 +572,6 @@ pub enum FeatureFlag {
     /// selector is replaced with "Agent" and users can pick which agent
     /// identity the key authenticates as.
     NamedAgents,
-    /// Gates the driver behavior that writes GitHub credentials to disk
-    /// (`~/.git-credentials`, `~/.config/gh/hosts.yaml`) and runs the
-    /// background refresh loop that keeps them fresh during a task run.
-    GitCredentialRefresh,
 
     /// Enables configurable expanded context windows for eligible GPT models.
     GPTConfigurableContextWindow,
@@ -710,7 +701,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::TerminalLifecycleRecovery,
     FeatureFlag::PromptCacheExpiryWarning,
     FeatureFlag::JupyterNotebookRendering,
-    FeatureFlag::WaitForEventsParentRegistration,
     FeatureFlag::MultiLevelOrchestration,
     FeatureFlag::OrchestrationUnifiedStack,
     FeatureFlag::McpJsonTreeView,

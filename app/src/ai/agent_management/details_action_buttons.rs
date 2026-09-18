@@ -5,7 +5,7 @@ use warpui::elements::{ChildView, CrossAxisAlignment, Empty, Flex, ParentElement
 use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
 
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent_conversations_model::{AgentConversationEntryId, AgentRunDisplayStatus};
+use crate::ai::agent_conversations_model::AgentConversationEntryId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
@@ -36,29 +36,6 @@ impl ActionButtonsConfig {
             && self.fork_conversation_id.is_none()
             && self.view_details_item_id.is_none()
             && self.copy_link_url.is_none()
-    }
-
-    /// Create config for a task.
-    /// - `display_status`: used to determine if cancel button should show.
-    /// - `open_action`: pass `Some(action)` to show open button, `None` to hide
-    /// - `copy_link_url`: conversation link URL, or `None` to hide
-    pub fn for_task(
-        task_id: AmbientAgentTaskId,
-        display_status: &AgentRunDisplayStatus,
-        open_action: Option<WorkspaceAction>,
-        copy_link_url: Option<String>,
-    ) -> Self {
-        Self {
-            open_action,
-            cancel_task_id: if display_status.is_cancellable() {
-                Some(task_id)
-            } else {
-                None
-            },
-            fork_conversation_id: None,
-            view_details_item_id: None,
-            copy_link_url,
-        }
     }
 
     /// Create config for a conversation.

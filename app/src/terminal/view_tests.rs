@@ -1,17 +1,12 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::pin::pin;
 use std::rc::Rc;
-use std::str::FromStr;
-use std::sync::Arc;
 
 use chrono::Local;
-use parking_lot::FairMutex;
 use warp_terminal::model::escape_sequences::{BRACKETED_PASTE_END, BRACKETED_PASTE_START, C0};
 use warpui::notification::UserNotification;
-use warpui::platform::WindowStyle;
-use warpui::{App, EntityIdSet, Presenter, ReadModel, WindowInvalidation};
+use warpui::{App, EntityIdSet, Presenter, WindowInvalidation};
 
 use super::*;
 use crate::ActiveAgentViewsModel;
@@ -21,7 +16,6 @@ use crate::ai::agent::{
     AIAgentActionId, AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutput,
     AIAgentOutputStatus, UserQueryMode,
 };
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::ai::blocklist::agent_view::{
     AgentViewEntryBlock, AgentViewEntryOrigin, AgentViewState, EnterAgentBlockAction,
@@ -32,20 +26,13 @@ use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, FakeAIBlockModel, InputType, ResponseStream,
     ResponseStreamId,
 };
-use crate::ai::cloud_environments::{
-    AmbientAgentEnvironment, CloudAmbientAgentEnvironment, CloudAmbientAgentEnvironmentModel,
-};
 use crate::ai::llms::LLMId;
-use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{CloudObjectMetadata, CloudObjectPermissions};
 use crate::context_chips::prompt::Prompt;
 use crate::editor::{AutosuggestionLocation, AutosuggestionType};
 use crate::features::FeatureFlag;
+use crate::pane_group::TerminalPaneId;
 use crate::pane_group::focus_state::PaneGroupFocusState;
-use crate::pane_group::pane::PaneStack;
-use crate::pane_group::{BackingView, TerminalPaneId};
-use crate::server::ids::{ClientId, SyncId};
-use crate::server::server_api::ai::SpawnAgentRequest;
+use crate::pane_group::pane::BackingView;
 use crate::settings::import::model::ImportedConfigModel;
 use crate::settings::{AISettings, AppEditorSettings, WarpPromptSeparator};
 use crate::terminal::alt_screen::should_intercept_mouse;
@@ -63,27 +50,15 @@ use crate::terminal::model::blocks::{TotalIndex, insert_block};
 use crate::terminal::model::grid::Dimensions as _;
 use crate::terminal::model::terminal_model::WithinBlock;
 use crate::terminal::session_settings::AgentToolbarChipSelection;
-use crate::terminal::view::ambient_agent::AmbientAgentViewModelEvent;
 use crate::terminal::view::load_ai_conversation::{
     RestoreConversationEntryBehavior, RestoredAIConversation,
 };
-use crate::terminal::{CLIAgent, MockTerminalManager, TerminalManager, TerminalModel};
+use crate::terminal::{CLIAgent, MockTerminalManager, TerminalModel};
 use crate::test_util::terminal::{
     add_window_with_id_and_terminal, initialize_app_for_terminal_view,
 };
 use crate::test_util::{add_window_with_terminal, assert_eventually};
 use crate::view_components::find::FindWithinBlockState;
-
-fn add_window_with_cloud_mode_terminal(app: &mut App) -> ViewHandle<TerminalView> {
-    let tips_model = app.add_model(|_| Default::default());
-    let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
-        TerminalView::new_for_test_with_cloud_mode(tips_model, None, true, ctx)
-    });
-    terminal.update(app, |view, _| {
-        view.model.lock().set_is_dummy_cloud_mode_session(true);
-    });
-    terminal
-}
 
 /// The AI blocks currently flagged to render the transcript-navigation ring.
 fn navigation_ring_targets(view: &TerminalView, app: &AppContext) -> Vec<EntityId> {
@@ -98,15 +73,6 @@ fn navigation_ring_targets(view: &TerminalView, app: &AppContext) -> Vec<EntityI
                 .then(|| ai_metadata.ai_block_handle.id())
         })
         .collect()
-}
-
-fn has_pending_user_query_block(view: &TerminalView) -> bool {
-    let Some(view_id) = view.pending_user_query_view_id else {
-        return false;
-    };
-    view.rich_content_views.iter().any(|rich_content| {
-        rich_content.view_id() == view_id && rich_content.is_pending_user_query()
-    })
 }
 
 #[test]
@@ -842,40 +808,6 @@ fn append_exchange_with_inputs_and_handle_event(
     (conversation_id, task_id, exchange_id, response_stream_id)
 }
 
-fn update_exchange_input_and_handle_event(
-    view: &mut TerminalView,
-    conversation_id: AIConversationId,
-    exchange_id: AIAgentExchangeId,
-    response_stream_id: ResponseStreamId,
-    inputs: Vec<AIAgentInput>,
-    ctx: &mut ViewContext<TerminalView>,
-) {
-    let history_model = BlocklistAIHistoryModel::handle(ctx);
-    history_model.update(ctx, |history_model, ctx| {
-        let conversation = history_model
-            .conversation_mut(&conversation_id)
-            .expect("conversation should exist");
-        let mut exchange = conversation
-            .remove_exchange(exchange_id)
-            .expect("exchange should exist");
-        exchange.input = inputs;
-        conversation
-            .append_reassigned_exchange(&response_stream_id, exchange, view.view_id, ctx)
-            .expect("exchange should append");
-    });
-
-    view.handle_ai_history_model_event(
-        history_model,
-        &BlocklistAIHistoryEvent::UpdatedStreamingExchange {
-            exchange_id,
-            terminal_surface_id: view.view_id,
-            conversation_id,
-            is_hidden: false,
-        },
-        ctx,
-    );
-}
-
 fn enter_agent_view_for_navigation(
     view: &mut TerminalView,
     ctx: &mut ViewContext<TerminalView>,
@@ -1230,24 +1162,6 @@ fn updated_conversation_metadata_refreshes_selected_conversation_pane_title() {
             assert_eq!(view.pane_configuration.as_ref(ctx).title(), "Renamed title");
         });
     })
-}
-struct TestTerminalManager {
-    model: Arc<FairMutex<TerminalModel>>,
-    _view: ViewHandle<TerminalView>,
-}
-
-impl TerminalManager for TestTerminalManager {
-    fn model(&self) -> Arc<FairMutex<TerminalModel>> {
-        self.model.clone()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
 }
 
 /// Test to verify that blocks created through normal execution
@@ -1943,96 +1857,6 @@ fn command_first_word_and_suffix_handles_alias_without_args() {
 }
 
 #[test]
-fn escape_pops_nested_cloud_agent_view_with_long_running_command() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let parent_terminal = add_window_with_terminal(&mut app, None);
-        let cloud_terminal = add_window_with_cloud_mode_terminal(&mut app);
-
-        let parent_view = parent_terminal.clone();
-        let cloud_view = cloud_terminal.clone();
-        let parent_model = parent_terminal.read(&app, |view, _| view.model.clone());
-        let cloud_model = cloud_terminal.read(&app, |view, _| view.model.clone());
-        let pane_stack = app.update(move |ctx| {
-            let parent_manager = ctx.add_model(|_| {
-                let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
-                    model: parent_model,
-                    _view: parent_view.clone(),
-                });
-                manager
-            });
-            let cloud_manager = ctx.add_model(|_| {
-                let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
-                    model: cloud_model,
-                    _view: cloud_view.clone(),
-                });
-                manager
-            });
-            let pane_stack = ctx.add_model(|ctx| PaneStack::new(parent_manager, parent_view, ctx));
-            pane_stack.update(ctx, |stack, ctx| {
-                stack.push(cloud_manager, cloud_view, ctx);
-            });
-            pane_stack
-        });
-
-        cloud_terminal.update(&mut app, |view, ctx| {
-            view.enter_agent_view_for_new_conversation(None, AgentViewEntryOrigin::CloudAgent, ctx);
-            view.model
-                .lock()
-                .simulate_long_running_block("sleep 10", "running");
-
-            assert!(view.is_ambient_agent_session(ctx));
-            assert!(view.is_nested_cloud_mode(ctx));
-            assert_eq!(
-                view.agent_view_controller()
-                    .as_ref(ctx)
-                    .can_exit_agent_view(),
-                Ok(())
-            );
-        });
-
-        assert_eq!(
-            app.read_model(&pane_stack, |stack, _| stack.active_view().id()),
-            cloud_terminal.id()
-        );
-
-        cloud_terminal.update(&mut app, |view, ctx| {
-            view.handle_input_event(&InputEvent::Escape, ctx);
-        });
-
-        assert_eq!(
-            app.read_model(&pane_stack, |stack, _| stack.active_view().id()),
-            parent_terminal.id()
-        );
-    })
-}
-
-#[test]
-fn escape_does_not_exit_root_cloud_agent_view_with_long_running_command() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.enter_agent_view_for_new_conversation(None, AgentViewEntryOrigin::CloudAgent, ctx);
-            view.model
-                .lock()
-                .simulate_long_running_block("claude", "running");
-
-            view.handle_input_event(&InputEvent::Escape, ctx);
-
-            // Root cloud-mode pane has no parent terminal to return to,
-            // so Escape is a no-op and agent view stays active.
-            assert!(view.agent_view_controller().as_ref(ctx).is_active());
-        });
-    })
-}
-
-#[test]
 fn escape_does_not_exit_local_agent_view_with_long_running_command() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
@@ -2064,219 +1888,6 @@ fn escape_does_not_exit_local_agent_view_with_long_running_command() {
             assert!(view.agent_view_controller().as_ref(ctx).is_active());
         });
     })
-}
-
-#[test]
-fn root_cloud_mode_pane_sets_root_cloud_mode_context_key() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        app.add_singleton_model(ImportedConfigModel::new);
-        FeatureFlag::AgentView.set_enabled(true);
-
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-        let nested_terminal = add_window_with_cloud_mode_terminal(&mut app);
-
-        terminal.read(&app, |view, ctx| {
-            assert!(
-                view.keymap_context(ctx)
-                    .set
-                    .contains(init::ROOT_CLOUD_MODE_PANE_KEY)
-            );
-        });
-
-        let root_view = terminal.clone();
-        let nested_view = nested_terminal.clone();
-        let root_model = terminal.read(&app, |view, _| view.model.clone());
-        let nested_model = nested_terminal.read(&app, |view, _| view.model.clone());
-        let _pane_stack = app.update(move |ctx| {
-            let root_manager = ctx.add_model(|_| {
-                let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
-                    model: root_model,
-                    _view: root_view.clone(),
-                });
-                manager
-            });
-            let nested_manager = ctx.add_model(|_| {
-                let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
-                    model: nested_model,
-                    _view: nested_view.clone(),
-                });
-                manager
-            });
-            let pane_stack = ctx.add_model(|ctx| PaneStack::new(root_manager, root_view, ctx));
-            pane_stack.update(ctx, |stack, ctx| {
-                stack.push(nested_manager, nested_view, ctx);
-            });
-            pane_stack
-        });
-
-        terminal.read(&app, |view, ctx| {
-            assert!(
-                view.keymap_context(ctx)
-                    .set
-                    .contains(init::ROOT_CLOUD_MODE_PANE_KEY)
-            );
-        });
-
-        nested_terminal.read(&app, |view, ctx| {
-            assert!(
-                !view
-                    .keymap_context(ctx)
-                    .set
-                    .contains(init::ROOT_CLOUD_MODE_PANE_KEY)
-            );
-        });
-    });
-}
-
-#[test]
-fn set_input_mode_agent_does_not_enter_local_agent_from_root_cloud_mode_pane() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
-
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.ambient_agent_view_model()
-                .expect("cloud mode terminal should have ambient model")
-                .update(ctx, |model, ctx| {
-                    model.enter_setup(ctx);
-                });
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            assert!(!view.agent_view_controller().as_ref(ctx).is_active());
-            view.handle_action(&TerminalAction::SetInputModeAgent, ctx);
-            assert!(!view.agent_view_controller().as_ref(ctx).is_active());
-        });
-    });
-}
-
-#[test]
-fn cloud_mode_v2_agent_prefixed_query_spawns_cloud_agent() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_mode = FeatureFlag::AgentMode.override_enabled(true);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-        let input = terminal.read(&app, |view, _| view.input.clone());
-
-        // The cloud mode v2 submit path now opens a create-environment modal if
-        // no environment is selected. Register a stub environment and select it
-        // so the test exercises the spawn path instead of the modal-open path.
-        let env_id = register_test_cloud_environment(&mut app);
-        terminal.update(&mut app, |view, ctx| {
-            view.ambient_agent_view_model()
-                .expect("cloud mode terminal should have ambient model")
-                .update(ctx, |model, ctx| {
-                    model.set_environment_id(Some(env_id), ctx);
-                });
-        });
-
-        input.update(&mut app, |input, ctx| {
-            assert!(input.is_cloud_mode_input_v2_composing(ctx));
-            input.replace_buffer_content("/agent fix the tests", ctx);
-            input.input_enter(ctx);
-        });
-
-        terminal.read(&app, |view, ctx| {
-            let ambient_model = view
-                .ambient_agent_view_model()
-                .expect("cloud mode terminal should have ambient model")
-                .as_ref(ctx);
-            let request = ambient_model
-                .request()
-                .expect("enter should submit through the cloud agent spawn path");
-            assert_eq!(request.prompt.as_deref(), Some("/agent fix the tests"));
-            assert_eq!(request.mode, UserQueryMode::Normal);
-            assert!(input.as_ref(ctx).buffer_text(ctx).is_empty());
-        });
-    });
-}
-
-/// Registers a stub `CloudAmbientAgentEnvironment` in the test `CloudModel` and
-/// returns its `SyncId` so the caller can attach it to an ambient view model.
-fn register_test_cloud_environment(app: &mut App) -> SyncId {
-    let sync_id = SyncId::ClientId(ClientId::new());
-    app.update(|ctx| {
-        let environment = AmbientAgentEnvironment::new(
-            "Test Environment".to_string(),
-            None,
-            vec![],
-            "ubuntu:latest".to_string(),
-            vec![],
-        );
-        let object = CloudAmbientAgentEnvironment::new(
-            sync_id,
-            CloudAmbientAgentEnvironmentModel::new(environment),
-            CloudObjectMetadata::mock(),
-            CloudObjectPermissions::mock_personal(),
-        );
-        CloudModel::handle(ctx).update(ctx, |model, ctx| {
-            model.create_object(sync_id, object, ctx);
-        });
-    });
-    sync_id
-}
-
-#[test]
-fn fresh_cloud_mode_setup_enters_agent_view() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-
-        terminal.update(&mut app, |view, ctx| {
-            assert!(!view.agent_view_controller().as_ref(ctx).is_active());
-            view.enter_ambient_agent_setup(Some("write the tests".to_string()), ctx);
-
-            assert!(view.agent_view_controller().as_ref(ctx).is_active());
-            assert_eq!(view.input().as_ref(ctx).buffer_text(ctx), "write the tests");
-        });
-    });
-}
-
-#[test]
-fn cloud_mode_dispatched_agent_inserts_queued_user_query() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.ambient_agent_view_model()
-                .expect("cloud mode terminal should have ambient model")
-                .update(ctx, |model, ctx| {
-                    model.spawn_agent_with_request(
-                        SpawnAgentRequest {
-                            prompt: Some("write the tests".to_string()),
-                            mode: UserQueryMode::Normal,
-                            config: None,
-                            title: None,
-                            team: None,
-                            agent_identity_uid: None,
-                            skill: None,
-                            attachments: vec![],
-                            interactive: None,
-                            parent_run_id: None,
-                            runtime_skills: vec![],
-                            referenced_attachments: vec![],
-                            conversation_id: None,
-                            snapshot_disabled: None,
-                            orchestration_handoff: None,
-                        },
-                        ctx,
-                    );
-                });
-            view.handle_ambient_agent_event(&AmbientAgentViewModelEvent::DispatchedAgent, ctx);
-
-            assert!(has_pending_user_query_block(view));
-        });
-    });
 }
 
 #[test]
@@ -2494,123 +2105,6 @@ fn cmd_enter_from_active_non_empty_agent_view_requires_confirmation() {
             assert_ne!(
                 new_conversation_id, original_conversation_id,
                 "second keybinding press should start a new conversation"
-            );
-        });
-    });
-}
-
-#[test]
-fn cloud_mode_followup_dispatched_inserts_queued_user_query() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-        let task_id = AmbientAgentTaskId::from_str("123e4567-e89b-12d3-a456-426614174000")
-            .expect("valid task id");
-
-        terminal.update(&mut app, |view, ctx| {
-            view.ambient_agent_view_model()
-                .expect("cloud mode terminal should have ambient model")
-                .update(ctx, |model, ctx| {
-                    model.enter_viewing_existing_session(task_id, ctx);
-                    model.submit_cloud_followup("follow up".to_string(), ctx);
-                });
-            view.handle_ambient_agent_event(&AmbientAgentViewModelEvent::FollowupDispatched, ctx);
-
-            assert!(has_pending_user_query_block(view));
-        });
-    });
-}
-
-#[test]
-fn pending_cloud_mode_query_waits_for_renderable_user_query_exchange() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.insert_cloud_mode_queued_user_query_block("queued prompt".to_string(), ctx);
-            assert!(has_pending_user_query_block(view));
-
-            append_exchange_and_handle_event(
-                view,
-                AIAgentInput::ResumeConversation {
-                    context: Default::default(),
-                },
-                ctx,
-            );
-            assert!(has_pending_user_query_block(view));
-
-            append_exchange_and_handle_event(
-                view,
-                AIAgentInput::UserQuery {
-                    query: "real prompt".to_string(),
-                    context: Default::default(),
-                    static_query_type: None,
-                    referenced_attachments: Default::default(),
-                    user_query_mode: UserQueryMode::default(),
-                    running_command: None,
-                    intended_agent: None,
-                },
-                ctx,
-            );
-            assert!(!has_pending_user_query_block(view));
-        });
-    });
-}
-
-#[test]
-fn pending_cloud_mode_query_clears_when_streaming_exchange_becomes_renderable() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.insert_cloud_mode_queued_user_query_block(
-                "write a poem about rocks".to_string(),
-                ctx,
-            );
-            assert!(has_pending_user_query_block(view));
-
-            let (conversation_id, _, exchange_id, response_stream_id) =
-                append_exchange_with_inputs_and_handle_event(view, vec![], ctx);
-            assert!(has_pending_user_query_block(view));
-
-            update_exchange_input_and_handle_event(
-                view,
-                conversation_id,
-                exchange_id,
-                response_stream_id,
-                vec![AIAgentInput::UserQuery {
-                    query: "write an ode about stones".to_string(),
-                    context: Default::default(),
-                    static_query_type: None,
-                    referenced_attachments: Default::default(),
-                    user_query_mode: UserQueryMode::Normal,
-                    running_command: None,
-                    intended_agent: None,
-                }],
-                ctx,
-            );
-            assert!(!has_pending_user_query_block(view));
-
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&conversation_id)
-                .expect("conversation should exist");
-            let initial_user_query = conversation.initial_user_query();
-            let exchange = conversation
-                .exchange_with_id(exchange_id)
-                .expect("exchange should exist");
-            assert_eq!(
-                exchange.input[0]
-                    .display_user_query(initial_user_query.as_ref())
-                    .as_deref(),
-                Some("/agent write an ode about stones")
             );
         });
     });

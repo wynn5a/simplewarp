@@ -38,7 +38,6 @@ use crate::terminal::model::blocks::BlockHeightItem;
 use crate::terminal::model::session::{BootstrapSessionType, Session, SessionType, Sessions};
 use crate::terminal::model_events::{AnsiHandlerEvent, ModelEvent, ModelEventDispatcher};
 use crate::terminal::view::TerminalAction;
-use crate::terminal::view::ambient_agent::{AmbientAgentViewModel, AmbientAgentViewModelEvent};
 use crate::terminal::{self, TerminalModel, prompt};
 use crate::ui_components::icon_with_status::{
     CIRCLE_RATIO, IconWithStatusVariant, render_icon_with_status,
@@ -81,14 +80,11 @@ impl AgentViewZeroStateBlock {
         origin: AgentViewEntryOrigin,
         agent_view_controller: ModelHandle<AgentViewController>,
         sessions: &ModelHandle<Sessions>,
-        cloud_agent_view_model: Option<&ModelHandle<AmbientAgentViewModel>>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         model_events_dispatcher: &ModelHandle<ModelEventDispatcher>,
         should_show_init_callout: bool,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let cloud_agent_view_model_clone = cloud_agent_view_model.cloned();
-
         let model_events_clone = model_events_dispatcher.clone();
         ctx.subscribe_to_model(
             &BlocklistAIHistoryModel::handle(ctx),
@@ -101,9 +97,6 @@ impl AgentViewZeroStateBlock {
                     me.should_hide = true;
                     ctx.unsubscribe_to_model(&model_events_clone);
                     ctx.unsubscribe_to_model(&history_model);
-                    if let Some(cloud_agent_view_model) = cloud_agent_view_model_clone.as_ref() {
-                        ctx.unsubscribe_to_model(cloud_agent_view_model);
-                    }
                     ctx.notify();
                     return;
                 }
@@ -126,7 +119,6 @@ impl AgentViewZeroStateBlock {
             ctx.notify();
         });
 
-        let cloud_agent_view_model_clone = cloud_agent_view_model.cloned();
         ctx.subscribe_to_model(
             model_events_dispatcher,
             move |me, model_events_dispatcher, event, ctx| {
@@ -138,11 +130,6 @@ impl AgentViewZeroStateBlock {
                             me.should_hide = true;
                             ctx.unsubscribe_to_model(&model_events_dispatcher);
                             ctx.unsubscribe_to_model(&BlocklistAIHistoryModel::handle(ctx));
-                            if let Some(cloud_agent_view_model) =
-                                cloud_agent_view_model_clone.as_ref()
-                            {
-                                ctx.unsubscribe_to_model(cloud_agent_view_model);
-                            }
                             ctx.notify();
                         }
                     }
@@ -156,32 +143,7 @@ impl AgentViewZeroStateBlock {
             },
         );
 
-        if let Some(cloud_agent_view_model) = cloud_agent_view_model {
-            let model_events_clone = model_events_dispatcher.clone();
-            ctx.subscribe_to_model(cloud_agent_view_model, move |me, model, event, ctx| {
-                if me.should_hide {
-                    return;
-                }
-
-                if matches!(
-                    event,
-                    AmbientAgentViewModelEvent::DispatchedAgent
-                        | AmbientAgentViewModelEvent::Cancelled
-                ) {
-                    me.should_hide = true;
-                }
-
-                if me.should_hide {
-                    ctx.unsubscribe_to_model(&model);
-                    ctx.unsubscribe_to_model(&model_events_clone);
-                    ctx.unsubscribe_to_model(&BlocklistAIHistoryModel::handle(ctx));
-                    ctx.notify();
-                }
-            });
-        }
-
-        let has_parent_terminal =
-            cloud_agent_view_model.is_none_or(|model| !model.as_ref(ctx).is_ambient_agent());
+        let has_parent_terminal = true;
         let state_handles = StateHandles::default();
         let current_working_directory = {
             let terminal_model = terminal_model.lock();

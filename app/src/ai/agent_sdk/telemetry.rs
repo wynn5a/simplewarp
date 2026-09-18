@@ -10,8 +10,6 @@ pub(super) enum CliTelemetryEvent {
         gui: bool,
         requested_mcp_servers: usize,
         has_environment: bool,
-        /// Optional task ID when running against an ambient agent task.
-        task_id: Option<String>,
         /// Which execution harness was selected (e.g. "oz", "claude").
         harness: String,
     },
@@ -21,10 +19,6 @@ pub(super) enum CliTelemetryEvent {
     MCPList,
     /// Executing `warp model list`
     ModelList,
-    /// Executing `warp task list`
-    TaskList,
-    /// Executing `warp task get`
-    TaskGet,
     /// Executing `warp logout`
     Logout,
     /// Executing `warp whoami`
@@ -46,20 +40,16 @@ impl TelemetryEvent for CliTelemetryEvent {
                 gui,
                 requested_mcp_servers,
                 has_environment,
-                task_id,
                 harness,
             } => Some(json!({
                 "gui": gui,
                 "requested_mcp_servers": requested_mcp_servers,
                 "has_environment": has_environment,
-                "task_id": task_id,
                 "harness": harness,
             })),
             CliTelemetryEvent::AgentProfileList => None,
             CliTelemetryEvent::MCPList => None,
             CliTelemetryEvent::ModelList => None,
-            CliTelemetryEvent::TaskList => None,
-            CliTelemetryEvent::TaskGet => None,
             CliTelemetryEvent::Logout => None,
             CliTelemetryEvent::Whoami => None,
             CliTelemetryEvent::ProviderSetup => None,
@@ -91,8 +81,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             CliTelemetryEventDiscriminants::AgentProfileList => "CLI.Execute.Agent.Profile.List",
             CliTelemetryEventDiscriminants::MCPList => "CLI.Execute.MCP.List",
             CliTelemetryEventDiscriminants::ModelList => "CLI.Execute.Model.List",
-            CliTelemetryEventDiscriminants::TaskList => "CLI.Execute.Task.List",
-            CliTelemetryEventDiscriminants::TaskGet => "CLI.Execute.Task.Get",
             CliTelemetryEventDiscriminants::Logout => "CLI.Execute.Logout",
             CliTelemetryEventDiscriminants::Whoami => "CLI.Execute.Whoami",
             CliTelemetryEventDiscriminants::ProviderSetup => "CLI.Execute.Provider.Setup",
@@ -108,8 +96,6 @@ impl TelemetryEventDesc for CliTelemetryEventDiscriminants {
             }
             CliTelemetryEventDiscriminants::MCPList => "Listed MCP servers from the Warp CLI",
             CliTelemetryEventDiscriminants::ModelList => "Listed models from the Warp CLI",
-            CliTelemetryEventDiscriminants::TaskList => "Listed tasks from the Warp CLI",
-            CliTelemetryEventDiscriminants::TaskGet => "Got status of task from the Warp CLI",
             CliTelemetryEventDiscriminants::Logout => "Logged out via the Warp CLI",
             CliTelemetryEventDiscriminants::Whoami => "Printed current user info from the Warp CLI",
             CliTelemetryEventDiscriminants::ProviderSetup => "Set up a provider via the Warp CLI",

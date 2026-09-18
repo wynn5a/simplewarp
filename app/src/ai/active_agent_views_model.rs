@@ -11,9 +11,6 @@ use crate::ai::agent_conversations_model::{AgentConversationEntry, AgentConversa
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewControllerEvent};
-use crate::ai::blocklist::orchestration_event_streamer::{
-    register_agent_event_consumer, unregister_agent_event_consumer,
-};
 use crate::terminal::model::session::active_session::ActiveSession;
 
 /// Contains the handles needed to track an active agent view.
@@ -50,12 +47,8 @@ pub enum ConversationOrTaskId {
 
 impl From<AgentConversationEntryId> for ConversationOrTaskId {
     fn from(id: AgentConversationEntryId) -> Self {
-        match id {
-            AgentConversationEntryId::Conversation(conversation_id) => {
-                ConversationOrTaskId::ConversationId(conversation_id)
-            }
-            AgentConversationEntryId::AmbientRun(task_id) => ConversationOrTaskId::TaskId(task_id),
-        }
+        let AgentConversationEntryId::Conversation(conversation_id) = id;
+        ConversationOrTaskId::ConversationId(conversation_id)
     }
 }
 
@@ -163,18 +156,6 @@ impl ActiveAgentViewsModel {
             },
         );
 
-        // On pane re-attach the controller's `agent_view_state` is still
-        // `Active` while the unregister path has already torn down the
-        // streamer consumer. Re-register here; the `EnteredAgentView`
-        // subscription only fires on subsequent state transitions.
-        if let Some(conversation_id) = controller
-            .as_ref(ctx)
-            .agent_view_state()
-            .active_conversation_id()
-        {
-            register_agent_event_consumer(conversation_id, terminal_view_id, ctx);
-        }
-
         ctx.subscribe_to_model(controller, move |model, _, event, ctx| match event {
             AgentViewControllerEvent::EnteredAgentView {
                 conversation_id, ..
@@ -186,9 +167,6 @@ impl ActiveAgentViewsModel {
                 // We ignore agent view changes if we are focused on an ambient conversation,
                 // as ambient conversation navigation operates at the task level instead of the conversation level.
                 model.update_focused_conversation_for_terminal(terminal_view_id, Some(conv_id));
-                // Bridge the controller's lifecycle into the streamer's
-                // per-conversation consumer registry.
-                register_agent_event_consumer(*conversation_id, terminal_view_id, ctx);
                 // Emit so subscribers can move this conversation to the Active section.
                 ctx.emit(ActiveAgentViewsEvent::TerminalViewFocused);
             }
@@ -209,7 +187,6 @@ impl ActiveAgentViewsModel {
 
                 // Clear the focused conversation in whichever window owns this terminal view.
                 model.update_focused_conversation_for_terminal(terminal_view_id, None);
-                unregister_agent_event_consumer(*conversation_id, terminal_view_id, ctx);
                 // Emit so subscribers can move this conversation to the Past section.
                 ctx.emit(ActiveAgentViewsEvent::ConversationClosed);
             }
@@ -242,10 +219,7 @@ impl ActiveAgentViewsModel {
                 self.last_focused_terminal_state = None;
             }
 
-            if let Some(conversation_id) = closed_conversation_id {
-                // The pane-close path bypasses exit_agent_view_internal, so
-                // unregister the streamer consumer here.
-                unregister_agent_event_consumer(conversation_id, terminal_pane_id, ctx);
+            if closed_conversation_id.is_some() {
                 ctx.emit(ActiveAgentViewsEvent::ConversationClosed);
             }
         }

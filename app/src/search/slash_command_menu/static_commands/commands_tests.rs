@@ -83,39 +83,6 @@ fn rename_conversation_command_is_active_conversation_scoped_and_requires_argume
     assert_eq!(argument.hint_text, Some("<new title>"));
 }
 
-#[cfg(not(target_family = "wasm"))]
-#[test]
-fn continue_locally_command_is_registered() {
-    let command = COMMAND_REGISTRY
-        .get_command_with_name(CONTINUE_LOCALLY.name)
-        .expect("expected /continue-locally to be registered");
-
-    assert_eq!(command.name, "/continue-locally");
-    assert_eq!(
-        command.supported_surfaces.gui_icon_path(),
-        Some("bundled/svg/arrow-split.svg")
-    );
-    assert!(command.auto_enter_ai_mode);
-    assert_eq!(
-        command.availability,
-        Availability::AGENT_VIEW
-            | Availability::ACTIVE_CONVERSATION
-            | Availability::AI_ENABLED
-            | Availability::CLOUD_AGENT
-    );
-
-    let argument = command
-        .argument
-        .as_ref()
-        .expect("expected /continue-locally to declare an argument");
-    assert!(argument.is_optional);
-    assert!(!argument.should_execute_on_selection);
-    assert_eq!(
-        argument.hint_text,
-        Some("<optional prompt to send in local conversation>")
-    );
-}
-
 #[test]
 fn set_tab_color_command_requires_argument() {
     let command = COMMAND_REGISTRY

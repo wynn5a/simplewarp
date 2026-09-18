@@ -44,7 +44,6 @@ impl SetupClientEventReporter {
 
 #[derive(Clone, Copy)]
 pub(crate) enum SetupStep {
-    TaskDataFetch,
     EnvironmentResolution,
     SkillRepoClone,
     TerminalBootstrap,
@@ -62,7 +61,6 @@ pub(crate) enum SetupStep {
     EnvironmentSkillLoading,
     GlobalSkillLoading,
     SkillsDirsLoading,
-    ConversationResumeLoading,
     ThirdPartyHarnessPreparation,
     /// Sub-steps of [`SetupStep::ThirdPartyHarnessPreparation`] that track plugin
     /// install/update latency and reliability individually.
@@ -81,9 +79,6 @@ macro_rules! span_and_name {
 impl SetupStep {
     fn to_event_name_and_span(self) -> (&'static str, tracing::Span) {
         match self {
-            Self::TaskDataFetch => {
-                span_and_name!("setup_task_metadata_secrets_attachments_git_credentials_fetch")
-            }
             Self::EnvironmentResolution => {
                 span_and_name!("setup_environment_resolution")
             }
@@ -134,9 +129,6 @@ impl SetupStep {
             }
             Self::SkillsDirsLoading => {
                 span_and_name!("setup_skills_dirs_loading")
-            }
-            Self::ConversationResumeLoading => {
-                span_and_name!("setup_conversation_resume_loading")
             }
             Self::ThirdPartyHarnessPreparation => {
                 span_and_name!("setup_third_party_harness_preparation")

@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use anyhow::{Result, anyhow};
 use warpui::r#async::Timer;
-use warpui::{RetryOption, duration_with_jitter};
+use warpui::duration_with_jitter;
 
 use crate::server::graphql::GraphQLError;
 
@@ -22,29 +22,6 @@ impl warp_errors::ErrorExt for HttpStatusError {
 }
 
 warp_errors::register_error!(HttpStatusError);
-
-/// Common duration for a periodic poll. In our app, we generally have the following to update the same data:
-/// - RTC messages
-/// - Out-of-band queries based on user actions (i.e. fetch team info when user opens the settings page, user
-/// starts the app)
-/// For a periodic poll, it's fine to wait for longer period of time between retries. However, we don't want this to be so
-/// long that it's around the same as the overall periodic poll interval.
-pub const PERIODIC_POLL_RETRY_STRATEGY: RetryOption = RetryOption::exponential(
-    Duration::from_secs(2), /* interval */
-    2.,                     /* exponential factor */
-    3,                      /* max retry count */
-)
-.with_jitter(0.2 /* max_jitter_percentage */);
-
-/// When there's an out-of-band request for a periodic poll, we want to retry quickly, because the UI is depending on the
-/// request succeeding in a timely way. These are things like loading all object updates upon startup, checking the team
-/// metadata when we visit the team page, etc.
-pub const OUT_OF_BAND_REQUEST_RETRY_STRATEGY: RetryOption = RetryOption::exponential(
-    Duration::from_millis(100), /* interval */
-    5.,                         /* exponential factor */
-    3,                          /* max retry count */
-)
-.with_jitter(0.5 /* max_jitter_percentage */);
 
 /// Classify an HTTP-backed error as transient (worth retrying) or permanent (fail fast).
 ///
@@ -89,22 +66,6 @@ pub(crate) fn is_transient_graphql_or_http_error(e: &anyhow::Error) -> bool {
 
 fn is_transient_status(status: u16) -> bool {
     matches!(status, 408 | 429 | 500..=599)
-}
-
-/// Returns `true` if the error chain carries an [`HttpStatusError`] with an
-/// authentication/authorization status (401 or 403).
-///
-/// Used by long-lived listeners to distinguish "credentials are permanently
-/// invalid" (for example, a cloud-agent task whose token stops working once the
-/// task ends) from generic permanent errors, so they can stop retrying instead
-/// of reconnecting forever.
-pub(crate) fn is_auth_error(e: &anyhow::Error) -> bool {
-    for cause in e.chain() {
-        if let Some(http_err) = cause.downcast_ref::<HttpStatusError>() {
-            return matches!(http_err.status, 401 | 403);
-        }
-    }
-    false
 }
 
 /// Maximum total attempts per operation (initial attempt plus retries on transient errors).

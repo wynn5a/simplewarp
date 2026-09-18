@@ -254,39 +254,6 @@ server_id: ServerId::from_string_lossy("ZCJSkai2gpwTqpBFs5HOfZ"),
     );
 }
 
-#[test]
-fn test_warp_web_link_failure() {
-    assert_eq!(
-        get_item_data_from_warp_link(&Url::parse("https://google.com").unwrap()),
-        None
-    );
-}
-#[test]
-fn test_app_web_link_rewrites_to_new_cloud_agent_conversation() {
-    let url = Url::parse(&format!("{}/app", ChannelState::server_root_url())).unwrap();
-    let intent = web_intent_parser::maybe_rewrite_web_url_to_intent(&url).unwrap();
-
-    assert_eq!(
-        intent.as_str(),
-        format!(
-            "{}://action/new_cloud_agent_conversation?source=web_home",
-            ChannelState::url_scheme()
-        )
-    );
-}
-
-#[test]
-fn test_action_focus_cloud_mode_parse() {
-    let url = Url::parse(&format!(
-        "{}://action/focus_cloud_mode",
-        ChannelState::url_scheme()
-    ))
-    .unwrap();
-
-    let action = Action::parse(&url).unwrap();
-    assert!(matches!(action, Action::FocusCloudMode));
-}
-
 fn open_file_editor_test_path(file_name: &str) -> (String, PathBuf) {
     #[cfg(windows)]
     let path = format!("C:/tmp/{file_name}");
@@ -473,69 +440,6 @@ fn test_action_open_file_editor_parse_rejects_invalid_line_or_column() {
     ))
     .unwrap();
     assert!(Action::parse(&invalid_column).is_err());
-}
-
-#[test]
-fn test_action_auto_handoff_to_cloud_parse_default_trigger() {
-    let url = Url::parse(&format!(
-        "{}://action/auto_handoff_to_cloud",
-        ChannelState::url_scheme()
-    ))
-    .unwrap();
-
-    let action = Action::parse(&url).unwrap();
-    assert!(matches!(
-        action,
-        Action::AutoHandoffToCloud {
-            trigger: AutoCloudHandoffTrigger::Uri,
-        }
-    ));
-}
-
-#[test]
-fn test_action_auto_handoff_to_cloud_parse_alias_path() {
-    let url = Url::parse(&format!(
-        "{}://action/auto-handoff-to-cloud",
-        ChannelState::url_scheme()
-    ))
-    .unwrap();
-
-    let action = Action::parse(&url).unwrap();
-    assert!(matches!(
-        action,
-        Action::AutoHandoffToCloud {
-            trigger: AutoCloudHandoffTrigger::Uri,
-        }
-    ));
-}
-
-#[test]
-fn test_action_auto_handoff_to_cloud_parse_sleep_trigger() {
-    let url = Url::parse(&format!(
-        "{}://action/auto_handoff_to_cloud?trigger=sleep",
-        ChannelState::url_scheme()
-    ))
-    .unwrap();
-
-    let action = Action::parse(&url).unwrap();
-    assert!(matches!(
-        action,
-        Action::AutoHandoffToCloud {
-            trigger: AutoCloudHandoffTrigger::MacOsSleep,
-        }
-    ));
-}
-
-#[test]
-fn test_action_new_cloud_agent_conversation_parse() {
-    let url = Url::parse(&format!(
-        "{}://action/new_cloud_agent_conversation",
-        ChannelState::url_scheme()
-    ))
-    .unwrap();
-
-    let action = Action::parse(&url).unwrap();
-    assert!(matches!(action, Action::NewCloudAgentConversation));
 }
 
 #[test]

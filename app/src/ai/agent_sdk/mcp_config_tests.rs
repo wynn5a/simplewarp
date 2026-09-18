@@ -298,40 +298,20 @@ fn validation_rejects_invalid_entries() {
 
 #[test]
 fn serializes_mcp_servers_as_object_not_string() {
-    use crate::ai::agent::UserQueryMode;
     use crate::ai::ambient_agents::AgentConfigSnapshot;
-    use crate::server::server_api::ai::SpawnAgentRequest;
 
     let uuid = uuid::Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
     let mcp_servers = build_mcp_servers_from_specs(&[MCPSpec::Uuid(uuid)])
         .unwrap()
         .unwrap();
 
-    let request = SpawnAgentRequest {
-        prompt: Some("hello".to_string()),
-        mode: UserQueryMode::Normal,
-        config: Some(AgentConfigSnapshot {
-            mcp_servers: Some(mcp_servers),
-            ..Default::default()
-        }),
-        title: None,
-        team: None,
-        agent_identity_uid: None,
-        skill: None,
-        attachments: vec![],
-        interactive: None,
-        parent_run_id: None,
-        runtime_skills: vec![],
-        referenced_attachments: vec![],
-        conversation_id: None,
-        snapshot_disabled: None,
-        orchestration_handoff: None,
+    let config = AgentConfigSnapshot {
+        mcp_servers: Some(mcp_servers),
+        ..Default::default()
     };
 
-    let value = serde_json::to_value(&request).unwrap();
-
-    let config = value.get("config").unwrap();
-    let mcp_servers = config.get("mcp_servers").unwrap();
+    let value = serde_json::to_value(&config).unwrap();
+    let mcp_servers = value.get("mcp_servers").unwrap();
 
     assert!(mcp_servers.is_object());
     assert!(mcp_servers.get("mcpServers").is_none());

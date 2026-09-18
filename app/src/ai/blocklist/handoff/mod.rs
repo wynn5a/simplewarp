@@ -9,7 +9,7 @@
 //! stubs still construct them.
 
 use super::PendingAttachment;
-use crate::server::server_api::ai::AttachmentInput;
+use crate::ai::ambient_agents::task::AttachmentInput;
 
 /// Prompt attachments represented for both cloud submission and local restoration.
 #[cfg_attr(target_family = "wasm", allow(dead_code))]

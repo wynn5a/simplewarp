@@ -84,7 +84,6 @@ pub enum SlashCommandKind {
     Queue,
     ForkAndCompact,
     ForkFrom,
-    ContinueLocally,
     Cost,
     Conversations,
     Rewind,

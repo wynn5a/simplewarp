@@ -5,7 +5,6 @@ use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::agent::{LifecycleEventType, StartAgentExecutionMode};
-use crate::ai::blocklist::orchestration_event_streamer::OrchestrationEventStreamer;
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 
 /// Per-request outcome of a StartAgent dispatch.
@@ -42,7 +41,6 @@ pub struct StartAgentRequest {
 }
 
 struct PendingStartAgent {
-    parent_conversation_id: AIConversationId,
     /// Set once the child conversation is synchronously created.
     child_conversation_id: Option<AIConversationId>,
     sender: async_channel::Sender<StartAgentOutcome>,
@@ -108,12 +106,9 @@ impl StartAgentExecutor {
             .and_then(|conversation| conversation.orchestration_agent_id());
         match agent_id {
             Some(id) => {
-                let _ = pending.sender.try_send(StartAgentOutcome::Started {
-                    agent_id: id.clone(),
-                });
-                OrchestrationEventStreamer::handle(ctx).update(ctx, |streamer, ctx| {
-                    streamer.register_watched_run_id(pending.parent_conversation_id, id, ctx);
-                });
+                let _ = pending
+                    .sender
+                    .try_send(StartAgentOutcome::Started { agent_id: id });
             }
             None => {
                 report_error!(
@@ -257,7 +252,6 @@ impl StartAgentExecutor {
         self.pending.insert(
             request_id,
             PendingStartAgent {
-                parent_conversation_id,
                 child_conversation_id: None,
                 sender,
             },

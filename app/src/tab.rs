@@ -909,7 +909,7 @@ impl<'a> TabComponent<'a> {
             .pane_group
             .as_ref(ctx)
             .active_session_view(ctx)
-            .map(|view| view.as_ref(ctx).is_cloud_agent_session(ctx))
+            .map(|view| view.as_ref(ctx).is_cloud_agent_session())
             .unwrap_or(false);
         // Auto-save persists edits automatically, so the tab-level unsaved
         // indicator is suppressed for changes it can persist (avoiding flicker

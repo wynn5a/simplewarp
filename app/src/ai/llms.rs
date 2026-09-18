@@ -182,7 +182,6 @@ pub fn model_leading_icon(llm: &LLMInfo, flags: ModelIconFlags) -> Icon {
 }
 
 const CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL: &str = "Custom endpoint";
-const CLOUD_FALLBACK_OZ_MODEL_ID: &str = "auto";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LLMUsageMetadata {
@@ -1077,36 +1076,6 @@ impl LLMPreferences {
     /// Returns `None` if the id isn't a known custom model `config_key`.
     pub fn custom_llm_info_for_id(&self, id: &LLMId) -> Option<&LLMInfo> {
         self.custom_llms.iter().find(|info| info.id == *id)
-    }
-
-    /// Returns `true` when `id` identifies a model that can run in a Warp cloud
-    /// (Oz) agent, and is therefore safe to forward as a cloud
-    /// `config.model_id`.
-    ///
-    /// Custom-endpoint (BYOK) models — whose `LLMId` is a bare `config_key`
-    /// UUID — and local (YAML-authored) custom routers depend on the user's
-    /// local credentials / local config and cannot run in the cloud. Their ids
-    /// are not in the server's accepted Oz model-slug namespace, so forwarding
-    /// one makes the cloud `start_agent` reject the spawn.
-    ///
-    /// Cloud/team custom routers (`custom-router:cloud:*`) ARE cloud-runnable:
-    /// the server's spawn-time model_id validation explicitly allows the
-    /// `custom-router:cloud:` prefix, and each cloud AI request re-resolves the
-    /// router entirely server-side (no local config or credentials needed), so
-    /// they are treated as runnable here.
-    pub fn is_cloud_runnable_oz_model_id(&self, id: &LLMId) -> bool {
-        !(self.custom_llm_info_for_id(id).is_some()
-            || custom_model_routers::is_local_custom_router_id(id.as_str()))
-    }
-
-    /// Returns a cloud-runnable Oz model id, falling back to server-side
-    /// automatic model selection when the requested model is local-only.
-    pub(crate) fn cloud_runnable_oz_model_id_or_fallback(&self, id: &LLMId) -> String {
-        if self.is_cloud_runnable_oz_model_id(id) {
-            id.to_string()
-        } else {
-            CLOUD_FALLBACK_OZ_MODEL_ID.to_owned()
-        }
     }
 
     /// Footer label for custom endpoint usage keyed by the request config_key.

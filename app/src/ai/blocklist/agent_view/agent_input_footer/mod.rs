@@ -17,7 +17,6 @@ use toolbar_item::AgentToolbarItemKind;
 use voice_input::{
     StartListeningError, VoiceInputLifecycle, VoiceInputLifecycleState, VoiceSessionResult,
 };
-use warp_cli::agent::Harness;
 use warp_core::ui::color::ContrastingColor;
 use warp_core::ui::color::blend::Blend;
 use warp_core::ui::color::contrast::MinimumAllowedContrast;
@@ -44,7 +43,6 @@ use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHi
 use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
 use crate::ai::blocklist::usage::icon_for_context_window_usage;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::appearance::Appearance;
 use crate::completer::SessionContext;
 use crate::context_chips::display_chip::{DisplayChip, DisplayChipConfig, PromptChipShellCommand};
@@ -69,9 +67,6 @@ use crate::terminal::session_settings::{
     SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection,
 };
 use crate::terminal::view::TerminalAction;
-use crate::terminal::view::ambient_agent::{
-    AmbientAgentViewModel, ModelSelector, ModelSelectorEvent,
-};
 use crate::terminal::{CLIAgent, TerminalModel};
 use crate::ui_components::icons::Icon;
 use crate::view_components::DismissibleToast;
@@ -91,8 +86,6 @@ const FAST_FORWARD_ON_TOOLTIP: &str = "Turn off auto-approve all agent actions";
 const FAST_FORWARD_OFF_TOOLTIP: &str = "Auto-approve all agent actions for this task";
 const FAST_FORWARD_LOCKED_TOOLTIP: &str =
     "Fast forward is always enabled for cloud agent conversations";
-
-const CLOUD_MODE_V2_FOOTER_GAP: f32 = 4.;
 
 fn is_conversation_transcript_context(
     terminal_view_id: EntityId,
@@ -128,7 +121,6 @@ pub struct AgentInputFooter {
     /// [`AIQueryRouting`].
     model_selector: ViewHandle<ProfileModelSelector>,
     prompt_alert: ViewHandle<PromptAlertView>,
-    ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
     left_display_chips: Vec<ViewHandle<DisplayChip>>,
     right_display_chips: Vec<ViewHandle<DisplayChip>>,
     // Separate set of display chips for the CLI agent footer.
@@ -155,7 +147,6 @@ pub struct AgentInputFooter {
     cli_recording_handle: Option<SpawnedFutureHandle>,
     #[cfg(feature = "voice_input")]
     cli_transcription_handle: Option<SpawnedFutureHandle>,
-    v2_model_selector: Option<ViewHandle<ModelSelector>>,
 
     /// Pending one-shot timer that refreshes the context-window button at the
     /// prompt-cache expiry instant so the notification dot appears while idle.
@@ -168,57 +159,11 @@ pub struct AgentInputFooter {
 }
 
 impl AgentInputFooter {
-    /// Attaches an ambient agent view model to an already-constructed footer. Used when a
-    /// shared-session viewer only learns at `SessionJoined` that the session is an ambient
-    /// run (e.g. a raw `shared_session` link): the footer was built with `None` at
-    /// construction, so it must be given the model now to render the cloud environment
-    /// selector and re-render on model events. Mirrors the ambient wiring in [`Self::new`].
-    /// `menu_positioning_provider` is passed in because the footer does not retain it.
-    /// Idempotent: a no-op when a model is already present.
-    pub fn set_ambient_agent_view_model(
-        &mut self,
-        ambient_agent_view_model: ModelHandle<AmbientAgentViewModel>,
-        _menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if self.ambient_agent_view_model.is_some() {
-            return;
-        }
-        self.ambient_agent_view_model = Some(ambient_agent_view_model.clone());
-        self.display_chip_config.ambient_agent_view_model = Some(ambient_agent_view_model.clone());
-
-        // Push the model into the model/harness selector chip too. It captured `None` at
-        // construction on this link-join path, so without this it shows the local default model
-        // instead of the viewed cloud run's harness/model.
-        let selector_model = ambient_agent_view_model.clone();
-        self.model_selector.update(ctx, |selector, ctx| {
-            selector.set_ambient_agent_view_model(selector_model, ctx);
-        });
-
-        // Push the model into the V2 model selector chip, which was built with `None` at
-        // construction. Uses the `ModelSelector` setter so construction and lazy attach wire it
-        // identically.
-        if let Some(v2_model_selector) = self.v2_model_selector.clone() {
-            let v2_selector_model = ambient_agent_view_model.clone();
-            v2_model_selector.update(ctx, |selector, ctx| {
-                selector.set_ambient_agent_view_model(v2_selector_model, ctx);
-            });
-        }
-
-        // Re-render on ambient model events (mirrors `new`).
-        ctx.subscribe_to_model(&ambient_agent_view_model, |_, _, _, ctx| {
-            ctx.notify();
-        });
-
-        ctx.notify();
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
         terminal_view_id: EntityId,
         terminal_model: Arc<FairMutex<TerminalModel>>,
-        ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
         prompt: ModelHandle<PromptType>,
         display_chip_config: DisplayChipConfig,
         ctx: &mut ViewContext<Self>,
@@ -379,12 +324,9 @@ impl AgentInputFooter {
         });
 
         let profile_model_selector_full = ctx.add_typed_action_view(|ctx| {
-            // Built without the ambient model; the footer's ambient setter attaches it (for both
-            // construction and the lazy viewer path) via `ProfileModelSelector::set_ambient_agent_view_model`.
             let mut selector = ProfileModelSelector::new(
                 menu_positioning_provider.clone(),
                 terminal_view_id,
-                None,
                 terminal_model.clone(),
                 ctx,
             );
@@ -495,32 +437,8 @@ impl AgentInputFooter {
             me.update_display_chips(&model, ctx);
         });
 
-        let v2_model_selector = {
-            let view = ctx.add_typed_action_view(|ctx| {
-                // Built without the ambient model; the footer's ambient setter attaches it via the
-                // `ModelSelector` setter so construction and the lazy viewer path share one path.
-                ModelSelector::new(
-                    menu_positioning_provider.clone(),
-                    terminal_view_id,
-                    None,
-                    ctx,
-                )
-            });
-            ctx.subscribe_to_view(&view, |_, _, event, ctx| match event {
-                ModelSelectorEvent::MenuVisibilityChanged { open } => {
-                    if *open {
-                        ctx.emit(AgentInputFooterEvent::ModelSelectorOpened);
-                    } else {
-                        ctx.emit(AgentInputFooterEvent::ModelSelectorClosed);
-                    }
-                }
-            });
-            Some(view)
-        };
-
         let mut me = Self {
             terminal_view_id,
-            ambient_agent_view_model: None,
             nld_button,
             mic_button,
             file_button,
@@ -541,22 +459,12 @@ impl AgentInputFooter {
             cli_recording_handle: None,
             #[cfg(feature = "voice_input")]
             cli_transcription_handle: None,
-            v2_model_selector,
             prompt_cache_expiry_timer_handle: None,
             prompt_cache_expired: false,
         };
         me.sync_fast_forward_button(ctx);
         me.update_context_window_button(ctx);
         me.update_display_chips(&prompt, ctx);
-        // Route ambient wiring through the setter so construction and the lazy shared-session
-        // viewer path share one implementation.
-        if let Some(ambient_agent_view_model) = ambient_agent_view_model {
-            me.set_ambient_agent_view_model(
-                ambient_agent_view_model,
-                menu_positioning_provider,
-                ctx,
-            );
-        }
         me
     }
 
@@ -569,82 +477,6 @@ impl AgentInputFooter {
         // Chips will be rebuilt on the next GitRepoStatusEvent::MetadataChanged.
         // Notify to ensure any existing chips reflect the change.
         ctx.notify();
-    }
-
-    pub fn is_v2_model_selector_open(&self, app: &AppContext) -> bool {
-        self.v2_model_selector
-            .as_ref()
-            .is_some_and(|s| s.as_ref(app).is_menu_open())
-    }
-
-    pub fn open_v2_model_selector(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(selector) = self.v2_model_selector.clone() {
-            selector.update(ctx, |s, ctx| s.open_menu(ctx));
-        }
-    }
-
-    fn should_render_cloud_mode_v2(&self, app: &AppContext) -> bool {
-        self.ambient_agent_view_model
-            .as_ref()
-            .is_some_and(|ambient_agent_model| {
-                ambient_agent_model
-                    .as_ref(app)
-                    .is_configuring_ambient_agent()
-            })
-    }
-
-    fn render_cloud_mode_v2_footer(&self, app: &AppContext) -> Box<dyn Element> {
-        // `app` is only consumed under the `voice_input` cfg below; reference it here so the
-        // parameter doesn't trip the unused-variable lint when the feature is disabled.
-        #[cfg(not(feature = "voice_input"))]
-        let _ = app;
-
-        let left = Flex::row()
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_spacing(CLOUD_MODE_V2_FOOTER_GAP);
-        let mut right = Flex::row()
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_spacing(CLOUD_MODE_V2_FOOTER_GAP);
-
-        // Only show the mic button when voice input is compiled in *and* the
-        // user has voice input enabled in settings, matching V1's behavior.
-        #[cfg(feature = "voice_input")]
-        if AISettings::as_ref(app).is_voice_input_enabled(app) {
-            right = right.with_child(ChildView::new(&self.mic_button).finish());
-        }
-
-        right = right.with_child(ChildView::new(&self.file_button).finish());
-
-        if let Some(model_selector) = self.v2_model_selector.as_ref() {
-            // Only show the model selector when the active harness has available models.
-            // Some harnesses (e.g. Gemini) may not have any server-provided model options.
-            let show_selector = self
-                .ambient_agent_view_model
-                .as_ref()
-                .map(|m| m.as_ref(app).selected_harness())
-                .is_none_or(|harness| match harness {
-                    Harness::Oz | Harness::Unknown => true,
-                    _ => HarnessAvailabilityModel::as_ref(app)
-                        .models_for(harness)
-                        .is_some_and(|models| !models.is_empty()),
-                });
-            if show_selector {
-                right = right.with_child(ChildView::new(model_selector).finish());
-            }
-        }
-
-        let content = Flex::row()
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_spacing(CLOUD_MODE_V2_FOOTER_GAP)
-            .with_child(left.finish())
-            .with_child(right.finish())
-            .finish();
-
-        Clipped::new(content).finish()
     }
 
     fn all_display_chips(&self) -> impl Iterator<Item = &ViewHandle<DisplayChip>> {
@@ -1387,9 +1219,6 @@ impl View for AgentInputFooter {
     }
 
     fn render(&self, app: &warpui::AppContext) -> Box<dyn warpui::Element> {
-        if self.should_render_cloud_mode_v2(app) {
-            return self.render_cloud_mode_v2_footer(app);
-        }
         // When a CLI agent session is active, render the CLI agent toolbar instead.
         if self.is_cli_agent_session_active(app) {
             return self.render_cli_mode_footer(app);
