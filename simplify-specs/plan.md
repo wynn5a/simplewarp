@@ -4944,12 +4944,11 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             nextest green (warp lib 5,045 default / 5,044 simplewarp — 40
             deleted tests; small crates 117 — 9 deleted parse tests). Built
             and launched `./target/debug/simplewarp` — alive, no output.
-      - [ ] **Cloud-run lifecycle (4ch) is IN PROGRESS — large uncommitted
-            WIP checkpoint (2026-09-18), committed as-is on user request
-            before acceptance ran.** Scope taken: the 11 cloud-run AIClient
-            walls plus the whole ambient terminal UI vertical. `AIClient` is
-            GONE as a trait: after the earlier rounds deleted their callers,
-            the last four zero-caller walls (`spawn_agent`,
+      - [x] **Cloud-run lifecycle (4ch) — DONE 2026-09-18.** Scope taken: the
+            11 cloud-run AIClient walls plus the whole ambient terminal UI
+            vertical. `AIClient` is GONE as a trait: after the earlier rounds
+            deleted their callers, the last four zero-caller walls
+            (`spawn_agent`,
             `list_ambient_agent_tasks`, `get_ambient_agent_task`,
             `submit_run_followup`) were deleted together with the entire
             `server_api/ai.rs` module — wire types (`SpawnAgentRequest`,
@@ -5029,41 +5028,135 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             `TaskFetchError`-era imports in agent_conversations_model, and
             assorted unused imports/variables.
 
-            *REMAINING before this round is done* (next session, in order):
-            (1) fix the ~15 dead-code warnings left at last count —
-            `uri/mod.rs` (`CLOUD_SETUP_SOURCE`,
-            `find_workspace_for_terminal_view`,
-            `active_terminal_view_id_in_window`,
-            `find_cloud_mode_terminal_view_id`,
-            `find_cloud_mode_terminal_in_workspace`),
+            *Dead-code cascade finished*: every warning the round left behind
+            is gone. `uri/mod.rs` (`CLOUD_SETUP_SOURCE` and the four
+            cloud-mode terminal finders),
             `slash_commands/data_source/core.rs`
-            (`InlineItem::from_saved_prompt`, `with_compact_layout`),
-            `pending_user_query.rs`
+            (`InlineItem::from_saved_prompt`, `with_compact_layout` and the
+            now-always-false `compact_layout` field with its two
+            `search_item.rs` render branches), `pending_user_query.rs`
             (`insert_cloud_mode_queued_user_query_block`,
-            `remove_cloud_mode_queue_row`), `terminal/view.rs`
-            `PanelMode`-style `CloudMode` variant,
+            `remove_cloud_mode_queue_row`, `PendingUserQueryKind::CloudMode`,
+            and `QueuedQueryModel::remove_initial_cloud_mode_row`),
             `harness_availability.rs` (`has_any_enabled_harness`,
-            `is_harness_enabled`), `server/retry_strategies.rs`
-            (`PERIODIC_POLL_RETRY_STRATEGY`,
-            `OUT_OF_BAND_REQUEST_RETRY_STRATEGY`),
-            `user_workspaces.rs`
+            `is_harness_enabled`), `user_workspaces.rs`
             (`get_cloud_conversation_storage_enablement_setting`),
-            `cloud_agent_settings.rs` (`persist_harness_model_selection`),
-            `skills/resolve_skill_spec.rs` (`parsed_skill` field),
-            `notebook_tests.rs` (`mock_server_notebook`), `view_tests.rs`
+            `cloud_agent_settings.rs` (`persist_harness_model_selection` with
+            the `last_selected_harness_model` setting and
+            `HarnessModelSelection`), `resolve_skill_spec.rs`
+            (`ResolvedSkill::parsed_skill`), `view_tests.rs`
             (`has_pending_user_query_block`,
-            `update_exchange_input_and_handle_event`,
-            `TestTerminalManager`), and check whether
-            `agent_view.rs::enter_agent_view_for_restored_cli_agent` lost
-            its last caller with the pane_group deletions; re-run check for
-            new cascades each time. (2) Full standard acceptance: check
-            both feature sets + both bins; clippy diffed against a
-            stash-captured HEAD baseline in both configs; format; nextest;
-            build and launch the app. (3) Rewrite this entry as the final
-            4ch ledger record with nextest counts. After 4ch: the telemetry
-            scope decision (4ca item 7), then the fold (item 8).
-      - [ ] **Next per 4ca's order after 4ch completes**: telemetry scope
-            decision, then the fold.
+            `update_exchange_input_and_handle_event`, `TestTerminalManager`),
+            `agent_view.rs::enter_agent_view_for_restored_cli_agent`, and the
+            details panel's whole setup-commands vertical
+            (`PLATFORM_ICON_SIZE`, `copy_setup_commands`,
+            `CopyButtonKind::SetupCommands`, `CopySetupCommands`,
+            `format_setup_commands_for_copy`,
+            `render_setup_commands_section`). `llms.rs` fixed a real break:
+            `CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL` is still read by
+            `custom_endpoint_usage_display_label` for local agent footers, so
+            it came back; only the cloud-run-only
+            `is_cloud_runnable_oz_model_id` stayed deleted. The orphan file
+            `terminal/input/cloud_mode_v2_history_menu.rs` (mod declaration
+            already gone) is deleted, and with it `InlineMenuView`'s
+            cloud-only `compact_layout` and `dismiss_on_row_click` builders,
+            fields and branches.
+
+            *Second tier — `clippy --all-targets` compiles the non-test lib,
+            so it exposed ~30 more items whose only remaining callers were
+            their own unit tests.* Deleted outright: `ambient_agents/task.rs`
+            down to its live half (cloud `AmbientAgentTask`/`TaskState`/
+            `RunExecution`/`LiveSessionState`/`RequestUsage`/
+            `TaskPrincipalInfo`/`TaskStatusMessage`/`TaskStatusErrorCode`/
+            `ExecutionLocation` + the source parser and session-id parsers,
+            640 test+model lines; `AgentSource`, `AttachmentInput`,
+            `normalize_orchestrator_agent_name`, the snapshot re-exports and
+            the two `cancel_task_*` collapses stay), the Claude/Codex
+            transcript upload modules (`codex_transcript.rs` whole,
+            `claude_transcript.rs` down to `claude_config_dir` +
+            `home_dir_for_claude_config`, `json_utils::entries_to_jsonl`),
+            and the entire HTTP retry layer — `server/retry_strategies.rs`
+            and `ai/agent_sdk/retry.rs` with their 13 tests, since
+            `with_bounded_retry` and `HttpStatusError` lost every production
+            caller. Also: `auth_check_command_for`, `deserialize_artifacts`,
+            `exit_agent_view_without_confirmation`, `active_skill_by_reference`,
+            `get_last_focused_terminal_id`, `from_conversation_metadata`, and
+            the two items the `#[allow(dead_code)]` on
+            `agent_conversations_model::entry` had been hiding
+            (`SESSION_EXPIRATION_TIME`, `parse_session_id`) — that allow is
+            now gone. Tests were re-pointed, not dropped, where the behavior
+            is still local: `exit_agent_view`,
+            `active_skill_by_reference_with_origin`, and the zero-state hint
+            test's inactive control, which is now `/compact` with
+            `FeatureFlag::AgentView` on (the old control was the cloud-only
+            `/continue-locally`; with the cloud bits unsatisfiable every
+            remaining hint command is active in a plain pane).
+            `AgentRunDisplayStatus` lost its redundant `Conversation`
+            prefix once the cloud-run variants fell.
+
+            *Test-side repairs (all three were the WIP's own re-pins, not
+            product regressions)*: the zero-state hint test had swapped its
+            "inactive command" control from the deleted cloud-only
+            `/continue-locally` to `/compact`, which fails twice over —
+            `/compact` only enters `COMMAND_REGISTRY` under
+            `FeatureFlag::SummarizationConversationCommand`, so its stale
+            placeholder is never touched, and with the cloud availability bits
+            unsatisfiable no hint-bearing command stays inactive in a plain
+            pane. It now asserts the clear-and-re-register invariant on
+            always-active `/rename-tab` (renamed
+            `zero_state_hint_text_refreshes_active_slash_command_placeholders`).
+            The two `enqueue_followup_prompt_*` tests re-pointed at
+            `add_window_with_local_conversation` kept asserting through
+            `queue_texts`, which reads the *selected* conversation — empty in
+            that harness (the sibling test that passes asserts it is); they now
+            read `QueuedQueryModel::queue(conversation_id)` directly. And with
+            `exit_agent_view_without_confirmation` gone (its only production
+            caller was the deleted ambient `view_impl.rs`), the transcript
+            navigation test exits through the real path — two Escape presses,
+            since the conversation is still in progress.
+            `crates/warp_cli/src/lib_tests.rs` still referenced the removed
+            `--task-id` / `--skip-initial-turn` args and did not compile: eight
+            task-id tests deleted, three stray assertions dropped,
+            `agent_run_rejects_without_prompt_or_task_id` renamed to
+            `agent_run_requires_a_prompt`.
+
+            Acceptance: `check -p warp --tests` clean in both feature sets —
+            0 errors, 0 warnings; `--bin simplewarp` (simplewarp set) and
+            `--bin warp-oss` (default set) surface only HEAD's three test-only
+            `never used` items (`snapshots::Loaded`,
+            `should_preserve_onboarding_profile`, `reset_unknown`), which any
+            non-test build reports; `clippy -p warp --all-targets --tests` in
+            both configs is a strict
+            subset of the pre-round HEAD baseline captured by resetting to
+            `aae51e938` (the five survivors are HEAD's: `input.rs`
+            needless-returns — 0 added by this round, 17 removed —
+            `should_preserve_onboarding_profile`, snapshots `Loaded`,
+            `reset_unknown`, and the `mod_tests` single-element loop), and it
+            drops HEAD's `notebook_tests` pair and the four `server_api/ai.rs`
+            lints with their code. Format clean. Nextest: warp lib 4,658 passed
+            default / 4,657 simplewarp, 0 failed (4 skipped both), down from
+            4cg's 5,045/5,044 with the deleted surfaces' tests; `warp_cli` 76
+            passed (was 84 before the task-id tests went). Built and launched
+            `./target/debug/simplewarp`.
+
+            *Cloud-run residue the compiler cannot see (next slice)*: `/cloud-agent`
+            is still *active* in a local build while its spawn path is gone,
+            and `/host` + `/harness` are permanently inactive because
+            `Availability::CLOUD_MODE_V2_COMPOSER` can no longer be set —
+            `CLOUD_AGENT` and `CLOUD_MODE_V2_COMPOSER` are both unsatisfiable
+            bits now. `QueuedQueryOrigin::InitialCloudMode` has no producer but
+            still drives five `queued_prompts_panel.rs` branches plus its
+            telemetry mapping, and the ambient task-id plumbing is ~249
+            references across `workspace/view.rs`, `lib.rs` (`OZ_RUN_ID_ENV` →
+            `ServerApiProvider::set_ambient_agent_task_id`), `pane_group`, the
+            terminal model and `load_ai_conversation`. After 4ch: this residue,
+            then the telemetry scope decision (4ca item 7), then the fold
+            (item 8).
+      - [ ] **Next per 4ca's order after 4ch completes**: the 4ch cloud-run
+            residue listed above (compiler-invisible: `/cloud-agent`, `/host`,
+            `/harness`, `InitialCloudMode` queue branches, the ambient
+            task-id plumbing), then the telemetry scope
+            decision (4ca item 7), then the fold (item 8).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
