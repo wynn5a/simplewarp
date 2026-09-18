@@ -1,6 +1,4 @@
-use warp_cli::agent::Harness;
-
-use super::{auth_check_command_for, validate_cli_installed};
+use super::validate_cli_installed;
 use crate::ai::agent_sdk::driver::AgentDriverError;
 
 fn assert_harness_setup_failed(err: &AgentDriverError) -> (&str, &str) {
@@ -57,28 +55,4 @@ fn gemini_runtime_error_patterns_is_empty_by_default() {
     use super::ThirdPartyHarness;
     use super::gemini::GeminiHarness;
     assert!(GeminiHarness.runtime_error_patterns().is_empty());
-}
-
-#[test]
-fn auth_check_command_for_gemini_is_none() {
-    assert!(auth_check_command_for(Harness::Gemini).is_none());
-}
-
-#[test]
-fn auth_check_command_for_oz_is_none() {
-    assert!(auth_check_command_for(Harness::Oz).is_none());
-}
-
-#[test]
-fn auth_check_command_for_unsupported_is_none() {
-    // OpenCode is mapped to HarnessKind::Unsupported and therefore has no
-    // auth check command of its own.
-    assert!(auth_check_command_for(Harness::OpenCode).is_none());
-}
-
-#[test]
-fn auth_check_command_for_unknown_is_none() {
-    // Harness::Unknown causes harness_kind to return Err; the helper still
-    // returns None instead of panicking.
-    assert!(auth_check_command_for(Harness::Unknown).is_none());
 }

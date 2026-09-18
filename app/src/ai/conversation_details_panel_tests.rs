@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use chrono::{Local, Utc};
+use chrono::Utc;
 use persistence::model::{AgentConversationData, ConversationUsageMetadata};
-use warp_cli::agent::Harness;
 use warp_multi_agent_api as api;
 use warpui::{App, EntityId, SingletonEntity};
 
@@ -172,37 +171,6 @@ fn create_test_server_metadata(
         ambient_agent_task_id: None,
         server_conversation_token: ServerConversationToken::new(server_token.to_string()),
         artifacts: vec![],
-    }
-}
-
-#[test]
-fn test_from_conversation_metadata_passes_harness_through() {
-    for harness in [
-        None,
-        Some(Harness::Oz),
-        Some(Harness::Claude),
-        Some(Harness::Gemini),
-        Some(Harness::Unknown),
-    ] {
-        let data = ConversationDetailsData::from_conversation_metadata(
-            AIConversationId::new(),
-            "Title".to_string(),
-            None,
-            Utc::now().with_timezone(&Local),
-            None,
-            None,
-            None,
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            harness,
-        );
-        assert_eq!(
-            data.harness, harness,
-            "harness {harness:?} should pass through"
-        );
     }
 }
 

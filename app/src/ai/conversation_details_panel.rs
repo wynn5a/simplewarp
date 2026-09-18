@@ -280,43 +280,6 @@ impl ConversationDetailsData {
             harness,
         }
     }
-
-    pub fn from_conversation_metadata(
-        ai_conversation_id: AIConversationId,
-        title: String,
-        creator_name: Option<String>,
-        created_at: DateTime<Local>,
-        directory: Option<String>,
-        credits_used: Option<f32>,
-        conversation_id: Option<String>,
-        artifacts: Vec<Artifact>,
-        open_action: Option<WorkspaceAction>,
-        status: Option<ConversationStatus>,
-        initial_query: Option<String>,
-        copy_link_url: Option<String>,
-        harness: Option<Harness>,
-    ) -> Self {
-        ConversationDetailsData {
-            mode: PanelMode::Conversation {
-                directory,
-                server_conversation_id: conversation_id,
-                ai_conversation_id: Some(ai_conversation_id),
-                status,
-            },
-            title,
-            creator: creator_name.map(|name| PrincipalInfo::new(name, None)),
-            executor: None,
-            created_at: Some(created_at),
-            credits: credits_used,
-            run_time: None,
-            open_action,
-            artifacts,
-            source_prompt: initial_query,
-            copy_link_url,
-            skill_spec: None,
-            harness,
-        }
-    }
 }
 
 /// Events emitted by the ConversationDetailsPanel.
@@ -539,20 +502,18 @@ impl ConversationDetailsPanel {
         match event {
             AgentDetailsButtonEvent::Open => {
                 // Send telemetry based on panel mode
-                match &self.data.mode {
-                    PanelMode::Conversation {
-                        ai_conversation_id: Some(conversation_id),
-                        ..
-                    } => {
-                        send_telemetry_from_ctx!(
-                            AgentManagementTelemetryEvent::ConversationOpened {
-                                conversation_id: conversation_id.to_string(),
-                                opened_from: OpenedFrom::DetailsPanel,
-                            },
-                            ctx
-                        );
-                    }
-                    _ => {}
+                if let PanelMode::Conversation {
+                    ai_conversation_id: Some(conversation_id),
+                    ..
+                } = &self.data.mode
+                {
+                    send_telemetry_from_ctx!(
+                        AgentManagementTelemetryEvent::ConversationOpened {
+                            conversation_id: conversation_id.to_string(),
+                            opened_from: OpenedFrom::DetailsPanel,
+                        },
+                        ctx
+                    );
                 }
 
                 if let Some(action) = &self.data.open_action {
@@ -592,20 +553,18 @@ impl ConversationDetailsPanel {
                 // only in management view cards
             }
             AgentDetailsButtonEvent::CopyLink { link } => {
-                match &self.data.mode {
-                    PanelMode::Conversation {
-                        ai_conversation_id: Some(conversation_id),
-                        ..
-                    } => {
-                        send_telemetry_from_ctx!(
-                            AgentManagementTelemetryEvent::ConversationLinkCopied {
-                                conversation_id: conversation_id.to_string(),
-                                copied_from: OpenedFrom::DetailsPanel,
-                            },
-                            ctx
-                        );
-                    }
-                    _ => {}
+                if let PanelMode::Conversation {
+                    ai_conversation_id: Some(conversation_id),
+                    ..
+                } = &self.data.mode
+                {
+                    send_telemetry_from_ctx!(
+                        AgentManagementTelemetryEvent::ConversationLinkCopied {
+                            conversation_id: conversation_id.to_string(),
+                            copied_from: OpenedFrom::DetailsPanel,
+                        },
+                        ctx
+                    );
                 }
 
                 ctx.clipboard()
@@ -1423,17 +1382,17 @@ impl TypedActionView for ConversationDetailsPanel {
             ConversationDetailsPanelAction::Close => {
                 ctx.emit(ConversationDetailsPanelEvent::Close);
             }
-            ConversationDetailsPanelAction::CopyDirectory => match &self.data.mode {
-                PanelMode::Conversation {
+            ConversationDetailsPanelAction::CopyDirectory => {
+                if let PanelMode::Conversation {
                     directory: Some(directory),
                     ..
-                } => {
+                } = &self.data.mode
+                {
                     ctx.clipboard()
                         .write(ClipboardContent::plain_text(directory.clone()));
                     self.record_copy(CopyButtonKind::Directory, ctx);
                 }
-                _ => {}
-            },
+            }
             ConversationDetailsPanelAction::CopyConversationId => {
                 if let PanelMode::Conversation {
                     server_conversation_id: Some(id),

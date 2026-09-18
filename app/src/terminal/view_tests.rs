@@ -108,9 +108,8 @@ fn agent_view_lifecycle_updates_input_mode() {
             );
         });
         terminal.update(&mut app, |view, ctx| {
-            view.agent_view_controller().update(ctx, |controller, ctx| {
-                controller.exit_agent_view_without_confirmation(ctx)
-            });
+            view.agent_view_controller()
+                .update(ctx, |controller, ctx| controller.exit_agent_view(ctx));
         });
         terminal.read(&app, |view, ctx| {
             assert_eq!(
@@ -557,7 +556,10 @@ fn agent_transcript_navigation_marks_target_user_query() {
 
         terminal.update(&mut app, |view, ctx| {
             view.agent_view_controller().update(ctx, |controller, ctx| {
-                controller.exit_agent_view_without_confirmation(ctx)
+                // The conversation is still running, so the first Escape only arms the
+                // exit confirmation and the second one leaves.
+                controller.exit_agent_view(ctx);
+                controller.exit_agent_view(ctx);
             });
         });
         terminal.read(&app, |view, ctx| {

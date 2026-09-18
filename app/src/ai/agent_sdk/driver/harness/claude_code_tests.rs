@@ -1,14 +1,10 @@
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
 
 use tempfile::TempDir;
 use uuid::Uuid;
 
 use super::*;
-use crate::ai::agent_sdk::driver::harness::claude_transcript::{
-    encode_cwd, write_session_index_entry,
-};
 
 #[test]
 fn claude_command_uses_session_id_when_not_resuming() {
@@ -56,32 +52,6 @@ fn claude_command_pipes_prompt_path() {
     assert!(
         cmd.contains("--dangerously-skip-permissions"),
         "expected --dangerously-skip-permissions, got: {cmd}"
-    );
-}
-
-#[test]
-fn write_session_index_entry_creates_expected_entry() {
-    let tmp = TempDir::new().unwrap();
-    let cwd = Path::new("/my/project");
-    let session_id = Uuid::new_v4();
-
-    write_session_index_entry(session_id, cwd, tmp.path()).unwrap();
-
-    let index_path = tmp.path().join("sessions-index.json");
-    let index: Value = serde_json::from_slice(&fs::read(index_path).unwrap()).unwrap();
-    let session_key = session_id.to_string();
-    let entry = &index[&session_key];
-    let encoded = encode_cwd(cwd);
-
-    assert_eq!(entry["sessionId"], Value::String(session_key.clone()));
-    assert_eq!(
-        entry["cwd"],
-        Value::String(cwd.to_string_lossy().into_owned())
-    );
-    assert_eq!(entry["projectPath"], Value::String(encoded.clone()));
-    assert_eq!(
-        entry["transcriptPath"],
-        Value::String(format!("projects/{encoded}/{session_id}.jsonl"))
     );
 }
 

@@ -2654,16 +2654,14 @@ impl PaneGroup {
             }
         };
 
-        let pane_group = Self::new_internal(
+        Self::new_internal(
             tips_completed,
             user_default_shell_unsupported_banner_model_handle,
             server_api,
             model_event_sender.clone(),
             Box::new(initial_layout),
             ctx,
-        );
-
-        pane_group
+        )
     }
 
     pub fn new_from_existing_pane(

@@ -395,7 +395,7 @@ impl InlineModelSelectorView {
             });
         });
 
-        let me = Self {
+        Self {
             menu_view,
             mixer,
             suggestions_mode_model,
@@ -404,8 +404,7 @@ impl InlineModelSelectorView {
             selection_before_tab_switch: None,
             filter_results_by_input: true,
             prompt_parked_for_search: false,
-        };
-        me
+        }
     }
 
     fn menu_model<'a>(

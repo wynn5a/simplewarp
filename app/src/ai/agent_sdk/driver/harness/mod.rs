@@ -31,7 +31,6 @@ use crate::util::path::resolve_executable;
 pub(crate) mod claude_code;
 pub(crate) mod claude_transcript;
 mod codex;
-pub(crate) mod codex_transcript;
 mod gemini;
 mod json_utils;
 mod skill_dirs_publish;
@@ -152,23 +151,6 @@ pub(crate) fn harness_kind(harness: Harness) -> Result<HarnessKind, AgentDriverE
         Harness::Gemini => Ok(HarnessKind::ThirdParty(Box::new(GeminiHarness))),
         Harness::Unknown => Err(AgentDriverError::InvalidRuntimeState),
     }
-}
-
-/// Returns the harness's auth-check preflight command, if any.
-///
-/// The viewer uses this to recognize preflight blocks via exact string
-/// equality (so they stay grouped under "Set up environment commands"
-/// rather than being mistaken for the main harness invocation, which
-/// shares the same CLI prefix).
-///
-/// Returns `None` for [`Harness::Oz`], for unsupported harnesses, and
-/// for any third-party harness whose `auth_check_command` returns `None`
-/// (e.g. Gemini today).
-pub(crate) fn auth_check_command_for(harness: Harness) -> Option<String> {
-    let HarnessKind::ThirdParty(third_party) = harness_kind(harness).ok()? else {
-        return None;
-    };
-    third_party.auth_check_command()
 }
 
 /// Check that `cli` is installed and on PATH, returning a `HarnessSetupFailed`

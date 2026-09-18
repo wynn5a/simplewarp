@@ -11874,6 +11874,9 @@ impl Workspace {
             );
         }
     }
+    /// Fork an existing AI conversation.
+    /// Optionally summarizes the conversation after forking and/or sends an initial prompt.
+    #[allow(clippy::too_many_arguments)]
     fn fork_ai_conversation(
         &mut self,
         conversation_id: AIConversationId,

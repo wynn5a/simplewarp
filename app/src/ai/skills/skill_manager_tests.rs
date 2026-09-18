@@ -1095,13 +1095,19 @@ fn factory_mcp_direct_read_respects_factory_mcp_feature() {
             manager.skill_by_reference(&reference).is_some()
         }));
         assert!(handle.read(&app, |manager, ctx| {
-            manager.active_skill_by_reference(&reference, ctx).is_none()
+            manager
+                .active_skill_by_reference_with_origin(&reference, &SkillPathOrigin::Local, ctx)
+                .ok()
+                .is_none()
         }));
 
         drop(factory_mcp);
         let factory_mcp_enabled = FeatureFlag::FactoryMcp.override_enabled(true);
         assert!(handle.read(&app, |manager, ctx| {
-            manager.active_skill_by_reference(&reference, ctx).is_some()
+            manager
+                .active_skill_by_reference_with_origin(&reference, &SkillPathOrigin::Local, ctx)
+                .ok()
+                .is_some()
         }));
         drop(factory_mcp_enabled);
     });
@@ -1126,7 +1132,8 @@ fn active_skill_by_reference_resolves_exact_remote_identity() {
 
         let resolved = handle.read(&app, |manager, ctx| {
             manager
-                .active_skill_by_reference(&reference, ctx)
+                .active_skill_by_reference_with_origin(&reference, &SkillPathOrigin::Local, ctx)
+                .ok()
                 .map(|skill| skill.path.clone())
         });
 
@@ -1160,10 +1167,20 @@ fn active_skill_by_reference_distinguishes_remote_hosts_with_the_same_display_pa
         let resolved = handle.read(&app, |manager, ctx| {
             (
                 manager
-                    .active_skill_by_reference(&first_reference, ctx)
+                    .active_skill_by_reference_with_origin(
+                        &first_reference,
+                        &SkillPathOrigin::Local,
+                        ctx,
+                    )
+                    .ok()
                     .map(|skill| skill.path.clone()),
                 manager
-                    .active_skill_by_reference(&second_reference, ctx)
+                    .active_skill_by_reference_with_origin(
+                        &second_reference,
+                        &SkillPathOrigin::Local,
+                        ctx,
+                    )
+                    .ok()
                     .map(|skill| skill.path.clone()),
             )
         });

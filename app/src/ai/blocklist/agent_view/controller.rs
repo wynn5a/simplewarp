@@ -874,18 +874,6 @@ impl AgentViewController {
         );
     }
 
-    /// Exits the active agent view without any confirmation.
-    pub(crate) fn exit_agent_view_without_confirmation(&mut self, ctx: &mut ModelContext<Self>) {
-        self.exit_agent_view_internal(
-            ExitAgentViewOptions {
-                should_confirm: ExitConfirmationRequirement::None,
-            },
-            ExitConfirmationTrigger::Escape,
-            false,
-            ctx,
-        );
-    }
-
     /// Exits the active agent view, if there is one.
     pub fn exit_agent_view(&mut self, ctx: &mut ModelContext<Self>) {
         let should_confirm = if self.agent_view_state.is_inline() {

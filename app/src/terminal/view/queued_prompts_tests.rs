@@ -597,8 +597,12 @@ fn enqueue_followup_prompt_appends_compact_and_row_when_v2_is_enabled() {
                 ctx,
             );
 
+            let queue = QueuedQueryModel::as_ref(ctx).queue(conversation_id);
             assert_eq!(
-                queue_texts(view, ctx),
+                queue
+                    .iter()
+                    .map(|query| (query.text().to_owned(), query.origin()))
+                    .collect::<Vec<_>>(),
                 vec![(
                     "follow up after summarize".to_owned(),
                     QueuedQueryOrigin::CompactAndSlashCommand
@@ -626,8 +630,12 @@ fn enqueue_followup_prompt_appends_fork_and_compact_row_when_v2_is_enabled() {
                 ctx,
             );
 
+            let queue = QueuedQueryModel::as_ref(ctx).queue(conversation_id);
             assert_eq!(
-                queue_texts(view, ctx),
+                queue
+                    .iter()
+                    .map(|query| (query.text().to_owned(), query.origin()))
+                    .collect::<Vec<_>>(),
                 vec![(
                     "work on the forked branch".to_owned(),
                     QueuedQueryOrigin::ForkAndCompactSlashCommand

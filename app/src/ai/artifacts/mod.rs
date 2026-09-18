@@ -1,8 +1,6 @@
 use std::path::Path;
 
-use anyhow::anyhow;
 use ui_components::lightbox::{LightboxImage, LightboxImageSource};
-use warp_errors::report_error;
 use warp_multi_agent_api as api;
 use warpui::SingletonEntity;
 
@@ -278,25 +276,6 @@ pub fn parse_github_pr_url(url: &str) -> Option<(String, u32)> {
         }
         Some((w[0].to_string(), w[2].parse().ok()?))
     })
-}
-
-/// Deserialize artifacts, skipping any that fail to parse.
-/// This ensures task loading doesn't fail entirely if an artifact has an unknown format.
-pub fn deserialize_artifacts<'de, D>(deserializer: D) -> Result<Vec<Artifact>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let values: Vec<serde_json::Value> = serde::Deserialize::deserialize(deserializer)?;
-    Ok(values
-        .into_iter()
-        .filter_map(|value| match serde_json::from_value::<Artifact>(value) {
-            Ok(artifact) => Some(artifact),
-            Err(e) => {
-                report_error!(anyhow!("Failed to deserialize artifact, skipping: {}", e));
-                None
-            }
-        })
-        .collect())
 }
 
 pub fn file_button_label(filename: &str, filepath: &str) -> String {

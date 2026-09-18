@@ -696,7 +696,7 @@ fn test_input_tab() {
 }
 
 #[test]
-fn zero_state_hint_text_only_registers_active_slash_command_placeholders() {
+fn zero_state_hint_text_refreshes_active_slash_command_placeholders() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -716,30 +716,32 @@ fn zero_state_hint_text_only_registers_active_slash_command_placeholders() {
 
         let editor = input.read(&app, |input, _| input.editor().clone());
         let rename_tab_prefix = format!("{} ", commands::RENAME_TAB.name);
-        let compact_prefix = format!("{} ", commands::COMPACT.name);
+        let rename_tab_hint = commands::RENAME_TAB
+            .argument
+            .as_ref()
+            .and_then(|argument| argument.hint_text)
+            .expect("/rename-tab declares a hint text");
+        let placeholder = |app: &App, prefix: &str| {
+            editor.read(app, |editor, _| {
+                editor.placeholder_text(prefix).map(str::to_owned)
+            })
+        };
 
         editor.update(&mut app, |editor, ctx| {
-            editor.set_placeholder_text_with_prefix(compact_prefix.clone(), "stale hint", ctx);
+            editor.set_placeholder_text_with_prefix(rename_tab_prefix.clone(), "stale hint", ctx);
         });
         input.update(&mut app, |input, ctx| {
             input.set_zero_state_hint_text(ctx);
         });
 
-        assert!(
-            editor.read(&app, |editor, _| editor
-                .placeholder_text(&rename_tab_prefix)
-                .is_some()),
-            "always-active slash command placeholders should still be registered"
-        );
-        assert!(
-            editor.read(&app, |editor, _| editor
-                .placeholder_text(&compact_prefix)
-                .is_none()),
-            "/compact should not be registered without an active conversation"
+        assert_eq!(
+            placeholder(&app, &rename_tab_prefix).as_deref(),
+            Some(rename_tab_hint),
+            "a stale placeholder is replaced by the active command's own hint"
         );
 
         editor.update(&mut app, |editor, ctx| {
-            editor.set_placeholder_text_with_prefix(compact_prefix.clone(), "stale hint", ctx);
+            editor.set_placeholder_text_with_prefix(rename_tab_prefix.clone(), "stale hint", ctx);
         });
 
         let repo_dir = tempfile::TempDir::new().expect("repo temp dir");
@@ -759,10 +761,9 @@ fn zero_state_hint_text_only_registers_active_slash_command_placeholders() {
             input.update_repo_path(Some(repo_path), ctx);
         });
 
-        assert!(
-            editor.read(&app, |editor, _| editor
-                .placeholder_text(&compact_prefix)
-                .is_none()),
+        assert_eq!(
+            placeholder(&app, &rename_tab_prefix).as_deref(),
+            Some(rename_tab_hint),
             "active slash-command data source updates should refresh stale placeholders"
         );
     });

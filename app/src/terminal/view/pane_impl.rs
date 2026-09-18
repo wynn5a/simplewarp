@@ -789,9 +789,7 @@ impl TerminalView {
     pub fn selected_conversation_status(&self, ctx: &AppContext) -> Option<ConversationStatus> {
         let long_running = self.is_long_running();
 
-        let Some(conversation) = self.selected_conversation_for_user_facing_chrome(ctx) else {
-            return None;
-        };
+        let conversation = self.selected_conversation_for_user_facing_chrome(ctx)?;
 
         if long_running {
             return Some(ConversationStatus::InProgress);

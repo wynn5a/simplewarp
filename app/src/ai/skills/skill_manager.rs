@@ -308,22 +308,12 @@ impl SkillManager {
         }
     }
 
-    /// Get the definition of a skill only if it is currently available for invocation.
+    /// Get the definition of a skill for the selected execution host only if it is active.
     ///
     /// Path-based user skills are always controlled by normal path scoping. Bundled
     /// skills (the local catalog's ID-addressed entries and remote catalogs'
     /// path-addressed entries) additionally respect their runtime activation
     /// state so stale references cannot invoke disabled bundled skills.
-    pub fn active_skill_by_reference(
-        &self,
-        reference: &SkillReference,
-        ctx: &AppContext,
-    ) -> Option<&ParsedSkill> {
-        self.active_skill_by_reference_with_origin(reference, &SkillPathOrigin::Local, ctx)
-            .ok()
-    }
-
-    /// Get the definition of a skill for the selected execution host only if it is active.
     pub fn active_skill_by_reference_with_origin(
         &self,
         reference: &SkillReference,

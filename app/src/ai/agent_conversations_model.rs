@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 pub mod entry;
 mod query;
 
@@ -7,7 +6,6 @@ use std::collections::{HashMap, HashSet};
 use clap::ValueEnum;
 pub use entry::{
     AgentConversationEntry, AgentConversationEntryId, AgentConversationNavigationSubject,
-    AgentConversationProvenance,
 };
 use fuzzy_match::FuzzyMatchResult;
 use itertools::Itertools;
@@ -189,54 +187,52 @@ impl AgentManagementFilters {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AgentRunDisplayStatus {
     /// Conversation-derived lifecycle states for interactive conversations.
-    ConversationInProgress,
-    ConversationSucceeded,
-    ConversationError,
-    ConversationBlocked {
+    InProgress,
+    Succeeded,
+    Error,
+    Blocked {
         blocked_action: String,
     },
-    ConversationCancelled,
+    Cancelled,
 }
 
 impl AgentRunDisplayStatus {
     pub fn from_conversation_status(status: &ConversationStatus) -> Self {
         match status {
-            ConversationStatus::InProgress => Self::ConversationInProgress,
+            ConversationStatus::InProgress => Self::InProgress,
             // A recovery is in flight; the run is still working.
-            ConversationStatus::TransientError => Self::ConversationInProgress,
-            ConversationStatus::Success => Self::ConversationSucceeded,
-            ConversationStatus::Error => Self::ConversationError,
-            ConversationStatus::Cancelled => Self::ConversationCancelled,
-            ConversationStatus::Blocked { blocked_action } => Self::ConversationBlocked {
+            ConversationStatus::TransientError => Self::InProgress,
+            ConversationStatus::Success => Self::Succeeded,
+            ConversationStatus::Error => Self::Error,
+            ConversationStatus::Cancelled => Self::Cancelled,
+            ConversationStatus::Blocked { blocked_action } => Self::Blocked {
                 blocked_action: blocked_action.clone(),
             },
             // Treat a yielded conversation as still in progress for the
             // agent-run list display so it stays in the working bucket.
-            ConversationStatus::WaitingForEvents => Self::ConversationInProgress,
+            ConversationStatus::WaitingForEvents => Self::InProgress,
         }
     }
 
     pub fn status_filter(&self) -> StatusFilter {
         match self {
-            AgentRunDisplayStatus::ConversationInProgress => StatusFilter::Working,
-            AgentRunDisplayStatus::ConversationSucceeded => StatusFilter::Done,
-            AgentRunDisplayStatus::ConversationError
-            | AgentRunDisplayStatus::ConversationBlocked { .. }
-            | AgentRunDisplayStatus::ConversationCancelled => StatusFilter::Failed,
+            AgentRunDisplayStatus::InProgress => StatusFilter::Working,
+            AgentRunDisplayStatus::Succeeded => StatusFilter::Done,
+            AgentRunDisplayStatus::Error
+            | AgentRunDisplayStatus::Blocked { .. }
+            | AgentRunDisplayStatus::Cancelled => StatusFilter::Failed,
         }
     }
 
     pub fn to_conversation_status(&self) -> ConversationStatus {
         match self {
-            AgentRunDisplayStatus::ConversationInProgress => ConversationStatus::InProgress,
-            AgentRunDisplayStatus::ConversationSucceeded => ConversationStatus::Success,
-            AgentRunDisplayStatus::ConversationError => ConversationStatus::Error,
-            AgentRunDisplayStatus::ConversationBlocked { blocked_action } => {
-                ConversationStatus::Blocked {
-                    blocked_action: blocked_action.clone(),
-                }
-            }
-            AgentRunDisplayStatus::ConversationCancelled => ConversationStatus::Cancelled,
+            AgentRunDisplayStatus::InProgress => ConversationStatus::InProgress,
+            AgentRunDisplayStatus::Succeeded => ConversationStatus::Success,
+            AgentRunDisplayStatus::Error => ConversationStatus::Error,
+            AgentRunDisplayStatus::Blocked { blocked_action } => ConversationStatus::Blocked {
+                blocked_action: blocked_action.clone(),
+            },
+            AgentRunDisplayStatus::Cancelled => ConversationStatus::Cancelled,
         }
     }
 
@@ -245,20 +241,16 @@ impl AgentRunDisplayStatus {
     }
 
     pub fn is_working(&self) -> bool {
-        matches!(self, AgentRunDisplayStatus::ConversationInProgress)
+        matches!(self, AgentRunDisplayStatus::InProgress)
     }
 
     pub fn status_icon_and_color(&self, theme: &WarpTheme) -> (Icon, ColorU) {
         match self {
-            AgentRunDisplayStatus::ConversationInProgress => {
-                (Icon::ClockLoader, theme.ansi_fg_magenta())
-            }
-            AgentRunDisplayStatus::ConversationSucceeded => (Icon::Check, theme.ansi_fg_green()),
-            AgentRunDisplayStatus::ConversationError => (Icon::Triangle, theme.ansi_fg_red()),
-            AgentRunDisplayStatus::ConversationBlocked { .. } => {
-                (Icon::StopFilled, theme.ansi_fg_yellow())
-            }
-            AgentRunDisplayStatus::ConversationCancelled => {
+            AgentRunDisplayStatus::InProgress => (Icon::ClockLoader, theme.ansi_fg_magenta()),
+            AgentRunDisplayStatus::Succeeded => (Icon::Check, theme.ansi_fg_green()),
+            AgentRunDisplayStatus::Error => (Icon::Triangle, theme.ansi_fg_red()),
+            AgentRunDisplayStatus::Blocked { .. } => (Icon::StopFilled, theme.ansi_fg_yellow()),
+            AgentRunDisplayStatus::Cancelled => {
                 (Icon::StopFilled, internal_colors::neutral_5(theme))
             }
         }
@@ -268,11 +260,11 @@ impl AgentRunDisplayStatus {
 impl std::fmt::Display for AgentRunDisplayStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AgentRunDisplayStatus::ConversationInProgress => write!(f, "In progress"),
-            AgentRunDisplayStatus::ConversationSucceeded => write!(f, "Done"),
-            AgentRunDisplayStatus::ConversationError => write!(f, "Error"),
-            AgentRunDisplayStatus::ConversationBlocked { .. } => write!(f, "Blocked"),
-            AgentRunDisplayStatus::ConversationCancelled => write!(f, "Cancelled"),
+            AgentRunDisplayStatus::InProgress => write!(f, "In progress"),
+            AgentRunDisplayStatus::Succeeded => write!(f, "Done"),
+            AgentRunDisplayStatus::Error => write!(f, "Error"),
+            AgentRunDisplayStatus::Blocked { .. } => write!(f, "Blocked"),
+            AgentRunDisplayStatus::Cancelled => write!(f, "Cancelled"),
         }
     }
 }

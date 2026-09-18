@@ -57,7 +57,6 @@ mod model;
 pub mod output;
 mod profiles;
 mod provider;
-pub(crate) mod retry;
 pub(crate) mod setup_observability;
 mod telemetry;
 

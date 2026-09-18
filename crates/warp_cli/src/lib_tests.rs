@@ -347,72 +347,6 @@ fn agent_run_idle_on_fail_is_independent_of_idle_on_complete() {
 }
 
 #[test]
-fn agent_run_accepts_skip_initial_turn_with_task_id_and_idle_on_complete() {
-    let args = Args::try_parse_from([
-        "warp",
-        "agent",
-        "run",
-        "--task-id",
-        "abc",
-        "--skip-initial-turn",
-        "--idle-on-complete",
-    ])
-    .unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp agent run` command");
-    };
-    let CliCommand::Agent(AgentCommand::Run(run_args)) = boxed_cmd.as_ref() else {
-        panic!("Expected `warp agent run` command");
-    };
-
-    assert_eq!(run_args.task_id.as_deref(), Some("abc"));
-    assert!(run_args.skip_initial_turn);
-    assert!(run_args.idle_on_complete.is_some());
-}
-
-#[test]
-fn agent_run_rejects_skip_initial_turn_without_idle_on_complete() {
-    // Without `--idle-on-complete`, the driver would exit immediately on Success
-    // before any follow-up could arrive, defeating the purpose of skip. Pinned at
-    // the CLI layer so the invariant fails loudly at parse time instead of at
-    // runtime.
-    let result = Args::try_parse_from([
-        "warp",
-        "agent",
-        "run",
-        "--task-id",
-        "abc",
-        "--skip-initial-turn",
-    ]);
-
-    assert!(
-        result.is_err(),
-        "--skip-initial-turn without --idle-on-complete should fail to parse"
-    );
-}
-
-#[test]
-fn agent_run_rejects_skip_initial_turn_without_task_id() {
-    // `--skip-initial-turn` is only meaningful on the server-side prompt path,
-    // which requires `--task-id`.
-    let result = Args::try_parse_from([
-        "warp",
-        "agent",
-        "run",
-        "--prompt",
-        "hello",
-        "--skip-initial-turn",
-        "--idle-on-complete",
-    ]);
-
-    assert!(
-        result.is_err(),
-        "--skip-initial-turn without --task-id should fail to parse"
-    );
-}
-
-#[test]
 fn agent_run_accepts_snapshot_flags() {
     let args = Args::try_parse_from([
         "warp",
@@ -450,21 +384,7 @@ fn agent_run_accepts_snapshot_flags() {
     );
 }
 #[test]
-fn agent_run_rejects_prompt_and_task_id() {
-    let result = Args::try_parse_from([
-        "warp",
-        "agent",
-        "run",
-        "--prompt",
-        "hello",
-        "--task-id",
-        "d1b9b002-a8e1-422a-9016-e62490cb6a59",
-    ]);
-    assert!(result.is_err());
-}
-
-#[test]
-fn agent_run_rejects_without_prompt_or_task_id() {
+fn agent_run_requires_a_prompt() {
     let result = Args::try_parse_from(["warp", "agent", "run", "--model", "gpt-4o"]);
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -486,7 +406,6 @@ fn agent_run_accepts_prompt_only() {
     assert_eq!(run_args.prompt_arg.prompt.as_deref(), Some("hello"));
     assert!(run_args.prompt_arg.saved_prompt.is_none());
     assert!(run_args.skill.is_none());
-    assert!(run_args.task_id.is_none());
 }
 
 #[test]
@@ -503,7 +422,6 @@ fn agent_run_accepts_saved_prompt_only() {
     assert!(run_args.prompt_arg.prompt.is_none());
     assert_eq!(run_args.prompt_arg.saved_prompt.as_deref(), Some("sp-123"));
     assert!(run_args.skill.is_none());
-    assert!(run_args.task_id.is_none());
 }
 
 #[test]
@@ -519,23 +437,6 @@ fn agent_run_accepts_skill_only() {
 
     assert!(run_args.prompt_arg.prompt.is_none());
     assert!(run_args.skill.is_some());
-    assert!(run_args.task_id.is_none());
-}
-
-#[test]
-fn agent_run_accepts_task_id_only() {
-    let args = Args::try_parse_from(["warp", "agent", "run", "--task-id", "tid-456"]).unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp agent run` command");
-    };
-    let CliCommand::Agent(AgentCommand::Run(run_args)) = boxed_cmd.as_ref() else {
-        panic!("Expected `warp agent run` command");
-    };
-
-    assert!(run_args.prompt_arg.prompt.is_none());
-    assert!(run_args.skill.is_none());
-    assert_eq!(run_args.task_id.as_deref(), Some("tid-456"));
 }
 
 #[test]
@@ -578,59 +479,6 @@ fn agent_run_accepts_saved_prompt_and_skill() {
 
     assert_eq!(run_args.prompt_arg.saved_prompt.as_deref(), Some("sp-1"));
     assert!(run_args.skill.is_some());
-}
-
-#[test]
-fn agent_run_rejects_saved_prompt_and_task_id() {
-    let result = Args::try_parse_from([
-        "warp",
-        "agent",
-        "run",
-        "--saved-prompt",
-        "sp-1",
-        "--task-id",
-        "tid-1",
-    ]);
-    assert!(result.is_err());
-}
-
-#[test]
-fn agent_run_rejects_file_and_task_id() {
-    let result = Args::try_parse_from([
-        "warp",
-        "agent",
-        "run",
-        "--task-id",
-        "tid-1",
-        "--file",
-        "config.yaml",
-    ]);
-    assert!(result.is_err());
-}
-
-#[test]
-fn agent_run_accepts_skill_and_task_id() {
-    let args = Args::try_parse_from([
-        "warp",
-        "agent",
-        "run",
-        "--skill",
-        "my-skill",
-        "--task-id",
-        "tid-1",
-    ])
-    .unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp agent run` command");
-    };
-    let CliCommand::Agent(AgentCommand::Run(run_args)) = boxed_cmd.as_ref() else {
-        panic!("Expected `warp agent run` command");
-    };
-
-    assert!(run_args.prompt_arg.prompt.is_none());
-    assert!(run_args.skill.is_some());
-    assert_eq!(run_args.task_id.as_deref(), Some("tid-1"));
 }
 
 #[test]

@@ -19,8 +19,6 @@ use crate::auth::{AuthStateProvider, UserUid};
 use crate::workspace::RestoreConversationLayout;
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 
-const SESSION_EXPIRATION_TIME: chrono::Duration = chrono::Duration::weeks(1);
-
 /// Stable projection identity used by list and navigation surfaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AgentConversationEntryId {
@@ -296,7 +294,7 @@ fn conversation_display_status(
                 &orchestration_aware_conversation_status(history_model, conversation),
             )
         })
-        .unwrap_or(AgentRunDisplayStatus::ConversationSucceeded)
+        .unwrap_or(AgentRunDisplayStatus::Succeeded)
 }
 
 fn conversation_request_usage(
@@ -495,14 +493,4 @@ fn server_conversation_token_for_conversation(
                 .and_then(|metadata| metadata.server_conversation_token.clone())
         })
         .or_else(|| nav_data.and_then(|nav_data| nav_data.server_conversation_token.clone()))
-}
-
-pub(super) fn parse_session_id(session_id: &str) -> Option<SessionId> {
-    match session_id.parse::<SessionId>() {
-        Ok(session_id) => Some(session_id),
-        Err(e) => {
-            log::warn!("Failed to parse shared session ID: {e}");
-            None
-        }
-    }
 }

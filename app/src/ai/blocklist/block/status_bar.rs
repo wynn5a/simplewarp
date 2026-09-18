@@ -338,7 +338,7 @@ impl BlocklistAIStatusBar {
             )
         });
 
-        let me = Self {
+        Self {
             active_exchange_model: None,
             shimmering_text_handle: ShimmeringTextStateHandle::new(),
             action_model,
@@ -363,8 +363,7 @@ impl BlocklistAIStatusBar {
             current_tip: None,
             ephemeral_message_model,
             agent_message_bar,
-        };
-        me
+        }
     }
 
     pub fn should_show_summarization_cancel_dialog(&self, app: &AppContext) -> bool {

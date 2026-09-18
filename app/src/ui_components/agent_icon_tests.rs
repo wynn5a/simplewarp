@@ -20,11 +20,10 @@ use super::{
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::agent_conversations_model::entry::{
     AgentConversationBackingData, AgentConversationCapabilities, AgentConversationDisplayData,
-    AgentConversationIdentity, AgentConversationPrincipal,
+    AgentConversationIdentity, AgentConversationPrincipal, AgentConversationProvenance,
 };
 use crate::ai::agent_conversations_model::{
-    AgentConversationEntry, AgentConversationEntryId, AgentConversationProvenance,
-    AgentRunDisplayStatus,
+    AgentConversationEntry, AgentConversationEntryId, AgentRunDisplayStatus,
 };
 use crate::terminal::CLIAgent;
 use crate::ui_components::icon_with_status::IconWithStatusVariant;
@@ -312,7 +311,7 @@ fn entry_icon_uses_harness_and_cloud_run_identity() {
             initial_query: None,
             created_at: Utc::now(),
             last_updated: Utc::now(),
-            status: AgentRunDisplayStatus::ConversationSucceeded,
+            status: AgentRunDisplayStatus::Succeeded,
             creator: AgentConversationPrincipal::default(),
             executor: None,
             request_usage: None,

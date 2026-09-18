@@ -13,38 +13,6 @@ fn new_task_id() -> AmbientAgentTaskId {
 }
 
 #[test]
-fn conversation_switch_updates_last_focused_terminal_state() {
-    App::test((), |mut app| async move {
-        let model = setup_model(&mut app);
-        let window = WindowId::new();
-        let terminal = EntityId::new();
-        let conversation_1 = AIConversationId::new();
-        let conversation_2 = AIConversationId::new();
-
-        model.update(&mut app, |model, ctx| {
-            model.handle_pane_focus_change(window, Some(terminal), None, ctx);
-            model.update_focused_conversation_for_terminal(
-                terminal,
-                Some(ConversationOrTaskId::ConversationId(conversation_1)),
-            );
-        });
-        model.read(&app, |model, _| {
-            assert_eq!(model.get_last_focused_terminal_id(), Some(terminal));
-        });
-
-        model.update(&mut app, |model, _| {
-            model.update_focused_conversation_for_terminal(
-                terminal,
-                Some(ConversationOrTaskId::ConversationId(conversation_2)),
-            );
-        });
-        model.read(&app, |model, _| {
-            assert_eq!(model.get_last_focused_terminal_id(), Some(terminal));
-        });
-    });
-}
-
-#[test]
 fn per_window_focused_state_is_independent() {
     App::test((), |mut app| async move {
         let model = setup_model(&mut app);
@@ -100,41 +68,6 @@ fn clearing_one_window_does_not_affect_other() {
                 model.get_focused_conversation(window_b),
                 Some(ConversationOrTaskId::TaskId(task_b))
             );
-        });
-    });
-}
-
-#[test]
-fn last_focused_terminal_tracks_most_recent_globally() {
-    App::test((), |mut app| async move {
-        let model = setup_model(&mut app);
-        let window_a = WindowId::new();
-        let window_b = WindowId::new();
-        let terminal_a = EntityId::new();
-        let terminal_b = EntityId::new();
-        let task_a = new_task_id();
-        let task_b = new_task_id();
-
-        model.update(&mut app, |model, ctx| {
-            model.handle_pane_focus_change(window_a, Some(terminal_a), Some(task_a), ctx);
-        });
-        model.read(&app, |model, _| {
-            assert_eq!(model.get_last_focused_terminal_id(), Some(terminal_a));
-        });
-
-        model.update(&mut app, |model, ctx| {
-            model.handle_pane_focus_change(window_b, Some(terminal_b), Some(task_b), ctx);
-        });
-        model.read(&app, |model, _| {
-            assert_eq!(model.get_last_focused_terminal_id(), Some(terminal_b));
-        });
-
-        // Clearing window B's focus should NOT clear last_focused (it persists).
-        model.update(&mut app, |model, ctx| {
-            model.handle_pane_focus_change(window_b, None, None, ctx);
-        });
-        model.read(&app, |model, _| {
-            assert_eq!(model.get_last_focused_terminal_id(), Some(terminal_b));
         });
     });
 }

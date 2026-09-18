@@ -274,13 +274,6 @@ impl ActiveAgentViewsModel {
             .and_then(|state| state.active_conversation_id)
     }
 
-    /// Get the last focused terminal view id (persisted across non-terminal focus changes).
-    pub fn get_last_focused_terminal_id(&self) -> Option<EntityId> {
-        self.last_focused_terminal_state
-            .as_ref()
-            .map(|state| state.focused_terminal_id)
-    }
-
     /// Returns the focused conversation ID if it's a new/empty conversation view.
     /// Only returns Some if the focused agent view was just created to start a new
     /// conversation (i.e. has no exchanges yet).
