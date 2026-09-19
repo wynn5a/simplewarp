@@ -130,8 +130,6 @@ pub enum AgentViewEntryOrigin {
     AcceptedPassiveCodeDiff,
     /// Entered agent view by starting conversation with an inline code review submission.
     InlineCodeReview,
-    /// Entered agent view through a cloud agent prompt.
-    CloudAgent,
     /// Entered agent view by opening an existing non-Oz cloud agent run (live shared-session
     /// viewer or transcript viewer).
     ThirdPartyCloudAgent,
@@ -212,10 +210,6 @@ pub enum AutoTriggerBehavior {
 }
 
 impl AgentViewEntryOrigin {
-    pub fn is_cloud_agent(&self) -> bool {
-        matches!(self, Self::CloudAgent)
-    }
-
     pub fn should_autotrigger_request(&self) -> AutoTriggerBehavior {
         match self {
             AgentViewEntryOrigin::Input {
@@ -809,7 +803,7 @@ impl AgentViewController {
                     history_model.start_new_conversation(
                         self.terminal_view_id,
                         false,
-                        matches!(&origin, AgentViewEntryOrigin::CloudAgent),
+                        false,
                         matches!(&origin, AgentViewEntryOrigin::ThirdPartyCloudAgent),
                         ctx,
                     )
@@ -827,10 +821,7 @@ impl AgentViewController {
             original_conversation_length: exchange_count,
         };
 
-        let is_cloud = matches!(
-            origin,
-            AgentViewEntryOrigin::CloudAgent | AgentViewEntryOrigin::ThirdPartyCloudAgent
-        );
+        let is_cloud = matches!(origin, AgentViewEntryOrigin::ThirdPartyCloudAgent);
 
         self.terminal_model
             .lock()
@@ -965,14 +956,13 @@ impl AgentViewController {
             .map(|conversation| conversation.exchange_count())
             .unwrap_or(0);
 
-        let was_ambient_agent = origin == AgentViewEntryOrigin::CloudAgent;
         ctx.emit(AgentViewControllerEvent::ExitedAgentView {
             conversation_id,
             origin,
             display_mode,
             original_exchange_count: original_conversation_length,
             final_exchange_count,
-            was_ambient_agent,
+            was_ambient_agent: false,
             is_exit_before_new_entrance,
         });
     }

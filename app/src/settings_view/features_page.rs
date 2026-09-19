@@ -3566,10 +3566,12 @@ impl FeaturesPageView {
                 let current_tab_config_path = ai_settings.default_tab_config_path().to_string();
 
                 // Build items: built-in modes (skip TabConfig since configs are listed individually,
+                // skip CloudAgent since cloud tabs can no longer be created,
                 // and skip DockerSandbox when its feature flag is disabled).
                 let docker_sandbox_enabled = FeatureFlag::LocalDockerSandbox.is_enabled();
                 let mut items: Vec<DropdownItem<FeaturesPageAction>> = DefaultSessionMode::iter()
                     .filter(|val| *val != DefaultSessionMode::TabConfig)
+                    .filter(|val| *val != DefaultSessionMode::CloudAgent)
                     .filter(|val| {
                         *val != DefaultSessionMode::DockerSandbox || docker_sandbox_enabled
                     })

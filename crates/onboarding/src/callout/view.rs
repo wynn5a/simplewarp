@@ -15,8 +15,6 @@ pub struct OnboardingKeybindings {
     pub toggle_input_mode: String,
     /// Display string for submitting to local agent (e.g., "⌘⏎")
     pub submit_to_local_agent: String,
-    /// Display string for submitting to cloud agent (e.g., "⌘⌥⏎")
-    pub submit_to_cloud_agent: String,
     /// Display string for returning to terminal mode (e.g., "Esc")
     pub return_to_terminal_mode: String,
 }

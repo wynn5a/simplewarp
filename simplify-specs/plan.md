@@ -102,9 +102,12 @@ script does not install:
 | Xcode | The App Store. Command Line Tools alone have no `metal`, which `crates/warpui/build.rs:113` runs. |
 | Metal Toolchain | `xcodebuild -downloadComponent MetalToolchain` (839 MB). Xcode 26 ships it separately. |
 
-`xcode-select` still points at Command Line Tools, so every build command carries
-`DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer`. `sudo xcode-select -s
-/Applications/Xcode-beta.app` would make that permanent.
+`xcode-select` already points at `/Applications/Xcode.app` (verified 2026-09-19;
+`xcode-select -p` returns `/Applications/Xcode.app/Contents/Developer`), so no
+`DEVELOPER_DIR` override is needed. If it ever points elsewhere, either switch it
+permanently (`sudo xcode-select -s /Applications/Xcode.app`) or prefix build commands
+with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. (`Xcode-beta.app`,
+named by earlier rounds, no longer exists.)
 
 ### Phase 1 — The `simplewarp` binary — DONE
 
@@ -5274,10 +5277,11 @@ and to `git push`: push to `origin` only, and never add a remote pointing at `wa
 
 ## Build commands
 
-`DEVELOPER_DIR` is necessary until `xcode-select` is switched.
+No `DEVELOPER_DIR` override is needed (`xcode-select -p` returns
+`/Applications/Xcode.app/Contents/Developer`). If the toolchain ever moves, prefix
+with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
 
 ```sh
-export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer
 cargo run --no-default-features --features simplewarp --bin simplewarp   # the app
 cargo test -p local_inference                                            # the AI adapter
 cargo check -p warp --bin warp-oss                                       # no regression

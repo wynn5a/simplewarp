@@ -1709,14 +1709,16 @@ impl AISettings {
         match mode {
             // Terminal and TabConfig don't require AI.
             DefaultSessionMode::Terminal | DefaultSessionMode::TabConfig => mode,
-            // Agent and CloudAgent require AI to be enabled.
-            DefaultSessionMode::Agent | DefaultSessionMode::CloudAgent => {
+            // Agent requires AI to be enabled.
+            DefaultSessionMode::Agent => {
                 if self.is_any_ai_enabled(app) {
                     mode
                 } else {
                     DefaultSessionMode::Terminal
                 }
             }
+            // Cloud agent tabs can no longer be created; a persisted value degrades to Terminal.
+            DefaultSessionMode::CloudAgent => DefaultSessionMode::Terminal,
             // DockerSandbox is gated on its feature flag; fall back to Terminal
             // when disabled so a stale stored value doesn't wedge the user.
             DefaultSessionMode::DockerSandbox => {

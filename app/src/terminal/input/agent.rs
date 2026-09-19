@@ -10,12 +10,8 @@ use super::common::{
     add_workflow_info_overlay, wrap_input_with_terminal_padding_and_focus_handler,
 };
 use super::{Input, InputAction, InputDropTargetData};
-use crate::BlocklistAIHistoryModel;
 use crate::ai::blocklist::InputType;
-use crate::ai::blocklist::agent_view::AgentViewState;
-use crate::ai::blocklist::agent_view::shortcuts::{
-    AgentShortcutsViewContext, render_agent_shortcuts_view,
-};
+use crate::ai::blocklist::agent_view::shortcuts::render_agent_shortcuts_view;
 use crate::appearance::Appearance;
 use crate::context_chips::spacing::{self};
 use crate::features::FeatureFlag;
@@ -198,35 +194,7 @@ impl Input {
             .as_ref(app)
             .is_shortcut_view_open()
         {
-            let agent_view_controller = self.agent_view_controller.as_ref(app);
-            let (is_cloud_agent, has_submitted_first_prompt) =
-                match agent_view_controller.agent_view_state() {
-                    AgentViewState::Active {
-                        conversation_id,
-                        origin,
-                        ..
-                    } => {
-                        let is_cloud_agent = origin.is_cloud_agent();
-                        let has_submitted_first_prompt = if is_cloud_agent {
-                            BlocklistAIHistoryModel::as_ref(app)
-                                .conversation(conversation_id)
-                                .is_some_and(|c| c.initial_user_query().is_some())
-                        } else {
-                            true
-                        };
-                        (is_cloud_agent, has_submitted_first_prompt)
-                    }
-                    // When inactive, show all shortcuts (treat as not-cloud and not in the zero-state).
-                    AgentViewState::Inactive => (false, true),
-                };
-
-            column.add_child(render_agent_shortcuts_view(
-                AgentShortcutsViewContext {
-                    is_cloud_agent,
-                    has_submitted_first_prompt,
-                },
-                app,
-            ));
+            column.add_child(render_agent_shortcuts_view(app));
         }
         column.add_child(ChildView::new(&self.agent_status_view).finish());
         if let Some(panel) = self.queued_prompts_panel.as_ref()
