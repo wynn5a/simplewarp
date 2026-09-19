@@ -26,8 +26,6 @@ impl QueuedQueryId {
 /// The origin is informational for telemetry; FIFO ordering and firing semantics are uniform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QueuedQueryOrigin {
-    /// Filed while the initial Cloud Mode prompt waits to be handed off.
-    InitialCloudMode,
     /// Filed via the `/queue <prompt>` slash command.
     QueueSlashCommand,
     /// Filed via the auto-queue toggle in the warping indicator.
@@ -119,13 +117,10 @@ impl QueuedQuery {
 
     /// Returns true if this row is locked from user mutation, reorder, and auto-fire.
     /// Locked rows cannot be edited, deleted, reordered, pushed manually, or auto-fired by
-    /// the drain mechanism. The initial Cloud Mode row is locked permanently; PendingLrcAutoQueue
-    /// rows are locked only until the action snapshot fires.
+    /// the drain mechanism. PendingLrcAutoQueue rows are locked only until the action
+    /// snapshot fires.
     pub fn is_locked(&self) -> bool {
-        matches!(
-            self.origin,
-            QueuedQueryOrigin::InitialCloudMode | QueuedQueryOrigin::PendingLrcAutoQueue
-        )
+        matches!(self.origin, QueuedQueryOrigin::PendingLrcAutoQueue)
     }
 }
 
@@ -539,7 +534,7 @@ impl QueuedQueryModel {
     /// Used by the non-clean drain path (Error / Cancelled) to restore a single popped
     /// prompt to the input editor. No-ops when the head is locked
     /// ([`QueuedQuery::is_locked`]) so a status-transition arriving before the lifecycle
-    /// cleanup events cannot clobber the locked initial Cloud Mode row.
+    /// cleanup events cannot clobber a locked row.
     pub fn pop_front(
         &mut self,
         conversation_id: AIConversationId,

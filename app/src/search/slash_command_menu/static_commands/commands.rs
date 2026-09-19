@@ -22,18 +22,6 @@ pub static AGENT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     argument: Some(Argument::optional().with_execute_on_selection()),
 });
 
-pub static CLOUD_AGENT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/cloud-agent",
-    description: "Start a new cloud agent conversation",
-    kind: SlashCommandKind::CloudAgent,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/warp-3.svg",
-    },
-    availability: Availability::AI_ENABLED.union(Availability::NOT_CLOUD_AGENT),
-    auto_enter_ai_mode: false,
-    argument: Some(Argument::optional().with_execute_on_selection()),
-});
-
 pub const ADD_MCP: StaticCommand = StaticCommand {
     name: "/add-mcp",
     description: "Add a new MCP server via the MCP settings page",
@@ -325,34 +313,6 @@ pub static MODEL: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
         icon_path: "bundled/svg/warp-3.svg",
     },
     availability: Availability::AGENT_VIEW | Availability::AI_ENABLED,
-    auto_enter_ai_mode: true,
-    argument: None,
-});
-
-pub static HOST: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/host",
-    description: "Switch the cloud agent execution host",
-    kind: SlashCommandKind::Host,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/warp-3.svg",
-    },
-    availability: Availability::AGENT_VIEW
-        | Availability::AI_ENABLED
-        | Availability::CLOUD_MODE_V2_COMPOSER,
-    auto_enter_ai_mode: true,
-    argument: None,
-});
-
-pub static HARNESS: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/harness",
-    description: "Switch the cloud agent harness",
-    kind: SlashCommandKind::Harness,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/warp-3.svg",
-    },
-    availability: Availability::AGENT_VIEW
-        | Availability::AI_ENABLED
-        | Availability::CLOUD_MODE_V2_COMPOSER,
     auto_enter_ai_mode: true,
     argument: None,
 });
@@ -707,8 +667,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         commands.push(INVOKE_SKILL.clone());
     }
 
-    commands.push(CLOUD_AGENT.clone());
-
     if FeatureFlag::InlineProfileSelector.is_enabled() {
         commands.push(PROFILE.clone());
     }
@@ -727,9 +685,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
     if FeatureFlag::SettingsFile.is_enabled() && cfg!(feature = "local_fs") {
         commands.push(OPEN_SETTINGS_FILE);
     }
-
-    commands.push(HOST.clone());
-    commands.push(HARNESS.clone());
 
     commands
 }

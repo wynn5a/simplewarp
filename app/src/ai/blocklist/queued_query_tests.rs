@@ -46,8 +46,8 @@ fn user_query(text: &str) -> QueuedQuery {
     QueuedQuery::new(text.to_owned(), QueuedQueryOrigin::QueueSlashCommand)
 }
 
-fn initial_cloud_mode_query(text: &str) -> QueuedQuery {
-    QueuedQuery::new(text.to_owned(), QueuedQueryOrigin::InitialCloudMode)
+fn pending_lrc_query(text: &str) -> QueuedQuery {
+    QueuedQuery::new(text.to_owned(), QueuedQueryOrigin::PendingLrcAutoQueue)
 }
 
 fn command_query(text: &str) -> QueuedQuery {
@@ -75,11 +75,11 @@ fn append_user(
 }
 
 #[test]
-fn initial_cloud_mode_head_rejects_user_mutations_and_autofire() {
+fn pending_lrc_head_rejects_user_mutations_and_autofire() {
     with_model(|mut app, model, _events| {
         let conv = AIConversationId::new();
         let initial_id = model.update(&mut app, |model, ctx| {
-            model.append(conv, initial_cloud_mode_query("initial"), ctx)
+            model.append(conv, pending_lrc_query("initial"), ctx)
         });
         let followup_id = append_user(&model, &mut app, conv, "follow up");
 
@@ -101,7 +101,7 @@ fn initial_cloud_mode_head_rejects_user_mutations_and_autofire() {
             let queue = model.queue(conv);
             assert_eq!(queue.len(), 2);
             assert_eq!(queue[0].id(), initial_id);
-            assert_eq!(queue[0].origin(), QueuedQueryOrigin::InitialCloudMode);
+            assert_eq!(queue[0].origin(), QueuedQueryOrigin::PendingLrcAutoQueue);
             assert_eq!(queue[1].id(), followup_id);
             assert_eq!(model.editing_row(conv), None);
         });
@@ -115,7 +115,7 @@ fn pop_front_no_ops_when_head_is_locked() {
     with_model(|mut app, model, _events| {
         let conv = AIConversationId::new();
         let initial_id = model.update(&mut app, |model, ctx| {
-            model.append(conv, initial_cloud_mode_query("locked initial"), ctx)
+            model.append(conv, pending_lrc_query("locked initial"), ctx)
         });
         let followup_id = append_user(&model, &mut app, conv, "follow up");
 

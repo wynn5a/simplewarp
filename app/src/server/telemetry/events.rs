@@ -1113,7 +1113,6 @@ pub enum LoginEventSource {
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TelemetryQueuedQueryOrigin {
-    InitialCloudMode,
     QueueSlashCommand,
     AutoQueueToggle,
     LrcAutoQueue,
@@ -1125,7 +1124,6 @@ pub enum TelemetryQueuedQueryOrigin {
 impl From<QueuedQueryOrigin> for TelemetryQueuedQueryOrigin {
     fn from(origin: QueuedQueryOrigin) -> Self {
         match origin {
-            QueuedQueryOrigin::InitialCloudMode => Self::InitialCloudMode,
             QueuedQueryOrigin::QueueSlashCommand => Self::QueueSlashCommand,
             QueuedQueryOrigin::AutoQueueToggle => Self::AutoQueueToggle,
             QueuedQueryOrigin::LrcAutoQueue => Self::LrcAutoQueue,

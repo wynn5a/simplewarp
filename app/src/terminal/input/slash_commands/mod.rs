@@ -446,7 +446,7 @@ impl Input {
             SlashCommandKind::AddRule => {
                 ctx.dispatch_typed_action(&TerminalAction::OpenAddRulePane);
             }
-            SlashCommandKind::Agent | SlashCommandKind::New | SlashCommandKind::CloudAgent => {
+            SlashCommandKind::Agent | SlashCommandKind::New => {
                 if !self
                     .ai_context_model
                     .as_ref(ctx)
@@ -795,9 +795,6 @@ impl Input {
                 }
                 // Open the skill selector menu for invocation - skill command will be inserted into buffer
                 self.open_invoke_skill_selector(ctx);
-            }
-            SlashCommandKind::Host | SlashCommandKind::Harness => {
-                return false;
             }
             SlashCommandKind::Model => {
                 if trigger.is_keybinding() {

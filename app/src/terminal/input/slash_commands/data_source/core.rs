@@ -56,7 +56,6 @@ fn split_command_and_argument(buffer: &str) -> (&str, Option<&str>) {
 /// they are computed once per recompute and shared by both surfaces.
 pub struct CommonCommandGates {
     is_orchestration_enabled: bool,
-    has_default_host: bool,
 }
 
 /// Subscribe a concrete surface data source to dependencies that affect both GUI and TUI command
@@ -367,24 +366,13 @@ pub trait SlashCommandDataSource {
         if command.name == commands::ORCHESTRATE_NAME && !gates.is_orchestration_enabled {
             return false;
         }
-        // /host is only useful when a default self-hosted host is configured.
-        if command.name == commands::HOST.name && !gates.has_default_host {
-            return false;
-        }
         true
     }
 
     fn common_command_gates(&self, ctx: &AppContext) -> CommonCommandGates {
         let ai_settings = AISettings::as_ref(ctx);
-        // Hide /host when no default host is configured (env var or workspace setting).
-        let has_default_host = std::env::var("WARP_CLOUD_MODE_DEFAULT_HOST")
-            .ok()
-            .filter(|s| !s.is_empty())
-            .is_some()
-            || UserWorkspaces::as_ref(ctx).default_host_slug().is_some();
         CommonCommandGates {
             is_orchestration_enabled: ai_settings.is_orchestration_enabled(ctx),
-            has_default_host,
         }
     }
 
