@@ -355,42 +355,6 @@ impl ServerApi {
             .set_ambient_agent_task_id(task_id.map(|task_id| task_id.to_string()));
     }
 
-    /// Opens an SSE stream to the agent event-push endpoint.
-    ///
-    /// The returned `EventSourceStream` yields `reqwest_eventsource::Event`
-    /// items until the connection closes or an error occurs. The caller is
-    /// responsible for reading the stream and handling reconnection.
-    ///
-    /// The stream is served by warp-server-rtc (not the main warp-server pool),
-    /// so the URL is built from `ChannelState::rtc_http_url()` rather than
-    /// `server_root_url()`.
-    pub async fn stream_agent_events(
-        &self,
-        _run_ids: &[String],
-        _since_sequence: i64,
-    ) -> Result<http_client::EventSourceStream> {
-        Err(local_only_error())
-    }
-
-    /// Opens an SSE stream against the ancestor-scoped agent event endpoint.
-    pub async fn stream_agent_events_for_ancestor(
-        &self,
-        _ancestor_run_id: &str,
-        _include_self: bool,
-        _since_sequence: i64,
-    ) -> Result<http_client::EventSourceStream> {
-        Err(local_only_error())
-    }
-
-    pub async fn stream_agent_events_for_task(
-        &self,
-        _task_id: &AmbientAgentTaskId,
-        _run_ids: &[String],
-        _since_sequence: i64,
-    ) -> Result<http_client::EventSourceStream> {
-        Err(local_only_error())
-    }
-
     /// Sends an authenticated empty POST request to /client/login, which signals to the server
     /// that the user is logged in.
     pub async fn notify_login(&self) {

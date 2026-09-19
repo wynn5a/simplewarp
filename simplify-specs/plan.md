@@ -5245,12 +5245,49 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             files, format clean; nextest warp lib 4,653 default / 4,652
             simplewarp (both exactly the 4ci baselines — zero tests added
             or removed), `warp_cli` 76 passed.
-      - [ ] **Next per 4ca's order after 4cj**: the remaining 4ch residue —
-            `AgentViewEntryOrigin::CloudAgent` + `DefaultSessionMode::CloudAgent`
-            + onboarding hint (one exhaustive-match round),
-            then the ambient task-id plumbing as its own multi-round job
-            (local children + transcript viewer first), then the telemetry
-            scope decision (4ca item 7), then the fold (item 8).
+      - [x] **CloudAgent entry origin, default mode, and onboarding hint
+            residue (4ck) — DONE 2026-09-19.** `AgentViewEntryOrigin::CloudAgent`
+            had zero producers; all matches collapsed to the local branch, with
+            the `AmbientAgent` telemetry mapping falling with its sole use.
+            Zero-state header/body and shortcuts go local-only;
+            `ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE` deleted.
+            `DefaultSessionMode::CloudAgent` kept for persisted compat but
+            degrades to Terminal in the getter and is filtered from the settings
+            dropdown. `OnboardingKeybindings::submit_to_cloud_agent` was
+            write-only; deleted. 12 files, +70/−252.
+      - [x] **Dead SSE stream walls on `ServerApi` (4cl) — DONE 2026-09-19.**
+            `stream_agent_events`, `stream_agent_events_for_ancestor`, and
+            `stream_agent_events_for_task` (the warp-server-rtc agent event-push
+            SSE endpoints, all `local_only_error()` walls since 3e) had zero
+            callers anywhere in the workspace — no production caller, no test
+            caller — so the three methods went with their doc comments and no
+            companion edits. 1 file, +0/−35. Deliberately left: the neighboring
+            `generate_ai_input_suggestions` / `get_relevant_files` /
+            `generate_am_query_suggestions` / `transcribe` walls all have live
+            local callers (voice transcription, prompt suggestions, file
+            context) that handle the error locally, so deleting them would break
+            reachable UI; `notify_login` has its live `auth_manager` caller;
+            `set_ambient_agent_task_id` threads into live local-orchestrator
+            paths. `cargo check --all-targets -p integration` surfaces two
+            `step.rs` unused-import warnings that reproduce identically on a
+            clean stash — pre-existing, not this round's.
+
+            Acceptance: `check -p warp --lib --all-targets` clean in both
+            feature sets; `--bin simplewarp`, `--bin warp-oss`, and
+            `--all-targets -p integration` clean (0 errors); clippy 0 errors,
+            no warnings in the touched file; format clean; nextest warp lib
+            4,653 default / 4,652 simplewarp (both exactly the 4cj baselines —
+            zero tests added or removed), `warp_cli` 76 passed. Built and
+            launched `./target/debug/simplewarp` — alive past 45s, no panics,
+            no outbound TCP connections (the one ERROR in the log is the
+            127.0.0.1:9282 bind colliding with the already-running release
+            `SimpleWarp.app`; the WARN is the benign secure-storage NotFound).
+      - [ ] **Next per 4ca's order after 4cl**: the ambient task-id plumbing as
+            its own multi-round job (local children + transcript viewer first —
+            `AmbientAgentTaskId::new()` backs local-only orchestrator children
+            and the viewer threading is shared with the local viewer, so it is
+            not a leaf deletion), then the telemetry scope decision (4ca item
+            7), then the fold (item 8).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
