@@ -5282,12 +5282,60 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             no outbound TCP connections (the one ERROR in the log is the
             127.0.0.1:9282 bind colliding with the already-running release
             `SimpleWarp.app`; the WARN is the benign secure-storage NotFound).
-      - [ ] **Next per 4ca's order after 4cl**: the ambient task-id plumbing as
-            its own multi-round job (local children + transcript viewer first —
-            `AmbientAgentTaskId::new()` backs local-only orchestrator children
-            and the viewer threading is shared with the local viewer, so it is
-            not a leaf deletion), then the telemetry scope decision (4ca item
-            7), then the fold (item 8).
+      - [x] **Dead ambient header decoration on `BaseClient`/`ServerApi`
+            (4cm) — DONE 2026-09-19.** `ambient_headers` had zero production
+            callers anywhere in the workspace — only its own unit test — so
+            the whole request-decoration layer went with no reachable behavior
+            change: the three header constants
+            (`AMBIENT_WORKLOAD_TOKEN_HEADER`, `CLOUD_AGENT_ID_HEADER`,
+            `AGENT_SOURCE_HEADER`), `HeaderOverride` + `AmbientHeaderPolicy`
+            (+ `inherit_all`/`for_task`/`workload_only`/`omit_all`/`Default`),
+            the `ambient_workload_token` / `ambient_agent_task_id` /
+            `agent_source` fields, `get_or_create_ambient_workload_token`
+            (sole caller was `ambient_headers`; the `warp_isolation_platform`
+            workload-token issue path goes with it), and
+            `BaseClient::set_ambient_agent_task_id` (only writers were the
+            header init paths below). 6 files, +8/−305.
+
+            *Upstream writers deleted with it*: `ServerApi::
+            set_ambient_agent_task_id`, the `agent_source` params on
+            `ServerApi::new`/`new_with_parts`/`ServerApiProvider::new` with
+            `lib.rs::determine_agent_source` (its `AgentSource::as_str` mapping
+            was the sole caller, so `as_str` went too — `display_name` and
+            `is_user_initiated` stay for the live local conversation source),
+            the `lib.rs` `OZ_RUN_ID` parse-and-set startup block, and the
+            `AgentDriverRunner::set_ambient_agent_task_id` helper with its
+            `set(None)` call at driver setup. `OZ_RUN_ID`/`OZ_PARENT_RUN_ID`/
+            `OZ_CLI`/`OZ_HARNESS` env threading for local child launches
+            (`driver/harness`, `local_harness_launch`) is untouched, as is the
+            local task-id identity threading (`controller`/
+            `action_model`/`executor` `set_ambient_agent_task_id`,
+            `conversation.task_id`, child-agent `task_context`,
+            `active_agent_views_model`, transcript-viewer threading) — that is
+            the non-leaf remainder from the 4cl note. `GraphqlRoutingConfig`
+            and `graphql_request_options_with_token` stay (live via
+            `AuthClientImpl::fetch_user_properties`). Tests: the
+            `ambient_policy_supports_inherit_override_and_omit` test deleted;
+            the graphql-options test kept minus its `set_ambient` line.
+
+            Acceptance: `check -p warp --lib --all-targets` clean in both
+            feature sets; `--bin simplewarp`, `--bin warp-oss`, and
+            `--all-targets -p integration` clean (0 errors, only the two
+            pre-existing `step.rs` unused-import warnings that reproduce on a
+            clean stash); clippy byte-identical to the stash baseline in both
+            configs (11 needless-returns + 1 single-element loop, 0 added, none
+            in touched files); format clean. Nextest: warp lib 4,653 default /
+            4,652 simplewarp (both exactly the 4cl baselines — zero app tests
+            added or removed), `warp_cli` 76 passed,
+            `warp_server_client` 7 passed (was 8 before the ambient-policy
+            test went). Built and launched `./target/debug/simplewarp` — alive
+            past 45s, empty log, no panics, no outbound TCP connections.
+      - [ ] **Next per 4ca's order after 4cm**: the remaining ambient task-id
+            identity plumbing as its own multi-round job (local children +
+            transcript viewer first — `AmbientAgentTaskId::new()` backs
+            local-only orchestrator children and the viewer threading is
+            shared with the local viewer, so it is not a leaf deletion), then
+            the telemetry scope decision (4ca item 7), then the fold (item 8).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all

@@ -31,31 +31,6 @@ pub enum AgentSource {
 }
 
 impl AgentSource {
-    pub fn as_str(&self) -> &str {
-        match self {
-            AgentSource::Linear => "LINEAR",
-            AgentSource::AgentWebhook => "API",
-            AgentSource::Slack => "SLACK",
-            AgentSource::Cli => "CLI",
-            AgentSource::ScheduledAgent => "SCHEDULED_AGENT",
-            // The public API's run source for local interactive tasks is named
-            // `LOCAL`.
-            AgentSource::Interactive => "LOCAL",
-            AgentSource::WebApp => "WEB_APP",
-            AgentSource::GitHubAction => "GITHUB_ACTION",
-            AgentSource::GitHubWebhook => "GITHUB_WEBHOOK",
-            AgentSource::CloudMode => "CLOUD_MODE",
-            AgentSource::Orchestration => "ORCHESTRATION",
-            AgentSource::Jira => "JIRA",
-            AgentSource::GitLabWebhook => "GITLAB_WEBHOOK",
-            AgentSource::RunScorer => "RUN_SCORER",
-            // The server surfaces the internal AUTOFIX task source under the public
-            // name SELF_IMPROVEMENT (mirrors AgentWebhook/"API" above).
-            AgentSource::Autofix => "SELF_IMPROVEMENT",
-            AgentSource::BenchmarkTrial => "BENCHMARK_TRIAL",
-        }
-    }
-
     pub fn display_name(&self) -> &str {
         match self {
             AgentSource::Linear => "Linear",

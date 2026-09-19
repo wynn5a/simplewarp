@@ -218,8 +218,6 @@ use workspace::sync_inputs::SyncedInputState;
 use self::features::FeatureFlag;
 use crate::ai::AIRequestUsageModel;
 use crate::ai::agent::conversation::AIConversationId;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::RecordingController;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::facts::manager::AIFactManager;
@@ -290,26 +288,6 @@ use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 
 /// Our embedded application assets.
 pub static ASSETS: warp_assets::Assets = warp_assets::Assets;
-
-fn determine_agent_source(
-    launch_mode: &LaunchMode,
-) -> Option<crate::ai::ambient_agents::AgentSource> {
-    match launch_mode {
-        LaunchMode::CommandLine { .. } => {
-            if std::env::var("GITHUB_ACTIONS").ok().as_deref() == Some("true") {
-                Some(crate::ai::ambient_agents::AgentSource::GitHubAction)
-            } else {
-                Some(crate::ai::ambient_agents::AgentSource::Cli)
-            }
-        }
-        LaunchMode::App { .. } | LaunchMode::Test { .. } => {
-            Some(crate::ai::ambient_agents::AgentSource::CloudMode)
-        }
-        // RemoteServerProxy and RemoteServerDaemon are headless server
-        // processes that don't use the agent subsystem.
-        LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon { .. } => None,
-    }
-}
 
 /// Launch mode for how to start up Warp.
 #[allow(clippy::large_enum_variant)]
@@ -1153,8 +1131,6 @@ pub(crate) fn initialize_app(
     let auth_state = Arc::new(AuthState::initialize(ctx));
     timer.mark_interval_end("AUTH_MANAGER_SET_USER");
 
-    let agent_source = determine_agent_source(launch_mode);
-
     // NetworkLogModel must be registered before ServerApiProvider so that
     // `NetworkLogModel::install_on_clients` can reach it when forwarding items
     // captured by the HTTP client hooks.
@@ -1162,24 +1138,10 @@ pub(crate) fn initialize_app(
 
     let server_api_provider = ctx.add_singleton_model({
         let auth_state = auth_state.clone();
-        move |ctx| ServerApiProvider::new(auth_state, agent_source, ctx)
+        move |ctx| ServerApiProvider::new(auth_state, ctx)
     });
 
     let server_api = server_api_provider.as_ref(ctx).get();
-    // Parse the ambient-agent task id once. A set-but-unparseable OZ_RUN_ID is
-    // treated as absent everywhere: it identifies no task.
-    #[cfg(not(target_family = "wasm"))]
-    let ambient_agent_task_id: Option<AmbientAgentTaskId> = std::env::var(warp_cli::OZ_RUN_ID_ENV)
-        .ok()
-        .and_then(|run_id| match run_id.parse() {
-            Ok(task_id) => Some(task_id),
-            Err(err) => {
-                log::warn!("Ignoring invalid {}: {err}", warp_cli::OZ_RUN_ID_ENV);
-                None
-            }
-        });
-    #[cfg(not(target_family = "wasm"))]
-    server_api.set_ambient_agent_task_id(ambient_agent_task_id);
     ctx.add_singleton_model(|_ctx| AuthStateProvider::new(auth_state.clone()));
 
     ctx.add_singleton_model(AppTelemetryContextProvider::new_context_provider);

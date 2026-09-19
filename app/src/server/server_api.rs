@@ -15,7 +15,6 @@ use warp_server_client::base_client::{BaseClient, GraphqlRoutingConfig};
 use warp_server_client::network_logging::NetworkLogModel;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
-use crate::ai::ambient_agents::{AgentSource, AmbientAgentTaskId};
 use crate::ai::get_relevant_files::api::{GetRelevantFiles, GetRelevantFilesResponse};
 use crate::ai::predict::generate_ai_input_suggestions::GenerateAIInputSuggestionsRequest;
 use crate::ai::predict::generate_am_query_suggestions::GenerateAMQuerySuggestionsRequest;
@@ -276,7 +275,6 @@ impl ServerApi {
     fn new(
         auth_state: Arc<AuthState>,
         event_sender: async_channel::Sender<AuthEvent>,
-        agent_source: Option<AgentSource>,
         ctx: &mut ModelContext<ServerApiProvider>,
     ) -> Self {
         let mut client = http_client::Client::new();
@@ -286,20 +284,13 @@ impl ServerApi {
                 model.install_on_clients([&mut client, &mut telemetry_api.client], model_ctx);
             });
         }
-        Self::new_with_parts(
-            Arc::new(client),
-            auth_state,
-            event_sender,
-            agent_source,
-            telemetry_api,
-        )
+        Self::new_with_parts(Arc::new(client), auth_state, event_sender, telemetry_api)
     }
 
     fn new_with_parts(
         client: Arc<http_client::Client>,
         auth_state: Arc<AuthState>,
         event_sender: async_channel::Sender<AuthEvent>,
-        agent_source: Option<AgentSource>,
         telemetry_api: TelemetryApi,
     ) -> Self {
         let graphql_routing = GraphqlRoutingConfig {
@@ -312,7 +303,6 @@ impl ServerApi {
             client,
             auth_state,
             event_sender,
-            agent_source.map(|source| source.as_str().to_string()),
             graphql_routing,
         ));
 
@@ -328,7 +318,7 @@ impl ServerApi {
         let auth_state = Arc::new(AuthState::new_for_test());
         let client = Arc::new(http_client::Client::new_for_test());
 
-        Self::new_with_parts(client, auth_state, tx, None, TelemetryApi::new())
+        Self::new_with_parts(client, auth_state, tx, TelemetryApi::new())
     }
 
     #[cfg(all(test, feature = "skip_login"))]
@@ -344,15 +334,8 @@ impl ServerApi {
             Arc::new(http_client::Client::new_for_test()),
             auth_state,
             event_sender,
-            None,
             TelemetryApi::new(),
         )
-    }
-
-    /// Sets the ambient agent task ID to be sent with all subsequent requests.
-    pub fn set_ambient_agent_task_id(&self, task_id: Option<AmbientAgentTaskId>) {
-        self.base_client
-            .set_ambient_agent_task_id(task_id.map(|task_id| task_id.to_string()));
     }
 
     /// Sends an authenticated empty POST request to /client/login, which signals to the server
@@ -457,14 +440,10 @@ pub struct ServerApiProvider {
 impl ServerApiProvider {
     /// Constructs a new ServerApiProvider.
     #[cfg_attr(target_family = "wasm", allow(unused_variables))]
-    pub fn new(
-        auth_state: Arc<AuthState>,
-        agent_source: Option<AgentSource>,
-        ctx: &mut ModelContext<Self>,
-    ) -> Self {
+    pub fn new(auth_state: Arc<AuthState>, ctx: &mut ModelContext<Self>) -> Self {
         let (event_sender, event_receiver) = async_channel::bounded(10);
 
-        let server_api = ServerApi::new(auth_state.clone(), event_sender, agent_source, ctx);
+        let server_api = ServerApi::new(auth_state.clone(), event_sender, ctx);
 
         ctx.spawn_stream_local(
             event_receiver,

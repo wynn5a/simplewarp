@@ -29,8 +29,8 @@ use crate::ai::agent_sdk::driver::harness::{HarnessKind, harness_kind};
 use crate::ai::agent_sdk::driver::{AgentDriverOptions, Task};
 use crate::ai::agent_sdk::mcp_config::build_mcp_servers_from_specs;
 use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
+use crate::ai::ambient_agents::AgentConfigSnapshot;
 use crate::ai::ambient_agents::task::HarnessConfig;
-use crate::ai::ambient_agents::{AgentConfigSnapshot, AmbientAgentTaskId};
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::llms::LLMId;
 use crate::ai::skills::{
@@ -42,7 +42,6 @@ use crate::cloud_object::CloudObjectLookup as _;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::send_telemetry_sync_from_app_ctx;
 use crate::server::ids::{ServerId, SyncId};
-use crate::server::server_api::ServerApiProvider;
 use crate::workflows::workflow::Workflow;
 
 mod admin;
@@ -327,9 +326,6 @@ impl AgentDriverRunner {
         args: RunAgentArgs,
         output_format: OutputFormat,
     ) -> Result<(), AgentDriverError> {
-        // Setup observability events are sent with no task context: local CLI-created
-        // runs have no server task, so those events explicitly no-op.
-        Self::set_ambient_agent_task_id(&foreground, None).await?;
         let setup_events = SetupClientEventReporter::new();
         // Pull relevant variables out of args before moving it into the closure.
         let share_requests = args.share.share.clone();
@@ -368,21 +364,6 @@ impl AgentDriverRunner {
             })
             .await?;
 
-        Ok(())
-    }
-
-    async fn set_ambient_agent_task_id(
-        foreground: &ModelSpawner<Self>,
-        task_id: Option<AmbientAgentTaskId>,
-    ) -> Result<(), AgentDriverError> {
-        foreground
-            .spawn(move |_, ctx| {
-                ServerApiProvider::handle(ctx)
-                    .as_ref(ctx)
-                    .get()
-                    .set_ambient_agent_task_id(task_id);
-            })
-            .await?;
         Ok(())
     }
 

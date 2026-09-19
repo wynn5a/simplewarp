@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{Context as _, Result};
-use instant::Duration;
-use parking_lot::{Mutex, RwLock};
+use anyhow::Result;
 use warp_graphql::client::RequestOptions;
 use warp_server_auth::auth_state::AuthState;
 use warp_server_auth::credentials::AuthToken;
@@ -11,15 +9,6 @@ use warp_server_auth::credentials::Credentials;
 
 use crate::auth::{AuthEvent, AuthSession, UserUid};
 
-/// Header key for the ambient agent workload token attached to authenticated requests.
-pub const AMBIENT_WORKLOAD_TOKEN_HEADER: &str = "X-Warp-Ambient-Workload-Token";
-
-/// Header key for the cloud agent task ID attached to ambient-agent requests.
-pub const CLOUD_AGENT_ID_HEADER: &str = "X-Warp-Cloud-Agent-ID";
-
-/// Header used to communicate the source of an agent run.
-pub const AGENT_SOURCE_HEADER: &str = "X-Oz-Api-Source";
-
 /// IDs in the staging database that were created specifically for evals.
 ///
 /// Keep this list in sync with `script/populate_agent_mode_eval_user.sql` in warp-server.
@@ -27,68 +16,6 @@ pub const AGENT_SOURCE_HEADER: &str = "X-Oz-Api-Source";
 const EVAL_USER_IDS: [i32; 11] = [
     2162, 2164, 2165, 2166, 2167, 2168, 2169, 2172, 2173, 2174, 2175,
 ];
-
-/// Duration for which an ambient agent workload token is valid.
-const AMBIENT_WORKLOAD_TOKEN_DURATION: Duration = Duration::from_secs(3 * 60 * 60);
-
-/// Selects whether a contextual header is inherited, set, or omitted for one request.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum HeaderOverride<T> {
-    Inherit,
-    Set(T),
-    Omit,
-}
-
-/// Describes the request-local ambient agent headers that are safe to vary by endpoint.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AmbientHeaderPolicy {
-    pub workload_token: HeaderOverride<String>,
-    pub cloud_agent_id: HeaderOverride<String>,
-    pub agent_source: HeaderOverride<String>,
-}
-
-impl AmbientHeaderPolicy {
-    /// Inherits every ambient agent contextual header configured on the client.
-    pub fn inherit_all() -> Self {
-        Self {
-            workload_token: HeaderOverride::Inherit,
-            cloud_agent_id: HeaderOverride::Inherit,
-            agent_source: HeaderOverride::Inherit,
-        }
-    }
-
-    /// Replaces only the cloud-agent task identifier for one task-scoped request.
-    pub fn for_task(task_id: impl Into<String>) -> Self {
-        Self {
-            cloud_agent_id: HeaderOverride::Set(task_id.into()),
-            ..Self::inherit_all()
-        }
-    }
-
-    /// Includes workload-token context without cloud-agent or source context.
-    pub fn workload_only() -> Self {
-        Self {
-            workload_token: HeaderOverride::Inherit,
-            cloud_agent_id: HeaderOverride::Omit,
-            agent_source: HeaderOverride::Omit,
-        }
-    }
-
-    /// Omits all ambient agent contextual headers for a request.
-    pub fn omit_all() -> Self {
-        Self {
-            workload_token: HeaderOverride::Omit,
-            cloud_agent_id: HeaderOverride::Omit,
-            agent_source: HeaderOverride::Omit,
-        }
-    }
-}
-
-impl Default for AmbientHeaderPolicy {
-    fn default() -> Self {
-        Self::inherit_all()
-    }
-}
 
 /// Provides GraphQL path routing that applies independently of authentication.
 #[derive(Clone, Debug, Default)]
@@ -102,9 +29,6 @@ pub struct BaseClient {
     auth_state: Arc<AuthState>,
     event_sender: async_channel::Sender<AuthEvent>,
     auth_session: Arc<AuthSession>,
-    ambient_workload_token: Arc<Mutex<Option<warp_isolation_platform::WorkloadToken>>>,
-    ambient_agent_task_id: Arc<RwLock<Option<String>>>,
-    agent_source: Option<String>,
     graphql_routing: GraphqlRoutingConfig,
 }
 
@@ -113,7 +37,6 @@ impl BaseClient {
         client: Arc<http_client::Client>,
         auth_state: Arc<AuthState>,
         event_sender: async_channel::Sender<AuthEvent>,
-        agent_source: Option<String>,
         graphql_routing: GraphqlRoutingConfig,
     ) -> Self {
         // We generate one random user ID per client so evals can run in parallel.
@@ -146,9 +69,6 @@ impl BaseClient {
             auth_state,
             event_sender,
             auth_session,
-            ambient_workload_token: Arc::new(Mutex::new(None)),
-            ambient_agent_task_id: Arc::new(RwLock::new(None)),
-            agent_source,
             graphql_routing,
         }
     }
@@ -201,75 +121,6 @@ impl BaseClient {
 
     pub fn is_auth_refresh_allowed(&self) -> bool {
         self.allowed_to_refresh_token()
-    }
-
-    /// Sets the default cloud-agent identifier inherited by subsequent requests.
-    pub fn set_ambient_agent_task_id(&self, task_id: Option<String>) {
-        *self.ambient_agent_task_id.write() = task_id;
-    }
-
-    /// Returns an ambient agent workload token when the current runtime can issue one.
-    pub async fn get_or_create_ambient_workload_token(&self) -> Result<Option<String>> {
-        if cfg!(target_family = "wasm") {
-            return Ok(None);
-        }
-        {
-            let cached = self.ambient_workload_token.lock();
-            if let Some(token) = cached.as_ref() {
-                let is_valid = token.expires_at.is_none_or(|expires_at| {
-                    chrono::Utc::now() + chrono::Duration::minutes(5) < expires_at
-                });
-                if is_valid {
-                    return Ok(Some(token.token.clone()));
-                }
-            }
-        }
-        let workload_token = match warp_isolation_platform::issue_workload_token(Some(
-            AMBIENT_WORKLOAD_TOKEN_DURATION,
-        ))
-        .await
-        {
-            Ok(token) => token,
-            Err(warp_isolation_platform::IsolationPlatformError::NoIsolationPlatformDetected) => {
-                return Ok(None);
-            }
-            Err(error) => return Err(error.into()),
-        };
-        let token = workload_token.token.clone();
-        *self.ambient_workload_token.lock() = Some(workload_token);
-        Ok(Some(token))
-    }
-
-    /// Resolves request-local ambient agent policy into wire headers.
-    pub async fn ambient_headers(
-        &self,
-        policy: AmbientHeaderPolicy,
-    ) -> Result<Vec<(String, String)>> {
-        let workload_token = match policy.workload_token {
-            HeaderOverride::Inherit => self
-                .get_or_create_ambient_workload_token()
-                .await
-                .context("Failed to get ambient agent workload token")?,
-            HeaderOverride::Set(token) => Some(token),
-            HeaderOverride::Omit => None,
-        };
-        let cloud_agent_id = match policy.cloud_agent_id {
-            HeaderOverride::Inherit => self.ambient_agent_task_id.read().clone(),
-            HeaderOverride::Set(task_id) => Some(task_id),
-            HeaderOverride::Omit => None,
-        };
-        let agent_source = match policy.agent_source {
-            HeaderOverride::Inherit => self.agent_source.clone(),
-            HeaderOverride::Set(source) => Some(source),
-            HeaderOverride::Omit => None,
-        };
-
-        Ok(workload_token
-            .map(|token| (AMBIENT_WORKLOAD_TOKEN_HEADER.to_string(), token))
-            .into_iter()
-            .chain(cloud_agent_id.map(|id| (CLOUD_AGENT_ID_HEADER.to_string(), id)))
-            .chain(agent_source.map(|source| (AGENT_SOURCE_HEADER.to_string(), source)))
-            .collect())
     }
 
     /// Returns GraphQL options for bootstrap or explicit-token operations.
