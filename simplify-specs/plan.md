@@ -5433,14 +5433,65 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             the 4ci baselines, zero tests added or removed);
             `warp_cli`+`warp_server_client` 83 passed. Built
             `./target/debug/simplewarp` (`--help` runs).
-      - [ ] **Next per 4ca's order after 4cp**: the remaining ambient task-id
-            identity plumbing as its own multi-round job (local children +
-            transcript viewer first — `AmbientAgentTaskId::new()` backs
-            local-only orchestrator children and the viewer threading is
-            shared with the local viewer, so it is not a leaf deletion), then
-            the telemetry scope decision (4ca item 7), then the fold (item 8).
-            The other 17 zero-operation query modules are a second clean
-            slice after that — each needs its fragment-type trace first.
+      - [x] **Seven more orphaned GraphQL query modules (4cq) — DONE 2026-09-19.**
+            The fragment-type trace 4cp asked for, done with qualified
+            `queries::<mod>` imports as the signal instead of naive type-name
+            grep. Naive grep collides (`Workspace`, `Block`, `Space`, `Runner`,
+            `Task` all name unrelated live types) and counts `target/` build
+            output (the only `ReferralInfo` hits left). Qualified search shows
+            13 of the 17 zero-operation modules have zero importers anywhere
+            in `crates/` + `app/`; this round deletes the 7 whose every type
+            is unambiguous even under naive grep: `get_referral_info`
+            (referrals went in 3d), `get_discoverable_teams` (3t/3u),
+            `get_ai_credit_availability` (credit availability went in 4d),
+            `get_simple_integrations` (the `warp integration` surface went in
+            4o), `user_github_info` + `user_repo_auth_status` +
+            `suggest_cloud_environment_image` (the GitHub/environment half
+            went in 4o/4p — the three share `RepoInput`/`RepoResult` names
+            with each other only, no external importer, so all three go
+            together). 8 files, +0/−437 (7 deleted + `mod.rs`).
+            Correction to 4cp's "deliberately left" examples: `ReferralInfo`
+            (target-only), `CloudEnvironment` (a `JsonObjectType` variant, not
+            the query fragment), and `Workspace` (unrelated live types) are
+            collisions, not live fragment users — `get_runners::Runner`
+            (via `upsert_runner.rs`) is the real live-fragment case, and it
+            stays. Deliberately left: the 6 remaining zero-operation modules
+            (`get_ai_overages_for_workspace`, `get_blocks_for_user`,
+            `get_cloud_environments`, `get_cloud_object`,
+            `get_workspaces_metadata_for_user`, `task_attachments`) — each
+            needs the same collision-aware trace before deleting, since their
+            generic names make naive grep useless; plus the live
+            `get_user`/`get_conversation_usage`/`get_updated_cloud_objects`/
+            `get_runners` and the test-only `list_ai_conversations`
+            (its `ai_tests.rs` query-shape test guards the live `ai.rs`
+            conversion). Local-only safety: zero qualified importers means
+            zero behavior change — terminal, tabs, panes, settings, themes,
+            BYOK AI, personal-folder creation, and all other local features
+            untouched.
+
+            Acceptance: `check -p warp_graphql --all-targets`,
+            `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors;
+            only the two pre-existing `step.rs` unused-import warnings that
+            reproduce on a clean stash); clippy 0 errors, no warnings in the
+            touched crate (warp-lib 11 needless-returns + 1 single-element
+            loop are the pre-existing baseline, byte-identical); format
+            clean. Nextest: `warp_graphql` 7 passed; warp lib 4,652
+            simplewarp (4,651 passed, 1 timeout flake in
+            `test_random_concurrent_operations` — passes in isolation — 4
+            skipped) and 4,653 default, 0 failed (exactly the 4ci baselines,
+            zero tests added or removed); `warp_cli`+`warp_server_client` 83
+            passed. Built `./target/debug/simplewarp`: `--help` runs, and a
+            50s launch stays alive with no outbound TCP connections and 0
+            panics.
+      - [ ] **Next per 4ca's order after 4cq**: the 6 remaining zero-operation
+            query modules (collision-aware trace first, as above), then the
+            remaining ambient task-id identity plumbing as its own
+            multi-round job (local children + transcript viewer first —
+            `AmbientAgentTaskId::new()` backs local-only orchestrator
+            children and the viewer threading is shared with the local
+            viewer, so it is not a leaf deletion), then the telemetry scope
+            decision (4ca item 7), then the fold (item 8).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
