@@ -5152,11 +5152,70 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             terminal model and `load_ai_conversation`. After 4ch: this residue,
             then the telemetry scope decision (4ca item 7), then the fold
             (item 8).
-      - [ ] **Next per 4ca's order after 4ch completes**: the 4ch cloud-run
-            residue listed above (compiler-invisible: `/cloud-agent`, `/host`,
-            `/harness`, `InitialCloudMode` queue branches, the ambient
-            task-id plumbing), then the telemetry scope
-            decision (4ca item 7), then the fold (item 8).
+      - [x] **Cloud-run residue, first slice (4ci) — DONE 2026-09-19.**
+            The compiler-invisible half of 4ch's residue that deletes clean:
+            the three dead slash commands plus the dead queue origin.
+            11 files, +31/−269.
+
+            *Slash commands*: `/cloud-agent` (active but misleading — its
+            spawn path went with 4ch's `spawn_agent` wall, so it just opened
+            the same local agent view as `/agent`), `/host` + `/harness`
+            (permanently inactive — they require
+            `Availability::CLOUD_MODE_V2_COMPOSER`, which has no producer
+            since 4ch deleted `for_cloud_mode_v2`/`is_cloud_mode_v2`).
+            Deleted the three `StaticCommand`s + registry pushes, the three
+            `SlashCommandKind` variants, the `/cloud-agent` keybinding
+            (`cmd-alt-enter`/`ctrl-alt-enter`), the shared
+            `Agent|New|CloudAgent` handler arm's `CloudAgent` disjunct, the
+            `Host|Harness => false` no-op arm, the `/host`-only
+            `has_default_host` gate in `data_source/core.rs` (the underlying
+            `default_host_slug`/`WARP_CLOUD_MODE_DEFAULT_HOST` orchestration
+            machinery stays — still used by snapshots and cards), and the
+            now-producer-less `Availability::CLOUD_AGENT` +
+            `CLOUD_MODE_V2_COMPOSER` bits. `NOT_CLOUD_AGENT` stays (14 live
+            commands gate on it; `gui.rs` still sets it). Tests: the 4
+            availability-bit tests in `static_commands/mod_tests.rs` deleted,
+            `not_cloud_agent_...` trimmed of its V2 lines,
+            `cloud_mode_v2_commands_...` deleted (its subject was `HARNESS`).
+
+            *Queue origin*: `QueuedQueryOrigin::InitialCloudMode` had zero
+            producers (only a test fixture constructed it) but still drove
+            the copy-instead-of-delete render swap, the force-disabled edit
+            button, the disabled-grey drag handle with tooltip, the
+            non-draggable guard, and the whole send-now cloud-setup disable
+            path in `queued_prompts_panel.rs`, plus its telemetry mirror.
+            Deleted the variant, collapsed `is_locked()` to
+            `PendingLrcAutoQueue` alone, removed `CopyRow` action/handler/
+            button (delete always shows now), the tooltip constants, the
+            `drag_handle_tooltip_state` field, and the `origin` params that
+            only existed for these branches (`build_row_state`,
+            `seed_row_states_for`, the `Appended` handler). `ParentElement`
+            (the trait behind `Flex::with_child`/`add_child`) stays — removing
+            it broke the build and was restored. Tests: ICM lock test
+            re-fixtured to `PendingLrcAutoQueue` (renamed
+            `pending_lrc_head_rejects_user_mutations_and_autofire`),
+            `pop_front_no_ops_when_head_is_locked` re-fixtured the same way.
+
+            Deliberately left: `TerminalAction::EnterCloudAgentView` + the
+            zero-state dispatches to it, `AgentViewEntryOrigin::CloudAgent`,
+            and the whole ~249-ref ambient task-id plumbing (`OZ_RUN_ID_ENV`
+            → `set_ambient_agent_task_id`, viewer status, transcript-viewer
+            threading) — surveyed this round, all live-but-dormant header
+            plumbing with no cloud producer left, but a multi-round job on its
+            own, not a leaf deletion.
+
+            Acceptance: `check` clean both feature sets (`--all-targets`,
+            `-p integration`); clippy simplewarp 0 errors, no warnings in
+            touched files (12 pre-existing elsewhere); format clean.
+            Nextest: warp lib 4,652 passed simplewarp / 0 failed (4 skipped),
+            down exactly 5 from 4ch's 4,657 (4 availability + 1 V2 test);
+            default-feature slash/queue filter 55 passed; `warp_cli` 76
+            passed. `--bin simplewarp` check clean.
+      - [ ] **Next per 4ca's order after 4ci**: the remaining 4ch residue —
+            the ambient task-id plumbing (~249 refs: `OZ_RUN_ID_ENV`,
+            `set_ambient_agent_task_id`, `ViewingAmbientConversation`,
+            transcript-viewer threading), then the telemetry scope decision
+            (4ca item 7), then the fold (item 8).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
