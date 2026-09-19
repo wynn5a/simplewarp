@@ -5397,12 +5397,50 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             the same cross-test-interference family 4by noted, not this
             round's). Not re-run in the app — deleted code was unreachable
             (no producers).
-      - [ ] **Next per 4ca's order after 4co**: the remaining ambient task-id
+      - [x] **Seven orphaned GraphQL query modules (4cp) — DONE 2026-09-19.**
+            Every warp-server GraphQL operation deleted in 4bh–4ch left its
+            query module standing in `crates/graphql/src/api/queries/` — the
+            operation was never built again, but the module is `pub` so the
+            compiler stays silent. Swept all 25 query modules for external
+            `Variables` refs: 24 came back zero (the 25th,
+            `ListAIConversations`, is test-only via `ai_tests.rs`). Deleted
+            the seven whose *every* public type is unreferenced anywhere
+            outside its own file (verified per-type with exact-name grep,
+            not just the operation): `tui_onboarding_markers` (TUI is gone
+            since Phase 4 step 1), `get_ai_conversation_format`,
+            `get_integrations_using_environment` (the `warp integration`
+            surface went in 4o), `get_oauth_connect_tx_status`,
+            `get_scheduled_agent_history` (ambient CLI went in 4aw),
+            `list_warp_dev_images`, `task_git_credentials` (harness chain
+            went in 4bd/4az). 8 files, +0/−328 (7 deleted + `mod.rs`).
+            Deliberately left: the other 17 zero-`Variables` modules all
+            still lend a fragment type to live code (e.g. `Runner`,
+            `CloudEnvironment`, `ReferralInfo`, `Workspace`) — operation-dead
+            but type-live, so each needs its own type-level trace before
+            deleting. Local-only safety: zero callers means zero behavior
+            change — terminal, tabs, panes, settings, themes, BYOK AI,
+            personal-folder creation, and all other local features untouched.
+
+            Acceptance: `check -p warp_graphql --all-targets`,
+            `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors;
+            only the two pre-existing `step.rs` unused-import warnings that
+            reproduce on a clean stash); clippy 0 errors, no warnings in
+            touched crate (warp-lib 11 needless-returns + 1 single-element
+            loop are the pre-existing baseline, byte-identical); format
+            clean. Nextest: `warp_graphql` 7 passed; warp lib 4,652
+            simplewarp / 4,653 default, 0 failed (4 skipped both — exactly
+            the 4ci baselines, zero tests added or removed);
+            `warp_cli`+`warp_server_client` 83 passed. Built
+            `./target/debug/simplewarp` (`--help` runs).
+      - [ ] **Next per 4ca's order after 4cp**: the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
             shared with the local viewer, so it is not a leaf deletion), then
             the telemetry scope decision (4ca item 7), then the fold (item 8).
+            The other 17 zero-operation query modules are a second clean
+            slice after that — each needs its fragment-type trace first.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
