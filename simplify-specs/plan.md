@@ -5211,11 +5211,43 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             down exactly 5 from 4ch's 4,657 (4 availability + 1 V2 test);
             default-feature slash/queue filter 55 passed; `warp_cli` 76
             passed. `--bin simplewarp` check clean.
-      - [ ] **Next per 4ca's order after 4ci**: the remaining 4ch residue —
-            the ambient task-id plumbing (~249 refs: `OZ_RUN_ID_ENV`,
-            `set_ambient_agent_task_id`, `ViewingAmbientConversation`,
-            transcript-viewer threading), then the telemetry scope decision
-            (4ca item 7), then the fold (item 8).
+      - [x] **Dead cloud-entry TerminalActions (4cj) — DONE 2026-09-19.**
+            `EnterCloudAgentView` (handler was a `=> {}` no-op; its
+            cmd-alt-enter/ctrl-alt-enter fixed binding and both zero-state
+            "start a new cloud agent conversation" buttons dispatched into
+            it) and `CancelAmbientAgentTask` (zero producers, same no-op
+            handler). 5 files, +1/−68: the two `TerminalAction` variants +
+            `Debug` arms, the empty-action listing + handler arm, the
+            `init.rs` fixed-binding block, and both zero-state cloud rows
+            with their `start_cloud_conversation` mouse handles + unused
+            keystroke imports. Local agent entry
+            (`StartNewAgentConversation` with `Input` origin, separate row
+            above the deleted one) is untouched. Deliberately left:
+            `ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE` (still used
+            by the shortcuts display `is_cloud_agent` branch),
+            `AgentViewEntryOrigin::CloudAgent` (zero producers but
+            exhaustive matches across controller/telemetry/agent_view),
+            `DefaultSessionMode::CloudAgent` (persisted settings value),
+            the onboarding `submit_to_cloud_agent` hint text (display-only,
+            no dispatch), and the whole ambient task-id plumbing —
+            `AmbientAgentTaskId::new()` backs local-only orchestrator
+            children (`prepare_local_oz_child_launch`, no server row) and
+            `ViewingAmbientConversation`/transcript-viewer threading is
+            shared with the local viewer, so that plumbing is not a leaf
+            deletion (same lesson as Track A's `DrivePanel`).
+
+            Acceptance: `check -p warp --lib --all-targets`,
+            `--no-default-features --features simplewarp --bin simplewarp`,
+            and `--bin warp-oss` clean; clippy no warnings in touched
+            files, format clean; nextest warp lib 4,653 default / 4,652
+            simplewarp (both exactly the 4ci baselines — zero tests added
+            or removed), `warp_cli` 76 passed.
+      - [ ] **Next per 4ca's order after 4cj**: the remaining 4ch residue —
+            `AgentViewEntryOrigin::CloudAgent` + `DefaultSessionMode::CloudAgent`
+            + onboarding hint (one exhaustive-match round),
+            then the ambient task-id plumbing as its own multi-round job
+            (local children + transcript viewer first), then the telemetry
+            scope decision (4ca item 7), then the fold (item 8).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
