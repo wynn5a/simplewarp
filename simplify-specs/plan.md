@@ -5330,7 +5330,42 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             `warp_server_client` 7 passed (was 8 before the ambient-policy
             test went). Built and launched `./target/debug/simplewarp` — alive
             past 45s, empty log, no panics, no outbound TCP connections.
-      - [ ] **Next per 4ca's order after 4cm**: the remaining ambient task-id
+      - [x] **Dead `BaseClient` wrappers (4cn) — DONE 2026-09-19.**
+            `http_client()`, `access_token_ignoring_validity`,
+            `allowed_to_refresh_token`, `is_auth_refresh_allowed`,
+            `event_sender()`, `send_auth_event` had zero production callers
+            anywhere in the workspace — verified with `rg
+            "\.http_client\(\)|\.access_token_ignoring_validity\(\)|
+            \.allowed_to_refresh_token\(\)|\.is_auth_refresh_allowed\(\)|
+            \.event_sender\(\)|\.send_auth_event\("` (the one
+            `http_client()` hit is a different type's `AuthContext`;
+            `allowed_to_refresh_token`'s only other hit is
+            `AuthSession`'s own method, which stays). All six went with no
+            companion edits, plus the now-write-only `event_sender` field
+            (still passed through to `AuthSession::new`, just no longer
+            stored). 1 file, +1/−32. Deliberately left: every `ServerApi`
+            method still has a live caller (the four AI/transcribe walls have
+            local UI callers that handle the error; telemetry is the one live
+            payload); `AuthSession::allowed_to_refresh_token`,
+            `AuthState::get_access_token_ignoring_validity`, and
+            `owned_http_client`/`auth_session`/`anonymous_id`/`user_id`/
+            `get_or_refresh_access_token`/`graphql_request_options_with_token`
+            all stay live. Local-only safety: zero callers means zero behavior
+            change — terminal, tabs, panes, settings, themes, BYOK AI,
+            personal-folder creation, and all other local features untouched.
+
+            Acceptance: `check -p warp_server_client --all-targets`,
+            `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors;
+            only the two pre-existing `step.rs` unused-import warnings that
+            reproduce on a clean stash); clippy 0 errors in touched crate,
+            warp-lib warning count byte-identical to stash baseline (14
+            pre-existing); format clean. Nextest: warp lib 4,653 default /
+            4,652 simplewarp (both exactly the 4cm baselines — zero tests
+            added or removed), `warp_server_client` 7 passed. Built and
+            launched `./target/debug/simplewarp` — clean startup, terminal
+            server spawned, no panics.
+      - [ ] **Next per 4ca's order after 4cn**: the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is

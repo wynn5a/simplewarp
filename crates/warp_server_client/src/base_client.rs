@@ -27,7 +27,6 @@ pub struct GraphqlRoutingConfig {
 pub struct BaseClient {
     client: Arc<http_client::Client>,
     auth_state: Arc<AuthState>,
-    event_sender: async_channel::Sender<AuthEvent>,
     auth_session: Arc<AuthSession>,
     graphql_routing: GraphqlRoutingConfig,
 }
@@ -62,20 +61,14 @@ impl BaseClient {
         let auth_session = Arc::new(AuthSession::new(
             client.clone(),
             auth_state.clone(),
-            event_sender.clone(),
+            event_sender,
         ));
         Self {
             client,
             auth_state,
-            event_sender,
             auth_session,
             graphql_routing,
         }
-    }
-
-    /// Returns the shared HTTP client for request construction.
-    pub fn http_client(&self) -> &http_client::Client {
-        self.client.as_ref()
     }
 
     /// Returns an owned handle to the shared HTTP client for GraphQL operations.
@@ -95,32 +88,8 @@ impl BaseClient {
         self.auth_state.user_id()
     }
 
-    pub fn access_token_ignoring_validity(&self) -> Option<String> {
-        self.auth_state.get_access_token_ignoring_validity()
-    }
-
-    pub fn allowed_to_refresh_token(&self) -> bool {
-        self.auth_session.allowed_to_refresh_token()
-    }
-
     pub async fn get_or_refresh_access_token(&self) -> Result<AuthToken> {
         self.auth_session.get_or_refresh_access_token().await
-    }
-
-    /// Returns a sender for asynchronous work that emits auth events without borrowing this client.
-    pub fn event_sender(&self) -> async_channel::Sender<AuthEvent> {
-        self.event_sender.clone()
-    }
-    /// Sends an auth event from synchronous client-owned response handling.
-    pub fn send_auth_event(
-        &self,
-        event: AuthEvent,
-    ) -> Result<(), async_channel::TrySendError<AuthEvent>> {
-        self.event_sender.try_send(event)
-    }
-
-    pub fn is_auth_refresh_allowed(&self) -> bool {
-        self.allowed_to_refresh_token()
     }
 
     /// Returns GraphQL options for bootstrap or explicit-token operations.
