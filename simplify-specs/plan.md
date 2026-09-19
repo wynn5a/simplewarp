@@ -5484,14 +5484,58 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             passed. Built `./target/debug/simplewarp`: `--help` runs, and a
             50s launch stays alive with no outbound TCP connections and 0
             panics.
-      - [ ] **Next per 4ca's order after 4cq**: the 6 remaining zero-operation
-            query modules (collision-aware trace first, as above), then the
-            remaining ambient task-id identity plumbing as its own
-            multi-round job (local children + transcript viewer first —
-            `AmbientAgentTaskId::new()` backs local-only orchestrator
-            children and the viewer threading is shared with the local
-            viewer, so it is not a leaf deletion), then the telemetry scope
-            decision (4ca item 7), then the fold (item 8).
+      - [x] **Six remaining orphaned GraphQL query modules (4cr) — DONE 2026-09-19.**
+            The collision-aware trace 4cq asked for, using qualified
+            `queries::<mod>` imports as the signal instead of naive type-name
+            grep. All six zero-operation modules have zero qualified importers
+            anywhere in `crates/` + `app/` (no `warp_graphql::queries::<mod>`
+            and no `crate::queries::<mod>` hits; `mod.rs` + own file only),
+            no `api::queries` glob imports exist, and the distinctive type
+            names (`GetAiOveragesForWorkspaceVariables`,
+            `GetBlocksForUserVariables`,
+            `GetCloudEnvironmentsQueryVariables`, `GetCloudObjectVariables`,
+            `GetWorkspacesMetadataForUserVariables`, `CloudObjectInput`,
+            `TaskAttachment`) appear only in their own files plus the server
+            `schema.graphql` definition (not a client use); `app/` has zero
+            hits for all of them. `TaskVariables`/`TaskInput`/`TaskData` are
+            module-local (the mutations' `CreateAgentTaskVariables`/
+            `UpdateAgentTaskVariables` are distinct types). Deleted:
+            `get_ai_overages_for_workspace` (billing overages went in 4d),
+            `get_blocks_for_user` (server block history; local blocks stay in
+            SQLite), `get_cloud_environments` (remote VMs went in 4o/4p),
+            `get_cloud_object` (server fetch; local objects stay in
+            `CloudModel`/SQLite), `get_workspaces_metadata_for_user`
+            (server workspaces/billing metadata), `task_attachments` (Agent
+            Mode VM presigned-S3 attachments; local attachments untouched).
+            7 files, +0/−~480 (6 deleted + `mod.rs`). Deliberately left: the
+            live `get_user`/`get_conversation_usage`/
+            `get_updated_cloud_objects`/`get_runners` (fragment users via
+            `AuthClientImpl`, `gql_convert`/`ai.rs`, `UpdatedObjectInput`,
+            `upsert_runner.rs`) and the test-only `list_ai_conversations`
+            (its `ai_tests.rs` query-shape test guards the live `ai.rs`
+            conversion). Local-only safety: zero qualified importers means
+            zero behavior change — terminal, tabs, panes, settings, themes,
+            BYOK AI, personal-folder creation, and all other local features
+            untouched.
+
+            Acceptance: `check -p warp_graphql --all-targets`,
+            `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors;
+            only the two pre-existing `step.rs` unused-import warnings that
+            reproduce on a clean stash); clippy 0 errors, no warnings in the
+            touched crate (warp-lib 11 needless-returns + 1 single-element
+            loop are the pre-existing baseline, byte-identical); format
+            clean. Nextest: `warp_graphql` 7 passed; warp lib 4,652
+            simplewarp / 4,653 default, 0 failed (4 skipped both — exactly
+            the 4ci baselines, zero tests added or removed);
+            `warp_cli`+`warp_server_client` 83 passed.
+      - [ ] **Next per 4ca's order after 4cr**: the remaining ambient task-id
+            identity plumbing as its own multi-round job (local children +
+            transcript viewer first — `AmbientAgentTaskId::new()` backs
+            local-only orchestrator children and the viewer threading is
+            shared with the local viewer, so it is not a leaf deletion),
+            then the telemetry scope decision (4ca item 7), then the fold
+            (item 8).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
