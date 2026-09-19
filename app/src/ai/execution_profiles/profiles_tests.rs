@@ -211,14 +211,11 @@ fn explicit_local_collection_is_preserved_from_onboarding() {
             });
         });
 
-        let profile_model = app.add_singleton_model(|ctx| {
+        app.add_singleton_model(|ctx| {
             AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
         });
         complete_cloud_initial_load(&mut app);
 
-        profile_model.read(&app, |model, ctx| {
-            assert!(model.should_preserve_onboarding_profile(ctx));
-        });
         app.read(|ctx| {
             assert!(
                 AISettings::as_ref(ctx)

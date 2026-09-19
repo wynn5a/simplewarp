@@ -1,8 +1,8 @@
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
 
+use super::NewScrollableElement;
 use super::util::{scroll_clipped_scrollable_handle_with_delta, scroll_delta_for_axis};
-use super::{NewScrollableElement, ScrollableAxis};
 use crate::elements::new_scrollable::util::child_constraint_for_axis;
 use crate::elements::{
     Axis, ClippedScrollStateHandle, F32Ext, ScrollData, ScrollStateHandle, ScrollTarget,
@@ -39,25 +39,23 @@ pub enum SingleAxisConfig {
 
 impl SingleAxisConfig {
     /// At run-time, validate if the passed-in axis config is valid.
+    #[cfg(debug_assertions)]
     pub(super) fn validate(&self, axis: Axis) {
-        #[cfg(debug_assertions)]
-        {
-            if let SingleAxisConfig::Manual { child, .. } = self {
-                if matches!(axis, Axis::Horizontal)
-                    && matches!(child.axis(), ScrollableAxis::Vertical)
-                {
-                    panic!(
-                        "Set horizontal scrolling to be manual when the child element could only be scrolled on vertical axis"
-                    );
-                }
+        use super::ScrollableAxis;
 
-                if matches!(axis, Axis::Vertical)
-                    && matches!(child.axis(), ScrollableAxis::Horizontal)
-                {
-                    panic!(
-                        "Set vertical scrolling to be manual when the child element could only be scrolled on horizontal axis"
-                    );
-                }
+        if let SingleAxisConfig::Manual { child, .. } = self {
+            if matches!(axis, Axis::Horizontal) && matches!(child.axis(), ScrollableAxis::Vertical)
+            {
+                panic!(
+                    "Set horizontal scrolling to be manual when the child element could only be scrolled on vertical axis"
+                );
+            }
+
+            if matches!(axis, Axis::Vertical) && matches!(child.axis(), ScrollableAxis::Horizontal)
+            {
+                panic!(
+                    "Set vertical scrolling to be manual when the child element could only be scrolled on horizontal axis"
+                );
             }
         }
     }

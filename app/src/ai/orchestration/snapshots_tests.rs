@@ -1,10 +1,10 @@
 use warp_cli::agent::Harness;
 
 use super::{
-    AUTH_SECRET_INHERIT_LABEL, AuthSecretNamesInput, DEFAULT_MODEL_LABEL, HarnessEntryInput,
-    ModelChoiceInput, OptionBadge, OptionFooter, OptionSourceStatus, build_api_key_snapshot,
-    build_environment_snapshot, build_harness_snapshot, build_host_snapshot,
-    build_non_oz_model_snapshot, build_oz_model_snapshot, build_runner_snapshot,
+    AuthSecretNamesInput, DEFAULT_MODEL_LABEL, HarnessEntryInput, ModelChoiceInput, OptionBadge,
+    OptionFooter, OptionSourceStatus, build_api_key_snapshot, build_environment_snapshot,
+    build_harness_snapshot, build_host_snapshot, build_non_oz_model_snapshot,
+    build_oz_model_snapshot, build_runner_snapshot,
 };
 use crate::ai::local_harness_setup::LocalHarnessSetupState;
 use crate::ai::orchestration::config_state::AuthSecretSelection;
@@ -184,19 +184,6 @@ fn non_oz_model_snapshot_falls_back_to_default_for_unknown_or_empty_id() {
 // ── API key ─────────────────────────────────────────────────────────
 
 #[test]
-fn api_key_snapshot_lists_skip_then_names() {
-    let snapshot = build_api_key_snapshot(
-        AuthSecretNamesInput::Loaded(vec!["key-a".to_string(), "key-b".to_string()]),
-        &AuthSecretSelection::Named("key-b".to_string()),
-    );
-
-    let labels: Vec<&str> = snapshot.rows.iter().map(|r| r.label.as_str()).collect();
-    assert_eq!(labels, vec![AUTH_SECRET_INHERIT_LABEL, "key-a", "key-b"]);
-    assert_eq!(snapshot.selected_id.as_deref(), Some("key-b"));
-    assert_eq!(snapshot.status, OptionSourceStatus::Ready);
-}
-
-#[test]
 fn api_key_snapshot_keeps_named_selection_while_loading() {
     let snapshot = build_api_key_snapshot(
         AuthSecretNamesInput::NotLoaded,
@@ -208,15 +195,13 @@ fn api_key_snapshot_keeps_named_selection_while_loading() {
 #[test]
 fn api_key_snapshot_maps_inherit_and_unset_selection() {
     let inherit = build_api_key_snapshot(
-        AuthSecretNamesInput::Loaded(vec![]),
+        AuthSecretNamesInput::NotLoaded,
         &AuthSecretSelection::Inherit,
     );
     assert_eq!(inherit.selected_id.as_deref(), Some(""));
 
-    let unset = build_api_key_snapshot(
-        AuthSecretNamesInput::Loaded(vec![]),
-        &AuthSecretSelection::Unset,
-    );
+    let unset =
+        build_api_key_snapshot(AuthSecretNamesInput::NotLoaded, &AuthSecretSelection::Unset);
     assert_eq!(unset.selected_id, None);
 }
 

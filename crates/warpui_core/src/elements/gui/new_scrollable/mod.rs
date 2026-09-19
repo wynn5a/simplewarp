@@ -1173,6 +1173,7 @@ impl NewScrollable {
         active_scrollbar_thumb_background: Fill,
         scrollbar_track_background: Fill,
     ) -> Self {
+        #[cfg(debug_assertions)]
         config.validate(Axis::Vertical);
         let state = ScrollableState::SingleAxis {
             axis: Axis::Vertical,
@@ -1196,6 +1197,7 @@ impl NewScrollable {
         active_scrollbar_thumb_background: Fill,
         scrollbar_track_background: Fill,
     ) -> Self {
+        #[cfg(debug_assertions)]
         config.validate(Axis::Horizontal);
         let state = ScrollableState::SingleAxis {
             axis: Axis::Horizontal,
@@ -1219,6 +1221,7 @@ impl NewScrollable {
         active_scrollbar_thumb_background: Fill,
         scrollbar_track_background: Fill,
     ) -> Self {
+        #[cfg(debug_assertions)]
         config.validate();
         let state = ScrollableState::BothAxes {
             config,

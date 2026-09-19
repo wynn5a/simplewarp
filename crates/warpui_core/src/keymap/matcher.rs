@@ -15,9 +15,11 @@ pub struct Matcher {
     keymap: Keymap,
     /// Default binding validator that should run on every binding (irrespective of the [`Context`]
     /// the binding was registered against).
+    #[cfg(debug_assertions)]
     default_binding_validator: Option<BindingValidatorFn>,
     /// List of validators to be used during binding validation. Each binding validator validates
     /// all of the bindings that match the [`Context`] it is paired with.
+    #[cfg(debug_assertions)]
     binding_validators: Vec<(Context, BindingValidatorFn)>,
     /// Function to convert bindings that have a [`CustomTag`] trigger to one that has a
     /// [`Keystroke`]-based trigger instead. If `None`, bindings are not converted.  
@@ -34,6 +36,7 @@ struct Pending {
     context: Option<Context>,
 }
 
+#[cfg(debug_assertions)]
 type BindingValidatorFn = Box<dyn Fn(BindingLens) -> IsBindingValid>;
 
 /// Enum indicating the results of validating a binding.
@@ -56,7 +59,9 @@ impl Matcher {
         Self {
             pending: EntityIdMap::default(),
             keymap,
+            #[cfg(debug_assertions)]
             default_binding_validator: None,
+            #[cfg(debug_assertions)]
             binding_validators: vec![],
             custom_trigger_to_keystroke_fn: None,
             default_keystroke_trigger_for_custom_action: None,

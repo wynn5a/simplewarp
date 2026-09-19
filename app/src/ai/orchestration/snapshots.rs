@@ -405,12 +405,10 @@ fn build_non_oz_model_snapshot(
 /// Fetch state reduced to plain data for the pure API-key builder.
 enum AuthSecretNamesInput {
     NotLoaded,
-    Loaded(Vec<String>),
     Failed,
 }
 
-/// Builds the API-key options: "Skip (advanced)" (inherit) plus loaded
-/// managed-secret names. Secret values are never included — names only.
+/// Builds the API-key options: the "Skip (advanced)" (inherit) row.
 /// Status mirrors `AuthSecretFetchState`.
 pub fn api_key_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> OptionSnapshot {
     let Some(harness) = Harness::parse_orchestration_harness(&state.harness_type) else {
@@ -431,14 +429,8 @@ fn build_api_key_snapshot(
     names: AuthSecretNamesInput,
     selection: &AuthSecretSelection,
 ) -> OptionSnapshot {
-    let mut rows = vec![OptionRow::new(String::new(), AUTH_SECRET_INHERIT_LABEL)];
+    let rows = vec![OptionRow::new(String::new(), AUTH_SECRET_INHERIT_LABEL)];
     let status = match names {
-        AuthSecretNamesInput::Loaded(names) => {
-            for name in names {
-                rows.push(OptionRow::new(name.clone(), name));
-            }
-            OptionSourceStatus::Ready
-        }
         AuthSecretNamesInput::NotLoaded => OptionSourceStatus::Loading,
         AuthSecretNamesInput::Failed => OptionSourceStatus::Failed {
             message: AUTH_SECRETS_LOAD_FAILED_MESSAGE.to_string(),

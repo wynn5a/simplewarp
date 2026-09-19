@@ -3,7 +3,6 @@ use pathfinder_geometry::vector::{Vector2F, vec2f};
 
 use super::util::{scroll_clipped_scrollable_handle_with_delta, scroll_delta_for_axis};
 use super::{NewScrollableElement, SingleAxisConfig};
-use crate::elements::new_scrollable::ScrollableAxis;
 use crate::elements::new_scrollable::util::child_constraint_for_axis;
 use crate::elements::{
     Axis, ClippedScrollStateHandle, ScrollData, ScrollStateHandle, ScrollTarget, SelectableElement,
@@ -218,41 +217,41 @@ pub enum DualAxisConfig {
 
 impl DualAxisConfig {
     /// At run-time, validate if the passed-in axis config is valid.
+    #[cfg(debug_assertions)]
     pub(super) fn validate(&self) {
-        #[cfg(debug_assertions)]
+        use crate::elements::new_scrollable::ScrollableAxis;
+
+        if let DualAxisConfig::Manual {
+            horizontal,
+            vertical,
+            child,
+        } = self
         {
-            if let DualAxisConfig::Manual {
-                horizontal,
-                vertical,
-                child,
-            } = self
+            if matches!(horizontal, AxisConfiguration::Clipped { .. })
+                && matches!(vertical, AxisConfiguration::Clipped { .. })
             {
-                if matches!(horizontal, AxisConfiguration::Clipped { .. })
-                    && matches!(vertical, AxisConfiguration::Clipped { .. })
-                {
-                    panic!(
-                        "Tried to render a Manual scrollable with Clipped scrolling on both axes. Consider using DualAxisConfig::Clipped instead."
-                    );
-                }
-
-                if matches!(horizontal, AxisConfiguration::Manual(_))
-                    && matches!(child.axis(), ScrollableAxis::Vertical)
-                {
-                    panic!(
-                        "Set horizontal scrolling to be manual when the child element could only be scrolled on vertical axis"
-                    );
-                }
-
-                if matches!(vertical, AxisConfiguration::Manual(_))
-                    && matches!(child.axis(), ScrollableAxis::Horizontal)
-                {
-                    panic!(
-                        "Set vertical scrolling to be manual when the child element could only be scrolled on horizontal axis"
-                    );
-                }
+                panic!(
+                    "Tried to render a Manual scrollable with Clipped scrolling on both axes. Consider using DualAxisConfig::Clipped instead."
+                );
             }
-            log::trace!("Validated axes constructor");
+
+            if matches!(horizontal, AxisConfiguration::Manual(_))
+                && matches!(child.axis(), ScrollableAxis::Vertical)
+            {
+                panic!(
+                    "Set horizontal scrolling to be manual when the child element could only be scrolled on vertical axis"
+                );
+            }
+
+            if matches!(vertical, AxisConfiguration::Manual(_))
+                && matches!(child.axis(), ScrollableAxis::Horizontal)
+            {
+                panic!(
+                    "Set vertical scrolling to be manual when the child element could only be scrolled on horizontal axis"
+                );
+            }
         }
+        log::trace!("Validated axes constructor");
     }
 
     /// Return ScrollData for the given axis.

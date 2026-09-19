@@ -517,8 +517,8 @@ impl Scene {
         }
     }
 
+    #[cfg(debug_assertions)]
     fn validate_rect(rect: &RectF, location: Option<&'static std::panic::Location<'static>>) {
-        #[cfg(debug_assertions)]
         let location_info = location
             .map(|loc| {
                 format!(
@@ -529,8 +529,6 @@ impl Scene {
                 )
             })
             .unwrap_or_default();
-        #[cfg(not(debug_assertions))]
-        let location_info = "";
         debug_assert!(
             !rect.origin().y().is_infinite(),
             "!rect.origin().y().is_infinite(){location_info}"
@@ -567,11 +565,11 @@ impl Scene {
     /// up-to-date.
     pub fn draw_rect_without_hit_recording(&mut self, rect: RectF) -> &mut Rect {
         #[cfg(debug_assertions)]
-        let location = self.panic_location.take();
-        #[cfg(not(debug_assertions))]
-        let location = None;
+        {
+            let location = self.panic_location.take();
+            Self::validate_rect(&rect, location);
+        }
         let layer = self.active_layer();
-        Self::validate_rect(&rect, location);
 
         layer.rects.push(Rect {
             bounds: rect,
@@ -594,11 +592,11 @@ impl Scene {
         corner_radius: CornerRadius,
     ) {
         #[cfg(debug_assertions)]
-        let location = self.panic_location.take();
-        #[cfg(not(debug_assertions))]
-        let location = None;
+        {
+            let location = self.panic_location.take();
+            Self::validate_rect(&rect, location);
+        }
         let layer = self.active_layer();
-        Self::validate_rect(&rect, location);
 
         layer.images.push(Image {
             bounds: rect,
@@ -611,11 +609,11 @@ impl Scene {
 
     pub fn draw_icon(&mut self, rect: RectF, asset: Arc<StaticImage>, opacity: f32, color: ColorU) {
         #[cfg(debug_assertions)]
-        let location = self.panic_location.take();
-        #[cfg(not(debug_assertions))]
-        let location = None;
+        {
+            let location = self.panic_location.take();
+            Self::validate_rect(&rect, location);
+        }
         let layer = self.active_layer();
-        Self::validate_rect(&rect, location);
 
         layer.icons.push(Icon {
             bounds: rect,
