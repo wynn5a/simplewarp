@@ -23565,8 +23565,6 @@ impl TypedActionView for TerminalView {
             | CyclePreviousOrchestrationChildAgent
             | CycleNextOrchestrationChildAgent
             | ToggleSessionRecording
-            | EnterCloudAgentView
-            | CancelAmbientAgentTask
             | Osc52AllowBlockedClipboardOperation => Empty,
         }
     }
@@ -24613,7 +24611,6 @@ impl TypedActionView for TerminalView {
                     recorder.toggle_recording(ctx);
                 });
             }
-            EnterCloudAgentView | CancelAmbientAgentTask => {}
             Osc52AllowBlockedClipboardOperation => {
                 use crate::terminal::settings::Osc52ClipboardAccess;
                 if let Some(blocked_type) = self.osc52_clipboard_blocked_type {

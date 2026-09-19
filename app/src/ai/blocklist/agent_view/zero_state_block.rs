@@ -26,7 +26,6 @@ use crate::ai::active_agent_views_model::{ActiveAgentViewsModel, ConversationOrT
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::agent_view::{
     AgentViewController, AgentViewEntryOrigin, ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
-    ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
 };
 use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::conversation_navigation::ConversationNavigationData;
@@ -51,7 +50,6 @@ const MAX_RECENT_CONVERSATION_COUNT: usize = 3;
 #[derive(Default)]
 struct StateHandles {
     start_new_conversation: MouseStateHandle,
-    start_cloud_conversation: MouseStateHandle,
     switch_model: MouseStateHandle,
     exit: MouseStateHandle,
     init_callout: MouseStateHandle,
@@ -614,21 +612,6 @@ fn render_body(props: ZeroStateBodyProps<'_>, app: &AppContext) -> Vec<Box<dyn E
                             });
                         },
                         state_handles.start_new_conversation.clone(),
-                    )]),
-                    app,
-                ),
-                render_standard_message(
-                    Message::new(vec![MessageItem::clickable(
-                        vec![
-                            MessageItem::keystroke(
-                                ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE.clone(),
-                            ),
-                            MessageItem::text("start a new cloud agent conversation"),
-                        ],
-                        |ctx| {
-                            ctx.dispatch_typed_action(TerminalAction::EnterCloudAgentView);
-                        },
-                        state_handles.start_cloud_conversation.clone(),
                     )]),
                     app,
                 ),
