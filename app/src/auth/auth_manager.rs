@@ -347,7 +347,6 @@ impl AuthManager {
                         self.set_needs_reauth(true, ctx);
                     }
                     UserAuthenticationError::UserAccountDisabled(_) => {}
-                    UserAuthenticationError::DeviceCodeRequestTimedOut { .. } => {}
                     UserAuthenticationError::Unexpected(_) => {}
                     UserAuthenticationError::InvalidStateParameter => {}
                     UserAuthenticationError::MissingStateParameter => {}

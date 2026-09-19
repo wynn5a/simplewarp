@@ -5365,7 +5365,39 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             added or removed), `warp_server_client` 7 passed. Built and
             launched `./target/debug/simplewarp` — clean startup, terminal
             server spawned, no panics.
-      - [ ] **Next per 4ca's order after 4cn**: the remaining ambient task-id
+      - [x] **Dead `DeviceCodeRequestTimedOut` auth error (4co) — DONE 2026-09-19.**
+            The device-code OAuth flow (`warp login`, `request_device_code`/
+            `exchange_device_access_token`) went in 4bn, leaving its error
+            variant with zero producers anywhere in the workspace — verified
+            with `rg "DeviceCodeRequestTimedOut"` (definition + three match
+            arms, no construction site). Deleted the variant, its
+            `is_actionable` arm, and the two now-dead match arms in
+            `auth_manager.rs` (`on_user_fetched` error handling) and
+            `root_view.rs` (`AuthFailed` handling). Both matches stay
+            exhaustive over the five remaining variants. 3 files, +0/−5.
+            Deliberately left: `InvalidStateParameter`/`MissingStateParameter`
+            (live producers in the auth-redirect handler, with passing tests),
+            `DeniedAccessToken`/`UserAccountDisabled` (constructed via
+            `From<FirebaseError>`, live through `fetch_auth_tokens`), and
+            `Unexpected` (generic anyhow wrapper). Local-only safety: zero
+            producers means zero behavior change — terminal, tabs, panes,
+            settings, themes, BYOK AI, and all other local features untouched.
+
+            Acceptance: `check -p warp_server_client --all-targets`,
+            `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors;
+            only the two pre-existing `step.rs` unused-import warnings that
+            reproduce on a clean stash); clippy 0 errors, no warnings in
+            touched files (11 needless-returns + 1 single-element loop are the
+            pre-existing baseline); format clean. Nextest:
+            `warp_server_client` 7 passed; warp lib auth-redirect tests
+            (InvalidStateParameter producers) 3 passed; full warp lib
+            4,652 run with 1 notebooks flake (`test_command_block_dispatches_
+            event`, passes in isolation and in the notebooks-only filter —
+            the same cross-test-interference family 4by noted, not this
+            round's). Not re-run in the app — deleted code was unreachable
+            (no producers).
+      - [ ] **Next per 4ca's order after 4co**: the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
