@@ -5856,12 +5856,43 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             baseline (14 pre-existing, 0 added, none in touched files);
             format clean; nextest `-E 'test(auth)'` 44 passed / 4613
             skipped. App not re-run — deleted code was unreachable (no-op).
-      - [ ] **Next per 4ca's order after 4dd**: orphaned query/mutation/
+      - [x] **Three orphaned cloud-agent capacity-modal telemetry events (4de) — DONE 2026-09-20.**
+            The `cloud_agent_capacity_modal` UI went in 4ch, leaving its three
+            telemetry events with zero send sites anywhere in the workspace —
+            verified with `grep -rn "CloudAgentCapacityModal"` (definition +
+            five match-arm groups in `events.rs`, no constructor, no test
+            reference) and `grep -rln "CapacityModal\|ConcurrencyModal"`
+            (only `events.rs` — no modal UI, no string-name reference outside
+            the event-name mapping). Deleted the three variants (with docs)
+            and all five match arms (properties `None`, redaction-chain
+            membership, `EnablementState::Always`, the
+            `AmbientAgent.ConcurrencyModal.*` event names, descriptions). 1
+            file, +0/−27. Deliberately left: the neighboring `ComputerUse`
+            events (live local approval flow), the `CodexModal` pair (live
+            modal), and the whole ambient task-id identity plumbing
+            (`AmbientAgentTaskId` params on the `ComputerUse` events stay —
+            `new()` backs local-only orchestrator children and the viewer
+            threading is shared with the local viewer, so that plumbing is
+            not a leaf deletion). Local-only safety: zero constructors means
+            zero behavior change — terminal, tabs, panes, BYOK AI, settings,
+            themes, and all other local features untouched; only three
+            RudderStack event names that could never fire are gone.
+
+            Acceptance: `check -p warp --lib --all-targets`, `--bin
+            simplewarp`, `--bin warp-oss` clean (0 errors); clippy `-p warp
+            --lib --all-targets` 14 warnings byte-identical to the baseline
+            (0 added, none in the touched file); format clean. Nextest: warp
+            lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`), 0 failed
+            (4 skipped both — exactly the 4ci baselines, zero tests added or
+            removed, no flakes this round). App not re-run — deleted code was
+            unreachable (no constructors).
+      - [ ] **Next per 4ca's order after 4de**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
-            zero-reader flag is gone (4dc), and the dead login-notify no-op
-            is gone (4dd). Next is the remaining ambient task-id
+            zero-reader flag is gone (4dc), the dead login-notify no-op
+            is gone (4dd), and the orphaned capacity-modal telemetry events
+            are gone (4de). Next is the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
