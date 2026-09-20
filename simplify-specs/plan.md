@@ -5733,9 +5733,54 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             added or removed, no flakes this round);
             `warp_cli`+`warp_server_client` 83 passed. App not re-run —
             same unreachable-code call as 4co/4cs/4ct/4cu.
-      - [ ] **Next per 4ca's order after 4cz**: orphaned mutation modules
+      - [x] **Two remaining orphaned GraphQL query modules (4da) — DONE 2026-09-20.**
+            `get_runners` (cloud runners; the `delete_runner` /
+            `upsert_runner` mutations went in 4cz and `FactoryClient` itself
+            is gone — only doc-comment mentions remain, and the local runner
+            picker already degrades to its "environment default" empty state
+            with no server to answer) and `list_ai_conversations` (cloud
+            conversation listing; conversation sync went in 4cg — the only
+            importer repo-wide was the crate's own `ai_tests.rs` guard test
+            for the dead restore query, removed with the module). Verified
+            per-type with exact-name grep: zero qualified
+            `queries::<mod>` importers and zero operation call sites
+            (`get_runners(`, `list_ai_conversations(`,
+            `list_ai_conversation_metadata(`) repo-wide for both; no
+            `api::queries` glob import exists. The naive-grep hits are
+            unrelated local names — `RunnerArchArg` / `RunnerOsArg` CLI
+            enums, the local blocklist `AIConversationMetadata` type, and
+            the `MacosRunnersControl` experiment-flag variants. `ai.rs`
+            keeps its own `AIConversation` / `AgentHarness` /
+            `ConversationUsage` types (the deleted module imported them, not
+            vice versa). 4 files, +0/−~260 (2 deleted + `mod.rs` +
+            `ai_tests.rs`). Deliberately left: `get_conversation_usage`
+            (fragment types live via `ai.rs` + `gql_convert.rs`),
+            `get_updated_cloud_objects` (`UpdatedObjectInput` live via the
+            `cloud_object` + `cloud_objects` crates), `get_user` (live auth
+            path) — their operations may be dead but the modules are not
+            orphaned, same per-type-trace rule as 4cs–4cz. Local-only
+            safety: zero production importers means zero behavior change —
+            terminal, tabs, panes, drive UI, local conversation
+            history/persistence, BYOK AI, settings, themes, and all other
+            local features untouched.
+
+            Acceptance: `check -p warp_graphql --all-targets`,
+            `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0
+            errors); clippy `-p warp_graphql --all-targets` clean,
+            `-p warp --lib` byte-identical to the stash baseline (0 added,
+            none in touched files); format clean. Nextest: `warp_graphql`
+            6 passed (was 7 — the removed restore-query guard test, zero
+            other changes); warp lib 4,653 default / 4,652 simplewarp
+            (`--no-fail-fast`), 0 failed (4 skipped both — exactly the 4ci
+            baselines, zero tests added or removed, no flakes this round);
+            `warp_cli`+`warp_server_client` 83 passed. App not re-run —
+            same unreachable-code call as 4co/4cs/4ct/4cu/4cz.
+      - [ ] **Next per 4ca's order after 4da**: orphaned mutation modules
             are done (`mutations/` holds only the live
-            `create_anonymous_user`). Next is the remaining ambient task-id
+            `create_anonymous_user`) and the two fully-orphaned query
+            modules fell in 4da (`queries/` holds only the three type-live
+            modules). Next is the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
