@@ -5611,7 +5611,46 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             config (grep is config-independent); default config covered
             by the lib/all-targets checks. App not re-run — same
             unreachable-code call as 4co/4cs.
-      - [ ] **Next per 4ca's order after 4ct**: the ~43 remaining orphaned
+      - [x] **Seven more orphaned GraphQL mutation modules (4cu) — DONE 2026-09-20.**
+            Object-lifecycle batch, the server side of the ObjectClient +
+            sync_queue vertical deleted in 4bg: `bulk_create_objects`,
+            `delete_object`, `move_object`, `trash_object`,
+            `untrash_object`, `empty_trash`, `record_object_action`.
+            Verified per-type with exact-name grep: zero qualified
+            `mutations::<mod>` importers repo-wide for all seven (the only
+            `mutations::` importer anywhere stays `create_anonymous_user`);
+            no `api::mutations` glob import exists. The naive-grep hits are
+            unrelated local names — `DriveIndexAction::DeleteObject` /
+            `MoveObject` / `TrashObject` / `UntrashObject` / `EmptyTrash`
+            drive UI actions, `update_manager.delete_object_*` /
+            `trash_object` / `record_object_action` local SQLite-backed
+            methods (local objects stay in `CloudModel`/SQLite), and the
+            `schema.graphql` hits are server schema definitions, not client
+            uses (same call as 4cr). 8 files, +0/−~370 (7 deleted +
+            `mod.rs`). Deliberately left: `create_anonymous_user` (live)
+            and the ~36 remaining zero-operation modules — same per-type
+            trace, batch by batch. Local-only safety: zero qualified
+            importers means zero behavior change — terminal, tabs, panes,
+            drive UI, trash/empty-trash dialogs, workflow trash/untrash,
+            settings, themes, BYOK AI, personal-folder creation, and all
+            other local features untouched.
+
+            Acceptance: `check -p warp_graphql --all-targets`,
+            `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0
+            errors; only the two pre-existing `step.rs` unused-import
+            warnings that reproduce on a clean stash); clippy
+            `-p warp_graphql --all-targets` clean, `-p warp --lib`
+            byte-identical to the stash baseline (12, 0 added, none in
+            touched files); format clean. Nextest: `warp_graphql` 7
+            passed; warp lib 4,653 default 0 failed plus 4,652 simplewarp
+            (`--no-fail-fast`) with the single known
+            `test_command_block_dispatches_event` cross-test-interference
+            flake from 4co (passes in isolation; 4 skipped both — exactly
+            the 4ci baselines, zero tests added or removed);
+            `warp_cli`+`warp_server_client` 83 passed. App not re-run —
+            same unreachable-code call as 4co/4cs/4ct.
+      - [ ] **Next per 4ca's order after 4cu**: the ~36 remaining orphaned
             mutation modules (same per-type trace, batch by batch), then the
             remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
