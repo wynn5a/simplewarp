@@ -5529,7 +5529,51 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             simplewarp / 4,653 default, 0 failed (4 skipped both — exactly
             the 4ci baselines, zero tests added or removed);
             `warp_cli`+`warp_server_client` 83 passed.
-      - [ ] **Next per 4ca's order after 4cr**: the remaining ambient task-id
+      - [x] **Seven orphaned GraphQL mutation modules, team management (4cs) — DONE 2026-09-20.**
+            The mutation-side mirror of 4cp/4cq/4cr: every warp-server GraphQL
+            operation deleted with its feature left its mutation module
+            standing in `crates/graphql/src/api/mutations/` — the operation
+            was never built again, but the module is `pub` so the compiler
+            stays silent. A whole-repo `git grep` for `mutations::` outside
+            the directory returns exactly one live module
+            (`create_anonymous_user`, type-live via `queries/get_user.rs` +
+            `warp_server_auth/src/user.rs`); no `api::mutations` glob import
+            exists anywhere. Deleted the seven team-management modules whose
+            every public type is unreferenced outside its own file (verified
+            per-type with exact-name grep, not just the operation):
+            `create_team` (TeamClient went in 4bc), `delete_team_invite`,
+            `join_team_with_team_discovery` (discoverable-teams went in
+            3t/3u), `remove_user_from_team`, `rename_team`,
+            `send_team_invite_email`, `set_team_discoverability` — each
+            `*Variables`/`*Input`/`*Output`/`*Result` family appears only in
+            its own file. 8 files, +0/−552 (7 deleted + `mod.rs`).
+            Deliberately left: `create_anonymous_user` (the one live
+            fragment-type case) and the ~50 remaining zero-operation modules
+            — each needs the same per-type trace before deleting, since
+            generic names make naive grep useless. Local-only safety: zero
+            qualified importers means zero behavior change — terminal, tabs,
+            panes, settings, themes, BYOK AI, personal-folder creation, and
+            all other local features untouched.
+
+            Acceptance: `check -p warp_graphql --all-targets`,
+            `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors;
+            only the two pre-existing `step.rs` unused-import warnings that
+            reproduce on a clean stash); clippy byte-identical to the stash
+            baseline in both configs (11 needless-returns + 1 single-element
+            loop, 0 added, none in touched files); format clean. Nextest:
+            `warp_graphql` 7 passed; warp lib 4,652 simplewarp / 4,653
+            default (`--no-fail-fast`), 0 failed (4 skipped both — exactly
+            the 4ci baselines, zero tests added or removed; the one
+            fail-fast default failure, `test_command_block_dispatches_event`,
+            is the known cross-test-interference flake from 4co — passes in
+            isolation and in the full `--no-fail-fast` run);
+            `warp_cli`+`warp_server_client` 83 passed. Not re-run in the
+            app — deleted code was unreachable (no importers), same call as
+            4co.
+      - [ ] **Next per 4ca's order after 4cs**: the ~50 remaining orphaned
+            mutation modules (same per-type trace, batch by batch), then the
+            remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
