@@ -338,12 +338,6 @@ impl ServerApi {
         )
     }
 
-    /// Sends an authenticated empty POST request to /client/login, which signals to the server
-    /// that the user is logged in.
-    pub async fn notify_login(&self) {
-        log::debug!("Skipping login notification: {}", LOCAL_ONLY_MESSAGE);
-    }
-
     /// Synchronously sends a [`TelemetryEvent`] to the Rudderstack API. Prefer not to call this
     /// directly, use the macros defined in crate::server::telemetry::macros. If telemetry is
     /// disabled, this is a no-op.

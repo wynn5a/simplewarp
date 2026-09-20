@@ -321,7 +321,6 @@ impl AuthManager {
                         {
                             log::info!("Failed to flush events from Telemetry queue: {e}");
                         }
-                        server_api.notify_login().await;
                     },
                     |_, _, _| {},
                 );

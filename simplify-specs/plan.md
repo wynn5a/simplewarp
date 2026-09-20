@@ -5834,11 +5834,34 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             terminal, tabs, panes, drive UI, local conversation
             history/persistence, BYOK AI, settings, themes, and all other
             local features untouched.
-      - [ ] **Next per 4ca's order after 4dc**: orphaned query/mutation/
+      - [x] **Dead `ServerApi::notify_login` no-op + single call site (4dd) — DONE 2026-09-20.**
+            The `/client/login` server hello went local-only earlier, leaving
+            `notify_login` as a `log::debug!` no-op with exactly one caller —
+            the trailing line of the login-success telemetry-flush block in
+            `auth_manager.rs`. Deleted the method (with its doc) and the call
+            line; the surrounding flush block is unchanged, so the queued
+            identify + Login events still flush the same way. Verified with
+            `grep -rn "notify_login"`: zero hits remain. 2 files, +0/−7.
+            Deliberately left: the neighboring `send/flush/persist_telemetry`
+            methods (live telemetry payload, 4ca item 7 scope decision) and
+            the four `local_only_error()` AI/transcribe walls (live local
+            callers per 4cl). Local-only safety: no-op method means zero
+            behavior change except one dropped debug line — login, terminal,
+            tabs, panes, BYOK AI, settings, themes, and all other local
+            features untouched.
+
+            Acceptance: `check -p warp --lib --all-targets`, `--bin
+            simplewarp`, `--bin warp-oss` clean (0 errors); clippy `-p warp
+            --lib --all-targets` warning count byte-identical to the stash
+            baseline (14 pre-existing, 0 added, none in touched files);
+            format clean; nextest `-E 'test(auth)'` 44 passed / 4613
+            skipped. App not re-run — deleted code was unreachable (no-op).
+      - [ ] **Next per 4ca's order after 4dd**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
-            zero-reader flag is gone (4dc). Next is the remaining ambient task-id
+            zero-reader flag is gone (4dc), and the dead login-notify no-op
+            is gone (4dd). Next is the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
