@@ -567,12 +567,6 @@ pub enum FeatureFlag {
     /// instead of individual pane rows.
     VerticalTabsSummaryMode,
 
-    /// Enables creating API keys scoped to named agents in the API key
-    /// management UI. When enabled the "Team" option in the key-type
-    /// selector is replaced with "Agent" and users can pick which agent
-    /// identity the key authenticates as.
-    NamedAgents,
-
     /// Enables configurable expanded context windows for eligible GPT models.
     GPTConfigurableContextWindow,
 

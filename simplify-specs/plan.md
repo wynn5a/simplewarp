@@ -5886,13 +5886,56 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             (4 skipped both — exactly the 4ci baselines, zero tests added or
             removed, no flakes this round). App not re-run — deleted code was
             unreachable (no constructors).
-      - [ ] **Next per 4ca's order after 4de**: orphaned query/mutation/
+      - [x] **Ten orphaned team/sharing telemetry events (4df) — DONE 2026-09-20.**
+            Commit `ee87b6f6e` (`app/src/server/telemetry/events.rs`,
+            +0/−70): the team/sharing UI went with the 4bg ObjectClient
+            vertical, leaving ten telemetry events with zero send sites.
+            Same leaf class as 4de.
+      - [x] **Zero-reader `FeatureFlag::NamedAgents` + cargo feature (4dg) — DONE 2026-09-20.**
+            The 4dc precedent, second instance: `grep -rn "NamedAgents"`
+            repo-wide returned only the definition
+            (`crates/warp_features/src/lib.rs`) plus the write-only
+            `features.rs` mapping — no `is_enabled` reader in production
+            or tests, no DOGFOOD/PREVIEW/RELEASE membership. The flag gated
+            API keys scoped to named agent identities in the cloud API-key
+            management UI; the named-agent mgmt CLI went in 4bj and the
+            account-gated Oz Cloud API Keys GUI page went in 4bz, so it is
+            remote-only by design, and with zero readers deleting the
+            variant is zero behavior change either way. Unlike 4dc the
+            variant was wired to a cargo feature (`named_agents`, in BOTH
+            the `default` and `simplewarp` sets), so the feature went with
+            it: variant + doc (lib.rs), the two-line cfg mapping
+            (features.rs), both set memberships plus the `named_agents = []`
+            definition (app/Cargo.toml). `FLAG_STATES`/`USER_PREFERENCE_MAP`
+            are cardinality-sized, no count to update (per §5). The
+            remaining `specs/REMOTE-1696` hits are the historical Oz CLI
+            spec for the already-deleted surface, untouched. 3 files,
+            +0/−9. Local-only safety: nothing ever read the flag, so both
+            feature sets resolve and behave exactly as before — terminal,
+            tabs, panes, drive UI, local conversation history/persistence,
+            BYOK AI, settings, themes, and all other local features
+            untouched.
+
+            Acceptance: `check -p warp_features --all-targets`, `check -p
+            warp --lib --all-targets`, `--bin simplewarp`, `--bin warp-oss`,
+            plus `--no-default-features --features simplewarp --bin
+            simplewarp` (both sets touched) clean (0 errors); clippy `-p
+            warp_features --all-targets` clean, `-p warp --lib` 14 warnings
+            byte-identical to the stash baseline (0 added, none in touched
+            files); format clean; nextest `-p warp_features` 1 passed / 1
+            skipped. Nextest: warp lib 4,653 default / 4,652 simplewarp
+            (`--no-fail-fast`), 0 failed (4 skipped both — exactly the 4ci
+            baselines, zero tests added or removed, no flakes this round).
+            App not re-run — deleted code was unreachable (no readers).
+      - [ ] **Next per 4ca's order after 4dg**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
             zero-reader flag is gone (4dc), the dead login-notify no-op
-            is gone (4dd), and the orphaned capacity-modal telemetry events
-            are gone (4de). Next is the remaining ambient task-id
+            is gone (4dd), the orphaned capacity-modal telemetry events
+            are gone (4de), the ten orphaned team/sharing telemetry events
+            are gone (4df), and the zero-reader NamedAgents flag + cargo
+            feature are gone (4dg). Next is the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
