@@ -5776,11 +5776,45 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             baselines, zero tests added or removed, no flakes this round);
             `warp_cli`+`warp_server_client` 83 passed. App not re-run —
             same unreachable-code call as 4co/4cs/4ct/4cu/4cz.
-      - [ ] **Next per 4ca's order after 4da**: orphaned mutation modules
-            are done (`mutations/` holds only the live
-            `create_anonymous_user`) and the two fully-orphaned query
-            modules fell in 4da (`queries/` holds only the three type-live
-            modules). Next is the remaining ambient task-id
+      - [x] **Orphaned GraphQL subscription modules (4db) — DONE 2026-09-20.**
+            The subscription-side mirror of 4cp–4da: `GetWarpDriveUpdates`
+            (the warp-server Warp Drive live-update feed — object
+            create/update/delete, permissions, team memberships, ambient
+            task ticks) plus the generic `start_graphql_streaming_operation`
+            websocket helper that was its only transport. Verified with
+            exact-name grep: zero `warp_graphql::subscriptions` importers,
+            zero `GetWarpDriveUpdates` / `WarpDriveUpdate` /
+            `start_graphql_streaming_operation` call sites repo-wide — the
+            naive-grep hits are unrelated local names (view event
+            subscriptions, paid subscriptions). The SSE-stream walls on
+            `ServerApi` went in 4cl, leaving these with no caller; nothing
+            else ever subscribed. 3 files, +0/−~170 (2 deleted +
+            `mod.rs`). Deliberately left: the `ObjectUpdateMessage` cloud
+            variant in `cloud_objects` (4aw: its arm is an empty no-op, a
+            separate layer) and the `websocket` crate itself (shared
+            transport, not subscription-specific). Local-only safety: zero
+            production importers means zero behavior change — terminal,
+            tabs, panes, drive UI, local conversation history/persistence,
+            BYOK AI, settings, themes, and all other local features
+            untouched.
+
+            Acceptance: `check -p warp_graphql --all-targets`,
+            `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0
+            errors; the 2 `integration_testing` unused-import warnings are
+            pre-existing, unrelated files); clippy `-p warp_graphql
+            --all-targets` clean, `-p warp --lib` 14 warnings —
+            byte-identical count to the stash baseline (0 added, none in
+            touched files); format clean. Nextest: `warp_graphql` 6
+            passed; warp lib 4,653 default / 4,652 simplewarp
+            (`--no-fail-fast`), 0 failed (4 skipped both — exactly the 4da
+            baselines, zero tests added or removed, no flakes this round);
+            `warp_cli`+`warp_server_client` 83 passed. App not re-run —
+            same unreachable-code call as 4co/4cs/4ct/4cu/4cz/4da.
+      - [ ] **Next per 4ca's order after 4db**: orphaned query/mutation/
+            subscription modules are done (`mutations/` holds only the live
+            `create_anonymous_user`, `queries/` holds only the three
+            type-live modules, `subscriptions/` is gone). Next is the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is

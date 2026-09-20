@@ -13,7 +13,6 @@ pub mod object_permissions;
 pub mod queries;
 pub mod request_context;
 pub mod response_context;
-pub mod subscriptions;
 pub mod user;
 pub mod workflow;
 pub mod workspace;
