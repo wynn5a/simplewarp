@@ -1,15 +1,8 @@
 pub mod create_anonymous_user;
-pub mod create_generic_string_object;
 pub mod create_managed_mcp_client_config;
-pub mod create_simple_integration;
 pub mod delete_runner;
 pub mod share_block;
-pub mod transfer_generic_string_object_owner;
-pub mod transfer_notebook_owner;
-pub mod transfer_workflow_owner;
 pub mod unshare_block;
-pub mod update_generic_string_object;
 pub mod update_onboarding_survey_status;
-pub mod update_workflow;
 pub mod update_workspace_settings;
 pub mod upsert_runner;
