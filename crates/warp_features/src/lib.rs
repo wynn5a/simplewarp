@@ -576,9 +576,6 @@ pub enum FeatureFlag {
     /// Enables configurable expanded context windows for eligible GPT models.
     GPTConfigurableContextWindow,
 
-    /// Replaces the raw harness CLI command with a styled header showing CLI name + status icon.
-    HarnessSessionHeader,
-
     /// Enables the code review view for remote sessions.
     RemoteCodeReview,
 

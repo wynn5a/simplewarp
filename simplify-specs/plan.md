@@ -5811,10 +5811,34 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             baselines, zero tests added or removed, no flakes this round);
             `warp_cli`+`warp_server_client` 83 passed. App not re-run —
             same unreachable-code call as 4co/4cs/4ct/4cu/4cz/4da.
-      - [ ] **Next per 4ca's order after 4db**: orphaned query/mutation/
+      - [x] **Zero-reader `FeatureFlag::HarnessSessionHeader` (4dc) — DONE 2026-09-20.**
+            Definition-only delete, the 4aq precedent: `grep -rn
+            "FeatureFlag::HarnessSessionHeader"` repo-wide returned only the
+            declaration — no production reader, no test reader, no cargo
+            feature, no `features.rs` mapping, no DOGFOOD/PREVIEW/RELEASE/
+            RUNTIME membership. The remaining `HarnessSessionHeader` hits are
+            the unrelated live `RichContentMetadata::HarnessSessionHeader`
+            enum (terminal block header rendering, untouched). The flag's own
+            doc ("styled header showing CLI name + status icon" for harness
+            CLI commands) names the cloud-agent harness vertical whose client
+            (`HarnessSupportClient`) went in 4bd — remote-only by design, and
+            with zero readers deleting the variant is zero behavior change
+            either way. 1 file, +0/−3. `FLAG_STATES`/`USER_PREFERENCE_MAP`
+            are cardinality-sized, no count to update (per §5).
+
+            Acceptance: `check -p warp_features --all-targets`, `check -p
+            warp --lib --all-targets`, `--bin simplewarp`, `--bin warp-oss`
+            clean (0 errors); clippy `-p warp_features --all-targets` clean;
+            format clean; nextest `-p warp_features` 1 passed / 1 skipped.
+            Local-only safety: zero readers means zero behavior change —
+            terminal, tabs, panes, drive UI, local conversation
+            history/persistence, BYOK AI, settings, themes, and all other
+            local features untouched.
+      - [ ] **Next per 4ca's order after 4dc**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
-            type-live modules, `subscriptions/` is gone). Next is the remaining ambient task-id
+            type-live modules, `subscriptions/` is gone) and the one
+            zero-reader flag is gone (4dc). Next is the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
