@@ -5650,9 +5650,92 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             the 4ci baselines, zero tests added or removed);
             `warp_cli`+`warp_server_client` 83 passed. App not re-run —
             same unreachable-code call as 4co/4cs/4ct.
-      - [ ] **Next per 4ca's order after 4cu**: the ~36 remaining orphaned
-            mutation modules (same per-type trace, batch by batch), then the
-            remaining ambient task-id
+      - [x] **Seven more orphaned GraphQL mutation modules (4cv) — DONE 2026-09-20.**
+            Sharing/guests batch, the server side of the ObjectClient +
+            sync_queue sharing vertical deleted in 4bg: `add_object_guests`,
+            `remove_object_guest`, `update_object_guests`, `leave_object`,
+            `set_object_link_permissions`,
+            `remove_object_link_permissions`, `set_is_invite_link_enabled`.
+            Verified per-type with exact-name grep: zero qualified
+            `mutations::<mod>` importers repo-wide for all seven (the only
+            `mutations::` importer anywhere stays `create_anonymous_user`,
+            type-live via `queries/get_user.rs` +
+            `warp_server_auth/src/user.rs`); no `api::mutations` glob import
+            exists. 8 files, +0/−329 (7 deleted + `mod.rs`).
+            Local-only safety: zero qualified importers means zero behavior
+            change — terminal, tabs, panes, drive UI, sharing dialogs,
+            settings, themes, BYOK AI, and all other local features
+            untouched. Each of the five 4cv–4cz batch commits was
+            `check -p warp_graphql --all-targets` verified individually;
+            full acceptance once on the final state (below, 4cz).
+      - [x] **Seven more orphaned GraphQL mutation modules (4cw) — DONE 2026-09-20.**
+            Invite-link/team batch: `add_invite_link_domain_restriction`,
+            `delete_invite_link_domain_restriction`, `reset_invite_links`
+            (invite-link management went with the sharing vertical),
+            `send_referral_invite_emails` (referral program, remote-only),
+            `set_team_member_role`, `transfer_team_ownership` (TeamClient
+            went in 4bc), `mint_custom_token` (remote auth issuance).
+            Same per-type trace — zero qualified importers, no glob import.
+            8 files, +0/−~350 (7 deleted + `mod.rs`). Local-only safety as
+            4cv — login/identity stays on the local `warp_server_auth` path
+            plus the live `create_anonymous_user` fragment type.
+      - [x] **Seven more orphaned GraphQL mutation modules (4cx) — DONE 2026-09-20.**
+            Object-CRUD batch, the server side of personal-folder creation
+            (local creation stays in `CloudModel`/SQLite):
+            `create_folder`, `update_folder`, `create_notebook`,
+            `update_notebook`, `give_up_notebook_edit_access`,
+            `grab_notebook_edit_access` (notebook baton is local-only since
+            4bg), `create_workflow`. Same per-type trace — zero qualified
+            importers, no glob import. The naive-grep hits on
+            `CreateFolder` / `CreateNotebook` / `CreateWorkflow` are the
+            unrelated local `DriveIndexEvent` variants in
+            `app/src/drive/index.rs` + `panel.rs` (no `warp_graphql` /
+            `mutations` import in either file — same call as 4cu). 8 files,
+            +0/−~400 (7 deleted + `mod.rs`). Local-only safety as 4cv —
+            personal-folder/notebook/workflow creation, drive UI, and the
+            notebook baton untouched.
+      - [x] **Seven more orphaned GraphQL mutation modules (4cy) — DONE 2026-09-20.**
+            Workflow/string-object batch: `update_workflow`,
+            `transfer_workflow_owner`, `transfer_notebook_owner`,
+            `create_generic_string_object`,
+            `update_generic_string_object`,
+            `transfer_generic_string_object_owner`,
+            `create_simple_integration` (remote integrations). Same
+            per-type trace — zero qualified importers, no glob import. 8
+            files, +0/−~430 (7 deleted + `mod.rs`). Local-only safety as
+            4cv — workflows, notebooks, and string objects stay local.
+      - [x] **Seven more orphaned GraphQL mutation modules (4cz) — DONE 2026-09-20.**
+            Final batch — `mutations/` is now just `mod.rs` +
+            `create_anonymous_user` (live): `share_block`,
+            `unshare_block` (cloud block sharing), `DisplaySetting` /
+            `BlockInput` generic names verified zero external hits;
+            `update_onboarding_survey_status` (remote survey write —
+            `OnboardingSurveyStatus`, `SurveyResponsesInput` families zero
+            external hits), `update_workspace_settings` (remote billing
+            settings write), `create_managed_mcp_client_config`
+            (`ManagedMcpTransportKind` zero external hits outside a specs
+            doc mention), `delete_runner` / `upsert_runner` (cloud runners;
+            `RunnerInput`, `MacOsConfigInput`, `LinuxConfigInput` zero
+            external hits). 8 files, +0/−~540 (7 deleted + `mod.rs`).
+            Total across 4cv–4cz: 36 files, +0/−2,053 — every orphaned
+            mutation module is gone.
+
+            Acceptance (final state): `check -p warp_graphql
+            --all-targets`, `check -p warp --lib --all-targets`, `--bin
+            simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+            clean (0 errors; only the two pre-existing `step.rs`
+            unused-import warnings that reproduce on a clean stash); clippy
+            `-p warp_graphql --all-targets` clean, `-p warp --lib` 12
+            warnings byte-identical to the stash baseline (0 added, none in
+            touched files); format clean. Nextest: `warp_graphql` 7 passed;
+            warp lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`), 0
+            failed (4 skipped both — exactly the 4ci baselines, zero tests
+            added or removed, no flakes this round);
+            `warp_cli`+`warp_server_client` 83 passed. App not re-run —
+            same unreachable-code call as 4co/4cs/4ct/4cu.
+      - [ ] **Next per 4ca's order after 4cz**: orphaned mutation modules
+            are done (`mutations/` holds only the live
+            `create_anonymous_user`). Next is the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
