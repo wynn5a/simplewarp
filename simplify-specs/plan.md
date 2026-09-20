@@ -5571,7 +5571,47 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             `warp_cli`+`warp_server_client` 83 passed. Not re-run in the
             app — deleted code was unreachable (no importers), same call as
             4co.
-      - [ ] **Next per 4ca's order after 4cs**: the ~50 remaining orphaned
+      - [x] **Seven more orphaned GraphQL mutation modules (4ct) — DONE 2026-09-20.**
+            Billing pair `purchase_addon_credits` / `stripe_billing_portal`
+            (metering/billing went in 4d), artifact pair
+            `create_file_artifact_upload_target` /
+            `confirm_file_artifact_upload` (4cc; the former owns the shared
+            `FileArtifact` fragment type, so both fall together —
+            `api::message::artifact_event::FileArtifact` in the app is a
+            different type), `delete_ai_conversation` (conversation sync
+            went in 4cg; the `ModelEvent::DeleteAIConversation` /
+            persistence `delete_ai_conversation` names are unrelated local
+            code), and agent-task pair `create_agent_task` /
+            `update_agent_task` (cloud-run lifecycle went in 4ch; the
+            `AIClient::create_agent_task` / `update_agent_task` mentions
+            are historical spec docs — the trait itself is gone).
+            Verified per-type with exact-name grep: the only
+            `mutations::` importer repo-wide stays `create_anonymous_user`
+            (type-live via `queries/get_user.rs` +
+            `warp_server_auth/src/user.rs`); no `api::mutations` glob
+            import exists. 8 files, +0/−~700 (7 deleted + `mod.rs`).
+            Deliberately left: `create_anonymous_user` (live) and the ~43
+            remaining zero-operation modules — same per-type trace, batch
+            by batch. Local-only safety: zero qualified importers means
+            zero behavior change — terminal, tabs, panes, settings, themes,
+            BYOK AI, local conversation history/persistence, and all other
+            local features untouched.
+
+            Acceptance: `check -p warp_graphql --all-targets`,
+            `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0
+            errors; only the two pre-existing `step.rs` unused-import
+            warnings that reproduce on a clean stash); clippy
+            `-p warp_graphql --all-targets` clean; format clean. Nextest:
+            `warp_graphql` 7 passed; warp lib 4,652 simplewarp
+            (`--no-fail-fast`), 0 failed (4 skipped — exactly the 4ci
+            baselines, zero tests added or removed);
+            `warp_cli`+`warp_server_client` 83 passed. Default-feature
+            suite not re-run — deleted code is unreachable in every
+            config (grep is config-independent); default config covered
+            by the lib/all-targets checks. App not re-run — same
+            unreachable-code call as 4co/4cs.
+      - [ ] **Next per 4ca's order after 4ct**: the ~43 remaining orphaned
             mutation modules (same per-type trace, batch by batch), then the
             remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
