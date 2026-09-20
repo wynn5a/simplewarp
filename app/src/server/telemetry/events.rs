@@ -1220,7 +1220,6 @@ pub enum TelemetryEvent {
     },
     /// Copy command, output or both for some number of blocks.
     ContextMenuCopy(BlockEntity, BlockSelectionCardinality),
-    ContextMenuOpenShareModal(BlockSelectionCardinality),
     ContextMenuFindWithinBlocks(BlockSelectionCardinality),
     ContextMenuCopyPrompt {
         part: PromptPart,
@@ -1251,7 +1250,6 @@ pub enum TelemetryEvent {
         duration_since_start: Duration,
     },
     BootstrappingSucceeded(BootstrappingInfo),
-    CopyInviteLink,
     OpenThemeChooser,
     ThemeSelection {
         theme: String,
@@ -1346,7 +1344,6 @@ pub enum TelemetryEvent {
         source: LoginEventSource,
     },
     OpenNewSessionFromFilePath,
-    OpenTeamFromURI,
     ShowedSuggestedAgentModeWorkflowChip {
         logging_id: SuggestedLoggingId,
     },
@@ -1418,18 +1415,12 @@ pub enum TelemetryEvent {
         ui_location: LaunchConfigUiLocation,
         open_in_active_window: bool,
     },
-    TeamCreated,
-    TeamJoined,
-    TeamLeft,
     ToggleSettingsSync {
         is_settings_sync_enabled: bool,
     },
-    TeamLinkCopied,
-    RemovedUserFromTeam,
     DeletedWorkflow,
     DeletedNotebook,
     ToggleApprovalsModal,
-    SendEmailInvites,
     SetLineHeight {
         new_value: f32,
     },
@@ -1663,10 +1654,6 @@ pub enum TelemetryEvent {
     },
     LogOut,
     SettingsImportInitiated,
-    InviteTeammates {
-        num_teammates: usize,
-        team_uid: ServerId,
-    },
     CopyObjectToClipboard(TelemetryCloudObjectType),
     OpenAndWarpifyDockerSubshell {
         /// Some variant if we support this shell type, and None otherwise.
@@ -2760,9 +2747,6 @@ impl TelemetryEvent {
             TelemetryEvent::ContextMenuFindWithinBlocks(cardinality) => {
                 Some(json!({ "cardinality": cardinality }))
             }
-            TelemetryEvent::ContextMenuOpenShareModal(cardinality) => {
-                Some(json!({ "cardinality": cardinality }))
-            }
             TelemetryEvent::ContextMenuCopyPrompt { part } => Some(json!({ "part": part })),
             TelemetryEvent::ReinputCommands(cardinality) => {
                 Some(json!({ "cardinality": cardinality }))
@@ -3138,10 +3122,6 @@ impl TelemetryEvent {
             TelemetryEvent::PaneDropped { drop_location } => {
                 Some(json!({ "location": drop_location }))
             }
-            TelemetryEvent::InviteTeammates {
-                num_teammates,
-                team_uid,
-            } => Some(json!({"num_teammates": num_teammates, "team_uid": team_uid})),
             TelemetryEvent::AgentModeCreatedAIBlock {
                 client_exchange_id,
                 server_output_id,
@@ -3667,7 +3647,6 @@ impl TelemetryEvent {
             | TelemetryEvent::Login
             | TelemetryEvent::ContextMenuInsertSelectedText
             | TelemetryEvent::JumpToPreviousCommand
-            | TelemetryEvent::CopyInviteLink
             | TelemetryEvent::OpenThemeChooser
             | TelemetryEvent::OpenThemeCreatorModal
             | TelemetryEvent::CreateCustomTheme
@@ -3684,7 +3663,6 @@ impl TelemetryEvent {
             | TelemetryEvent::NotificationClicked
             | TelemetryEvent::SignUpButtonClicked
             | TelemetryEvent::OpenNewSessionFromFilePath
-            | TelemetryEvent::OpenTeamFromURI
             | TelemetryEvent::SelectNavigationPaletteItem
             | TelemetryEvent::DragAndDropTab
             | TelemetryEvent::DragAndDropTabGroup
@@ -3695,15 +3673,9 @@ impl TelemetryEvent {
             | TelemetryEvent::ShowInFileExplorer
             | TelemetryEvent::OpenLaunchConfigSaveModal
             | TelemetryEvent::OpenLaunchConfigFile
-            | TelemetryEvent::TeamCreated
-            | TelemetryEvent::TeamJoined
-            | TelemetryEvent::TeamLeft
-            | TelemetryEvent::TeamLinkCopied
-            | TelemetryEvent::RemovedUserFromTeam
             | TelemetryEvent::DeletedWorkflow
             | TelemetryEvent::DeletedNotebook
             | TelemetryEvent::ToggleApprovalsModal
-            | TelemetryEvent::SendEmailInvites
             | TelemetryEvent::KeybindingsPageOpened
             | TelemetryEvent::OpenedAltScreenFind
             | TelemetryEvent::QuitModalDisabled
@@ -4276,7 +4248,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AgentModeRewindExecuted { .. }
             | TelemetryEvent::ConfirmSuggestion { .. }
             | TelemetryEvent::ContextMenuCopy(_, _)
-            | TelemetryEvent::ContextMenuOpenShareModal(_)
             | TelemetryEvent::ContextMenuFindWithinBlocks(_)
             | TelemetryEvent::ContextMenuCopyPrompt { .. }
             | TelemetryEvent::ContextMenuToggleGitPromptDirtyIndicator { .. }
@@ -4289,7 +4260,6 @@ impl TelemetryEvent {
             | TelemetryEvent::BootstrappingSlow(_)
             | TelemetryEvent::SessionAbandonedBeforeBootstrap { .. }
             | TelemetryEvent::BootstrappingSucceeded(_)
-            | TelemetryEvent::CopyInviteLink
             | TelemetryEvent::OpenThemeChooser
             | TelemetryEvent::ThemeSelection { .. }
             | TelemetryEvent::AppIconSelection { .. }
@@ -4334,7 +4304,6 @@ impl TelemetryEvent {
             | TelemetryEvent::LoginLaterButtonClicked { .. }
             | TelemetryEvent::LoginLaterConfirmationButtonClicked { .. }
             | TelemetryEvent::OpenNewSessionFromFilePath
-            | TelemetryEvent::OpenTeamFromURI
             | TelemetryEvent::SelectNavigationPaletteItem
             | TelemetryEvent::SelectCommandPaletteOption(_)
             | TelemetryEvent::PaletteSearchOpened { .. }
@@ -4363,16 +4332,10 @@ impl TelemetryEvent {
             | TelemetryEvent::SaveLaunchConfig { .. }
             | TelemetryEvent::OpenLaunchConfigFile
             | TelemetryEvent::OpenLaunchConfig { .. }
-            | TelemetryEvent::TeamCreated
-            | TelemetryEvent::TeamJoined
-            | TelemetryEvent::TeamLeft
             | TelemetryEvent::ToggleSettingsSync { .. }
-            | TelemetryEvent::TeamLinkCopied
-            | TelemetryEvent::RemovedUserFromTeam
             | TelemetryEvent::DeletedWorkflow
             | TelemetryEvent::DeletedNotebook
             | TelemetryEvent::ToggleApprovalsModal
-            | TelemetryEvent::SendEmailInvites
             | TelemetryEvent::SetLineHeight { .. }
             | TelemetryEvent::KeybindingsPageOpened
             | TelemetryEvent::GlobalSearchOpened
@@ -4464,7 +4427,6 @@ impl TelemetryEvent {
             | TelemetryEvent::WebCloudObjectOpenedOnDesktop { .. }
             | TelemetryEvent::UnsupportedShell { .. }
             | TelemetryEvent::LogOut
-            | TelemetryEvent::InviteTeammates { .. }
             | TelemetryEvent::CopyObjectToClipboard(_)
             | TelemetryEvent::OpenAndWarpifyDockerSubshell { .. }
             | TelemetryEvent::UpdateBlockFilterQuery
@@ -4759,7 +4721,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::Login => EnablementState::Always,
             Self::ConfirmSuggestion => EnablementState::Always,
             Self::ContextMenuCopy => EnablementState::Always,
-            Self::ContextMenuOpenShareModal => EnablementState::Always,
             Self::ContextMenuFindWithinBlocks => EnablementState::Always,
             Self::ContextMenuCopyPrompt => EnablementState::Always,
             Self::ContextMenuToggleGitPromptDirtyIndicator => EnablementState::Always,
@@ -4773,7 +4734,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::BootstrappingSlowContents => EnablementState::Always,
             Self::SessionAbandonedBeforeBootstrap => EnablementState::Always,
             Self::BootstrappingSucceeded => EnablementState::Always,
-            Self::CopyInviteLink => EnablementState::Always,
             Self::OpenThemeChooser => EnablementState::Always,
             Self::ThemeSelection => EnablementState::Always,
             Self::AppIconSelection => EnablementState::Always,
@@ -4816,7 +4776,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::SignUpButtonClicked => EnablementState::Always,
             Self::LoginButtonClicked => EnablementState::Always,
             Self::OpenNewSessionFromFilePath => EnablementState::Always,
-            Self::OpenTeamFromURI => EnablementState::Always,
             Self::SelectCommandPaletteOption => EnablementState::Always,
             Self::PaletteSearchOpened => EnablementState::Always,
             Self::PaletteSearchResultAccepted => EnablementState::Always,
@@ -4844,15 +4803,9 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::SaveLaunchConfig => EnablementState::Always,
             Self::OpenLaunchConfigFile => EnablementState::Always,
             Self::OpenLaunchConfig => EnablementState::Always,
-            Self::TeamCreated => EnablementState::Always,
-            Self::TeamJoined => EnablementState::Always,
-            Self::TeamLeft => EnablementState::Always,
-            Self::TeamLinkCopied => EnablementState::Always,
-            Self::RemovedUserFromTeam => EnablementState::Always,
             Self::DeletedWorkflow => EnablementState::Always,
             Self::DeletedNotebook => EnablementState::Always,
             Self::ToggleApprovalsModal => EnablementState::Always,
-            Self::SendEmailInvites => EnablementState::Always,
             Self::SetLineHeight => EnablementState::Always,
             Self::KeybindingsPageOpened => EnablementState::Always,
             Self::GlobalSearchOpened => EnablementState::Always,
@@ -4936,7 +4889,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::UnsupportedShell => EnablementState::Always,
             Self::LogOut => EnablementState::Always,
             Self::SettingsImportInitiated => EnablementState::Always,
-            Self::InviteTeammates => EnablementState::Always,
             Self::CopyObjectToClipboard => EnablementState::Always,
             Self::OpenAndWarpifyDockerSubshell => EnablementState::Always,
             Self::UpdateBlockFilterQuery => EnablementState::Always,
@@ -5141,7 +5093,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::LoginLaterConfirmationButtonClicked => "Login Later Confirmation Button Clicked",
             Self::JumpToPreviousCommand => "Jumped to Previous Command",
             Self::ContextMenuFindWithinBlocks => "Context Menu: Find Within Blocks",
-            Self::ContextMenuOpenShareModal => "Context Menu: Initiate Block Sharing",
             Self::ContextMenuCopy => "Context Menu Copy",
             Self::BlockSelection => "Block Selection",
             Self::BootstrappingSlow => "Bootstrapping Slow",
@@ -5198,7 +5149,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ContextMenuToggleGitPromptDirtyIndicator => {
                 "Context Menu Toggle Git Prompt Dirty Indicator"
             }
-            Self::CopyInviteLink => "Copy Invite Link",
             Self::OpenThemeChooser => "Open Theme Chooser",
             Self::ThemeSelection => "Select Theme",
             Self::AppIconSelection => "Select App Icon",
@@ -5245,7 +5195,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::SignUpButtonClicked => "Sign Up Button Clicked in App",
             Self::LoginButtonClicked => "Log In Button Clicked in App",
             Self::OpenNewSessionFromFilePath => "New Session From Directory",
-            Self::OpenTeamFromURI => "Open Team from URI",
             Self::SelectCommandPaletteOption => "Select Command Palette Option",
             Self::PaletteSearchOpened => "Open Palette",
             Self::PaletteSearchResultAccepted => "Command Palette Search Accepted",
@@ -5364,7 +5313,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::DriveSharingOnboardingBlockShown => "Warp Drive Sharing onboarding block shown",
             Self::UnsupportedShell => "Unsupported Shell",
             Self::SettingsImportInitiated => "Settings Import Initiated",
-            Self::InviteTeammates => "Invited Teammates",
             Self::CopyObjectToClipboard => "Copy Object To Clipboard",
             Self::OpenAndWarpifyDockerSubshell => "OpenAndWarpifyDockerSubshell",
             Self::UpdateBlockFilterQuery => "Update Block Filter Query",
@@ -5383,15 +5331,9 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::PaneDragInitiated => "Pane Drag Inititiated",
             Self::PaneDropped => "Pane Drag Ended",
             Self::AgentModeCreatedAIBlock => "AgentMode.CreatedAIBlock",
-            Self::TeamCreated => "Team Created",
-            Self::TeamJoined => "Team Joined",
-            Self::TeamLeft => "Team Left",
-            Self::TeamLinkCopied => "Team Link Copied",
-            Self::RemovedUserFromTeam => "Removed user from team",
             Self::DeletedWorkflow => "Deleted Workflow",
             Self::DeletedNotebook => "Deleted Notebook",
             Self::ToggleApprovalsModal => "Toggle Approvals Modal",
-            Self::SendEmailInvites => "Sent email invites",
             Self::TierLimitHit => "Tier Limit Hit",
             Self::SharedObjectLimitHitBannerViewPlansButtonClicked => {
                 "Shared Object Limit Hit Banner View Plans Button Clicked"
@@ -5655,7 +5597,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::ConfirmSuggestion => "Accepted tab completion suggestion",
             Self::ContextMenuCopy => "Clicked \"Copy\" in context menu",
-            Self::ContextMenuOpenShareModal => "Opened \"Share\" modal via context menu",
             Self::ContextMenuFindWithinBlocks => "Clicked \"find within blocks\" in context menu",
             Self::ContextMenuCopyPrompt => "Clicked  \"Copy Prompt\" in context menu",
             Self::ContextMenuToggleGitPromptDirtyIndicator => {
@@ -5675,7 +5616,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Abandoned session before the bootstrapping completes"
             }
             Self::BootstrappingSucceeded => "Successful bootstrap for session",
-            Self::CopyInviteLink => "Clicked \"Copy Link\" on Referral Modal",
             Self::OpenThemeChooser => {
                 "Opened theme chooser (list of different themes and visualizations of those themes)"
             }
@@ -5745,9 +5685,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::OpenNewSessionFromFilePath => {
                 "Dragged a file, folder, etc. into Warp to start a session"
             }
-            Self::OpenTeamFromURI => {
-                "Showed settings view of their newly joined team within the app"
-            }
             Self::SelectCommandPaletteOption => "Selected option from command palette (i.e. CMD-P)",
             Self::PaletteSearchOpened => "Opened the palette",
             Self::PaletteSearchResultAccepted => "Accepted a command palette search result",
@@ -5792,15 +5729,9 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Opened the launch config YAML file from modal once saved successfully"
             }
             Self::OpenLaunchConfig => "Opened launch config for a session",
-            Self::TeamCreated => "Created a Warp Drive team",
-            Self::TeamJoined => "Joined a Warp Drive team",
-            Self::TeamLeft => "Left a Warp Drive team",
-            Self::TeamLinkCopied => "Copied a Warp Drive team link",
-            Self::RemovedUserFromTeam => "Remove user from Warp Drive team",
             Self::DeletedWorkflow => "Deleted workflow from Warp Drive team",
             Self::DeletedNotebook => "Deleted notebook from Warp Drive team",
             Self::ToggleApprovalsModal => "Opened or closed teams modal",
-            Self::SendEmailInvites => "Sent email invites for Warp Drive team",
             Self::SetLineHeight => "Set line height through Settings -> Appearance",
             Self::KeybindingsPageOpened => "Opened the keybinding page within the resource center",
             Self::CommandSearchOpened => "Opened command search (universal search panel to search)",
@@ -5989,7 +5920,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::UnsupportedShell => "Booted Warp with a shell that isn't supported",
             Self::LogOut => "Logged out of the Warp client",
             Self::SettingsImportInitiated => "Started the import settings flow for new users",
-            Self::InviteTeammates => "Sent emails to invite teammates to join Warp Drive team",
             Self::CopyObjectToClipboard => "Copied an object to the user's keyboard",
             Self::OpenAndWarpifyDockerSubshell => {
                 "Warpifying a docker subshell from using the docker extension"
