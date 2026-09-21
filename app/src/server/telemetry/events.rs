@@ -1099,13 +1099,6 @@ pub enum SlashMenuSource {
     UserTyped,
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum LoginEventSource {
-    OnboardingSlide,
-    AuthModal,
-}
-
 /// Origin of a queued prompt, mirrored for telemetry so we don't pull serde derives onto the
 /// canonical `QueuedQueryOrigin` enum (which doesn't otherwise need them).
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -1333,16 +1326,6 @@ pub enum TelemetryEvent {
         option: FindOption,
         enabled: bool,
     },
-    SignUpButtonClicked,
-    LoginButtonClicked {
-        source: LoginEventSource,
-    },
-    LoginLaterButtonClicked {
-        source: LoginEventSource,
-    },
-    LoginLaterConfirmationButtonClicked {
-        source: LoginEventSource,
-    },
     OpenNewSessionFromFilePath,
     ShowedSuggestedAgentModeWorkflowChip {
         logging_id: SuggestedLoggingId,
@@ -1364,15 +1347,6 @@ pub enum TelemetryEvent {
     PaletteSearchExited {
         filter: Option<QueryFilter>,
         buffer_length: usize,
-    },
-    AuthCommonQuestionClicked {
-        question: &'static str,
-    },
-    AuthToggleFAQ {
-        open: bool,
-    },
-    OpenAuthPrivacySettings {
-        source: LoginEventSource,
     },
     TabRenamed(TabRenameEvent),
     MoveActiveTab {
@@ -1598,9 +1572,6 @@ pub enum TelemetryEvent {
     EnableVimKeybindingsFromBanner,
     DismissVimKeybindingsBanner,
     InitiateReauth,
-    InitiateAnonymousUserSignup {
-        entrypoint: AnonymousUserSignupEntrypoint,
-    },
     AnonymousUserExpirationLockout,
     AnonymousUserLinkedFromBrowser,
     AnonymousUserAttemptLoginGatedFeature {
@@ -2841,11 +2812,6 @@ impl TelemetryEvent {
                 filter: mode,
                 buffer_length,
             } => Some(json!({ "mode": mode, "buffer_length": buffer_length })),
-            TelemetryEvent::AuthCommonQuestionClicked { question } => Some(json!(question)),
-            TelemetryEvent::AuthToggleFAQ { open } => {
-                let payload = if *open { "open" } else { "close" };
-                Some(json!(payload))
-            }
             TelemetryEvent::TabRenamed(rename_event) => Some(json!(rename_event)),
             TelemetryEvent::MoveActiveTab { direction } => Some(json!({ "direction": direction })),
             TelemetryEvent::MoveTab { direction } => Some(json!({ "direction": direction })),
@@ -3388,9 +3354,6 @@ impl TelemetryEvent {
             TelemetryEvent::SettingsImportConfigFocused(terminal_type_and_profile) => {
                 Some(json!({"terminal_and_type_profile": terminal_type_and_profile}))
             }
-            TelemetryEvent::InitiateAnonymousUserSignup { entrypoint } => {
-                Some(json!({"entrypoint": entrypoint}))
-            }
             TelemetryEvent::AnonymousUserAttemptLoginGatedFeature { feature } => {
                 Some(json!({"feature": feature}))
             }
@@ -3661,7 +3624,6 @@ impl TelemetryEvent {
             | TelemetryEvent::ShowNotificationsDiscoveryBanner
             | TelemetryEvent::ShowNotificationsErrorBanner
             | TelemetryEvent::NotificationClicked
-            | TelemetryEvent::SignUpButtonClicked
             | TelemetryEvent::OpenNewSessionFromFilePath
             | TelemetryEvent::SelectNavigationPaletteItem
             | TelemetryEvent::DragAndDropTab
@@ -4171,12 +4133,6 @@ impl TelemetryEvent {
                 "server_conversation_id": server_conversation_id,
                 "ambient_agent_task_id": ambient_agent_task_id.map(|id| id.to_string()),
             })),
-            TelemetryEvent::LoginButtonClicked { source }
-            | TelemetryEvent::LoginLaterButtonClicked { source }
-            | TelemetryEvent::LoginLaterConfirmationButtonClicked { source }
-            | TelemetryEvent::OpenAuthPrivacySettings { source } => Some(json!({
-                "source": source,
-            })),
             TelemetryEvent::QueuedPromptEdited { origin } => Some(json!({
                 "origin": origin,
             })),
@@ -4299,19 +4255,12 @@ impl TelemetryEvent {
             | TelemetryEvent::NotificationFailedToSend { .. }
             | TelemetryEvent::NotificationClicked
             | TelemetryEvent::ToggleFindOption { .. }
-            | TelemetryEvent::SignUpButtonClicked
-            | TelemetryEvent::LoginButtonClicked { .. }
-            | TelemetryEvent::LoginLaterButtonClicked { .. }
-            | TelemetryEvent::LoginLaterConfirmationButtonClicked { .. }
             | TelemetryEvent::OpenNewSessionFromFilePath
             | TelemetryEvent::SelectNavigationPaletteItem
             | TelemetryEvent::SelectCommandPaletteOption(_)
             | TelemetryEvent::PaletteSearchOpened { .. }
             | TelemetryEvent::PaletteSearchResultAccepted { .. }
             | TelemetryEvent::PaletteSearchExited { .. }
-            | TelemetryEvent::AuthCommonQuestionClicked { .. }
-            | TelemetryEvent::AuthToggleFAQ { .. }
-            | TelemetryEvent::OpenAuthPrivacySettings { .. }
             | TelemetryEvent::TabRenamed(_)
             | TelemetryEvent::MoveActiveTab { .. }
             | TelemetryEvent::MoveTab { .. }
@@ -4404,7 +4353,6 @@ impl TelemetryEvent {
             | TelemetryEvent::EnableVimKeybindingsFromBanner
             | TelemetryEvent::DismissVimKeybindingsBanner
             | TelemetryEvent::InitiateReauth
-            | TelemetryEvent::InitiateAnonymousUserSignup { .. }
             | TelemetryEvent::AnonymousUserExpirationLockout
             | TelemetryEvent::AnonymousUserLinkedFromBrowser
             | TelemetryEvent::AnonymousUserAttemptLoginGatedFeature { .. }
@@ -4699,10 +4647,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 EnablementState::Flag(FeatureFlag::SuggestedRules)
             }
             Self::ToggleFocusPaneOnHover { .. } => EnablementState::Always,
-            Self::InitiateAnonymousUserSignup { .. }
-            | Self::LoginLaterButtonClicked
-            | Self::LoginLaterConfirmationButtonClicked
-            | Self::AnonymousUserExpirationLockout
+            Self::AnonymousUserExpirationLockout
             | Self::AnonymousUserLinkedFromBrowser
             | Self::AnonymousUserAttemptLoginGatedFeature
             | Self::AnonymousUserHitCloudObjectLimit => EnablementState::Always,
@@ -4773,17 +4718,12 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::NotificationFailedToSend => EnablementState::Always,
             Self::NotificationClicked => EnablementState::Always,
             Self::ToggleFindOption => EnablementState::Always,
-            Self::SignUpButtonClicked => EnablementState::Always,
-            Self::LoginButtonClicked => EnablementState::Always,
             Self::OpenNewSessionFromFilePath => EnablementState::Always,
             Self::SelectCommandPaletteOption => EnablementState::Always,
             Self::PaletteSearchOpened => EnablementState::Always,
             Self::PaletteSearchResultAccepted => EnablementState::Always,
             Self::PaletteSearchExited => EnablementState::Always,
             Self::SelectNavigationPaletteItem => EnablementState::Always,
-            Self::AuthCommonQuestionClicked => EnablementState::Always,
-            Self::AuthToggleFAQ => EnablementState::Always,
-            Self::OpenAuthPrivacySettings => EnablementState::Always,
             Self::TabRenamed => EnablementState::Always,
             Self::MoveActiveTab => EnablementState::Always,
             Self::MoveTab => EnablementState::Always,
@@ -5089,8 +5029,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ReinputCommands => "Context Menu: Reinput Commands",
             Self::ToggleSettingsSync => "Toggle Settings Sync",
             Self::ToggleFocusPaneOnHover => "Toggle Focus Pane On Hover",
-            Self::LoginLaterButtonClicked => "Login Later Button Clicked",
-            Self::LoginLaterConfirmationButtonClicked => "Login Later Confirmation Button Clicked",
             Self::JumpToPreviousCommand => "Jumped to Previous Command",
             Self::ContextMenuFindWithinBlocks => "Context Menu: Find Within Blocks",
             Self::ContextMenuCopy => "Context Menu Copy",
@@ -5117,7 +5055,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CreateProjectPromptSubmittedContent => "Create Project Prompt Submitted Content",
             Self::CloneRepoPromptSubmitted => "Clone Repo Prompt Submitted",
             Self::GetStartedSkipToTerminal => "Get Started Skip to Terminal",
-            Self::InitiateAnonymousUserSignup => "Anonymous User Initiated Signup",
             Self::AnonymousUserExpirationLockout => "Anonymous User Expiration Lockout",
             Self::AnonymousUserLinkedFromBrowser => "Anonymous User Linked from Browser",
             Self::AnonymousUserAttemptLoginGatedFeature => {
@@ -5192,16 +5129,11 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Notification Request Permissions Outcome"
             }
             Self::ToggleFindOption => "Find Option Toggled",
-            Self::SignUpButtonClicked => "Sign Up Button Clicked in App",
-            Self::LoginButtonClicked => "Log In Button Clicked in App",
             Self::OpenNewSessionFromFilePath => "New Session From Directory",
             Self::SelectCommandPaletteOption => "Select Command Palette Option",
             Self::PaletteSearchOpened => "Open Palette",
             Self::PaletteSearchResultAccepted => "Command Palette Search Accepted",
             Self::PaletteSearchExited => "Command Palette Search Exited",
-            Self::AuthCommonQuestionClicked => "Auth Common Question Clicked in App",
-            Self::AuthToggleFAQ => "Auth: Toggle Common Questions",
-            Self::OpenAuthPrivacySettings => "Auth: Open Privacy Settings Overlay",
             Self::TabRenamed => "Tab Renamed",
             Self::MoveActiveTab => "Move Active Tab",
             Self::MoveTab => "Move Tab",
@@ -5547,7 +5479,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::BlockCompletedOnDogfoodOnly => {
                 "Completed a block, with extra information for dogfood only"
             }
-            Self::InitiateAnonymousUserSignup => "An anonymous user initiated the sign up flow",
             Self::AnonymousUserExpirationLockout => {
                 "An anonymous user opened Warp after their conversion deadline and was locked out"
             }
@@ -5591,10 +5522,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::ToggleSettingsSync => "Toggle Settings Sync",
             Self::Login => "Login is successful",
-            Self::LoginLaterButtonClicked => "Clicked \"Login later\" button",
-            Self::LoginLaterConfirmationButtonClicked => {
-                "Clicked \"Yes, skip login\" confirmation button"
-            }
             Self::ConfirmSuggestion => "Accepted tab completion suggestion",
             Self::ContextMenuCopy => "Clicked \"Copy\" in context menu",
             Self::ContextMenuFindWithinBlocks => "Clicked \"find within blocks\" in context menu",
@@ -5680,8 +5607,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::NotificationClicked => "Clicked desktop notification sent from Warp",
             Self::ToggleShowAgentTips => "Toggled the Show Agent Tips setting in AI settings",
             Self::ToggleFindOption => "Changed settings in Find Toggle",
-            Self::SignUpButtonClicked => "Clicked \"Sign Up\" button",
-            Self::LoginButtonClicked => "Clicked on \"Log in\" button",
             Self::OpenNewSessionFromFilePath => {
                 "Dragged a file, folder, etc. into Warp to start a session"
             }
@@ -5692,9 +5617,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::SelectNavigationPaletteItem => {
                 "Selected session from the Session Navigation Palette (search across panes, tabs, and windows)"
             }
-            Self::AuthCommonQuestionClicked => "Clicked on \"Common Question\" when logging in",
-            Self::AuthToggleFAQ => "Toggled FAQ Page when logging in",
-            Self::OpenAuthPrivacySettings => "Privacy settings are open during sign-in",
             Self::TabRenamed => "Changed tab title",
             Self::MoveActiveTab => "Move active tab left or right",
             Self::MoveTab => "Move tab left or right",

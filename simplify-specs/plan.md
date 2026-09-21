@@ -5927,15 +5927,49 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             (`--no-fail-fast`), 0 failed (4 skipped both — exactly the 4ci
             baselines, zero tests added or removed, no flakes this round).
             App not re-run — deleted code was unreachable (no readers).
-      - [ ] **Next per 4ca's order after 4dg**: orphaned query/mutation/
+      - [x] **Eight orphaned auth/login/signup telemetry events + `LoginEventSource`
+            (4dh) — DONE 2026-09-21.** Same leaf class as 4de/4df: `AuthView`
+            went in 3o (login/signup buttons can't exist) and `initiate_user_signup`
+            now just shows the local-only toast (sends no telemetry), leaving eight
+            events with zero constructors repo-wide — verified with bare-name
+            `git grep` (not just `TelemetryEvent::`) plus event-name string search,
+            all zero outside `events.rs`: `SignUpButtonClicked`,
+            `LoginButtonClicked`, `LoginLaterButtonClicked`,
+            `LoginLaterConfirmationButtonClicked`, `AuthCommonQuestionClicked`,
+            `AuthToggleFAQ`, `OpenAuthPrivacySettings`,
+            `InitiateAnonymousUserSignup`. Deleted the eight variants with all five
+            match-arm groups (properties, redaction chain, enablement, event names,
+            descriptions). `LoginEventSource` (`OnboardingSlide`, `AuthModal`) had
+            zero uses outside `events.rs` and lost its last four readers here, so
+            the enum went too. Deliberately left: `AnonymousUserSignupEntrypoint`
+            (live — `pane_group`, `terminal/input`, `terminal/view`,
+            `workspace/view` still call `initiate_user_signup` with it) and the
+            neighboring `AnonymousUser*`/`Login`/`InitiateReauth` events (live
+            variants share two enablement/redaction chains — only the dead
+            disjuncts were removed). 1 file, +0/−80. Local-only safety: zero
+            constructors means zero behavior change — terminal, tabs, panes, BYOK
+            AI, settings, themes, and all other local features untouched; only
+            eight RudderStack event names that could never fire are gone.
+
+            Acceptance: `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss` clean (0 errors); clippy `-p warp --lib` 11
+            needless-returns + 1 single-element loop, byte-identical to the
+            pre-round baseline (0 added, none in the touched file); format clean.
+            Nextest: warp lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`),
+            0 failed (4 skipped both — exactly the 4ci baselines, zero tests added
+            or removed, no flakes); `warp_graphql`+`warp_server_client`+`warp_cli`
+            89 passed. App not re-run — deleted code was unreachable (no
+            constructors).
+      - [ ] **Next per 4ca's order after 4dh**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
             zero-reader flag is gone (4dc), the dead login-notify no-op
             is gone (4dd), the orphaned capacity-modal telemetry events
             are gone (4de), the ten orphaned team/sharing telemetry events
-            are gone (4df), and the zero-reader NamedAgents flag + cargo
-            feature are gone (4dg). Next is the remaining ambient task-id
+            are gone (4df), the zero-reader NamedAgents flag + cargo
+            feature are gone (4dg), and the eight orphaned auth/login/signup
+            telemetry events + `LoginEventSource` are gone (4dh). Next is the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
