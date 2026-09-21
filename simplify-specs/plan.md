@@ -5960,7 +5960,40 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             or removed, no flakes); `warp_graphql`+`warp_server_client`+`warp_cli`
             89 passed. App not re-run — deleted code was unreachable (no
             constructors).
-      - [ ] **Next per 4ca's order after 4dh**: orphaned query/mutation/
+      - [x] **Three orphaned billing/revenue telemetry events (4di) — DONE 2026-09-21.**
+            Same leaf class as 4de/4df/4dh: the metering/billing UI went in 4d
+            (`purchase_addon_credits` / `stripe_billing_portal` went in 4ct,
+            `get_ai_credit_availability` in 4cq, overages in 4cr), leaving three
+            `revenue.*` events with zero constructors repo-wide — verified with
+            bare-name `git grep` (not just `TelemetryEvent::`) plus event-name
+            string search, all zero outside `events.rs`:
+            `OutOfCreditsBannerClosed`, `AutoReloadModalClosed`,
+            `AutoReloadToggledFromBillingSettings`. Deleted the three variants
+            with all five match-arm groups (properties, `contains_ugc` chain,
+            enablement, event names, descriptions). `AutoReloadModalAction` and
+            `OutOfCreditsBannerAction` had zero uses outside the deleted
+            variants, so both helper enums went too. Deliberately left:
+            `TierLimitHit` (orphaned but its banner UI still renders locally —
+            a separate call), the `OutOfCreditsResponse` quota-error parser and
+            `AIApiError::QuotaLimit` in `server_api.rs` (live local error
+            handling, not banner telemetry), and the whole ambient task-id
+            identity plumbing (non-leaf — backs local-only orchestrator
+            children and shares threading with the local viewer). 1 file,
+            +0/−93. Local-only safety: zero constructors means zero behavior
+            change — terminal, tabs, panes, BYOK AI, settings, themes, and all
+            other local features untouched; only three RudderStack event names
+            that could never fire are gone.
+
+            Acceptance: `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss` clean (0 errors); clippy `-p warp --lib` warning
+            list byte-identical to the pre-round baseline (11 needless-returns,
+            0 added, none in the touched file); format clean.
+            Nextest: warp lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`),
+            0 failed (4 skipped both — exactly the 4ci baselines, zero tests added
+            or removed, no flakes); `warp_graphql`+`warp_server_client`+`warp_cli`
+            89 passed. App not re-run — deleted code was unreachable (no
+            constructors).
+      - [ ] **Next per 4ca's order after 4di**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
@@ -5968,8 +6001,10 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             is gone (4dd), the orphaned capacity-modal telemetry events
             are gone (4de), the ten orphaned team/sharing telemetry events
             are gone (4df), the zero-reader NamedAgents flag + cargo
-            feature are gone (4dg), and the eight orphaned auth/login/signup
-            telemetry events + `LoginEventSource` are gone (4dh). Next is the remaining ambient task-id
+            feature are gone (4dg), the eight orphaned auth/login/signup
+            telemetry events + `LoginEventSource` are gone (4dh), and the three
+            orphaned billing/revenue telemetry events + two helper enums are
+            gone (4di). Next is the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
