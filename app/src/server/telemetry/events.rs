@@ -1358,9 +1358,6 @@ pub enum TelemetryEvent {
     ToggleShowBlockDividers {
         enabled: bool,
     },
-    OpenChangelogLink {
-        url: String,
-    },
     ShowInFileExplorer,
     OpenLaunchConfigSaveModal,
     SaveLaunchConfig {
@@ -2774,7 +2771,6 @@ impl TelemetryEvent {
             TelemetryEvent::BookmarkBlockToggled { enable_bookmark } => {
                 Some(json!({ "enable_bookmark": enable_bookmark }))
             }
-            TelemetryEvent::OpenChangelogLink { url } => Some(json!({ "url": url })),
             TelemetryEvent::SaveLaunchConfig { state } => Some(json!({ "state": state })),
             TelemetryEvent::SaveAsWorkflowModal { source } => Some(json!({ "source": source })),
             TelemetryEvent::SetLineHeight { new_value } => Some(json!({ "new_value": new_value })),
@@ -4184,7 +4180,6 @@ impl TelemetryEvent {
             | TelemetryEvent::JumpToBottomofBlockButtonClicked
             | TelemetryEvent::ToggleJumpToBottomofBlockButton { .. }
             | TelemetryEvent::ToggleShowBlockDividers { .. }
-            | TelemetryEvent::OpenChangelogLink { .. }
             | TelemetryEvent::ShowInFileExplorer
             | TelemetryEvent::OpenLaunchConfigSaveModal
             | TelemetryEvent::SaveLaunchConfig { .. }
@@ -4634,7 +4629,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::JumpToLatestAgentMessage => EnablementState::Always,
             Self::JumpToBottomofBlockButtonClicked => EnablementState::Always,
             Self::ToggleJumpToBottomofBlockButton => EnablementState::Always,
-            Self::OpenChangelogLink => EnablementState::Always,
             Self::ShowInFileExplorer => EnablementState::Always,
             Self::OpenLaunchConfigSaveModal => EnablementState::Always,
             Self::SaveLaunchConfig => EnablementState::Always,
@@ -5032,7 +5026,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::JumpToBookmark => "Jumped to Bookmark Block",
             Self::JumpToLatestAgentMessage => "Jumped to Latest Agent Message",
             Self::JumpToBottomofBlockButtonClicked => "Jumped to Bottom of Block Button Clicked",
-            Self::OpenChangelogLink => "Opened Changelog Link",
             Self::ShowInFileExplorer => "Showed File in File Explorer",
             Self::OpenLaunchConfigSaveModal => "Open Save Config Modal",
             Self::SaveLaunchConfig => "Save Launch Config",
@@ -5512,7 +5505,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Enabled or disabled the Jump to Bottom of Block Button"
             }
             Self::ToggleShowBlockDividers => "Enabled or disabled the Show Block Dividers Button",
-            Self::OpenChangelogLink => "Opened the changelog link within the App",
             Self::ShowInFileExplorer => "Opened a file in Finder by using \"Show in Finder\"",
             Self::OpenLaunchConfigSaveModal => "Opened save launch configuration modal",
             Self::SaveLaunchConfig => {

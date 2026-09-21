@@ -6031,7 +6031,31 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             or removed, no flakes); `warp_graphql`+`warp_server_client`+`warp_cli`
             89 passed. App not re-run — deleted code was unreachable (no
             constructors).
-      - [ ] **Next per 4ca's order after 4dj**: orphaned query/mutation/
+      - [x] **One orphaned changelog telemetry event (4dk) — DONE 2026-09-21.**
+            Same leaf class as 4de/4df/4dh/4di/4dj: the server-fed changelog went
+            in 3g (`ChangelogModel` via `ServerApiProvider`, the `/changelog`
+            slash command), leaving `OpenChangelogLink` — the first of 4dj's 12
+            leftover payload-carrying variants — with zero constructors repo-wide
+            (verified with bare-name `git grep` plus event-name string search, all
+            zero outside `events.rs`). Deleted the variant with all five match-arm
+            groups (properties, `contains_ugc` chain, enablement, event names,
+            descriptions). Primitive `String` payload, so no helper types fell.
+            1 file, +0/−8. Local-only safety: zero constructors means zero
+            behavior change — terminal, tabs, panes, BYOK AI, settings, themes,
+            and all other local features untouched; only one RudderStack event
+            name that could never fire is gone.
+
+            Acceptance: `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors; only
+            the two pre-existing `step.rs` unused-import warnings that reproduce on
+            a clean stash); clippy `-p warp --lib` 11 needless-returns + 1
+            single-element loop, byte-identical to the baseline (0 added, none in
+            the touched file); format clean. Nextest: warp lib 4,653 default /
+            4,652 simplewarp (`--no-fail-fast`), 0 failed (4 skipped both — exactly
+            the 4ci baselines, zero tests added or removed, no flakes);
+            `warp_graphql`+`warp_server_client`+`warp_cli` 89 passed. App not
+            re-run — deleted code was unreachable (no constructors).
+      - [ ] **Next per 4ca's order after 4dk**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
@@ -6042,8 +6066,9 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             feature are gone (4dg), the eight orphaned auth/login/signup
             telemetry events + `LoginEventSource` are gone (4dh), and the three
             orphaned billing/revenue telemetry events + two helper enums are
-            gone (4di), and the eight orphaned unit telemetry events are
-            gone (4dj). Next is the remaining ambient task-id
+            gone (4di), the eight orphaned unit telemetry events are
+            gone (4dj), and the orphaned changelog telemetry event is
+            gone (4dk). Next is the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
