@@ -66,7 +66,6 @@ use crate::terminal::view::{
     BlockEntity, BlockSelectionDetails, NotificationsDiscoveryBannerAction,
     NotificationsErrorBannerAction, NotificationsTrigger, PromptPart,
 };
-use crate::tips::WelcomeTipFeature;
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::settings::EditorLayout;
 #[cfg(feature = "local_fs")]
@@ -261,15 +260,6 @@ pub struct EnvVarTelemetryMetadata {
     pub space: TelemetrySpace,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct MCPServerTelemetryMetadata {
-    pub object_id: GenericStringObjectId,
-    pub name: String,
-    pub transport_type: MCPServerTelemetryTransportType,
-    /// The MCP server string extracted from '@modelcontextprotocol/<...>'.
-    pub mcp_server: Option<String>,
-}
-
 #[derive(Clone, Debug, Copy, Serialize, Deserialize)]
 pub enum MCPTemplateCreationSource {
     #[serde(rename = "json")]
@@ -337,15 +327,6 @@ impl From<rmcp::RmcpError> for MCPServerTelemetryError {
             _ => Self::InternalError(err.to_string()),
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OpenedSharingDialogEvent {
-    pub source: SharingDialogSource,
-
-    /// Metadata for the object being shared, if it's a Warp Drive object.
-    #[serde(flatten)]
-    pub object_metadata: Option<CloudObjectTelemetryMetadata>,
 }
 
 /// How the user opened the Warp Drive sharing dialog.
@@ -1275,10 +1256,6 @@ pub enum TelemetryEvent {
     OpenWorkflowSearch,
     OpenQuakeModeWindow,
     OpenWelcomeTips,
-    CompleteWelcomeTipFeature {
-        total_completed_count: usize,
-        tip_name: WelcomeTipFeature,
-    },
     ShowNotificationsDiscoveryBanner,
     NotificationsDiscoveryBannerAction(NotificationsDiscoveryBannerAction),
     ShowNotificationsErrorBanner,
@@ -1764,18 +1741,6 @@ pub enum TelemetryEvent {
         generate_ai_input_suggestions_response: Option<GenerateAIInputSuggestionsResponseV2>,
     },
 
-    /// Keeps track of number of times the user is presented with a Prompt Suggestions banner.
-    PromptSuggestionShown {
-        id: String,
-        request_duration_ms: u64,
-        block_id: Option<String>,
-        view: PromptSuggestionViewType,
-        /// Server-assigned request token from the `/passive-suggestion`
-        /// request that generated this suggestion. Used to join client-side
-        /// telemetry with server-side logs. `None` on the legacy code path.
-        server_request_token: Option<String>,
-    },
-
     /// Keeps track of number of times the user is presented with a Suggested Code Diff banner.
     SuggestedCodeDiffBannerShown {
         prompt_suggestion_id: String,
@@ -1983,7 +1948,6 @@ pub enum TelemetryEvent {
         conversation_id: AIConversationId,
         server_output_id: Option<ServerOutputId>,
     },
-    OpenedSharingDialog(OpenedSharingDialogEvent),
     ToggleLigatureRendering {
         enabled: bool,
     },
@@ -2070,10 +2034,6 @@ pub enum TelemetryEvent {
         id: Option<WorkflowId>,
         selection_source: WorkflowSelectionSource,
     },
-    /// A file from the result of an AI Agent Action exceeded the context limit.
-    FileExceededContextLimit {
-        identifiers: AIIdentifiers,
-    },
     AgentModeError {
         identifiers: AIIdentifiers,
         error: String,
@@ -2108,9 +2068,6 @@ pub enum TelemetryEvent {
     },
     MCPServerCollectionPaneOpened {
         entrypoint: MCPServerCollectionPaneEntrypoint,
-    },
-    MCPServerAdded {
-        metadata: MCPServerTelemetryMetadata,
     },
     MCPTemplateCreated {
         source: MCPTemplateCreationSource,
@@ -2270,12 +2227,6 @@ pub enum TelemetryEvent {
     /// creating/opening a project/repository.
     GetStartedSkipToTerminal,
 
-    /// User selected an item from the "Recent" list on the new tab zero state
-    RecentMenuItemSelected {
-        // The kind of recent menu item selected
-        kind: &'static str,
-    },
-
     /// User selected a folder to open as a repo from the "Open repository" button
     OpenRepoFolderSubmitted {
         is_ftux: bool,
@@ -2363,13 +2314,6 @@ pub enum TelemetryEvent {
         origin: TelemetryAgentViewEntryOrigin,
         /// Whether a request was automatically triggered upon entry (e.g., prompt was provided).
         did_auto_trigger_request: bool,
-    },
-    /// Emitted when the user exits the agent view.
-    AgentViewExited {
-        /// The origin/entrypoint that was used when entering the agent view.
-        origin: TelemetryAgentViewEntryOrigin,
-        /// Whether the conversation was empty (had no exchanges) when exiting.
-        was_empty: bool,
     },
     /// Emitted when the inline conversation menu is opened.
     InlineConversationMenuOpened {
@@ -2698,12 +2642,6 @@ impl TelemetryEvent {
             }
             TelemetryEvent::WorkflowExecuted(metadata) => Some(json!(metadata)),
             TelemetryEvent::WorkflowSelected(metadata) => Some(json!(metadata)),
-            TelemetryEvent::CompleteWelcomeTipFeature {
-                total_completed_count,
-                tip_name,
-            } => Some(
-                json!({ "total_completed_count": total_completed_count, "tip_name": tip_name }),
-            ),
             TelemetryEvent::NotificationsDiscoveryBannerAction(action) => {
                 Some(json!({ "action": action }))
             }
@@ -2827,12 +2765,6 @@ impl TelemetryEvent {
             TelemetryEvent::MCPServerCollectionPaneOpened { entrypoint } => {
                 Some(json!({ "entrypoint": entrypoint }))
             }
-            TelemetryEvent::MCPServerAdded { metadata } => Some(json!({
-                "object_id": metadata.object_id,
-                "name": metadata.name,
-                "transport_type": metadata.transport_type,
-                "mcp_server": metadata.mcp_server,
-            })),
             TelemetryEvent::MCPTemplateCreated {
                 source,
                 variables,
@@ -3130,19 +3062,6 @@ impl TelemetryEvent {
                     "history_command_prediction_likelihood": history_command_prediction_likelihood,
                 }))
             }
-            TelemetryEvent::PromptSuggestionShown {
-                id,
-                request_duration_ms,
-                block_id,
-                view,
-                server_request_token,
-            } => Some(json!({
-                "id": id,
-                "request_duration_ms": request_duration_ms,
-                "block_id": block_id,
-                "view": view,
-                "server_request_token": server_request_token,
-            })),
             TelemetryEvent::SuggestedCodeDiffBannerShown {
                 prompt_suggestion_id,
                 code_exchange_id,
@@ -3318,7 +3237,6 @@ impl TelemetryEvent {
             } => Some(
                 json!({ "citation": citation, "block_id": block_id, "conversation_id": conversation_id, "server_output_id": server_output_id }),
             ),
-            TelemetryEvent::OpenedSharingDialog(event) => Some(json!(event)),
             TelemetryEvent::ToggleGlobalAI { is_ai_enabled } => {
                 Some(json!({"is_ai_enabled": is_ai_enabled}))
             }
@@ -3414,11 +3332,6 @@ impl TelemetryEvent {
             } => Some(json!({
                 "id": id,
                 "selection_source": selection_source,
-            })),
-            TelemetryEvent::FileExceededContextLimit { identifiers } => Some(json!({
-                "server_output_id": identifiers.server_output_id,
-                "exchange_id": identifiers.client_exchange_id,
-                "conversation_id": identifiers.server_conversation_id,
             })),
             TelemetryEvent::AgentModeError {
                 identifiers,
@@ -3879,9 +3792,6 @@ impl TelemetryEvent {
             TelemetryEvent::CloneRepoPromptSubmitted { is_ftux } => Some(json!({
                 "is_ftux": is_ftux,
             })),
-            TelemetryEvent::RecentMenuItemSelected { kind } => Some(json!({
-                "kind": kind,
-            })),
             TelemetryEvent::OpenRepoFolderSubmitted { is_ftux } => Some(json!({
                 "is_ftux": is_ftux,
             })),
@@ -3979,10 +3889,6 @@ impl TelemetryEvent {
             } => Some(json!({
                 "origin": origin,
                 "did_auto_trigger_request": did_auto_trigger_request,
-            })),
-            TelemetryEvent::AgentViewExited { origin, was_empty } => Some(json!({
-                "origin": origin,
-                "was_empty": was_empty,
             })),
             TelemetryEvent::InlineConversationMenuOpened { is_in_agent_view } => Some(json!({
                 "is_in_agent_view": is_in_agent_view,
@@ -4126,7 +4032,6 @@ impl TelemetryEvent {
             | TelemetryEvent::OpenWorkflowSearch
             | TelemetryEvent::OpenQuakeModeWindow
             | TelemetryEvent::OpenWelcomeTips
-            | TelemetryEvent::CompleteWelcomeTipFeature { .. }
             | TelemetryEvent::ShowNotificationsDiscoveryBanner
             | TelemetryEvent::NotificationsDiscoveryBannerAction(_)
             | TelemetryEvent::ShowNotificationsErrorBanner
@@ -4267,7 +4172,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AgentModeClickedEntrypoint { .. }
             | TelemetryEvent::AgentModeAttachedBlockContext { .. }
             | TelemetryEvent::AgentModeToggleAutoDetectionSetting { .. }
-            | TelemetryEvent::PromptSuggestionShown { .. }
             | TelemetryEvent::SuggestedCodeDiffBannerShown { .. }
             | TelemetryEvent::SuggestedCodeDiffFailed { .. }
             | TelemetryEvent::PromptSuggestionAccepted { .. }
@@ -4301,7 +4205,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AddTabWithShell { .. }
             | TelemetryEvent::AgentModeSurfacedCitations { .. }
             | TelemetryEvent::AgentModeOpenedCitation { .. }
-            | TelemetryEvent::OpenedSharingDialog(_)
             | TelemetryEvent::ToggleLigatureRendering { .. }
             | TelemetryEvent::WorkflowAliasAdded { .. }
             | TelemetryEvent::WorkflowAliasRemoved { .. }
@@ -4315,7 +4218,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AutoexecutedAgentModeRequestedCommand { .. }
             | TelemetryEvent::KnowledgePaneOpened { .. }
             | TelemetryEvent::MCPServerCollectionPaneOpened { .. }
-            | TelemetryEvent::MCPServerAdded { .. }
             | TelemetryEvent::MCPTemplateCreated { .. }
             | TelemetryEvent::MCPTemplateInstalled { .. }
             | TelemetryEvent::MCPTemplateShared
@@ -4334,7 +4236,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AISuggestedRuleEdited { .. }
             | TelemetryEvent::AISuggestedRuleContentChanged { .. }
             | TelemetryEvent::AttachedImagesToAgentModeQuery { .. }
-            | TelemetryEvent::FileExceededContextLimit { .. }
             | TelemetryEvent::AgentModeError { .. }
             | TelemetryEvent::AgentModeRequestRetrySucceeded { .. }
             | TelemetryEvent::ToggleGitOperationsAutogenSetting { .. }
@@ -4373,11 +4274,9 @@ impl TelemetryEvent {
             | TelemetryEvent::ConversationListViewOpened
             | TelemetryEvent::ConversationListItemDeleted
             | TelemetryEvent::AgentViewEntered { .. }
-            | TelemetryEvent::AgentViewExited { .. }
             | TelemetryEvent::InlineConversationMenuOpened { .. }
             | TelemetryEvent::InlineConversationMenuItemSelected { .. }
             | TelemetryEvent::AgentShortcutsViewToggled { .. }
-            | TelemetryEvent::RecentMenuItemSelected { .. }
             | TelemetryEvent::OpenRepoFolderSubmitted { .. }
             | TelemetryEvent::QueuedPromptEdited { .. }
             | TelemetryEvent::QueuedPromptDeleted { .. }
@@ -4480,7 +4379,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 EnablementState::Flag(FeatureFlag::AgentViewConversationListView)
             }
             Self::AgentViewEntered
-            | Self::AgentViewExited
             | Self::InlineConversationMenuOpened
             | Self::InlineConversationMenuItemSelected
             | Self::AgentShortcutsViewToggled => EnablementState::Flag(FeatureFlag::AgentView),
@@ -4493,7 +4391,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::PtyThroughput => EnablementState::Flag(FeatureFlag::RecordPtyThroughput),
             Self::AgentModeCreatedAIBlock => EnablementState::Flag(FeatureFlag::AgentMode),
             Self::MCPServerCollectionPaneOpened { .. }
-            | Self::MCPServerAdded { .. }
             | Self::MCPServerSpawned { .. }
             | Self::MCPToolCallAccepted { .. } => EnablementState::Flag(FeatureFlag::McpServer),
             Self::MCPTemplateCreated { .. }
@@ -4570,7 +4467,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::OpenWorkflowSearch => EnablementState::Always,
             Self::OpenQuakeModeWindow => EnablementState::Always,
             Self::OpenWelcomeTips => EnablementState::Always,
-            Self::CompleteWelcomeTipFeature => EnablementState::Always,
             Self::ShowNotificationsDiscoveryBanner => EnablementState::Always,
             Self::NotificationsDiscoveryBannerAction => EnablementState::Always,
             Self::ShowNotificationsErrorBanner => EnablementState::Always,
@@ -4730,8 +4626,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ToggleIntelligentAutosuggestionsSetting | Self::AgentModePrediction => {
                 EnablementState::Always
             }
-            Self::PromptSuggestionShown
-            | Self::SuggestedCodeDiffBannerShown
+            Self::SuggestedCodeDiffBannerShown
             | Self::SuggestedCodeDiffFailed
             | Self::PromptSuggestionAccepted
             | Self::StaticPromptSuggestionsBannerShown
@@ -4758,7 +4653,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AgentModeSurfacedCitations | Self::AgentModeOpenedCitation => {
                 EnablementState::Always
             }
-            Self::OpenedSharingDialog => EnablementState::Always,
             Self::ToggleLigatureRendering => EnablementState::Flag(FeatureFlag::Ligatures),
             Self::WorkflowAliasAdded
             | Self::WorkflowAliasRemoved
@@ -4780,7 +4674,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 EnablementState::Flag(FeatureFlag::GlobalAIAnalyticsBanner)
             }
             Self::ExecutedWarpDrivePrompt => EnablementState::Flag(FeatureFlag::AgentModeWorkflows),
-            Self::FileExceededContextLimit => EnablementState::Always,
             Self::AgentModeError => EnablementState::Always,
             Self::AgentModeRequestRetrySucceeded => EnablementState::Always,
             Self::GrepToolSucceeded => EnablementState::Always,
@@ -4822,7 +4715,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AgentModeRewindExecuted { .. } => {
                 EnablementState::Flag(FeatureFlag::RevertToCheckpoints)
             }
-            Self::RecentMenuItemSelected => EnablementState::Always,
             Self::OpenRepoFolderSubmitted => EnablementState::Always,
             Self::CLISubagentControlStateChanged { .. }
             | Self::CLISubagentResponsesToggled { .. }
@@ -4897,7 +4789,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ConversationListViewOpened => "ConversationList.Opened",
             Self::ConversationListItemDeleted => "ConversationList.ItemDeleted",
             Self::AgentViewEntered => "AgentView.Entered",
-            Self::AgentViewExited => "AgentView.Exited",
             Self::InlineConversationMenuOpened => "AgentView.InlineConversationMenuOpened",
             Self::InlineConversationMenuItemSelected => {
                 "AgentView.InlineConversationMenuItemSelected"
@@ -4912,7 +4803,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Anonymous User Attempted Login-Gated Feature"
             }
             Self::MCPServerCollectionPaneOpened { .. } => "MCP Server Collection Pane Opened",
-            Self::MCPServerAdded { .. } => "MCP Server Added",
             Self::MCPTemplateCreated { .. } => "MCP Template Created",
             Self::MCPTemplateInstalled { .. } => "MCP Template Installed",
             Self::MCPTemplateShared => "MCP Template Shared",
@@ -4962,7 +4852,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::FeaturesPageAction => "Features Page Action",
             Self::OpenQuakeModeWindow => "Open Quake Mode Window",
             Self::OpenWelcomeTips => "Open Welcome Tips",
-            Self::CompleteWelcomeTipFeature => "Complete Welcome Tip",
             Self::ShowNotificationsDiscoveryBanner => "ShowNotificationsDiscoveryBanner",
             Self::NotificationsDiscoveryBannerAction => "Notifications Discovery Banner Action",
             Self::ShowNotificationsErrorBanner => "ShowNotificationsErrorBanner",
@@ -5124,7 +5013,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AgentModePrediction => "Agent Predict",
             // Agent Mode Query Suggestions is the legacy name for Prompt Suggestions - we avoid renaming
             // the event to avoid breaking historical telemetry data.
-            Self::PromptSuggestionShown => "Agent Mode Query Suggestions Banner Shown",
             Self::SuggestedCodeDiffBannerShown => "Suggested Code Diff Banner Shown",
             Self::SuggestedCodeDiffFailed => "Suggested Code Diff Failed",
             Self::PromptSuggestionAccepted => "Agent Mode Query Suggestion Accepted",
@@ -5159,7 +5047,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AddTabWithShell => "Add Tab With Shell",
             Self::AgentModeSurfacedCitations => "AgentMode.SurfacedCitations",
             Self::AgentModeOpenedCitation => "AgentMode.OpenedCitation",
-            Self::OpenedSharingDialog => "Opened Sharing Dialog",
             Self::ToggleGlobalAI => "Toggle Global AI Enablement",
             Self::ToggleActiveAI => "Toggle Active AI Enablement",
             Self::ToggleLigatureRendering => "Toggle Ligature Rendering",
@@ -5202,7 +5089,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AttachedImagesToAgentModeQuery => "AgentMode.AttachedImages",
             Self::AgentModeRatedResponse => "AgentMode.RatedResponse",
             Self::ExecutedWarpDrivePrompt => "AgentMode.ExecutedWarpDrivePrompt",
-            Self::FileExceededContextLimit => "AgentMode.Code.FileExceededContextLimit",
             Self::AgentModeError => "AgentMode.Error",
             Self::AgentModeRequestRetrySucceeded => "AgentMode.RequestRetrySucceeded",
             Self::GrepToolSucceeded => "AgentMode.Grep.Succeeded",
@@ -5260,7 +5146,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "AgentMode.SetupCreateEnvironmentAction"
             }
             Self::InputBufferSubmitted => "AgentMode.NaturalLanguageDetection.InputBufferSubmitted",
-            Self::RecentMenuItemSelected { .. } => "Recent Menu Item Selected",
             Self::OpenRepoFolderSubmitted { .. } => "Open Repo Folder Submitted",
             Self::CLISubagentControlStateChanged { .. } => "CLI Subagent Control State Changed",
             Self::CLISubagentResponsesToggled { .. } => "CLI Subagent Responses Toggled",
@@ -5328,7 +5213,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::SessionCreation => "Created a tab",
             Self::MCPServerCollectionPaneOpened { .. } => "MCP Server Collection Pane Opened",
-            Self::MCPServerAdded { .. } => "MCP Server Added",
             Self::MCPTemplateCreated { .. } => "MCP Template Created",
             Self::MCPTemplateInstalled { .. } => "MCP Template Installed",
             Self::MCPTemplateShared => "MCP Template Shared",
@@ -5414,7 +5298,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Toggled quake mode window when previously hidden or closed"
             }
             Self::OpenWelcomeTips => "Opened welcome tips in app",
-            Self::CompleteWelcomeTipFeature => "Completed all welcome tips items",
             Self::ShowNotificationsDiscoveryBanner => {
                 "Showed notifications discovery banner in the block list"
             }
@@ -5723,7 +5606,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::UnitTestSuggestionShown { .. } => "Suggested prompt shown",
             Self::UnitTestSuggestionAccepted { .. } => "Suggested prompt accepted",
             Self::UnitTestSuggestionCancelled { .. } => "Suggested prompt cancelled",
-            Self::PromptSuggestionShown => "Prompt Suggestions banner shown",
             Self::SuggestedCodeDiffBannerShown => "Suggested Code Diff banner shown",
             Self::SuggestedCodeDiffFailed => "Suggested Code Diff Failed",
             Self::PromptSuggestionAccepted => "Prompt Suggestion accepted",
@@ -5760,7 +5642,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Deleted a conversation from the conversation list"
             }
             Self::AgentViewEntered => "User entered the Agent View",
-            Self::AgentViewExited => "User exited the Agent View",
             Self::InlineConversationMenuOpened => {
                 "User opened the inline conversation menu in Agent View"
             }
@@ -5799,9 +5680,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Agent mode used and cited external sources that were used in its response"
             }
             Self::AgentModeOpenedCitation => "Opened a citation that was surfaced in agent mode",
-            Self::OpenedSharingDialog => {
-                "Opened the sharing settings dialog for a session or Warp Drive object"
-            }
             Self::ToggleGlobalAI => "Toggled global AI enablement.",
             Self::ToggleActiveAI => "Toggled active AI enablement.",
             Self::ToggleLigatureRendering => "Toggled ligature rendering",
@@ -5834,7 +5712,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Toggled on/off the enablement of codebase context usage for Agent Mode."
             }
             Self::ExecutedWarpDrivePrompt => "Executed a saved prompt.",
-            Self::FileExceededContextLimit => "File from AI exceeded context limit",
             Self::AgentModeError => "Received an error when getting Agent Mode response",
             Self::AgentModeRequestRetrySucceeded => {
                 "Agent Mode request succeeded after retrying following an initial error"
@@ -5889,9 +5766,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "User clicked a button in the Agent Mode setup create environment step"
             }
             Self::InputBufferSubmitted => "Input buffer submitted",
-            Self::RecentMenuItemSelected { .. } => {
-                "User selected an item from the recents list on the new tab zero state"
-            }
             Self::OpenRepoFolderSubmitted { .. } => {
                 "User selected a folder to open as a repo from the \"Open repository\" button"
             }

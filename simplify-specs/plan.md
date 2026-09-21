@@ -6088,7 +6088,58 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             the 4ci baselines, zero tests added or removed, no flakes);
             `warp_graphql`+`warp_server_client`+`warp_cli` 89 passed. App not
             re-run — deleted code was unreachable (no constructors).
-      - [ ] **Next per 4ca's order after 4dl**: orphaned query/mutation/
+      - [x] **Seven orphaned payload-carrying telemetry events
+            (4dm) — DONE 2026-09-21.** Same leaf class as 4de–4dl: the third
+            slice of 4dj's 12 leftover payload-carrying variants —
+            `CompleteWelcomeTipFeature` (welcome-tips completion; the tips UI
+            itself stays on the live `Tip`/`TipAction` types),
+            `PromptSuggestionShown` (server-driven suggestion banner; the
+            legacy/static/accept siblings stay live in `terminal/view.rs`),
+            `OpenedSharingDialog` (sharing dialog; the dialog went in 4bg),
+            `FileExceededContextLimit` (AI context-limit; the `AgentModeError`
+            sibling stays live), `MCPServerAdded` (MCP collection;
+            `MCPServerSpawned`/`MCPTemplate*` stay live in
+            `templatable_manager/native.rs`), `RecentMenuItemSelected`
+            (zero-state recents; primitive `&'static str` payload), and
+            `AgentViewExited` (sibling `AgentViewEntered` stays live in
+            `agent_view.rs`). All seven verified with bare-name `git grep` over
+            all files plus event-name/description string search — zero hits
+            outside `events.rs` (only the plan.md ledger mentions). Deleted
+            the seven variants with all five match-arm groups (properties,
+            `contains_ugc` chain, enablement, event names, descriptions), plus
+            the two helper types left with zero users (`OpenedSharingDialogEvent`,
+            `MCPServerTelemetryMetadata`) and the now-unused
+            `WelcomeTipFeature` enum + impl in `tips/mod.rs` (a `TipAction`
+            duplicate whose only reader was the deleted variant;
+            `WELCOME_TIP_FEATURE_LENGTH` stays — `tip_view.rs` still reads it).
+            The three shared enablement OR-chains (`AgentView`,
+            `McpServer`, prompt-suggestion group) collapsed to their live arms;
+            the four single-line arms went outright. Deliberately kept:
+            `SharingDialogSource` (live via `WorkspaceAction::
+            OpenObjectSharingSettings`), `PromptSuggestionViewType` (live via
+            the accepted/static siblings), `TelemetryAgentViewEntryOrigin`
+            (live via `AgentViewEntered`), `AIIdentifiers`/`CloudObjectTelemetry
+            Metadata` (live via many siblings), and `TierLimitHit` (orphaned
+            but its tier-limit banner UI still renders locally — a separate
+            call). Local-only safety: zero constructors means zero behavior
+            change — welcome tips, prompt-suggestion banners, sharing flows,
+            MCP servers, recents, agent view enter/exit, terminal, tabs, panes,
+            BYOK AI, settings, themes, and all other local features untouched;
+            only seven RudderStack event names that could never fire are gone.
+
+            Acceptance: `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors; only
+            the two pre-existing `step.rs` unused-import warnings that reproduce on
+            a clean stash); clippy `-p warp --lib` 14 warnings byte-identical to
+            the stash baseline (0 added, none in touched files); format clean.
+            Nextest: warp lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`),
+            0 failed (4 skipped both — exactly the 4ci baselines, zero tests added
+            or removed; the one simplewarp fail-fast failure,
+            `test_command_block_dispatches_event`, is the known
+            cross-test-interference flake from 4co — passes in isolation);
+            `warp_graphql`+`warp_server_client`+`warp_cli` 89 passed. App not
+            re-run — deleted code was unreachable (no constructors).
+      - [ ] **Next per 4ca's order after 4dm**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
@@ -6101,12 +6152,11 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             orphaned billing/revenue telemetry events + two helper enums are
             gone (4di), the eight orphaned unit telemetry events are
             gone (4dj), the orphaned changelog telemetry event is
-            gone (4dk), and the three orphaned context-menu/conversation-list
-            telemetry events are gone (4dl). Next is the remaining eight of
-            4dj's 12 payload-carrying variants (`CompleteWelcomeTipFeature`,
-            `PromptSuggestionShown`, `OpenedSharingDialog`,
-            `FileExceededContextLimit`, `MCPServerAdded`,
-            `RecentMenuItemSelected`, `AgentViewExited` — plus `TierLimitHit`
+            gone (4dk), the three orphaned context-menu/conversation-list
+            telemetry events are gone (4dl), and the seven orphaned
+            payload-carrying telemetry events are gone (4dm). Next is the
+            remaining one of
+            4dj's 12 payload-carrying variants (`TierLimitHit`
             as a standing non-leaf with live tier-limit banner UI),
             each needing its own payload-type trace, then the remaining ambient
             task-id identity plumbing as its own multi-round job (local children +
