@@ -5993,7 +5993,45 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             or removed, no flakes); `warp_graphql`+`warp_server_client`+`warp_cli`
             89 passed. App not re-run — deleted code was unreachable (no
             constructors).
-      - [ ] **Next per 4ca's order after 4di**: orphaned query/mutation/
+      - [x] **Eight orphaned unit telemetry events (4dj) — DONE 2026-09-21.**
+            Same leaf class as 4de/4df/4dh/4di: onboarding, drive-object,
+            approvals-modal, anonymous-lockout, and secret-regex surfaces went
+            in earlier rounds, leaving eight unit events with zero constructors
+            repo-wide — verified with bare-name `git grep` (not just
+            `TelemetryEvent::`) plus event-name string search, all zero outside
+            `events.rs`: `SkipOnboardingSurvey`, `DismissWelcomeTips`,
+            `DeletedWorkflow`, `DeletedNotebook`, `ToggleApprovalsModal`,
+            `AnonymousUserExpirationLockout`, `CustomSecretRegexAdded`,
+            `DriveSharingOnboardingBlockShown`. Deleted the eight variants with
+            all five match-arm groups (properties, `contains_ugc` chain,
+            enablement, event names, descriptions). No helper types fell — all
+            eight are unit variants, so no payload structs/enums were attached.
+            Deliberately left: the 12 remaining zero-outside-`events.rs`
+            variants, all with payloads needing per-type traces
+            (`ContextMenuToggleGitPromptDirtyIndicator`, `OpenChangelogLink`,
+            `CompleteWelcomeTipFeature`, `ConversationListItemOpened`,
+            `ConversationListLinkCopied`, `PromptSuggestionShown`,
+            `TierLimitHit`, `OpenedSharingDialog`, `FileExceededContextLimit`,
+            `MCPServerAdded`, `RecentMenuItemSelected`, `AgentViewExited`),
+            plus the standing non-leaves (`TierLimitHit` banner UI,
+            `OutOfCreditsResponse`/`AIApiError::QuotaLimit` local error
+            handling, ambient task-id plumbing). 1 file, +1/−53 (the +1 is the
+            collapsed `AnonymousUserLinkedFromBrowser` OR-chain line).
+            Local-only safety: zero constructors means zero behavior change —
+            terminal, tabs, panes, BYOK AI, settings, themes, and all other
+            local features untouched; only eight RudderStack event names that
+            could never fire are gone.
+
+            Acceptance: `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss` clean (0 errors); clippy `-p warp --lib` warning
+            list byte-identical to the pre-round baseline (11 needless-returns,
+            0 added, none in the touched file); format clean.
+            Nextest: warp lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`),
+            0 failed (4 skipped both — exactly the 4ci baselines, zero tests added
+            or removed, no flakes); `warp_graphql`+`warp_server_client`+`warp_cli`
+            89 passed. App not re-run — deleted code was unreachable (no
+            constructors).
+      - [ ] **Next per 4ca's order after 4dj**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
@@ -6004,7 +6042,8 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             feature are gone (4dg), the eight orphaned auth/login/signup
             telemetry events + `LoginEventSource` are gone (4dh), and the three
             orphaned billing/revenue telemetry events + two helper enums are
-            gone (4di). Next is the remaining ambient task-id
+            gone (4di), and the eight orphaned unit telemetry events are
+            gone (4dj). Next is the remaining ambient task-id
             identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is

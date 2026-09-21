@@ -1242,7 +1242,6 @@ pub enum TelemetryEvent {
     CreateCustomTheme,
     DeleteCustomTheme,
     SplitPane,
-    SkipOnboardingSurvey,
     ToggleRestoreSession(bool),
     DatabaseStartUpError(String),
     DatabaseReadError(String),
@@ -1283,7 +1282,6 @@ pub enum TelemetryEvent {
         total_completed_count: usize,
         tip_name: WelcomeTipFeature,
     },
-    DismissWelcomeTips,
     ShowNotificationsDiscoveryBanner,
     NotificationsDiscoveryBannerAction(NotificationsDiscoveryBannerAction),
     ShowNotificationsErrorBanner,
@@ -1376,9 +1374,6 @@ pub enum TelemetryEvent {
     ToggleSettingsSync {
         is_settings_sync_enabled: bool,
     },
-    DeletedWorkflow,
-    DeletedNotebook,
-    ToggleApprovalsModal,
     SetLineHeight {
         new_value: f32,
     },
@@ -1556,7 +1551,6 @@ pub enum TelemetryEvent {
     EnableVimKeybindingsFromBanner,
     DismissVimKeybindingsBanner,
     InitiateReauth,
-    AnonymousUserExpirationLockout,
     AnonymousUserLinkedFromBrowser,
     AnonymousUserAttemptLoginGatedFeature {
         feature: LoginGatedFeature,
@@ -1574,7 +1568,6 @@ pub enum TelemetryEvent {
     ToggleSecretRedaction {
         enabled: bool,
     },
-    CustomSecretRegexAdded,
     ToggleObfuscateSecret {
         interaction: SecretInteraction,
     },
@@ -1593,7 +1586,6 @@ pub enum TelemetryEvent {
     },
     DuplicateObject(TelemetryCloudObjectType),
     ExportObject(TelemetryCloudObjectType),
-    DriveSharingOnboardingBlockShown,
     CommandFileRun,
     PageUpDownInEditorPressed {
         // Key pressed when nothing is in the editor (no-op)
@@ -3575,12 +3567,10 @@ impl TelemetryEvent {
             | TelemetryEvent::CreateCustomTheme
             | TelemetryEvent::DeleteCustomTheme
             | TelemetryEvent::SplitPane
-            | TelemetryEvent::SkipOnboardingSurvey
             | TelemetryEvent::LoggedOutStartup
             | TelemetryEvent::OpenWorkflowSearch
             | TelemetryEvent::OpenQuakeModeWindow
             | TelemetryEvent::OpenWelcomeTips
-            | TelemetryEvent::DismissWelcomeTips
             | TelemetryEvent::ShowNotificationsDiscoveryBanner
             | TelemetryEvent::ShowNotificationsErrorBanner
             | TelemetryEvent::NotificationClicked
@@ -3595,9 +3585,6 @@ impl TelemetryEvent {
             | TelemetryEvent::ShowInFileExplorer
             | TelemetryEvent::OpenLaunchConfigSaveModal
             | TelemetryEvent::OpenLaunchConfigFile
-            | TelemetryEvent::DeletedWorkflow
-            | TelemetryEvent::DeletedNotebook
-            | TelemetryEvent::ToggleApprovalsModal
             | TelemetryEvent::KeybindingsPageOpened
             | TelemetryEvent::OpenedAltScreenFind
             | TelemetryEvent::QuitModalDisabled
@@ -3628,10 +3615,8 @@ impl TelemetryEvent {
             | TelemetryEvent::DismissVimKeybindingsBanner
             | TelemetryEvent::InitiateReauth
             | TelemetryEvent::NeedsReauth
-            | TelemetryEvent::AnonymousUserExpirationLockout
             | TelemetryEvent::AnonymousUserLinkedFromBrowser
             | TelemetryEvent::AnonymousUserHitCloudObjectLimit
-            | TelemetryEvent::CustomSecretRegexAdded
             | TelemetryEvent::CopySecret
             | TelemetryEvent::CommandFileRun
             | TelemetryEvent::LogOut
@@ -3644,7 +3629,6 @@ impl TelemetryEvent {
             )
             | TelemetryEvent::SettingsImportResetButtonClicked
             | TelemetryEvent::ITermMultipleHotkeys
-            | TelemetryEvent::DriveSharingOnboardingBlockShown
             | TelemetryEvent::SettingsImportInitiated
             | TelemetryEvent::GrepToolSucceeded
             | TelemetryEvent::FileGlobToolSucceeded
@@ -4151,7 +4135,6 @@ impl TelemetryEvent {
             | TelemetryEvent::CreateCustomTheme
             | TelemetryEvent::DeleteCustomTheme
             | TelemetryEvent::SplitPane
-            | TelemetryEvent::SkipOnboardingSurvey
             | TelemetryEvent::ToggleRestoreSession(_)
             | TelemetryEvent::DatabaseStartUpError(_)
             | TelemetryEvent::DatabaseReadError(_)
@@ -4171,7 +4154,6 @@ impl TelemetryEvent {
             | TelemetryEvent::OpenQuakeModeWindow
             | TelemetryEvent::OpenWelcomeTips
             | TelemetryEvent::CompleteWelcomeTipFeature { .. }
-            | TelemetryEvent::DismissWelcomeTips
             | TelemetryEvent::ShowNotificationsDiscoveryBanner
             | TelemetryEvent::NotificationsDiscoveryBannerAction(_)
             | TelemetryEvent::ShowNotificationsErrorBanner
@@ -4209,9 +4191,6 @@ impl TelemetryEvent {
             | TelemetryEvent::OpenLaunchConfigFile
             | TelemetryEvent::OpenLaunchConfig { .. }
             | TelemetryEvent::ToggleSettingsSync { .. }
-            | TelemetryEvent::DeletedWorkflow
-            | TelemetryEvent::DeletedNotebook
-            | TelemetryEvent::ToggleApprovalsModal
             | TelemetryEvent::SetLineHeight { .. }
             | TelemetryEvent::KeybindingsPageOpened
             | TelemetryEvent::GlobalSearchOpened
@@ -4280,7 +4259,6 @@ impl TelemetryEvent {
             | TelemetryEvent::EnableVimKeybindingsFromBanner
             | TelemetryEvent::DismissVimKeybindingsBanner
             | TelemetryEvent::InitiateReauth
-            | TelemetryEvent::AnonymousUserExpirationLockout
             | TelemetryEvent::AnonymousUserLinkedFromBrowser
             | TelemetryEvent::AnonymousUserAttemptLoginGatedFeature { .. }
             | TelemetryEvent::AnonymousUserHitCloudObjectLimit
@@ -4288,7 +4266,6 @@ impl TelemetryEvent {
             | TelemetryEvent::WarpDriveOpened { .. }
             | TelemetryEvent::ToggleWarpAI { .. }
             | TelemetryEvent::ToggleSecretRedaction { .. }
-            | TelemetryEvent::CustomSecretRegexAdded
             | TelemetryEvent::ToggleObfuscateSecret { .. }
             | TelemetryEvent::CopySecret
             | TelemetryEvent::UpdateSortingChoice { .. }
@@ -4296,7 +4273,6 @@ impl TelemetryEvent {
             | TelemetryEvent::PtyThroughput { .. }
             | TelemetryEvent::DuplicateObject(_)
             | TelemetryEvent::ExportObject(_)
-            | TelemetryEvent::DriveSharingOnboardingBlockShown
             | TelemetryEvent::CommandFileRun
             | TelemetryEvent::PageUpDownInEditorPressed { .. }
             | TelemetryEvent::WebCloudObjectOpenedOnDesktop { .. }
@@ -4571,8 +4547,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 EnablementState::Flag(FeatureFlag::SuggestedRules)
             }
             Self::ToggleFocusPaneOnHover { .. } => EnablementState::Always,
-            Self::AnonymousUserExpirationLockout
-            | Self::AnonymousUserLinkedFromBrowser
+            Self::AnonymousUserLinkedFromBrowser
             | Self::AnonymousUserAttemptLoginGatedFeature
             | Self::AnonymousUserHitCloudObjectLimit => EnablementState::Always,
 
@@ -4611,7 +4586,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CreateCustomTheme => EnablementState::Always,
             Self::DeleteCustomTheme => EnablementState::Always,
             Self::SplitPane => EnablementState::Always,
-            Self::SkipOnboardingSurvey => EnablementState::Always,
             Self::ToggleRestoreSession => EnablementState::Always,
             Self::DatabaseStartUpError => EnablementState::Always,
             Self::DatabaseReadError => EnablementState::Always,
@@ -4631,7 +4605,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::OpenQuakeModeWindow => EnablementState::Always,
             Self::OpenWelcomeTips => EnablementState::Always,
             Self::CompleteWelcomeTipFeature => EnablementState::Always,
-            Self::DismissWelcomeTips => EnablementState::Always,
             Self::ShowNotificationsDiscoveryBanner => EnablementState::Always,
             Self::NotificationsDiscoveryBannerAction => EnablementState::Always,
             Self::ShowNotificationsErrorBanner => EnablementState::Always,
@@ -4667,9 +4640,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::SaveLaunchConfig => EnablementState::Always,
             Self::OpenLaunchConfigFile => EnablementState::Always,
             Self::OpenLaunchConfig => EnablementState::Always,
-            Self::DeletedWorkflow => EnablementState::Always,
-            Self::DeletedNotebook => EnablementState::Always,
-            Self::ToggleApprovalsModal => EnablementState::Always,
             Self::SetLineHeight => EnablementState::Always,
             Self::KeybindingsPageOpened => EnablementState::Always,
             Self::GlobalSearchOpened => EnablementState::Always,
@@ -4741,7 +4711,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::WarpDriveOpened => EnablementState::Always,
             Self::ToggleWarpAI => EnablementState::Always,
             Self::ToggleSecretRedaction => EnablementState::Always,
-            Self::CustomSecretRegexAdded => EnablementState::Always,
             Self::ToggleObfuscateSecret => EnablementState::Always,
             Self::CopySecret => EnablementState::Always,
             Self::UpdateSortingChoice => EnablementState::Always,
@@ -4768,7 +4737,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::TierLimitHit => EnablementState::Always,
             Self::WebCloudObjectOpenedOnDesktop => EnablementState::Always,
             Self::ToggleShowBlockDividers => EnablementState::Flag(FeatureFlag::MinimalistUI),
-            Self::DriveSharingOnboardingBlockShown => EnablementState::Always,
             Self::SharedObjectLimitHitBannerViewPlansButtonClicked => EnablementState::Always,
             Self::ResourceUsageStats => EnablementState::Always,
             Self::ToggleGlobalAI => EnablementState::Always,
@@ -4976,7 +4944,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CreateProjectPromptSubmittedContent => "Create Project Prompt Submitted Content",
             Self::CloneRepoPromptSubmitted => "Clone Repo Prompt Submitted",
             Self::GetStartedSkipToTerminal => "Get Started Skip to Terminal",
-            Self::AnonymousUserExpirationLockout => "Anonymous User Expiration Lockout",
             Self::AnonymousUserLinkedFromBrowser => "Anonymous User Linked from Browser",
             Self::AnonymousUserAttemptLoginGatedFeature => {
                 "Anonymous User Attempted Login-Gated Feature"
@@ -5015,7 +4982,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CreateCustomTheme => "Create Custom Theme",
             Self::DeleteCustomTheme => "Delete Custom Theme",
             Self::SplitPane => "Split Pane",
-            Self::SkipOnboardingSurvey => "Skip Onboarding Survey",
             Self::ToggleRestoreSession => "Toggle Restore Session",
             Self::DatabaseStartUpError => "Database Startup Error",
             Self::DatabaseWriteError => "Database Write Error",
@@ -5037,7 +5003,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::OpenQuakeModeWindow => "Open Quake Mode Window",
             Self::OpenWelcomeTips => "Open Welcome Tips",
             Self::CompleteWelcomeTipFeature => "Complete Welcome Tip",
-            Self::DismissWelcomeTips => "Dismiss Welcome Tips",
             Self::ShowNotificationsDiscoveryBanner => "ShowNotificationsDiscoveryBanner",
             Self::NotificationsDiscoveryBannerAction => "Notifications Discovery Banner Action",
             Self::ShowNotificationsErrorBanner => "ShowNotificationsErrorBanner",
@@ -5150,7 +5115,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::WarpDriveOpened => "Warp Drive Opened",
             Self::ToggleWarpAI => "Toggle Warp AI",
             Self::ToggleSecretRedaction => "Toggle Secret Redaction",
-            Self::CustomSecretRegexAdded => "Custom Secret Regex Added",
             Self::ToggleObfuscateSecret => "Toggle Obfuscate Secret",
             Self::CopySecret => "Copy Obfuscated Secret",
             Self::UpdateSortingChoice => "Updated Sorting Choice",
@@ -5163,7 +5127,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CommandFileRun => "Command File Run",
             Self::PageUpDownInEditorPressed => "Page Up/Down In Editor Pressed",
             Self::WebCloudObjectOpenedOnDesktop { .. } => "Warp Drive object opened on desktop",
-            Self::DriveSharingOnboardingBlockShown => "Warp Drive Sharing onboarding block shown",
             Self::UnsupportedShell => "Unsupported Shell",
             Self::SettingsImportInitiated => "Settings Import Initiated",
             Self::CopyObjectToClipboard => "Copy Object To Clipboard",
@@ -5184,9 +5147,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::PaneDragInitiated => "Pane Drag Inititiated",
             Self::PaneDropped => "Pane Drag Ended",
             Self::AgentModeCreatedAIBlock => "AgentMode.CreatedAIBlock",
-            Self::DeletedWorkflow => "Deleted Workflow",
-            Self::DeletedNotebook => "Deleted Notebook",
-            Self::ToggleApprovalsModal => "Toggle Approvals Modal",
             Self::TierLimitHit => "Tier Limit Hit",
             Self::SharedObjectLimitHitBannerViewPlansButtonClicked => {
                 "Shared Object Limit Hit Banner View Plans Button Clicked"
@@ -5395,9 +5355,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::BlockCompletedOnDogfoodOnly => {
                 "Completed a block, with extra information for dogfood only"
             }
-            Self::AnonymousUserExpirationLockout => {
-                "An anonymous user opened Warp after their conversion deadline and was locked out"
-            }
             Self::AnonymousUserLinkedFromBrowser => {
                 "Received an auth payload from anonymous user after linking in browser"
             }
@@ -5471,7 +5428,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CreateCustomTheme => "Created a custom theme using the built-in theme creator",
             Self::DeleteCustomTheme => "Deleted a custom theme using the built-in theme creator",
             Self::SplitPane => "Split tab into multiple panes",
-            Self::SkipOnboardingSurvey => "Skipped onboarding survey as a whole",
             Self::ToggleRestoreSession => {
                 "Toggled session restoration (\"Restore windows, tabs, panes, on startup\")"
             }
@@ -5503,7 +5459,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::OpenWelcomeTips => "Opened welcome tips in app",
             Self::CompleteWelcomeTipFeature => "Completed all welcome tips items",
-            Self::DismissWelcomeTips => "Dismissed Welcome tips",
             Self::ShowNotificationsDiscoveryBanner => {
                 "Showed notifications discovery banner in the block list"
             }
@@ -5567,9 +5522,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Opened the launch config YAML file from modal once saved successfully"
             }
             Self::OpenLaunchConfig => "Opened launch config for a session",
-            Self::DeletedWorkflow => "Deleted workflow from Warp Drive team",
-            Self::DeletedNotebook => "Deleted notebook from Warp Drive team",
-            Self::ToggleApprovalsModal => "Opened or closed teams modal",
             Self::SetLineHeight => "Set line height through Settings -> Appearance",
             Self::KeybindingsPageOpened => "Opened the keybinding page within the resource center",
             Self::CommandSearchOpened => "Opened command search (universal search panel to search)",
@@ -5735,7 +5687,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ToggleSecretRedaction => {
                 "Toggled on/off the setting for Secret Redaction - attempts to redact secrets and sensitive information"
             }
-            Self::CustomSecretRegexAdded => "Custom Secret Regex Added",
             Self::ToggleObfuscateSecret => "Revealed or hid a secret",
             Self::CopySecret => "Copied a secret's obfuscated contents to clipboard",
             Self::UpdateSortingChoice => "Modified the sorting scheme for Warp Drive objects",
@@ -5751,9 +5702,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::WebCloudObjectOpenedOnDesktop => {
                 "Warp Drive object on the web was opened on the desktop"
-            }
-            Self::DriveSharingOnboardingBlockShown => {
-                "Showed onboarding block for Warp Drive sharing"
             }
             Self::UnsupportedShell => "Booted Warp with a shell that isn't supported",
             Self::LogOut => "Logged out of the Warp client",
