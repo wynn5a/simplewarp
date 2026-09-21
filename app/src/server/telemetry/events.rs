@@ -1201,9 +1201,6 @@ pub enum TelemetryEvent {
     ContextMenuCopyPrompt {
         part: PromptPart,
     },
-    ContextMenuToggleGitPromptDirtyIndicator {
-        enabled: bool,
-    },
     ContextMenuInsertSelectedText,
     /// The user opened the prompt editor modal.
     OpenPromptEditor {
@@ -1650,18 +1647,8 @@ pub enum TelemetryEvent {
     FileTreeItemCreated,
     /// Conversation list view was opened
     ConversationListViewOpened,
-    /// User opened a conversation from the conversation list
-    ConversationListItemOpened {
-        /// Whether the conversation is an ambient agent task (vs a local conversation)
-        is_ambient_agent: bool,
-    },
     /// User deleted a conversation from the conversation list
     ConversationListItemDeleted,
-    /// User copied a conversation link from the conversation list
-    ConversationListLinkCopied {
-        /// Whether the conversation is an ambient agent task (vs a local conversation)
-        is_ambient_agent: bool,
-    },
     /// Created a blocklist AI block.
     AgentModeCreatedAIBlock {
         /// The client-generated exchange ID for the AI exchange (input + output turn) rendered in this AI block.
@@ -2670,9 +2657,6 @@ impl TelemetryEvent {
             TelemetryEvent::ContextMenuCopyPrompt { part } => Some(json!({ "part": part })),
             TelemetryEvent::ReinputCommands(cardinality) => {
                 Some(json!({ "cardinality": cardinality }))
-            }
-            TelemetryEvent::ContextMenuToggleGitPromptDirtyIndicator { enabled } => {
-                Some(json!({ "enabled": enabled }))
             }
             TelemetryEvent::BlockSelection(details) => Some(json!(details)),
             TelemetryEvent::ConfirmSuggestion { mode, match_type } => {
@@ -3788,12 +3772,6 @@ impl TelemetryEvent {
                     "unsupported_arch": unsupported_arch,
                 }))
             }
-            TelemetryEvent::ConversationListItemOpened { is_ambient_agent } => Some(json!({
-                "is_ambient_agent": is_ambient_agent,
-            })),
-            TelemetryEvent::ConversationListLinkCopied { is_ambient_agent } => Some(json!({
-                "is_ambient_agent": is_ambient_agent,
-            })),
             TelemetryEvent::AIExecutionProfileSettingUpdated {
                 setting_type,
                 setting_value,
@@ -4113,7 +4091,6 @@ impl TelemetryEvent {
             | TelemetryEvent::ContextMenuCopy(_, _)
             | TelemetryEvent::ContextMenuFindWithinBlocks(_)
             | TelemetryEvent::ContextMenuCopyPrompt { .. }
-            | TelemetryEvent::ContextMenuToggleGitPromptDirtyIndicator { .. }
             | TelemetryEvent::ContextMenuInsertSelectedText
             | TelemetryEvent::OpenPromptEditor { .. }
             | TelemetryEvent::PromptEdited { .. }
@@ -4394,9 +4371,7 @@ impl TelemetryEvent {
             | TelemetryEvent::CodeSelectionAddedAsContext { .. }
             | TelemetryEvent::FileTreeItemCreated
             | TelemetryEvent::ConversationListViewOpened
-            | TelemetryEvent::ConversationListItemOpened { .. }
             | TelemetryEvent::ConversationListItemDeleted
-            | TelemetryEvent::ConversationListLinkCopied { .. }
             | TelemetryEvent::AgentViewEntered { .. }
             | TelemetryEvent::AgentViewExited { .. }
             | TelemetryEvent::InlineConversationMenuOpened { .. }
@@ -4501,10 +4476,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::FileTreeItemAttachedAsContext => EnablementState::Flag(FeatureFlag::FileTree),
             Self::CodeSelectionAddedAsContext => EnablementState::Always,
             Self::FileTreeItemCreated => EnablementState::Flag(FeatureFlag::FileTree),
-            Self::ConversationListViewOpened
-            | Self::ConversationListItemOpened
-            | Self::ConversationListItemDeleted
-            | Self::ConversationListLinkCopied => {
+            Self::ConversationListViewOpened | Self::ConversationListItemDeleted => {
                 EnablementState::Flag(FeatureFlag::AgentViewConversationListView)
             }
             Self::AgentViewEntered
@@ -4562,7 +4534,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ContextMenuCopy => EnablementState::Always,
             Self::ContextMenuFindWithinBlocks => EnablementState::Always,
             Self::ContextMenuCopyPrompt => EnablementState::Always,
-            Self::ContextMenuToggleGitPromptDirtyIndicator => EnablementState::Always,
             Self::ContextMenuInsertSelectedText => EnablementState::Always,
             Self::OpenPromptEditor => EnablementState::Always,
             Self::PromptEdited => EnablementState::Always,
@@ -4924,9 +4895,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CodeSelectionAddedAsContext => "CodeView.SelectionAddedAsContext",
             Self::FileTreeItemCreated => "FileTree.ItemCreated",
             Self::ConversationListViewOpened => "ConversationList.Opened",
-            Self::ConversationListItemOpened => "ConversationList.ItemOpened",
             Self::ConversationListItemDeleted => "ConversationList.ItemDeleted",
-            Self::ConversationListLinkCopied => "ConversationList.LinkCopied",
             Self::AgentViewEntered => "AgentView.Entered",
             Self::AgentViewExited => "AgentView.Exited",
             Self::InlineConversationMenuOpened => "AgentView.InlineConversationMenuOpened",
@@ -4965,9 +4934,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ConfirmSuggestion => "Confirm Suggestion",
             Self::ContextMenuInsertSelectedText => "Context Menu Insert Selected Text into Input",
             Self::ContextMenuCopyPrompt => "Context Menu Copy Prompt",
-            Self::ContextMenuToggleGitPromptDirtyIndicator => {
-                "Context Menu Toggle Git Prompt Dirty Indicator"
-            }
             Self::OpenThemeChooser => "Open Theme Chooser",
             Self::ThemeSelection => "Select Theme",
             Self::AppIconSelection => "Select App Icon",
@@ -5392,9 +5358,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ContextMenuCopy => "Clicked \"Copy\" in context menu",
             Self::ContextMenuFindWithinBlocks => "Clicked \"find within blocks\" in context menu",
             Self::ContextMenuCopyPrompt => "Clicked  \"Copy Prompt\" in context menu",
-            Self::ContextMenuToggleGitPromptDirtyIndicator => {
-                "Toggled indicator of dirty git prompt"
-            }
             Self::ContextMenuInsertSelectedText => "Clicked \"insert into input\" in context menu",
             Self::OpenPromptEditor => "Opened the prompt editor",
             Self::PromptEdited => "Edited the prompt using the built-in prompt editor",
@@ -5793,12 +5756,8 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ConversationListViewOpened => {
                 "Opened the conversation list view in the left panel"
             }
-            Self::ConversationListItemOpened => "Opened a conversation from the conversation list",
             Self::ConversationListItemDeleted => {
                 "Deleted a conversation from the conversation list"
-            }
-            Self::ConversationListLinkCopied => {
-                "Copied a conversation link from the conversation list"
             }
             Self::AgentViewEntered => "User entered the Agent View",
             Self::AgentViewExited => "User exited the Agent View",

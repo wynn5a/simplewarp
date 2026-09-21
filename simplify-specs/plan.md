@@ -6055,7 +6055,40 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             the 4ci baselines, zero tests added or removed, no flakes);
             `warp_graphql`+`warp_server_client`+`warp_cli` 89 passed. App not
             re-run — deleted code was unreachable (no constructors).
-      - [ ] **Next per 4ca's order after 4dk**: orphaned query/mutation/
+      - [x] **Three orphaned context-menu/conversation-list telemetry events
+            (4dl) — DONE 2026-09-21.** Same leaf class as 4de–4dk: the second
+            slice of 4dj's 12 leftover payload-carrying variants —
+            `ContextMenuToggleGitPromptDirtyIndicator` (primitive `bool`
+            payload, same shape as 4dk's `OpenChangelogLink`),
+            `ConversationListItemOpened` and `ConversationListLinkCopied`
+            (primitive `bool` payloads; the cloud conversation-sync producers
+            went in 4cg). All three verified with bare-name `git grep` over
+            all files plus event-name/description string search — zero hits
+            outside `events.rs` (only the plan.md ledger mentions). Deleted
+            the three variants with all five match-arm groups (properties,
+            `contains_ugc` chain, enablement, event names, descriptions). No
+            helper types fell — all three payloads are primitive `bool`, and
+            the two conversation-list enablement arms were removed from their
+            shared `AgentViewConversationListView`-gated OR-chain with the
+            live `ConversationListViewOpened`/`ConversationListItemDeleted`
+            arms left intact (chain collapsed to one line, rustfmt-clean).
+            Local-only safety: zero constructors means zero behavior change —
+            the git-prompt dirty-indicator toggle itself, the local
+            conversation list view/open/delete flows, terminal, tabs, panes,
+            BYOK AI, settings, themes, and all other local features untouched;
+            only three RudderStack event names that could never fire are gone.
+
+            Acceptance: `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors; only
+            the two pre-existing unused-import warnings that reproduce on
+            a clean stash); clippy `-p warp --lib` 11 needless-returns, all in
+            untouched `terminal/input.rs` (0 added, none in the touched file);
+            format clean. Nextest: warp lib 4,653 default /
+            4,652 simplewarp (`--no-fail-fast`), 0 failed (4 skipped both — exactly
+            the 4ci baselines, zero tests added or removed, no flakes);
+            `warp_graphql`+`warp_server_client`+`warp_cli` 89 passed. App not
+            re-run — deleted code was unreachable (no constructors).
+      - [ ] **Next per 4ca's order after 4dl**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
@@ -6067,9 +6100,16 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             telemetry events + `LoginEventSource` are gone (4dh), and the three
             orphaned billing/revenue telemetry events + two helper enums are
             gone (4di), the eight orphaned unit telemetry events are
-            gone (4dj), and the orphaned changelog telemetry event is
-            gone (4dk). Next is the remaining ambient task-id
-            identity plumbing as its own multi-round job (local children +
+            gone (4dj), the orphaned changelog telemetry event is
+            gone (4dk), and the three orphaned context-menu/conversation-list
+            telemetry events are gone (4dl). Next is the remaining eight of
+            4dj's 12 payload-carrying variants (`CompleteWelcomeTipFeature`,
+            `PromptSuggestionShown`, `OpenedSharingDialog`,
+            `FileExceededContextLimit`, `MCPServerAdded`,
+            `RecentMenuItemSelected`, `AgentViewExited` — plus `TierLimitHit`
+            as a standing non-leaf with live tier-limit banner UI),
+            each needing its own payload-type trace, then the remaining ambient
+            task-id identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
             shared with the local viewer, so it is not a leaf deletion),
