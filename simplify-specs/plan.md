@@ -6321,7 +6321,51 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             default / 4,652 simplewarp (`--no-fail-fast`), 0 failed (4 skipped
             both — exactly the 4ci baselines, zero tests added or removed, no
             flakes). App not re-run — deleted code was unreachable (no users).
-      - [ ] **Next per 4ca's order after 4dr**: orphaned query/mutation/
+      - [x] **Zero-reader `FeatureFlag::AgentManagementView` + cargo feature
+            (4ds) — DONE 2026-09-22.** The 4dc/4dg precedent, third instance:
+            `git grep "FeatureFlag::AgentManagementView"` repo-wide returns only
+            the definition (`crates/warp_features/src/lib.rs`) — the
+            `features.rs` cfg mapping is write-only, no `is_enabled` reader in
+            production or tests, no DOGFOOD/PREVIEW/RELEASE membership, and the
+            `agent_management_view` cargo feature has no `cfg(feature = ...)`
+            reader outside that mapping (verified; the 190-variant sweep finds
+            no other zero-reader flag). The flag gated the cloud agent
+            management dashboard; the dashboard view went in 4al (server-token
+            cloud conversation metadata, server-API task-list calls), leaving
+            the variant orphaned. Unlike 4dg the feature was only in the
+            `default` set (simplewarp already excludes it), so this round
+            deletes the variant + doc (lib.rs), the two-line cfg mapping
+            (features.rs), and the default-set membership plus the
+            `agent_management_view = []` definition (app/Cargo.toml).
+            `FLAG_STATES`/`USER_PREFERENCE_MAP` are cardinality-sized, no count
+            to update (per §5). Deliberately left:
+            `AgentModeEntrypoint::AgentManagementView` (telemetry entry-origin
+            taxonomy — needs its own per-type constructor trace, same class as
+            4dm's payload leftovers), `WorkspaceAction::
+            OpenAgentManagementView` (4al's kept no-op stub, a cataloged
+            local_control/CLI surface), `FeatureFlag::
+            InteractiveConversationManagementView` (separate flag with live
+            readers in `agent_conversations_model`), the `vertical_tabs.rs`
+            comment mentioning the deleted view, and the historical
+            `specs/REMOTE-*` hits for the already-deleted surface. 3 files,
+            +0/−7. Local-only safety: nothing ever read the flag, so both
+            feature sets resolve and behave exactly as before — terminal,
+            tabs, panes, local conversation history/persistence, BYOK AI,
+            settings, themes, and all other local features untouched.
+
+            Acceptance: `check -p warp_features --all-targets`, `check -p warp
+            --lib --all-targets` both feature sets, `--bin simplewarp`, `--bin
+            warp-oss` clean (0 errors); clippy `-p warp_features --all-targets`
+            clean, `-p warp --lib` 11 needless-returns byte-identical to the
+            stash baseline (0 added, none in touched files); format clean.
+            Nextest: `-p warp_features` 1 passed / 1 skipped; warp lib 4,653
+            default / 4,652 simplewarp (`--no-fail-fast`) — default shows the
+            one known 4co cross-test-interference flake
+            (`test_command_block_dispatches_event`, passes in isolation),
+            simplewarp 0 failed (4 skipped both — exactly the 4ci baselines,
+            zero tests added or removed). App not re-run — deleted code was
+            unreachable (no readers).
+      - [ ] **Next per 4ca's order after 4ds**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the two
             type-live modules, `subscriptions/` is gone) and the one
@@ -6344,9 +6388,11 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             `get_versions_for_all_objects` + `CloudObject::versions` +
             `get_latest_processed_at_ts`), and the dead token-refresh gate is
             gone (4dq — `allowed_to_refresh_token` +
-            `is_externally_managed`), and the dead server-sync update shaping
+            `is_externally_managed`), the dead server-sync update shaping
             is gone (4dr — `ObjectsToUpdate` + `UpdateCloudObjectResult` +
-            the `get_updated_cloud_objects` query module they kept alive).
+            the `get_updated_cloud_objects` query module they kept alive),
+            and the zero-reader AgentManagementView flag + cargo
+            feature is gone (4ds).
             Next is the remaining ambient
             task-id identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs

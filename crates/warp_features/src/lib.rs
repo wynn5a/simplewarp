@@ -378,9 +378,6 @@ pub enum FeatureFlag {
     /// Enables the /rewind slash command.
     RewindSlashCommand,
 
-    /// Agent Management View.
-    AgentManagementView,
-
     AgentView,
 
     /// Enables block context functionality in Agent View.

@@ -527,7 +527,6 @@ default = [
     "command_palette_file_search",
     "ai_context_menu",
     "at_menu_outside_of_ai_mode",
-    "agent_management_view",
     "interactive_conversation_management_view",
     "tab_close_button_on_left",
     "ai_resume_button",
@@ -780,7 +779,6 @@ dynamic_workflow_enums = []
 editable_markdown_mermaid = []
 default_adeberry_theme = []
 drag_tabs_to_windows = []
-agent_management_view = []
 interactive_conversation_management_view = []
 enforce_revisions_to_cloud_objects = []
 suggested_agent_mode_workflows = []
