@@ -680,10 +680,6 @@ pub enum AgentModeEntrypoint {
     /// User manually switched between terminal and AI input modes in UDI interface
     #[serde(rename = "udi_terminal_input_switcher")]
     UDITerminalInputSwitcher,
-
-    /// The agent management view, where you can see both local interactive and ambient agent tasks
-    #[serde(rename = "agent_management_view")]
-    AgentManagementView,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

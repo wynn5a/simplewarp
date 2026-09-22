@@ -6392,7 +6392,10 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             is gone (4dr — `ObjectsToUpdate` + `UpdateCloudObjectResult` +
             the `get_updated_cloud_objects` query module they kept alive),
             and the zero-reader AgentManagementView flag + cargo
-            feature is gone (4ds).
+            feature is gone (4ds), and the orphaned
+            `AgentModeEntrypoint::AgentManagementView` telemetry taxonomy
+            variant is gone (4dt — 4ds's deferred per-type trace, same class
+            as 4dm's payload leftovers).
             Next is the remaining ambient
             task-id identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
@@ -6400,6 +6403,45 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             shared with the local viewer, so it is not a leaf deletion),
             then the telemetry scope decision (4ca item 7), then the fold
             (item 8).
+      - [x] **Orphaned `AgentModeEntrypoint::AgentManagementView` telemetry
+            taxonomy variant (4dt) — DONE 2026-09-22.** The per-type
+            constructor trace 4ds deferred: `git grep
+            "AgentModeEntrypoint::AgentManagementView"` repo-wide returns zero
+            constructors — only the plan.md ledger mentions. The cloud agent
+            management dashboard went in 4al (server-token cloud conversation
+            metadata, server-API task-list calls), so entering Agent Mode
+            from that dashboard can never happen; the variant is remote-only
+            by design. Deleted the variant with its doc + serde rename (1
+            file, +0/−4). No companion edits: the value is only ever
+            serde-serialized into `AgentModeClickedEntrypoint` properties —
+            no `match`/`if` on any `AgentModeEntrypoint` value exists
+            anywhere, so no arm could name it. Deliberately left:
+            `AgentModeEntrypoint::{AICommandSearch, PromptChip,
+            AgentManagementPopup}` — the same trace shows zero
+            `AgentModeEntrypoint::` constructors for all three as well, but
+            they are entry points from local surfaces (command search,
+            prompt chip, management popup), not remote-dependent code, so
+            each needs its own surface trace before deleting; plus the
+            standing non-leaves (`WorkspaceAction::OpenAgentManagementView`
+            no-op stub — its local_control reason went in 4bp, needs its own
+            action-surface trace — tier-limit banner UI, ambient task-id
+            plumbing). Local-only safety: zero constructors means zero
+            behavior change — terminal, tabs, panes, BYOK AI, settings,
+            themes, and all other local features untouched; only one
+            RudderStack entrypoint string that could never be emitted is
+            gone.
+
+            Acceptance: `check -p warp --lib --all-targets`, `--bin
+            simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+            clean (0 errors; only the two pre-existing `step.rs`
+            unused-import warnings that reproduce on a clean stash); clippy
+            `-p warp --lib` 11 needless-returns + 1 single-element loop,
+            all in untouched files, byte-identical to the baseline (0 added,
+            none in the touched file); format clean. Nextest: warp lib 4,653
+            default / 4,652 simplewarp (`--no-fail-fast`), 0 failed (4
+            skipped both — exactly the 4ci baselines, zero tests added or
+            removed, no flakes). App not re-run — deleted code was
+            unreachable (no constructors).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
