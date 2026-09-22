@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::anyhow;
-use chrono::{DateTime, Duration, Utc};
 use parking_lot::RwLock;
 use uuid::Uuid;
 use warp_core::channel::{Channel, ChannelState};
@@ -19,8 +18,6 @@ use super::user::persistence::PersistedUser;
 use super::user::{
     AnonymousUserType, FirebaseAuthTokens, PersonalObjectLimits, PrincipalType, User,
 };
-
-const ANONYMOUS_USER_NOTIFICATION_BLOCK_TIMER: Duration = Duration::days(7);
 
 /// Describes what persistence action to take based on the current auth state.
 pub enum PersistAction {
@@ -383,19 +380,6 @@ impl AuthState {
         self.user.read().as_ref().map(|user| user.is_onboarded)
     }
 
-    /// Returns the user's email domain (anything after the @ sign of their email).
-    pub fn user_email_domain(&self) -> Option<String> {
-        self.user.read().as_ref().map(|user| {
-            user.metadata
-                .email
-                .clone()
-                .split('@')
-                .nth(1)
-                .unwrap_or("")
-                .to_string()
-        })
-    }
-
     /// Returns whether or not the user is anonymous.
     /// Anonymous users are real Warp users, but have no providers linked in Firebase.
     /// Returns `None` if there is no user data.
@@ -494,32 +478,10 @@ impl AuthState {
         !prev_needs_reauth && new_needs_reauth
     }
 
-    /// Returns whether or not the renotification block to encourage anonymous users to sign up
-    /// has expired.
-    pub fn anonymous_user_renotification_block_expired(
-        &self,
-        last_time_opt: Option<String>,
-    ) -> bool {
-        self.is_anonymous_user_feature_gated().unwrap_or_default()
-            && last_time_opt
-                .and_then(|last_time_string| last_time_string.parse::<DateTime<Utc>>().ok())
-                .is_none_or(|last_time| {
-                    Utc::now() - ANONYMOUS_USER_NOTIFICATION_BLOCK_TIMER >= last_time
-                })
-    }
-
     /// Returns whether or not the user is on a work domain.
     /// This calculation is done on the server, using a list of
     pub fn is_on_work_domain(&self) -> Option<bool> {
         self.user.read().as_ref().map(|user| user.is_on_work_domain)
-    }
-
-    /// Returns whether the current user is authenticated via API key.
-    pub fn is_api_key_authenticated(&self) -> bool {
-        matches!(
-            self.credentials.read().as_ref(),
-            Some(Credentials::ApiKey { .. })
-        )
     }
 
     /// Returns the API key if using API key authentication.

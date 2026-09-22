@@ -6365,7 +6365,7 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             simplewarp 0 failed (4 skipped both — exactly the 4ci baselines,
             zero tests added or removed). App not re-run — deleted code was
             unreachable (no readers).
-      - [ ] **Next per 4ca's order after 4ds**: orphaned query/mutation/
+      - [ ] **Next per 4ca's order after 4dt**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the two
             type-live modules, `subscriptions/` is gone) and the one
@@ -6395,7 +6395,11 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             feature is gone (4ds), and the orphaned
             `AgentModeEntrypoint::AgentManagementView` telemetry taxonomy
             variant is gone (4dt — 4ds's deferred per-type trace, same class
-            as 4dm's payload leftovers).
+            as 4dm's payload leftovers), and the three zero-caller
+            `AuthState` getters are gone (4du — `user_email_domain` +
+            `anonymous_user_renotification_block_expired` +
+            `is_api_key_authenticated`, with the orphaned 7-day
+            renotification const + `chrono` import).
             Next is the remaining ambient
             task-id identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
@@ -6442,6 +6446,49 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             skipped both — exactly the 4ci baselines, zero tests added or
             removed, no flakes). App not re-run — deleted code was
             unreachable (no constructors).
+      - [x] **Three zero-caller `AuthState` getters (4du) — DONE 2026-09-22.**
+            Same leaf class as 4dq (token-refresh gate) and 3v (pub-fn
+            sweep): grepped every `pub fn` in
+            `crates/warp_server_auth/src/auth_state.rs` repo-wide, flagged
+            the three with exactly one hit (the definition, nothing else —
+            verified with bare-name `git grep` plus `.method(` call-syntax
+            search, all zero outside the definition):
+            `user_email_domain` (Firebase email domain from the
+            server-fetched `User` metadata — `user` never populates here per
+            3n, so always `None`), `anonymous_user_renotification_block_expired`
+            (anonymous-signup nudge timer gated on
+            `is_anonymous_user_feature_gated`, whose type comes from the
+            server's `AnonymousUserType`), and `is_api_key_authenticated`
+            (the 4cd `warp api-key` round's leftover — an API key buys
+            nothing per 4cd, so the predicate it reported on is dead).
+            Deleted the three methods plus the orphaned cascade:
+            `ANONYMOUS_USER_NOTIFICATION_BLOCK_TIMER` (7-day const, sole
+            user was the renotification method) and the `chrono::{DateTime,
+            Duration, Utc}` import (sole users were the const + method —
+            `chrono` stays in `Cargo.toml`, still live via `user.rs`).
+            Deliberately left: `is_anonymous_user_feature_gated` (live via
+            `drive_helpers.rs`), `api_key`/`api_key_owner_type`
+            (live getters on the same credentials), and `Credentials::ApiKey`
+            itself (still constructed in tests/evals). 1 file, +0/−38.
+            Local-only safety: zero callers means zero behavior change —
+            login/logout, daemon bearer, cached tokens, terminal, tabs,
+            panes, BYOK AI, settings, themes, and all other local features
+            untouched; only three predicates that could never be consulted
+            are gone.
+
+            Acceptance: `check -p warp_server_auth --all-targets`, `check -p
+            warp --lib --all-targets` both feature sets, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors;
+            only the two pre-existing `step.rs` unused-import warnings that
+            reproduce on a clean stash); clippy `-p warp_server_auth
+            --all-targets` 0 warnings, `-p warp --lib` 11 needless-returns
+            byte-identical to the stash baseline (0 added, none in the
+            touched file); format clean. Nextest: `warp_server_auth` 4
+            passed; `warp_server_client`+`warp_graphql`+`warp_cli` 89 passed;
+            warp lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`), 0
+            failed (4 skipped both — exactly the 4dt baselines, zero tests
+            added or removed, no flakes). App not re-run — deleted code was
+            unreachable (no callers).
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
