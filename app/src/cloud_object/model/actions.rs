@@ -215,30 +215,6 @@ impl ObjectActions {
         action
     }
 
-    /// Get the processed_at_timestamp of the most recent server-synced action we have for a given object. This determines
-    /// whether or not we should accept some update from the server.
-    pub fn get_latest_processed_at_ts(&self, uid: &ObjectUid) -> Option<DateTime<Utc>> {
-        if let Some(actions) = self.object_actions_by_id.get(uid) {
-            actions
-                .iter()
-                .filter_map(|a| match a.action_subtype {
-                    ObjectActionSubtype::SingleAction {
-                        processed_at_timestamp,
-                        pending: false,
-                        ..
-                    } => processed_at_timestamp,
-                    ObjectActionSubtype::BundledActions {
-                        latest_processed_at_timestamp,
-                        ..
-                    } => Some(latest_processed_at_timestamp),
-                    _ => None,
-                })
-                .max()
-        } else {
-            None
-        }
-    }
-
     /// Returns a time-boxed summary of the number of times this action type has occurred on this object.
     /// This summary prioritizes smaller units of time where possible, starting from Day and going to Year.
     /// If the action type has occurred on the object in the last day, we return "X actions in the last day".

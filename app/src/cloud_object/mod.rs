@@ -10,12 +10,10 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use url::Url;
 use warp_core::channel::Channel;
-use warp_graphql::queries::get_updated_cloud_objects::UpdatedObjectInput;
 use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{AppContext, SingletonEntity};
 
 use self::breadcrumbs::ContainingObject;
-use self::model::actions::ObjectActions;
 use self::model::generic_string_model::{
     GenericStringModel, GenericStringObjectId, Serializer, StringModel,
 };
@@ -133,10 +131,6 @@ pub trait CloudObject: Debug {
 
     // Returns the name of the object.
     fn display_name(&self) -> String;
-
-    /// Returns an optional UpdatedObjectInput to use during initial load, where
-    /// the object's timestamps are sent to the server for comparison
-    fn versions(&self, app: &AppContext) -> Option<UpdatedObjectInput>;
 
     /// Returns whether this model type should render as a warp drive item.
     fn renders_in_warp_drive(&self) -> bool;
@@ -685,24 +679,6 @@ where
 
     fn display_name(&self) -> String {
         self.model().display_name()
-    }
-
-    fn versions(&self, app: &AppContext) -> Option<UpdatedObjectInput> {
-        match (self.id, self.metadata.revision.as_ref()) {
-            (SyncId::ServerId(id), Some(revision)) => {
-                let actions_ts = ObjectActions::as_ref(app)
-                    .get_latest_processed_at_ts(&self.id.uid())
-                    .map(|t| t.into());
-                Some(UpdatedObjectInput {
-                    uid: id.into(),
-                    revision_ts: revision.timestamp(),
-                    metadata_ts: self.metadata.metadata_last_updated_ts,
-                    permissions_ts: self.permissions.permissions_last_updated_ts,
-                    actions_ts,
-                })
-            }
-            _ => None,
-        }
     }
 
     fn renders_in_warp_drive(&self) -> bool {

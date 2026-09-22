@@ -6205,7 +6205,43 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             or removed, no flakes);
             `warp_graphql`+`warp_server_client`+`warp_cli` 89 passed. App not
             re-run — deleted code was unreachable (no constructors).
-      - [ ] **Next per 4ca's order after 4do**: orphaned query/mutation/
+      - [x] **Dead server-sync version plumbing
+            (4dp) — DONE 2026-09-22.** Same zero-caller leaf class as 4de–4do,
+            found by grepping the sync layer rather than the telemetry enum:
+            `CloudModel::get_versions_for_all_objects` had zero callers
+            repo-wide (definition only), and `CloudObject::versions` (whose own
+            doc says "timestamps are sent to the server for comparison") had
+            exactly one caller — that dead method. Deleted the method, the
+            trait declaration + impl, and the two now-unused imports
+            (`ObjectsToUpdate` in `persistence.rs`, `UpdatedObjectInput` +
+            `ObjectActions` in `cloud_object/mod.rs`). The compiler's own
+            cascade named the rest: `ObjectActions::
+            get_latest_processed_at_ts` (whose doc says "most recent
+            server-synced action ... whether or not we should accept some
+            update from the server") lost its only caller here, so it went in
+            the same pass. 3 files, +2/−71. Deliberately left:
+            `ObjectsToUpdate` (the struct in `crates/cloud_objects`, now
+            write-only — crate-level cleanup is its own round),
+            `UpdatedObjectInput` (the GraphQL input type, still referenced by
+            that struct + the `get_updated_cloud_objects` query module), and
+            `update_objects_from_initial_load` (live local-SQLite path, a
+            different function). Local-only safety: zero callers means zero
+            behavior change — local persistence, local objects, terminal,
+            tabs, panes, BYOK AI, settings, themes, and all other local
+            features untouched; only the "which objects need server updates"
+            payload that could never be sent is gone.
+
+            Acceptance: `check -p warp --lib --all-targets` both feature sets,
+            `--bin simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+            clean (0 errors; only the two pre-existing `step.rs` unused-import
+            warnings that reproduce on a clean stash); clippy `-p warp --lib`
+            14 warnings byte-identical to the stash baseline (0 added, none in
+            touched files); format clean.
+            Nextest: warp lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`),
+            0 failed (4 skipped both — exactly the 4do baselines, zero tests added
+            or removed, no flakes). App not
+            re-run — deleted code was unreachable (no callers).
+      - [ ] **Next per 4ca's order after 4dp**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
@@ -6223,7 +6259,10 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             payload-carrying telemetry events are gone (4dm), and the
             orphaned tier-limit telemetry event is gone (4dn), and the
             orphaned launch-config telemetry event is gone (4do — the scripted
-            346-variant sweep shows zero remaining zero-constructor variants).
+            346-variant sweep shows zero remaining zero-constructor variants),
+            and the dead server-sync version plumbing is gone (4dp —
+            `get_versions_for_all_objects` + `CloudObject::versions` +
+            `get_latest_processed_at_ts`).
             Next is the remaining ambient
             task-id identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
