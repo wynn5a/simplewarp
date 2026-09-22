@@ -72,12 +72,6 @@ impl AuthSession {
         }
     }
 
-    pub fn allowed_to_refresh_token(&self) -> bool {
-        self.auth_state
-            .credentials()
-            .is_none_or(|credentials| !credentials.is_externally_managed())
-    }
-
     pub async fn get_or_refresh_access_token(&self) -> Result<AuthToken> {
         if cfg!(feature = "skip_login") {
             bail!("skip_login enabled; failing all authenticated requests");

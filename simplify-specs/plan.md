@@ -6241,7 +6241,43 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             0 failed (4 skipped both — exactly the 4do baselines, zero tests added
             or removed, no flakes). App not
             re-run — deleted code was unreachable (no callers).
-      - [ ] **Next per 4ca's order after 4dp**: orphaned query/mutation/
+      - [x] **Dead token-refresh gate
+            (4dq) — DONE 2026-09-22.** Same zero-caller leaf class as 4de–4dp,
+            found by re-sweeping 4ca's BaseClient zero-caller list rather than
+            the telemetry enum: `AuthSession::allowed_to_refresh_token` had
+            zero production callers repo-wide (definition + one assert in its
+            own `session_tests.rs` only), and `Credentials::
+            is_externally_managed` in `warp_server_auth` had exactly one
+            caller — that dead method. Deleted the method, the predicate, and
+            the assert. 3 files, +0/−20. Deliberately left:
+            `get_or_refresh_access_token` (live — bearer/Firebase/ApiKey arms
+            still serve the daemon token, cached Firebase tokens, and local
+            auth flows; the bearer test keeps asserting the
+            no-refresh-event shape through it), `exchange_credentials`
+            (live login-token wrap), and all four `AuthEvent` variants (each
+            still constructed and matched: `NeedsReauth` fires from the
+            Firebase refresh arm, `AccessTokenRefreshed` from the same arm to
+            the remote-server bearer forwarder + builtin-MCP re-sync,
+            `UserAccountDisabled`/`StagingAccessBlocked` matched in the
+            server-api event loop + MCP manager). Local-only safety: zero
+            callers means zero behavior change — login/logout, daemon bearer,
+            cached tokens, terminal, tabs, panes, BYOK AI, settings, themes,
+            and all other local features untouched; only the "may this
+            credential hit Firebase/warp-server for a fresh token" gate that
+            could never be consulted is gone.
+
+            Acceptance: `check -p warp_server_auth -p warp_server_client
+            --all-targets` clean; clippy both crates 0 warnings; nextest both
+            crates 11 passed; `check -p warp --lib --all-targets` both
+            feature sets, `--bin simplewarp`, `--bin warp-oss`,
+            `--all-targets -p integration` clean (0 errors; only the two
+            pre-existing `step.rs` unused-import warnings from 4dp);
+            format clean.
+            Nextest: warp lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`),
+            0 failed (4 skipped both — exactly the 4do baselines, zero tests added
+            or removed, no flakes). App not
+            re-run — deleted code was unreachable (no callers).
+      - [ ] **Next per 4ca's order after 4dq**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
@@ -6262,7 +6298,9 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             346-variant sweep shows zero remaining zero-constructor variants),
             and the dead server-sync version plumbing is gone (4dp —
             `get_versions_for_all_objects` + `CloudObject::versions` +
-            `get_latest_processed_at_ts`).
+            `get_latest_processed_at_ts`), and the dead token-refresh gate is
+            gone (4dq — `allowed_to_refresh_token` +
+            `is_externally_managed`).
             Next is the remaining ambient
             task-id identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs

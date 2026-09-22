@@ -92,19 +92,6 @@ impl Credentials {
             Credentials::Test => AuthToken::NoAuth,
         }
     }
-    /// Returns whether these credentials are externally managed and should not trigger local token
-    /// refresh or reauth flows.
-    pub fn is_externally_managed(&self) -> bool {
-        match self {
-            Credentials::Bearer(_) => true,
-            Credentials::Firebase(_) | Credentials::ApiKey { .. } | Credentials::SessionCookie => {
-                false
-            }
-            #[cfg(any(test, feature = "integration_tests", feature = "skip_login"))]
-            Credentials::Test => false,
-        }
-    }
-
     /// Get the long-lived login token for these credentials. Returns `None` if there is no such token.
     pub fn login_token(&self) -> Option<LoginToken> {
         match self {

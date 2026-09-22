@@ -26,7 +26,6 @@ fn bearer_credentials_are_returned_without_session_refresh_events() {
     auth_state.set_credentials(Some(Credentials::Bearer("daemon-token".to_string())));
     let (session, event_receiver) = session_with_state(auth_state);
 
-    assert!(!session.allowed_to_refresh_token());
     let token = block_on(session.get_or_refresh_access_token()).unwrap();
 
     assert!(matches!(token, AuthToken::Bearer(token) if token == "daemon-token"));
