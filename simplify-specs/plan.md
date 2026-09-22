@@ -6277,9 +6277,53 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             0 failed (4 skipped both — exactly the 4do baselines, zero tests added
             or removed, no flakes). App not
             re-run — deleted code was unreachable (no callers).
-      - [ ] **Next per 4ca's order after 4dq**: orphaned query/mutation/
+      - [x] **Dead server-sync update shaping + its last query module
+            (4dr) — DONE 2026-09-22.** The crate-level cleanup 4dp deferred
+            (`ObjectsToUpdate`, then write-only) plus the 4bg orphan it never
+            swept back for. `crates/cloud_objects/src/cloud_object/update.rs`
+            held exactly two items, both with zero code users repo-wide
+            (verified with exact-name `git grep`, excluding only the plan
+            ledger, the server `schema.graphql` definition, and binary test
+            fixtures): `ObjectsToUpdate` ("all the info needed to fetch
+            changed objects from the server" — the sync-queue input shaping
+            whose producers died in 4bg and whose last reader 4dp removed)
+            and `UpdateCloudObjectResult` (revision-based cloud-update result;
+            `git log -S` shows its users went with 4bg's sync-queue
+            deletion). Deleted the file with `mod update;` + `pub use
+            update::*;`. That left `UpdatedObjectInput` with zero external
+            readers, which per the 4cp–4da per-type rule orphans the whole
+            `get_updated_cloud_objects` query module (the operation itself was
+            never built anywhere — zero builders repo-wide; the module survived
+            only as `UpdatedObjectInput`'s supplier, per 4da): deleted the
+            module + its `mod.rs` line. `queries/` now holds two modules
+            (`get_user`, `get_conversation_usage` — both still type-live via
+            `AuthClientImpl`/`gql_convert`/`ai.rs`). Deliberately left: the
+            `Folder`/`Notebook`/`Workflow`/`GenericStringObject` fragment types
+            the deleted module imported (defined in sibling modules, still
+            live), the server `schema.graphql` definitions (wire boundary, not
+            client code), and the binary sqlite fixtures that merely contain
+            the type names as data. 4 files, +1/−121 (2 deleted). Local-only
+            safety: zero code users means zero behavior change — local
+            persistence (`CloudModel`/SQLite), local objects, terminal, tabs,
+            panes, BYOK AI, settings, themes, and all other local features
+            untouched; only the "which objects need server updates" payload
+            shaping and the unbuilt server query are gone.
+
+            Acceptance: `check -p cloud_objects --all-targets`,
+            `check -p warp_graphql --all-targets`, `check -p warp --lib
+            --all-targets` both feature sets, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors;
+            only the two pre-existing `step.rs` unused-import warnings);
+            clippy `-p warp --lib` 11 needless-returns + 1 single-element loop,
+            byte-identical to the baseline (0 added, none in touched files);
+            clippy on both touched crates 0 warnings; format clean.
+            Nextest: `cloud_objects`+`warp_graphql` 6 passed; warp lib 4,653
+            default / 4,652 simplewarp (`--no-fail-fast`), 0 failed (4 skipped
+            both — exactly the 4ci baselines, zero tests added or removed, no
+            flakes). App not re-run — deleted code was unreachable (no users).
+      - [ ] **Next per 4ca's order after 4dr**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
-            `create_anonymous_user`, `queries/` holds only the three
+            `create_anonymous_user`, `queries/` holds only the two
             type-live modules, `subscriptions/` is gone) and the one
             zero-reader flag is gone (4dc), the dead login-notify no-op
             is gone (4dd), the orphaned capacity-modal telemetry events
@@ -6300,7 +6344,9 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             `get_versions_for_all_objects` + `CloudObject::versions` +
             `get_latest_processed_at_ts`), and the dead token-refresh gate is
             gone (4dq — `allowed_to_refresh_token` +
-            `is_externally_managed`).
+            `is_externally_managed`), and the dead server-sync update shaping
+            is gone (4dr — `ObjectsToUpdate` + `UpdateCloudObjectResult` +
+            the `get_updated_cloud_objects` query module they kept alive).
             Next is the remaining ambient
             task-id identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
