@@ -6175,7 +6175,37 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             or removed, no flakes);
             `warp_graphql`+`warp_server_client`+`warp_cli` 89 passed. App not
             re-run — deleted code was unreachable (no constructors).
-      - [ ] **Next per 4ca's order after 4dn**: orphaned query/mutation/
+      - [x] **One orphaned launch-config telemetry event
+            (4do) — DONE 2026-09-22.** Same leaf class as 4de–4dn, found by
+            scripting the check rather than working off 4dj's leftover list:
+            extracted all 346 `TelemetryEvent` variant names and grepped each
+            for `TelemetryEvent::<Name>` outside `events.rs` — exactly one
+            zero-hit variant, `OpenLaunchConfigSaveModal` (unit, no payload).
+            Verified with bare-name `git grep` plus event-name/description
+            string search — zero hits outside `events.rs` (only the plan.md
+            ledger mentions). The similarly-named
+            `WorkspaceAction::OpenLaunchConfigSaveModal` is live local UI (the
+            binding, the `view.rs` dispatch arm, the modal itself) and is
+            untouched; the sibling `TelemetryEvent::SaveLaunchConfig` is still
+            sent from `save_modal.rs` on actual save and stays. Deleted the
+            variant with all six match-arm groups (properties, `contains_ugc`
+            chain, enablement, event names, descriptions — no payload struct
+            since the variant is unit). 1 file, +0/−6. Local-only safety:
+            zero constructors means zero behavior change — launch-config save
+            modal, terminal, tabs, panes, BYOK AI, settings, themes, and all
+            other local features untouched; only one RudderStack event name
+            that could never fire is gone.
+
+            Acceptance: `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors);
+            clippy `-p warp --lib` byte-identical to the stash baseline
+            (0 added, none in touched files); format clean.
+            Nextest: warp lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`),
+            0 failed (4 skipped both — exactly the 4ci baselines, zero tests added
+            or removed, no flakes);
+            `warp_graphql`+`warp_server_client`+`warp_cli` 89 passed. App not
+            re-run — deleted code was unreachable (no constructors).
+      - [ ] **Next per 4ca's order after 4do**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
@@ -6191,8 +6221,10 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             gone (4dk), the three orphaned context-menu/conversation-list
             telemetry events are gone (4dl), and the seven orphaned
             payload-carrying telemetry events are gone (4dm), and the
-            orphaned tier-limit telemetry event is gone (4dn). Next is the
-            remaining ambient
+            orphaned tier-limit telemetry event is gone (4dn), and the
+            orphaned launch-config telemetry event is gone (4do — the scripted
+            346-variant sweep shows zero remaining zero-constructor variants).
+            Next is the remaining ambient
             task-id identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is

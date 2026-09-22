@@ -1327,7 +1327,6 @@ pub enum TelemetryEvent {
         enabled: bool,
     },
     ShowInFileExplorer,
-    OpenLaunchConfigSaveModal,
     SaveLaunchConfig {
         state: SaveState,
     },
@@ -3468,7 +3467,6 @@ impl TelemetryEvent {
             | TelemetryEvent::JumpToLatestAgentMessage
             | TelemetryEvent::JumpToBottomofBlockButtonClicked
             | TelemetryEvent::ShowInFileExplorer
-            | TelemetryEvent::OpenLaunchConfigSaveModal
             | TelemetryEvent::OpenLaunchConfigFile
             | TelemetryEvent::KeybindingsPageOpened
             | TelemetryEvent::OpenedAltScreenFind
@@ -4055,7 +4053,6 @@ impl TelemetryEvent {
             | TelemetryEvent::ToggleJumpToBottomofBlockButton { .. }
             | TelemetryEvent::ToggleShowBlockDividers { .. }
             | TelemetryEvent::ShowInFileExplorer
-            | TelemetryEvent::OpenLaunchConfigSaveModal
             | TelemetryEvent::SaveLaunchConfig { .. }
             | TelemetryEvent::OpenLaunchConfigFile
             | TelemetryEvent::OpenLaunchConfig { .. }
@@ -4488,7 +4485,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::JumpToBottomofBlockButtonClicked => EnablementState::Always,
             Self::ToggleJumpToBottomofBlockButton => EnablementState::Always,
             Self::ShowInFileExplorer => EnablementState::Always,
-            Self::OpenLaunchConfigSaveModal => EnablementState::Always,
             Self::SaveLaunchConfig => EnablementState::Always,
             Self::OpenLaunchConfigFile => EnablementState::Always,
             Self::OpenLaunchConfig => EnablementState::Always,
@@ -4872,7 +4868,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::JumpToLatestAgentMessage => "Jumped to Latest Agent Message",
             Self::JumpToBottomofBlockButtonClicked => "Jumped to Bottom of Block Button Clicked",
             Self::ShowInFileExplorer => "Showed File in File Explorer",
-            Self::OpenLaunchConfigSaveModal => "Open Save Config Modal",
             Self::SaveLaunchConfig => "Save Launch Config",
             Self::OpenLaunchConfigFile => "Open Launch Config File",
             Self::OpenLaunchConfig => "Open Launch Config",
@@ -5341,7 +5336,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::ToggleShowBlockDividers => "Enabled or disabled the Show Block Dividers Button",
             Self::ShowInFileExplorer => "Opened a file in Finder by using \"Show in Finder\"",
-            Self::OpenLaunchConfigSaveModal => "Opened save launch configuration modal",
             Self::SaveLaunchConfig => {
                 "Saved current launch configuration of windows, tabs, and panes"
             }
