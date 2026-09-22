@@ -6139,7 +6139,43 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             cross-test-interference flake from 4co — passes in isolation);
             `warp_graphql`+`warp_server_client`+`warp_cli` 89 passed. App not
             re-run — deleted code was unreachable (no constructors).
-      - [ ] **Next per 4ca's order after 4dm**: orphaned query/mutation/
+      - [x] **One orphaned tier-limit telemetry event
+            (4dn) — DONE 2026-09-22.** Same leaf class as 4de–4dm: the last
+            of 4dj's 12 leftover payload-carrying variants —
+            `TierLimitHit` (struct `TierLimitHitEvent` with `team_uid` +
+            `feature`). Verified with bare-name `git grep` over all files
+            plus event-name/description string search — zero hits outside
+            `events.rs` (only the plan.md ledger mentions). Deleted the
+            variant with all five match-arm groups (properties,
+            `contains_ugc` chain, enablement, event names, descriptions)
+            plus the now-unused struct. Deliberately kept:
+            `SharedObjectLimitHitBannerViewPlansButtonClicked` (live — the
+            tier-limit banner's View Plans button still sends it),
+            `is_at_tier_limit_for_object_type` /
+            `has_capacity_for_shared_notebooks` /
+            `has_capacity_for_shared_workflows` /
+            `render_shared_object_limit_hit_banner` (live local banner UI —
+            the standing non-leaf the plan flagged; this round touches only
+            the orphaned RudderStack event, not the banner), and the whole
+            ambient task-id identity plumbing (non-leaf — backs local-only
+            orchestrator children and shares threading with the local
+            viewer). 1 file, +0/−13. Local-only safety: zero constructors
+            means zero behavior change — tier-limit banner rendering,
+            terminal, tabs, panes, BYOK AI, settings, themes, and all other
+            local features untouched; only one RudderStack event name that
+            could never fire is gone.
+
+            Acceptance: `check -p warp --lib --all-targets`, `--bin simplewarp`,
+            `--bin warp-oss`, `--all-targets -p integration` clean (0 errors; only
+            the two pre-existing `step.rs` unused-import warnings that reproduce on
+            a clean stash); clippy `-p warp --lib` 14 warnings byte-identical to
+            the stash baseline (0 added, none in touched files); format clean.
+            Nextest: warp lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`),
+            0 failed (4 skipped both — exactly the 4ci baselines, zero tests added
+            or removed, no flakes);
+            `warp_graphql`+`warp_server_client`+`warp_cli` 89 passed. App not
+            re-run — deleted code was unreachable (no constructors).
+      - [ ] **Next per 4ca's order after 4dn**: orphaned query/mutation/
             subscription modules are done (`mutations/` holds only the live
             `create_anonymous_user`, `queries/` holds only the three
             type-live modules, `subscriptions/` is gone) and the one
@@ -6154,11 +6190,9 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             gone (4dj), the orphaned changelog telemetry event is
             gone (4dk), the three orphaned context-menu/conversation-list
             telemetry events are gone (4dl), and the seven orphaned
-            payload-carrying telemetry events are gone (4dm). Next is the
-            remaining one of
-            4dj's 12 payload-carrying variants (`TierLimitHit`
-            as a standing non-leaf with live tier-limit banner UI),
-            each needing its own payload-type trace, then the remaining ambient
+            payload-carrying telemetry events are gone (4dm), and the
+            orphaned tier-limit telemetry event is gone (4dn). Next is the
+            remaining ambient
             task-id identity plumbing as its own multi-round job (local children +
             transcript viewer first — `AmbientAgentTaskId::new()` backs
             local-only orchestrator children and the viewer threading is
