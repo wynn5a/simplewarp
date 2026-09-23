@@ -6726,3 +6726,42 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       or removed). Built `./target/debug/simplewarp` and launched it —
       alive past 50s, zero TCP sockets (`lsof -nP -a -p <pid> -iTCP`
       empty), 0 panics, clean shutdown.
+
+- [x] **`SyncId::from_object_id` (4dy) — DONE 2026-09-23.** Slice B
+      from the 4dv/4dw handoff (A, `SharingAccessLevel::can_delete`,
+      done in 4dx). Same zero-caller leaf class as
+      4dp/4dq/4du/4dv/4dw/4dx: bare-name `git grep` for `from_object_id`
+      hit only the definition in `crates/cloud_objects/src/ids.rs:74`
+      plus `plan.md` ledger mentions, and call-syntax `.from_object_id(`
+      search hit zero while `::from_object_id` hit only the ledger —
+      zero live callers repo-wide (`plan.md` ledger, `schema.graphql`,
+      binary fixtures excluded from both). Deleted the method alone
+      (1 file, +0/−7). Deliberately left: the `ToServerId` trait and
+      `to_server_id()` (live — generic bounds in
+      `app/src/cloud_object/mod.rs`, `model/persistence.rs`,
+      `server/cloud_objects/update_manager.rs`,
+      `notebooks/editor/embedded_item.rs`, and
+      `crates/cloud_object_persistence/src/objects.rs:528`),
+      `SyncId::uid` / `sqlite_uid_hash` / `into_server` / `into_client`
+      (live), the `From<ServerId>` / `From<FolderId>` /
+      `From<GenericStringObjectId>` conversions (live), and all
+      SharingAccessLevel survivors. Local-only safety: zero callers
+      means zero behavior change — sync IDs, drive, terminal, tabs,
+      panes, BYOK AI, settings, themes, and all other local features
+      untouched; only a constructor that could never be called is gone.
+
+      Acceptance: `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets` both feature
+      sets (default + `--no-default-features --features simplewarp`),
+      `--bin simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+      clean (0 errors; only the two pre-existing `step.rs`
+      unused-import warnings); clippy `-p warp --lib --all-targets`
+      warning-identical to the stash baseline (same 12 pre-existing
+      warnings — 11 unneeded-return + 1 single-element-loop, none in the
+      touched file — raw outputs differ only in the `mcp` `Checking`
+      line order and the build-time trailer); format clean. Nextest
+      `-p warp --lib --no-fail-fast`: 4,652 simplewarp / 4,653 default,
+      0 failed (4 skipped — exactly the baseline, zero tests added or
+      removed). Built `./target/debug/simplewarp` and launched it —
+      alive 67s, zero TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty),
+      0 panics, clean shutdown.

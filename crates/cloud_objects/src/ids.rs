@@ -71,13 +71,6 @@ pub enum SyncId {
 }
 
 impl SyncId {
-    pub fn from_object_id<K>(id: K) -> Self
-    where
-        K: ToServerId,
-    {
-        Self::ServerId(id.to_server_id())
-    }
-
     pub fn uid(&self) -> ObjectUid {
         match self {
             Self::ClientId(id) => id.to_string(),
