@@ -138,14 +138,6 @@ impl Subject {
             _ => false,
         }
     }
-
-    /// Gets the team UID for this subject, if it has one.
-    pub fn team_uid(&self) -> Option<ServerId> {
-        match self {
-            Subject::Team(team_kind) => Some(team_kind.team_uid()),
-            _ => None,
-        }
-    }
 }
 
 impl PartialEq for UserKind {

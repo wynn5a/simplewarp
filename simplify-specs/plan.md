@@ -6904,3 +6904,70 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       `./target/debug/simplewarp` and launched it — alive 70s, zero TCP
       sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics, clean
       shutdown.
+
+- [x] **`Subject::team_uid` (4eb) — DONE 2026-09-23.** Next
+      zero-caller leaf in `crates/cloud_objects` after 4ea
+      (`Subject::user_uid`). Same zero-caller leaf class as
+      4dp/4dq/4du/4dv/4dw/4dx/4dy/4dz/4ea: dual-confirm (bare-name +
+      call-syntax, ledger / `schema.graphql` / fixture / field-decl
+      excluded). Call-syntax `.team_uid()` zero-arg form exactly one
+      hit repo-wide in `*.rs` — the internal `team_kind.team_uid()`
+      at `sharing.rs:145` (`TeamKind` receiver, inside the deleted
+      method itself); zero `Subject`-receiver callers.
+      `Subject::team_uid` path zero in `*.rs` (only the
+      `plan.md:6787,6879` ledger lines); `::team_uid` zero in `*.rs`
+      (no re-export confusion, unlike `user_uid`). `.team_uid(` with
+      args only the unrelated `self.team_uid(ctx/app)` view methods
+      (`app/src/root_view.rs:1415`,
+      `app/src/workspace/view.rs:20567,20627,20647,20676,20707,20736,21676,22274`)
+      and `workspace_setting.team_uid(ctx)` — all take `ctx`/`app`,
+      different methods. Bare `.team_uid` field hits
+      (`window.team_uid`, `metadata.team_uid`, `invite.team_uid`,
+      `team_uid_for_window`) none with a `Subject` receiver
+      (`Subject` is an enum — no field access possible).
+      `TeamKind::Team { team_uid }` / `SharedSessionTeam { team_uid,
+      .. }` destructures at `sharing.rs:124-125` sit inside the live
+      `TeamKind::team_uid`, not callers. Bare-name `git grep team_uid`
+      (267 hits) class by class, none a caller: `Owner::Team` /
+      `Space::Team` destructures and inits, `UserWorkspaces`
+      (`team_uid_for_window`, `sole_team_uid`, `team_from_uid`,
+      `inherited_or_default_team_uid`), window/telemetry/persistence
+      struct fields, GraphQL/QA types, migrations/schema, tests, docs,
+      and the plan ledger; `schema.graphql` zero, `*.json` fixtures
+      zero. Single-column trace against the survivors: `is_user` stays
+      live via `crates/cloud_objects/src/cloud_object/mod.rs:483` plus
+      `app/src/cloud_object/model/view.rs:180`, confirming the sweep
+      can tell live from dead in this module. Deleted the method only
+      (both imports stay — `ServerId` still used by `TeamKind` at
+      `sharing.rs:111,115,122`, `UserUid` still used by `is_user`) (1
+      file, +0/−8). Deliberately left: `TeamKind::team_uid` (its only
+      caller was the deleted method, so newly callerless with
+      `TeamKind` used nowhere outside `sharing.rs` — same zero-caller
+      shape, needs its own dual-confirm slice, candidate next),
+      `label` / `name` (generic names, receiver-typed judgment
+      deferred), `can_move_drive` / `is_user` (live),
+      `into_upsert_params` (zero callers but consuming-variant scope
+      judgment per handoff — trace-only, not deleted), and all
+      `ids.rs` / `drive/mod.rs` survivors. Local-only safety: zero
+      callers means zero behavior change — drive sharing subjects,
+      permission gates, terminal, tabs, panes, BYOK AI, settings,
+      themes, and all other local features untouched; only a
+      `Subject`-to-`Option<ServerId>` getter that could never be called
+      is gone.
+
+      Acceptance: `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets` both feature
+      sets (default + `--no-default-features --features simplewarp`),
+      `--bin simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+      clean (0 errors; only the two pre-existing `step.rs`
+      unused-import warnings); clippy `-p warp --lib --all-targets`
+      warning-identical to the stash baseline (182 lines both, 14
+      `^warning` lines both, same 12 pre-existing warnings — none in the
+      touched file — raw outputs differ only in build nondeterminism:
+      `Finished` time trailer plus one parallel `Checking mcp` line
+      reorder); format clean. Nextest `-p warp --lib --no-fail-fast`:
+      4,652 simplewarp / 4,653 default, 0 failed (4 skipped — exactly the
+      baseline, zero tests added or removed). Built
+      `./target/debug/simplewarp` and launched it — alive 60s+, zero TCP
+      sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics, clean
+      shutdown.
