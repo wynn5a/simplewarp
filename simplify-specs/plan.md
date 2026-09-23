@@ -7782,3 +7782,133 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       listener), 0 panics, clean shutdown (SIGTERM, its
       `terminal-server` helper child gone too). Did not
       `cargo clean`.
+
+- [x] **`From<Role>`/`From<SharingAccessLevel>` pair (4em) — DONE
+      2026-09-23.** The 4el-designated next slice: the sweep's first
+      INFERENCE-TRACE deletion — both `From` impls in
+      `crates/cloud_objects/src/drive/sharing.rs:41-58` are reachable
+      only through `.into()`/`from` resolution, invisible to name
+      greps, so the trace enumerated every way either conversion could
+      instantiate, applying the 4ei alias/turbofish lesson to call
+      sites. `Role` provenance: it lives in the external git
+      dependency `session-sharing-protocol` (`common::roles.rs`,
+      serde `Reader`/`Executor`/`Full`), not a workspace member —
+      what matters is workspace reachability. Direction A
+      (`From<Role> for SharingAccessLevel`) needs a `Role`-typed
+      VALUE: construction-site finding — the bare `\bRole\b` name
+      appears in workspace `*.rs` ONLY at the `sharing.rs:2` import
+      and inside the two impls themselves; zero `enum Role` /
+      `struct Role` / `type Role` workspace definitions; zero
+      `::Role` path or `Role =` alias forms; no glob
+      `use session_sharing_protocol::common::*` (all five protocol
+      imports are explicit and enumerated: `ProfileData`
+      (`cloud_object_models/src/user_profile.rs:3`), `SessionId`
+      (`app/src/ai/agent_conversations_model/entry.rs:2`),
+      `InputMode` + `InputType as ProtocolInputType`
+      (`app/src/ai/blocklist/input_model.rs:17`), fully-qualified
+      `ServerConversationToken`
+      (`app/src/ai/agent/api.rs:105-112`)); every Role-carrying
+      protocol type is unreferenced in the workspace — `Viewer.role`
+      and `AccessLevels.max_acl/direct_acl`
+      (`common/participant.rs:8,70,80,94,102`), `TeamAclData.acl`
+      (`team.rs:7`), the sharer/viewer control-message `role: Role`
+      payloads (`viewer.rs`, `sharer.rs`) — the naive grep hits are
+      unrelated local shapes (GraphQL `Viewer` enum,
+      `ArgumentEditorMode::Viewer`, `AccessLevel::Viewer` variants);
+      and the five workspace-used protocol types are all Role-free
+      (`ProfileData` = strings + `InputReplicaId`; `SessionId` and
+      `ServerConversationToken` = `Uuid` newtypes; `InputType` /
+      `InputMode` = plain enums). Zero `Role` construction sites
+      means no `Role` value can ever exist in workspace code, so the
+      conversion can never fire. Direction B
+      (`From<SharingAccessLevel> for Role`) needs `Role` as an
+      inference TARGET — annotation, binding, fn
+      param/return, struct field, turbofish, or bound — all of which
+      require naming `Role` outside `sharing.rs`, impossible per the
+      above. Every SharingAccessLevel-typed value was enumerated and
+      its consumers read: `CloudViewModel::access_level` /
+      `object_access_level` (`app/src/cloud_object/model/view.rs:157,164`
+      — locals only `.max()`, `<`, returns), `drive/index.rs:2301`
+      (`.can_move_drive()` — the live trace column) and `:3874`
+      (`_access_level`, unused), `env_var_collection.rs:1229` →
+      `render_trash_banner(_access_level: SharingAccessLevel)`
+      (param ignored, `fixed_view_components.rs:55`),
+      `notebook.rs:1230` and `menus.rs:363` (`_access_level`,
+      unused), the `CloudLinkSharing`/`CloudObjectGuest.access_level`
+      field reads (`view.rs:169,185` — `.max()` only), and the
+      persistence layer, which keeps the ACL columns NULL
+      (`(None, None)`, `cloud_object_persistence/src/objects.rs:162-166`)
+      — zero `.into()` on any SharingAccessLevel value anywhere, and
+      the `ServerLinkSharing`/`ServerObjectGuest` AccessLevel-typed
+      sinks (`cloud_object/mod.rs:371,379`) are built only from
+      GraphQL `TryFrom`. Exhaustive form search: `Role::from(` zero,
+      `SharingAccessLevel::from(` zero, `Into::<Role>` /
+      `Into::<SharingAccessLevel>` turbofish zero, the only
+      `From<Role>`/`Into<Role>`/`From<SharingAccessLevel>`/
+      `Into<SharingAccessLevel>` bound shapes are the impls
+      themselves plus the remaining `From<SharingAccessLevel> for
+      AccessLevel` (different target), the generic `From::from` /
+      `map(Into::into)` sites (~100) triaged to unrelated types (GQL
+      tier policy fields, sync ids, paths, colors, LLM/conversation
+      types), `impl Into<...>` params zero. Macro-generated code
+      cannot reach the impls (macro bodies are `*.rs` text, already
+      in the greps); `schema.graphql` and `*.json` fixtures cannot
+      invoke Rust `From` impls; test code included in all searches.
+      Deleted both impls plus the now-unused
+      `use session_sharing_protocol::common::Role;` import (1 file,
+      +0/−20); `AccessLevel` import stays (used by the two remaining
+      impls); cloud_objects' `session-sharing-protocol` Cargo
+      dependency left in place (used by other workspace crates;
+      unused deps warn-free). Deliberately left: the
+      `From<AccessLevel> for SharingAccessLevel` /
+      `From<SharingAccessLevel> for AccessLevel` pair (same file,
+      also inference-based — this trace observed no caller for
+      either either, but prior handoffs recorded them as live
+      server/session-mapping paths, so they need their own dedicated
+      inference-trace slice before any judgment — same class as this
+      round), the creation.rs dead-type cluster (DESIGNATED NEXT:
+      `CreateObjectRequest` /
+      `BulkCreateGenericStringObjectsRequest` / `CreatedCloudObject`
+      / `CreateCloudObjectResult` / `BulkCreateCloudObjectResult`,
+      zero repo hits outside creation.rs per the 4ei survey — each
+      its own slice; `ServerCreationInfo` / `RevisionAndLastEditor`
+      in that file are LIVE and must not be touched), the `From<&dyn
+      ServerObject>` downcast impls (each needs its own
+      `.into()`-target trace slice), `Subject` / `UserKind` /
+      `is_user` (live via `cloud_object/mod.rs:483` +
+      `app/src/cloud_object/model/view.rs:180`), `can_move_drive`
+      (live), and all `ids.rs` / `drive/mod.rs` survivors.
+      Local-only safety: unreachable-conversion deletion means zero
+      behavior change — no code path could name or construct a
+      `Role`, and no SharingAccessLevel value ever flowed anywhere
+      but comparisons/`max`/`can_move_drive`/ignored params, so the
+      deleted match arms could never execute; drive sharing levels,
+      permission gates, terminal, tabs, panes, BYOK AI, settings,
+      themes, and all other local features untouched; only two
+      never-instantiable trait impls and their import are gone.
+
+      Acceptance: clippy baseline captured at HEAD FIRST in both
+      configs (14 sorted warning+location lines each — the 12
+      pre-existing warnings: 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the edit,
+      `-p warp --lib --all-targets` is warning-identical to the
+      baseline in BOTH configs (default and `--no-default-features
+      --features simplewarp` — sorted pair diffs empty, no
+      unused-import or dead-code warnings). All 7 checks exit 0
+      (`check -p cloud_objects --all-targets` ± `--all-features`,
+      `check -p warp --lib --all-targets` both feature sets, `--bin
+      simplewarp`, `--bin warp-oss`, `--all-targets -p integration`)
+      with 0 errors and only the two pre-existing `step.rs`
+      unused-import warnings (`single_terminal_view_for_tab`,
+      `crate::terminal::CLIAgent`, observed in the integration
+      check); format clean (`./script/format`, diff still exactly
+      +0/−20). Nextest `-p warp --lib --no-fail-fast`: 4,652
+      simplewarp passed / 4,653 default passed, 4 skipped each, 0
+      failed (exactly the baseline, zero tests added or removed, no
+      flakes). Built `./target/debug/simplewarp` and launched it —
+      alive 79s, zero TCP sockets on the smoke pid (`lsof -nP -a -p
+      55718 -iTCP` empty; the unrelated long-running
+      `/Applications/SimpleWarp.app` instance still holds the only
+      listener), 0 panics (empty log), clean shutdown (SIGTERM). Did
+      not `cargo clean`.

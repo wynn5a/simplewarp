@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use session_sharing_protocol::common::Role;
 use warp_graphql::object_permissions::AccessLevel;
 
 use crate::auth::UserUid;
@@ -34,25 +33,6 @@ impl From<SharingAccessLevel> for AccessLevel {
             SharingAccessLevel::View => AccessLevel::Viewer,
             SharingAccessLevel::Edit => AccessLevel::Editor,
             SharingAccessLevel::Full => AccessLevel::Full,
-        }
-    }
-}
-
-impl From<Role> for SharingAccessLevel {
-    fn from(role: Role) -> Self {
-        match role {
-            Role::Reader => Self::View,
-            Role::Executor => Self::Edit,
-            Role::Full => Self::Full,
-        }
-    }
-}
-
-impl From<SharingAccessLevel> for Role {
-    fn from(access_level: SharingAccessLevel) -> Self {
-        match access_level {
-            SharingAccessLevel::View => Self::Reader,
-            SharingAccessLevel::Edit | SharingAccessLevel::Full => Self::Executor,
         }
     }
 }
