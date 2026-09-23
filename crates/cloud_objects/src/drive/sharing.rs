@@ -128,21 +128,6 @@ impl TeamKind {
 }
 
 impl Subject {
-    /// Gets the user UID for this subject, if it has one.
-    pub fn user_uid(&self) -> Option<UserUid> {
-        match self {
-            Subject::User(user_kind) => match user_kind {
-                UserKind::Account(user_uid) => Some(*user_uid),
-                UserKind::SharedSessionParticipant(profile_data) => {
-                    Some(UserUid::new(profile_data.firebase_uid.as_str()))
-                }
-            },
-            Subject::PendingUser { .. } => None,
-            Subject::Team(_) => None,
-            Subject::AnyoneWithLink(_) => None,
-        }
-    }
-
     /// Checks if this subject refers to a given Firebase user directly.
     pub fn is_user(&self, other_uid: UserUid) -> bool {
         match self {

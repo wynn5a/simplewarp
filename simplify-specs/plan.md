@@ -6817,3 +6817,90 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       `./target/debug/simplewarp` and launched it — alive 76s, zero TCP
       sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics, clean
       shutdown.
+
+- [x] **`Subject::user_uid` (4ea) — DONE 2026-09-23.** Next
+      zero-caller leaf in `crates/cloud_objects` after 4dz
+      (`Subject::from_owner`). Same zero-caller leaf class as
+      4dp/4dq/4du/4dv/4dw/4dx/4dy/4dz: call-syntax `.user_uid(`
+      zero in `*.rs` (only hit repo-wide is the `plan.md:6787`
+      ledger mention), `user_uid()` zero in `*.rs`,
+      `Subject::user_uid` zero except the `plan.md:6786` ledger
+      line, and `::user_uid` only the three module re-exports
+      (`crates/cloud_objects/src/auth/mod.rs:2`,
+      `crates/warp_server_auth/src/user.rs:8`,
+      `crates/warp_server_client/src/auth/mod.rs:19`) plus the
+      plan ledger — no method path. Bare `.user_uid` in `*.rs`
+      only four field hits, none with a `Subject` receiver:
+      `app/src/persistence/sqlite.rs:2741` (`row.user_uid` DB
+      row field) plus `crates/ai/src/api_keys_tests.rs:581,650,673`
+      (`gate`/`mismatched.user_uid` struct-field assignments).
+      Bare-name `git grep -n "user_uid"` (98 hits) ledger-excluded
+      class by class, none a caller: `Owner::User { user_uid }`
+      destructures (`app/src/drive/items/item.rs:427`,
+      `app/src/workspace/view.rs:3738`,
+      `app/src/workspaces/user_workspaces.rs:646`,
+      `crates/cloud_objects/src/cloud_object/mod.rs:1008`,
+      `crates/cloud_object_persistence/src/objects.rs:155,604`),
+      `Owner`/`GeapMintBinding`/profile/persistence struct field
+      decls and inits (`crates/ai/src/geap_credentials.rs:104`,
+      `app/src/ai/geap_credentials.rs:38`,
+      `app/src/auth/auth_view_modal.rs:20`,
+      `crates/cloud_object_models/src/user_profile.rs:38`,
+      `crates/cloud_objects/src/cloud_object/mod.rs:320,332,997`,
+      `crates/persistence/src/model.rs:128,137`,
+      `crates/persistence/src/schema.rs:384`,
+      `crates/persistence/migrations/.../up.sql:4`,
+      `app/src/persistence/sqlite.rs:1947,2091`),
+      `let user_uid = ...user_id()` locals and their closures
+      (`app/src/cloud_object/model/view.rs:91,95,177-191`,
+      `app/src/drive/index.rs:664,669,1776,1785`,
+      `app/src/persistence/sqlite.rs:190-191`,
+      `app/src/ai/agent_sdk/admin.rs:99-128`,
+      `app/src/workspace/view.rs:3733-3735`,
+      `app/src/ai/agent_conversations_model/entry.rs:267`),
+      auth-redirect payload plumbing (`app/src/auth/auth_manager.rs`,
+      `auth_manager_tests.rs`, `auth_view_modal.rs:12,37,43`,
+      `app/src/auth/mod.rs:10,14`, `crates/warp_server_auth/src/user_uid.rs`,
+      `crates/cloud_objects/src/auth/mod.rs:1`), `user_uid` module
+      re-exports, skill/TECH docs
+      (`.agents/.../SKILL.md:232,242`, `specs/REV-1599/TECH.md:65`),
+      fixture data (`windows_tests.rs:15` JSON `test_user_uid`
+      string), and the `plan.md:6786-6787` ledger lines;
+      `schema.graphql` zero, `*.json` fixtures zero. In-module
+      `UserKind::Account(user_uid)` patterns at
+      `sharing.rs:135` (inside the deleted method) and `:149`
+      (inside the live `is_user`) are destructures, not callers.
+      Single-column trace against the survivors: `is_user` stays
+      live via `crates/cloud_objects/src/cloud_object/mod.rs:483`
+      plus `app/src/cloud_object/model/view.rs:180`, confirming
+      the sweep can tell live from dead in this module. Deleted
+      the method only (`use crate::auth::UserUid;` stays — still
+      used by `is_user` and `UserKind::Account`) (1 file, +0/−15).
+      Deliberately left: `Subject::team_uid` (same zero-caller
+      shape — needs its own slice, candidate next per handoff),
+      `label` / `name` (generic names, receiver-typed judgment
+      deferred), `can_move_drive` / `is_user` (live),
+      `into_upsert_params` (zero callers but consuming-variant
+      scope judgment per handoff — trace-only, not deleted), and
+      all `ids.rs` / `drive/mod.rs` survivors. Local-only safety:
+      zero callers means zero behavior change — drive sharing
+      subjects, permission gates, terminal, tabs, panes, BYOK AI,
+      settings, themes, and all other local features untouched;
+      only a `Subject`-to-`Option<UserUid>` getter that could never
+      be called is gone.
+
+      Acceptance: `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets` both feature
+      sets (default + `--no-default-features --features simplewarp`),
+      `--bin simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+      clean (0 errors; only the two pre-existing `step.rs`
+      unused-import warnings); clippy `-p warp --lib --all-targets`
+      warning-identical to the stash baseline (182 lines both, 14
+      `^warning` lines both, same 12 pre-existing warnings — none in the
+      touched file — raw outputs differ only in the build-time trailer);
+      format clean. Nextest `-p warp --lib --no-fail-fast`: 4,652
+      simplewarp / 4,653 default, 0 failed (4 skipped — exactly the
+      baseline, zero tests added or removed). Built
+      `./target/debug/simplewarp` and launched it — alive 70s, zero TCP
+      sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics, clean
+      shutdown.
