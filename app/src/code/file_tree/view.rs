@@ -14,10 +14,10 @@ use repo_metadata::file_tree_store::{
 use repo_metadata::local_model::IndexedRepoState;
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::{FileTreeEntry, RepoMetadataModel};
+use warp_core::HostId;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
-use warp_core::{HostId, send_telemetry_from_ctx};
 use warp_util::path::LineAndColumnArg;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::clipboard::ClipboardContent;
@@ -44,9 +44,6 @@ use crate::code::buffer_location::LocalOrRemotePath;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::editor::{EditorOptions, EditorView, TextOptions};
 use crate::menu::{Menu, MenuItem, MenuItemFields};
-#[cfg(feature = "local_fs")]
-use crate::server::telemetry::CodePanelsFileOpenEntrypoint;
-use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::input::InputDropTargetData;
 use crate::terminal::view::{TerminalDropTargetData, TerminalView};
 use crate::ui_components::icons::Icon;
@@ -2225,14 +2222,6 @@ impl FileTreeView {
             )
         };
 
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CodePanelsFileOpened {
-                entrypoint: CodePanelsFileOpenEntrypoint::ProjectExplorer,
-                target: target.clone(),
-            },
-            ctx
-        );
-
         ctx.emit(FileTreeEvent::OpenFile {
             path: LocalOrRemotePath::Local(path.to_path_buf()),
             target,
@@ -2491,11 +2480,7 @@ impl FileTreeView {
             return;
         };
 
-        let is_directory = matches!(item, FileTreeItem::DirectoryHeader { .. });
-        send_telemetry_from_ctx!(
-            TelemetryEvent::FileTreeItemAttachedAsContext { is_directory },
-            ctx
-        );
+        let _is_directory = matches!(item, FileTreeItem::DirectoryHeader { .. });
 
         ctx.emit(FileTreeEvent::AttachAsContext {
             path: relative_path,

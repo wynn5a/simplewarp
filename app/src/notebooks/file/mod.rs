@@ -51,7 +51,6 @@ use crate::pane_group::pane::view::header::components::{
     render_three_column_header,
 };
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
-use crate::server::telemetry::{NotebookActionEvent, NotebookTelemetryMetadata, TelemetryEvent};
 use crate::settings::FontSettings;
 use crate::terminal::model::session::Session;
 use crate::ui_components::icons::Icon;
@@ -67,7 +66,7 @@ pub use crate::util::openable_file_type::{is_jupyter_notebook_file, is_markdown_
 use crate::view_components::{MarkdownToggleEvent, MarkdownToggleView};
 use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ActiveSession;
-use crate::{cmd_or_ctrl_shift, safe_warn, send_telemetry_from_ctx};
+use crate::{cmd_or_ctrl_shift, safe_warn};
 
 /// Display mode for markdown files shown via the header segmented control.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -345,17 +344,6 @@ impl FileNotebookView {
     }
 
     #[cfg(feature = "local_fs")]
-    fn open_telemetry_metadata(&self, ctx: &ViewContext<Self>) -> NotebookTelemetryMetadata {
-        NotebookTelemetryMetadata::new(None, None, NotebookLocation::LocalFile, None)
-            .with_markdown_table_count(
-                self.editor
-                    .as_ref(ctx)
-                    .model()
-                    .as_ref(ctx)
-                    .markdown_table_count(ctx),
-            )
-    }
-
     fn set_context(&mut self, path: &Path, session: Arc<Session>, ctx: &mut ViewContext<Self>) {
         self.location = Some(FileLocation::new(path, session.home_dir()));
         let title = self.title();
@@ -446,10 +434,6 @@ impl FileNotebookView {
                     match event {
                         FileModelEvent::FileLoaded { content, .. } => {
                             me.set_content(content, ctx);
-                            send_telemetry_from_ctx!(
-                                TelemetryEvent::OpenNotebook(me.open_telemetry_metadata(ctx)),
-                                ctx
-                            );
 
                             // Record the canonical path instead of the input path when available.
                             if let Some(canonical_path) = file_model.as_ref(ctx).file_path(file_id)
@@ -547,19 +531,11 @@ impl FileNotebookView {
         self.file_state = FileState::Loaded(SourceFile::Static { title });
     }
 
-    fn send_telemetry_action(&self, action: NotebookTelemetryAction, ctx: &mut ViewContext<Self>) {
-        send_telemetry_from_ctx!(
-            TelemetryEvent::NotebookAction(NotebookActionEvent {
-                action,
-                metadata: NotebookTelemetryMetadata::new(
-                    None,
-                    None,
-                    NotebookLocation::LocalFile,
-                    None
-                )
-            }),
-            ctx
-        );
+    fn send_telemetry_action(
+        &self,
+        _action: NotebookTelemetryAction,
+        _ctx: &mut ViewContext<Self>,
+    ) {
     }
 
     /// Reload the file that was most recently opened (or attempted to open).

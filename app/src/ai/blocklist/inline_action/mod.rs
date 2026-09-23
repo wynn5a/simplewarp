@@ -6,7 +6,6 @@ pub(super) mod gemini_enterprise_credentials_error;
 pub(crate) mod host_picker;
 pub(crate) mod inline_action_header;
 pub(crate) mod inline_action_icons;
-mod malformed_line_heuristics;
 pub(crate) mod orchestration_controls;
 pub(crate) mod requested_action;
 pub(crate) mod requested_command;

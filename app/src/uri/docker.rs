@@ -8,8 +8,6 @@ use warp_util::path::{ShellFamily, is_posix_portable_pathname};
 use warpui::AppContext;
 
 use crate::root_view::SubshellCommandArg;
-use crate::send_telemetry_from_app_ctx;
-use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::shell::ShellType;
 
 /// String of hex digits meant to represent a Docker container ID.
@@ -106,11 +104,6 @@ pub fn open_docker_container(url: &Url, ctx: &mut AppContext) -> Result<()> {
             command: docker_exec_command,
             shell_type,
         },
-    );
-
-    send_telemetry_from_app_ctx!(
-        TelemetryEvent::OpenAndWarpifyDockerSubshell { shell_type },
-        ctx
     );
 
     Ok(())

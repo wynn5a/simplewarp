@@ -22,8 +22,6 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
-use crate::send_telemetry_from_ctx;
-use crate::server::telemetry::{FindOption, TelemetryEvent};
 use crate::settings::InputModeSettings;
 use crate::themes::theme::Fill;
 use crate::ui_components::blended_colors;
@@ -280,13 +278,6 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> Find<T> {
             FindWithinBlockState::Disabled => FindWithinBlockState::Enabled,
             _ => return,
         };
-        send_telemetry_from_ctx!(
-            TelemetryEvent::ToggleFindOption {
-                option: FindOption::FindInBlock,
-                enabled: self.display_find_within_block == FindWithinBlockState::Enabled,
-            },
-            ctx
-        );
         ctx.emit(Event::ToggleFindInBlock {
             value: self.display_find_within_block == FindWithinBlockState::Enabled,
         });
@@ -294,13 +285,6 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> Find<T> {
 
     fn toggle_case_sensitivity(&mut self, ctx: &mut ViewContext<Self>) {
         self.case_sensitivity_enabled = !self.case_sensitivity_enabled;
-        send_telemetry_from_ctx!(
-            TelemetryEvent::ToggleFindOption {
-                option: FindOption::CaseSensitive,
-                enabled: self.case_sensitivity_enabled
-            },
-            ctx
-        );
         ctx.emit(Event::ToggleCaseSensitivity {
             is_case_sensitive: self.case_sensitivity_enabled,
         });
@@ -308,13 +292,6 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> Find<T> {
 
     fn toggle_regex_search(&mut self, ctx: &mut ViewContext<Self>) {
         self.regex_search_enabled = !self.regex_search_enabled;
-        send_telemetry_from_ctx!(
-            TelemetryEvent::ToggleFindOption {
-                option: FindOption::Regex,
-                enabled: self.regex_search_enabled
-            },
-            ctx
-        );
         ctx.emit(Event::ToggleRegexSearch {
             is_regex_enabled: self.regex_search_enabled,
         });

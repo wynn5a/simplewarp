@@ -63,6 +63,7 @@ use crate::appearance::Appearance;
 use crate::banner::{Banner, BannerEvent, BannerState, BannerTextContent, DismissalType};
 use crate::channel::{Channel, ChannelState};
 use crate::cloud_object::OpenWarpDriveObjectArgs;
+use crate::cmd_or_ctrl_shift;
 use crate::code::active_file::ActiveFileModel;
 use crate::code::buffer_location::LocalOrRemotePath;
 #[cfg(feature = "local_fs")]
@@ -84,7 +85,7 @@ use crate::quit_warning::UnsavedStateSummary;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ObjectUid, SyncId};
 use crate::server::server_api::ServerApi;
-use crate::server::telemetry::{AnonymousUserSignupEntrypoint, PaletteSource, TelemetryEvent};
+use crate::server::telemetry::{AnonymousUserSignupEntrypoint, PaletteSource};
 use crate::session_management::SessionNavigationData;
 use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
@@ -129,7 +130,6 @@ use crate::workspace::tab_group::TabGroupId;
 use crate::workspace::{
     self, CommandSearchOptions, PaneViewLocator, TabBarLocation, WorkspaceAction,
 };
-use crate::{cmd_or_ctrl_shift, send_telemetry_from_ctx};
 
 mod child_agent;
 
@@ -5109,7 +5109,6 @@ impl PaneGroup {
     ) -> Option<PaneId> {
         if self.pane_count() == 1 {
             // Only sending telemetry event the first time a user enters split pane in a session.
-            send_telemetry_from_ctx!(TelemetryEvent::SplitPane, ctx);
         }
 
         self.tips_completed.update(ctx, |tips_completed, ctx| {

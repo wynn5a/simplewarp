@@ -23,7 +23,6 @@ use warp_agent_page::{WarpAgentPageAction, WarpAgentPageEvent, WarpAgentPageView
 use warp_core::channel::ChannelState;
 use warp_core::context_flag::ContextFlag;
 use warp_core::features::FeatureFlag;
-use warp_core::send_telemetry_from_ctx;
 use warp_core::settings::ToggleableSetting as _;
 use warp_core::ui::theme::color::internal_colors;
 use warp_editor::editor::NavigationKey;
@@ -42,6 +41,7 @@ use warpui::{
     UpdateView as _, View, ViewContext, ViewHandle, id,
 };
 
+use crate::GlobalResourceHandlesProvider;
 use crate::ai::custom_model_routers::CustomModelRouter;
 use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::appearance::Appearance;
@@ -53,7 +53,6 @@ use crate::menu::{self, Menu, MenuItem, MenuItemFields};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, Direction, PaneConfiguration, PaneEvent, SplitPaneState};
-use crate::server::telemetry::MCPServerCollectionPaneEntrypoint;
 use crate::settings::{AISettings, BlockVisibilitySettings, SettingsFileError};
 use crate::settings_view::mcp_servers_page::{MCPServersSettingsPage, MCPServersSettingsPageEvent};
 use crate::terminal::SizeInfo;
@@ -63,7 +62,6 @@ use crate::util::bindings::{BindingGroup, CustomAction, keybinding_name_to_displ
 use crate::view_components::ToastFlavor;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::workspace::{BillingMetadata, CustomerType};
-use crate::{GlobalResourceHandlesProvider, TelemetryEvent};
 
 mod about_page;
 mod agent_profiles_page;
@@ -2343,14 +2341,7 @@ impl TypedActionView for SettingsView {
             SettingsAction::SelectAndRefresh(section) => {
                 self.set_and_refresh_current_page_internal(*section, false, true, ctx);
 
-                if *section == SettingsSection::AgentMCPServers {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::MCPServerCollectionPaneOpened {
-                            entrypoint: MCPServerCollectionPaneEntrypoint::MCPSettingsTab,
-                        },
-                        ctx
-                    );
-                }
+                if *section == SettingsSection::AgentMCPServers {}
             }
             SettingsAction::ToggleUmbrella(nav_index) => {
                 if let Some(SettingsNavItem::Umbrella(umbrella)) =

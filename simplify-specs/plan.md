@@ -9892,3 +9892,192 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       Respect landmines 1/8/9 (cfg-gated `local_fs`/`windows` arms
       vanish with the file; delete the hidden-command arm with the
       dispatch; double-check `OnboardingEvent` senders).
+
+- [x] **telemetry slice 2a — event catalog + producer sites (4fb) — DONE
+      2026-09-23.** Executed the 4ez SLICE 2a: the telemetry event catalog
+      and every producer site are gone. 198 files changed, 566
+      insertions(+), 16,435 deletions(-) (git diff --stat vs 4fa HEAD
+      42ffc2a59).
+
+      SITE INVENTORY (recounted at HEAD): 620 `send_telemetry_*!`
+      occurrences in 142 files (139 app/src, 1 each crates/ai,
+      crates/onboarding, crates/repo_metadata) — 619 invocation
+      statements + 1 doc-comment mention in
+      `recording_telemetry.rs`. By form: `send_telemetry_from_ctx!` 560,
+      `send_telemetry_from_app_ctx!` 41, `send_telemetry_sync_from_app_ctx!`
+      8, `send_telemetry_on_executor!` 6, `send_telemetry_sync_from_ctx!`
+      4. All 619 invocation statements deleted via a Rust-aware
+      (string/comment-masking, brace-matching) scripted pass; sites that
+      pre-built the event value as a `let` binding were collapsed per
+      site (bindings removed where the value had no other consumer).
+
+      DELETED wholesale: `app/src/server/telemetry/events_tests.rs`,
+      `app/src/server/telemetry/macros.rs` (both sync macros +
+      `send_telemetry_on_executor`; all sites dead this round per the
+      "if ALL sites of a macro die" rule), `events.rs` reduced
+      5,847 → 362 lines (catalog `TelemetryEvent` enum ~1,336 variant
+      lines + `TelemetryEvent`/`TelemetryEventDesc` impls +
+      `register_telemetry_event!` + `print_telemetry_events_json` +
+      19 telemetry-only payload types removed; ~30 non-telemetry domain
+      types RETAINED in place — see 4ez-PLAN CORRECTION below), plus 7
+      pure event-def files: `agent_sdk/telemetry.rs`,
+      `agent_sdk/driver/harness/telemetry.rs`, `antivirus/telemetry.rs`,
+      `blocklist/action_model/recording_telemetry.rs`,
+      `blocklist/action_model/recording_telemetry_tests.rs`,
+      `blocklist/action_model/execute/stop_recording_tests.rs`,
+      `blocklist/telemetry.rs` + `blocklist/telemetry_tests.rs`
+      (whole file — `OrchestrationApprovalStatus` etc. were
+      telemetry-only after the empty emit fns were traced to their
+      callers), `blocklist/inline_action/malformed_line_heuristics.rs`
+      (all consumers were telemetry), `system/info_tests.rs`,
+      `crates/ai/src/telemetry.rs` + `telemetry_tests.rs`,
+      `crates/onboarding/src/telemetry.rs` + `telemetry_tests.rs`,
+      `crates/repo_metadata/src/telemetry.rs`. Mixed event-def files
+      trimmed in place (11): agent_management/telemetry.rs (keeps
+      `OpenedFrom`), request_file_edits/telemetry.rs (keeps
+      `RequestFileEditsFormatKind`), pricing_promotion.rs (keeps
+      Surface/State), skills/telemetry.rs (keeps `SkillOpenOrigin`),
+      lsp_telemetry.rs (keeps LspEnablementSource/ControlActionType),
+      code_review/telemetry_event.rs (keeps 8 live enums),
+      tab_configs/telemetry.rs (keeps 4 enums),
+      lifecycle/telemetry.rs (keeps LifecycleRecoveryRecord + limiter —
+      live diagnostic path), free_ai_removal_modal.rs, vertical_tabs/
+      telemetry.rs, agent/telemetry.rs (ForTelemetry trait removed;
+      `EntrypointType::entrypoint()` + `AIIdentifiers` kept — live
+      request-metadata plumbing). `register_telemetry_event!` sites: 0
+      remain.
+
+      DEAD-CONSEQUENCE FALLBACK removed (each traced to a deleted
+      producer): `features_page.rs::telemetry_event` (227-line fn) +
+      local `to_string`; `startup_shell.rs::telemetry_event`;
+      `available_shells.rs::telemetry_value`; `command_palette::close`
+      telemetry locals; `grep.rs::create_redacted_grep_error_event` +
+      `log_grep_error` + both call sites; `stop_recording.rs::
+      recording_stopped_telemetry`; `recording_controller.rs::
+      telemetry_key`; `api_keys.rs::send_provider_credential_telemetry`
+      + 2 helpers + `was_present`/`is_present` call-site guards;
+      `agent_sdk::run` event binding + `command_to_telemetry_event`;
+      `driver.rs` RuntimeErrorDetected spawn block; `run_agents.rs` /
+      `run_agents_card_view.rs` `emit_decision` +
+      `emit_orchestration_entered_once` + `decision_event_emitted`/
+      `entered_event_emitted` guards; `orchestration_pill_bar.rs`
+      5 telemetry fns + `PillClicked.is_breadcrumb` field (no reader
+      left) + 7 call sites; `orchestration_config_block.rs` 2 empty
+      emit fns + `status`/`snapshot_loaded` locals;
+      `block.rs` surfaced-citations + for_telemetry if-let +
+      `server_output_id` let; `conversation.rs` orphaned
+      `AIIdentifiers` destructure; `agent/mod.rs` dead
+      `telemetry_events: Vec<TelemetryEvent>` field + 3 `vec![]` inits;
+      `response_stream.rs::emit_retryable_agent_mode_error_telemetry` +
+      4 call sites + `original_error` field; `callout/model.rs::
+      send_callout_displayed_telemetry`; `lib.rs::AppStartup` event
+      (FIRST_FRAME_DRAWN mark_interval_end kept); `auth_manager.rs`
+      login record_identify/record spawn block (DB persist above
+      stays); `quit_warning::close_target`;
+      `system/info.rs` ResourceUsageReporter + StatsBuffer + Cpu/Memory
+      stats + `handle_block_created` + view.rs call;
+      `input.rs` PageUp/Down event lets; `command_palette::close`
+      buffer_length/filter locals; `mcp/native.rs::should_send_telemetry`
+      + closure telemetry tail; `alias_bar` env_vars_space; input.rs
+      workflow `space` let; `workspace/view.rs` entrypoint/cli_agent
+      fields of RightPanelUpdateParams; shell_terminated_banner
+      `Premature.reason` field;
+      `malformed_line_heuristics.rs` (deleted);
+      `diff_state` DiffOperation enum + BackendOrigin enum +
+      backend_origin field + constructor params (all callers
+      updated); `telemetry_event.rs::GitButtonKind`/
+      `AddToContextOrigin` enums (orphaned);
+      `suggested_rule_modal` rule-field event payloads; `code_diff_view
+      edit_format_kind` field + `file_context_range_to_editor_range`;
+      `agent/telemetry.rs::ForTelemetry` + block.rs for_telemetry
+      callsites; `available_shells::telemetry_value`; onboarding
+      `send_callout_displayed_telemetry`; lifecycle
+      `telemetry_limiter` KEPT (live diagnostics).
+
+      WARP_CLI: `Command::PrintTelemetryEvents` variant + hidden-check
+      arm + `prints_to_stdout` arm + app `lib.rs` dispatch arm all
+      deleted. DIRECT CALL (4ez landmine): already deleted in 4fa
+      (SessionAbandonedBeforeBootstrap block) — confirmed gone at HEAD.
+
+      Deliberately left (2b/2c/3 per 4ez): warpui_core/src/telemetry/
+      queue; warp_core/src/telemetry.rs machinery + queue macros
+      (untouched, verified); `server_api.rs::send_telemetry_event`
+      no-op stub (2b — no remaining callers now, deletion trivial next
+      round); `context_provider.rs` + lib.rs registration; notebook
+      queue read; PrivacySettings telemetry fields + privacy-page
+      toggle; `telemetry_banner.rs` + `should_collect_ai_ugc_telemetry`
+      consumers; channel-config telemetry_config + feature flags;
+      `AgentModeAnalytics` force.
+
+      4ez-PLAN CORRECTION (substantive): 4ez claimed events.rs's ~70
+      payload types were "constructed only at macro sites". False for
+      ~50 types: `ImageProtocol` (terminal grid/ANSI handler),
+      `PtySpawnMode` (PTY spawner), `CLIAgentType` (cli_agent),
+      `CloseTarget` (quit_warning), `FindOption`, `PromptChoice`,
+      `DownloadSource`, `PaletteSource`, `LaunchConfigUiLocation`,
+      `AIIdentifiers`, `EntrypointType::entrypoint()`,
+      `AgentModeEntrypoint`, `CLISubagentControlState`,
+      `BootstrappingInfo`, `SlowBootstrapInfo`, `InteractionSource`,
+      `SecretInteraction`, `PromptSuggestionFallbackReason`,
+      `AgentModeRewindEntrypoint`, `CodeReviewPaneEntrypoint`,
+      `GitOperationKind`/`GitDialogStatus`, `RequestFileEditsFormatKind`,
+      `LspEnablementSource`/`LspControlActionType`, `SkillOpenOrigin`,
+      tab_configs enums, `NotebookTelemetryMetadata` chain (notebook
+      views), `AgentModeSetup*ActionType`, `AgentModeEntrypoint
+      SelectionType`, `ToggleCodeSuggestionsSettingSource`,
+      `MCPTemplateInstallationSource`, `PricingPromotionSurface`/
+      `State`, `SaveAsWorkflowModalSource`, `AnonymousUserSignup
+      Entrypoint`, `EnvVarTelemetryMetadata`, `CloudObjectTelemetry
+      Metadata`, `TelemetryCloudObjectType`, `WorkflowTelemetryMetadata`,
+      `VerticalTabsChipEntrypoint`/`DisplayOption`,
+      `AgentModeSetup*`, etc. are constructed/threaded in live UI code.
+      Keeping them (in events.rs, path unchanged to avoid 140-file
+      import churn) avoids risky live-code rewrites; 19 of the 29
+      "dead" candidates in the pre-pass were confirmed dead only after
+      the post-fix compile. This is the designated follow-up: relocate
+      the ~30 live types to proper modules (or delete the vestigial
+      threading) as slice 2a′.
+
+      Local-only safety: every deleted statement was enqueue-only (the
+      macros do nothing besides the enablement check + queue push; the
+      queue is never drained in this fork post-4fa). All deletions are
+      producer-side; no local behavior (UI, logging, Sentry, DB,
+      network logging pane, secret redaction) changed.
+
+      Acceptance: clippy baselines captured at HEAD FIRST in both
+      configs — 12 sorted warning+location pairs each (11
+      needless-return in terminal/input.rs + 1 single-element-loop in
+      lifecycle/mod_tests.rs); post-edit runs are warning-IDENTICAL in
+      both configs (same 12 warnings; line numbers shifted within the
+      same files due to in-file deletions — 10926→10705 etc.).
+      `./script/format` idempotent (stable diff at 178 files).
+      Check suite exit 0: `check -p warp --lib --all-targets` default +
+      simplewarp, `--no-default-features --features simplewarp --bin
+      simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+      (only the two pre-existing step.rs unused-import warnings),
+      `check -p warp --lib --tests --features skip_login`, plus
+      `-p ai/-p onboarding/-p repo_metadata/-p warp_cli --all-targets`
+      — all 0 errors. Nextest `-p warp --lib --no-fail-fast`: default
+      4,611 passed / 4 skipped / 0 failed; simplewarp 4,610 passed /
+      4 skipped / 0 failed; delta vs baseline −20/−19, exactly the 20
+      removed telemetry-only tests verified by nextest list name-diff
+      against HEAD: stop_recording_tests 5, recording_telemetry_tests
+      4, malformed_line_heuristics tests 4, blocklist telemetry_tests
+      2, events_tests 1, info_tests 1, grep_tests 1 (redaction),
+      lifecycle mod_tests 1 (payload allowlist),
+      pricing_promotion_tests 1 (payload surface), crates/ai
+      telemetry_tests 1, crates/onboarding telemetry_tests 1. Runtime
+      smoke SKIPPED per the 2026-09-23 convention (user away, password
+      prompt unanswerable); no-TCP claim rests on the static gating
+      analysis, which this slice only shrinks further (producers now
+      gone). Did not `cargo clean`. No .md files other than plan.md.
+
+      DESIGNATED NEXT: slice 2b per 4ez — warpui_core queue +
+      app_focus_telemetry, warp_core telemetry.rs machinery + queue
+      macros, `server_api.rs::send_telemetry_event` stub (now fully
+      callerless), context_provider.rs + registrations, notebook
+      queue read; PLUS slice 2a′: relocate or delete the ~30 retained
+      domain types in `server/telemetry/events.rs` (now 362 lines,
+      doc'd at top) and the vestigial payload-threading through live
+      fns (e.g. PaneDragDrop `source: PaletteSource` params) —
+      mechanical, low-risk, recommended before 2c.

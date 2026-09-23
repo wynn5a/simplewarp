@@ -1,6 +1,5 @@
 mod apply_diff_model;
 mod diff_application;
-mod telemetry;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -11,16 +10,7 @@ use diff_application::DiffApplicationError;
 use futures::FutureExt;
 use futures::channel::oneshot;
 use futures::future::BoxFuture;
-use itertools::Itertools;
-pub(crate) use telemetry::MalformedFinalLineProxyEvent;
-#[allow(unused_imports)]
-pub use telemetry::{EditAcceptAndContinueClickedEvent, EditAcceptClickedEvent};
-pub use telemetry::{
-    EditReceivedEvent, EditResolvedEvent, EditStats, RequestFileEditsFormatKind,
-    RequestFileEditsTelemetryEvent,
-};
 use vec1::{Vec1, vec1};
-use warp_core::send_telemetry_from_ctx;
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _};
 
 use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
@@ -29,9 +19,9 @@ use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType,
     AIAgentOutputMessage, AIAgentOutputMessageType, AIIdentifiers, RequestFileEditsResult,
 };
+use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::blocklist::diff_storage::RegisteredDiffStorage;
 use crate::ai::blocklist::diff_types::{DiffSessionType, FileDiff};
-use crate::ai::blocklist::{BlocklistAIPermissions, RequestedEditResolution};
 use crate::ai::paths::host_native_absolute_path;
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model::session::active_session::ActiveSession;
@@ -167,37 +157,16 @@ impl RequestFileEditsExecutor {
         };
         let result_future = storage.accept_and_save(ctx);
 
-        let identifiers = self
+        let _identifiers = self
             .generate_ai_identifiers(&input.conversation_id, id, ctx)
             .unwrap_or_else(|| AIIdentifiers {
                 client_conversation_id: Some(input.conversation_id),
                 ..Default::default()
             });
-        let passive_diff = BlocklistAIHistoryModel::as_ref(ctx)
+        let _passive_diff = BlocklistAIHistoryModel::as_ref(ctx)
             .is_entirely_passive_conversation(&input.conversation_id);
 
-        ActionExecution::new_async(result_future, move |result, ctx| {
-            if let RequestFileEditsResult::Success {
-                updated_files,
-                lines_added,
-                lines_removed,
-                ..
-            } = &result
-            {
-                send_telemetry_from_ctx!(
-                    RequestFileEditsTelemetryEvent::EditResolved(EditResolvedEvent {
-                        identifiers: identifiers.clone(),
-                        response: RequestedEditResolution::Accept,
-                        stats: EditStats {
-                            files_edited: updated_files.len(),
-                            lines_added: *lines_added,
-                            lines_removed: *lines_removed,
-                        },
-                        passive_diff,
-                    }),
-                    ctx
-                );
-            }
+        ActionExecution::new_async(result_future, move |result, _ctx| {
             AIAgentActionResultType::RequestFileEdits(result)
         })
     }
@@ -225,16 +194,6 @@ impl RequestFileEditsExecutor {
 
         let passive_diff = BlocklistAIHistoryModel::as_ref(ctx)
             .is_entirely_passive_conversation(&input.conversation_id);
-
-        send_telemetry_from_ctx!(
-            RequestFileEditsTelemetryEvent::EditReceived(EditReceivedEvent {
-                identifiers: ai_identifiers.clone(),
-                unique_files: file_edits.iter().map(|file| file.file()).unique().count(),
-                diffs: file_edits.len(),
-                passive_diff,
-            }),
-            ctx
-        );
 
         let (tx, rx) = oneshot::channel();
         let files = file_edits.clone();

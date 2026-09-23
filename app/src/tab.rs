@@ -150,15 +150,6 @@ pub(crate) fn next_tab_color(current: Option<AnsiColorIdentifier>) -> SelectedTa
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-#[allow(clippy::enum_variant_names)]
-pub enum TabTelemetryAction {
-    CloseTab,
-    CloseOtherTabs,
-    CloseTabsToRight,
-    SetColor,
-    ResetColor,
-}
 #[derive(Debug, Clone)]
 pub enum NewSessionMenuItem {
     OpenLaunchConfig(LaunchConfig),

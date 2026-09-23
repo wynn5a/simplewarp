@@ -1,12 +1,7 @@
-use std::collections::BTreeSet;
-
 use instant::Instant;
 use warp_core::features::FeatureFlag;
-use warp_core::telemetry::TelemetryEvent;
 
-use super::telemetry::{
-    LifecycleRecoveryRecord, LifecycleTelemetryEvent, LifecycleTelemetryLimiter,
-};
+use super::telemetry::{LifecycleRecoveryRecord, LifecycleTelemetryLimiter};
 use super::transition::{
     IgnoreReason, LifecycleAction, LifecycleInput, LifecycleInputKind, LifecyclePhase,
     LifecycleSnapshot, NextBlockIdDisposition, plan, reconcile_phase,
@@ -547,63 +542,4 @@ fn lifecycle_telemetry_is_rate_limited_per_transition_key() {
         .record_at(record, now + std::time::Duration::from_secs(61))
         .expect("The rate-limit interval should emit an aggregate.");
     assert_eq!(emitted.suppressed_repeats, 1);
-}
-
-#[test]
-fn lifecycle_telemetry_payload_is_allowlisted_and_non_ugc() {
-    let record = LifecycleRecoveryRecord::new(
-        LifecyclePhase::Executing,
-        LifecyclePhase::Executing,
-        LifecycleInputKind::StartCommand,
-        LifecycleAction::Ignore(IgnoreReason::RejectedExecuting),
-        &LifecycleSnapshot {
-            active_block_id: "active".to_owned(),
-            active_session_id: Some(1),
-            supplied_next_block_id: Some("next".to_owned()),
-            hook_session_id: Some(2),
-            block_state: BlockState::Executing,
-            started: true,
-            finished: false,
-            received_precmd: true,
-            is_in_band: false,
-            is_bootstrapped: true,
-            is_bootstrap_done: true,
-            is_alt_screen_active: false,
-            completion_mismatch: false,
-        },
-    );
-    let event = LifecycleTelemetryEvent::Recovery(record);
-    assert!(!event.contains_ugc());
-    let payload = event
-        .payload()
-        .expect("Lifecycle telemetry should have a payload.");
-    let fields = payload
-        .as_object()
-        .expect("Lifecycle telemetry should be a JSON object.")
-        .keys()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>();
-    assert_eq!(
-        fields,
-        BTreeSet::from([
-            "action",
-            "active_block_id",
-            "active_session_id",
-            "block_state",
-            "completion_mismatch",
-            "finished",
-            "hook_session_id",
-            "input_kind",
-            "is_alt_screen_active",
-            "is_bootstrap_done",
-            "is_bootstrapped",
-            "is_in_band",
-            "next_phase",
-            "previous_phase",
-            "received_precmd",
-            "started",
-            "supplied_next_block_id",
-            "suppressed_repeats",
-        ])
-    );
 }

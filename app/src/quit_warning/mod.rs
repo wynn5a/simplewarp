@@ -12,12 +12,10 @@ use crate::code::editor_management::{CodeEditorStatus, CodeEditorSummary};
 use crate::code::view::CodeView;
 use crate::code_review::code_review_view::CodeReviewView;
 use crate::pane_group::{CodePane, PaneGroup, PaneId, TerminalPane};
-use crate::server::telemetry::CloseTarget;
 use crate::session_management::{RunningSessionSummary, SessionNavigationData};
 use crate::settings::CodeSettings;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::workspace::Workspace;
-use crate::{TelemetryEvent, send_telemetry_from_app_ctx};
 
 /// Scope of what's being quit/closed.
 #[derive(Clone)]
@@ -234,16 +232,6 @@ impl QuitScope<'_> {
                         .flatten()
                 })
                 .collect(),
-        }
-    }
-
-    fn close_target(&self) -> CloseTarget {
-        match self {
-            Self::Pane { .. } => CloseTarget::Pane,
-            Self::Tabs(_) => CloseTarget::Tab,
-            Self::Window(_) => CloseTarget::Window,
-            Self::App => CloseTarget::App,
-            Self::EditorTab { .. } => CloseTarget::EditorTab,
         }
     }
 }
@@ -509,14 +497,6 @@ impl<'a> QuitWarningDialog<'a> {
     /// Show the quit warning dialog. This returns `true` if the dialog was shown, and `false` if
     /// the current platform doesn't support showing a modal.
     pub fn show(self, ctx: &mut AppContext) -> bool {
-        send_telemetry_from_app_ctx!(
-            TelemetryEvent::QuitModalShown {
-                running_processes: self.state.total_long_running_commands as u32,
-                modal_for: self.state.scope.close_target()
-            },
-            ctx
-        );
-
         let session_summary = self.state.running_sessions();
         let dialog = self.build();
         // We don't support showing a modal on all platforms.
@@ -564,5 +544,4 @@ fn on_disable_warning_modal(ctx: &mut AppContext) {
                 .toggle_and_save_value(ctx)
         );
     });
-    send_telemetry_from_app_ctx!(TelemetryEvent::QuitModalDisabled, ctx);
 }

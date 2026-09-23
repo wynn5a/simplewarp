@@ -34,11 +34,9 @@ mod codex;
 mod gemini;
 mod json_utils;
 mod skill_dirs_publish;
-mod telemetry;
 pub(crate) use claude_code::ClaudeHarness;
 use codex::CodexHarness;
 use gemini::GeminiHarness;
-pub(crate) use telemetry::ThirdPartyHarnessTelemetryEvent;
 
 /// Trait for third-party agent harnesses that execute prompts via their own CLIs.
 ///

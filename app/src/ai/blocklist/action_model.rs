@@ -17,28 +17,24 @@ mod preprocess;
 pub(crate) mod recording_controller;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) mod recording_finalize;
-pub(crate) mod recording_telemetry;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+pub(crate) use execute::coerce_integer_args;
 pub use execute::{
-    AskUserQuestionExecutor, EditAcceptAndContinueClickedEvent, EditAcceptClickedEvent,
-    EditResolvedEvent, EditStats, NewConversationDecision, PromptSuggestionExecutor,
-    ReadFileContextResult, RequestFileEditsExecutor, RequestFileEditsFormatKind,
-    RequestFileEditsTelemetryEvent, RunAgentsExecutor, RunAgentsExecutorEvent,
+    AskUserQuestionExecutor, NewConversationDecision, PromptSuggestionExecutor,
+    ReadFileContextResult, RequestFileEditsExecutor, RunAgentsExecutor, RunAgentsExecutorEvent,
     RunAgentsSpawningSnapshot, ShellCommandExecutor, ShellCommandExecutorEvent, StartAgentExecutor,
     StartAgentExecutorEvent, StartAgentOutcome, StartAgentRequest, StartAgentRequestId,
     read_local_file_context,
 };
-pub(crate) use execute::{MalformedFinalLineProxyEvent, coerce_integer_args};
 #[cfg(test)]
 pub(crate) use execute::{compose_run_agents_child_prompt, run_agents_to_start_agent_mode};
 use futures::future::{BoxFuture, join_all};
 use itertools::Itertools;
 use parking_lot::FairMutex;
 use preprocess::{PendingPreprocessedActions, PreprocessId};
-pub(crate) use recording_telemetry::RecordingTelemetryEvent;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use self::execute::search_codebase::SearchCodebaseExecutor;
@@ -56,12 +52,10 @@ use crate::ai::agent::{
     CancellationOutcome, CancellationReason, RequestCommandOutputResult,
 };
 use crate::ai::blocklist::action_model::execute::suggest_new_conversation::SuggestNewConversationExecutor;
-use crate::ai::blocklist::telemetry::send_run_agents_completed_telemetry;
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
 use crate::terminal::TerminalModel;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model_events::ModelEventDispatcher;
-use crate::{TelemetryEvent, send_telemetry_from_ctx};
 
 /// The status of an action from an AI output.
 #[derive(Clone, Debug)]
@@ -684,7 +678,6 @@ impl BlocklistAIActionModel {
             AIAgentActionResultType::RunAgents(ai::agent::action_result::RunAgentsResult::Denied {
                 reason,
             });
-        send_run_agents_completed_telemetry(conversation_id, &action.action, &result, ctx);
         let result = Arc::new(AIAgentActionResult {
             id: action.id,
             task_id: action.task_id,
@@ -1101,31 +1094,7 @@ impl BlocklistAIActionModel {
         reason: Option<CancellationReason>,
         ctx: &mut ModelContext<Self>,
     ) {
-        if matches!(
-            pending_action.action,
-            AIAgentActionType::RequestComputerUse(_)
-        ) {
-            let server_conversation_id = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&conversation_id)
-                .and_then(|c| c.server_conversation_token())
-                .map(|t| t.as_str().to_string());
-            send_telemetry_from_ctx!(
-                TelemetryEvent::ComputerUseCancelled {
-                    client_conversation_id: conversation_id,
-                    server_conversation_id,
-                    ambient_agent_task_id: self.ambient_agent_task_id,
-                },
-                ctx
-            );
-        }
-
         let cancelled_result = pending_action.action.cancelled_result();
-        send_run_agents_completed_telemetry(
-            conversation_id,
-            &pending_action.action,
-            &cancelled_result,
-            ctx,
-        );
         let result = Arc::new(AIAgentActionResult {
             id: pending_action.id,
             task_id: pending_action.task_id,

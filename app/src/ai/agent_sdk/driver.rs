@@ -42,8 +42,7 @@ use crate::ai::agent::{
     FinishedAIAgentOutput, RenderableAIError, TransientNetworkErrorKind,
 };
 use crate::ai::agent_sdk::driver::harness::{
-    HarnessKind, HarnessRunner, ThirdPartyHarness, ThirdPartyHarnessTelemetryEvent,
-    harness_model_env_vars, task_env_vars,
+    HarnessKind, HarnessRunner, ThirdPartyHarness, harness_model_env_vars, task_env_vars,
 };
 use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
 use crate::ai::ambient_agents::task::HarnessModelConfig;
@@ -75,7 +74,6 @@ use crate::ai::skills::{
 use crate::auth::AuthStateProvider;
 use crate::auth::credentials::Credentials;
 use crate::cloud_object::{CloudObject, CloudObjectLookup as _};
-use crate::send_telemetry_from_app_ctx;
 use crate::server::ids::{ServerId, SyncId};
 use crate::terminal::cli_agent_sessions::plugin_manager::{
     CliAgentPluginManager, plugin_manager_for,
@@ -2685,19 +2683,6 @@ impl AgentDriver {
                             error.pattern,
                             error.excerpt,
                         );
-                        let telemetry_harness = harness_name.clone();
-                        let telemetry_pattern = error.pattern.clone();
-                        let _ = foreground
-                            .spawn(move |_, ctx| {
-                                use warp_core::telemetry::TelemetryEvent as _;
-                                let event =
-                                    ThirdPartyHarnessTelemetryEvent::RuntimeErrorDetected {
-                                        harness: telemetry_harness,
-                                        pattern: telemetry_pattern,
-                                    };
-                                send_telemetry_from_app_ctx!(event, ctx);
-                            })
-                            .await;
                         let session_status = foreground
                             .spawn(|me, ctx| {
                                 let view_id =

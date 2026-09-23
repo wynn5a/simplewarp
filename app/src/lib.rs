@@ -196,8 +196,6 @@ use url::Url;
 pub use warp_core::r#async::debounce;
 use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
 // Re-export the send_telemetry_from_ctx macro at the crate root level
-pub use warp_core::send_telemetry_from_app_ctx;
-pub use warp_core::send_telemetry_from_ctx;
 // Re-export the safe logging macros at the crate root level for backwards compatibility
 pub use warp_core::{safe_debug, safe_error, safe_info, safe_warn};
 use warp_errors::{report_error, report_if_error};
@@ -256,10 +254,8 @@ use crate::root_view::{
     OpenFromRestoredArg, OpenPath, quake_mode_window_id, quake_mode_window_is_open,
 };
 use crate::server::cloud_objects::update_manager::UpdateManager;
-pub use crate::server::telemetry::{
-    AgentModeEntrypoint, AgentModeEntrypointSelectionType, TelemetryEvent,
-};
-use crate::server::telemetry::{AppStartupInfo, CloseTarget, PaletteSource};
+use crate::server::telemetry::PaletteSource;
+pub use crate::server::telemetry::{AgentModeEntrypoint, AgentModeEntrypointSelectionType};
 use crate::session_management::{RunningSessionSummary, SessionNavigationData};
 use crate::settings::cloud_preferences_syncer::initialize_cloud_preferences_syncer;
 use crate::settings::manager::SettingsManager;
@@ -624,10 +620,6 @@ pub fn run() -> Result<()> {
             }
             warp_cli::Command::DumpDebugInfo => {
                 return debug_dump::run();
-            }
-            #[cfg(not(target_family = "wasm"))]
-            warp_cli::Command::PrintTelemetryEvents => {
-                return TelemetryEvent::print_telemetry_events_json();
             }
         }
     }
@@ -1303,7 +1295,7 @@ pub(crate) fn initialize_app(
         if #[cfg(feature = "crash_reporting")] {
             let is_crash_reporting_enabled = crash_reporting::init(ctx);
         } else {
-            let is_crash_reporting_enabled = false;
+            let _is_crash_reporting_enabled = false;
         }
     }
     // Send buffered pre-init errors to Sentry now that the client is ready.
@@ -1394,17 +1386,9 @@ pub(crate) fn initialize_app(
     if user_is_logged_in {
         // Set the first frame callback to record the app's startup time.
         // This is only sent for logged-in users so that new users don't skew performance metrics.
-        let is_screen_reader_enabled = ctx.is_screen_reader_enabled();
         ctx.on_first_frame_drawn(move |ctx| {
-            let timing_data = IntervalTimer::handle(ctx).update(ctx, |timer, _| {
+            IntervalTimer::handle(ctx).update(ctx, |timer, _| {
                 timer.mark_interval_end("FIRST_FRAME_DRAWN");
-                timer.compute_stats()
-            });
-            let event = TelemetryEvent::AppStartup(AppStartupInfo {
-                is_session_restoration_on: user_defaults_on_startup.should_restore_session,
-                is_screen_reader_enabled,
-                is_crash_reporting_enabled,
-                timing_data,
             });
 
             GPUState::handle(ctx).update(ctx, |gpu_state, ctx| {
@@ -1419,8 +1403,6 @@ pub(crate) fn initialize_app(
                         settings.refresh_preferred_graphics_backend_dropdown(ctx);
                     })
             }
-
-            send_telemetry_from_app_ctx!(event, ctx);
         });
 
         #[cfg(enable_crash_recovery)]
@@ -1432,7 +1414,6 @@ pub(crate) fn initialize_app(
     } else {
         // If the app was opened while logged out, record an event for measuring new users.
         // This is sent immediately in case they quit the app on the signup screen.
-        send_telemetry_sync_from_app_ctx!(TelemetryEvent::LoggedOutStartup, ctx);
         download_method::determine_and_report(
             auth_state.clone(),
             ctx.background_executor().clone(),
@@ -1994,13 +1975,6 @@ pub(crate) fn app_callbacks(
 
             let summary = UnsavedStateSummary::for_window(window_id, ctx);
 
-            send_telemetry_from_app_ctx!(
-                TelemetryEvent::UserInitiatedClose {
-                    initiated_on: CloseTarget::Window,
-                },
-                ctx
-            );
-
             // Don't show dialog on integration test. Machine can't press buttons.
             if !is_integration_test && summary.save_unsaved_code_and_should_warn(ctx) {
                 let shown = summary
@@ -2036,13 +2010,6 @@ pub(crate) fn app_callbacks(
                 return ApproveTerminateResult::Terminate;
             }
 
-            send_telemetry_from_app_ctx!(
-                TelemetryEvent::UserInitiatedClose {
-                    initiated_on: CloseTarget::App,
-                },
-                ctx
-            );
-
             let summary = UnsavedStateSummary::for_app(ctx);
             // Don't show dialog on integration test. Machine can't press buttons.
             if !is_integration_test && summary.save_unsaved_code_and_should_warn(ctx) {
@@ -2067,7 +2034,6 @@ pub(crate) fn app_callbacks(
                         .toggle_and_save_value(ctx)
                 );
             });
-            send_telemetry_from_app_ctx!(TelemetryEvent::QuitModalDisabled, ctx);
         })),
         on_notification_clicked: Some(Box::new(move |notification_response, ctx| {
             if let Some(notification_data) = notification_response.data() {
@@ -2192,14 +2158,6 @@ fn focus_running_window_and_show_native_modal(
 }
 
 fn on_close_app_cancelled(open_navigation_palette: bool, ctx: &mut AppContext) {
-    send_telemetry_from_app_ctx!(
-        TelemetryEvent::QuitModalCancel {
-            nav_palette: open_navigation_palette,
-            modal_for: CloseTarget::App,
-        },
-        ctx
-    );
-
     let sessions = SessionNavigationData::all_sessions(ctx).collect_vec();
     let sessions_summary = RunningSessionSummary::new(&sessions);
 
@@ -2246,14 +2204,6 @@ fn on_close_window_cancelled(
     open_navigation_palette: bool,
     ctx: &mut AppContext,
 ) {
-    send_telemetry_from_app_ctx!(
-        TelemetryEvent::QuitModalCancel {
-            nav_palette: open_navigation_palette,
-            modal_for: CloseTarget::Window,
-        },
-        ctx
-    );
-
     let sessions = SessionNavigationData::all_sessions(ctx).collect_vec();
     let sessions_summary = RunningSessionSummary::new(&sessions);
     let num_processes_in_window = sessions_summary.processes_in_window(&window_id).len();

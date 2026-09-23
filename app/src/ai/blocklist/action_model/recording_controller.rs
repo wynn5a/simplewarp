@@ -29,22 +29,7 @@ pub(crate) enum FinalizeReason {
     FinalizationDropped,
 }
 
-impl FinalizeReason {
-    /// Stable, machine-readable key identifying why finalization ran, used by
-    /// the `Recording.Stopped` telemetry event. Distinct from
-    /// [`FinalizeReason::termination_reason`], which is human-readable prose.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub(crate) fn telemetry_key(self) -> &'static str {
-        match self {
-            FinalizeReason::StoppedByAgent => "agent_stopped",
-            FinalizeReason::RunEnded => "run_ended",
-            FinalizeReason::LimitReached => "limit_reached",
-            FinalizeReason::FfmpegExited => "encoding_failed",
-            FinalizeReason::RunCancelled => "run_cancelled",
-            FinalizeReason::FinalizationDropped => "finalization_dropped",
-        }
-    }
-}
+impl FinalizeReason {}
 
 /// The finalized outcome of a recording, paired with the actual
 /// [`FinalizeReason`] that drove finalization to completion. Callers that only

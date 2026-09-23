@@ -40,7 +40,6 @@ use crate::settings::cloud_preferences::CloudPreferencesSettings;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::CustomerType;
-use crate::{TelemetryEvent, send_telemetry_from_ctx};
 
 const PHOTO_SIZE: f32 = 40.;
 const REGULAR_TEXT_FONT_SIZE: f32 = 12.;
@@ -154,7 +153,7 @@ impl TypedActionView for MainSettingsPageView {
 
         match action {
             MainPageAction::ToggleSettingsSync => {
-                let new_value =
+                let _new_value =
                     CloudPreferencesSettings::handle(ctx).update(ctx, |prefs_settings, ctx| {
                         report_if_error!(
                             prefs_settings
@@ -163,12 +162,6 @@ impl TypedActionView for MainSettingsPageView {
                         );
                         *prefs_settings.settings_sync_enabled
                     });
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::ToggleSettingsSync {
-                        is_settings_sync_enabled: new_value,
-                    },
-                    ctx
-                );
                 ctx.notify();
             }
             MainPageAction::Upgrade { team_uid, user_id } => match team_uid {

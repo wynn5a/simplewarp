@@ -25,7 +25,6 @@ use warpui::{AppContext, SingletonEntity};
 
 use crate::auth::auth_state::AuthStateProvider;
 use crate::channel::{Channel, ChannelState};
-use crate::send_telemetry_sync_from_app_ctx;
 
 /// Number of buckets we are using to partition user traffic. The largest valid
 /// bucket index is NUM_BUCKETS - 1.
@@ -329,16 +328,8 @@ pub trait Experiment<T: Experiment<T>>: FromStr {
             assigned_group = Self::layer().get_assigned_group(&anonymous_id);
 
             if let Some(group) = assigned_group.as_ref() {
-                let group_assignment = group.variant();
+                let _group_assignment = group.variant();
                 // Send synchronously since this we rely on this event to collect experiment data.
-                send_telemetry_sync_from_app_ctx!(
-                    crate::server::telemetry::TelemetryEvent::ExperimentTriggered {
-                        experiment: Self::name(),
-                        layer: Self::layer().name(),
-                        group_assignment,
-                    },
-                    ctx
-                );
             }
         }
 

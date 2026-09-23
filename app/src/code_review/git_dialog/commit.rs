@@ -4,7 +4,6 @@
 
 use std::path::Path;
 
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
 use warp_errors::report_error;
 use warpui::elements::{
@@ -21,9 +20,7 @@ use crate::code_review::git_dialog::{
     GitDialog, GitDialogAction, GitDialogEvent, GitDialogMode, render_branch_section,
     render_file_changes_box, should_send_git_ops_ai_request, show_toast, user_facing_git_error,
 };
-use crate::code_review::telemetry_event::{
-    CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind,
-};
+use crate::code_review::telemetry_event::{GitDialogStatus, GitOperationKind};
 use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, InteractionState,
     PropagateAndNoOpNavigationKeys, TextOptions,
@@ -400,17 +397,17 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
 /// Shared commit-chain completion for both backends: toast + telemetry + close.
 /// `Ok(Some)` means create-PR ran; `Ok(None)` is a plain commit / commit-and-push.
 pub(super) fn finish_commit_chain(
-    me: &GitDialog,
+    _me: &GitDialog,
     intent: CommitChainMode,
     result: Result<Option<PrInfo>, String>,
     ctx: &mut ViewContext<GitDialog>,
 ) {
-    let operation = match intent {
+    let _operation = match intent {
         CommitChainMode::CommitOnly => GitOperationKind::CommitOnly,
         CommitChainMode::CommitAndPush => GitOperationKind::CommitAndPush,
         CommitChainMode::CommitAndCreatePr => GitOperationKind::CommitAndCreatePr,
     };
-    let (status, error) = match &result {
+    let (_status, _error) = match &result {
         Ok(_) => (GitDialogStatus::Succeeded, None),
         Err(err) => (GitDialogStatus::Failed, Some(err.clone())),
     };
@@ -429,15 +426,6 @@ pub(super) fn finish_commit_chain(
             show_toast(user_facing_git_error(err), ctx);
         }
     }
-    send_telemetry_from_ctx!(
-        CodeReviewTelemetryEvent::GitDialogCompleted {
-            is_local: Some(!me.repo_location().is_remote()),
-            operation,
-            status,
-            error,
-        },
-        ctx
-    );
     ctx.emit(GitDialogEvent::Completed);
 }
 

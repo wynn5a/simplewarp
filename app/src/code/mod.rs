@@ -27,7 +27,6 @@ pub mod inline_diff;
 pub mod language_server_shutdown_manager;
 #[cfg(not(target_family = "wasm"))]
 pub mod lsp_logs;
-pub mod lsp_telemetry;
 
 #[derive(Debug, thiserror::Error)]
 #[cfg_attr(target_family = "wasm", allow(dead_code))]

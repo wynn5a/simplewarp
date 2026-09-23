@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use futures::channel::oneshot;
 use futures::future::{self, BoxFuture, FutureExt as _};
-use warp_core::{safe_warn, send_telemetry_from_ctx};
+use warp_core::safe_warn;
 use warp_util::sync::Condition;
 use warpui_core::ModelHandle;
 use warpui_core::r#async::{FutureId, SpawnedFutureHandle};
@@ -52,7 +52,6 @@ use crate::repository::Repository;
 use crate::standing_queries::{
     StandingQueryDefinitions, StandingQueryResults, StandingQueryResultsDelta,
 };
-use crate::telemetry::RepoMetadataTelemetryEvent;
 use crate::{RepoMetadataError, gitignores_for_directory, matches_gitignores};
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {
@@ -2020,7 +2019,6 @@ impl LocalRepoMetadataModel {
                                 safe: ("Repository exceeded max file budget; indexed with partial coverage"),
                                 full: ("Repository {repo_path_str} exceeded the max file budget ({MAX_FILES_PER_REPO}); indexed breadth-first up to the budget — remaining directories load on expand")
                             );
-                            send_telemetry_from_ctx!(RepoMetadataTelemetryEvent::BuildTreeFailed { error: format!("{:#}", BuildTreeError::ExceededMaxFileLimit) }, ctx);
                         } else {
                             log::info!(
                                 "Successfully indexed repository: {} with {} files",
@@ -2034,7 +2032,6 @@ impl LocalRepoMetadataModel {
                             safe: ("Failed to build file tree for repository: {e:?}"),
                             full: ("Failed to build file tree for repository {repo_path_str}: {e:?}")
                         );
-                        send_telemetry_from_ctx!(RepoMetadataTelemetryEvent::BuildTreeFailed { error: format!("{e:#}") }, ctx);
                         model.mark_repository_failed(
                             std_repo_path,
                             RepoMetadataError::BuildTree(e),

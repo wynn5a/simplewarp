@@ -8,7 +8,6 @@ use settings::ToggleableSetting as _;
 use strum::IntoEnumIterator;
 use uuid::Uuid;
 use warp_core::features::FeatureFlag;
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::Icon;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
@@ -35,11 +34,7 @@ use crate::ai::mcp::{
 };
 #[cfg(feature = "local_fs")]
 use crate::ai::mcp::{
-    FileMCPWatcher,
-    FileMCPWatcherEvent,
-    // Import events for file-based manager and watcher conditionally
-    // since their WASM variants don't export events.
-    file_based_manager::FileBasedMCPManagerEvent,
+    FileMCPWatcher, FileMCPWatcherEvent, file_based_manager::FileBasedMCPManagerEvent,
 };
 use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
@@ -50,7 +45,7 @@ use crate::editor::{
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::pane_group::Direction;
 use crate::search_bar::SearchBar;
-use crate::server::telemetry::{MCPTemplateInstallationSource, TelemetryEvent};
+use crate::server::telemetry::MCPTemplateInstallationSource;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::settings_view::mcp_servers::server_card::{
     ServerCardEvent, ServerCardOptions, ServerCardStatus, ServerCardView, TitleChip,
@@ -721,14 +716,10 @@ impl MCPServersListPageView {
                             instructions_in_markdown: None,
                             origin: InstallOrigin::InApp,
                         });
-                        let source: MCPTemplateInstallationSource = match is_shared {
+                        let _source: MCPTemplateInstallationSource = match is_shared {
                             true => MCPTemplateInstallationSource::Shared,
                             false => MCPTemplateInstallationSource::Local,
                         };
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::MCPTemplateInstalled { source },
-                            ctx
-                        );
                     }
                 }
                 ServerCardItemId::TemplatableMCPInstallation(_) => {
@@ -976,12 +967,6 @@ impl MCPServersListPageView {
                     instructions_in_markdown: instructions,
                     origin: InstallOrigin::InApp,
                 });
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::MCPTemplateInstalled {
-                        source: MCPTemplateInstallationSource::Gallery
-                    },
-                    ctx
-                );
             }
             Err(e) => {
                 log::warn!("Could not install gallery item {gallery_uuid}: {e}");

@@ -50,10 +50,8 @@ use crate::context_chips::prompt_type::PromptType;
 use crate::context_chips::{self, ContextChipKind};
 use crate::features::FeatureFlag;
 use crate::network::NetworkStatus;
-use crate::send_telemetry_from_ctx;
 #[cfg(feature = "voice_input")]
 use crate::server::server_api::TranscribeError;
-use crate::server::telemetry::TelemetryEvent;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
     PrivacySettingsChangedEvent,
@@ -813,14 +811,7 @@ impl AgentInputFooter {
                         }
                         self.update_cli_mic_button_state(ctx);
 
-                        if let Some(agent) = self.cli_agent(ctx) {
-                            send_telemetry_from_ctx!(
-                                TelemetryEvent::CLIAgentToolbarVoiceInputUsed {
-                                    cli_agent: agent.into(),
-                                },
-                                ctx
-                            );
-                        }
+                        if let Some(agent) = self.cli_agent(ctx) {}
 
                         if matches!(*source, voice_input::VoiceInputToggledFrom::Button) {
                             self.maybe_show_first_time_cli_voice_toast(ctx);
@@ -1330,14 +1321,7 @@ impl TypedActionView for AgentInputFooter {
                 }
             }
             AgentInputFooterAction::InsertFilePath(path) => {
-                if let Some(agent) = self.cli_agent(ctx) {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::CLIAgentToolbarImageAttached {
-                            cli_agent: agent.into(),
-                        },
-                        ctx
-                    );
-                }
+                if let Some(_agent) = self.cli_agent(ctx) {}
                 let path_with_space = format!("{path} ");
                 ctx.emit(AgentInputFooterEvent::WriteToPty(path_with_space));
             }

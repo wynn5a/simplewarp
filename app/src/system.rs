@@ -37,12 +37,6 @@ impl Entity for SystemStats {
 impl SingletonEntity for SystemStats {}
 
 #[cfg(not(target_family = "wasm"))]
-pub fn long_os_version(ctx: &warpui::AppContext) -> Option<String> {
-    crate::system::SystemInfo::as_ref(ctx)
-        .long_os_version()
-        .map(ToOwned::to_owned)
-}
-
 #[cfg(target_family = "wasm")]
 pub fn long_os_version(_ctx: &warpui::AppContext) -> Option<String> {
     None

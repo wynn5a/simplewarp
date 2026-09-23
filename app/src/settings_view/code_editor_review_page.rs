@@ -17,7 +17,6 @@ use crate::appearance::Appearance;
 use crate::settings::CodeSettings;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::workspace::tab_settings::TabSettings;
-use crate::{TelemetryEvent, send_telemetry_from_ctx};
 
 const PAGE_TITLE: &str = "Editor and Code Review";
 
@@ -142,17 +141,6 @@ impl TypedActionView for EditorAndCodeReviewPageView {
                             .toggle_and_save_value(ctx)
                     );
                 });
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::FeaturesPageAction {
-                        action: "ToggleAutoOpenCodeReviewPane".to_string(),
-                        value: format!(
-                            "{}",
-                            *GeneralSettings::as_ref(ctx)
-                                .auto_open_code_review_pane_on_first_agent_change
-                        )
-                    },
-                    ctx
-                );
                 ctx.notify();
             }
         }

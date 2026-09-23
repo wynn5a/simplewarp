@@ -19,7 +19,7 @@ use crate::server::server_api::auth::{AuthClient, FetchUserResult, UserAuthentic
 use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
 use crate::settings::initializer::SettingsInitializer;
 use crate::terminal::general_settings::GeneralSettings;
-use crate::{GlobalResourceHandlesProvider, TelemetryEvent, persistence, send_telemetry_from_ctx};
+use crate::{GlobalResourceHandlesProvider, persistence};
 
 #[derive(Debug)]
 pub enum AuthManagerEvent {
@@ -131,7 +131,6 @@ impl AuthManager {
                 ctx.emit(AuthManagerEvent::LoginOverrideDetected(auth_payload));
                 return;
             }
-            send_telemetry_from_ctx!(TelemetryEvent::AnonymousUserLinkedFromBrowser, ctx);
         }
 
         let _ = ctx.spawn(
@@ -273,39 +272,11 @@ impl AuthManager {
                     );
                 };
 
-                let user_id = self.auth_state.user_id().unwrap_or_default();
-                let anonymous_id = self.auth_state.anonymous_id();
-                let _ = ctx.spawn(
-                    // The login event happens only once for the user, so the identify and login
-                    // events are recorded into the telemetry event queue immediately here.
-                    async move {
-                        warpui::telemetry::record_identify_user_event(
-                            user_id.as_string(),
-                            anonymous_id.clone(),
-                            warpui::time::get_current_time(),
-                        );
-                        warpui::telemetry::record_event(
-                            Some(user_id.as_string()),
-                            anonymous_id,
-                            TelemetryEvent::Login.name().into(),
-                            TelemetryEvent::Login.payload(),
-                            TelemetryEvent::Login.contains_ugc(),
-                            warpui::time::get_current_time(),
-                        );
-                    },
-                    |_, _, _| {},
-                );
-
                 // Once the user is authenticated, attempt to report the sandbox that Warp is running in, if any.
                 ctx.spawn(
                     async { warp_isolation_platform::detect() },
-                    |_, platform, ctx| {
-                        if let Some(platform) = platform {
-                            send_telemetry_from_ctx!(
-                                TelemetryEvent::DetectedIsolationPlatform { platform },
-                                ctx
-                            );
-                        }
+                    |_, platform, _ctx| {
+                        if let Some(_platform) = platform {}
                     },
                 );
 
@@ -388,28 +359,22 @@ impl AuthManager {
         let became_true = self.auth_state.set_needs_reauth(needs_reauth);
 
         if became_true {
-            send_telemetry_from_ctx!(TelemetryEvent::NeedsReauth, ctx);
             ctx.emit(AuthManagerEvent::NeedsReauth);
         }
     }
 
     pub fn attempt_login_gated_feature(
         &self,
-        feature: LoginGatedFeature,
+        _feature: LoginGatedFeature,
         ctx: &mut ModelContext<Self>,
     ) {
         if self.auth_state.is_anonymous_or_logged_out() {
-            send_telemetry_from_ctx!(
-                TelemetryEvent::AnonymousUserAttemptLoginGatedFeature { feature },
-                ctx
-            );
             ctx.emit(AuthManagerEvent::AttemptedLoginGatedFeature);
         };
     }
 
     pub fn anonymous_user_hit_drive_object_limit(&self, ctx: &mut ModelContext<Self>) {
         if self.auth_state.is_anonymous_or_logged_out() {
-            send_telemetry_from_ctx!(TelemetryEvent::AnonymousUserHitCloudObjectLimit, ctx);
             ctx.emit(AuthManagerEvent::AttemptedLoginGatedFeature);
         };
     }

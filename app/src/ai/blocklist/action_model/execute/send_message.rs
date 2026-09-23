@@ -1,6 +1,5 @@
 use futures::FutureExt as _;
 use futures::future::BoxFuture;
-use warp_core::send_telemetry_from_ctx;
 use warpui::{Entity, ModelContext};
 
 use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
@@ -8,11 +7,6 @@ use crate::ai::agent::{
     AIAgentAction, AIAgentActionResultType, AIAgentActionType, SendMessageToAgentResult,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::ai::blocklist::telemetry::{
-    BlocklistOrchestrationTelemetryEvent, TeamAgentCommunicationFailedEvent,
-    TeamAgentCommunicationFailureReason, TeamAgentCommunicationKind,
-    TeamAgentCommunicationTransport, TeamAgentOrchestrationVersion,
-};
 
 pub struct SendMessageToAgentExecutor {
     ambient_agent_task_id: Option<AmbientAgentTaskId>,
@@ -40,7 +34,7 @@ impl SendMessageToAgentExecutor {
     pub(super) fn execute(
         &mut self,
         input: ExecuteActionInput,
-        ctx: &mut ModelContext<Self>,
+        _ctx: &mut ModelContext<Self>,
     ) -> AnyActionExecution {
         let AIAgentAction {
             action:
@@ -55,26 +49,10 @@ impl SendMessageToAgentExecutor {
             return ActionExecution::<()>::InvalidAction.into();
         };
 
-        let conversation_id = input.conversation_id;
+        let _conversation_id = input.conversation_id;
         let error_message = "SimpleWarp is a local-only build; this operation needs Warp's \
                              servers"
             .to_owned();
-        send_telemetry_from_ctx!(
-            BlocklistOrchestrationTelemetryEvent::TeamAgentCommunicationFailed(
-                TeamAgentCommunicationFailedEvent {
-                    communication_kind: TeamAgentCommunicationKind::Message,
-                    transport: TeamAgentCommunicationTransport::ServerApi,
-                    orchestration_version: TeamAgentOrchestrationVersion::V2,
-                    failure_reason: TeamAgentCommunicationFailureReason::RequestFailed,
-                    source_conversation_id: conversation_id,
-                    source_run_id: None,
-                    target_count: Some(addresses.len()),
-                    lifecycle_event_type: None,
-                    error_message: Some(error_message.clone()),
-                }
-            ),
-            ctx
-        );
         log::warn!(
             "Failed to send child-agent message via server API: target_agent_ids={addresses:?} subject={subject:?} body_len={} error={error_message}",
             message.chars().count()

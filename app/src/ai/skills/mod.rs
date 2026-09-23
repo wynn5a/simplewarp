@@ -4,7 +4,7 @@ use ai::skills::SkillPathOrigin;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 
 mod telemetry;
-pub use telemetry::{SkillOpenOrigin, SkillTelemetryEvent};
+pub use telemetry::SkillOpenOrigin;
 #[cfg(all(not(target_family = "wasm"), feature = "local_fs"))]
 mod remote;
 #[cfg(all(not(target_family = "wasm"), feature = "local_fs"))]

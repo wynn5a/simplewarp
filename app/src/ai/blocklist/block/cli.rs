@@ -76,7 +76,6 @@ use crate::code::editor::view::{CodeEditorEvent, CodeEditorRenderOptions, CodeEd
 use crate::code::editor_management::CodeSource;
 use crate::editor::InteractionState;
 use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
-use crate::server::telemetry::TelemetryEvent;
 use crate::settings::AISettings;
 use crate::settings_view::SettingsSection;
 use crate::terminal::input::SET_INPUT_MODE_TERMINAL_ACTION_NAME;
@@ -95,7 +94,7 @@ use crate::view_components::compactible_action_button::{
 };
 use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
 use crate::workspace::WorkspaceAction;
-use crate::{BlocklistAIHistoryModel, ToastStack, send_telemetry_from_ctx};
+use crate::{BlocklistAIHistoryModel, ToastStack};
 const MENU_WIDTH: f32 = 200.0;
 const MAX_HEIGHT: f32 = 320.0;
 const MIN_RESIZABLE_WIDTH: f32 = 360.0;
@@ -518,15 +517,6 @@ impl CLISubagentView {
         if is_autoexecuted {
             self.enable_autoexecute_override(ctx);
         }
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CLISubagentActionExecuted {
-                conversation_id: self.conversation_id,
-                block_id: self.block_id.clone(),
-                is_autoexecuted,
-            },
-            ctx
-        );
     }
 
     fn handle_reject_blocked_action(
@@ -535,15 +525,6 @@ impl CLISubagentView {
         ctx: &mut ViewContext<Self>,
     ) {
         self.reject_blocked_action(should_user_take_over, ctx);
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CLISubagentActionRejected {
-                conversation_id: self.conversation_id,
-                block_id: self.block_id.clone(),
-                user_took_over: should_user_take_over,
-            },
-            ctx
-        );
     }
 
     fn take_control_of_running_command(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1530,13 +1511,6 @@ impl TypedActionView for CLISubagentView {
                     handle.abort();
                 }
                 ctx.notify();
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::CLISubagentInputDismissed {
-                        conversation_id: self.conversation_id,
-                        block_id: self.block_id.clone(),
-                    },
-                    ctx
-                );
             }
             CLISubagentAction::SelectText => {
                 self.clear_other_selections(None, ctx);

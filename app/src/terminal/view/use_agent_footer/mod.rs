@@ -19,7 +19,6 @@ use std::time::Duration;
 
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
-use warp_core::send_telemetry_from_ctx;
 use warp_core::settings::Setting;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::contrast::{
@@ -45,9 +44,7 @@ use crate::ai::blocklist::block::cli_controller::CLISubagentEvent;
 use crate::cmd_or_ctrl_shift;
 use crate::code_review::diff_state::GitDeltaPreference;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
-use crate::server::telemetry::{
-    CLIAgentType, CLISubagentControlState, FileTreeSource, TelemetryEvent,
-};
+use crate::server::telemetry::CLIAgentType;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, CompiledCommandsForCodingAgentToolbar, InputModeSettings,
 };
@@ -202,7 +199,6 @@ impl TerminalView {
         match event {
             UseAgentToolbarEvent::Dismiss => {
                 self.hide_use_agent_footer_in_blocklist(ctx);
-                send_telemetry_from_ctx!(TelemetryEvent::AgentToolbarDismissed, ctx);
                 ctx.notify();
             }
             UseAgentToolbarEvent::WriteToPty(text) => {
@@ -223,20 +219,12 @@ impl TerminalView {
                     ctx,
                 );
             }
-            UseAgentToolbarEvent::ToggleFileExplorer(cli_agent) => {
-                let source = match cli_agent {
-                    Some(_) => FileTreeSource::CLIAgentView,
-                    None => FileTreeSource::AgentToolbelt,
-                };
-                self.toggle_file_tree(source, cli_agent.map(Into::into), ctx);
+            UseAgentToolbarEvent::ToggleFileExplorer(_) => {
+                self.toggle_file_tree(ctx);
             }
             UseAgentToolbarEvent::Warpify => {
                 self.hide_use_agent_footer_in_blocklist(ctx);
                 self.handle_action(&TerminalAction::TriggerSubshellBootstrap, ctx);
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::WarpifyFooterAcceptedWarpify { is_ssh: false },
-                    ctx
-                );
             }
             UseAgentToolbarEvent::UseAgent => {
                 self.hide_use_agent_footer_in_blocklist(ctx);
@@ -411,16 +399,8 @@ impl TerminalView {
 
         let model = self.model.lock();
         let active_block = model.block_list().active_block();
-        let conversation_id = active_block.ai_conversation_id();
-        let block_id = active_block.id().clone();
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CLISubagentControlStateChanged {
-                conversation_id,
-                block_id,
-                control_state: CLISubagentControlState::AgentTaggedIn,
-            },
-            ctx
-        );
+        let _conversation_id = active_block.ai_conversation_id();
+        let _block_id = active_block.id().clone();
     }
 
     /// Tags the agent "out". See docs on `tag_in_agent_for_user_long_running_command` for
@@ -460,16 +440,8 @@ impl TerminalView {
 
         let model = self.model.lock();
         let active_block = model.block_list().active_block();
-        let conversation_id = active_block.ai_conversation_id();
-        let block_id = active_block.id().clone();
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CLISubagentControlStateChanged {
-                conversation_id,
-                block_id,
-                control_state: CLISubagentControlState::AgentTaggedOut,
-            },
-            ctx
-        );
+        let _conversation_id = active_block.ai_conversation_id();
+        let _block_id = active_block.id().clone();
     }
 
     pub(super) fn maybe_show_use_agent_footer_in_blocklist(&mut self, ctx: &mut ViewContext<Self>) {
@@ -491,13 +463,7 @@ impl TerminalView {
 
         // Send telemetry when showing CLI agent footer
         if let Some(session) = CLIAgentSessionsModel::as_ref(ctx).session(self.view_id) {
-            let cli_agent_type: CLIAgentType = session.agent.into();
-            send_telemetry_from_ctx!(
-                TelemetryEvent::CLIAgentToolbarShown {
-                    cli_agent: cli_agent_type,
-                },
-                ctx
-            );
+            let _cli_agent_type: CLIAgentType = session.agent.into();
         }
 
         self.insert_rich_content(

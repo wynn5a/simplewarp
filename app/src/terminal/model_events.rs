@@ -7,7 +7,6 @@ use super::event::{BootstrappedEvent, SshLoginStatus};
 use super::model::ansi;
 use super::model::block::BlockId;
 use super::model::completions::ShellCompletion;
-use super::model::lifecycle::LifecycleTelemetryEvent;
 use super::model::session::{IsSSHWrapperSession, SessionId, SessionInfo};
 use super::model::terminal_model::{CommandType, ExitReason, HandlerEvent};
 use crate::features::FeatureFlag;
@@ -283,8 +282,7 @@ impl ModelEventDispatcher {
                 ModelEvent::PluggableNotification { title, body }
             }
             Event::ExitShell { session_id } => ModelEvent::ExitShell { session_id },
-            Event::LifecycleRecovery(record) => {
-                crate::send_telemetry_from_ctx!(LifecycleTelemetryEvent::Recovery(record), ctx);
+            Event::LifecycleRecovery(_) => {
                 return;
             }
             _ => return,

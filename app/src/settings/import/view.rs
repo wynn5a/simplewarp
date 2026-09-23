@@ -16,6 +16,7 @@ use warpui::{
 };
 
 use super::config::{QuakeModeWindow, ThemeType};
+use crate::GlobalResourceHandlesProvider;
 use crate::settings::import::config::{Config, ParsedTerminalSetting, SettingType};
 use crate::settings::import::model::{ImportedConfigModel, TerminalTypeAndProfile};
 use crate::settings::{
@@ -29,7 +30,6 @@ use crate::themes::theme::{CustomTheme, SelectedSystemThemes, ThemeKind};
 use crate::ui_components::blended_colors;
 use crate::user_config::{self, WarpConfig};
 use crate::window_settings::WindowSettings;
-use crate::{GlobalResourceHandlesProvider, TelemetryEvent, send_telemetry_from_ctx};
 
 // UI does not scale, so we set a fixed size for all text.
 const FONT_SIZE: f32 = 14.;
@@ -887,7 +887,7 @@ impl SettingsImportView {
         ctx: &mut ViewContext<Self>,
     ) {
         let model = ImportedConfigModel::handle(ctx);
-        let imported_settings = model.read(ctx, |model, _ctx| {
+        let _imported_settings = model.read(ctx, |model, _ctx| {
             let Some(config) = model.config(terminal_type_and_profile) else {
                 report_error!(
                     "Could not find config for terminal",
@@ -909,14 +909,6 @@ impl SettingsImportView {
                 })
                 .collect_vec()
         });
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CompletedSettingsImport {
-                terminal_type: terminal_type_and_profile.into(),
-                imported_settings,
-            },
-            ctx
-        );
     }
 }
 
@@ -1111,11 +1103,6 @@ impl TypedActionView for SettingsImportView {
                 ctx.notify();
             }
             SettingsImportAction::SetSelectedConfig(idx) => {
-                let old_selected_idx = self
-                    .configs
-                    .iter()
-                    .find_position(|config| config.expanded)
-                    .map(|(position, _item)| position);
                 // Collapse all other configs.
                 self.configs
                     .iter_mut()
@@ -1124,17 +1111,6 @@ impl TypedActionView for SettingsImportView {
                     .for_each(|(_, config)| config.expanded = false);
                 // Set the current config to expand.
                 self.configs[*idx].expanded = true;
-                // Only send the telemetry event if the new selected item is different.
-                if old_selected_idx.is_none_or(|old_idx| old_idx != *idx) {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::SettingsImportConfigFocused(
-                            self.configs[*idx].terminal_type_and_profile.into()
-                        ),
-                        ctx
-                    );
-                }
-                // The radio button state already updates, since each element is a child of a RadioButtonItem.
-                ctx.notify();
             }
             SettingsImportAction::ToggleSetting(idx, setting_type) => {
                 let model = ImportedConfigModel::handle(ctx);
@@ -1157,7 +1133,6 @@ impl TypedActionView for SettingsImportView {
                 ) {
                     self.state = State::Completed { imported_idx: None }
                 }
-                send_telemetry_from_ctx!(TelemetryEvent::SettingsImportResetButtonClicked, ctx);
             }
         }
     }

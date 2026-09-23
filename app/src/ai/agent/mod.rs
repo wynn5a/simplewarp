@@ -39,7 +39,6 @@ use warp_multi_agent_api::{AgentEvent, AgentType, diff_hunk as diff_hunk_api};
 
 pub use self::api::{MaybeAIAgentOutputMessage, MessageToAIAgentOutputMessageError};
 use super::llms::LLMId;
-use crate::TelemetryEvent;
 use crate::ai::block_context::BlockContext;
 use crate::ai::blocklist::block::view_impl::output::are_all_text_sections_empty;
 use crate::ai::skills::SkillDescriptor;
@@ -455,11 +454,6 @@ pub struct AIAgentOutput {
 
     /// Information about the model that generated this output.
     pub model_info: Option<OutputModelInfo>,
-
-    /// Telemetry events related to the AI Agent Output that we want to send after completion.
-    #[derivative(Debug = "ignore")]
-    #[derivative(PartialEq = "ignore")]
-    pub telemetry_events: Vec<TelemetryEvent>,
 
     /// The number of requests that the request cost.
     pub request_cost: Option<RequestCost>,

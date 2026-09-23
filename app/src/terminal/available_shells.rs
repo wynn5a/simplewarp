@@ -144,18 +144,6 @@ impl AvailableShell {
         }
     }
 
-    /// Returns a telemetry string that represents the value of the shell without any PII involved.
-    pub fn telemetry_value(&self) -> String {
-        // NOTE: These explicitly do not log the shell path or wsl name, as those can contain PII.
-        match self.state.as_ref() {
-            Config::SystemDefault => "SystemDefault".to_string(),
-            Config::KnownLocal(config) | Config::MSYS2(config) => config.command.clone(),
-            Config::Wsl { .. } => "WSL".to_string(),
-            Config::Custom(_) => "Custom".to_string(),
-            Config::DockerSandbox { .. } => "DockerSandbox".to_string(),
-        }
-    }
-
     pub fn wsl_distro(&self) -> Option<String> {
         match self.state.as_ref() {
             Config::Wsl { distro } => Some(distro.clone()),

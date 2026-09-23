@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 
 use pathfinder_geometry::vector::Vector2F;
 use warp_core::features::FeatureFlag;
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::Icon;
 use warp_editor::editor::NavigationKey;
 use warpui::elements::{
@@ -30,7 +29,6 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::{
     AgentConversationEntryId, AgentConversationNavigationSubject, AgentConversationsModel,
 };
-use crate::ai::agent_management::telemetry::{AgentManagementTelemetryEvent, OpenedFrom};
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 use crate::ai::conversation_rename::rename_conversation;
 use crate::appearance::Appearance;
@@ -598,15 +596,8 @@ impl ConversationListView {
         self.focus_query_editor(ctx);
     }
 
-    fn send_open_telemetry(id: &AgentConversationEntryId, ctx: &mut ViewContext<Self>) {
-        let AgentConversationEntryId::Conversation(conversation_id) = id;
-        send_telemetry_from_ctx!(
-            AgentManagementTelemetryEvent::ConversationOpened {
-                conversation_id: conversation_id.to_string(),
-                opened_from: OpenedFrom::ConversationList,
-            },
-            ctx
-        );
+    fn send_open_telemetry(id: &AgentConversationEntryId, _ctx: &mut ViewContext<Self>) {
+        let AgentConversationEntryId::Conversation(_conversation_id) = id;
     }
 
     /// Activate the currently selected item by dispatching the appropriate WorkspaceAction

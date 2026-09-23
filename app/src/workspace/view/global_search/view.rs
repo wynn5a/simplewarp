@@ -11,7 +11,6 @@ use pathfinder_geometry::vector::vec2f;
 use remote_server::HostId;
 use string_offset::{ByteOffset, CharCounter};
 use warp_core::r#async::debounce;
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::Icon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
@@ -40,7 +39,6 @@ use warpui::{
     ViewHandle, WeakViewHandle,
 };
 
-use crate::TelemetryEvent;
 use crate::code::icon_from_file_path;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::editor::{
@@ -936,8 +934,6 @@ impl GlobalSearchView {
                 search_id,
                 remote_host_count,
             } => {
-                send_telemetry_from_ctx!(TelemetryEvent::GlobalSearchQueryStarted, ctx);
-
                 self.current_search_id = Some(*search_id);
                 self.search_started_at = Some(Instant::now());
                 self.active_search_remote_host_count = *remote_host_count;
@@ -972,8 +968,8 @@ impl GlobalSearchView {
                 search_id,
                 total_match_count,
                 capped,
-                local_source_failed,
-                remote_source_failures,
+                local_source_failed: _,
+                remote_source_failures: _,
             } => {
                 if Some(*search_id) != self.current_search_id {
                     return;
@@ -983,19 +979,7 @@ impl GlobalSearchView {
                 self.total_match_count = *total_match_count;
                 self.capped_matches |= capped;
 
-                if let Some(started_at) = self.search_started_at.take() {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::GlobalSearchQueryCompleted {
-                            duration_ms: started_at.elapsed().as_millis() as u64,
-                            remote_host_count: self.active_search_remote_host_count,
-                            total_match_count: *total_match_count,
-                            capped: self.capped_matches,
-                            local_source_failed: *local_source_failed,
-                            remote_source_failures: *remote_source_failures,
-                        },
-                        ctx
-                    );
-                }
+                if let Some(_started_at) = self.search_started_at.take() {}
                 ctx.notify();
             }
             GlobalSearchEvent::Failed { search_id, error } => {

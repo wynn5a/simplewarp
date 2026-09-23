@@ -13,7 +13,6 @@ pub use data_source::*;
 pub use mixer::{SlashCommandMixer, build_slash_command_mixer, slash_command_query};
 pub use view::{CloseReason, InlineSlashCommandView, SlashCommandsEvent};
 use warp_core::features::FeatureFlag;
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::AnsiColorIdentifier;
 use warp_errors::report_error;
@@ -22,7 +21,6 @@ use warp_util::path::{CleanPathResult, LineAndColumnArg};
 use warpui::clipboard::ClipboardContent;
 use warpui::{AppContext, SingletonEntity, ViewContext};
 
-use crate::TelemetryEvent;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::agent_view::{
     AgentViewEntryOrigin, DismissalStrategy, ENTER_OR_EXIT_CONFIRMATION_WINDOW, EphemeralMessage,
@@ -38,7 +36,6 @@ use crate::search::slash_command_menu::static_commands::commands::COMMAND_REGIST
 use crate::search::slash_command_menu::static_commands::{Availability, SlashCommandKind};
 use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
 use crate::server::ids::SyncId;
-use crate::server::telemetry::SlashCommandAcceptedDetails;
 use crate::settings::AISettings;
 use crate::tab::SelectedTabColor;
 use crate::terminal::input::decorations::InputBackgroundJobOptions;
@@ -115,31 +112,14 @@ pub fn should_close_slash_command_menu_for_exact_match(
 
 /// Records a static slash command accepted from either the GUI or TUI surface.
 pub fn record_static_slash_command_accepted(
-    command_name: &str,
-    is_in_agent_view: bool,
-    ctx: &mut AppContext,
+    _command_name: &str,
+    _is_in_agent_view: bool,
+    _ctx: &mut AppContext,
 ) {
-    send_telemetry_from_ctx!(
-        TelemetryEvent::SlashCommandAccepted {
-            command_details: SlashCommandAcceptedDetails::StaticCommand {
-                command_name: command_name.to_owned(),
-            },
-            is_in_agent_view,
-        },
-        ctx
-    );
 }
 
 /// Records a saved prompt accepted from either the GUI or TUI slash menu.
-pub fn record_saved_prompt_accepted(is_in_agent_view: bool, ctx: &mut AppContext) {
-    send_telemetry_from_ctx!(
-        TelemetryEvent::SlashCommandAccepted {
-            command_details: SlashCommandAcceptedDetails::SavedPrompt,
-            is_in_agent_view,
-        },
-        ctx
-    );
-}
+pub fn record_saved_prompt_accepted(_is_in_agent_view: bool, _ctx: &mut AppContext) {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum SlashCommandTrigger {

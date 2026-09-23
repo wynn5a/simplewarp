@@ -18,18 +18,14 @@ use warpui::{
     ViewHandle,
 };
 
-use crate::cloud_object::CloudObject;
-use crate::cloud_object::model::persistence::CloudModel;
 use crate::editor::{
     EditOrigin, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions, TextOptions, ValidInputType,
 };
 use crate::server::ids::SyncId;
-use crate::server::telemetry::TelemetrySpace;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::workflows::aliases::{WorkflowAlias, WorkflowAliases};
-use crate::{TelemetryEvent, send_telemetry_from_ctx};
 
 /// Width of the alias name editor.
 const ALIAS_EDITOR_WIDTH: f32 = 100.;
@@ -125,12 +121,6 @@ impl AliasBar {
         }
     }
 
-    /// The current workflow's space for telemetry events.
-    fn workflow_space(&self, app: &AppContext) -> Option<TelemetrySpace> {
-        let workflow = CloudModel::as_ref(app).get_workflow(&self.workflow_id)?;
-        Some(workflow.space(app).into())
-    }
-
     fn mark_dirty(&mut self, is_dirty: bool, ctx: &mut ViewContext<Self>) {
         self.is_dirty = is_dirty;
         ctx.emit(AliasBarEvent::AliasesUpdated);
@@ -185,14 +175,6 @@ impl AliasBar {
             }
 
             self.mark_dirty(true, ctx);
-
-            send_telemetry_from_ctx!(
-                TelemetryEvent::WorkflowAliasArgumentEdited {
-                    workflow_id: self.workflow_id.into_server().map(Into::into),
-                    workflow_space: self.workflow_space(ctx)
-                },
-                ctx
-            );
         }
     }
 
@@ -205,21 +187,6 @@ impl AliasBar {
         {
             alias.env_vars = sync_id;
             self.mark_dirty(true, ctx);
-
-            let env_vars_space = sync_id
-                .and_then(|id| CloudModel::as_ref(ctx).get_env_var_collection(&id))
-                .map(|env_vars| env_vars.space(ctx))
-                .map(Into::into);
-
-            send_telemetry_from_ctx!(
-                TelemetryEvent::WorkflowAliasEnvVarsAttached {
-                    workflow_id: self.workflow_id.into_server().map(Into::into),
-                    workflow_space: self.workflow_space(ctx),
-                    env_vars_id: sync_id.and_then(|id| id.into_server()).map(Into::into),
-                    env_vars_space,
-                },
-                ctx
-            );
         }
     }
 
@@ -298,14 +265,6 @@ impl AliasBar {
         self.is_dirty = true;
         ctx.emit(AliasBarEvent::AliasesUpdated);
         ctx.notify();
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::WorkflowAliasAdded {
-                workflow_id: self.workflow_id.into_server().map(Into::into),
-                workflow_space: self.workflow_space(ctx),
-            },
-            ctx
-        );
     }
 
     fn remove_alias(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
@@ -329,14 +288,6 @@ impl AliasBar {
         self.is_dirty = true;
         ctx.emit(AliasBarEvent::AliasesUpdated);
         ctx.notify();
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::WorkflowAliasRemoved {
-                workflow_id: self.workflow_id.into_server().map(Into::into),
-                workflow_space: self.workflow_space(ctx),
-            },
-            ctx
-        );
     }
 
     fn rename_alias(&mut self, index: usize, ctx: &mut ViewContext<Self>) {

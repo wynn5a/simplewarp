@@ -3,8 +3,6 @@ use warpui::{Entity, ModelContext};
 
 use super::utils::{FormattedTranscriptMessage, TranscriptPart, markdown_segments_from_text};
 use crate::ai_assistant::utils::{AssistantTranscriptPart, TranscriptPartSubType};
-use crate::send_telemetry_from_ctx;
-use crate::server::telemetry::{TelemetryEvent, WarpAIRequestResult};
 
 #[derive(Default)]
 pub struct Requests {
@@ -65,13 +63,6 @@ impl Requests {
                 },
             },
         });
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::WarpAIRequestIssued {
-                result: WarpAIRequestResult::Failed
-            },
-            ctx
-        );
 
         ctx.emit(Event::RequestFinished { succeeded: false });
         ctx.notify();

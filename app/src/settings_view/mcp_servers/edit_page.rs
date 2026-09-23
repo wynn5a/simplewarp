@@ -11,7 +11,6 @@ use parking_lot::Mutex;
 use pathfinder_geometry::vector::vec2f;
 use settings::Setting as _;
 use uuid::Uuid;
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warp_editor::content::buffer::InitialBufferState;
@@ -43,7 +42,6 @@ use crate::code::editor::view::{CodeEditorRenderOptions, CodeEditorView};
 use crate::persistence::ModelEvent;
 #[cfg(feature = "local_fs")]
 use crate::persistence::{database_file_path_for_current_scope, establish_ro_connection};
-use crate::server::telemetry::{MCPTemplateCreationSource, TelemetryEvent};
 use crate::settings_view::mcp_servers::destructive_mcp_confirmation_dialog::{
     DestructiveMCPConfirmationDialog, DestructiveMCPConfirmationDialogEvent,
     DestructiveMCPConfirmationDialogVariant,
@@ -945,14 +943,6 @@ impl TypedActionView for MCPServersEditPageView {
                                     );
                                 }
                             },
-                        );
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::MCPTemplateCreated {
-                                source: MCPTemplateCreationSource::Json,
-                                variables: parsed_server.templatable_mcp_server.template.variables,
-                                name: parsed_server.templatable_mcp_server.name,
-                            },
-                            ctx
                         );
                     }
 

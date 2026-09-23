@@ -59,7 +59,6 @@ use crate::pane_group::{
 use crate::quit_warning::UnsavedStateSummary;
 use crate::search::ItemHighlightState;
 use crate::search::files::icon::icon_from_file_path;
-use crate::server::telemetry::CodeContextDestination;
 use crate::settings::CodeSettings;
 use crate::tab::TAB_BAR_BORDER_HEIGHT;
 use crate::ui_components::blended_colors;
@@ -67,7 +66,6 @@ use crate::ui_components::buttons::icon_button;
 use crate::util::path::{display_name_with_host, display_path_with_host};
 use crate::view_components::{DismissibleToast, MarkdownToggleEvent, MarkdownToggleView};
 use crate::workspace::{ActiveSession, TabBarDropTargetData, ToastStack, WorkspaceAction};
-use crate::{TelemetryEvent, send_telemetry_from_ctx};
 
 type SaveCallback =
     Box<dyn FnOnce(SaveOutcome, &mut CodeView, &mut ViewContext<CodeView>) + Send + Sync + 'static>;
@@ -355,7 +353,6 @@ impl CodeView {
             self.set_title_after_content_update(ctx);
             self.update_tab_bar_state(ctx);
             self.focus_contents(ctx);
-            send_telemetry_from_ctx!(TelemetryEvent::PreviewPanePromoted, ctx);
             ctx.notify();
         }
     }
@@ -1053,12 +1050,6 @@ impl CodeView {
         ctx: &mut ViewContext<Self>,
     ) {
         // Otherwise insert the location snippet into the input buffer (original behavior).
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CodeSelectionAddedAsContext {
-                destination: CodeContextDestination::AgentInput,
-            },
-            ctx
-        );
         ctx.dispatch_typed_action(&WorkspaceAction::InsertInInput {
             content: format!("{file_path}:{start_line}-{end_line} "),
             replace_buffer: false,

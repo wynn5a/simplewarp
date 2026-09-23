@@ -42,6 +42,7 @@ use super::settings_page::{
     render_settings_info_banner,
 };
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
+use crate::UserWorkspaces;
 use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::model_menu_items::available_model_menu_items;
@@ -60,7 +61,6 @@ use crate::cloud_object::GenericStringObjectFormat::Json;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{JsonObjectType, ObjectType};
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions};
-use crate::server::telemetry::AutonomySettingToggleSource;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, AgentModeCodingPermissionsType,
     AgentModeCommandExecutionDenylist, AgentModeCommandExecutionPredicate, CodeSettings,
@@ -76,7 +76,6 @@ use crate::view_components::{
     render_warning_box,
 };
 use crate::workspaces::user_workspaces::UserWorkspacesEvent;
-use crate::{TelemetryEvent, UserWorkspaces, send_telemetry_from_ctx};
 
 const AI_SETTINGS_DROPDOWN_WIDTH: f32 = 250.;
 const AI_SETTINGS_DROPDOWN_MAX_HEIGHT: f32 = 250.;
@@ -1457,14 +1456,7 @@ impl TypedActionView for AgentProfilesPageView {
                 match CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
                     settings.codebase_context_enabled.toggle_and_save_value(ctx)
                 }) {
-                    Ok(new_value) => {
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::ToggleCodebaseContext {
-                                is_codebase_context_enabled: new_value
-                            },
-                            ctx
-                        );
-                    }
+                    Ok(_new_value) => {}
                     Err(e) => {
                         log::warn!("Failed to set value for Codebase Context: {e:?}");
                     }
@@ -1547,14 +1539,7 @@ impl TypedActionView for AgentProfilesPageView {
                         readonly_cmd_execution_enabled,
                         ctx,
                     ) {
-                        Ok(_) => {
-                            send_telemetry_from_ctx!(
-                                TelemetryEvent::ToggledAgentModeAutoexecuteReadonlyCommandsSetting {
-                                    src: AutonomySettingToggleSource::SettingsPage,
-                                    enabled: readonly_cmd_execution_enabled,
-                                },
-                                ctx);
-                        }
+                        Ok(_) => {}
                         Err(e) => report_error!(e),
                     }
                 });
@@ -1562,15 +1547,7 @@ impl TypedActionView for AgentProfilesPageView {
             AgentProfilesPageAction::SetCodingPermission(p) => {
                 BlocklistAIPermissions::handle(ctx).update(ctx, |model, ctx| {
                     match model.set_coding_permissions(*p, ctx) {
-                        Ok(_) => {
-                            send_telemetry_from_ctx!(
-                                TelemetryEvent::ChangedAgentModeCodingPermissions {
-                                    src: AutonomySettingToggleSource::SettingsPage,
-                                    new: *p,
-                                },
-                                ctx
-                            );
-                        }
+                        Ok(_) => {}
                         Err(e) => report_error!(e),
                     }
                 });

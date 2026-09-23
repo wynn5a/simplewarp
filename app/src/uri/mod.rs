@@ -27,7 +27,7 @@ use crate::launch_configs::launch_config::LaunchConfig;
 use crate::linear::{LinearAction, LinearIssueWork};
 use crate::root_view::{OpenLaunchConfigArg, open_new_window_get_handles};
 use crate::server::ids::ServerId;
-use crate::server::telemetry::{LaunchConfigUiLocation, TelemetryEvent};
+use crate::server::telemetry::LaunchConfigUiLocation;
 use crate::settings_view::{SettingsSection, settings_widget_deeplink_target};
 use crate::tab_configs::TabConfig;
 use crate::user_config::{load_launch_configs, load_tab_configs, tab_configs_dir};
@@ -40,10 +40,7 @@ use crate::workspace::util::PaneViewLocator;
 use crate::workspace::{
     ToastStack, Workspace, WorkspaceAction, WorkspaceRegistry, active_terminal_in_window,
 };
-use crate::{
-    ChannelState, OpenPath, quake_mode_window_id, quake_mode_window_is_open, safe_info,
-    send_telemetry_from_app_ctx,
-};
+use crate::{ChannelState, OpenPath, quake_mode_window_id, quake_mode_window_is_open, safe_info};
 
 const DESKTOP_REDIRECT_URI_PATH: &str = "/desktop_redirect";
 
@@ -1165,8 +1162,6 @@ fn open_file(window_id: Option<WindowId>, path: PathBuf, ctx: &mut AppContext) {
                 }
             }
         }
-
-        send_telemetry_from_app_ctx!(TelemetryEvent::OpenNewSessionFromFilePath, ctx);
     }
 }
 
@@ -1231,8 +1226,6 @@ fn execute_file(window_id: WindowId, path_str: &str, ctx: &mut AppContext) {
             input.set_pending_command(&path_str, i_ctx);
         })
     });
-
-    send_telemetry_from_app_ctx!(TelemetryEvent::CommandFileRun, ctx);
 }
 
 /// Helper function to dispatch an action to an existing window

@@ -43,7 +43,6 @@ pub mod repositories;
 pub mod repository;
 pub mod repository_identifier;
 pub mod standing_queries;
-mod telemetry;
 pub mod watcher;
 pub mod wrapper_model;
 

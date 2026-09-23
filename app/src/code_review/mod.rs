@@ -13,8 +13,6 @@ mod git_repo_models;
 pub mod github_repo_model;
 mod hidden_lines;
 pub mod telemetry_event;
-#[cfg_attr(not(feature = "local_fs"), allow(unused_imports))]
-pub use telemetry_event::CodeReviewTelemetryEvent;
 
 pub(crate) mod code_review_header;
 pub(crate) mod comment_rendering;

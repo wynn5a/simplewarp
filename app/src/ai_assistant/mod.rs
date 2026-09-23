@@ -6,7 +6,6 @@ use lazy_static::lazy_static;
 use pathfinder_color::ColorU;
 use warp_core::command::ExitCode;
 
-use crate::server::telemetry::OpenedWarpAISource;
 use crate::terminal::model::terminal_model::BlockIndex;
 
 pub mod execution_context;
@@ -56,16 +55,4 @@ pub enum AskAIType {
     FromAICommandSearch {
         query: Arc<String>,
     },
-}
-
-impl From<&AskAIType> for OpenedWarpAISource {
-    fn from(value: &AskAIType) -> Self {
-        match value {
-            AskAIType::FromAICommandSearch { .. } => OpenedWarpAISource::FromAICommandSearch,
-            AskAIType::FromBlock { .. } | AskAIType::FromBlocks { .. } => {
-                OpenedWarpAISource::HelpWithBlock
-            }
-            AskAIType::FromTextSelection { .. } => OpenedWarpAISource::HelpWithTextSelection,
-        }
-    }
 }

@@ -35,6 +35,7 @@ use warpui::{
 
 use super::command_parser::WorkflowCommandDisplayData;
 use super::{CloudWorkflowModel, WorkflowSource, WorkflowType, WorkflowViewMode};
+use crate::FeatureFlag;
 use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::appearance::Appearance;
 use crate::cloud_object::breadcrumbs::ContainingObject;
@@ -69,9 +70,7 @@ use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
 use crate::server::ids::{ClientId, SyncId};
-use crate::server::telemetry::{
-    CloudObjectTelemetryMetadata, TelemetryCloudObjectType, TelemetryEvent,
-};
+use crate::server::telemetry::{CloudObjectTelemetryMetadata, TelemetryCloudObjectType};
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
@@ -88,7 +87,6 @@ use crate::view_components::{DismissibleToast, ToastType};
 use crate::workflows::CloudWorkflow;
 use crate::workflows::workflow::{Argument, Workflow};
 use crate::workspace::ToastStack;
-use crate::{FeatureFlag, send_telemetry_from_ctx};
 
 mod alias_argument_selector;
 mod alias_bar;
@@ -2709,21 +2707,11 @@ impl TypedActionView for WorkflowView {
             WorkflowAction::CopyContent => self.copy_content(ctx),
             WorkflowAction::Duplicate => self.duplicate_object(ctx),
             WorkflowAction::CopyLink(link) => {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::ObjectLinkCopied { link: link.clone() },
-                    ctx
-                );
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(link.to_owned()));
             }
             #[cfg(target_family = "wasm")]
             WorkflowAction::OpenLinkOnDesktop(url) => {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::WebCloudObjectOpenedOnDesktop {
-                        object_metadata: self.telemetry_metadata(ctx)
-                    },
-                    ctx
-                );
                 open_url_on_desktop(url);
             }
             #[cfg(not(target_family = "wasm"))]

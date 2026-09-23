@@ -8,14 +8,12 @@ use anyhow::Context;
 pub use driver::AgentDriver;
 use driver::AgentDriverError;
 pub(crate) use driver::harness::{task_env_vars, validate_cli_installed};
-use telemetry::CliTelemetryEvent;
 use tracing::Instrument as _;
 use warp_cli::agent::{
     AgentCommand, AgentProfileCommand, Harness, OutputFormat, Prompt, RunAgentArgs,
 };
 use warp_cli::mcp::MCPCommand;
 use warp_cli::model::ModelCommand;
-use warp_cli::provider::ProviderCommand;
 use warp_cli::share::ShareRequest;
 use warp_cli::{CliCommand, GlobalOptions};
 use warp_core::features::FeatureFlag;
@@ -40,7 +38,6 @@ use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::cloud_object::CloudObjectLookup as _;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::send_telemetry_sync_from_app_ctx;
 use crate::server::ids::{ServerId, SyncId};
 use crate::workflows::workflow::Workflow;
 
@@ -57,7 +54,6 @@ pub mod output;
 mod profiles;
 mod provider;
 pub(crate) mod setup_observability;
-mod telemetry;
 
 /// Run a Warp CLI command.
 #[tracing::instrument(name = "agent_sdk::run", skip_all, err, fields(tags.cloud_agent = true))]
@@ -66,9 +62,6 @@ pub fn run(
     command: CliCommand,
     global_options: GlobalOptions,
 ) -> anyhow::Result<()> {
-    let event = command_to_telemetry_event(&command);
-    send_telemetry_sync_from_app_ctx!(event, ctx);
-
     launch_command(ctx, command, global_options)
 }
 
@@ -678,27 +671,6 @@ fn report_fatal_error(err: anyhow::Error, ctx: &mut AppContext) {
 
     let error = anyhow::anyhow!(message);
     ctx.terminate_app(TerminationMode::ForceTerminate, Some(Err(error)));
-}
-
-/// Map each CLI command into a telemetry event to emit when it's executed.
-fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
-    match command {
-        CliCommand::Agent(AgentCommand::Run(args)) => CliTelemetryEvent::AgentRun {
-            gui: args.gui,
-            requested_mcp_servers: args.mcp_specs.len() + args.mcp_servers.len(),
-            has_environment: args.environment.is_some(),
-            harness: args.harness.to_string(),
-        },
-        CliCommand::Agent(AgentCommand::Profile(sub)) => match sub {
-            AgentProfileCommand::List => CliTelemetryEvent::AgentProfileList,
-        },
-        CliCommand::MCP(MCPCommand::List) => CliTelemetryEvent::MCPList,
-        CliCommand::Model(ModelCommand::List) => CliTelemetryEvent::ModelList,
-        CliCommand::Logout => CliTelemetryEvent::Logout,
-        CliCommand::Whoami => CliTelemetryEvent::Whoami,
-        CliCommand::Provider(ProviderCommand::Setup(_)) => CliTelemetryEvent::ProviderSetup,
-        CliCommand::Provider(ProviderCommand::List) => CliTelemetryEvent::ProviderList,
-    }
 }
 
 #[cfg(test)]

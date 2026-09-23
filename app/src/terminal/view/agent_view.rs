@@ -1,11 +1,9 @@
 use warp_core::features::FeatureFlag;
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
 use warp_errors::report_error;
 use warpui::keymap::Keystroke;
 use warpui::{EntityId, SingletonEntity, ViewContext};
 
-use crate::TelemetryEvent;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::blocklist::agent_view::{
@@ -16,7 +14,6 @@ use crate::ai::blocklist::agent_view::{
 use crate::ai::blocklist::history_model::CloudConversationData;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
 use crate::persistence::ModelEvent;
-use crate::server::telemetry::TelemetryAgentViewEntryOrigin;
 use crate::terminal::TerminalView;
 use crate::terminal::input::message_bar::{Message, MessageItem};
 use crate::terminal::model::rich_content::RichContentType;
@@ -246,7 +243,6 @@ impl TerminalView {
             }
         }
 
-        let mut did_auto_trigger_request = false;
         // Show ephemeral message when entering agent view via input with a prompt
         if let Some(initial_prompt) = initial_prompt {
             let should_auto_submit = match origin.should_autotrigger_request() {
@@ -273,7 +269,6 @@ impl TerminalView {
                         ctx,
                     );
                 });
-                did_auto_trigger_request = true;
             } else {
                 let appearance = Appearance::handle(ctx).as_ref(ctx);
                 let message = Message::new(vec![
@@ -302,14 +297,6 @@ impl TerminalView {
                 });
             }
         }
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AgentViewEntered {
-                origin: TelemetryAgentViewEntryOrigin::from(origin),
-                did_auto_trigger_request,
-            },
-            ctx
-        );
 
         // Mark all AgentViewEntry rich content as dirty so their heights get
         // re-measured. When the agent view is active, AgentViewEntryBlock renders

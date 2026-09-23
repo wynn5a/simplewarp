@@ -28,8 +28,6 @@ use super::settings_page::{
 };
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
 use crate::appearance::Appearance;
-use crate::send_telemetry_from_ctx;
-use crate::server::telemetry::TelemetryEvent;
 use crate::settings::{ReuseExistingSshControlMaster, SshSettings};
 use crate::terminal::warpify::settings::{
     EnableSshWarpification, SshExtensionInstallMode, SshExtensionInstallModeSetting,
@@ -215,8 +213,6 @@ impl WarpifyPageView {
                 WarpifySettings::handle(ctx).update(ctx, |warpify_settings, ctx| {
                     warpify_settings.add_subshell_command(new_command, ctx);
                 });
-
-                send_telemetry_from_ctx!(TelemetryEvent::AddAddedSubshellCommand, ctx);
             }
             SubmittableTextInputEvent::Escape => ctx.emit(SettingsPageEvent::FocusModal),
         }
@@ -233,22 +229,18 @@ impl WarpifyPageView {
                 WarpifySettings::handle(ctx).update(ctx, |warpify_settings, ctx| {
                     warpify_settings.denylist_subshell_command(new_command, ctx);
                 });
-
-                send_telemetry_from_ctx!(TelemetryEvent::AddDenylistedSubshellCommand, ctx);
             }
             SubmittableTextInputEvent::Escape => ctx.emit(SettingsPageEvent::FocusModal),
         }
     }
 
     fn remove_denylisted_command(&self, index: usize, ctx: &mut ViewContext<Self>) {
-        send_telemetry_from_ctx!(TelemetryEvent::RemoveDenylistedSubshellCommand, ctx);
         WarpifySettings::handle(ctx).update(ctx, |warpify, ctx| {
             warpify.remove_denylisted_subshell_command(index, ctx)
         });
     }
 
     fn remove_added_command(&self, index: usize, ctx: &mut ViewContext<Self>) {
-        send_telemetry_from_ctx!(TelemetryEvent::RemoveAddedSubshellCommand, ctx);
         WarpifySettings::handle(ctx).update(ctx, |warpify, ctx| {
             warpify.remove_added_subshell_command(index, ctx)
         });
@@ -390,12 +382,6 @@ impl TypedActionView for WarpifyPageView {
                             .enable_ssh_warpification
                             .toggle_and_save_value(ctx)
                     );
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::ToggleSshWarpification {
-                            enabled: *ssh_settings.enable_ssh_warpification.value(),
-                        },
-                        ctx
-                    );
                 });
                 let enabled = *WarpifySettings::as_ref(ctx)
                     .enable_ssh_warpification
@@ -416,16 +402,6 @@ impl TypedActionView for WarpifyPageView {
                             .reuse_existing_control_master
                             .toggle_and_save_value(ctx)
                     );
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::FeaturesPageAction {
-                            action: "ToggleSshReuseControlMaster".to_string(),
-                            value: ssh_settings
-                                .reuse_existing_control_master
-                                .value()
-                                .to_string(),
-                        },
-                        ctx
-                    );
                 });
             }
             SetSshExtensionInstallMode(mode) => {
@@ -434,12 +410,6 @@ impl TypedActionView for WarpifyPageView {
                         warpify_settings
                             .ssh_extension_install_mode
                             .set_value(*mode, ctx)
-                    );
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::SetSshExtensionInstallMode {
-                            mode: mode.display_name(),
-                        },
-                        ctx
                     );
                 });
             }

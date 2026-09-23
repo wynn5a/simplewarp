@@ -1,5 +1,5 @@
 #[cfg(not(target_family = "wasm"))]
-use ai::agent::action_result::{RecordingStopped, StopRecordingResult};
+use ai::agent::action_result::StopRecordingResult;
 use futures::FutureExt;
 use futures::future::BoxFuture;
 #[cfg(not(target_family = "wasm"))]
@@ -14,15 +14,11 @@ use crate::ai::{
     blocklist::{
         BlocklistAIHistoryModel,
         action_model::{
-            RecordingTelemetryEvent,
             recording_controller::{RecordingController, StopRecordingControllerError},
             recording_finalize::{FinalizeReason, finalize_recording_by_id},
         },
     },
 };
-#[cfg(not(target_family = "wasm"))]
-use crate::send_telemetry_from_ctx;
-
 pub struct StopRecordingExecutor;
 
 impl StopRecordingExecutor {
@@ -114,14 +110,10 @@ impl StopRecordingExecutor {
             // finalization continues and retains its result for a later stop.
             ActionExecution::new_async(
                 async move { finalization.resolve().await },
-                move |(result, actual_reason), ctx| {
+                move |(result, _actual_reason), ctx| {
                     RecordingController::handle(ctx).update(ctx, |controller, _| {
                         controller.consume_finalized(&recording_id);
                     });
-                    send_telemetry_from_ctx!(
-                        recording_stopped_telemetry(&recording_id, actual_reason, &result),
-                        ctx
-                    );
                     AIAgentActionResultType::StopRecording(result)
                 },
             )
@@ -141,63 +133,3 @@ impl StopRecordingExecutor {
 impl Entity for StopRecordingExecutor {
     type Event = ();
 }
-
-/// Builds the `Recording.Stopped` telemetry event from a resolved
-/// [`StopRecordingResult`] and the *actual* [`FinalizeReason`] that drove
-/// finalization to completion (as reported by the controller through
-/// [`RecordingFinalization::resolve`]).
-///
-/// `outcome` is `"success"` only when an artifact was published; deliberate
-/// discards and cancellations map to `"cancelled"`, and errors to `"error"`.
-/// The `termination_reason` key comes directly from the actual `reason`, so a
-/// stop action that only joined an in-progress finalization reports the
-/// trigger that actually ran (e.g. `limit_reached`, `run_ended`) rather than
-/// its own claimed reason.
-///
-/// [`RecordingFinalization::resolve`]: super::super::recording_finalize::RecordingFinalization::resolve
-#[cfg(not(target_family = "wasm"))]
-fn recording_stopped_telemetry(
-    recording_id: &str,
-    reason: FinalizeReason,
-    result: &StopRecordingResult,
-) -> RecordingTelemetryEvent {
-    let termination_reason = reason.telemetry_key().to_string();
-    match result {
-        StopRecordingResult::Success(RecordingStopped {
-            duration,
-            size_bytes,
-            ..
-        }) => RecordingTelemetryEvent::Stopped {
-            recording_id: recording_id.to_string(),
-            outcome: "success".to_string(),
-            duration_secs: Some(duration.as_secs_f64()),
-            size_bytes: Some(*size_bytes),
-            termination_reason,
-        },
-        StopRecordingResult::Discarded => RecordingTelemetryEvent::Stopped {
-            recording_id: recording_id.to_string(),
-            outcome: "cancelled".to_string(),
-            duration_secs: None,
-            size_bytes: None,
-            termination_reason,
-        },
-        StopRecordingResult::Cancelled => RecordingTelemetryEvent::Stopped {
-            recording_id: recording_id.to_string(),
-            outcome: "cancelled".to_string(),
-            duration_secs: None,
-            size_bytes: None,
-            termination_reason,
-        },
-        StopRecordingResult::Error(_) => RecordingTelemetryEvent::Stopped {
-            recording_id: recording_id.to_string(),
-            outcome: "error".to_string(),
-            duration_secs: None,
-            size_bytes: None,
-            termination_reason,
-        },
-    }
-}
-
-#[cfg(all(test, not(target_family = "wasm")))]
-#[path = "stop_recording_tests.rs"]
-mod tests;

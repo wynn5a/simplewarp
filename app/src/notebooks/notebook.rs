@@ -49,6 +49,7 @@ use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
 use crate::cloud_object::model::view::{Editor, EditorState};
 use crate::cloud_object::{CloudObject, ObjectType, OpenWarpDriveObjectSettings, Owner, Space};
+use crate::cmd_or_ctrl_shift;
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_notebook_limit;
 use crate::drive::export::ExportManager;
@@ -66,10 +67,7 @@ use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
-use crate::server::telemetry::{
-    CloudObjectTelemetryMetadata, NotebookActionEvent, NotebookTelemetryMetadata,
-    TelemetryCloudObjectType, TelemetryEvent,
-};
+use crate::server::telemetry::{CloudObjectTelemetryMetadata, TelemetryCloudObjectType};
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
@@ -87,7 +85,6 @@ use crate::view_components::{DismissibleToast, ToastType};
 use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ToastStack;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{cmd_or_ctrl_shift, send_telemetry_from_ctx};
 
 mod details_bar;
 
@@ -110,8 +107,6 @@ const SAVE_PERIOD: Duration = Duration::from_secs(2);
 /// Markdown) for it to be considered "meaningful". We're likely going to tune this over time:
 /// * By refining the threshold
 /// * By using a more advanced diff algorithm
-const MEANINGFUL_EDIT_THRESHOLD: usize = 30;
-
 #[cfg(not(test))]
 const EDIT_WINDOW_DURATION: Duration = Duration::from_secs(60);
 // Use a shorter window to make testing reasonable.
@@ -788,17 +783,9 @@ impl NotebookView {
 
         if self.send_edit_telemetry {
             let content = self.content(ctx);
-            let delta = content.len().abs_diff(self.last_content_length);
+            let _delta = content.len().abs_diff(self.last_content_length);
             self.last_content_length = content.len();
             self.send_edit_telemetry = false;
-
-            send_telemetry_from_ctx!(
-                TelemetryEvent::EditNotebook {
-                    metadata: self.telemetry_metadata(ctx),
-                    meaningful_change: delta > MEANINGFUL_EDIT_THRESHOLD
-                },
-                ctx
-            );
         }
 
         // Schedule another check. If we stop editing in the meantime, either the mode check above
@@ -951,29 +938,6 @@ impl NotebookView {
         self.notebook_id(ctx)?.into_server().map(Into::into)
     }
 
-    /// The current notebook metadata for telemetry.
-    fn telemetry_metadata(&self, ctx: &ViewContext<Self>) -> NotebookTelemetryMetadata {
-        let active_notebook_data = self.active_notebook_data.as_ref(ctx);
-        let owner = active_notebook_data.owner(ctx);
-        let space = active_notebook_data.space(ctx);
-        NotebookTelemetryMetadata::new(
-            self.server_id(ctx),
-            owner.and_then(Into::into),
-            owner.map_or(NotebookLocation::PersonalCloud, Into::into),
-            space.map(Into::into),
-        )
-    }
-
-    fn open_telemetry_metadata(&self, ctx: &ViewContext<Self>) -> NotebookTelemetryMetadata {
-        self.telemetry_metadata(ctx).with_markdown_table_count(
-            self.input
-                .as_ref(ctx)
-                .model()
-                .as_ref(ctx)
-                .markdown_table_count(ctx),
-        )
-    }
-
     #[cfg_attr(not(target_family = "wasm"), allow(dead_code))]
     fn generic_telemetry_metadata(&self, ctx: &ViewContext<Self>) -> CloudObjectTelemetryMetadata {
         let notebook_data = self.active_notebook_data.as_ref(ctx);
@@ -986,14 +950,11 @@ impl NotebookView {
     }
 
     /// Send a [`NotebookTelemetryAction`] telemetry event.
-    fn send_telemetry_action(&self, action: NotebookTelemetryAction, ctx: &mut ViewContext<Self>) {
-        send_telemetry_from_ctx!(
-            TelemetryEvent::NotebookAction(NotebookActionEvent {
-                action,
-                metadata: self.telemetry_metadata(ctx)
-            }),
-            ctx
-        );
+    fn send_telemetry_action(
+        &self,
+        _action: NotebookTelemetryAction,
+        _ctx: &mut ViewContext<Self>,
+    ) {
     }
 
     /// Puts the nodebook into edit mode and focuses the editor. The caller is responsible for
@@ -1371,11 +1332,6 @@ impl NotebookView {
             // owner-based.
             editor.set_space(notebook.space(ctx), ctx);
         });
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::OpenNotebook(self.open_telemetry_metadata(ctx)),
-            ctx
-        );
 
         self.update_breadcrumbs(ctx);
 
@@ -1882,10 +1838,6 @@ impl TypedActionView for NotebookView {
             NotebookAction::CopyToPersonal => self.copy_to_personal(ctx),
             NotebookAction::CopyToClipboard => self.copy_notebook_contents_to_clipboard(ctx),
             NotebookAction::CopyLink(link) => {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::ObjectLinkCopied { link: link.clone() },
-                    ctx
-                );
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(link.to_owned()));
 
@@ -1900,12 +1852,6 @@ impl TypedActionView for NotebookView {
             }
             #[cfg(target_family = "wasm")]
             NotebookAction::OpenLinkOnDesktop(url) => {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::WebCloudObjectOpenedOnDesktop {
-                        object_metadata: self.generic_telemetry_metadata(ctx)
-                    },
-                    ctx
-                );
                 open_url_on_desktop(url);
             }
             #[cfg(not(target_family = "wasm"))]

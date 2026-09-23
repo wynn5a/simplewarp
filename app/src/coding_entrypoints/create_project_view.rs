@@ -1,4 +1,3 @@
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::icons::Icon;
 use warpui::elements::{
     ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Expanded, Fill, Flex,
@@ -11,8 +10,6 @@ use warpui::{
     ViewContext, ViewHandle,
 };
 
-use crate::TelemetryEvent;
-use crate::ai::blocklist::telemetry_banner::should_collect_ai_ugc_telemetry;
 use crate::appearance::Appearance;
 use crate::coding_entrypoints::glowing_editor::{GlowingEditor, GlowingEditorEvent};
 
@@ -23,7 +20,6 @@ const SUGGESTION_ITEM_PADDING: f32 = 12.;
 pub struct CreateProjectView {
     editor: ViewHandle<GlowingEditor>,
     suggestions: Vec<BuildSuggestion>,
-    is_ftux: bool,
 }
 
 struct BuildSuggestion {
@@ -32,7 +28,7 @@ struct BuildSuggestion {
 }
 
 impl CreateProjectView {
-    pub fn new(is_ftux: bool, ctx: &mut ViewContext<Self>) -> Self {
+    pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let editor =
             ctx.add_typed_action_view(|ctx| GlowingEditor::new("What do you want to build?", ctx));
 
@@ -66,34 +62,12 @@ impl CreateProjectView {
         Self {
             editor,
             suggestions,
-            is_ftux,
         }
     }
 
     fn handle_editor_event(&mut self, event: &GlowingEditorEvent, ctx: &mut ViewContext<Self>) {
         match event {
             GlowingEditorEvent::Submit(prompt) => {
-                // Always send metadata event for custom prompts
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::CreateProjectPromptSubmitted {
-                        is_custom_prompt: true,
-                        suggested_prompt: None,
-                        is_ftux: self.is_ftux,
-                    },
-                    ctx
-                );
-
-                // Send content event only if UGC collection is enabled
-                let should_collect_ugc = should_collect_ai_ugc_telemetry(ctx);
-                if should_collect_ugc {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::CreateProjectPromptSubmittedContent {
-                            custom_prompt: prompt.clone(),
-                        },
-                        ctx
-                    );
-                }
-
                 ctx.emit(CreateProjectEvent::SubmitPrompt(prompt.clone()));
             }
             GlowingEditorEvent::Cancel => {
@@ -187,14 +161,6 @@ impl TypedActionView for CreateProjectView {
         match action {
             CreateProjectAction::SuggestionSelected { prompt } => {
                 // Always send metadata event with suggested prompt content (non-UGC)
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::CreateProjectPromptSubmitted {
-                        is_custom_prompt: false,
-                        suggested_prompt: Some(prompt.clone()),
-                        is_ftux: self.is_ftux,
-                    },
-                    ctx
-                );
                 ctx.emit(CreateProjectEvent::SubmitPrompt(prompt.clone()));
             }
         }

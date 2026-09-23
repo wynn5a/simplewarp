@@ -6,8 +6,6 @@ use warpui::{Element, Entity, SingletonEntity, TypedActionView, View, ViewContex
 
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event, SingleLineEditorOptions, TextOptions};
-use crate::send_telemetry_from_ctx;
-use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 use crate::terminal::local_tty::shell::is_valid_path_or_command_for_supported_shell;
 use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
@@ -38,26 +36,6 @@ pub enum NewSessionShellAction {
     Set(AvailableShell),
     /// Displays the custom shell path editor.
     ShowCustomPathInput,
-}
-
-impl NewSessionShellAction {
-    /// Produces a [`TelemetryEvent`] that corresponds to this UI action.
-    ///
-    /// This tracks both high-level information about which shells users select
-    /// and when they switch to the custom path UI (so we can see if they're
-    /// trying to use a custom shell but are unable to).
-    fn telemetry_event(&self) -> TelemetryEvent {
-        match self {
-            NewSessionShellAction::Set(option) => TelemetryEvent::FeaturesPageAction {
-                action: "NewSessionShellOverride".to_string(),
-                value: option.telemetry_value(),
-            },
-            NewSessionShellAction::ShowCustomPathInput => TelemetryEvent::FeaturesPageAction {
-                action: "ShowCustomPathInput".to_string(),
-                value: String::new(),
-            },
-        }
-    }
 }
 
 impl StartupShellView {
@@ -265,6 +243,5 @@ impl TypedActionView for StartupShellView {
                 });
             }
         }
-        send_telemetry_from_ctx!(action.telemetry_event(), ctx);
     }
 }

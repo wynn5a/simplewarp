@@ -24,12 +24,10 @@ use warpui::{
 
 use crate::appearance::{Appearance, AppearanceManager};
 use crate::editor::{EditorView, Event as EditorEvent};
+#[cfg(feature = "local_fs")]
+use crate::themes::theme::CustomTheme;
 use crate::themes::theme::{InMemoryThemeOptions, ThemeKind};
 use crate::user_config;
-#[cfg(feature = "local_fs")]
-use crate::{
-    send_telemetry_from_ctx, server::telemetry::TelemetryEvent, themes::theme::CustomTheme,
-};
 
 const BUTTON_PADDING: f32 = 12.;
 const BUTTON_FONT_SIZE: f32 = 14.;
@@ -199,7 +197,6 @@ impl ThemeCreatorBody {
                         image_extension,
                     )),
                     |path| {
-                        send_telemetry_from_ctx!(TelemetryEvent::CreateCustomTheme, ctx);
                         ctx.emit(ThemeCreatorBodyEvent::SetCustomTheme {
                             theme: ThemeKind::Custom(CustomTheme::new(theme_name, path)),
                         });

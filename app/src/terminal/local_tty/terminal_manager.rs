@@ -34,8 +34,6 @@ use crate::context_chips::ContextChipKind;
 use crate::context_chips::prompt::Prompt;
 use crate::features::FeatureFlag;
 use crate::persistence::ModelEvent;
-use crate::send_telemetry_on_executor;
-use crate::server::telemetry::TelemetryEvent;
 use crate::settings::{DebugSettings, PrivacySettings, SshSettings};
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 use crate::terminal::color::List as ColorList;
@@ -948,8 +946,8 @@ pub fn get_shell_starter(
 
 fn get_shell_starter_internal(
     shell_starter_source: ShellStarterSource,
-    background_executor: Arc<Background>,
-    auth_state: &AuthState,
+    _background_executor: Arc<Background>,
+    _auth_state: &AuthState,
 ) -> ShellStarter {
     match shell_starter_source {
         ShellStarterSource::Override(shell_starter) => shell_starter,
@@ -960,15 +958,7 @@ fn get_shell_starter_internal(
             unsupported_shell,
             starter,
         } => {
-            if let Some(unsupported_shell) = unsupported_shell {
-                send_telemetry_on_executor!(
-                    auth_state,
-                    TelemetryEvent::UnsupportedShell {
-                        shell: unsupported_shell
-                    },
-                    background_executor
-                );
-            }
+            if let Some(_unsupported_shell) = unsupported_shell {}
 
             ShellStarter::Direct(starter)
         }

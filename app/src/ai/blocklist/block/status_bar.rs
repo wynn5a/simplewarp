@@ -26,6 +26,7 @@ use super::view_impl::common::{
     MaybeShimmeringText, WAITING_FOR_USER_INPUT_MESSAGE, WarpingIndicatorProps, WarpingProps,
     render_switch_control_to_user_button, render_warping_indicator, render_warping_indicator_base,
 };
+use crate::BlocklistAIHistoryModel;
 use crate::ai::AgentTip;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
@@ -47,7 +48,6 @@ use crate::ai::blocklist::{
     BlocklistAIInputModel, QueuedQueryEvent, QueuedQueryModel, ResponseStreamId, ai_brand_color,
 };
 use crate::ai::llms::LLMPreferences;
-use crate::server::telemetry::TelemetryEvent;
 use crate::settings::{InputModeSettings, InputSettings};
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::terminal::input::SET_INPUT_MODE_TERMINAL_ACTION_NAME;
@@ -62,7 +62,6 @@ use crate::terminal::{
     TOGGLE_HIDE_CLI_RESPONSES_KEYBINDING, TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING, TerminalModel,
 };
 use crate::util::bindings::keybinding_name_to_keystroke;
-use crate::{BlocklistAIHistoryModel, send_telemetry_from_app_ctx};
 
 pub fn init(app: &mut AppContext) {
     summarization_cancel_dialog::init(app);
@@ -691,14 +690,7 @@ impl BlocklistAIStatusBar {
             // Get the current tip from the model
             self.current_tip = tip_model.as_ref(ctx).current_tip().cloned();
 
-            if let Some(tip) = self.current_tip.as_ref() {
-                send_telemetry_from_app_ctx!(
-                    TelemetryEvent::AgentTipShown {
-                        tip: tip.description.clone()
-                    },
-                    ctx
-                );
-            }
+            if let Some(_tip) = self.current_tip.as_ref() {}
         } else {
             self.current_tip = None;
         }
@@ -875,7 +867,7 @@ fn render_agent_tip(tip: &AgentTip, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
 
-    let tip_description = tip.description.clone();
+    let _tip_description = tip.description.clone();
     let action_text = tip.action.clone().and_then(|action| action.display_text());
 
     let mut fragments = tip.to_formatted_text(app);
@@ -910,13 +902,6 @@ fn render_agent_tip(tip: &AgentTip, app: &AppContext) -> Box<dyn Element> {
         use warpui::elements::HyperlinkLens;
         match link {
             HyperlinkLens::Url(url) => {
-                send_telemetry_from_app_ctx!(
-                    TelemetryEvent::AgentTipClicked {
-                        tip: tip_description.clone(),
-                        click_target: url.to_string(),
-                    },
-                    app
-                );
                 app.open_url(url);
             }
             HyperlinkLens::Action(action_ref) => {
@@ -924,13 +909,6 @@ fn render_agent_tip(tip: &AgentTip, app: &AppContext) -> Box<dyn Element> {
                     .as_any()
                     .downcast_ref::<crate::workspace::WorkspaceAction>()
                 {
-                    send_telemetry_from_app_ctx!(
-                        TelemetryEvent::AgentTipClicked {
-                            tip: tip_description.clone(),
-                            click_target: action_text.clone().unwrap_or_default(),
-                        },
-                        app
-                    );
                     evt.dispatch_typed_action(action.clone());
                 }
             }

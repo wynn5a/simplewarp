@@ -44,6 +44,7 @@ use super::items::ai_fact_collection::WarpDriveAIFactCollection;
 use super::items::item::{ItemStates, WarpDriveRow, tools_panel_menu_direction};
 use super::items::mcp_server_collection::WarpDriveMCPServerCollection;
 use super::settings::WarpDriveSettings;
+use crate::ObjectActions;
 use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::ai::facts::{AIFact, AIMemory};
 use crate::appearance::Appearance;
@@ -67,7 +68,6 @@ use crate::network::NetworkStatus;
 use crate::notebooks::CloudNotebookModel;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, ObjectUid, ServerId, SyncId};
-use crate::server::telemetry::TelemetryEvent;
 use crate::settings::SharedObjectLimitBannerSettings;
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
@@ -84,7 +84,6 @@ use crate::workflows::{CloudWorkflow, WorkflowViewMode};
 use crate::workspace::active_terminal_in_window;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::WorkspaceUid;
-use crate::{ObjectActions, send_telemetry_from_ctx};
 
 const WARP_DRIVE_TITLE: &str = "Warp Drive";
 
@@ -3259,13 +3258,6 @@ impl DriveIndex {
         WarpDriveSettings::handle(ctx).update(ctx, |settings, ctx| {
             report_if_error!(settings.sorting_choice.set_value(*sorting_choice, ctx));
         });
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::UpdateSortingChoice {
-                sorting_choice: *sorting_choice
-            },
-            ctx
-        );
     }
 
     fn toggle_sorting_menu(&mut self, ctx: &mut ViewContext<Self>) {
@@ -4270,11 +4262,6 @@ impl TypedActionView for DriveIndex {
                 }
             }
             DriveIndexAction::CopyObjectToClipboard(cloud_object_type_and_id) => {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::CopyObjectToClipboard(cloud_object_type_and_id.into()),
-                    ctx
-                );
-
                 let shell_family =
                     active_terminal_in_window(ctx.window_id(), ctx, |terminal, ctx| {
                         terminal.shell_family(ctx)
@@ -4317,14 +4304,9 @@ impl TypedActionView for DriveIndex {
                     .write(ClipboardContent::plain_text(workflow_id));
             }
             DriveIndexAction::DuplicateObject(cloud_object_type_and_id) => {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::DuplicateObject(cloud_object_type_and_id.into()),
-                    ctx
-                );
                 ctx.emit(DriveIndexEvent::DuplicateObject(*cloud_object_type_and_id));
             }
             DriveIndexAction::ExportObject(type_and_id) => {
-                send_telemetry_from_ctx!(TelemetryEvent::ExportObject(type_and_id.into()), ctx);
                 ctx.emit(DriveIndexEvent::ExportObject(*type_and_id));
             }
             DriveIndexAction::ToggleNewAssetsMenu(space) => {
@@ -4550,10 +4532,6 @@ impl TypedActionView for DriveIndex {
                 }
             }
             DriveIndexAction::CopyObjectLinkToClipboard(link) => {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::ObjectLinkCopied { link: link.clone() },
-                    ctx
-                );
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(link.to_owned()));
             }
@@ -4570,10 +4548,6 @@ impl TypedActionView for DriveIndex {
             }
             DriveIndexAction::ViewPlans { team_uid } => {
                 ctx.open_url(UserWorkspaces::upgrade_link_for_team(*team_uid).as_str());
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::SharedObjectLimitHitBannerViewPlansButtonClicked,
-                    ctx
-                );
             }
             DriveIndexAction::DismissObjectLimitBanner { banner_kind } => {
                 self.dismiss_object_limit_banner(*banner_kind, ctx);

@@ -14,7 +14,6 @@ use crate::ai::agent::api::{self, ConvertToAPITypeError, generate_multi_agent_ou
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{AIIdentifiers, CancellationReason};
 use crate::network::NetworkStatus;
-use crate::send_telemetry_from_ctx;
 use crate::server::server_api::{AIApiError, ServerApiProvider};
 
 /// Maximum number of times a single MAA request is re-sent before the failure is
@@ -206,18 +205,9 @@ impl ResponseStream {
     /// Helper function to emit AgentModeError telemetry for error that is retryable (not user visible).
     fn emit_retryable_agent_mode_error_telemetry(
         &self,
-        error: String,
-        ctx: &mut ModelContext<Self>,
+        _error: String,
+        _ctx: &mut ModelContext<Self>,
     ) {
-        send_telemetry_from_ctx!(
-            crate::TelemetryEvent::AgentModeError {
-                identifiers: self.ai_identifiers.clone(),
-                error,
-                is_user_visible: false,
-                will_attempt_to_resume: false,
-            },
-            ctx
-        );
     }
 
     fn retry(&mut self, ctx: &mut ModelContext<Self>) {
@@ -433,15 +423,7 @@ impl ResponseStream {
                             ) {
                                 // Emit retry success telemetry if this was a successful completion after retries
                                 if self.retry_count > 0
-                                    && let Some(original_error) = &self.original_error {
-                                        send_telemetry_from_ctx!(
-                                            crate::TelemetryEvent::AgentModeRequestRetrySucceeded {
-                                                identifiers: self.ai_identifiers.clone(),
-                                                retry_count: self.retry_count,
-                                                original_error: original_error.clone(),
-                                            },
-                                            ctx
-                                        );
+                                    && let Some(_original_error) = &self.original_error {
                                     }
                             }
                         }

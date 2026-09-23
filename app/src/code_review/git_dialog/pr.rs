@@ -4,7 +4,6 @@
 //! with expandable per-file stats. On confirm, spawns `create_pr` and shows
 //! a toast with a clickable "Open PR" link.
 
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
 use warp_errors::report_error;
 use warpui::elements::{
@@ -16,9 +15,7 @@ use crate::code_review::git_dialog::{
     GitDialog, GitDialogAction, GitDialogEvent, GitDialogMode, render_branch_section,
     render_file_changes_box, should_send_git_ops_ai_request, show_toast, user_facing_git_error,
 };
-use crate::code_review::telemetry_event::{
-    CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind,
-};
+use crate::code_review::telemetry_event::GitDialogStatus;
 use crate::ui_components::icons::Icon;
 use crate::util::git::{FileChangeEntry, PrInfo};
 use crate::view_components::{DismissibleToast, ToastLink};
@@ -134,11 +131,11 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
 /// Shared create-PR completion: toast (with Open PR link) + telemetry +
 /// close.
 pub(super) fn finish_create_pr(
-    me: &GitDialog,
+    _me: &GitDialog,
     result: anyhow::Result<PrInfo>,
     ctx: &mut ViewContext<GitDialog>,
 ) {
-    let (status, error) = match &result {
+    let (_status, _error) = match &result {
         Ok(_) => (GitDialogStatus::Succeeded, None),
         Err(err) => (GitDialogStatus::Failed, Some(err.to_string())),
     };
@@ -149,15 +146,6 @@ pub(super) fn finish_create_pr(
             show_toast(user_facing_git_error(&err.to_string()), ctx);
         }
     }
-    send_telemetry_from_ctx!(
-        CodeReviewTelemetryEvent::GitDialogCompleted {
-            is_local: Some(!me.repo_location().is_remote()),
-            operation: GitOperationKind::CreatePr,
-            status,
-            error,
-        },
-        ctx
-    );
     ctx.emit(GitDialogEvent::Completed);
 }
 

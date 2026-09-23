@@ -1,7 +1,6 @@
 // Onboarding library crate
 
 pub mod callout;
-pub mod telemetry;
 
 /// The user's intention selected during onboarding slides.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,8 +39,6 @@ pub const AI_FEATURES: &[&str] = &[
 pub const WARP_DRIVE_FEATURES: &[&str] = &["Warp Drive", "Session Sharing"];
 
 pub mod components;
-
-pub use telemetry::OnboardingEvent;
 
 pub fn init(app: &mut warpui_core::AppContext) {
     callout::init(app);

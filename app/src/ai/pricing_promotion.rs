@@ -1,9 +1,5 @@
 use std::collections::HashSet;
 
-use serde_json::{Value, json};
-use strum_macros::{EnumDiscriminants, EnumIter};
-use warp_core::send_telemetry_from_ctx;
-use warp_core::telemetry::{EnablementState, TelemetryEvent, TelemetryEventDesc};
 use warp_core::user_preferences::GetUserPreferences;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
@@ -20,13 +16,6 @@ pub enum PricingPromotionSurface {
 }
 
 impl PricingPromotionSurface {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::AgentMessageBar => "agent_message_bar",
-            Self::TerminalMessageBar => "terminal_message_bar",
-        }
-    }
-
     fn dismissal_key(self) -> &'static str {
         match self {
             Self::AgentMessageBar => AGENT_DISMISSED_KEY,
@@ -71,15 +60,12 @@ impl PricingPromotionState {
     pub fn record_displayed(
         &mut self,
         surface: PricingPromotionSurface,
-        ctx: &mut ModelContext<Self>,
+        _ctx: &mut ModelContext<Self>,
     ) {
-        if self.displayed_surfaces.insert(surface) {
-            send_telemetry_from_ctx!(PricingPromotionTelemetryEvent::Shown { surface }, ctx);
-        }
+        if self.displayed_surfaces.insert(surface) {}
     }
 
-    pub fn record_clicked(&self, surface: PricingPromotionSurface, ctx: &mut ModelContext<Self>) {
-        send_telemetry_from_ctx!(PricingPromotionTelemetryEvent::Clicked { surface }, ctx);
+    pub fn record_clicked(&self, _surface: PricingPromotionSurface, _ctx: &mut ModelContext<Self>) {
     }
 
     pub fn dismiss(&mut self, surface: PricingPromotionSurface, ctx: &mut ModelContext<Self>) {
@@ -93,7 +79,6 @@ impl PricingPromotionState {
         {
             log::warn!("Failed to persist pricing promotion dismissal: {error:#}");
         }
-        send_telemetry_from_ctx!(PricingPromotionTelemetryEvent::Dismissed { surface }, ctx);
         ctx.emit(PricingPromotionStateEvent::Updated);
         ctx.notify();
     }
@@ -118,71 +103,6 @@ impl Entity for PricingPromotionState {
 }
 
 impl SingletonEntity for PricingPromotionState {}
-
-#[derive(Clone, Debug, EnumDiscriminants)]
-#[strum_discriminants(derive(EnumIter))]
-enum PricingPromotionTelemetryEvent {
-    Shown { surface: PricingPromotionSurface },
-    Clicked { surface: PricingPromotionSurface },
-    Dismissed { surface: PricingPromotionSurface },
-}
-
-impl TelemetryEvent for PricingPromotionTelemetryEvent {
-    fn name(&self) -> &'static str {
-        PricingPromotionTelemetryEventDiscriminants::from(self).name()
-    }
-
-    fn payload(&self) -> Option<Value> {
-        let surface = match self {
-            Self::Shown { surface } | Self::Clicked { surface } | Self::Dismissed { surface } => {
-                surface
-            }
-        };
-        Some(json!({
-            "surface": surface.as_str(),
-        }))
-    }
-
-    fn description(&self) -> &'static str {
-        PricingPromotionTelemetryEventDiscriminants::from(self).description()
-    }
-
-    fn enablement_state(&self) -> EnablementState {
-        EnablementState::Always
-    }
-
-    fn contains_ugc(&self) -> bool {
-        false
-    }
-
-    fn event_descs() -> impl Iterator<Item = Box<dyn TelemetryEventDesc>> {
-        warp_core::telemetry::enum_events::<Self>()
-    }
-}
-
-impl TelemetryEventDesc for PricingPromotionTelemetryEventDiscriminants {
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Shown => "PricingPromotion.Shown",
-            Self::Clicked => "PricingPromotion.Clicked",
-            Self::Dismissed => "PricingPromotion.Dismissed",
-        }
-    }
-
-    fn description(&self) -> &'static str {
-        match self {
-            Self::Shown => "A pricing promotion was shown",
-            Self::Clicked => "A pricing promotion was clicked",
-            Self::Dismissed => "A pricing promotion was dismissed",
-        }
-    }
-
-    fn enablement_state(&self) -> EnablementState {
-        EnablementState::Always
-    }
-}
-
-warp_core::register_telemetry_event!(PricingPromotionTelemetryEvent);
 
 #[cfg(test)]
 #[path = "pricing_promotion_tests.rs"]

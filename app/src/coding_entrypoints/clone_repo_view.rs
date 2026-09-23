@@ -1,15 +1,12 @@
-use warp_core::send_telemetry_from_ctx;
 use warpui::elements::{ChildView, Flex, ParentElement as _};
 use warpui::{
     AppContext, Element, Entity, FocusContext, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::TelemetryEvent;
 use crate::coding_entrypoints::glowing_editor::{GlowingEditor, GlowingEditorEvent};
 
 pub struct CloneRepoView {
     editor: ViewHandle<GlowingEditor>,
-    is_ftux: bool,
 }
 
 pub enum CloneRepoEvent {
@@ -18,7 +15,7 @@ pub enum CloneRepoEvent {
 }
 
 impl CloneRepoView {
-    pub fn new(is_ftux: bool, ctx: &mut ViewContext<Self>) -> Self {
+    pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let editor = ctx.add_typed_action_view(|ctx| {
             GlowingEditor::new(
                 "Provide a repository URL e.g. \"git@github.com:username/project.git\"",
@@ -30,18 +27,12 @@ impl CloneRepoView {
             me.handle_editor_event(event, ctx);
         });
 
-        Self { editor, is_ftux }
+        Self { editor }
     }
 
     fn handle_editor_event(&mut self, event: &GlowingEditorEvent, ctx: &mut ViewContext<Self>) {
         match event {
             GlowingEditorEvent::Submit(prompt) => {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::CloneRepoPromptSubmitted {
-                        is_ftux: self.is_ftux
-                    },
-                    ctx
-                );
                 ctx.emit(CloneRepoEvent::SubmitPrompt(prompt.clone()))
             }
             GlowingEditorEvent::Cancel => {

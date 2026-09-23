@@ -9,7 +9,6 @@ mod telemetry;
 mod transition;
 
 pub use telemetry::LifecycleRecoveryRecord;
-pub(in crate::terminal) use telemetry::LifecycleTelemetryEvent;
 use telemetry::LifecycleTelemetryLimiter;
 pub(in crate::terminal) use transition::{
     CommandStartKind, IgnoreReason, LifecycleAction, LifecycleInput, LifecyclePhase,
