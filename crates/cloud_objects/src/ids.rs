@@ -414,9 +414,3 @@ impl From<GenericStringObjectId> for SyncId {
         Self::ServerId(id.into())
     }
 }
-
-impl GenericStringObjectId {
-    pub fn uid(&self) -> ObjectUid {
-        self.0.uid()
-    }
-}

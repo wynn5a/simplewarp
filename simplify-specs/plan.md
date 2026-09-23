@@ -8908,3 +8908,153 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       item remains the cloud-run lifecycle walls per the 4ca plan —
       NOT started; the orchestrator decides whether to first exhaust
       the small candidates above.
+
+- [x] **`GenericStringObjectId::uid` (4ev) — DONE 2026-09-23.** The 4eu
+      survey's last known `crates/cloud_objects` candidate (the 4er
+      deferral), deleted after a receiver-typed dual-confirm. The method
+      (inherent, `&self` -> `ObjectUid`, sole member of its impl block at
+      `ids.rs:418-422` pre-edit) wraps `self.0.uid()` = `ServerId::uid`.
+      Verification (fresh at HEAD; ledger / `schema.graphql` / fixtures
+      excluded; PCRE lookahead guards throughout — no `\b`, per the 4eu
+      tooling note): path-form `GenericStringObjectId(?![A-Za-z0-9_])::
+      uid` zero in `*.rs` (all-files hits only the plan ledger);
+      `::uid(?![A-Za-z0-9_])` zero (no qualified/turbofish/re-export
+      spellings — `warp_server_client::ids` and `app/src/server/ids`
+      are re-exports of the same type, verified);
+      `as GenericStringObjectId` zero. Call-syntax `.uid(` (~130 hits)
+      triaged receiver by receiver, NONE a `GenericStringObjectId`:
+      `SyncId` receivers (`SyncId::uid`'s own match arms `ids.rs:77`,
+      `drive/mod.rs:34-37` — the `CloudObjectTypeAndId::GenericString
+      Object { id: SyncId }` variant itself carries `SyncId`
+      (`drive/mod.rs:15`), so its `id.uid()` is a `SyncId` call —
+      `persistence.rs` `get_folder/get_workflow/get_workflow_enum/
+      get_ai_execution_profile/get_object_of_type*` helpers all take
+      `&SyncId`, `create_object_internal(id: SyncId..)`, `upsert_from_
+      server_object`'s `server_object.id` (`GenericServerObject.id` is
+      `SyncId`, `server_object.rs:28`), `LinkedWorkflowData::Id(SyncId)`
+      (`history.rs:203`), `EnvVarCollectionSource::Existing(SyncId)` /
+      `WorkflowOpenSource::Existing(SyncId)`, the workflows modal's
+      `workflow_id: Option<SyncId>`, catalog's
+      `orchestration_default_environment_id -> Option<SyncId>`,
+      `HandleConflictingWorkflow/EnvVarCollection` payloads,
+      `catalog_tests.rs` `SyncId::ClientId`, `ids_tests.rs:9`,
+      model_tests `SyncId` params, `metadata().folder_id` (`Option<
+      SyncId>`)); `ServerId` receivers (`root_view.rs:839/1594`
+      `arg.server_id`, `workspace/view.rs:15321/15470` `result.server_id`,
+      `to_server_id().uid()` chains at `embedded_item.rs:211` /
+      `embedding_model.rs:186`, workspace Team `uid: ServerId` fields
+      (`team.rs:87`) behind `sqlite.rs:2069/2087` +
+      `cli_agent.rs:445`, `workflow_view.rs:526`
+      `result.server_id.unwrap_or_default()`, update_manager ids guarded
+      by `.server_id()`); `CloudObjectTypeAndId` receivers
+      (`drive_row_position_id` internal, `panel.rs` RunObject/Invoke
+      handlers, `item.rs:416/421` `WarpDriveItemId::Object(object_id)`,
+      `index.rs:1141-1153` match arms, `update_manager.rs:267/712/933`,
+      `export.rs:449` `ExportId(CloudObjectTypeAndId, _)` `.0`,
+      `workspace/view.rs:14920` via the `:14877`
+      `Option<CloudObjectTypeAndId>` param, `view.rs:310/343`); the
+      app-side `CloudObject` trait method (objects_by_id
+      `Box<dyn CloudObject>` values and `get_by_uid` results:
+      `telemetry.rs:28`, `terminal/view.rs:18067`, `export.rs:102`,
+      `drive/index.rs:726/1803/2402`, `item.rs:820`, model_tests
+      `naive_active_object_uids`, `persistence.rs:125/159`); and
+      `GenericCloudObject`'s `.id` FIELD — `pub id: SyncId`
+      (`generic_cloud_object.rs:35`, not the `K` phantom param — its
+      `CloudObject::uid` impl body `self.id.uid()` at app
+      `cloud_object/mod.rs:542` therefore calls `SyncId::uid`) — behind
+      `info_box.rs:683`, `data_source.rs:53`, `snapshots.rs:541`,
+      `notebooks/manager.rs:81/99`, `env_var_collection.rs:169`,
+      `drive/items/workflow.rs:126`, `persistence.rs:1725/1736`. Every
+      `GenericStringObjectId`-typed VALUE site enumerated: the workspace's
+      only `: GenericStringObjectId` annotation is the
+      `From<GenericStringObjectId> for SyncId` impl param
+      (`ids.rs:413`), whose body does `Self::ServerId(id.into())` with no
+      uid call; the `from_hash` site (`sqlite.rs:2323`) converts
+      `.map(|id| SyncId::ServerId(id.into()))`; `get_server_enum_ids ->
+      Vec<GenericStringObjectId>` (`workflow.rs:151`) and the telemetry
+      `enum_ids`/`object_id` field inits (`input.rs:5952/12080/6322`,
+      `terminal/view.rs:6621`, `workspace/view.rs:15097`) feed
+      serde-derived telemetry structs whose fields are never read. The
+      method is inherent (in no trait — no generic dispatch can reach it)
+      and both `server_id_traits!` macro copies generate no `uid`.
+      Test files specifically checked (ids_tests, catalog_tests,
+      model_tests, profiles_tests, data_source_tests): all receivers
+      `SyncId`/trait or turbofish generic params, zero
+      `GenericStringObjectId` receivers. Single-column trace against the
+      survivors: `SyncId::uid` stays live via app
+      `cloud_object/mod.rs:542` + `persistence.rs:314`, `ServerId::uid`
+      via `root_view.rs:839`, confirming the receiver triage
+      distinguishes the dead wrapper from its live callees. Deleted the
+      whole `impl GenericStringObjectId` block + the preceding blank
+      line; no imports affected (`ObjectUid` is defined in `ids.rs` and
+      stays live at `:74/:187/:223`) (1 file, +0/−6). Deliberately left:
+      `GenericStringObjectId` itself (LIVE — turbofish-wide
+      `get_all_objects_of_type::<GenericStringObjectId, _>` sites,
+      `CloudStringObject::IdType`, telemetry field types, the
+      `server_id_traits!` impls, From/TryFrom impls), `SyncId::uid` /
+      `ServerId::uid` / `CloudObjectTypeAndId::uid` /
+      `ServerCloudObject::uid` / the app-side `CloudObject::uid` /
+      `settings_view::mcp_servers`' uid (all live, receivers verified),
+      `ObjectUid` (live), the `From<GenericStringObjectId> for SyncId`
+      impl (live — the `from_hash` path flows through it), the nine
+      `cloud_object_models` def-only leaves (next rounds, below), and
+      everything else per prior rounds. Local-only safety: zero callers
+      means zero behavior change — generic-string cloud object
+      persistence/sync runs through the live `JsonSerializer` /
+      `SyncId` / `ServerId` paths untouched, and drive, terminal, tabs,
+      panes, BYOK AI, settings, themes, and all other local features
+      are untouched; only an id-unwrapping getter that could never be
+      called is gone.
+
+      Acceptance: clippy baselines captured at HEAD FIRST (worktree
+      clean, no stash needed) in both configs — 12 sorted
+      warning+location pairs / 14 `^warning` lines each (the 12
+      pre-existing warnings: 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the edit,
+      `-p warp --lib --all-targets` is warning-identical to the
+      baseline in BOTH configs (default and `--no-default-features
+      --features simplewarp` — sorted-pair diffs empty, 12 pairs / 14
+      `^warning` lines each). All 7 checks exit 0 (`check -p
+      cloud_objects --all-targets` ± `--all-features`, `check -p warp
+      --lib --all-targets` both feature sets, `--no-default-features
+      --features simplewarp --bin simplewarp`, `--bin warp-oss`,
+      `--all-targets -p integration`) with 0 errors and only the two
+      pre-existing `step.rs` unused-import warnings
+      (`single_terminal_view_for_tab`, `crate::terminal::CLIAgent`,
+      observed in the integration check). Format clean
+      (`./script/format`; diff remains exactly +0/−6). Nextest `-p warp
+      --lib --no-fail-fast`: 4,653 default passed, 4 skipped, 0 failed;
+      4,652 simplewarp — first run 4,651 + the known
+      `test_command_block_dispatches_event` load flake, rerun clean
+      4,652 passed, 4 skipped, 0 failed. Runtime smoke test SKIPPED:
+      the user is away and nobody can answer the macOS password
+      prompt, so per the 2026-09-23 convention change the GUI binary
+      was not built or launched — unit tests plus checks are the
+      acceptance for this round. Did not `cargo clean`.
+
+      CRATE-CLEAN VERDICT: crates/cloud_objects now has ZERO known
+      candidates. The 4eu one-candidate note is resolved by this
+      deletion; the two trace-only inference impls
+      (`impl SettingsValue for SyncId`, `impl PartialEq for
+      GenericCloudObject`) were resolved LIVE in 4eu; every other item
+      of the 4er/4eu surveys is re-verified LIVE. The crate is clean;
+      any future work there needs a fresh survey.
+
+      Designated NEXT: the nine `crates/cloud_object_models` def-only
+      leaves from the 4eu survey (bare-name single-hit = definition
+      only at survey time; each needs a fresh independent dual-confirm
+      at HEAD before deletion): `WorkflowModel::author_name`
+      (`workflow.rs:106`), `MCPServer::from_stored_json`
+      (`mcp.rs:216`), `AIFact::is_memory` (`ai_fact.rs:52`),
+      `AgentConfig::to_ambient_config` (`cloud_agent_config.rs:33`),
+      `Workflow::from_harness_type` / `Workflow::get_enum_ids` /
+      `Workflow::is_command_workflow` / `Workflow::replace_object_id`
+      (`workflow.rs`), `AIExecutionProfile::is_always_ask`
+      (`ai_execution_profile.rs`), `ScheduledAmbientAgent::from_
+      harness_type` (`scheduled_ambient_agent.rs`) — batched per the
+      4dw/4et small-cluster precedent into the next round(s); the
+      models' persistence fns re-verified LIVE in 4eu must not be
+      touched. After those, the pivot decision (the cloud-run
+      lifecycle walls per the 4ca plan) is the orchestrator's — not
+      started this round.
