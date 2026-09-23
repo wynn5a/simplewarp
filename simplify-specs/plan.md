@@ -8368,3 +8368,197 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       2026-09-23 convention change the GUI binary was not built or
       launched — unit tests plus checks are the acceptance for this
       round. Did not `cargo clean`.
+
+- [x] **empty `cloud_object::models` module (4er) — DONE 2026-09-23.**
+      The 4eq-designated next slice: the declared-but-empty module at
+      `crates/cloud_objects/src/cloud_object/models/mod.rs`.
+      Verification (ledger excluded): the file at HEAD is exactly one
+      byte (blob `8b1378917` = a single newline — zero items), and
+      `git ls-tree -r HEAD` on the directory shows `mod.rs` was its only
+      file; exact-path searches all zero in `*.rs` —
+      `cloud_object::models`, `crate::cloud_object::models`,
+      `use.*cloud_object::models`, `super::models` inside
+      `cloud_object/`, and `models::` anywhere in
+      `crates/cloud_objects/`; the only repo-wide hits for
+      `cloud_object::models` are the `plan.md` ledger mentions; the
+      crate's package name is plain `cloud_objects` (no `warp_` prefix,
+      so no differently-prefilled external path), and the only `models`
+      word hits in the crate are prose (`server_object.rs:25` doc,
+      `lib.rs:4` crate doc). Deleted the 1-byte file and its
+      `pub mod models;` declaration at `cloud_object/mod.rs:29` (2
+      files, +0/−2). Deliberately left: everything else — this round's
+      deletion is Part 1 only; Part 2 is the survey below. Local-only
+      safety: an empty module contributes no code, so deleting it is
+      zero behavior change by construction — cloud-object
+      persistence/sync, drive, terminal, tabs, panes, BYOK AI,
+      settings, themes, and all other local features untouched; only an
+      empty declaration is gone.
+
+      Acceptance: clippy baseline captured at HEAD FIRST in both
+      configs (12 sorted warning+location pairs each, 14 `^warning`
+      lines each — the 12 pre-existing warnings: 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`; the worktree already
+      held this round's edits from an interrupted attempt, so the HEAD
+      baseline was captured via `git stash push` / clippy / `git stash
+      pop`); after the edit, `-p warp --lib --all-targets` is
+      warning-identical to the baseline in BOTH configs (sorted-pair
+      diffs empty, 14 `^warning` lines each). All 7 checks exit 0
+      (`check -p cloud_objects --all-targets` ± `--all-features`,
+      `check -p warp --lib --all-targets` both feature sets,
+      `--no-default-features --features simplewarp --bin simplewarp`,
+      `--bin warp-oss`, `--all-targets -p integration`) with 0 errors
+      and only the two pre-existing `step.rs` unused-import warnings
+      (`single_terminal_view_for_tab`, `crate::terminal::CLIAgent`,
+      observed in the integration check); format clean
+      (`./script/format`, no diff beyond the deletion — diff remains
+      exactly +0/−2). Nextest `-p warp --lib --no-fail-fast`: 4,652
+      simplewarp passed / 4,653 default passed, 4 skipped each, 0
+      failed (exactly the baseline, zero tests added or removed, no
+      flakes). Runtime smoke test SKIPPED: the user is away and nobody
+      can answer the macOS password prompt, so per the 2026-09-23
+      convention change the GUI binary was not built or launched —
+      unit tests plus checks are the acceptance for this round. Did
+      not `cargo clean`.
+
+      Survey (Part 2): fresh full sweep of `crates/cloud_objects`
+      (ids.rs, drive/mod.rs, drive/sharing.rs, cloud_object/mod.rs,
+      generic_cloud_object.rs, generic_string_model.rs,
+      server_object.rs, creation.rs, auth/, lib.rs), bare-name +
+      call-syntax + path-form per candidate (ledger / `schema.graphql`
+      / fixtures excluded). Candidates and verdicts:
+
+      - `ServerObjectModel` trait + its four impls — DEAD, whole-trait
+        slice, DESIGNATED NEXT. The trait (`server_object.rs:26-29`,
+        sole method `fn object_type(&self) -> ObjectType`) is named in
+        `*.rs` ONLY at its def, its four impl blocks
+        (`CloudFolderModel` at `cloud_object_models/src/folder.rs:30`,
+        `CloudNotebookModel` at `notebook.rs:28`,
+        `CloudWorkflowModel` at `workflow.rs:389`,
+        `GenericStringModel<M, S>` at
+        `cloud_objects/cloud_object/generic_string_model.rs:48`), and
+        the four impl-side `use` lines — zero generic bounds
+        (`: ServerObjectModel` outside impl headers), zero
+        `dyn ServerObjectModel`, zero `ServerObjectModel::` path
+        forms, zero use-site imports elsewhere. Every `.object_type()`
+        call site repo-wide (20) triaged by receiver, NONE resolves
+        through `ServerObjectModel`: 17 through the app-side
+        `CloudObject` trait (`telemetry.rs:27`,
+        `drive_object_type.rs:153`, app `cloud_object/mod.rs`
+        546/647/677/788, `model/persistence.rs` 370/1516/1752,
+        `toast_message.rs:19`, `drive/index.rs` 713/3689/3771/4288,
+        `workflows/modal.rs:594`, `update_manager.rs:514`,
+        `workspace/view.rs:7133`), one through the app-side
+        `CloudModelType` trait (app `cloud_object/mod.rs:578`
+        `self.model().object_type()` under an `M: CloudModelType`
+        bound), one inherent `CloudObjectTypeAndId::object_type`
+        (`agent_profiles_page.rs:355`), one `WarpDriveItem`-family
+        `Option<DriveObjectType>` (`warp_drive_item.rs:33`). The four
+        model types implement BOTH `ServerObjectModel` and the
+        app-side `CloudModelType` with identical bodies
+        (`ObjectType::Folder`/`Notebook`/`Workflow`/
+        `GenericStringObject(S::model_format())`), and method
+        resolution at every site lands on the only in-scope trait —
+        the `ServerObjectModel` impls are unreachable and the trait
+        unnameable outside its impl files. Same class as 4eq's
+        `ServerObject` trait: this sharpens the 4eq handoff's "impl
+        bodies caller-facing zero" into full trait deadness — delete
+        the trait + all four impls + the `ObjectType`/`ServerObjectModel`
+        import parts in the four impl files (per-file `ObjectType`
+        usage to be re-checked at edit time).
+      - `GenericStringModel::json_model`
+        (`generic_string_model.rs:42-44`) — DEAD, own slice after the
+        above. `.json_model(` zero repo-wide; `::json_model` only
+        unrelated module paths (app's own `model::json_model`,
+        `cloud_object_models::json_model`); bare word only module
+        names. Inherent method in no trait, receiver reachable only
+        through aliases that never call it.
+      - `cloud_objects::auth` re-exports (`auth/mod.rs:1-2`) —
+        `TEST_USER_EMAIL`/`TEST_USER_UID` have zero importers through
+        `cloud_objects::auth` (app uses app-local
+        `crate::auth::user::*`, `warp_server_auth` and
+        `warp_server_client` their own paths), and the
+        `pub use warp_server_auth::user_uid;` module re-export is
+        likewise unused; the `UserUid` part of line 1 IS live
+        (`sharing.rs:3` + `lib.rs` `pub use auth::UserUid` →
+        `cloud_object_models/user_profile.rs:1`,
+        `cloud_object_persistence/objects.rs:3`). Own slice: shrink
+        line 1 to `UserUid`, delete line 2.
+      - Trace-only, no verdict:
+        `impl settings_value::SettingsValue for SyncId`
+        (`ids.rs:104`) and `impl PartialEq for GenericCloudObject`
+        (`generic_cloud_object.rs:54-61`) — inference-reachable trait
+        impls; each needs its own 4em/4eo-class resolution trace
+        before any judgment.
+      - Everything else LIVE, re-verified with hits: sharing.rs
+        (`can_move_drive` via `drive/index.rs:2304`, `is_user` via
+        `cloud_object/mod.rs:482-483` + `view.rs:180`, `Subject`/
+        `UserKind` structurally live); ids.rs (`HashableId`,
+        `ClientId` + methods, `SyncId::uid`/`sqlite_uid_hash`/
+        `into_server`/`into_client`, `ServerId::from_string_lossy`/
+        `uid`/`sqlite_type_and_uid_hash`/both `TryFrom`s/
+        `From<ServerId> for String`/test `From<i64>`,
+        `parse_sqlite_id_to_uid` via
+        `actions.rs:146`, `ServerIdAndType` +
+        `sqlite_type_and_uid_hash` via
+        `cloud_object_persistence/objects.rs:474,485`,
+        `server_id_traits!` via cloud_object_models, `FolderId`,
+        `GenericStringObjectId` (turbofish-wide; its inherent `uid`
+        deferred to a receiver-typed trace — path form zero, nearby
+        `.uid()` receivers are all `SyncId`)); drive/mod.rs
+        (`CloudObjectTypeAndId` — all 13 methods hit: `uid`/`sync_id`/
+        `sqlite_uid_hash` via `persistence.rs:329` +
+        `update_manager.rs:789,840`, `object_type` via
+        `agent_profiles_page.rs:355`, `object_id_type` via
+        `persistence.rs:330,364`, `has_server_id` via
+        `facts/view/mod.rs:337,346` + `drive/index.rs:948,958`,
+        `as_folder_id` via `drive/index.rs:2338`, `as_notebook_id`
+        via notebook sites, `as_generic_string_object_id` via env_var
+        sites, `drive_row_position_id` via 5 sites, `from_id_and_type`
+        via `drive/index.rs:2776` + notebooks/workflows,
+        `from_generic_string_object` via env_var menus +
+        `workspace/view.rs`); cloud_object/mod.rs (every pub item:
+        `ObjectIdType::sqlite_prefix`, `ObjectType::
+        sqlite_object_type_as_str` via
+        `cloud_object_persistence/objects.rs:119,248`, both
+        `*_PREFIX` consts, `GenericStringObjectFormat`,
+        `GenericStringObjectUniqueKey` + `UniquePer` via the app ai
+        crates, `JsonObjectType` + `as_str` (internal at `:170`),
+        `Revision` — all five methods incl. `timestamp` via
+        `search/ai_context_menu/rules/data_source.rs:46-47` and
+        `utc` via app `cloud_object/mod.rs:826` + `view.rs:109`,
+        `Owner` + `mock_current_user`, `ServerObjectContainer`,
+        `ServerGuestSubject`/`ServerLinkSharing`/`ServerObjectGuest`
+        (TryFroms live per 4eo), `ServerMetadata`,
+        `ServerPermissions::mock_personal`, `NumInFlightRequests`,
+        `CloudObjectSyncStatus`, `CloudObjectPermissions` — all four
+        methods incl. `update_from_new_permissions_ts` via
+        `persistence.rs:743`, `CloudLinkSharing`/`CloudObjectGuest`,
+        `CloudObjectMetadata` — all methods incl.
+        `update_from_new_metadata_ts` via `persistence.rs:608`,
+        `CloudObjectStatuses::mock` + `render_icon` via six
+        drive-item receivers (`ai_fact.rs:96`, `folder.rs:76`,
+        `notebook.rs:94`, `workflow.rs:117`,
+        `env_var_collection.rs:164`, `mcp_server.rs:61`),
+        `CloudObjectEventEntrypoint`, `SerializedModel`
+        `new`/`model_as_str`/`take` (`sqlite.rs:2152`),
+        `RevisionAndLastEditor`); generic_cloud_object.rs
+        (`model`/`shared_model`/`set_model`/`new`/`new_local`/
+        `new_from_server`/`update_from_server_object`/`upsert_params`
+        and the `From<CloudObjectUpsertParams>` impl — 4ei's
+        alias/turbofish lesson re-applied, 8 alias-qualified
+        `CloudFolder::from(params)`-style sites live);
+        generic_string_model.rs (`Serializer` trait +
+        `new`/`deserialize_owned` — live through ALIAS-qualified
+        calls (`CloudPreferenceModel = GenericStringModel<Preference,
+        JsonSerializer>` etc.): `json_model/persistence.rs:58-102` +
+        `profiles_tests.rs:63`; `json_model` itself is the dead
+        sibling above); server_object.rs (`ConflictStatus` +
+        `has_conflicts` via `generic_cloud_object.rs:148` + app
+        `cloud_object/mod.rs:594`, `GenericServerObject` +
+        `new`/`Clone`/`Debug`); creation.rs (`ServerCreationInfo`
+        live per 4en); auth (the `UserUid` re-export, live).
+        Designated NEXT after the `ServerObjectModel` slice: if the
+        crate then shows clean at re-survey, the effort pivots to the
+        next major item (the cloud-run lifecycle walls per the 4ca
+        plan) — not started this round.
