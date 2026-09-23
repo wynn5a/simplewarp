@@ -8180,3 +8180,100 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       the GUI binary was not built or launched — unit tests plus
       checks are the acceptance for this round. Did not
       `cargo clean`.
+
+- [x] **`ServerObject` downcast `From` impl pair (4ep) — DONE 2026-09-23.**
+      The 4eo-designated next slice: the
+      `From<&'a dyn ServerObject>` / `From<&'a Box<dyn ServerObject>> for
+      Option<&'a GenericServerObject<K, M>>` downcast impls at
+      `server_object.rs:104-122` (pre-edit), verified by construction-site
+      unreachability. Exhaustive `dyn ServerObject` trace (ledger /
+      `schema.graphql` / fixtures excluded): `git grep -n "dyn
+      ServerObject"` over all files hits exactly six, all inside
+      `server_object.rs` itself — the `clone_box` return type (`:45`), the
+      two impls being deleted (`:104,109,114,119`), and the
+      `GenericServerObject` override (`:137`); zero mentions in
+      `Box<>`/`Arc<>`/`Vec<>`/`Rc<>` wrappers outside the file, zero in
+      generic bounds, zero in use statements. Word-boundary `\bServerObject\b`
+      (digit-guarded) zero outside the file — all external substring hits are
+      `ServerObjectModel` / `GenericServerObject` / `ServerObjectContainer` /
+      `ServerObjectGuest`, different items. The 37 `pub type` aliases in
+      `cloud_object_models` enumerated with multi-line expansions read: every
+      one expands to `GenericCloudObject<...>`, `GenericStringModel<...>`, or
+      `GenericServerObject<...>` — none to the trait object.
+      `impl ... ServerObject for` only `server_object.rs:124`;
+      `ServerObject::` path form zero; `as ServerObject` renames zero; no
+      non-Rust mention outside the ledger. So no `&dyn ServerObject` or
+      `&Box<dyn ServerObject>` value can exist at any call site — the impls'
+      only invocation forms (`.into()`/`From::from` on such references) are
+      unreachable; the live `.into()`-target downcasts that exist
+      (`Option<&mut GenericCloudObject<K, M>> = boxed.into()` at
+      `app/src/cloud_object/model/persistence.rs:424`, `Option<&CloudFolder> =
+      object.into()` at `:1695`) run through the APP-SIDE `CloudObject` trait
+      pair (`app/src/cloud_object/mod.rs:340`), a different, live impl set.
+      Deleted BOTH impls (1 file, +0/−20); imports unchanged —
+      `std::any::Any` stays (`as_any` is a required trait method, def `:39` +
+      `GenericServerObject` override `:113`).
+      Deliberately left: the `ServerObject` trait itself (DESIGNATED NEXT —
+      zero external mentions per this round's trace: word-boundary bare-name
+      zero outside `server_object.rs`, the only `impl ServerObject for` is
+      `GenericServerObject`, no bound/use/path/rename form anywhere; no call
+      resolves through the trait — `generic_cloud_object.rs:136-160`
+      `new_from_server`/`update_from_server_object` and the
+      `persistence.rs` consumers (`:404,432,463,1662,1714`) only read
+      `GenericServerObject` fields (`.id`/`.model`/`.metadata`/
+      `.permissions`), the crate's only `.object_type()` call is
+      `server_object.rs:110` resolving on `M: ServerObjectModel` (live), and
+      `persistence.rs:370`'s `.object_type()` receiver is
+      `Box<dyn CloudObject>`; the `TeamKind` precedent — trait deadness needs
+      its own conclusive slice, with `GenericServerObject` staying live via
+      the aliases and degenerating once the trait goes),
+      `ServerObject::as_any` (newly callerless after this deletion — its only
+      caller was the deleted `From<&dyn ServerObject>` body; every other
+      `.as_any(` repo-wide is a different trait, receivers verified: app-level
+      `dyn CloudObject` (`app/src/cloud_object/mod.rs:649`,
+      `drive_object_type.rs:158`, `embedded_item.rs:214`,
+      `embedding_model.rs:187`, `input_context.rs:280`), `CommandExecutor`
+      (`remote_server.rs:219`), plus warpui `Model`/`View`/`Action`,
+      `DropTargetData`, `PaneContent` — next-round candidate),
+      `ServerObject::clone_box` (already callerless BEFORE this round — zero
+      `.clone_box()` / `::clone_box` on `ServerObject` receivers anywhere; all
+      call sites are `CloudObject` (`app/src/cloud_object/mod.rs:782`),
+      `CloudStringObject` (`app/src/cloud_object/model/
+      generic_string_model.rs:179`), `WarpDriveItem`
+      (`app/src/cloud_object/warp_drive_item.rs:75`), `DropdownItemAction`
+      (`app/src/view_components/dropdown.rs:51,221`), `ChildModelHandle` —
+      next-round candidate), the empty `cloud_object/models/mod.rs` module
+      (1-byte file, `pub mod models;` at `cloud_object/mod.rs:29`, zero
+      `cloud_object::models` path mentions — trivial cleanup from the 4eo
+      note), and all other survivors per prior rounds.
+      Local-only safety: unreachable-conversion deletion means zero behavior
+      change — no `dyn ServerObject` value can exist anywhere (the only
+      would-be producers are `clone_box`, itself callerless, and coercion,
+      which requires naming the type — zero sites), so both impls could never
+      execute; cloud-object persistence/sync (the live `GenericServerObject`
+      field-plumbing path), drive, terminal, tabs, panes, BYOK AI, settings,
+      themes, and all other local features untouched; only two
+      never-instantiable trait impls are gone.
+
+      Acceptance: clippy baseline captured at HEAD FIRST in both configs
+      (12 sorted warning+location pairs each, 14 `^warning` lines each — the
+      12 pre-existing warnings: 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the edit,
+      `-p warp --lib --all-targets` is warning-identical to the baseline in
+      BOTH configs (default and `--no-default-features --features simplewarp`
+      — sorted-pair diffs empty, 14 `^warning` lines each, no unused-import
+      or dead-code warnings). All 7 checks exit 0 (`check -p cloud_objects
+      --all-targets` ± `--all-features`, `check -p warp --lib --all-targets`
+      both feature sets, `--no-default-features --features simplewarp --bin
+      simplewarp`, `--bin warp-oss`, `--all-targets -p integration`) with 0
+      errors and only the two pre-existing `step.rs` unused-import warnings
+      (`single_terminal_view_for_tab`, `crate::terminal::CLIAgent`, observed
+      in the integration check); format clean (`./script/format`, diff still
+      exactly +0/−20). Nextest `-p warp --lib --no-fail-fast`: 4,652
+      simplewarp passed / 4,653 default passed, 4 skipped each, 0 failed
+      (exactly the baseline, zero tests added or removed, no flakes).
+      Runtime smoke test SKIPPED: the user is away and nobody can answer the
+      macOS password prompt, so per the 2026-09-23 convention change the GUI
+      binary was not built or launched — unit tests plus checks are the
+      acceptance for this round. Did not `cargo clean`.

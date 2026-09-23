@@ -101,26 +101,6 @@ impl<K, M> GenericServerObject<K, M> {
     }
 }
 
-impl<'a, K, M> From<&'a dyn ServerObject> for Option<&'a GenericServerObject<K, M>>
-where
-    K: 'static,
-    M: 'static,
-{
-    fn from(value: &'a dyn ServerObject) -> Self {
-        value.as_any().downcast_ref::<GenericServerObject<K, M>>()
-    }
-}
-
-impl<'a, K, M> From<&'a Box<dyn ServerObject>> for Option<&'a GenericServerObject<K, M>>
-where
-    K: 'static,
-    M: 'static,
-{
-    fn from(value: &'a Box<dyn ServerObject>) -> Self {
-        value.as_ref().into()
-    }
-}
-
 impl<K, M> ServerObject for GenericServerObject<K, M>
 where
     K: 'static,
