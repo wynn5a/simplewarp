@@ -9443,3 +9443,277 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       orphaned-Cargo-dependency follow-up; the next major item is the
       cloud-run lifecycle walls per the 4ca plan — the ORCHESTRATOR
       decides the pivot; NOT started this round.
+
+- [x] **telemetry scope decision + slice plan (4ez) — RECORDED
+      2026-09-23.** SCOPING round for 4ca item (7) — no code deleted;
+      this entry is the deliverable. THE DECISION (orchestrator's, now
+      grounded): delete the remote telemetry send machinery — every
+      file/function that exists to ship events to Rudderstack — while
+      preserving genuinely local behavior. Verified local survivors:
+      local `log::*` output (never part of the send path — the only
+      log line in the pipeline is the `log_named_telemetry_events`
+      cargo-feature debug line in `event_store.rs:92`, which dies with
+      the queue); `report_error!`/Sentry is SEPARATE — `warp_errors`'s
+      macro is log-only (`lib.rs:56-68`, log::log! + ErrorExt), no
+      telemetry dependency; network logging is SEPARATE —
+      `warp_server_client/src/network_logging.rs` is pure
+      `http_client` request hooks (`set_before_request_fn`) feeding
+      the in-app pane (`NetworkLogModel` → `network_log_pane.rs`), its
+      ONLY telemetry coupling is one line: `server_api.rs:283-285`
+      installs it on `telemetry_api.client` alongside the base client;
+      when TelemetryApi falls the install list shrinks to
+      `[&mut client]` and nothing else changes — network_logging is an
+      item-8 "moves" passenger, NOT item-7 scope. The AI-side secret
+      redaction (`app/src/ai/blocklist/block/secret_redaction.rs`,
+      visual safe-mode obfuscation) is a DIFFERENT module that stays;
+      the telemetry-side `telemetry/secret_redaction.rs` dies (its
+      only reader is `telemetry_ext.rs`; its only live writer is one
+      call in `terminal/secret_regex_updater.rs:55`
+      `update_telemetry_secrets_regex`, which dies with it — the
+      updater's `set_user_and_enterprise_secret_regexes` line above is
+      live local behavior and stays). Privacy settings with live LOCAL
+      readers stay: `user_secret_regex_list` /
+      `enterprise_secret_regex_list` (terminal model redaction),
+      `is_crash_reporting_enabled`, `is_cloud_conversation_storage_enabled`;
+      the telemetry-only fields die (`is_telemetry_enabled` setting +
+      model field whose only readers are the collector, the snapshot,
+      and the Settings toggle that is ALREADY HIDDEN in this build via
+      `is_telemetry_available() == false`, `privacy_page.rs:1409`;
+      `is_telemetry_force_enabled` — remote-teams-populated only;
+      `should_collect_ai_ugc_telemetry` snapshot field; and the whole
+      `PrivacySettingsSnapshot` type — every reader of every snapshot
+      accessor is a telemetry call path; the one non-macro holder,
+      `terminal/view.rs` `privacy_settings_snapshot` field
+      `:2311/:3517/:3793`, exists solely to send
+      `SessionAbandonedBeforeBootstrap`).
+
+      ANCHOR CORRECTIONS: the "746 call sites" figure is wrong —
+      measured at HEAD: 620 macro-invocation lines across 142 files
+      (`send_telemetry_from_ctx!` 561, `send_telemetry_from_app_ctx!`
+      41, `send_telemetry_sync_from_app_ctx!` 8,
+      `send_telemetry_on_executor!` 6,
+      `send_telemetry_sync_from_ctx!` 4; 139 files in app/src, 1 each
+      in crates/ai, crates/onboarding, crates/repo_metadata). And
+      "the flush poller" is THREE pollers plus two one-off flushers
+      (below).
+
+      PIPELINE MAP (end to end, every file/function): (1) DEFINITION —
+      a type impls `warp_core::telemetry::TelemetryEvent`
+      (name/payload/description/enablement_state/contains_ugc;
+      `crates/warp_core/src/telemetry.rs:20-59`) and registers via
+      `register_telemetry_event!` (`:62-71`, `inventory::submit!`
+      non-wasm) — 19 impl blocks in 18 files (catalog `events.rs`
+      plus 17 app files incl. `CliTelemetryEvent`
+      `ai/agent_sdk/telemetry.rs`, and crates/ai, crates/onboarding,
+      crates/repo_metadata). (2) ENQUEUE — `send_telemetry_from_ctx!`/
+      `send_telemetry_from_app_ctx!` (`warp_core/src/telemetry.rs:147,
+      176`): enablement check, read user_id/anonymous_id from the
+      `TelemetryContextModel` singleton (backed by
+      `AppTelemetryContextProvider`, `telemetry/context_provider.rs`,
+      registered `lib.rs:1147`), then
+      `warpui_core::record_telemetry_from_ctx!`/
+      `record_telemetry_on_executor!` (`crates/warpui_core/src/
+      telemetry/mod.rs:17,36`) → `EventStore::record_event` into the
+      GLOBAL IN-MEMORY QUEUE (bounded `BoundedVecDeque`, 1024;
+      `event_store.rs:9`). The macros do NOTHING besides this — no
+      local logging, no UI event store, no DB write. (3) DIRECT PATH —
+      `send_telemetry_sync_from_ctx!`/`..._from_app_ctx!` (`app/src/
+      server/telemetry/macros.rs:5,40`) and one direct call
+      (`terminal/view.rs:25423`) → `ServerApi::send_telemetry_event`
+      (`server_api.rs:344`) → `TelemetryApi::send_telemetry_event`
+      (`telemetry/mod.rs:215`) → `send_telemetry_event_internal`
+      (`:239`, privacy gate → optional file persist →
+      release/sandbox gate → send). (4) FLUSHERS — `TelemetryCollector`
+      (`telemetry/collector.rs`, constructed `lib.rs:1537-1539`):
+      `schedule_event_queue_flush` every 30s (`:200`,
+      `flush_telemetry_events` → `TelemetryApi::flush_events` `:95`
+      drains the queue); `schedule_send_active_usage_event` every 60s
+      (`:172`, needs cargo `record_app_active_events`);
+      `flush_persisted_events_from_disk` on startup (`:137`, reads
+      `rudder_telemetry_events.json`, needs release/sandbox); shutdown
+      flush (`lib.rs:1955` → `collector.rs:101`): SDK/daemon modes
+      flush with a 5s timeout, GUI mode `write_telemetry_events_to_disk`
+      persists ≤20 non-UGC events to `secure_state_dir()/
+      rudder_telemetry_events.json`; plus the login one-off
+      (`auth/auth_manager.rs:288-323`: record_identify + record + immediate
+      flush); `clear_event_queue` on the telemetry-toggle-changed
+      event (`collector.rs:73-77`). (5) MESSAGE BUILD —
+      `telemetry_ext.rs::TelemetryExt::to_rudder_batch_message` maps
+      `warpui::telemetry::Event` → `rudder_message.rs` Identify/Track
+      types, redacting UGC payloads via `secret_redaction.rs`.
+      (6) HTTP — `TelemetryApi::send_batch_messages_to_rudder`
+      (`mod.rs:304`, UGC/non-UGC partition) → `send_rudder_request`
+      (`:381`) POST `{root_url}/v1/batch` basic_auth(write_key) on
+      TelemetryApi's own reqwest client (`:71-86`, https_only);
+      destinations from `ChannelState::rudderstack_{ugc,non_ugc}_destination()`
+      (`warp_core/src/channel/state.rs:287,300` ← channel config
+      `telemetry_config`; `None` ⇒ `RudderStackDestination::default()`,
+      empty root_url/write_key). (7) DOCS SURFACE —
+      `warp_cli::Command::PrintTelemetryEvents` (`warp_cli/src/lib.rs:
+      428,439`; dispatch `lib.rs:629`) →
+      `TelemetryEvent::print_telemetry_events_json` (`events.rs:4313`)
+      dumps the inventory catalog (the external privacy doc's
+      exhaustive-telemetry-table source; `events_tests.rs` asserts
+      non-empty names/descriptions). No schema export: schema.graphql
+      has only the unrelated remote `TelemetrySettings` workspace
+      types (item-8 endgame), persistence schema has nothing.
+
+      CLASSIFICATION — REMOTE-ONLY (die in slice 1): `telemetry/mod.rs`
+      (412, TelemetryApi + clear_event_queue/rudder_event_file_path),
+      `rudder_message.rs` (249) + `LICENSE-RUDDER-SDK-RUST.txt`,
+      `context.rs` (103), `telemetry_ext.rs` (127) + its tests,
+      `secret_redaction.rs` (132) + its tests (222), `collector.rs`
+      (229), `mod_tests.rs` (61), `macros.rs` sync-macro halves,
+      ServerApi's `telemetry_api` field + 4 methods, the
+      `secret_regex_updater.rs:43-55` update call. SHARED (die in
+      slice 2 with the queue/catalog): `events.rs` (5,847 — the
+      `TelemetryEvent` enum ~1,336 variant lines + impls; the ~70
+      payload structs/enums are constructed only at macro sites;
+      `AppStartupInfo`/`CloseTarget`/`PaletteSource` imported by
+      `lib.rs:262` for macro sites only) + `events_tests.rs`; the
+      warp_core trait/inventory machinery; `context_provider.rs` (26;
+      backs the queue macros' identity read, so it dies with the
+      queue not the HTTP); `warpui_core/src/telemetry/` (467) — the
+      queue is LOCAL-ONLY code but has no drainer after slice 1, so
+      it falls as dead-end; `app_focus_telemetry.rs` (warpui_core)
+      records only into the queue — dies with it; the 17 other
+      event-def files (~3,754 lines total, event parts only —
+      `free_ai_removal_modal.rs` and `blocklist/telemetry.rs` are
+      mixed files, delete only the event types/impls). LOCAL-ONLY
+      (stays): blocklist visual secret redaction, network_logging,
+      report_error!/warp_errors, `OperatingSystemInfo` (shared with
+      graphql + http_client), privacy settings' secret-regex/crash/
+      cloud-storage fields, the privacy-page UI minus the telemetry
+      toggle.
+
+      RUNTIME ANSWER (why the smoke tests see zero TCP): telemetry is
+      default-ON in settings (`is_telemetry_enabled` default true,
+      `privacy.rs:58`) but FOUR independent brakes close the send path
+      in this repo's builds. (1) The `simplewarp` bin constructs
+      ChannelState with `telemetry_config: None`
+      (`app/src/bin/simplewarp.rs:27`; its doc says "no telemetry") —
+      so even a reached send would POST to an empty root_url
+      (`RudderStackDestination::default()`). (2) `ChannelState::
+      is_release_bundle()` is `cfg!(feature = "release_bundle")`
+      (`channel/state.rs:82`) and that cargo feature is in neither
+      `default` nor `simplewarp`. (3) `WithSandboxTelemetry` is in no
+      default flag list (not DOGFOOD/RELEASE/DEBUG; PREVIEW empty) —
+      only the `warp` dev bin enables it, and only when the
+      `WITH_SANDBOX_TELEMETRY` env var is set (`local.rs:15-17`); the
+      simplewarp bin adds DEBUG_FLAGS only. (4) Consequently ALL
+      THREE collector pollers are never scheduled — each arm of
+      `initialize_telemetry_collection` (`collector.rs:44-65`) requires
+      release-bundle/sandbox/`SendTelemetryToFile`/`RecordAppActiveEvents`,
+      all absent. Net effect: events pile into the bounded-1024
+      in-memory queue and are silently dropped; the only local trace
+      is the GUI-shutdown disk write of ≤20 non-UGC events to
+      `rudder_telemetry_events.json`, a file that is never read back
+      without the release bundle. Deleting the send machinery is
+      therefore behavior-invisible in this fork: it removes dead
+      enqueue pressure, that shutdown file write, and ~11k lines.
+
+      SLICE PLAN (each state compiles; order validated, split
+      corrected — slice 2 must be three slices: the catalog and the
+      queue have different dependency directions):
+      SLICE 1 — remote send path (~1,700 deleted lines, ~15 files).
+      Delete: `telemetry/mod.rs` TelemetryApi + flush/persist/
+      clear functions, `rudder_message.rs`, `context.rs`,
+      `telemetry_ext.rs` + tests, `secret_redaction.rs` + tests +
+      the `secret_regex_updater.rs` update call, `collector.rs` +
+      `lib.rs` wiring (`:262` import, `:1537-1540` construction,
+      `:1955-1958` shutdown call), the `auth_manager.rs:285-323`
+      login flush block (the DB persist above it stays),
+      `terminal/view.rs` SessionAbandoned send block + the
+      `privacy_settings_snapshot` field trio, ServerApi's
+      `telemetry_api` field + 4 methods + constructor params,
+      `network_log` install shrinks to `[&mut client]`.
+      COMPILE-BRIDGE: keep `ServerApi::send_telemetry_event` as a
+      no-op stub (same pattern as the AI `local_only_error()` stubs)
+      so the 12 sync-macro sites keep compiling; the 608 queue macros
+      keep working untouched (enqueue-only, same as today). Risk:
+      moderate — many small edit sites, all subtractive; the
+      `warpui::telemetry` queue still exists so zero macro-site churn.
+      Acceptance evidence: the 7-check suite both feature sets,
+      clippy-identical both configs, nextest baseline, and a smoke
+      run confirming no TCP AND no `rudder_telemetry_events.json`
+      written at shutdown. SLICE 2a — the event catalog + call sites
+      (~8,500 lines, ~160 files; the big mechanical one): delete all
+      620 macro invocations (142 files), `events.rs` +
+      `events_tests.rs`, the event parts of the 17 other event-def
+      files + `register_telemetry_event!` sites, `CliTelemetryEvent`,
+      `PrintTelemetryEvents` (`warp_cli/src/lib.rs:428,439` +
+      `lib.rs:629`), payload-type imports (`lib.rs:262` shrinks to
+      `TelemetryCollector` → then nothing). Risk: LOW per site, high
+      file count; every site is deleted not edited, presubmit
+      compiles all of them. SLICE 2b — queue + trait machinery
+      (~1,300 lines, ~20 files): `warpui_core/src/telemetry/` +
+      `app_focus_telemetry.rs` daily-focus recording (+ the
+      `lib.rs` shutdown `try_record_daily_app_focus_duration` call),
+      `warp_core/src/telemetry.rs` whole file (trait, inventory,
+      `EnablementState`, `TelemetryContextModel`/Provider, queue
+      macros, mock), `telemetry/macros.rs` + the
+      `ServerApi::send_telemetry_event` stub, `context_provider.rs`
+      + `lib.rs:1147` registration, `auth_manager` record lines,
+      `notebook_tests.rs:330` queue assertion; check the `inventory`
+      dep (settings + warp_errors have their own collects) and the
+      5 test-harness files registering `AppTelemetryContextProvider`.
+      Risk: moderate — test-harness singletons. SLICE 2c — privacy
+      telemetry-only fields (~300 lines, ~8 files): `PrivacySettingsSnapshot`
+      (whole type), the `is_telemetry_enabled` setting + model field +
+      `UpdateIsTelemetryEnabled` event + collector subscribe +
+      terminal-view subscribe remnants, `is_telemetry_force_enabled`
+      (user_workspaces + gql_convert plumbing — GraphQL types
+      themselves are item-8), the privacy-page telemetry toggle
+      section. Risk: settings-schema churn — regenerate via
+      `generate_settings_schema` and eyeball the defaults diff.
+      SLICE 3 — leftovers (~600 lines, ~15 files): channel-config
+      `telemetry_config`/`TelemetryConfig`/`RudderStackConfig`/
+      `RudderStackDestination`/`telemetry_file_name`/
+      `is_telemetry_available` (touches all six bin channel configs
+      that pass `telemetry_config: None` — decide removal vs keep),
+      `execution_mode::send_telemetry_at_shutdown`, warp_features
+      `WithSandboxTelemetry`/`SendTelemetryToFile`/`RecordAppActiveEvents`
+      variants + app cargo features `send_telemetry_to_file`/
+      `record_app_active_events`/warpui `log_named_telemetry_events`,
+      then the EnablementState-flag sweep: flags referenced ONLY from
+      deleted `enablement_state()` arms become newly callerless and
+      get their own per-flag removal slices. Total ≈ 11,000+ lines.
+
+      LANDMINES: (1) cfg-gated arms presubmit never compiles —
+      `events.rs` has `#[cfg(feature = "local_fs")]` and
+      `#[cfg(windows)]` match arms in the exhaustive
+      contains_ugc/description matches (the 4ca `skip_login` class);
+      slice 2a deletes the whole file so they vanish, but any
+      intermediate refactor of those matches must compile both the
+      windows/local_fs combos by hand. (2) wasm gates: `telemetry/
+      mod.rs` + `context.rs` carry `#[cfg(target_family = "wasm")]`
+      branches (`boxed_local`, `Client::default()`,
+      `cfg_attr(wasm, allow(clippy::question_mark))`) — never
+      compiled by presubmit; `register_telemetry_event!`'s inventory
+      half is non-wasm-only. (3) inventory static registration is
+      cross-crate: 18 files expand `inventory::submit!`; the crate
+      dep stays (settings schema + warp_errors registration use
+      their own collects). (4) `TelemetryContextModel` must be
+      registered before any queue macro runs — five test files +
+      `test_util/terminal.rs:99` register it; deleting the provider
+      breaks those harnesses (compile-caught, but noisy). (5)
+      `notebook_tests.rs:330` reads the queue back via
+      `flush_events()` — the one LOCAL test reader; dies in 2b.
+      (6) `AgentModeAnalytics` (DOGFOOD) forces
+      `should_disable_telemetry()` false (`privacy.rs:322-324`) — a
+      flag→telemetry coupling that silently disappears in 2c; no
+      other flag consumer changes. (7) the shutdown
+      `rudder_telemetry_events.json` write is the only on-disk
+      telemetry artifact in this fork — slice 1 removes it; verify
+      with the smoke run. (8) `warp_cli::Command::PrintTelemetryEvents`
+      sits in the hidden-command list (`:439` returns true) — delete
+      the variant, the hidden-check arm, and the dispatch together.
+      (9) `onboarding::OnboardingEvent` shows zero senders outside
+      its crate at survey time — a pre-existing candidate for the
+      2a sweep to double-check, not assumed. (10) tooling: reapply
+      the 4ex corrected call-syntax regex when sweeping macro
+      removals' fallouts. DESIGNATED NEXT: slice 1 exactly as
+      scoped above. Acceptance for THIS round: no code changes —
+      this commit contains only plan.md (verified with
+      `git show --stat`); no clippy/nextest required; app not
+      launched; no .rs file touched.
