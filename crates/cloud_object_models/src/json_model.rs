@@ -4,9 +4,7 @@ pub mod persistence;
 use std::fmt::Debug;
 
 use anyhow::Result;
-use cloud_objects::cloud_object::{
-    GenericStringObjectFormat, JsonObjectType, SerializedModel, Serializer,
-};
+use cloud_objects::cloud_object::{JsonObjectType, SerializedModel, Serializer};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -14,11 +12,6 @@ use serde::de::DeserializeOwned;
 pub trait JsonModel: Clone + Debug + Send + Sync + Serialize + DeserializeOwned + 'static {
     /// Returns the JSON object type used by the generic string object API.
     fn json_object_type() -> JsonObjectType;
-
-    /// Returns the generic string format for this JSON model.
-    fn model_format() -> GenericStringObjectFormat {
-        GenericStringObjectFormat::Json(Self::json_object_type())
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]

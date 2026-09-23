@@ -8749,3 +8749,162 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       exhaustive `.into()`/`==`-resolution trace before any judgment;
       after those, the crate-clean verdict + the cloud-run-lifecycle pivot
       per the 4ca plan (not started).
+
+- [x] **inference-impl traces + `JsonModel::model_format` (4eu) — DONE
+      2026-09-23.** The 4et-designated round: both trace-only inference
+      impls from the 4er survey got their 4em/4eo-class resolution traces
+      (both found LIVE — recorded here, not deleted), plus the 4et-noted
+      newly-orphaned default method deleted. (1) `impl
+      settings_value::SettingsValue for SyncId` (`ids.rs:104`, empty
+      serde-passthrough impl of the trait at
+      `crates/settings_value/src/lib.rs:63`, whose own crate doc names
+      SyncId as the passthrough example) — LIVE, structurally required by
+      the settings machinery: `app/src/ai/cloud_agent_settings.rs:8-14`
+      registers the live `CloudAgentSettings` group with setting
+      `last_selected_environment_id { type: Option<SyncId> }` where
+      `SyncId` is `crate::server::ids::SyncId` = re-export of
+      `cloud_objects::ids::SyncId` (`app/src/server/ids.rs:8`;
+      `warp_server_client/src/ids.rs:1` glob-re-exports the same type);
+      `define_settings_group!` emits `type Value = Option<SyncId>`
+      (`crates/settings/src/macros.rs:541`), and `Setting`'s
+      `type Value: Serialize + DeserializeOwned + PartialEq + Debug +
+      SettingsValue` bound (`crates/settings/src/lib.rs:299`) forces
+      `Option<SyncId>: SettingsValue` through the collection impl
+      `impl<T: SettingsValue> SettingsValue for Option<T>`
+      (`settings_value/src/lib.rs:148`), whose `to_file_value`/
+      `from_file_value` dispatch DIRECTLY into the SyncId impl — reached
+      at runtime by the settings-file load/save paths
+      (`lib.rs:509,560,583`), the default-value file serialization at
+      registration (`macros.rs:860-862`), and the update callback
+      (`macros.rs:877-884`); the setting itself is live
+      (`catalog.rs:84-91` `persist_selection` → `set_value(Some(...))`,
+      `:106-108` `saved_environment_id`, registered in
+      `app/src/settings/init.rs:24`). Deleting the impl cannot compile.
+      (2) `impl<K, M> PartialEq for GenericCloudObject<K, M> where M:
+      PartialEq` (`generic_cloud_object.rs:54-61`) — LIVE, found by the
+      EMPIRICAL delete-and-check (the conclusive method for PartialEq:
+      not object-safe, no dyn dispatch, every use is a compile-time
+      inference target). Exhaustive textual sweep found zero callers:
+      word-guarded `==`/`!=` with any of the 13 `GenericCloudObject`
+      alias operands zero; `.eq(`/`.ne(` all diesel DSL columns or UI
+      editor handles; `.contains(&` all uid/path/flag collections;
+      `.dedup()` zero on these collections; `assert_eq!`/`assert_ne!`
+      all compare inner `.name` strings/ids; all PartialEq-consuming
+      closures (`find`/`position`/`any`) compare ids/strings; the
+      containers that hold the aliases (`WarpDrive*` items, search
+      items, `CloudRuleRow`, `RuleEditorView`) derive only
+      `Clone`/`Debug` or nothing; `catalog.rs:96`'s
+      `environments != self.environments` is an app-local projection
+      struct with its own derived PartialEq; `CloudObject` trait is
+      `: Debug` only. But the temporary deletion made
+      `cargo check -p warp --lib --all-targets` fail with exactly two
+      E0369 errors — derive-macro expansions: `#[derive(PartialEq)]`
+      `EnvVarCollectionType::Cloud(Box<CloudEnvVarCollection>)`
+      (`app/src/env_vars/mod.rs:22-26`) and `#[derive(PartialEq)]`
+      `WorkflowType::Cloud(Box<CloudWorkflow>)`
+      (`app/src/workflows/mod.rs:116-121`) — the derived eq forwards
+      through std's `impl<T: PartialEq> PartialEq for Box<T>` into the
+      GenericCloudObject impl. This extends the 4ei alias/turbofish
+      lesson: DERIVE-FORWARDED trait resolution through alias-qualified
+      payload types is invisible to every operator grep; only the
+      compiler sees it. Impl restored byte-identical; the derives stay
+      (live enums, removing them would be a semantics change, out of
+      scope). (3) `cloud_object_models::json_model::JsonModel::
+      model_format` default body (`json_model.rs:19-21` pre-edit) —
+      DELETED. Fresh exhaustive sweep at HEAD: `.model_format(` zero in
+      `*.rs`; `::model_format` exactly 14 sites, all triaged — the
+      required-method decl + 3 live `M::model_format()` dispatches in
+      the app-side `StringModel` machinery
+      (`app/src/cloud_object/model/generic_string_model.rs:55,115,157,162`)
+      and 10 override bodies under `impl StringModel for X` /
+      `impl JsonModel for X` in the app's ai/env_vars/settings modules
+      (resolving to the app-side trait, per 4et); the only
+      cloud_object_models mention was the default decl itself — its
+      only caller was the `Serializer<M> for JsonSerializer` override
+      4et already deleted, and the app twin
+      (`app/src/cloud_object/model/json_model.rs`) never had a
+      `model_format` (it inherits the live `StringModel::model_format`),
+      nothing to delete there. Deleted the default method + its doc
+      comment and shrank the now-partially-unused import
+      (`GenericStringObjectFormat` part; `JsonObjectType`/
+      `SerializedModel`/`Serializer` stay for `json_object_type` and
+      the JsonSerializer impl) (1 file, +1/−8). Survey (Part 2),
+      crate-clean verdict: crates/cloud_objects has exactly ONE known
+      candidate left — `GenericStringObjectId::uid` inherent method
+      (`ids.rs:419`, the 4er deferral; this pass found every `.uid()`
+      receiver resolving to SyncId / CloudObjectTypeAndId / the
+      CloudObject trait, and the sole `GenericStringObjectId::from_hash`
+      value site converts to `ServerId`→`SyncId` without calling it —
+      but it needs its own receiver-typed dual-confirm slice, never
+      this round); the two inference impls are now resolved LIVE, so
+      the crate is otherwise clean. crates/cloud_object_models gained
+      def-only leaf candidates for future slices (bare-name single-hit
+      = definition only, PCRE-guarded; the `\b` grep on this host
+      silently returns zero hits and must not be trusted):
+      `WorkflowModel::author_name` (workflow.rs:106; only other hit is
+      the string literal `"author_name"` in workflow_tests.rs:125),
+      `MCPServer::from_stored_json` (mcp.rs:216),
+      `AIFact::is_memory` (ai_fact.rs:52),
+      `AgentConfig::to_ambient_config` (cloud_agent_config.rs:33),
+      `Workflow::from_harness_type` /
+      `Workflow::get_enum_ids` /
+      `Workflow::is_command_workflow` /
+      `Workflow::replace_object_id` (workflow.rs),
+      `AIExecutionProfile::is_always_ask` (ai_execution_profile.rs),
+      `ScheduledAmbientAgent::from_harness_type`
+      (scheduled_ambient_agent.rs); the models' persistence fns
+      re-verified LIVE (`delete_folder`/`delete_notebook`/
+      `delete_workflow` wired as fn pointers at
+      `app/src/persistence/sqlite.rs:3169` family, `upsert_folders`/
+      `upsert_notebooks`/`upsert_workflows` at sqlite.rs:648,665
+      family, `get_init_command_for_env_var_value` +
+      `serialize_variables_internal` internally called at
+      env_vars.rs:137,165). Deliberately left: both inference impls
+      (LIVE, evidence above), all 13 `GenericCloudObject` aliases and
+      their containers, the settings machinery, the app-side
+      `StringModel::model_format` + its ten overrides (live), both
+      `JsonSerializer` impls and both `JsonModel` traits (live),
+      `GenericStringObjectId::uid` (designated next candidate), the
+      nine cloud_object_models def-only leaves (each its own slice),
+      ambient plumbing, telemetry scope (4ca item7), fold (item8),
+      redesigns, and all local features. Local-only safety: the single
+      deleted item is a default trait method whose only dispatch was
+      already deleted in 4et and whose every remaining call form
+      resolves to the surviving app-side trait, so cloud-object
+      persistence/sync (generic-string objects serialize through
+      `JsonSerializer::serialize`/`deserialize_owned`, untouched),
+      settings persistence (env ids round-trip through the live
+      SettingsValue path), drive, terminal, tabs, panes, BYOK AI,
+      themes, and all other local features are untouched; only a
+      never-dispatched default body is gone.
+
+      Acceptance: clippy baselines captured at HEAD FIRST (worktree
+      clean, no stash needed) in both configs — 12 sorted
+      warning+location pairs / 14 `^warning` lines each (11
+      unneeded-return in `app/src/terminal/input.rs` + 1
+      single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the edits
+      (including the PartialEq delete-restore experiment),
+      `-p warp --lib --all-targets` is warning-identical to the
+      baseline in BOTH configs (sorted-pair diffs empty, 12 pairs / 14
+      `^warning` lines each). All checks exit 0 (`check -p
+      cloud_objects --all-targets` ± `--all-features`, `check -p
+      cloud_object_models --all-targets`, `check -p warp --lib
+      --all-targets` both feature sets, `--no-default-features
+      --features simplewarp --bin simplewarp`, `--bin warp-oss`,
+      `--all-targets -p integration`) with 0 errors and only the two
+      pre-existing `step.rs` unused-import warnings
+      (`single_terminal_view_for_tab`, `crate::terminal::CLIAgent`,
+      observed in the integration check). Format clean
+      (`./script/format`; diff remains exactly +1/−8). Nextest `-p
+      warp --lib --no-fail-fast`: 4,653 default passed, 4 skipped, 0
+      failed; 4,652 simplewarp — first run 4,651 + the known
+      `test_command_block_dispatches_event` load flake, rerun clean
+      4,652 passed, 4 skipped, 0 failed. Runtime smoke test SKIPPED:
+      the user is away and nobody can answer the macOS password
+      prompt, so per the 2026-09-23 convention change the GUI binary
+      was not built or launched — unit tests plus checks are the
+      acceptance for this round. Did not `cargo clean`. Next major
+      item remains the cloud-run lifecycle walls per the 4ca plan —
+      NOT started; the orchestrator decides whether to first exhaust
+      the small candidates above.
