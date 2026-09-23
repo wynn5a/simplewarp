@@ -2,7 +2,7 @@ use std::fmt::{self, Debug};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use super::{ObjectType, ServerMetadata, ServerPermissions};
+use super::{ServerMetadata, ServerPermissions};
 use crate::ids::SyncId;
 
 #[derive(Clone, Debug, Default)]
@@ -20,12 +20,6 @@ impl<T> ConflictStatus<T> {
     pub fn has_conflicts(&self) -> bool {
         matches!(self, ConflictStatus::ConflictingChanges { .. })
     }
-}
-
-/// Common behavior that server-backed models expose to generic server objects.
-pub trait ServerObjectModel: Debug + Clone + Send + Sync + 'static {
-    /// Returns the object type for this model.
-    fn object_type(&self) -> ObjectType;
 }
 
 /// An object that maps directly to the data returned from the server

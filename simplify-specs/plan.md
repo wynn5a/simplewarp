@@ -8562,3 +8562,90 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
         crate then shows clean at re-survey, the effort pivots to the
         next major item (the cloud-run lifecycle walls per the 4ca
         plan) — not started this round.
+
+- [x] **`ServerObjectModel` trait + four impls (4es) — DONE 2026-09-23.**
+      The 4er-survey-designated slice, 4eq's whole-trait deadness class
+      scaled up to four impls. Verification (fresh at HEAD; ledger /
+      schema / fixtures excluded): bare-name
+      `git grep -n ServerObjectModel -- '*.rs'` hits exactly the trait
+      def with its two doc lines (`server_object.rs:25-29`), the four
+      impl blocks (`for CloudFolderModel` at
+      `cloud_object_models/src/folder.rs:30`, `for CloudNotebookModel`
+      at `notebook.rs:28`, `for CloudWorkflowModel` at
+      `workflow.rs:389`, `impl<M, S> for GenericStringModel<M, S>` at
+      `cloud_objects/cloud_object/generic_string_model.rs:48`; all line
+      numbers pre-edit), and the four impl-side `use` lines — zero
+      bounds (`: ServerObjectModel`, `ServerObjectModel>`,
+      `ServerObjectModel +`), zero `dyn`, zero `ServerObjectModel::`
+      path forms, no other importers. All 20 `.object_type()` call
+      sites resolve to other traits (17 app-side `CloudObject`, 1
+      `CloudModelType` at app `cloud_object/mod.rs:578`, 1 inherent
+      `CloudObjectTypeAndId::object_type` at
+      `agent_profiles_page.rs:355`, 1 `WarpDriveItem`), and the four
+      model types carry identical-bodied `CloudModelType` impls (app
+      `cloud_object/folders.rs:17`, `notebooks/mod.rs:28`,
+      `workflows/mod.rs:182`,
+      `cloud_object/model/generic_string_model.rs:138`) — resolution
+      never landed on `ServerObjectModel`, so the deleted impls were
+      unreachable and removing them cannot change any site's value.
+      Import dispositions: `ObjectType` dropped entirely from all five
+      affected use lines (per-file grep: it appeared only on the
+      deleted def/impl lines — also in server_object.rs itself);
+      retained parts re-verified in use (`GenericCloudObject`/
+      `GenericServerObject` for the aliases in the three model files,
+      `GenericStringObjectFormat`/`SerializedModel` for the
+      `Serializer` trait signature, `ServerMetadata`/
+      `ServerPermissions` for the struct fields). Deleted the trait
+      def with its doc comment and all four impl blocks (5 files,
+      +5/−45). One-hop: all four model types stay live (app-side
+      `CloudModelType` impls + the `cloud_object_models` type aliases
+      + persistence readers); `ObjectType`, `Serializer` (still
+      implemented by `JsonSerializer`; the app-side sibling trait
+      carries its own `model_format`), `GenericStringObjectFormat`,
+      `SerializedModel` all keep users. Newly orphaned: cloud-objects'
+      `Serializer::model_format` loses its only in-repo dispatch site
+      (the deleted `S::model_format()`) — public trait method,
+      clippy-silent; next-round candidate, not deleted here.
+      Deliberately left: `GenericServerObject`/`ConflictStatus` (LIVE
+      per 4eq/4er), the `cloud_object_models` aliases (LIVE),
+      everything else per the 4er survey. Designated NEXT:
+      `GenericStringModel::json_model` (`generic_string_model.rs:42-44`
+      pre-edit; `.json_model(` zero repo-wide), then the
+      `cloud_objects::auth` re-exports (`TEST_USER_EMAIL`/
+      `TEST_USER_UID` + the `pub use warp_server_auth::user_uid;`
+      module re-export, zero importers via `cloud_objects::auth`; the
+      `UserUid` part of line 1 is live), then the trace-only items
+      (`impl SettingsValue for SyncId`, `impl PartialEq for
+      GenericCloudObject` — 4em/4eo-class inference traces). Local-only
+      safety: zero external mentions means zero behavior change — no
+      code outside the five edited files could name the trait, and
+      every `.object_type()` site already resolved through the
+      surviving traits, so cloud-object persistence/sync, drive,
+      terminal, tabs, panes, BYOK AI, settings, themes, and all other
+      local features are untouched.
+
+      Acceptance: clippy baseline captured at HEAD FIRST in both
+      configs (14 `^warning` lines each = the 12 pre-existing warnings
+      + 2 crate summaries; the worktree already held this round's
+      edits from an interrupted attempt, so the HEAD baseline was
+      captured via `git stash push` / clippy both configs / `git stash
+      pop`, and the popped diff was re-verified against a from-scratch
+      grep before continuing); after the edit, `-p warp --lib
+      --all-targets` is warning-identical to the baseline in BOTH
+      configs (sorted warning+location-pair diffs empty, 14 `^warning`
+      lines each). All 7 checks exit 0 (`check -p cloud_objects
+      --all-targets` ± `--all-features`, `check -p warp --lib
+      --all-targets` both feature sets, `--no-default-features
+      --features simplewarp --bin simplewarp`, `--bin warp-oss`,
+      `--all-targets -p integration`) with 0 errors and only the two
+      pre-existing `step.rs` unused-import warnings
+      (`single_terminal_view_for_tab`, `crate::terminal::CLIAgent`,
+      observed in the integration check). Format clean
+      (`./script/format`; diff remains exactly +5/−45 across the five
+      files). Nextest `-p warp --lib --no-fail-fast`: 4,652 simplewarp
+      passed / 4,653 default passed, 4 skipped each, 0 failed (exactly
+      the baseline, no flakes). Runtime smoke test SKIPPED: the user
+      is away and nobody can answer the macOS password prompt, so per
+      the 2026-09-23 convention change the GUI binary was not built or
+      launched — unit tests plus checks are the acceptance for this
+      round. Did not `cargo clean`.

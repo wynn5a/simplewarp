@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 use anyhow::Result;
 
-use super::{GenericStringObjectFormat, ObjectType, SerializedModel, ServerObjectModel};
+use super::{GenericStringObjectFormat, SerializedModel};
 
 /// A serializer goes from a model to a string and back.
 pub trait Serializer<M>: Debug + Clone + 'static {
@@ -42,15 +42,5 @@ where
 
     pub fn json_model(&self) -> &M {
         &self.string_model
-    }
-}
-
-impl<M, S> ServerObjectModel for GenericStringModel<M, S>
-where
-    M: Debug + Clone + Send + Sync + 'static,
-    S: Serializer<M>,
-{
-    fn object_type(&self) -> ObjectType {
-        ObjectType::GenericStringObject(S::model_format())
     }
 }

@@ -1,9 +1,7 @@
 #[cfg(not(target_family = "wasm"))]
 pub mod persistence;
 
-use cloud_objects::cloud_object::{
-    GenericCloudObject, GenericServerObject, ObjectType, ServerObjectModel,
-};
+use cloud_objects::cloud_object::{GenericCloudObject, GenericServerObject};
 use cloud_objects::ids::{GenericStringObjectId, ServerId, SyncId};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -383,12 +381,6 @@ pub struct CloudWorkflowModel {
 impl CloudWorkflowModel {
     pub fn new(workflow: Workflow) -> Self {
         Self { data: workflow }
-    }
-}
-
-impl ServerObjectModel for CloudWorkflowModel {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::Workflow
     }
 }
 

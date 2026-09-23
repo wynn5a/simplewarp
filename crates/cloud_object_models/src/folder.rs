@@ -1,9 +1,7 @@
 #[cfg(not(target_family = "wasm"))]
 pub mod persistence;
 
-use cloud_objects::cloud_object::{
-    GenericCloudObject, GenericServerObject, ObjectType, ServerObjectModel,
-};
+use cloud_objects::cloud_object::{GenericCloudObject, GenericServerObject};
 use cloud_objects::ids::FolderId;
 
 /// The model for a `CloudFolder`.
@@ -24,12 +22,6 @@ impl CloudFolderModel {
             is_open: false,
             is_warp_pack,
         }
-    }
-}
-
-impl ServerObjectModel for CloudFolderModel {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::Folder
     }
 }
 

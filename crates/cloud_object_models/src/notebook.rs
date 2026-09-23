@@ -2,9 +2,7 @@
 pub mod persistence;
 
 use ai::document::AIDocumentId;
-use cloud_objects::cloud_object::{
-    GenericCloudObject, GenericServerObject, ObjectType, ServerObjectModel,
-};
+use cloud_objects::cloud_object::{GenericCloudObject, GenericServerObject};
 use cloud_objects::ids::{ServerId, SyncId};
 use serde::{Deserialize, Serialize};
 
@@ -23,12 +21,6 @@ pub struct CloudNotebookModel {
     pub ai_document_id: Option<AIDocumentId>,
     /// This is the server-generated conversation token, not the client-side AIConversationId.
     pub conversation_id: Option<String>,
-}
-
-impl ServerObjectModel for CloudNotebookModel {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::Notebook
-    }
 }
 
 /// This is the notebook_id in the database associated with this notebook.
