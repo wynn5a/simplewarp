@@ -7912,3 +7912,117 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       `/Applications/SimpleWarp.app` instance still holds the only
       listener), 0 panics (empty log), clean shutdown (SIGTERM). Did
       not `cargo clean`.
+
+- [x] **creation.rs dead-type cluster (4en) — DONE 2026-09-23.** The
+      4em-designated next slice, taken as one cluster: the five
+      remote-creation request/response types in
+      `crates/cloud_objects/src/cloud_object/creation.rs` —
+      `CreateObjectRequest`, `BulkCreateGenericStringObjectsRequest`,
+      `CreatedCloudObject`, `CreateCloudObjectResult`,
+      `BulkCreateCloudObjectResult`. Independent per-type
+      verification (the 4ei survey was a lead, not proof): for EACH
+      type, bare-name `git grep` over all files hits ONLY the
+      definition in creation.rs (plus the two in-file uses of
+      `CreatedCloudObject` as payload of the two deleted enums),
+      `plan.md` ledger mentions, and one stale prose doc mention of
+      `CreateObjectRequest` at
+      `cloud_object_models/src/notebook.rs:13` ("avoid polluting the
+      generic CreateObjectRequest type" — a comment, not a use);
+      path-form `T::` zero, type-position `[<:,]\s*T` zero, snake_case
+      bindings zero — for all five. No inference-trace caveat applies
+      (unlike 4em's `From` impls): a struct/enum can only be used by
+      naming it — construction, field/fn-signature/trait-impl/alias
+      all spell the name — so bare+path+type-position coverage is
+      conclusive. Exposure: the module is wired via
+      `cloud_object/mod.rs:26 mod creation;` + `:32 pub use
+      creation::*;` glob (any external use would still spell the bare
+      name — zero); `creation::` path usage zero outside that glob;
+      none of the five derives `Serialize`/`Deserialize` (derives are
+      `PartialEq, Eq, Debug` once and `Debug` thrice, plus
+      `allow(clippy::large_enum_variant)`); zero hits in
+      `crates/persistence`, `crates/cloud_object_persistence`,
+      `app/src/persistence`, `app/src/cloud_object`, and
+      `crates/warp_graphql*`; `schema.graphql` zero — the wire's
+      `BulkCreateObjectsInput` / `BulkCreateObjectsOutput` /
+      `BulkCreateObjectsResult` and the `bulkCreateObjects` mutation
+      are schema-side GraphQL types with different names, untouched;
+      `*.json` / `*.toml` fixtures zero. These are the client-side
+      types of the remote creation API that no longer runs — exactly
+      the remote-dependent class this effort removes. Deleted the five
+      types with their doc comments, plus the nine imports they
+      orphaned in creation.rs (`ServerTimestamp`,
+      `CloudObjectEventEntrypoint`, `GenericStringObjectFormat`,
+      `GenericStringObjectUniqueKey`, `Owner`,
+      `RevisionAndLastEditor`, `SerializedModel`, `ClientId`,
+      `FolderId` — `ServerPermissions` and `ServerIdAndType` stay for
+      `ServerCreationInfo`), plus the two stale doc lines in
+      `notebook.rs` (2 files, +2/−67; creation.rs 76 → 11 lines,
+      keeping only `ServerCreationInfo`). One-hop orphan check: every
+      field type of the deleted types re-verified heavily used
+      elsewhere — `CloudObjectEventEntrypoint` (`cloud_object/mod.rs:745`
+      def + `:827` GraphQL `From` impl), `GenericStringObjectFormat` /
+      `GenericStringObjectUniqueKey` (`app/src/ai/cloud_agent_config`,
+      `cloud_environments`, `execution_profiles`, `facts`,
+      `blocklist`), `SerializedModel` (`app/src/cloud_object/folders.rs:51`,
+      `app/src/cloud_object/mod.rs:449`,
+      `model/generic_string_model.rs:27`), `ServerPermissions`
+      (`app/src/ai/conversation.rs:4503` et al.) — nothing else
+      orphaned. Deliberately left: `ServerCreationInfo` (LIVE —
+      `app/src/cloud_object/model/persistence.rs:17` +
+      `crates/cloud_object_persistence/src/objects.rs:7`),
+      `RevisionAndLastEditor` (LIVE — defined at
+      `cloud_object/mod.rs:782`, not in creation.rs as the handoff
+      loosely said; live via `app/src/cloud_object/model/persistence.rs:249`,
+      `app/src/persistence/mod.rs:342`,
+      `cloud_object_persistence/src/objects.rs:423`; only
+      creation.rs's now-unused import of it went), and everything
+      else per prior rounds. Designated NEXT: the
+      `From<AccessLevel> for SharingAccessLevel` /
+      `From<SharingAccessLevel> for AccessLevel` pair in sharing.rs —
+      same inference-trace class as 4em (the 4em trace observed no
+      caller for either, but prior handoffs recorded them as live
+      server/session-mapping paths, so they need their own dedicated
+      slice enumerating alias-qualified `.into()`, `From::from`
+      turbofish, and inference targets — apply the 4ei lesson); after
+      that, a fresh survey of `crates/cloud_objects` — if the crate
+      is clean, the effort pivots to the next major item (the
+      cloud-run lifecycle walls per the 4ca plan). Local-only safety:
+      zero references means zero behavior change — the deleted types
+      are the request/response shapes of a remote creation API that
+      no longer runs, so no code path could construct, receive, or
+      even name them; cloud-object persistence/sync runs exclusively
+      through the live `ServerCreationInfo` path, and drive, terminal,
+      tabs, panes, BYOK AI, settings, themes, and all other local
+      features are untouched; only five never-instantiated wire types
+      are gone.
+
+      Acceptance: clippy baseline captured at HEAD FIRST in both
+      configs (12 sorted warning+location pairs each — the 12
+      pre-existing warnings: 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the edit,
+      `-p warp --lib --all-targets` is warning-identical to the
+      baseline in BOTH configs (default and `--no-default-features
+      --features simplewarp` — sorted-pair diffs empty, 14 `^warning`
+      lines each, no unused-import or dead-code warnings). All 7
+      checks exit 0 (`check -p cloud_objects --all-targets` ±
+      `--all-features`, `check -p warp --lib --all-targets` both
+      feature sets, `--no-default-features --features simplewarp
+      --bin simplewarp`, `--bin warp-oss`, `--all-targets -p
+      integration`) with 0 errors and only the two pre-existing
+      `step.rs` unused-import warnings
+      (`single_terminal_view_for_tab`, `crate::terminal::CLIAgent`,
+      observed in the integration check); format clean
+      (`./script/format`, diff still exactly +2/−67). Nextest
+      `-p warp --lib --no-fail-fast`: 4,652 simplewarp passed /
+      4,653 default passed, 4 skipped each, 0 failed (first
+      simplewarp run hit the known flake
+      `notebooks::notebook::tests::test_command_block_dispatches_event`
+      — passes in isolation and on the full rerun, per the 4ed
+      precedent; exactly the baseline, zero tests added or removed).
+      `cargo nextest run -p cloud_objects --no-fail-fast`: 0 tests
+      (the crate has no test attributes). Runtime smoke test
+      SKIPPED: the user is away and nobody can answer the macOS
+      password prompt, so per the 2026-09-23 convention change the
+      GUI binary was not built or launched — unit tests plus checks
+      are the acceptance for this round. Did not `cargo clean`.

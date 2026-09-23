@@ -9,8 +9,6 @@ use cloud_objects::ids::{ServerId, SyncId};
 use serde::{Deserialize, Serialize};
 
 /// Serialized representation of a notebook for sync queue
-/// The AIDocumentID and ConversationID are stored here to avoid polluting the
-/// generic CreateObjectRequest type.
 #[derive(Serialize, Deserialize)]
 pub struct SerializedNotebook {
     pub data: String,
