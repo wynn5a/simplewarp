@@ -6971,3 +6971,62 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       `./target/debug/simplewarp` and launched it — alive 60s+, zero TCP
       sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics, clean
       shutdown.
+
+- [x] **`TeamKind::team_uid` (4ec) — DONE 2026-09-23.** Next
+      zero-caller leaf in `crates/cloud_objects` after 4eb
+      (`Subject::team_uid`, whose sole internal caller was this
+      method). Same zero-caller leaf class as
+      4dp/4dq/4du/4dv/4dw/4dx/4dy/4dz/4ea/4eb: independent
+      dual-confirm (bare-name + call-syntax, ledger /
+      `schema.graphql` / fixture / field-decl excluded). Call-syntax
+      `.team_uid()` zero-arg form zero hits repo-wide in `*.rs`
+      (the 4eb-era single hit at `sharing.rs:145` is gone with the
+      deleted method); `::team_uid` zero in `*.rs` (no re-export
+      confusion); `TeamKind::team_uid` / `Subject::team_uid` paths
+      zero in `*.rs` (only `plan.md` ledger lines). `.team_uid(`
+      with args only the unrelated `self.team_uid(ctx/app)` view
+      methods (`app/src/root_view.rs:1415`,
+      `app/src/workspace/view.rs:20567,20627,20647,20676,20707,20736,21676,22274`)
+      — all take `ctx`/`app`, different methods. `TeamKind` refs
+      repo-wide only `sharing.rs:91` (`Subject::Team` payload),
+      `:109` (enum def), and the deleted `:120-128` impl (whose
+      `:124-125` destructures sit inside the deleted method itself,
+      not callers) — used nowhere outside `sharing.rs`. Bare-name
+      `team_uid` hits class by class, none a caller: `Owner::Team`
+      / `Space::Team` destructures and inits, `UserWorkspaces`
+      (`team_uid_for_window`, `sole_team_uid`, `team_from_uid`,
+      `inherited_or_default_team_uid`), window/telemetry/persistence
+      struct fields, GraphQL/QA types, migrations/schema, tests, docs,
+      and the plan ledger; `schema.graphql` zero, `*.json` fixtures
+      zero. Deleted the `impl TeamKind` block only (both imports
+      stay — `ServerId` still used by the `TeamKind` fields at
+      `sharing.rs:111,115`, `UserUid` still used by `is_user`) (1
+      file, +0/−10). Deliberately left: `TeamKind` enum itself (now
+      newly candidate — payload of `Subject::Team` only — needs its
+      own `Subject::Team` construction-site trace slice, candidate
+      next, never in this round), `label` / `name` (generic names,
+      receiver-typed judgment deferred), `can_move_drive` / `is_user`
+      (live), `into_upsert_params` (zero callers but
+      consuming-variant scope judgment per handoff — trace-only, not
+      deleted), and all `ids.rs` / `drive/mod.rs` survivors.
+      Local-only safety: zero callers means zero behavior change —
+      drive sharing subjects, permission gates, terminal, tabs, panes,
+      BYOK AI, settings, themes, and all other local features
+      untouched; only a `TeamKind`-to-`ServerId` getter that could
+      never be called is gone.
+
+      Acceptance: `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets` both feature
+      sets (default + `--no-default-features --features simplewarp`),
+      `--bin simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+      clean (0 errors; only the two pre-existing `step.rs`
+      unused-import warnings); clippy `-p warp --lib --all-targets`
+      warning-identical to the stash baseline (182 lines both, 14
+      `^warning` lines both, same 12 pre-existing warnings — none in the
+      touched file — raw outputs differ only in the build-time
+      `Finished` trailer); format clean. Nextest `-p warp --lib
+      --no-fail-fast`: 4,652 simplewarp / 4,653 default, 0 failed (4
+      skipped — exactly the baseline, zero tests added or removed).
+      Built `./target/debug/simplewarp` and launched it — alive 60s+,
+      zero TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics,
+      clean shutdown.

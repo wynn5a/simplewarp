@@ -117,16 +117,6 @@ pub enum TeamKind {
     },
 }
 
-impl TeamKind {
-    /// Gets the team UID.
-    pub fn team_uid(&self) -> ServerId {
-        match self {
-            TeamKind::Team { team_uid } => *team_uid,
-            TeamKind::SharedSessionTeam { team_uid, .. } => *team_uid,
-        }
-    }
-}
-
 impl Subject {
     /// Checks if this subject refers to a given Firebase user directly.
     pub fn is_user(&self, other_uid: UserUid) -> bool {
