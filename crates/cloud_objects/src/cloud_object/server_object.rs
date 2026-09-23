@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -27,22 +26,6 @@ impl<T> ConflictStatus<T> {
 pub trait ServerObjectModel: Debug + Clone + Send + Sync + 'static {
     /// Returns the object type for this model.
     fn object_type(&self) -> ObjectType;
-}
-
-/// Common trait for server objects that allows us to use them as trait objects
-/// and downcast to concrete types when needed.
-pub trait ServerObject: Debug + Send + Sync {
-    /// Returns the object type of this server object
-    fn object_type(&self) -> ObjectType;
-
-    /// Returns this object as a ref to the Any type.  Needed for typecasts.
-    fn as_any(&self) -> &dyn Any;
-
-    /// Returns a cloned boxed version of this server object.
-    /// Note that we can't force the ServerObject trait to derive from Cloned
-    /// directly because that would make the trait not object safe.  This
-    /// is a workaround.
-    fn clone_box(&self) -> Box<dyn ServerObject>;
 }
 
 /// An object that maps directly to the data returned from the server
@@ -98,23 +81,5 @@ impl<K, M> GenericServerObject<K, M> {
             permissions,
             _marker: PhantomData,
         }
-    }
-}
-
-impl<K, M> ServerObject for GenericServerObject<K, M>
-where
-    K: 'static,
-    M: ServerObjectModel,
-{
-    fn object_type(&self) -> ObjectType {
-        self.model.object_type()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn ServerObject> {
-        Box::new(self.clone())
     }
 }

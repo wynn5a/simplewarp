@@ -8277,3 +8277,94 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       macOS password prompt, so per the 2026-09-23 convention change the GUI
       binary was not built or launched — unit tests plus checks are the
       acceptance for this round. Did not `cargo clean`.
+
+- [x] **`ServerObject` trait (4eq) — DONE 2026-09-23.** The
+      4ep-designated next slice: the `ServerObject` trait itself at
+      `server_object.rs:32-46` (pre-edit) plus its only impl, mirroring
+      the `TeamKind` precedent (4ed) — payload/support item deleted after
+      its consumers went, with the survivor degenerating. Fresh
+      re-verification trace (files shift between rounds; ledger /
+      `schema.graphql` / fixtures excluded): digit-guarded word-boundary
+      `git grep -P '(?<![A-Za-z0-9_])ServerObject(?![A-Za-z0-9_])' --
+      '*.rs'` zero hits outside `server_object.rs` — every external
+      substring hit is a different item (`ServerObjectModel`,
+      `GenericServerObject`, `ServerObjectGuest`,
+      `ServerObjectContainer`); `dyn ServerObject` only inside the file
+      (`:45` trait-def `clone_box` return, `:117` impl override — both in
+      deletion scope) plus `plan.md` ledger mentions; `impl ServerObject
+      for` only the `GenericServerObject` block at `:104` (pre-edit),
+      bounded impl-form grep zero elsewhere; `ServerObject::` path form
+      zero in `*.rs` (hits all `GenericServerObject::` substrings);
+      `as ServerObject` renames zero; `use` statements only
+      `ServerObjectModel`; generic bounds `: ServerObject` (non-Model)
+      zero; non-Rust files (`schema.graphql`, `*.json`, `*.toml`,
+      `*.wgsl`) zero. No method call resolves through the trait: the
+      consumers (`generic_cloud_object.rs:136-160`
+      `new_from_server`/`update_from_server_object`, the `persistence.rs`
+      readers) only read `GenericServerObject` fields
+      (`.id`/`.model`/`.metadata`/`.permissions`), and no
+      `dyn ServerObject` value can exist (4ep). `GenericServerObject`
+      itself stays live via the `cloud_object_models` type aliases
+      (`server_cloud_object.rs:278+` turbofish sites,
+      `app/src/search/ai_context_menu/rules/data_source_tests.rs:32`).
+      Deleted the trait definition with its doc comment (including the
+      callerless `as_any` / `clone_box` methods — 4ep's designated
+      next-round candidates, subsumed here), the `impl ServerObject for
+      GenericServerObject` block, and the now-unused
+      `use std::any::Any;` (`as_any` was its only user) (1 file, +0/−35;
+      `server_object.rs` 120 → 85 lines). `ObjectType` / `Debug` /
+      `PhantomData` / `Arc` / `SyncId` imports all stay (used by the
+      surviving `ServerObjectModel`, `ConflictStatus`, and
+      `GenericServerObject` items). Deliberately left:
+      `GenericServerObject` (LIVE — the 37 `cloud_object_models` aliases
+      all expand to it or its siblings, field-plumbed by persistence),
+      the `cloud_object_models` aliases (LIVE), `ServerObjectModel` and
+      its four impls (`CloudFolderModel` / `CloudNotebookModel` /
+      `CloudWorkflowModel` / `GenericStringModel` — LIVE per handoff;
+      note for the survey: the trait method `object_type`'s only in-crate
+      caller was the deleted impl block, so its four impl bodies are now
+      caller-facing zero — needs its own dual-confirm slice, never in
+      this round), `ConflictStatus` (live via `generic_cloud_object.rs:40`
+      + `app/src/cloud_object/mod.rs:599-625`), and everything else per
+      prior rounds. Designated NEXT: the empty
+      `cloud_object/models/mod.rs` module (re-verified this round: 1-byte
+      file, `pub mod models;` at `cloud_object/mod.rs:29`, zero
+      `cloud_object::models` path mentions repo-wide — trivial cleanup);
+      after that a FRESH full survey of `crates/cloud_objects` (ids.rs,
+      drive/, cloud_object/mod.rs, auth/, env_vars-related remnants, plus
+      the `ServerObjectModel::object_type` caller question above); if the
+      survey finds the crate clean, the ledger says so and the effort's
+      next major item is the cloud-run lifecycle walls per the 4ca plan —
+      NOT started this round. Local-only safety: zero external mentions
+      means zero behavior change — no code outside the deleted file could
+      name the trait, produce a `dyn ServerObject`, or dispatch through
+      it, so cloud-object persistence/sync (the live
+      `GenericServerObject` field-plumbing path), drive, terminal, tabs,
+      panes, BYOK AI, settings, themes, and all other local features are
+      untouched; only an unnameable trait and its single degenerate impl
+      are gone.
+
+      Acceptance: clippy baseline captured at HEAD FIRST in both configs
+      (16 sorted warning+location pair-lines each, 14 `^warning` lines
+      each — the 12 pre-existing warnings: 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the edit,
+      `-p warp --lib --all-targets` is warning-identical to the baseline
+      in BOTH configs (default and `--no-default-features --features
+      simplewarp` — sorted-pair diffs empty, 14 `^warning` lines each, no
+      unused-import or dead-code warnings). All 7 checks exit 0 (`check
+      -p cloud_objects --all-targets` ± `--all-features`, `check -p warp
+      --lib --all-targets` both feature sets, `--no-default-features
+      --features simplewarp --bin simplewarp`, `--bin warp-oss`,
+      `--all-targets -p integration`) with 0 errors and only the two
+      pre-existing `step.rs` unused-import warnings
+      (`single_terminal_view_for_tab`, `crate::terminal::CLIAgent`,
+      observed in the integration check); format clean
+      (`./script/format`, diff still exactly +0/−35). Nextest `-p warp
+      --lib --no-fail-fast`: 4,652 simplewarp passed / 4,653 default
+      passed, 4 skipped each, 0 failed (exactly the baseline, zero tests
+      added or removed, no flakes). Runtime smoke test SKIPPED: the user
+      is away and nobody can answer the macOS password prompt, so per the
+      2026-09-23 convention change the GUI binary was not built or
+      launched — unit tests plus checks are the acceptance for this
+      round. Did not `cargo clean`.
