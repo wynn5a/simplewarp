@@ -6691,3 +6691,38 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       `./target/debug/simplewarp` and launched it — alive past 50s, zero TCP
       sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics, clean
       shutdown.
+
+- [x] **`SharingAccessLevel::can_delete` (4dx) — DONE 2026-09-23.** Slice A
+      from the 4dw handoff (B, `SyncId::from_object_id`, untouched). Same
+      zero-caller leaf class as 4dp/4dq/4du/4dv/4dw: bare-name `git grep`
+      for `can_delete` hit only the definition in
+      `crates/cloud_objects/src/drive/sharing.rs` plus unrelated shapes
+      (the `agent_conversations_model` `can_delete: bool` capability field
+      and its readers, old workflow-migration `user_can_delete` columns,
+      `plan.md` ledger mentions), and call-syntax `.can_delete(` search hit
+      only the definition — zero callers repo-wide (`plan.md` ledger and
+      `schema.graphql` excluded from both). Single-column trace against the
+      survivor: `can_move_drive` stays live via
+      `app/src/drive/index.rs:2304`, untouched. Deleted the method alone
+      (1 file, +0/−5). Deliberately left: `can_move_drive` (live),
+      `label`/`name` (live UI strings), the `From<AccessLevel>` /
+      `From<Role>` conversions (live server/session-mapping paths), and all
+      of B (`SyncId::from_object_id` — the other half of the handoff, next
+      candidate). Local-only safety: zero callers means zero behavior
+      change — drive sharing levels, trash/move permission gates, terminal,
+      tabs, panes, BYOK AI, settings, themes, and all other local features
+      untouched; only a predicate that could never be consulted is gone.
+
+      Acceptance: `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets` both feature
+      sets (default + `--no-default-features --features simplewarp`),
+      `--bin simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+      clean (0 errors); clippy `-p warp --lib --all-targets`
+      warning-identical to the stash baseline (same 12 pre-existing
+      warnings, none in the touched file — raw outputs differ only in
+      `Checking` line order and the build-time trailer); format clean.
+      Nextest `-p warp --lib --no-fail-fast`: 4,652 simplewarp / 4,653
+      default, 0 failed (4 skipped — exactly the baseline, zero tests added
+      or removed). Built `./target/debug/simplewarp` and launched it —
+      alive past 50s, zero TCP sockets (`lsof -nP -a -p <pid> -iTCP`
+      empty), 0 panics, clean shutdown.

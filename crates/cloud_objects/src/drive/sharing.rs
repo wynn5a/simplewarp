@@ -30,11 +30,6 @@ impl SharingAccessLevel {
         }
     }
 
-    /// Whether or not this access level implies the `DeletePermanently` action.
-    pub fn can_delete(self) -> bool {
-        self >= SharingAccessLevel::Full
-    }
-
     /// Whether or not this access level implies the `ChangeOwner` action.
     pub fn can_move_drive(self) -> bool {
         self >= SharingAccessLevel::Full
