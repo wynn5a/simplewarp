@@ -8026,3 +8026,157 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       password prompt, so per the 2026-09-23 convention change the
       GUI binary was not built or launched — unit tests plus checks
       are the acceptance for this round. Did not `cargo clean`.
+
+- [x] **`From<AccessLevel>`/`From<SharingAccessLevel> for AccessLevel`
+      pair (4eo) — DONE 2026-09-23.** The 4en-designated next slice:
+      the sweep's second INFERENCE-TRACE deletion, same class as 4em —
+      both impls (sharing.rs:20-38 pre-edit) were reachable only
+      through `.into()`/`from` resolution, invisible to name greps.
+      `AccessLevel` re-verified from scratch as a LIVE workspace type:
+      the cynic GraphQL enum at
+      `crates/graphql/src/api/object_permissions.rs:72` (package
+      `crates/graphql`, lib name `warp_graphql`), deserialized from
+      server responses for the wire fields `ObjectGuest.access_level`
+      (`:17`) and `LinkSharing.access_level` (`:83`) — the type and
+      all its other users untouched. Direction A
+      (`From<AccessLevel> for SharingAccessLevel`) needs an
+      `AccessLevel`-typed VALUE flowing into a `SharingAccessLevel`
+      inference target: every AccessLevel-typed value was enumerated
+      and read — the two GraphQL fields flow by plain field-move
+      (`access_level: value.access_level`) into
+      `ServerObjectGuest.access_level` (`cloud_object/mod.rs:379`,
+      built at `:917-919`) and `ServerLinkSharing.access_level`
+      (`:371`, built at `:961-962`), and those server ACL values are
+      then dropped UNREAD: the only readers of
+      `ServerPermissions.guests` / `.anyone_link_sharing` are
+      `CloudObjectPermissions::new_from_server` (`mod.rs:458`,
+      "Guest and link-sharing ACLs from the server are ignored" —
+      `guests: Vec::new()` + `anyone_with_link: None` at `:463-464`)
+      and the DB path `to_cloud_object_permissions`
+      (`cloud_object_persistence/src/objects.rs:576`, same
+      `(Vec::new(), None)` at `:588-589`), while
+      `ServerPermissions::mock_personal` (`:412`) and test fixtures
+      set them empty/`None` — zero `.access_level` reads on any
+      `Server*` type exist anywhere, so no AccessLevel value can ever
+      reach a conversion site; the prior rounds' "live
+      server/session-mapping paths" verdict is overturned by this
+      from-scratch re-trace (the mapping code that would have used it
+      no longer exists). Direction B
+      (`From<SharingAccessLevel> for AccessLevel`) needs an
+      AccessLevel inference TARGET — annotation, fn param/return,
+      struct field, turbofish, or bound — all of which require naming
+      `AccessLevel` outside sharing.rs: the bare name appears in
+      exactly three files (the graphql definition,
+      `cloud_object/mod.rs`, sharing.rs), no import renames
+      (`as AccessLevel` zero), and every SharingAccessLevel-typed
+      value re-enumerated post-4en (files shifted) flows only into
+      comparisons, returns, or ignored params:
+      `CloudViewModel::access_level` / `object_access_level`
+      (`app/src/cloud_object/model/view.rs:157,164` — locals only
+      `.max()`, `<`, returns; the `link_settings.access_level` /
+      `guest.access_level` reads at `:174,181` are
+      `CloudLinkSharing`/`CloudObjectGuest` fields,
+      SharingAccessLevel→SharingAccessLevel),
+      `drive/index.rs:2299` → `.can_move_drive()` at `:2304` (the
+      live trace column), `:3520` and `:3874` (`_access_level`,
+      unused), `env_var_collection.rs:1229` →
+      `render_trash_banner(_access_level: SharingAccessLevel)`
+      (param ignored, `fixed_view_components.rs:55`),
+      `active_env_var_collection_data.rs:174`,
+      `active_notebook_data.rs:307`, `menus.rs:363`,
+      `notebook.rs:1230` (returns and `_access_level`, unused), and
+      the `CloudLinkSharing`/`CloudObjectGuest.access_level` fields
+      (`cloud_object/mod.rs:495,504`) whose containers are
+      constructed ONLY empty — zero `.into()` receivers, zero
+      `AccessLevel::from(` / `SharingAccessLevel::from(`, zero
+      `Into::<T>` / `From::<T>` turbofish, and the only
+      `From<AccessLevel>` / `Into<AccessLevel>` /
+      `From<SharingAccessLevel>` / `Into<SharingAccessLevel>` bound
+      shapes repo-wide are the two impls themselves (ref/nested
+      `From<&AccessLevel>`-style forms zero, `impl Into<...>` params
+      zero); the generic `From::from` / `map(Into::into)` /
+      `map_into()` sites (~100) triaged to unrelated types
+      (AI/tool-usage metadata, theme colors, revisions, sync ids,
+      lsp/completer/shell types — zero in any cloud/drive/sharing
+      file). Macro-generated code cannot reach the impls (macro
+      bodies are `*.rs` text, already in the greps);
+      `schema.graphql` and `*.json` fixtures cannot invoke Rust
+      `From` impls; test code included in all searches. Deleted both
+      impls plus the now-unused
+      `use warp_graphql::object_permissions::AccessLevel;` import
+      (1 file, +0/−21); the serde derives on `SharingAccessLevel`
+      serialize variant names directly and never consulted these
+      impls — no wire path touched.
+      Deliberately left: `AccessLevel` and all its users (the graphql
+      wire fields, `ServerLinkSharing`/`ServerObjectGuest` and their
+      TryFrom constructors — live code that merely drops the server
+      ACL payloads, a redesign-class item, not dead code),
+      `SharingAccessLevel::can_move_drive` (live via
+      `app/src/drive/index.rs:2304`) / `is_user` (live via
+      `cloud_object/mod.rs:483` +
+      `app/src/cloud_object/model/view.rs:180`), `Subject` /
+      `UserKind`, all `ids.rs` / `drive/mod.rs` /
+      `generic_cloud_object.rs` / `server_object.rs` /
+      `creation.rs` survivors, ambient plumbing, telemetry scope
+      (4ca item7), fold (item8), redesigns, and all local features.
+      Local-only safety: unreachable-conversion deletion means zero
+      behavior change — no `SharingAccessLevel` value ever flowed
+      anywhere but comparisons/`max`/`can_move_drive`/ignored
+      params, and no server `AccessLevel` value was ever read after
+      construction, so both impls could never execute; drive sharing
+      levels, permission gates, cloud-object persistence/sync,
+      terminal, tabs, panes, BYOK AI, settings, themes, and all
+      other local features untouched; only two never-instantiable
+      trait impls and their import are gone. Designated NEXT, from a
+      fresh whole-crate survey of `crates/cloud_objects` (sharing.rs,
+      ids.rs, drive/mod.rs, generic_cloud_object.rs, server_object.rs,
+      creation.rs, generic_string_model.rs, auth/, cloud_object/mod.rs
+      — all re-verified live per prior rounds, `ConflictStatus` live
+      via `generic_cloud_object.rs:40` +
+      `app/src/cloud_object/mod.rs:599-625`, TEST_USER re-exports
+      live, `models/mod.rs` an empty declared module at
+      `cloud_object/mod.rs:29` — trivial cleanup): the
+      `From<&'a dyn ServerObject>` / `From<&'a Box<dyn ServerObject>>
+      for Option<&'a GenericServerObject<K, M>>` downcast-impl pair in
+      `server_object.rs` — `dyn ServerObject` and
+      `Box<dyn ServerObject>` have ZERO mentions in any form outside
+      `server_object.rs`, so no value of either type can exist at any
+      call site and the impls' only invocation forms
+      (`.into()`/`From::from` on such references) are unreachable;
+      behind them the entire `ServerObject` trait shows zero external
+      mentions in any spelling (bound, path, `dyn`, `impl ... for`
+      outside the file) while `ServerObjectModel` /
+      `GenericServerObject` stay heavily live via the
+      `cloud_object_models` type aliases — each its own slice, trait
+      deadness needs its own conclusive trace. If that cluster
+      exhausts, the crate is clean and the effort pivots to the next
+      major item (the cloud-run lifecycle walls per the 4ca plan) —
+      not started this round.
+
+      Acceptance: clippy baseline captured at HEAD FIRST in both
+      configs (16 sorted warning+location pair-lines each, 14
+      `^warning` lines each — the 12 pre-existing warnings: 11
+      unneeded-return in `app/src/terminal/input.rs` +
+      1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the edit,
+      `-p warp --lib --all-targets` is warning-identical to the
+      baseline in BOTH configs (sorted-pair diffs empty, 14
+      `^warning` lines each, no unused-import or dead-code
+      warnings). All 7 checks exit 0 (`check -p cloud_objects
+      --all-targets` ± `--all-features`, `check -p warp --lib
+      --all-targets` both feature sets, `--no-default-features
+      --features simplewarp --bin simplewarp`, `--bin warp-oss`,
+      `--all-targets -p integration`) with 0 errors and only the two
+      pre-existing `step.rs` unused-import warnings
+      (`single_terminal_view_for_tab`, `crate::terminal::CLIAgent`,
+      observed in the integration check); format clean
+      (`./script/format`, diff still exactly +0/−21). Nextest
+      `-p warp --lib --no-fail-fast`: 4,652 simplewarp passed /
+      4,653 default passed, 4 skipped each, 0 failed (exactly the
+      baseline, zero tests added or removed, no flakes).
+      `cargo check -p cloud_objects` emits zero warnings. Runtime
+      smoke test SKIPPED: the user is away and nobody can answer the
+      macOS password prompt, so per the 2026-09-23 convention change
+      the GUI binary was not built or launched — unit tests plus
+      checks are the acceptance for this round. Did not
+      `cargo clean`.

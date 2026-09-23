@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use warp_graphql::object_permissions::AccessLevel;
 
 use crate::auth::UserUid;
 
@@ -14,26 +13,6 @@ impl SharingAccessLevel {
     /// Whether or not this access level implies the `ChangeOwner` action.
     pub fn can_move_drive(self) -> bool {
         self >= SharingAccessLevel::Full
-    }
-}
-
-impl From<AccessLevel> for SharingAccessLevel {
-    fn from(server_access: AccessLevel) -> Self {
-        match server_access {
-            AccessLevel::Viewer => Self::View,
-            AccessLevel::Editor => Self::Edit,
-            AccessLevel::Full => Self::Full,
-        }
-    }
-}
-
-impl From<SharingAccessLevel> for AccessLevel {
-    fn from(val: SharingAccessLevel) -> Self {
-        match val {
-            SharingAccessLevel::View => AccessLevel::Viewer,
-            SharingAccessLevel::Edit => AccessLevel::Editor,
-            SharingAccessLevel::Full => AccessLevel::Full,
-        }
     }
 }
 
