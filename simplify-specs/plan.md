@@ -7515,3 +7515,83 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       it — alive 65s, zero TCP sockets (`lsof -nP -a -p <pid>
       -iTCP` empty), 0 panics, clean shutdown (SIGTERM). Did not
       `cargo clean`.
+
+- [x] **`LinkSharingSubjectType` enum (4ej) — DONE 2026-09-23.**
+      The 4ei-designated next slice: the enum was the payload of
+      the `Subject::AnyoneWithLink` variant deleted in 4ei, making
+      it newly callerless — same shape as `TeamKind` in 4ed, where
+      the enum was deleted after its payload variant went.
+      Independent dual-confirm (bare-name + path-form + type-
+      position, ledger / `schema.graphql` / fixtures excluded):
+      `git grep -n "LinkSharingSubjectType" -- '*.rs'` exactly one
+      hit repo-wide — the definition at
+      `crates/cloud_objects/src/drive/sharing.rs:61`;
+      `LinkSharingSubjectType::` path-form zero (so zero match
+      arms and zero associated-const/variant references);
+      `: LinkSharingSubjectType` type-position zero; all-files
+      repo-wide grep only that definition plus the `plan.md` ledger
+      mentions; `schema.graphql` zero, `*.json` fixtures zero. No
+      re-export anywhere (`drive/mod.rs` only declares
+      `pub mod sharing;`), no `use ... ::*` glob import of it. Not
+      a persisted serde enum: its derives are `Copy, Clone, Debug,
+      Eq, PartialEq` only — no `Serialize`/`Deserialize`, no
+      `#[allow(dead_code)]`, and no GraphQL/persistence type ever
+      carried it, so the "persisted serde enums keep variants"
+      convention does not apply (variants `None`/`Anyone` could
+      never be constructed and never reached a wire format).
+      Imports unchanged — `Serialize`/`Deserialize` stay for
+      `SharingAccessLevel`'s derives. Deleted the enum + its derive
+      attribute (1 file, +0/−5). Deliberately left:
+      `UserKind::SharedSessionParticipant` (designated next — zero
+      construction sites repo-wide, re-verified: only the variant
+      def at `sharing.rs:75` and the live `is_user` match arm at
+      `:83`; TODO CLD-2283 marks it intended for removal, but the
+      removal edits the live `is_user` match and the manual
+      `PartialEq for UserKind` wildcard, its own slice per 4ei
+      handoff — behavior-preserving because an unconstructible
+      variant's arm can never run, mirroring 4ei's unreachable-arm
+      removal), `as_concrete_type` (`ServerObject` default trait
+      method, zero call forms in any spelling — next-next), the
+      `From<Role>` / `From<SharingAccessLevel> for Role` pair
+      (needs a dedicated `.into()`-target inference trace — apply
+      the 4ei alias/turbofish lesson), the creation.rs dead-type
+      cluster (`CreateObjectRequest` /
+      `BulkCreateGenericStringObjectsRequest` / `CreatedCloudObject`
+      / `CreateCloudObjectResult` / `BulkCreateCloudObjectResult`,
+      zero repo hits outside creation.rs — each its own slice;
+      `ServerCreationInfo` / `RevisionAndLastEditor` there are
+      LIVE), `Subject::User` / `UserKind::Account` (structurally
+      live via `is_user` and the `CloudObjectGuest.subject` field
+      type), and all `ids.rs` / `drive/mod.rs` survivors.
+      Local-only safety: zero references means zero behavior
+      change — drive sharing subjects, permission gates, terminal,
+      tabs, panes, BYOK AI, settings, themes, and all other local
+      features untouched; only an unconstructible, unmentionable
+      payload enum that no code path could ever name or build is
+      gone.
+
+      Acceptance: clippy baseline captured at HEAD FIRST in both
+      configs (26 captured warning+location lines, 14 `^warning`
+      lines, 12 sorted warning+location pairs each — the 12
+      pre-existing warnings: 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the
+      edit, `-p warp --lib --all-targets` is warning-identical to
+      the baseline in BOTH configs (default: raw sorted output
+      byte-identical; simplewarp: 12 sorted pairs identical, 14
+      `^warning` lines each — raw outputs differ only in
+      `Checking`-order and `Finished`-trailer noise); all 7 checks
+      exit 0 (`check -p cloud_objects --all-targets` ±
+      `--all-features`, `check -p warp --lib --all-targets` both
+      feature sets, `--bin simplewarp`, `--bin warp-oss`,
+      `--all-targets -p integration`) with only the two
+      pre-existing `step.rs` unused-import warnings
+      (`single_terminal_view_for_tab`, `crate::terminal::CLIAgent`,
+      observed in the integration check); format clean
+      (`./script/format`, diff still exactly +0/−5). Nextest
+      `-p warp --lib --no-fail-fast`: 4,652 simplewarp passed /
+      4,653 default passed, 4 skipped each, 0 failed (exactly the
+      baseline, zero tests added or removed, no flakes). Built
+      `./target/debug/simplewarp` and launched it — alive 81s,
+      zero TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty),
+      0 panics, clean shutdown (SIGTERM). Did not `cargo clean`.

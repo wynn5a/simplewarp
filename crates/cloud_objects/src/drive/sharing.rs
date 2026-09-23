@@ -57,11 +57,6 @@ impl From<SharingAccessLevel> for Role {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum LinkSharingSubjectType {
-    None,
-    Anyone,
-}
 /// A `Subject` is someone with access to a shared object, like its owner or a directly-added
 /// guest.
 #[derive(Debug, Clone, PartialEq)]
