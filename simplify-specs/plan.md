@@ -7171,3 +7171,72 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       launched it — alive 71s, zero TCP sockets (`lsof -nP -a -p <pid>
       -iTCP` empty), 0 panics, clean shutdown (SIGTERM). Did not
       `cargo clean`.
+
+- [x] **`SharingAccessLevel::label` (4ef) — DONE 2026-09-23.** The
+      4ee-designated next slice: `label` / `name` share
+      `crates/cloud_objects/src/drive/sharing.rs:14` but bare-name
+      noise is high, so receiver-typed dual-confirm (call-syntax +
+      receiver + fully-qualified, ledger / `schema.graphql` /
+      fixture / different-type excluded). Fully-qualified
+      `SharingAccessLevel::label` zero in `*.rs`,
+      `SharingAccessLevel::name` zero; `::label` only the three
+      unrelated paths (`PhenomenonStyle::label_text`,
+      `ReviewTerminalUnavailableReason::label`), `::name` only
+      experiments / style / doc paths — none this type.
+      Call-syntax `.label(` (69 hits) triaged class by class, none
+      with a `SharingAccessLevel` receiver: `MenuItemFields`,
+      `BlockType` / `block_type`, `header_size`, dropdown /
+      `DropdownItem`, `AskUserQuestionPermission`
+      (`permission.label()` at
+      `ask_user_question_view.rs:330,354` — different type),
+      `prompt_suggestion`, breadcrumb, `element` / `self_fields` /
+      `item.fields()`, `ui_builder.label("...")` builders, and
+      `terminal/view_tests` + `workspace/view_tests` assertions —
+      zero `access` / `sharing` receivers. Call-syntax `.name(`
+      (218 hits) likewise none with an access/sharing receiver
+      (`grep -i access|shar` zero); variant-name
+      `access_level|sharing_level|level|perm|access` + `.name(`
+      zero. Receiver-typed `access_level.label(`/`.name(` zero,
+      `SharingAccessLevel` var + `.label`/`.name` zero,
+      `level.label`/`.name` zero. In-`cloud_objects` `.label(` /
+      `.name(` zero; each `SharingAccessLevel`-importing file
+      (`env_vars/active_env_var_collection_data.rs`,
+      `env_vars/view/fixed_view_components.rs`,
+      `active_notebook_data.rs`, `cloud_object/model/view.rs`,
+      `cloud_objects/cloud_object/mod.rs`, `sharing/mod.rs`)
+      zero `.label(`/`.name(`. Literal `"Can view"` / `"Can
+      edit"` / `"Full access"` only the definitions themselves —
+      no hardcoded UI copy. `fn label(` / `fn name(` defs
+      elsewhere are all different types. Single-column trace
+      against the survivors: `can_move_drive` stays live via
+      `app/src/drive/index.rs:2304`, confirming the sweep can tell
+      live from dead in this module. Deleted `label` alone (1
+      file, +0/−8) — never both at once per handoff. Deliberately
+      left: `name` (same zero-caller shape — needs its own slice,
+      candidate next), `can_move_drive` / `is_user` (live),
+      `into_upsert_params` (trace-only per handoff —
+      consuming-variant scope judgment, never in this round), all
+      `ids.rs` / `drive/mod.rs` survivors, ambient plumbing,
+      telemetry scope (4ca item7), fold (item8), redesigns, and all
+      local features. Local-only safety: zero callers means zero
+      behavior change — drive sharing levels, permission gates,
+      terminal, tabs, panes, BYOK AI, settings, themes untouched;
+      only a UI string getter that could never be called is gone.
+
+      Acceptance: `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets` both feature
+      sets (default + `--no-default-features --features simplewarp`),
+      `--bin simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+      clean (0 errors; only the two pre-existing `step.rs`
+      unused-import warnings); clippy `-p warp --lib --all-targets`
+      byte-identical to the stash baseline (182 lines both, 14
+      `^warning` lines both, same 12 pre-existing warnings — 11
+      unneeded-return + 1 single-element-loop, none in the touched
+      file — raw outputs differ only in the build-time `Finished`
+      trailer); format clean (`./script/format` no diff). Nextest
+      `-p warp --lib --no-fail-fast`: 4,652 simplewarp passed /
+      4,653 default passed, 4 skipped each (zero tests added or
+      removed, no flakes). Built `./target/debug/simplewarp` and
+      launched it — alive 66s+, zero TCP sockets (`lsof -nP -a -p
+      <pid> -iTCP` empty), 0 panics, clean shutdown (SIGTERM). Did
+      not `cargo clean`.

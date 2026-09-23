@@ -12,14 +12,6 @@ pub enum SharingAccessLevel {
 }
 
 impl SharingAccessLevel {
-    pub fn label(&self) -> &'static str {
-        match self {
-            SharingAccessLevel::View => "Can view",
-            SharingAccessLevel::Edit => "Can edit",
-            SharingAccessLevel::Full => "Full access",
-        }
-    }
-
     pub fn name(&self) -> &'static str {
         match self {
             SharingAccessLevel::View => "view",
