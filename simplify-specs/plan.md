@@ -10081,3 +10081,191 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       doc'd at top) and the vestigial payload-threading through live
       fns (e.g. PaneDragDrop `source: PaletteSource` params) —
       mechanical, low-risk, recommended before 2c.
+
+- [x] **telemetry slice 2b — queue and machinery (4fc) — DONE 2026-09-23.**
+      Executed the 4ez SLICE 2b: the event queue and everything that
+      existed to buffer events between producer and the slice-1-deleted
+      sender is gone. 41 files changed, 835 insertions(+), 1,929
+      deletions(-) (git diff --stat vs 4fb HEAD b50a55edc, includes
+      plan.md).
+
+      DELETED wholesale (7 files, 884 lines; each re-verified at HEAD
+      before removal): `crates/warpui_core/src/telemetry/` — mod.rs (112;
+      the TELEMETRY lazy_static global + record_event/
+      record_identify_user_event/record_app_active_event/flush_events/
+      create_event + the record_telemetry_from_ctx!/
+      record_telemetry_on_executor! macros, whose only callers were
+      warp_core's send macros — zero invocation sites since 4fb) +
+      event_store.rs (204; the BoundedVecDeque-1024 EventStore) +
+      event_store_tests.rs (151); `crates/warp_core/src/telemetry.rs`
+      (262; TelemetryEvent/RegisteredTelemetryEvent/TelemetryEventDesc
+      traits, register_telemetry_event! + the inventory
+      TelemetryEventRegistration/AnyTelemetryEventRegistration
+      cross-crate collect + enum_events/all_events, EnablementState, the
+      send_telemetry_from_ctx!/send_telemetry_from_app_ctx! queue macros,
+      TelemetryContextProvider/TelemetryContextModel + their
+      Entity/SingletonEntity impls, and the cfg(any(test, feature =
+      "test-util")) MockTelemetryContextProvider);
+      `app/src/server/telemetry/context_provider.rs` (26;
+      AppTelemetryContextProvider — its only reader was the deleted
+      macros' identity read); `crates/warpui_core/src/
+      app_focus_telemetry.rs` (88) + `app_focus_telemetry_tests.rs` (41;
+      AppFocusInfo/DailyAppFocusDuration — its sole output was
+      crate::telemetry::record_event).
+
+      DELETED from surviving files: `warpui_core/src/lib.rs` the
+      `mod app_focus_telemetry;` + `pub mod telemetry;` decls;
+      `warpui_core/src/core/app.rs` the app_focus_info field +
+      AppFocusInfo import + `AppFocusInfo::new()` init + the now-
+      callerless pub App methods record_app_focus/record_app_blur/
+      try_record_daily_app_focus_duration; `app/src/lib.rs` the
+      AppTelemetryContextProvider import + production registration
+      (was :1139) and all three app_callbacks sites — on_become_active's
+      body was ONLY the record_app_focus read so the callback entry is
+      now `None` (AppCallbacks.on_become_active is Option), the
+      record_app_blur tail left on_resigned_active, the
+      try_record_daily_app_focus_duration block left on_will_terminate
+      (NotebookManager close, PersistenceWriter terminate, LSP shutdown,
+      pty teardown all stay); `server/server_api.rs` the
+      `send_telemetry_event` no-op stub (grep: zero callers); `telemetry/
+      mod.rs` shell 4→3 lines (context_provider decl dropped; the events
+      decl + re-export stay for 2a′). warp_core `lib.rs`: `pub mod
+      telemetry;` AND the `pub use warpui_core;` re-export + its comment
+      (stated purpose: "so that it can be referenced safely from the
+      telemetry macros"; grep `warp_core::warpui_core` and
+      `crate::warpui_core`: only the deleted macros used it).
+      `crates/warp_core/Cargo.toml`: the `inventory` dependency removed —
+      telemetry.rs was the only warp_core user (settings + warp_errors
+      keep their own inventory deps; app keeps its dep for
+      SettingSchemaEntry). Cargo.lock −1 line. `remote_server/unix/
+      mod.rs`: stale comment trimmed (it claimed the DAEMON_SOCKET_BOUND
+      IntervalTimer mark was "flushed as telemetry" via
+      AppTelemetryContextProvider; mark_interval_end only emits
+      tracing::info! and the call stays).
+
+      LANDMINES: (4ez #4) TelemetryContextModel registrations — the 4ez
+      map said "five test files + test_util/terminal.rs:99"; the real
+      count at HEAD was 19 app files (import +
+      `add_singleton_model(AppTelemetryContextProvider::
+      new_context_provider)` each; current_prompt_tests ×4
+      registrations): workspace/view_tests, pane_group/mod_tests,
+      terminal/input_tests, workspaces/user_workspaces_tests,
+      search/command_search/{searcher,view}_tests,
+      ai/blocklist/prompt/prompt_alert_tests,
+      ai/blocklist/history_model_tests, view_components/find_tests,
+      drive/{index,panel}_tests, uri/docker_tests, notebooks/{manager,
+      file/mod,notebook}_tests, code_review/{code_review_view,
+      find_model,diff_state/remote}_tests, context_chips/
+      current_prompt_tests, test_util/terminal.rs. All were write-only
+      boilerplate since 4fb (nothing reads the singleton anymore):
+      registrations + imports deleted; every file's other registrations
+      (AuthStateProvider, AuthManager, …) untouched. (4ez #5)
+      notebook_tests queue reader: `test_edit_telemetry` (#[test]
+      #[ignore], was :327-414) was the one LOCAL queue reader
+      (`warpui::telemetry::flush_events()` filtering "Notebook Edited"
+      NamedEvents) — it tested the notebook edit-mode telemetry timer
+      through the queue; with producer (4fb) and queue (this round) both
+      gone it died whole, together with its private `ensure_saved`
+      helper (its only callers were inside the test) and the now-unused
+      Itertools/Timer/EventPayload imports +
+      EDIT_WINDOW_DURATION/SAVE_PERIOD super-imports (Mode stays —
+      other tests use it). MockTelemetryContextProvider users (4 files,
+      test harnesses only): app ai/request_usage_model_tests,
+      ai/blocklist/action_model/execute/run_agents_tests (:169),
+      crates/warp_search_core/mixer_tests, crates/ai/api_keys_tests
+      (×2) — registrations deleted. DIRECT FALLBACK: mixer_tests'
+      harness fn `initialize_app(app: &mut App)` became an EMPTY fn with
+      3 call sites — deleted the fn and all calls (no `_app` per
+      AGENTS.md). (THE ~30 LIVE TYPES) verified BEFORE deleting the
+      trait: none of the events.rs shell types implements or derives
+      TelemetryEvent — they are plain serde data enums/structs (grep:
+      zero `impl TelemetryEvent` anywhere outside the deleted file, zero
+      register_telemetry_event! sites since 4fb); the trait deletion
+      therefore deletes no impls, and every `crate::server::telemetry::X`
+      import across app/src still compiles unchanged.
+
+      Deliberately left: `app/src/server/telemetry/events.rs` (362) +
+      the mod.rs re-export — the 2a′ relocation shell; slice 2c privacy
+      telemetry-only fields (PrivacySettingsSnapshot,
+      is_telemetry_enabled/is_telemetry_force_enabled, the privacy-page
+      toggle, AgentModeAnalytics force); slice 3 (channel-config
+      telemetry_config/TelemetryConfig/RudderStack*/
+      telemetry_file_name, execution_mode::send_telemetry_at_shutdown,
+      WithSandboxTelemetry/SendTelemetryToFile/RecordAppActiveEvents
+      flags, warpui_core's now code-unreferenced
+      `log_named_telemetry_events` cargo feature decl, the
+      EnablementState-flag sweep). NOTE for the next slice:
+      notebook.rs still carries the gutted edit-telemetry timer
+      skeleton (check_edited/edit_telemetry_handle/send_edit_telemetry/
+      last_content_length — wakes every EDIT_WINDOW_DURATION to compute
+      a delta and discard it) plus the parameterless send_telemetry_
+      action stub and the NotebookTelemetryAction enum — producer-side
+      residue outside 2b scope, still compiled and live, best folded
+      into 2a′/2c.
+
+      Local-only safety: the queue was write-only with zero drainers
+      since 4fa (4ez RUNTIME ANSWER: all three collector pollers were
+      never scheduled in this fork; the only drainers ever were the
+      deleted flush paths and test_edit_telemetry's flush_events()).
+      Exhaustive grep at HEAD before deletion: the queue functions' only
+      callers outside the module were app_focus_telemetry (died here),
+      warp_core's macros (callerless since 4fb), and the notebook test
+      (died here). All deletions are of code whose only observable
+      effect was filling an in-memory bounded buffer that was never
+      read; no log line, UI path, DB write, or file write changed. The
+      app-callback deltas (on_become_active now None; the blur/
+      terminate callbacks keep their non-telemetry work) are
+      user-invisible — the focus/blur reads only fed duration
+      bookkeeping for the deleted queue.
+
+      Acceptance: clippy baselines captured at HEAD FIRST in BOTH
+      configs — 12 sorted warning+location pairs each (11
+      needless-return in terminal/input.rs + 1 single-element-loop in
+      lifecycle/mod_tests.rs); post-edit re-runs warning-IDENTICAL in
+      both configs (24 sorted pairs before and after, 0 new / 0 gone).
+      Check suite exit 0, 0 errors, 9/9: `check -p warp --lib
+      --all-targets` default (0 warnings) + simplewarp (clean),
+      `--no-default-features --features simplewarp --bin simplewarp`
+      (clean), `--bin warp-oss` (clean), `--all-targets -p integration`
+      (only the two pre-existing step.rs unused-import warnings,
+      single_terminal_view_for_tab + crate::terminal::CLIAgent),
+      `check -p warp --lib --tests --features skip_login` (clean),
+      `-p warpui_core --all-targets` (clean), `-p warp_core
+      --all-targets` (clean), `-p warp_cli --all-targets` (clean).
+      `./script/format` idempotent (zero unstaged changes after the
+      run). Nextest `-p warp --lib --no-fail-fast`: default 4,611
+      passed / 3 skipped / 0 failed; simplewarp 4,610 passed / 3
+      skipped / 0 failed — passed counts IDENTICAL to the post-4fb
+      baseline (4,611/4,610); skipped dropped 4→3 in both configs
+      because the only deleted test, test_edit_telemetry, was
+      #[ignore]d (it was the only #[ignore] in app/src and thus one of
+      the 4 baseline skips). `cargo nextest run -p warpui_core
+      --no-fail-fast`: 302 passed / 7 skipped / 0 failed (first
+      warpui_core ledger baseline; one lower than pre-round by exactly
+      the deleted app_focus test). No flakes. ENVIRONMENT INCIDENT: the
+      data volume hit 0 bytes free during the first simplewarp-config
+      test build (rustc ENOSPC; both feature configs' artifacts share
+      target/), stalling even shell launches for a few minutes; fixed
+      by deleting the five stale ~650MB `warp-<hash>` lib-test
+      executables from target/debug/deps (relinkable from cached
+      rlibs — NOT cargo clean; no rlib/rmeta/fingerprint touched), then
+      the simplewarp + warpui_core runs completed above. Runtime smoke
+      SKIPPED per the 2026-09-23 convention (user away, macOS password
+      prompt unanswerable); the GUI binary was not built or launched;
+      the no-behavior-change claim rests on the static write-only-
+      queue analysis above, which this slice removes in full. Did not
+      `cargo clean`.
+
+      DESIGNATED NEXT: slice 2a′ + 2c in one round if 2a′ stays
+      mechanical — relocate the ~30 live domain types out of
+      `server/telemetry/events.rs` into proper modules (or delete the
+      vestigial threading: notebook.rs's send_telemetry_action stub +
+      edit-telemetry timer skeleton, PaneDragDrop's PaletteSource
+      params), delete the events.rs shell + telemetry/mod.rs; then 2c
+      (PrivacySettingsSnapshot whole type, is_telemetry_enabled setting
+      + model field + UpdateIsTelemetryEnabled plumbing,
+      is_telemetry_force_enabled user_workspaces/gql_convert plumbing,
+      the privacy-page toggle section, settings-schema regeneration
+      eyeball). If the relocation proves entangled (import churn
+      across 100+ files), do 2c alone and split 2a′ into per-cluster
+      slices.

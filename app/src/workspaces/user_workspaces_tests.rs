@@ -10,7 +10,6 @@ use crate::features::FeatureFlag;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
-use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::{AISettings, CodeSettings, FocusedTerminalInfo};
 use crate::system::SystemStats;
 use crate::workspaces::team::{Team, TeamVisibility};
@@ -44,7 +43,6 @@ fn initialize_app_with_auth(
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| auth_state_provider);
     app.add_singleton_model(AuthManager::new_for_test);
-    app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
     app.add_singleton_model(|_| {
         PublicPreferences::new(Box::<user_preferences::in_memory::InMemoryPreferences>::default())
     });

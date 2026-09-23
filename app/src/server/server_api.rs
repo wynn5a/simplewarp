@@ -326,13 +326,6 @@ impl ServerApi {
         )
     }
 
-    /// No-op bridge for the `send_telemetry_sync_*` macros: the remote
-    /// telemetry send path has been removed, but the macros still route
-    /// through this method until they are deleted.
-    pub async fn send_telemetry_event(&self) -> Result<()> {
-        Ok(())
-    }
-
     /// Hits the /ai/generate_input_suggestions endpoint to get the predicted next action, based on past context.
     pub async fn generate_ai_input_suggestions(
         &self,
