@@ -103,13 +103,6 @@ impl Workflow {
         }
     }
 
-    pub fn author_name(&self) -> Option<&String> {
-        match self {
-            Self::Command { author, .. } => author.as_ref(),
-            Self::AgentMode { .. } => None,
-        }
-    }
-
     pub fn shells(&self) -> Option<&Vec<warp_workflows::Shell>> {
         match self {
             Self::Command { shells, .. } => Some(shells),

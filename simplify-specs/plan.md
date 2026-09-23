@@ -9058,3 +9058,134 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       touched. After those, the pivot decision (the cloud-run
       lifecycle walls per the 4ca plan) is the orchestrator's — not
       started this round.
+
+- [x] **cloud_object_models cluster A (4ew) — DONE 2026-09-23.** The
+      4ev-designated round: five of the nine `cloud_object_models`
+      def-only leaves from the 4eu survey, batched as one cluster per
+      the 4dw/4et small-cluster precedent, each independently
+      dual-confirmed fresh at HEAD (bare-name + call-syntax + path-form
+      + all-files word-guarded sweeps; ledger / `schema.graphql` /
+      fixtures / different-type excluded; PCRE lookahead guards
+      throughout — no `\b`, per the 4eu tooling note). All five
+      verified DEAD and deleted; no live verdicts this round.
+      Per-item evidence: (1) `Workflow::author_name` (`workflow.rs:106`
+      pre-edit; the 4eu ledger's "WorkflowModel::" label was loose —
+      the method is inherent on the `Workflow` enum): bare-name grep
+      exactly two `*.rs` hits — the definition and the string literal
+      `"author_name".to_string()` in `workflow_tests.rs:125` (a test
+      VALUE assigned to the serde `author` field, not a method
+      reference); call-syntax `.author_name(` zero. Method-vs-field
+      check: it is a getter METHOD over the serde-serialized `author`
+      field — the field, its derives, and the `new`/`From` writers
+      stay (persisted-type convention); only the never-called getter
+      went. (2) `TemplatableMCPServer::from_stored_json` (`mcp.rs:216`
+      pre-edit; the 4eu ledger's "MCPServer::" label was loose):
+      bare-name grep exactly one hit repo-wide, all files — the
+      definition; inherent associated fn in `impl
+      TemplatableMCPServer`, declared in no trait, zero call forms
+      (`.from_stored_json(` zero, `::from_stored_json` only the def).
+      (3) `AIFact::is_memory` (`ai_fact.rs:52` pre-edit): word-guarded
+      `(?<![A-Za-z0-9_])is_memory(?![A-Za-z0-9_])` over ALL files
+      exactly one hit — the definition; every other grep hit is
+      `is_memory_enabled` (different methods/fields on `ai_settings`
+      and the agent api payload — receiver-typed triage, excluded by
+      the word guard); call-syntax `.is_memory(` zero; method on the
+      `AIFact` enum, not a field — the serde `Memory` variant and
+      `AIMemory` fields stay. (4) `AgentConfig::to_ambient_config`
+      (`cloud_agent_config.rs:33` pre-edit): bare-name grep exactly one
+      hit, all files — the definition; inherent method, zero call
+      forms. (5) `ActionPermission::is_always_ask`
+      (`ai_execution_profile.rs:45` pre-edit; the 4eu ledger's
+      "AIExecutionProfile::" label was loose — the method is on
+      `ActionPermission`): bare-name grep exactly one hit, all files —
+      the definition; the sibling `is_always_allow` methods on the four
+      permission enums are different names and stay (live); call-syntax
+      zero. All five are inherent methods in no trait (no generic or
+      dyn dispatch can reach them); no serde attribute references any
+      of them by path; macro bodies are `*.rs` text so the bare-name
+      hits already cover generated code. Deleted the five methods with
+      their doc/comment lines, the now-empty `impl AIFact` and `impl
+      AgentConfig` blocks, and the `AgentConfigSnapshot` part of
+      cloud_agent_config.rs's `use crate::{...}` import (the type
+      itself stays — defined at `scheduled_ambient_agent.rs:20`,
+      heavily live via `app/src/ai/ambient_agents/task.rs:5` and the
+      `AgentConfigSnapshot::is_empty` serde attr) (5 files, +1/−72).
+
+      One-hop orphan check after the deletions, noted as next-round
+      candidates rather than expanding scope: `FromStoredJsonError`
+      (`mcp.rs:144`) — its only consumer was the deleted
+      `from_stored_json`, now zero references repo-wide; and
+      `TemplatableMCPServer::from_user_json` (`mcp.rs:213`) — its only
+      in-crate caller was `from_stored_json` (every other
+      `from_user_json` hit is an app-side type: the app trait methods
+      on app `MCPServer` and `ParsedTemplatableMCPServerResult`); both
+      are pub items in pub modules with glob re-exports, so no
+      dead-code warning fires (`check -p cloud_object_models
+      --all-targets` emits zero warnings). `find_template_map` /
+      `find_template_map_strict` stay LIVE (`app/src/ai/agent_sdk/
+      mcp_config.rs:55`, `app/src/ai/mcp/parsing.rs:248,269`).
+
+      Deliberately left: the remaining cluster-B leaves from the 4eu
+      survey (DESIGNATED NEXT: `Workflow::get_enum_ids` /
+      `Workflow::is_command_workflow` / `Workflow::replace_object_id` /
+      `ScheduledAmbientAgent::from_harness_type` — each needs its own
+      fresh dual-confirm; correction to the 4eu list:
+      `Workflow::from_harness_type` no longer exists at HEAD — the only
+      `from_harness_type` left in `*.rs` is `ScheduledAmbientAgent`'s
+      at `scheduled_ambient_agent.rs:95`); the one-hop orphans above;
+      the models' persistence fns re-verified LIVE in 4eu
+      (`delete_folder`/`delete_notebook`/`delete_workflow`,
+      `upsert_folders`/`upsert_notebooks`/`upsert_workflows`,
+      `get_init_command_for_env_var_value` +
+      `serialize_variables_internal`) — must not be touched; the serde
+      surface under the deleted getters (`Workflow::Command.author`,
+      `AIFact::Memory` + `AIMemory`, `ActionPermission::AlwaysAsk`,
+      the `AgentConfig` struct) — persisted, kept per convention; and
+      everything else per prior rounds. Local-only safety: zero callers
+      means zero behavior change — all five deleted methods could never
+      be entered, so workflow listing and editing, MCP server template
+      parse/install flows (which run through the app-side
+      `ParsedTemplatableMCPServerResult` machinery, untouched), agent
+      permission gating (the live `description()` / `is_always_allow`
+      / `is_enabled` paths, untouched), cloud-object persistence/sync,
+      drive, terminal, tabs, panes, BYOK AI, settings, themes, and all
+      other local features are untouched; only five never-callable
+      getters/constructors and one never-used import part are gone.
+
+      Acceptance: clippy baselines captured at HEAD FIRST (worktree
+      clean, no stash needed) in both configs — 12 sorted
+      warning+location pairs / 14 `^warning` lines each (the 12
+      pre-existing warnings: 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the edit,
+      `-p warp --lib --all-targets` is warning-identical to the
+      baseline in BOTH configs (default and `--no-default-features
+      --features simplewarp` — sorted-pair diffs empty, 12 pairs / 14
+      `^warning` lines each). All checks exit 0 with 0 errors (`check
+      -p cloud_object_models --all-targets` — zero warnings; `check -p
+      cloud_objects --all-targets` ± `--all-features`; `check -p warp
+      --lib --all-targets` both feature sets; `--no-default-features
+      --features simplewarp --bin simplewarp`; `--bin warp-oss`;
+      `--all-targets -p integration`) with only the two pre-existing
+      `step.rs` unused-import warnings
+      (`single_terminal_view_for_tab`, `crate::terminal::CLIAgent`,
+      observed in the integration check). Format clean
+      (`./script/format`; diff remains exactly +1/−72). Nextest `-p
+      warp --lib --no-fail-fast`: 4,652 simplewarp passed, 4 skipped,
+      0 failed; 4,653 default passed, 4 skipped, 0 failed — exactly
+      the baseline, zero tests added or removed, no flakes. Runtime
+      smoke test SKIPPED: the user is away and nobody can answer the
+      macOS password prompt, so per the 2026-09-23 convention change
+      the GUI binary was not built or launched — unit tests plus
+      checks are the acceptance for this round. Did not
+      `cargo clean`.
+
+      Designated NEXT: cluster B, the four remaining `cloud_object_
+      models` def-only leaves (`Workflow::get_enum_ids`,
+      `Workflow::is_command_workflow`, `Workflow::replace_object_id`,
+      `ScheduledAmbientAgent::from_harness_type`), then the one-hop
+      orphans (`FromStoredJsonError`,
+      `TemplatableMCPServer::from_user_json`); after those, the
+      cloud-run-lifecycle pivot decision (the cloud-run lifecycle
+      walls per the 4ca plan) is the orchestrator's — NOT started this
+      round.

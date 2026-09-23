@@ -210,36 +210,6 @@ impl TemplatableMCPServer {
             })
     }
 
-    // Uses from_user_json to parse the json and then returns the first TemplatableMCPServer
-    // This is meant to be used for stored json from the database, which should only contain
-    // a single server and already checked for json validity
-    pub fn from_stored_json(
-        json: &str,
-        uuid: uuid::Uuid,
-    ) -> Result<TemplatableMCPServer, FromStoredJsonError> {
-        let templates = Self::from_user_json(json);
-        match templates {
-            Ok(templates) => {
-                if templates.is_empty() {
-                    // This should never happen for stored json from the database
-                    report_error!(
-                        "No templatable MCP servers found in stored json",
-                        extra: { "uuid" => %uuid }
-                    );
-                    Err(FromStoredJsonError::NoServersFound)
-                } else if templates.len() > 1 {
-                    Err(FromStoredJsonError::TooManyServersFound)
-                } else {
-                    // templates should always contain exactly one server for stored json from the database
-                    let mut templatable_mcp_server = templates[0].clone();
-                    templatable_mcp_server.uuid = uuid;
-                    Ok(templatable_mcp_server)
-                }
-            }
-            Err(err) => Err(FromStoredJsonError::ParseError(err)),
-        }
-    }
-
     pub fn from_user_json(json: &str) -> serde_json::Result<Vec<TemplatableMCPServer>> {
         // Some docs don't show curly braces around the json object, so add them if necessary.
         let json = json.trim();

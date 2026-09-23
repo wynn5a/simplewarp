@@ -42,10 +42,6 @@ impl ActionPermission {
         }
     }
 
-    pub fn is_always_ask(&self) -> bool {
-        matches!(self, Self::AlwaysAsk)
-    }
-
     pub fn is_always_allow(&self) -> bool {
         matches!(self, Self::AlwaysAllow)
     }
