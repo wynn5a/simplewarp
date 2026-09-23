@@ -7412,3 +7412,106 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       zero TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty),
       0 panics, clean shutdown (SIGTERM). Did not
       `cargo clean`.
+
+- [x] **`Subject::AnyoneWithLink` (4ei) — DONE 2026-09-23.** Next
+      zero-caller leaf in `crates/cloud_objects` after 4eh
+      (`GenericCloudObject::into_upsert_params`), picked from a
+      full-crate survey. Handoff correction first: the 4eh-designated
+      next candidate, the `From<CloudObjectUpsertParams<M>> for
+      GenericCloudObject<K, M>` impl in `generic_cloud_object.rs`,
+      is LIVE and permanently retired — trace-only, found live, never
+      deletable while the `CloudObject` trait's
+      `upsert_event`/`bulk_upsert_event` constructors build events
+      from params. The 4eh handoff's bare-path grep
+      (`GenericCloudObject::from(`) missed 8 call sites in
+      alias-qualified/turbofish spellings: `CloudFolder::from(params)`
+      / `CloudNotebook::from(params)` at
+      `app/src/cloud_object/folders.rs:39,44` and
+      `app/src/notebooks/mod.rs:68,73`, `CloudWorkflow::from(params)`
+      at `app/src/workflows/mod.rs:218,223`, and
+      `GenericCloudObject::<GenericStringObjectId, Self>::from(params)`
+      at `app/src/cloud_object/model/generic_string_model.rs:176,204`
+      — the alias/turbofish lesson for every future trait-impl trace.
+      No commit exists for that aborted round, so this round is 4ei.
+      Survey scope: every module of `crates/cloud_objects`
+      (sharing.rs, ids.rs, drive/mod.rs, generic_cloud_object.rs,
+      server_object.rs, creation.rs, generic_string_model.rs, auth,
+      cloud_object/mod.rs). Survivors re-verified live:
+      `can_move_drive` via `app/src/drive/index.rs:2304`, `is_user`
+      via `cloud_object/mod.rs:483` +
+      `app/src/cloud_object/model/view.rs:180`,
+      `parse_sqlite_id_to_uid` via
+      `app/src/cloud_object/model/actions.rs:146`,
+      `ServerIdAndType` + its `sqlite_type_and_uid_hash` via
+      `cloud_object_persistence/src/objects.rs:474,485`, all
+      `CloudObjectTypeAndId` methods (`sync_id` via
+      `persistence.rs:329`, `object_type` via
+      `settings_view/agent_profiles_page.rs:355`, `server_id` via
+      `update_manager.rs:758`, `uid` via `drive/index.rs:2299` et
+      al.), the generic_cloud_object survivors per 4eh, and
+      `From<Owner> for Option<ServerId>` via the `owner.into()`
+      sites. Leaf evidence (exact-name dual-confirm, ledger /
+      `schema.graphql` / fixtures excluded): `git grep -n
+      "AnyoneWithLink" -- '*.rs'` exactly one hit — the definition
+      at `sharing.rs:70`; `\bSubject::AnyoneWithLink\b` zero
+      (no construction, no pattern); all-files hits only
+      `schema.graphql`'s unrelated `AnyoneWithLinkSharingPolicy`
+      GraphQL type plus the plan ledger; `*.json` fixtures zero.
+      The only `Subject` match is live `is_user`'s two
+      `Subject::User(..)` arms. Deleted the variant; clippy then
+      flagged `is_user`'s `_ => false` arm as newly unreachable
+      (Subject down to one variant, both `UserKind` arms cover it),
+      so that already-dead arm went too — zero behavior change,
+      match now exhaustive (1 file, +0/−2); imports unchanged
+      (`LinkSharingSubjectType` stays pub, its derive imports still
+      used). Deliberately left: `LinkSharingSubjectType` enum
+      (newly callerless payload after this deletion — same shape as
+      `TeamKind` in 4ec/4ed, designated next), 
+      `UserKind::SharedSessionParticipant` (zero construction sites
+      repo-wide, TODO CLD-2283 — but removal edits the live
+      `is_user` match, its own slice after), `as_concrete_type`
+      (`ServerObject` default trait method, zero call forms in any
+      spelling repo-wide — next-next candidate), the four
+      `SharingAccessLevel` `From` conversions (inference-based
+      `.into()` conversions invisible to name greps; `Role` is
+      imported only by sharing.rs so `From<Role>` and
+      `From<SharingAccessLevel> for Role` are likely dead — needs a
+      dedicated inference-trace slice; prior LIVE verdict kept),
+      creation.rs's `CreateObjectRequest` /
+      `BulkCreateGenericStringObjectsRequest` / `CreatedCloudObject`
+      / `CreateCloudObjectResult` /
+      `BulkCreateCloudObjectResult` (zero repo hits outside
+      creation.rs — each needs its own slice;
+      `ServerCreationInfo` / `RevisionAndLastEditor` in that file
+      are live), `Subject::User` / `UserKind::Account`
+      (structurally live via `is_user` and the
+      `CloudObjectGuest.subject` field type), and all `ids.rs` /
+      `drive/mod.rs` survivors. Local-only safety: zero
+      constructions and zero match arms means zero behavior change
+      — drive sharing subjects, permission gates, terminal, tabs,
+      panes, BYOK AI, settings, themes, and all other local
+      features untouched; only an unconstructible link-sharing
+      variant and an already-unreachable wildcard arm are gone.
+
+      Acceptance: clippy baseline captured at HEAD FIRST in both
+      configs (26 captured warning+location lines, 14 `^warning`
+      lines, the 12 pre-existing warnings each); after the edit
+      plus the wildcard-arm removal, `-p warp --lib --all-targets`
+      is byte-identical to the baseline in BOTH configs (default
+      and `--no-default-features --features simplewarp`) — the
+      intermediate run caught the newly-unreachable arm, resolved,
+      re-run identical; all 7 checks exit 0 (`check -p
+      cloud_objects --all-targets` ± `--all-features`, `check -p
+      warp --lib --all-targets` both feature sets, `--bin
+      simplewarp`, `--bin warp-oss`, `--all-targets -p
+      integration`) with only the two pre-existing `step.rs`
+      unused-import warnings (`single_terminal_view_for_tab`,
+      `crate::terminal::CLIAgent`, observed in the integration
+      check); format clean (`./script/format`, no diff beyond the
+      deletion). Nextest `-p warp --lib --no-fail-fast`: 4,652
+      simplewarp passed / 4,653 default passed, 4 skipped each, 0
+      failed (exactly the baseline, zero tests added or removed,
+      no flakes). Built `./target/debug/simplewarp` and launched
+      it — alive 65s, zero TCP sockets (`lsof -nP -a -p <pid>
+      -iTCP` empty), 0 panics, clean shutdown (SIGTERM). Did not
+      `cargo clean`.

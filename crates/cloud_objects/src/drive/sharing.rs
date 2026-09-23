@@ -67,7 +67,6 @@ pub enum LinkSharingSubjectType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Subject {
     User(UserKind),
-    AnyoneWithLink(LinkSharingSubjectType),
 }
 
 /// A kind of user. In all cases, there is an underlying Warp account, but it's represented
@@ -89,7 +88,6 @@ impl Subject {
             Subject::User(UserKind::SharedSessionParticipant(profile_data)) => {
                 profile_data.firebase_uid.as_str() == other_uid.as_str()
             }
-            _ => false,
         }
     }
 }
