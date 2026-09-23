@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
-use chrono::Utc;
 use cloud_objects::cloud_object::{
     GenericCloudObject, GenericServerObject, GenericStringModel, JsonObjectType,
 };
 use cloud_objects::ids::GenericStringObjectId;
-use handlebars::get_arguments;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp_errors::report_error;
@@ -140,13 +138,6 @@ pub struct TemplatableMCPServer {
     pub gallery_data: Option<GalleryData>,
 }
 
-#[derive(Debug)]
-pub enum FromStoredJsonError {
-    NoServersFound,
-    TooManyServersFound,
-    ParseError(serde_json::Error),
-}
-
 impl TemplatableMCPServer {
     /// Looks for MCP servers under known wrapper keys (`mcpServers`, `servers`,
     /// `mcp.servers`, `mcp_servers`). Returns `None` if no known key is found.
@@ -208,54 +199,6 @@ impl TemplatableMCPServer {
                 );
                 Default::default()
             })
-    }
-
-    pub fn from_user_json(json: &str) -> serde_json::Result<Vec<TemplatableMCPServer>> {
-        // Some docs don't show curly braces around the json object, so add them if necessary.
-        let json = json.trim();
-        let json = if json.starts_with("{") {
-            json.to_owned()
-        } else {
-            format!("{{{json}}}")
-        };
-
-        let config: serde_json::Value = serde_json::from_str(&json)?;
-        let template_jsons = Self::find_template_map(config)?;
-        Ok(template_jsons
-            .iter()
-            .map(|(name, json)| {
-                // Each template_json is the nested config for a single MCP server
-                // We need to re-wrap it in a top level object so that we can
-                // reuse from_user_json to read it later
-                let normalized_map =
-                    serde_json::Map::from_iter(vec![(name.to_owned(), json.clone())]);
-                let normalized_json = serde_json::Value::Object(normalized_map).to_string();
-
-                let description: Option<String> = json
-                    .get("description")
-                    .and_then(|value| value.as_str().map(|s| s.to_owned()));
-                let arguments = get_arguments(&normalized_json);
-                let variables = arguments
-                    .iter()
-                    .map(|argument| TemplateVariable {
-                        key: argument.to_owned(),
-                        allowed_values: None,
-                    })
-                    .collect::<Vec<TemplateVariable>>();
-
-                TemplatableMCPServer {
-                    uuid: uuid::Uuid::new_v4(),
-                    name: name.to_owned(),
-                    description,
-                    template: JsonTemplate {
-                        json: normalized_json,
-                        variables,
-                    },
-                    version: Utc::now().timestamp(),
-                    gallery_data: None,
-                }
-            })
-            .collect())
     }
 }
 

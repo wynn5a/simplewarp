@@ -91,15 +91,6 @@ pub struct HarnessModelConfig {
 }
 
 impl HarnessConfig {
-    /// Builds a harness config from just the harness type.
-    pub fn from_harness_type(harness_type: Harness) -> Self {
-        Self {
-            harness_type,
-            model_id: None,
-            reasoning_level: None,
-        }
-    }
-
     pub fn model_config(&self) -> Option<HarnessModelConfig> {
         self.model_id
             .as_ref()

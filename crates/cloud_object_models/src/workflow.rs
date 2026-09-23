@@ -110,10 +110,6 @@ impl Workflow {
         }
     }
 
-    pub fn is_command_workflow(&self) -> bool {
-        matches!(self, Self::Command { .. })
-    }
-
     pub fn is_agent_mode_workflow(&self) -> bool {
         matches!(self, Self::AgentMode { .. })
     }
@@ -127,17 +123,6 @@ impl Workflow {
             .chars()
             .next()
             .is_some_and(|first| first.eq_ignore_ascii_case(&c))
-    }
-
-    /// Return a list of every enum ID referenced by this workflow.
-    pub fn get_enum_ids(&self) -> Vec<SyncId> {
-        self.arguments()
-            .iter()
-            .filter_map(|arg| match arg.arg_type {
-                ArgumentType::Enum { enum_id } => Some(enum_id),
-                ArgumentType::Text => None,
-            })
-            .collect()
     }
 
     /// Return a list of every enum ID that has been synced to the server, used for telemetry.
@@ -160,35 +145,6 @@ impl Workflow {
             } => *environment_variables,
             Workflow::AgentMode { .. } => None,
         }
-    }
-
-    /// Given two IDs, replace any instance of the old ID referenced by this workflow with the new ID.
-    /// Returns `true` if any instances of the old_id were present.
-    pub fn replace_object_id(&mut self, old_id: SyncId, new_id: SyncId) -> bool {
-        let mut changed = false;
-        let arguments = match self {
-            Self::Command { arguments, .. } => arguments,
-            Self::AgentMode { arguments, .. } => arguments,
-        };
-        for arg in arguments.iter_mut() {
-            match &mut arg.arg_type {
-                ArgumentType::Enum { enum_id } if *enum_id == old_id => {
-                    *enum_id = new_id;
-                    changed = true;
-                }
-                ArgumentType::Enum { .. } | ArgumentType::Text => {}
-            }
-        }
-        if let Self::Command {
-            environment_variables,
-            ..
-        } = self
-            && *environment_variables == Some(old_id)
-        {
-            *environment_variables = Some(new_id);
-            changed = true;
-        }
-        changed
     }
 
     pub fn new(name: impl Into<String>, command: impl Into<String>) -> Self {

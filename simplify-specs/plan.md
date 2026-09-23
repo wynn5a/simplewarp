@@ -9189,3 +9189,143 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       cloud-run-lifecycle pivot decision (the cloud-run lifecycle
       walls per the 4ca plan) is the orchestrator's — NOT started this
       round.
+
+- [x] **cloud_object_models cluster B (4ex) — DONE 2026-09-23.** The
+      4ew-designated round: the four remaining `cloud_object_models`
+      def-only leaves from the 4eu survey plus both 4ew one-hop orphans,
+      batched as one cluster per the 4dw/4et small-cluster precedent,
+      each independently dual-confirmed fresh at HEAD (bare-name
+      PCRE-word-guarded + call-syntax + path-form sweeps; ledger /
+      `schema.graphql` / fixtures / different-type excluded). All six
+      verified DEAD and deleted; no live verdicts this round.
+      TOOLING correction discovered this round (extends the `\b` note):
+      a first-pass call-syntax regex of the shape
+      `(?<![A-Za-z0-9_])\.name\s*\(` silently misses `ident.method(`
+      calls because the lookbehind anchors before the DOT and `h` in
+      `h.model_config()` is a word char — it wrongly reported the LIVE
+      `HarnessConfig::model_config` as callerless until the corrected
+      lookbehind-free form `\.name\s*\(` found
+      `app/src/ai/agent_sdk/mod.rs:452`; all call-syntax sweeps below
+      were re-run with the corrected form. Per-item evidence: (1)
+      `Workflow::get_enum_ids` (`workflow.rs:133` pre-edit): bare-name
+      grep exactly two repo-wide hit classes — the definition and four
+      `plan.md` ledger lines; corrected call-syntax zero; path-form
+      ledger only. Sibling trace: `get_server_enum_ids` stays LIVE
+      (`app/src/terminal/input.rs:5952,12083`,
+      `app/src/terminal/view.rs:6621`) — the sweep tells live from dead
+      in this same impl block. (2) `Workflow::is_command_workflow`
+      (`workflow.rs:113` pre-edit): bare-name def + ledger only;
+      call/path zero. Sibling trace: `is_agent_mode_workflow` LIVE
+      (`workflow_search_item.rs:113`, `terminal/input.rs:6078`,
+      `workflows/info_box.rs:162,349,799`). (3)
+      `Workflow::replace_object_id` (`workflow.rs:167` pre-edit):
+      bare-name def + ledger only; call/path zero. (4)
+      `HarnessConfig::from_harness_type` (`scheduled_ambient_agent.rs:95`
+      pre-edit; label correction: the method is on `HarnessConfig`, not
+      `ScheduledAmbientAgent` — the task list's loose label): bare-name
+      in `*.rs` exactly one hit — the definition; the only non-ledger
+      mention anywhere is stale design prose
+      (`specs/REMOTE-1454/TECH.md:326`, which names an
+      `AmbientAgentViewModel::spawn_agent` that does not exist —
+      `fn spawn_agent` zero in `*.rs`); construction-site proof (4em/4eo
+      class): the ONLY `HarnessConfig {` construction repo-wide is a
+      struct literal at `app/src/ai/agent_sdk/mod.rs:215`, not this
+      constructor. Also re-verified the 4ew note: `Workflow::
+      from_harness_type` zero hits in `*.rs` — no such method at HEAD.
+      (5) `FromStoredJsonError` (`mcp.rs:144` pre-edit): bare-name
+      exactly one hit repo-wide outside the ledger — the definition;
+      zero construction/name sites (the 4ew one-hop prediction held).
+      (6) `TemplatableMCPServer::from_user_json` (`mcp.rs:213`
+      pre-edit): corrected call-syntax `.from_user_json(` zero
+      repo-wide; every `::from_user_json` path hit triaged to app-side
+      types — the app trait method on app `MCPServer`
+      (`app/src/ai/mcp/mod.rs:292,301`, returns `Vec<MCPServer>`) and
+      `ParsedTemplatableMCPServerResult`'s inherent
+      (`app/src/ai/mcp/parsing.rs:259`) with their own callers
+      (`driver.rs:1034`, `templatable_manager/native.rs:877`,
+      `settings_view/mcp_servers/edit_page.rs:565,888`, tests) — zero
+      calls resolve to the cloud_object_models inherent. Helpers
+      triaged post-deletion: `find_template_map` /
+      `find_template_map_strict` / `find_servers_under_known_keys` all
+      stay LIVE (`agent_sdk/mcp_config.rs:55`, `mcp/parsing.rs:248,269`
+      + internal calls); `to_user_json` LIVE
+      (`edit_page.rs:240`, `mcp/mod_tests.rs:96`); `TemplateVariable` /
+      `JsonTemplate` stay (persisted fields of `TemplatableMCPServer`).
+      Deleted the six items with their doc/comment lines plus the two
+      imports whose only users were the deleted bodies
+      (`use chrono::Utc;` — `Utc::now()` in `from_user_json`; `use
+      handlebars::get_arguments;` — the sole `get_arguments` call) (3
+      files, +0/−110). No import changes needed in `workflow.rs`
+      (`SyncId`/`GenericStringObjectId` still used by live siblings and
+      serde fields) or `scheduled_ambient_agent.rs` (`Harness` still
+      used by the `harness_type` field and the serde fns).
+
+      Deliberately left: the LIVE MCP-template helpers above; the
+      serde/persistence surface (`Workflow::Command.author` /
+      `environment_variables`, `ArgumentType::Enum`, `HarnessConfig`
+      fields incl. `harness_type` with its custom serde fns,
+      `TemplatableMCPServer` + `JsonTemplate` + `TemplateVariable`,
+      `FromStoredJsonError`'s old serde_json payload type) — persisted,
+      kept per convention; `HarnessConfig::model_config` (LIVE via
+      `agent_sdk/mod.rs:452` — caught only by the corrected
+      call-syntax regex, see tooling note); the `Workflow` builder/live
+      getters (`name`/`content`/`prompt`/`command`/`description`/
+      `arguments`/`tags`/`source_url`/`shells`/
+      `default_env_vars`/`name_starts_with_char_ignore_case`/`new`/
+      `with_*`/`set_name`, `get_server_enum_ids`) — out of scope;
+      and the now crate-orphaned `handlebars` and `chrono` workspace
+      dependencies of `crates/cloud_object_models/Cargo.toml` (no
+      remaining use in the crate's `src/` after this round) — noted as
+      candidates; Cargo.toml dependency removal was not expanded into
+      this round.
+
+      Crate-clean verdict: this exhausts the known
+      `cloud_object_models` candidates — the 4eu survey's nine
+      def-only leaves are all deleted (five in 4ew, four here) and
+      both 4ew one-hop orphans are gone, so the crate's known
+      def-only-leaf queue is EMPTY; remaining cleanup in the crate is
+      limited to the two orphaned Cargo dependencies above (needs a
+      workspace-wide use check for `handlebars`/`chrono` before
+      removal). The next major item is the cloud-run lifecycle walls
+      per the 4ca plan — the ORCHESTRATOR decides the pivot; NOT
+      started this round.
+
+      Local-only safety: zero callers means zero behavior change — all
+      six deleted items could never be entered, so workflow listing and
+      editing, enum-ID telemetry (the live `get_server_enum_ids` path),
+      MCP server template parse/install flows (which run entirely
+      through the app-side `ParsedTemplatableMCPServerResult` /
+      app-`MCPServer` machinery and the live `find_template_map` /
+      `to_user_json` paths, untouched), agent spawn harness overrides
+      (built via the struct literal at `agent_sdk/mod.rs:215`,
+      untouched), cloud-object persistence/sync, drive, terminal, tabs,
+      panes, BYOK AI, settings, themes, and all other local features
+      are untouched; only four never-callable methods, one
+      never-referenced error enum, and two now-unused imports are gone.
+
+      Acceptance: clippy baselines captured at HEAD FIRST (worktree
+      clean) in BOTH configs — 12 sorted warning+location pairs / 14
+      `^warning` lines each (the 12 pre-existing warnings: 11
+      unneeded-return in `app/src/terminal/input.rs` + 1
+      single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the edit,
+      `-p warp --lib --all-targets` is warning-identical to the
+      baseline in BOTH configs (default and `--no-default-features
+      --features simplewarp` — sorted-pair diffs empty, 12 pairs / 14
+      `^warning` lines each). Check suite exit 0 with 0 errors and zero
+      new warnings: `check -p cloud_object_models --all-targets` (zero
+      warnings), `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets` both
+      feature sets, `--no-default-features --features simplewarp --bin
+      simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+      (only the two pre-existing `step.rs` unused-import warnings,
+      `single_terminal_view_for_tab` and `crate::terminal::CLIAgent`).
+      Format clean (`./script/format`; diff remains exactly +0/−110).
+      Nextest `-p warp --lib --no-fail-fast`: 4,652 simplewarp passed,
+      4 skipped, 0 failed; 4,653 default passed, 4 skipped, 0 failed —
+      exactly the baseline, zero tests added or removed, no flakes.
+      Runtime smoke test SKIPPED: the user is away and nobody can
+      answer the macOS password prompt, so per the 2026-09-23
+      convention change the GUI binary was not built or launched —
+      unit tests plus checks are the acceptance for this round. Did
+      not `cargo clean`.
