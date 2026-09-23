@@ -15,12 +15,10 @@ chrono.workspace = true
 cynic.workspace = true
 derivative.workspace = true
 itertools.workspace = true
-lasso.workspace = true
 pathfinder_geometry.workspace = true
 schemars = { version = "1", features = ["uuid1"] }
 serde.workspace = true
 settings_value.workspace = true
-session-sharing-protocol.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 warp_core.workspace = true

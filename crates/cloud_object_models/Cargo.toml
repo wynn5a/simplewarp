@@ -13,10 +13,8 @@ test-util = ["cloud_objects/test-util"]
 [dependencies]
 ai.workspace = true
 anyhow.workspace = true
-chrono.workspace = true
 cfg-if.workspace = true
 cloud_objects.workspace = true
-handlebars.workspace = true
 lazy_static.workspace = true
 log.workspace = true
 regex.workspace = true

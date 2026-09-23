@@ -9329,3 +9329,117 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       convention change the GUI binary was not built or launched —
       unit tests plus checks are the acceptance for this round. Did
       not `cargo clean`.
+
+- [x] **orphaned-dependency sweep, cloud crates (4ey) — DONE 2026-09-23.**
+      Follow-up to rounds 4eg–4ex: after the cloud-type deletions, EVERY
+      dependency declared in `crates/cloud_object_models/Cargo.toml`
+      (23 `[dependencies]` + 3 `cfg(not(wasm))` target deps + 1
+      dev-dep = 27 verdicts) and `crates/cloud_objects/Cargo.toml`
+      (17 `[dependencies]` = 17 verdicts; 44 total) was grep-verified
+      against its own crate's `src/`: path form
+      `(?<![A-Za-z0-9_])<rustname>\s*(::|;)` per dep (hyphens→
+      underscores; no `package =` renames in either file), plus
+      word-guarded all-files bare-name sweeps for attribute/string-only
+      forms (`#[serde(with = ...)]`, `#[derivative(...)]`,
+      `#[schemars(...)]`, `#[derive(thiserror::Error)]`,
+      `cynic::Id`); neither crate has a build.rs, so no non-Rust dep
+      entry points. Four deps verified UNUSED and removed (2+2):
+      cloud_object_models `chrono` and `handlebars` (both 4ex-flagged;
+      word-guarded grep over the whole crate dir hits ONLY the
+      Cargo.toml lines — zero src uses; their sole users were 4ex's
+      deleted `use chrono::Utc;` in `from_user_json` and
+      `use handlebars::get_arguments;`; the `diesel` dep's separate
+      `chrono` FEATURE token is diesel-side and untouched), and
+      cloud_objects `lasso` (zero hits in any form anywhere in the
+      crate) and `session-sharing-protocol` (zero src hits — the last
+      import, `use session_sharing_protocol::common::Role;`, went with
+      4em's deleted `From` impls). All 40 other entries verified USED
+      with named evidence, kept — sample sites: models `ai`
+      (`ai::LLMId` ai_execution_profile.rs:3,
+      `ai::document::AIDocumentId` notebook.rs:4), `anyhow` (12 hits),
+      `cfg-if` (`cfg_if::cfg_if!` ai_execution_profile.rs:299),
+      `cloud_objects` (38), `lazy_static`, `log` (`log::warn!`
+      scheduled_ambient_agent.rs:112), `regex` (ai_execution_profile.rs:9),
+      `schemars` (JsonSchema impl ai_execution_profile.rs:256),
+      `serde`, `serde_json` (77), `serde_regex` (string-path attribute
+      `#[serde(with = "serde_regex")]` ai_execution_profile.rs:208),
+      `session-sharing-protocol` (`ProfileData` user_profile.rs:3),
+      `settings` (`SyncToCloud` preference.rs:8), `settings_value`
+      (ai_execution_profile.rs:284), `uuid`, `warp-workflows`
+      (`warp_workflows::Shell` workflow.rs:37), `warp_cli`
+      (`warp_cli::agent::Harness` scheduled_ambient_agent.rs:8),
+      `warp_core`, `warp_errors` (`report_error` mcp.rs:9),
+      `warp_graphql` (26), `warp_util` (`path::ShellFamily`
+      env_vars.rs:6), target deps `cloud_object_persistence` /
+      `diesel` (17) / `persistence` (`use persistence::model::{Folder,
+      ...}` folder/persistence.rs:8); the dev-dep
+      `cloud_objects = { workspace = true, features = ["test-util"] }`
+      KEPT as load-bearing via a macro-forwarded feature requirement
+      (same compiler-only class as the 4eu derive lesson):
+      cloud_object_models expands `cloud_objects::server_id_traits!`
+      (notebook.rs:29, workflow.rs:338), whose test-gated
+      `impl From<i64> for $t` body `Self(id.into())` needs
+      `From<i64> for ServerId`, itself
+      `#[cfg(any(test, feature = "test-util"))]` inside cloud_objects
+      (ids.rs:259) — in cloud_object_models' test build cloud_objects
+      compiles as a normal dep without `cfg(test)`, so only the
+      dev-dep's feature supplies it. cloud_objects `anyhow` (14),
+      `chrono` (`DateTime, Utc` cloud_object/mod.rs:6, live at :280+),
+      `cynic` (`cynic::Id` mod.rs:1009,1013), `derivative` (mod.rs:7,316),
+      `itertools` (`Itertools` ids.rs:3), `pathfinder_geometry`
+      (`vec2f` mod.rs:8), `schemars` (ids.rs:15+), `serde`,
+      `settings_value` (ids.rs:104, proven LIVE in 4eu), `thiserror`
+      (ids.rs:178), `uuid` (ids.rs:5), `warp_core`, `warp_graphql`
+      (49), `warp_server_auth` (the live `UserUid`+`TEST_USER_UID`
+      re-export auth/mod.rs:1), `warpui_core` (mod.rs:15+).
+      Workspace-level: NO changes — every removed name keeps live
+      member references elsewhere: `chrono` in ~17 member Cargo.tomls;
+      `handlebars` (vendored path crate `crates/handlebars`) still
+      declared and genuinely used by `app` (app/src/ai/mcp/parsing.rs:3
+      et al.); `lasso` still declared by warp_server_auth /
+      warp_server_client / app; `session-sharing-protocol` still
+      declared by warp_server_client / cloud_object_persistence / app
+      (and by cloud_object_models, where it is used). Cargo.lock
+      refreshed: the diff is exactly the four removed dependency EDGES
+      of the two cloud crates — no package leaves the lock. Local-only
+      safety: removing never-referenced dependency declarations
+      compiles identical code — the deleted edges name no symbol in
+      either crate's source (verified by the greps above and by the
+      zero-warning clean compiles), so cloud-object persistence/sync,
+      drive, terminal, tabs, panes, BYOK AI, settings, themes, and all
+      other local features are untouched; only four unused Cargo
+      dependency lines and their lockfile edges are gone.
+
+      Acceptance: clippy baselines captured at HEAD FIRST (worktree
+      clean) in BOTH configs — 16 sorted warning+location lines each
+      (12 locations: 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`, plus 4 `^warning`
+      lines: 2 crate summaries + 2 warning-kind lines); after the
+      edit, `-p warp --lib --all-targets` is warning-identical to the
+      baseline in BOTH configs (default and `--no-default-features
+      --features simplewarp` — sorted-pair diffs empty). Check suite
+      exit 0 with 0 errors and zero new warnings: `check -p
+      cloud_object_models --all-targets` (0 errors, 0 warnings),
+      `check -p cloud_objects --all-targets` and `+ --all-features`
+      (0/0 each), `check -p warp --lib --all-targets` both feature
+      sets (0/0 each), `--no-default-features --features simplewarp
+      --bin simplewarp` (0/0), `--bin warp-oss` (0/0),
+      `--all-targets -p integration` (exit 0; only the two
+      pre-existing `step.rs` unused-import warnings,
+      `single_terminal_view_for_tab` and `crate::terminal::CLIAgent`).
+      `./script/format` no diff. Nextest `-p warp --lib
+      --no-fail-fast`: 4,652 simplewarp passed, 4 skipped, 0 failed;
+      4,653 default passed, 4 skipped, 0 failed — exactly the
+      baseline, zero tests added or removed, no flakes. Runtime smoke
+      test SKIPPED: the user is away and nobody can answer the macOS
+      password prompt, so per the 2026-09-23 convention change the GUI
+      binary was not built or launched — unit tests plus checks are
+      the acceptance for this round. Did not `cargo clean`.
+
+      Both cloud crates' leaf queues are exhausted (cloud_objects
+      crate-clean per the 4ev verdict; cloud_object_models' def-only
+      leaf queue empty per 4ex) and this round closes the flagged
+      orphaned-Cargo-dependency follow-up; the next major item is the
+      cloud-run lifecycle walls per the 4ca plan — the ORCHESTRATOR
+      decides the pivot; NOT started this round.
