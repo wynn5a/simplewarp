@@ -7030,3 +7030,69 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       Built `./target/debug/simplewarp` and launched it — alive 60s+,
       zero TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics,
       clean shutdown.
+
+- [x] **`TeamKind` enum itself (4ed) — DONE 2026-09-23.** The
+      4ec-designated next slice: `TeamKind` was payload of
+      `Subject::Team` only. Independent dual-confirm
+      `Subject::Team` construction-site trace (bare-name +
+      call-syntax, ledger / `schema.graphql` / fixture / field-decl
+      excluded). Exact `git grep -P '\bSubject::Team\b' -- '*.rs'`
+      zero hits; call-syntax `\bSubject::Team\s*\(` zero hits.
+      Naive `Subject::Team` substring hits are only different enums
+      (`GuestSubject::TeamGuest` at
+      `cloud_object/mod.rs:945-946` + `ServerGuestSubject::Team`,
+      `ShareSubject::Team` in `warp_cli/share.rs:38,143` and
+      `share_tests.rs:16,23,30`) — excluded by word boundary, no
+      confusion. Exact `\bTeamKind\b` only `sharing.rs:91`
+      (`Team(TeamKind)` payload field-decl) and `:109` (enum def);
+      `\bTeamKind::` zero; `SharedSessionTeam` only `:114` inside
+      the def itself. Bare `\bSubject\b` only the import + field
+      type (`cloud_object/mod.rs:23,503`), the def/impl
+      (`sharing.rs:82,85,120`), and the two `Subject::User`
+      destructures inside live `is_user` (`:124-125`) — plus
+      unrelated English ("Subject:" / "Subject to"). No
+      `use Subject::*` glob. `schema.graphql` zero, `*.json`
+      fixtures zero. So zero external construction — deletable.
+      Deleted the `TeamKind` enum + its doc comment and the
+      `Subject::Team(TeamKind)` variant (the sole user), plus the
+      now-unused `ServerId` import (`UserUid` stays — still used by
+      `UserKind::Account` + `is_user`) (1 file, +0/−16).
+      Deliberately left: `Subject` itself (`User` / `PendingUser` /
+      `AnyoneWithLink` — `is_user` live via
+      `app/src/cloud_object/model/view.rs:180` and
+      `cloud_object/mod.rs:483`, `has_direct_user_access` live via
+      `app/src/drive/index.rs:670,1786`), `label` / `name`
+      (generic names, deferred), `can_move_drive` / `is_user`
+      (live), `into_upsert_params` (trace-only per handoff),
+      `Owner::Team` / `Space::Team` / `ServerGuestSubject::Team` /
+      `ShareSubject::Team` (different enums, out of scope), all
+      `ids.rs` / `drive/mod.rs` survivors, ambient plumbing,
+      telemetry scope (4ca item7), fold (item8), redesigns, and all
+      local features. Removal-safe: the only `Subject` match is
+      `is_user` with `_ => false` wildcard — no exhaustive match to
+      fix; `CloudObjectGuest.guests` stays `Vec` (always empty in
+      `new_from_server` / mocks, never constructed — not in scope).
+      Local-only safety: zero constructions means zero behavior
+      change — drive sharing subjects, permission gates, terminal,
+      tabs, panes, BYOK AI, settings, themes untouched; only an
+      unconstructible team-subject variant and its payload type are
+      gone.
+
+      Acceptance: `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets` both feature
+      sets (default + `--no-default-features --features simplewarp`),
+      `--bin simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+      clean (0 errors; only the two pre-existing `step.rs`
+      unused-import warnings); clippy `-p warp --lib --all-targets`
+      warning-identical to the stash baseline (182 lines both, 14
+      `^warning` lines both, same 12 pre-existing warnings — none in the
+      touched file — raw outputs differ only in the build-time
+      `Finished` trailer); format clean (`./script/format` no diff).
+      Nextest `-p warp --lib --no-fail-fast`: 4,652 simplewarp passed /
+      4,653 default passed, 4 skipped each (zero tests added or
+      removed; first default run showed 1 flaky FAIL
+      `notebooks::notebook::tests::test_command_block_dispatches_event`
+      which passes in isolation and on full rerun — unrelated to this
+      change). Built `./target/debug/simplewarp` and launched it —
+      alive 56s, zero TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty),
+      0 panics, clean shutdown (SIGTERM). Did not `cargo clean`.

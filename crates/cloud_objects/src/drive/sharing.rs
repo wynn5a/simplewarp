@@ -3,7 +3,6 @@ use session_sharing_protocol::common::{ProfileData as SessionSharingProfileData,
 use warp_graphql::object_permissions::AccessLevel;
 
 use crate::auth::UserUid;
-use crate::ids::ServerId;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum SharingAccessLevel {
@@ -88,7 +87,6 @@ pub enum Subject {
     PendingUser {
         email: Option<String>,
     },
-    Team(TeamKind),
     AnyoneWithLink(LinkSharingSubjectType),
 }
 
@@ -101,20 +99,6 @@ pub enum UserKind {
     /// A session-sharing participant.
     // TODO(CLD-2283): Remove this once we have Firebase UIDs for shared session participants.
     SharedSessionParticipant(SessionSharingProfileData),
-}
-
-/// A kind of team. Team permission updates are propagated differently for
-/// shared sessions, so we need to store different info in certain cases.
-#[derive(Debug, Clone, PartialEq)]
-pub enum TeamKind {
-    Team {
-        team_uid: ServerId,
-    },
-    /// The team of the shared session sharer.
-    SharedSessionTeam {
-        team_uid: ServerId,
-        name: String,
-    },
 }
 
 impl Subject {
