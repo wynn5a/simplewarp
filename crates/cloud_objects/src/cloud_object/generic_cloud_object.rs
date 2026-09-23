@@ -172,28 +172,6 @@ impl<K, M> GenericCloudObject<K, M> {
             model: self.model().clone(),
         }
     }
-
-    /// Converts this object into portable upsert parameters.
-    pub fn into_upsert_params(self, object_type: ObjectType) -> CloudObjectUpsertParams<M>
-    where
-        M: Clone,
-    {
-        let Self {
-            id,
-            metadata,
-            permissions,
-            model,
-            conflict_status: _,
-        } = self;
-        let model = Arc::try_unwrap(model).unwrap_or_else(|model| (*model).clone());
-        CloudObjectUpsertParams {
-            id,
-            object_type,
-            metadata,
-            permissions,
-            model,
-        }
-    }
 }
 
 impl<K, M> From<CloudObjectUpsertParams<M>> for GenericCloudObject<K, M> {

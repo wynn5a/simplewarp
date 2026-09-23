@@ -7325,3 +7325,90 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       alive 80s, zero TCP sockets (`lsof -nP -a -p <pid> -iTCP`
       empty), 0 panics, clean shutdown (SIGTERM). Did not
       `cargo clean`.
+
+- [x] **`GenericCloudObject::into_upsert_params` (4eh) — DONE
+      2026-09-23.** The 4eg-designated next slice: the deferred
+      consuming-variant scope judgment, now done. Dual-confirm
+      (bare-name + call-syntax + path-form, ledger /
+      `schema.graphql` / fixture excluded): bare-name
+      `git grep -n "into_upsert_params" -- '*.rs'` exactly one
+      hit repo-wide — the definition at
+      `generic_cloud_object.rs:177`; call-syntax
+      `.into_upsert_params(` zero; path-form
+      `::into_upsert_params` zero; all-files repo-wide grep only
+      that definition plus `plan.md` ledger mentions;
+      `schema.graphql` zero, `*.json` fixtures zero. It is an
+      inherent method in `impl<K, M> GenericCloudObject<K, M>`
+      (declared in no trait), so no generic dispatch can reach
+      it. Consumer-shape trace: the borrowing sibling
+      `upsert_params` is the live path at exactly two sites —
+      `app/src/cloud_object/mod.rs:677`
+      (`M::upsert_event(self.upsert_params(self.object_type()))`)
+      and `app/src/cloud_object/model/persistence.rs:1752`
+      (`.map(|object| object.upsert_params(object.object_type()))`)
+      — feeding the `CloudObject` trait's
+      `upsert_event`/`bulk_upsert_event` impls through
+      `CloudObjectUpsertParams`; the consuming variant took
+      `self` by value and its
+      `Arc::try_unwrap(...).unwrap_or_else(|m| m.clone())` fast
+      path could never execute because the function is never
+      entered. Deleted the method + its doc comment (the
+      formatter absorbed the leftover blank line) (1 file,
+      +0/−22); `use std::sync::Arc;` stays — still used by the
+      `model: Arc<M>` field, `Arc::new` in
+      `update_from_server_object`, and `shared_model`.
+      Deliberately left: the
+      `From<CloudObjectUpsertParams<M>> for
+      GenericCloudObject<K, M>` impl in the same file (designated
+      next — zero `GenericCloudObject::from(` hits, and every
+      repo-wide `CloudObjectUpsertParams` binding is an
+      `upsert_event(params)` trait-fn parameter consumed by
+      model-event constructors, none converted back into a
+      `GenericCloudObject`; but trait-impl deadness needs its own
+      `.into()`-target trace slice to dual-confirm), the live
+      `upsert_params` sibling and `model` / `shared_model` /
+      `set_model` / `new` / `new_local` / `new_from_server` /
+      `update_from_server_object` (live via
+      `search/command_search/notebooks/notebooks_data_source.rs:40`
+      et al., `persistence.rs:818` et al.,
+      `CloudNotebook::new_local(` at
+      `notebooks/active_notebook_data.rs:176` et al.,
+      `GenericCloudObject::<K, M>::new_from_server` at
+      `persistence.rs:443,472`, `update_from_server_object` at
+      `persistence.rs:415`), all `ids.rs` / `drive/mod.rs`
+      survivors (re-surveyed: `as_generic_string_object_id`,
+      `drive_row_position_id`, `from_generic_string_object` all
+      live; `SharingAccessLevel::can_move_drive` / `is_user`
+      live), ambient plumbing, telemetry scope (4ca item7), fold
+      (item8), redesigns, and all local features. Local-only
+      safety: zero callers means zero behavior change — cloud
+      object persistence/sync upserts run exclusively through the
+      borrowing sibling, and drive, terminal, tabs, panes, BYOK
+      AI, settings, themes, and all other local features are
+      untouched; only an owning-conversion optimizer that could
+      never run is gone.
+
+      Acceptance: `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets`
+      both feature sets (default + `--no-default-features
+      --features simplewarp`), `--bin simplewarp`, `--bin
+      warp-oss`, `--all-targets -p integration` clean (all 7
+      exit 0; 0 errors; only the two pre-existing `step.rs`
+      unused-import warnings at
+      `app/src/integration_testing/input/step.rs:11,13`);
+      clippy `-p warp --lib --all-targets` warning-identical to
+      the HEAD baseline in BOTH configs (182 lines each, 14
+      `^warning` lines each, 13 sorted warning+location pairs
+      identical — same 12 pre-existing warnings: 11
+      unneeded-return in `app/src/terminal/input.rs` +
+      1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`, none in the
+      touched file); format stable (`./script/format` idempotent,
+      it absorbed the leftover blank line, no residual diff).
+      Nextest `-p warp --lib --no-fail-fast`: 4,652 simplewarp
+      passed / 4,653 default passed, 4 skipped each, 0 failed
+      (zero tests added or removed, no flakes). Built
+      `./target/debug/simplewarp` and launched it — alive 74s,
+      zero TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty),
+      0 panics, clean shutdown (SIGTERM). Did not
+      `cargo clean`.
