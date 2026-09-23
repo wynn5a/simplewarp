@@ -83,10 +83,6 @@ pub enum LinkSharingSubjectType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Subject {
     User(UserKind),
-    #[allow(dead_code)]
-    PendingUser {
-        email: Option<String>,
-    },
     AnyoneWithLink(LinkSharingSubjectType),
 }
 

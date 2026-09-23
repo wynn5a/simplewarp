@@ -7096,3 +7096,78 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       change). Built `./target/debug/simplewarp` and launched it —
       alive 56s, zero TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty),
       0 panics, clean shutdown (SIGTERM). Did not `cargo clean`.
+
+- [x] **`Subject::PendingUser` (4ee) — DONE 2026-09-23.** The
+      4ed-designated next slice: `Subject::PendingUser` carried the
+      same `#[allow(dead_code)]` the 4ed round named as the
+      zero-construction candidate marker. Independent dual-confirm
+      `Subject::PendingUser` construction-site trace (bare-name +
+      call-syntax, ledger / `schema.graphql` / fixture / field-decl /
+      different-enum excluded). Exact `git grep -P
+      '\bSubject::PendingUser\b' -- '*.rs'` zero hits; call-syntax
+      `\bSubject::PendingUser\s*\(` zero hits. Fixed-string
+      `Subject::PendingUser` hits in `*.rs` are only
+      `crates/cloud_objects/src/cloud_object/mod.rs:942-943`
+      (`GuestSubject::PendingUserGuest` match arm +
+      `ServerGuestSubject::PendingUser { email }` construction) —
+      both different enums, excluded by word boundary: `git grep -P
+      '(?<![A-Za-z0-9_])Subject::PendingUser(?![A-Za-z0-9_])' --
+      '*.rs'` zero hits, proving the substring hits are
+      `Guest`/`ServerGuest` prefixes, not this type. Bare
+      `\bPendingUser\s*\{` hits are only the definition in
+      `sharing.rs:87`, the `ServerGuestSubject::PendingUser` def at
+      `cloud_object/mod.rs:364`, and its live construction at
+      `:943` — no `Subject` construction. All-files
+      `Subject::PendingUser` (incl. `plan.md`) is only those two
+      `mod.rs` lines; `schema.graphql` holds only the wire
+      `PendingUserGuest` union member
+      (`warp_graphql_schema/api/schema.graphql:1827,2599`), `*.json`
+      fixtures zero. `Subject::` match arms repo-wide are only the
+      live `is_user` (`Subject::User(..)` + `_ => false` wildcard)
+      plus unrelated enums (`AgentConversationNavigationSubject`,
+      `ShareSubject`, `GuestSubject`/`ServerGuestSubject`) — the
+      same removal-safe wildcard shape as 4ed, no exhaustive match
+      to fix. No `use Subject::*` glob. Single-column trace
+      against the survivors: `is_user` stays live via
+      `crates/cloud_objects/src/cloud_object/mod.rs:483` plus
+      `app/src/cloud_object/model/view.rs:180`, `can_move_drive`
+      stays live via `app/src/drive/index.rs:2304`, confirming the
+      sweep can tell live from dead in this module. Deleted the
+      `#[allow(dead_code)] PendingUser { email: Option<String> }`
+      variant only (both imports stay — `UserUid` still used by
+      `UserKind::Account` + `is_user`) (1 file, +0/−4).
+      Deliberately left: `Subject` itself (`User` /
+      `AnyoneWithLink` — both live via `is_user` /
+      `has_direct_user_access`), `ServerGuestSubject::PendingUser`
+      (live, different enum — constructed at `mod.rs:943`),
+      `GuestSubject::PendingUserGuest` (wire), `label` / `name`
+      (generic names, deferred), `can_move_drive` / `is_user`
+      (live), `into_upsert_params` (trace-only per handoff —
+      consuming-variant scope judgment, never in this round),
+      `Owner::Team` / `Space::Team` / `ServerGuestSubject::Team` /
+      `ShareSubject::Team` (different enums, out of scope), all
+      `ids.rs` / `drive/mod.rs` survivors, ambient plumbing,
+      telemetry scope (4ca item7), fold (item8), redesigns, and all
+      local features. Local-only safety: zero constructions means
+      zero behavior change — drive sharing subjects, permission
+      gates, terminal, tabs, panes, BYOK AI, settings, themes
+      untouched; only an unconstructible pending-user variant is
+      gone.
+
+      Acceptance: `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets` both feature
+      sets (default + `--no-default-features --features simplewarp`),
+      `--bin simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+      clean (0 errors; only the two pre-existing `step.rs`
+      unused-import warnings); clippy `-p warp --lib --all-targets`
+      byte-identical to the stash baseline in both configs (182 lines
+      both, 14 `^warning` lines both, same 12 pre-existing warnings —
+      11 unneeded-return + 1 single-element-loop, none in the
+      touched file — raw outputs differ only in the build-time
+      `Finished` trailer); format clean (`./script/format` no diff).
+      Nextest `-p warp --lib --no-fail-fast`: 4,652 simplewarp passed /
+      4,653 default passed, 4 skipped each (zero tests added or
+      removed, no flakes). Built `./target/debug/simplewarp` and
+      launched it — alive 71s, zero TCP sockets (`lsof -nP -a -p <pid>
+      -iTCP` empty), 0 panics, clean shutdown (SIGTERM). Did not
+      `cargo clean`.
