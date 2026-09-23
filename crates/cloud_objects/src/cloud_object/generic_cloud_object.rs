@@ -143,11 +143,6 @@ impl<K, M> GenericCloudObject<K, M> {
         }
     }
 
-    /// Marks this object as being in conflict with the provided object.
-    pub fn set_conflicting_object(&mut self, object: Arc<GenericServerObject<K, M>>) {
-        self.conflict_status = ConflictStatus::ConflictingChanges { object };
-    }
-
     pub fn update_from_server_object(&mut self, server_object: GenericServerObject<K, M>) {
         // Check if we should create a conflict or apply the update.
         if self.metadata.has_pending_content_changes() || self.conflict_status.has_conflicts() {

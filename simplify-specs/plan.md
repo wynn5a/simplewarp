@@ -6489,6 +6489,55 @@ Smallest first, by impl size and caller count: `ManagedMcpClient` (33 lines, 2),
             failed (4 skipped both — exactly the 4dt baselines, zero tests
             added or removed, no flakes). App not re-run — deleted code was
             unreachable (no callers).
+      - [x] **Dead server-conflict setter on `GenericCloudObject`
+            (4dv) — DONE 2026-09-23.** Same zero-caller leaf class as
+            4dp/4dq/4du, found by sweeping every `pub fn` in
+            `warp_server_client` / `warp_server_auth` / `cloud_objects` /
+            `warp_graphql` repo-wide (candidate 3, the 3v method — 170 `pub fn`
+            lines, 132 unique names, 8 single-file hits):
+            `GenericCloudObject::set_conflicting_object` had zero callers
+            (definition only — verified with bare-name `git grep` plus
+            `.set_conflicting_object(` / `::set_conflicting_object(`
+            call-syntax search, all zero outside the definition). It marked the
+            object as conflicting with a server-provided
+            `GenericServerObject`; server objects can never arrive in this fork
+            (sync queue gone in 4bg, version/update shaping gone in 4dp/4dr),
+            so no producer could ever call it. Deleted the method (1 file,
+            +0/−5). Candidates 1 and 2 came back clean first: the re-run
+            346-variant `TelemetryEvent` sweep (now 345 variants) and the
+            190-variant `FeatureFlag` sweep (now 189) both show zero remaining
+            orphans. Deliberately left: `update_from_server_object` (live via
+            the persistence ingest path) and everything it constructs
+            (`ConflictStatus::ConflictingChanges`, `GenericServerObject` —
+            still read in `app/src/cloud_object/mod.rs`); `into_upsert_params`
+            (consuming variant of the live `upsert_params` used by the local
+            SQLite persistence path — local plumbing, needs its own scope call,
+            same class as 4du's deferred `is_anonymous_user_feature_gated`);
+            `SharingAccessLevel::{can_trash, can_edit_access,
+            to_serializable_value}` + `SyncId::from_object_id` (same
+            dual-confirmed zero-caller shape, different files — the next
+            slice, not this one); `sqlite_hash` / `new_anonymous_for_test`
+            (single-file hits but live — an in-file caller and a wrapper
+            caller respectively, caught only by reading the grep output, the
+            3z lesson). Local-only safety: zero callers means zero behavior
+            change — local persistence (`CloudModel`/SQLite), conflict
+            tracking, terminal, tabs, panes, BYOK AI, settings, themes, and all
+            other local features untouched; only the setter that could never be
+            called is gone.
+
+            Acceptance: `check -p warp --lib --all-targets` both feature sets,
+            `--bin simplewarp`, `--bin warp-oss`, `--all-targets -p
+            integration`, `check -p cloud_objects --all-targets` clean (0
+            errors; only the two pre-existing `step.rs` unused-import
+            warnings); clippy `-p warp --lib --all-targets` byte-identical to
+            the stash baseline in both configs (11 needless-returns + 1
+            single-element loop, 0 added, none in touched files); clippy `-p
+            cloud_objects --all-targets` 0 warnings; format clean. Nextest:
+            warp lib 4,653 default / 4,652 simplewarp (`--no-fail-fast`), 0
+            failed (4 skipped both — exactly the 4ci baselines, zero tests
+            added or removed, no flakes). Built `./target/debug/simplewarp`
+            and launched it — alive past 50s, no outbound TCP (`lsof -nP
+            -iTCP` empty), 0 panics, clean shutdown.
 - [x] An end-to-end AI conversation with a real key. **Done 2026-08-19** against an
       OpenAI-compatible LiteLLM gateway, by the live tests in
       `crates/local_inference/tests/live_provider.rs`. Text, a tool call, and a tool result all
