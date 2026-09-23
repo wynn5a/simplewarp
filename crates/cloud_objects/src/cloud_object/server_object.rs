@@ -38,21 +38,6 @@ pub trait ServerObject: Debug + Send + Sync {
     /// Returns this object as a ref to the Any type.  Needed for typecasts.
     fn as_any(&self) -> &dyn Any;
 
-    /// Returns the trait object as a concrete type reference by downcasting it.
-    /// Returns None if the downcast fails.
-    fn as_concrete_type<K, M>(
-        server_object: &dyn ServerObject,
-    ) -> Option<&GenericServerObject<K, M>>
-    where
-        Self: Sized,
-        K: 'static,
-        M: 'static,
-    {
-        server_object
-            .as_any()
-            .downcast_ref::<GenericServerObject<K, M>>()
-    }
-
     /// Returns a cloned boxed version of this server object.
     /// Note that we can't force the ServerObject trait to derive from Cloned
     /// directly because that would make the trait not object safe.  This

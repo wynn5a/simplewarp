@@ -7685,3 +7685,100 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       `./target/debug/simplewarp` and launched it — alive 65s, zero
       TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics,
       clean shutdown (SIGTERM). Did not `cargo clean`.
+
+- [x] **`ServerObject::as_concrete_type` (4el) — DONE 2026-09-23.**
+      The 4ek-designated next slice: the `ServerObject` default trait
+      method at `server_object.rs:41-54`, the sweep's first dead
+      DEFAULT trait method — prior rounds deleted inherent items, so
+      verification added the two trait-only proofs (override search,
+      dynamic-dispatch trace) on top of the usual exhaustive
+      call-form search. Evidence (ledger / `schema.graphql` /
+      fixtures excluded): bare-name `git grep -n "as_concrete_type"
+      -- '*.rs'` exactly one hit repo-wide — the definition;
+      all-files grep only that definition plus the three `plan.md`
+      ledger mentions; `schema.graphql` zero, `*.json` fixtures
+      zero. Exhaustive call-form search: `.as_concrete_type(` zero,
+      `::as_concrete_type` zero (covers
+      `<T as ServerObject>::as_concrete_type::<K, M>(...)` turbofish
+      and `SomeType::as_concrete_type(...)` path spellings),
+      `as_concrete_type;` use-declaration form zero. Override
+      search: `fn as_concrete_type` only the definition — zero
+      impl-block overrides anywhere including test code and other
+      crates; the trait's only `impl ServerObject for` block
+      repo-wide is `GenericServerObject` at `server_object.rs:139`,
+      which overrides only `object_type` / `as_any` / `clone_box`.
+      Dynamic-dispatch reach: structurally impossible — the method
+      is an associated function (no `self` receiver) with
+      `Self: Sized`, so it has no vtable slot and can only be
+      invoked by spelling a concrete type, i.e. a path form, all
+      zero; `T: ServerObject` generic-bounded calls would surface
+      as `.as_concrete_type(` — zero; every `dyn ServerObject`
+      mention repo-wide sits inside `server_object.rs` itself, and
+      the two `From<&dyn ServerObject> for
+      Option<&GenericServerObject<K, M>>` impls downcast via
+      `as_any().downcast_ref()` directly, never through
+      `as_concrete_type`. No use-declaration imports the name, and
+      macro bodies are `*.rs` text, so the bare-name hit count
+      already covers generated code. Deleted the method + its doc
+      comment (1 file, +0/−15); imports unchanged —
+      `std::any::Any` stays (`as_any` is a required trait method
+      and the `From` impls downcast through it). Live-from-dead
+      trace in the same file: `as_any` / `clone_box` (required
+      methods, implemented by `GenericServerObject`),
+      `GenericServerObject` + `ServerObjectModel` (used across
+      `app/src/cloud_object/model/persistence.rs` and the
+      `cloud_object_models` type aliases), the `From<&dyn
+      ServerObject>` downcast impls (separate items, untouched).
+      Deliberately left: the `From<Role> for SharingAccessLevel` /
+      `From<SharingAccessLevel> for Role` pair in sharing.rs
+      (designated next — inference-based `.into()` conversions
+      invisible to name greps; `Role` is imported at
+      `sharing.rs:2` and used only by these two impls, so a
+      dead-pair verdict would also drop the import; the trace must
+      be conclusive either way — alias-qualified `.into()`,
+      `From::from` turbofish, `let x: T = ...` inference targets,
+      applying the 4ei alias/turbofish lesson to call sites in
+      `app/` too), the creation.rs dead-type cluster
+      (`CreateObjectRequest` /
+      `BulkCreateGenericStringObjectsRequest` /
+      `CreatedCloudObject` / `CreateCloudObjectResult` /
+      `BulkCreateCloudObjectResult`, zero repo hits outside
+      creation.rs — each its own slice; `ServerCreationInfo` /
+      `RevisionAndLastEditor` there are LIVE), the `From<&dyn
+      ServerObject>` downcast impls (each needs its own
+      `.into()`-target trace slice before any judgment), all other
+      `ServerObject` / `GenericServerObject` members, and all
+      `ids.rs` / `drive/mod.rs` survivors. Local-only safety: zero
+      call forms in any spelling means the default body could
+      never execute and no override existed to lose — cloud-object
+      sync, drive, terminal, tabs, panes, BYOK AI, settings,
+      themes, and all other local features untouched; only a
+      downcast helper that could never be named or called is gone.
+
+      Acceptance: clippy baseline captured at HEAD FIRST in both
+      configs (12 sorted warning+location pairs each — the 12
+      pre-existing warnings: 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the
+      edit, `-p warp --lib --all-targets` is warning-identical to
+      the baseline in BOTH configs (default and
+      `--no-default-features --features simplewarp` — 12 sorted
+      pairs identical each, no unused-import or dead-code
+      warnings). All 7 checks exit 0 (`check -p cloud_objects
+      --all-targets` ± `--all-features`, `check -p warp --lib
+      --all-targets` both feature sets, `--bin simplewarp`, `--bin
+      warp-oss`, `--all-targets -p integration`) with only the two
+      pre-existing `step.rs` unused-import warnings
+      (`single_terminal_view_for_tab`, `crate::terminal::CLIAgent`,
+      observed in the integration check); format clean
+      (`./script/format`, diff still exactly +0/−15). Nextest
+      `-p warp --lib --no-fail-fast`: 4,652 simplewarp passed /
+      4,653 default passed, 4 skipped each, 0 failed (exactly the
+      baseline, zero tests added or removed, no flakes). Built
+      `./target/debug/simplewarp` and launched it — alive 65s,
+      zero TCP sockets on the smoke pid (`lsof -nP -a -p <pid>
+      -iTCP` empty; an unrelated long-running
+      `/Applications/SimpleWarp.app` instance holds the only
+      listener), 0 panics, clean shutdown (SIGTERM, its
+      `terminal-server` helper child gone too). Did not
+      `cargo clean`.
