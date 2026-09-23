@@ -7240,3 +7240,88 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       launched it — alive 66s+, zero TCP sockets (`lsof -nP -a -p
       <pid> -iTCP` empty), 0 panics, clean shutdown (SIGTERM). Did
       not `cargo clean`.
+
+- [x] **`SharingAccessLevel::name` (4eg) — DONE 2026-09-23.** The
+      4ef-designated next slice: `label` / `name` share
+      `crates/cloud_objects/src/drive/sharing.rs`, and `name` got
+      its own receiver-typed dual-confirm (call-syntax + receiver +
+      fully-qualified, ledger / `schema.graphql` / fixture /
+      different-type excluded). Fully-qualified
+      `SharingAccessLevel::name` zero in `*.rs` (worktree and
+      HEAD); only repo-wide hit is the `plan.md:7182` ledger
+      mention (the 4ef entry itself); `schema.graphql` zero,
+      `*.json` fixtures zero. `::name` path-form (28 hits) all
+      different types: experiments `Self::name()` /
+      `FooExperiment::name()` (`app/src/experiments/mod.rs`,
+      `mod_tests.rs`), `styles::name_font_size` (external-secrets /
+      notebook-embedding search items), doc-links
+      (`ReadMCPResource::name`, `Signature::name`), and
+      `sysinfo::System::name()`. Call-syntax `.name(` (218 hits)
+      triaged class by class, none with a `SharingAccessLevel` /
+      access / sharing / level-typed receiver: MCP server/tool
+      names, shell-type names, workflow-data names, space names
+      (`space.name(app)`), menu-item names, experiment-layer
+      names, theme names, regex-capture names, thread-builder
+      `.name("...")` setters, integration-driver/test names, and
+      telemetry event-name fields — `grep -i access|shar|level|perm`
+      over the 218 zero. Receiver-typed
+      `(access_level|access|sharing|sharing_level|level|perm)`
+      + `.name(` zero in `*.rs`; each `SharingAccessLevel`-importing
+      file zero `.name(` (`app/src/cloud_object/model/view.rs`,
+      `env_vars/active_env_var_collection_data.rs`,
+      `env_vars/view/fixed_view_components.rs`,
+      `active_notebook_data.rs`, `app/src/sharing/mod.rs`,
+      `cloud_objects/cloud_object/mod.rs`, and the `sharing.rs`
+      module itself — the in-module `access_level`
+      locals/params/fields at `view.rs:170,193`, `sharing.rs:52`,
+      `cloud_object/mod.rs:495,504` never call it). Variant-literal
+      receivers `SharingAccessLevel::(View|Edit|Full).` zero — no
+      inline `SharingAccessLevel::View.name()` forms. Serde note:
+      the enum's derives serialize variant names directly
+      (`View`/`Edit`/`Full`) and never consult `name`, whose
+      lowercase output differs — no wire path touched.
+      Single-column trace against the survivor: `can_move_drive`
+      stays live via `app/src/drive/index.rs:2304`, confirming the
+      sweep can tell live from dead in this module. Deleted `name`
+      alone (1 file, +0/−8) — never both at once per handoff.
+      Deliberately left: `can_move_drive` / `is_user` (live),
+      `into_upsert_params` (designated next, 4eh — the deferred
+      consuming-variant scope judgment is tractable: bare-name grep
+      hits only the definition at
+      `generic_cloud_object.rs:177`, it is an inherent
+      `GenericCloudObject` method in no trait, and the borrowing
+      sibling `upsert_params` is the live path via
+      `app/src/cloud_object/mod.rs:677` +
+      `model/persistence.rs:1752`, so the consuming variant is a
+      dead `Arc::try_unwrap`-or-clone optimization that could
+      never run), all `ids.rs` / `drive/mod.rs` survivors, ambient
+      plumbing, telemetry scope (4ca item7), fold (item8),
+      redesigns, and all local features. Local-only safety: zero
+      callers means zero behavior change — drive sharing levels,
+      permission gates, terminal, tabs, panes, BYOK AI, settings,
+      themes untouched; only a name-string getter that could never
+      be called is gone.
+
+      Acceptance: `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets` both
+      feature sets (default + `--no-default-features --features
+      simplewarp`), `--bin simplewarp`, `--bin warp-oss`,
+      `--all-targets -p integration` clean (0 errors; only the two
+      pre-existing `step.rs` unused-import warnings at
+      `app/src/integration_testing/input/step.rs:11,13`, observed
+      in the integration check); clippy `-p warp --lib
+      --all-targets` warning-identical to the stash baseline in
+      BOTH configs (182 lines both, 14 `^warning` lines both, same
+      12 pre-existing warnings — 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`, none in the
+      touched file — sorted warning+location pairs identical, raw
+      outputs differ only in one `Checking warp_server_client`
+      line reorder and the build-time `Finished` trailer); format
+      clean (`./script/format` no diff). Nextest `-p warp --lib
+      --no-fail-fast`: 4,652 simplewarp passed / 4,653 default
+      passed, 4 skipped each (zero tests added or removed, no
+      flakes). Built `./target/debug/simplewarp` and launched it —
+      alive 80s, zero TCP sockets (`lsof -nP -a -p <pid> -iTCP`
+      empty), 0 panics, clean shutdown (SIGTERM). Did not
+      `cargo clean`.

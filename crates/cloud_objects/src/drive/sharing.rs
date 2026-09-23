@@ -12,14 +12,6 @@ pub enum SharingAccessLevel {
 }
 
 impl SharingAccessLevel {
-    pub fn name(&self) -> &'static str {
-        match self {
-            SharingAccessLevel::View => "view",
-            SharingAccessLevel::Edit => "edit",
-            SharingAccessLevel::Full => "access",
-        }
-    }
-
     /// Whether or not this access level implies the `ChangeOwner` action.
     pub fn can_move_drive(self) -> bool {
         self >= SharingAccessLevel::Full
