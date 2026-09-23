@@ -25,10 +25,6 @@ pub trait JsonModel: Clone + Debug + Send + Sync + Serialize + DeserializeOwned 
 pub struct JsonSerializer;
 
 impl<M: JsonModel> Serializer<M> for JsonSerializer {
-    fn model_format() -> GenericStringObjectFormat {
-        M::model_format()
-    }
-
     fn serialize(model: &M) -> SerializedModel {
         SerializedModel::new(serde_json::to_string(model).expect("model should serialize"))
     }

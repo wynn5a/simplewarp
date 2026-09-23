@@ -3,11 +3,10 @@ use std::marker::PhantomData;
 
 use anyhow::Result;
 
-use super::{GenericStringObjectFormat, SerializedModel};
+use super::SerializedModel;
 
 /// A serializer goes from a model to a string and back.
 pub trait Serializer<M>: Debug + Clone + 'static {
-    fn model_format() -> GenericStringObjectFormat;
     fn serialize(model: &M) -> SerializedModel;
     fn deserialize_owned(serialized: &str) -> Result<M>
     where
@@ -38,9 +37,5 @@ where
             string_model: model,
             _serializer: PhantomData,
         }
-    }
-
-    pub fn json_model(&self) -> &M {
-        &self.string_model
     }
 }

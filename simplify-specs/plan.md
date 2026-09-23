@@ -8649,3 +8649,103 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       the 2026-09-23 convention change the GUI binary was not built or
       launched — unit tests plus checks are the acceptance for this
       round. Did not `cargo clean`.
+
+- [x] **`json_model` + auth re-exports + `Serializer::model_format` cluster
+      (4et) — DONE 2026-09-23.** Three independently dual-confirmed
+      zero-caller items in one round (the 4dw cluster precedent), all
+      designated by the 4es handoff. Verification fresh at HEAD; ledger /
+      `schema.graphql` / fixtures excluded. (1)
+      `GenericStringModel::json_model` (`generic_string_model.rs:43-45`
+      post-4es): call-syntax `.json_model(` zero in `*.rs`; path-form
+      `::json_model` only unrelated module paths (the app's own
+      `cloud_object::model::json_model` module, the
+      `cloud_object_models::json_model` module); bare name only those module
+      decls/imports plus the definition; zero turbofish/qualified forms
+      (`<..>::json_model`, `>::json_model` — 4ei lesson re-applied). Inherent
+      method in no trait, receiver reachable only through aliases that never
+      call it. Deleted (4 lines incl. blank). (2) `cloud_objects::auth`
+      re-exports: `TEST_USER_EMAIL` has zero importers through
+      `cloud_objects::auth` — every other use is another path (app-local
+      `crate::auth::user::*`, `warp_server_auth` internal
+      `super::user_uid`, `warp_server_client`'s own separate re-export, all
+      untouched); the `pub use warp_server_auth::user_uid;` module re-export
+      has zero importers (`auth::(user_uid|TEST_USER)` hits only the def
+      line, the in-crate `TEST_USER_UID` use, and warp_server_client's own
+      line; zero `cloud_objects::auth` path mentions and zero glob imports
+      repo-wide). BUT `TEST_USER_UID` is LIVE inside the crate —
+      `cloud_object/mod.rs:328` imports `crate::auth::TEST_USER_UID` inside
+      `#[cfg(any(test, feature = "test-util"))]`
+      `Owner::mock_current_user` — so it stays (the consts are
+      always-compiled pub consts in `warp_server_auth/src/user_uid.rs:6-7`,
+      not test-gated at the source). Line 1's `user_uid::` prefix resolved
+      through line 2 (no local `auth/user_uid.rs` — the dir holds only
+      `mod.rs`), so the file collapsed to one line:
+      `pub use warp_server_auth::user_uid::{TEST_USER_UID, UserUid};`
+      (+1/−2). (3) `Serializer::model_format` (orphaned by 4es' deletion of
+      its only dispatch, `S::model_format()`): exhaustive trace —
+      `.model_format(` zero in `*.rs`; `::model_format` exactly 5 sites, all
+      triaged — 3 resolve to the app-side `StringModel::model_format` (app
+      `cloud_object/model/generic_string_model.rs:115,157,162`, live), 2 are
+      the override bodies inside the trait's only two impls (exhaustive
+      `impl[^;{]*Serializer[^;{]*for` sweep: `JsonSerializer` at
+      `cloud_object_models/src/json_model.rs:27` and app
+      `cloud_object/model/json_model.rs:18`), each delegating to its own
+      `JsonModel`/`StringModel`; no `<.. as Serializer..>::model_format`
+      qualified forms. Deleted the trait-method decl
+      (`generic_string_model.rs:10`), both overrides, and the two
+      now-unused `GenericStringObjectFormat` import parts (the type itself
+      stays live — `cloud_object/mod.rs` match arms/enum, `drive/mod.rs`
+      fields). Total: 4 files, +3/−16. Newly orphaned by this round, next
+      sweep candidate (not deleted here):
+      `cloud_object_models::json_model::JsonModel::model_format` default
+      body (`json_model.rs:19-21`) — its only caller was the deleted
+      override at :29 (its `json_object_type()` dependency stays live via
+      `json_model/persistence.rs`). Deliberately left: `TEST_USER_UID` +
+      the `UserUid` re-export (live, evidence above); app-side
+      `StringModel::model_format` and its ten overrides (live through
+      :115/:157/:162); app `JsonModel` (inherits `StringModel::model_format`;
+      its `json_object_type` live via the env_vars/cloud_preferences/
+      workflow_enum override bodies); both `JsonSerializer` impls and the
+      `Serializer` trait (`serialize` via app generic_string_model.rs:149,
+      `deserialize_owned` via `GenericStringModel::deserialize_owned` →
+      `json_model/persistence.rs` per 4er); the `#[allow(dead_code)]`
+      app-side `JsonSerializer` struct (out of scope). Local-only safety:
+      every deleted item had zero reachable callers — an inherent getter
+      never invoked, names no crate could import through
+      `cloud_objects::auth`, and a trait method whose only dispatch was
+      already deleted in 4es with every call site resolving to surviving
+      traits — so cloud-object persistence/sync, drive, terminal, tabs,
+      panes, BYOK AI, settings, themes, and all other local features are
+      untouched.
+
+      Acceptance: clippy baselines captured at HEAD FIRST (worktree clean,
+      no stash needed) in both configs — 12 sorted warning+location pairs /
+      14 `^warning` lines each (the 12 pre-existing warnings: 11
+      unneeded-return in `app/src/terminal/input.rs` + 1
+      single-element-loop in `terminal/model/lifecycle/mod_tests.rs:277`);
+      after the edit, `-p warp --lib --all-targets` is warning-identical to
+      the baseline in BOTH configs (sorted-pair diffs empty, 12 pairs / 14
+      `^warning` lines each). All 7 checks exit 0 (`check -p cloud_objects
+      --all-targets` ± `--all-features`, `check -p warp --lib
+      --all-targets` both feature sets, `--no-default-features --features
+      simplewarp --bin simplewarp`, `--bin warp-oss`, `--all-targets -p
+      integration`) with 0 errors and only the two pre-existing `step.rs`
+      unused-import warnings (`single_terminal_view_for_tab`,
+      `crate::terminal::CLIAgent`, observed in the integration check).
+      Format clean (`./script/format`; diff remains exactly +3/−16 across
+      the four files). Nextest `-p warp --lib --no-fail-fast`: 4,653
+      default passed, 4 skipped, 0 failed; 4,652 simplewarp — first run
+      4,651 + the known `test_command_block_dispatches_event` load flake,
+      rerun clean 4,652 passed, 4 skipped, 0 failed. Runtime smoke test
+      SKIPPED: the user is away and nobody can answer the macOS password
+      prompt, so per the 2026-09-23 convention change the GUI binary was
+      not built or launched — unit tests plus checks are the acceptance
+      for this round. Did not `cargo clean`.
+
+      Designated NEXT: the two trace-only inference impls from the 4er
+      survey — `impl SettingsValue for SyncId` (`ids.rs:104`) and
+      `impl PartialEq for GenericCloudObject`
+      (`generic_cloud_object.rs:54-61`) — each needs a 4em/4eo-class
+      exhaustive `.into()`/`==`-resolution trace before any judgment;
+      after those, the crate-clean verdict + the cloud-run-lifecycle pivot
+      per the 4ca plan (not started).
