@@ -6648,3 +6648,46 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
    also covers a local server such as Ollama at `http://localhost:11434/v1`.
 3. Ask the agent something. Watch `~/Library/Logs/simplewarp.log`, and check with
    `lsof -nP -iTCP -a -p $(pgrep -f simplewarp)` that the only connection is to the provider.
+
+## Phase 4 cleanup ledger (continued)
+
+- [x] **Three zero-caller `SharingAccessLevel` methods + orphaned `FromStr`
+      (4dw) — DONE 2026-09-23.** Slice A from the 4dv handoff (B,
+      `SyncId::from_object_id`, untouched). Same zero-caller leaf class as
+      4dp/4dq/4du/4dv: `can_trash`, `can_edit_access`, and
+      `to_serializable_value` each had exactly one hit repo-wide (the
+      definition in `crates/cloud_objects/src/drive/sharing.rs` — verified
+      with bare-name `git grep` plus `.method(` call-syntax search, all zero
+      outside the definition, plan.md ledger and schema.graphql excluded).
+      Single-column trace against the survivor: `can_move_drive` stays live
+      via `app/src/drive/index.rs:2304`, confirming the sweep can tell live
+      from dead in this impl block. `FromStr` got its separate judgment
+      (not a casual scope add): zero `from_str`/`parse::<SharingAccessLevel>`
+      callers anywhere, no `.parse()` in `cloud_objects` at all, warp_cli's
+      share parsing uses its own `ShareSubject::from_str`, and the impl's
+      only purpose was parsing `to_serializable_value` output per its own
+      doc-link — real serialization goes through the serde derives. Deleted
+      the three methods plus the `FromStr` impl and its now-unused
+      `use std::str::FromStr;` import (1 file, +0/−34). Deliberately left:
+      `can_delete` (same zero-caller shape, needs its own slice — candidate
+      next), `label`/`name` (live UI strings), the `From<AccessLevel>` /
+      `From<Role>` conversions (live server/session-mapping paths), and all
+      of B (`SyncId::from_object_id` — the other half of the handoff).
+      Local-only safety: zero callers means zero behavior change — drive
+      sharing levels, trash/move permission gates, terminal, tabs, panes,
+      BYOK AI, settings, themes, and all other local features untouched;
+      only predicates that could never be consulted and a parser that could
+      never run are gone.
+
+      Acceptance: `check -p cloud_objects --all-targets`, `check -p warp
+      --lib --all-targets` both feature sets, `--bin simplewarp`, `--bin
+      warp-oss`, `--all-targets -p integration` clean (0 errors; only the
+      two pre-existing `step.rs` unused-import warnings); clippy `-p warp
+      --lib --all-targets` byte-identical to the stash baseline (182 lines
+      both, only the build-time trailer differs — 0 added, none in the
+      touched file); format clean. Nextest: warp lib 4,652 simplewarp
+      (`--no-fail-fast`), 0 failed (4 skipped — exactly the baseline, zero
+      tests added or removed); `cloud_objects` has no tests (0 run). Built
+      `./target/debug/simplewarp` and launched it — alive past 50s, zero TCP
+      sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics, clean
+      shutdown.

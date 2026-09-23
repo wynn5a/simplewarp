@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use serde::{Deserialize, Serialize};
 use session_sharing_protocol::common::{ProfileData as SessionSharingProfileData, Role};
 use warp_graphql::object_permissions::AccessLevel;
@@ -32,11 +30,6 @@ impl SharingAccessLevel {
         }
     }
 
-    /// Whether or not this access level implies the `Trash` action.
-    pub fn can_trash(self) -> bool {
-        self >= SharingAccessLevel::Edit
-    }
-
     /// Whether or not this access level implies the `DeletePermanently` action.
     pub fn can_delete(self) -> bool {
         self >= SharingAccessLevel::Full
@@ -45,33 +38,6 @@ impl SharingAccessLevel {
     /// Whether or not this access level implies the `ChangeOwner` action.
     pub fn can_move_drive(self) -> bool {
         self >= SharingAccessLevel::Full
-    }
-
-    /// Whether or not this access level implies the `EditAccess` action.
-    pub fn can_edit_access(self) -> bool {
-        self >= SharingAccessLevel::Full
-    }
-
-    /// Convert this access level to a serializable value, which can be parsed by [`FromStr`].
-    pub fn to_serializable_value(self) -> &'static str {
-        match self {
-            SharingAccessLevel::View => "VIEW",
-            SharingAccessLevel::Edit => "EDIT",
-            SharingAccessLevel::Full => "FULL",
-        }
-    }
-}
-
-impl FromStr for SharingAccessLevel {
-    type Err = anyhow::Error;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "VIEW" => Ok(Self::View),
-            "EDIT" => Ok(Self::Edit),
-            "FULL" => Ok(Self::Full),
-            _ => Err(anyhow::anyhow!("unknown access level {value}")),
-        }
     }
 }
 
