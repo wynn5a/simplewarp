@@ -6765,3 +6765,55 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       removed). Built `./target/debug/simplewarp` and launched it —
       alive 67s, zero TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty),
       0 panics, clean shutdown.
+
+- [x] **`Subject::from_owner` (4dz) — DONE 2026-09-23.** Next
+      zero-caller leaf in `crates/cloud_objects` after 4dy
+      (`SyncId::from_object_id`). Same zero-caller leaf class as
+      4dp/4dq/4du/4dv/4dw/4dx/4dy: bare-name `git grep -n "from_owner"`
+      hit only the definition in
+      `crates/cloud_objects/src/drive/sharing.rs:133` plus two unrelated
+      `pane_group` variable lines (`from_owner_lookup` substring, no call),
+      and call-syntax `from_owner(` hit only the definition while
+      `Subject::from_owner` / `::from_owner` hit zero — zero live callers
+      repo-wide (`plan.md` ledger zero hits, `schema.graphql` zero,
+      fixtures zero; `.rs` scope for both searches). Single-column trace
+      against the survivors: `can_move_drive` stays live via
+      `app/src/drive/index.rs:2304`, `is_user` stays live via
+      `crates/cloud_objects/src/cloud_object/mod.rs:483` plus
+      `app/src/cloud_object/model/view.rs:180`, confirming the sweep can
+      tell live from dead in this module. Deleted the method plus its
+      now-unused `use crate::cloud_object::Owner;` import (1 file,
+      +0/−9). Deliberately left: `Subject::user_uid` /
+      `Subject::team_uid` (same zero-caller shape — `.user_uid(` zero,
+      `.team_uid()` only the internal `TeamKind::team_uid` call — each
+      needs its own slice, candidates next), `label` / `name` (generic
+      names, receiver-typed judgment deferred — no `access_level.label()`
+      / `access_level.name()` callers found but bare-name noise is high),
+      `can_move_drive` / `is_user` (live), `into_upsert_params`
+      (zero callers but consuming-variant scope judgment per handoff —
+      trace-only, not deleted), and all `ids.rs` / `drive/mod.rs`
+      survivors (`into_server` / `into_client` / `sqlite_hash` via
+      `sqlite_uid_hash` / `from_string_lossy` /
+      `sqlite_type_and_uid_hash` / `from_id_and_type` / `as_folder_id` /
+      `as_notebook_id` / `has_server_id` etc. all live). Local-only
+      safety: zero callers means zero behavior change — drive sharing
+      subjects, permission gates, sync IDs, terminal, tabs, panes, BYOK
+      AI, settings, themes, and all other local features untouched; only
+      an `Owner`-to-`Subject` constructor that could never be called is
+      gone.
+
+      Acceptance: `check -p cloud_objects --all-targets` (plus
+      `--all-features`), `check -p warp --lib --all-targets` both feature
+      sets (default + `--no-default-features --features simplewarp`),
+      `--bin simplewarp`, `--bin warp-oss`, `--all-targets -p integration`
+      clean (0 errors; only the two pre-existing `step.rs`
+      unused-import warnings); clippy `-p warp --lib --all-targets`
+      warning-identical to the stash baseline (182 lines both, 14
+      `^warning` lines both, same 12 pre-existing warnings — none in the
+      touched file — raw outputs differ only in the build-time trailer);
+      format clean. Nextest `-p warp --lib --no-fail-fast`: 4,652
+      simplewarp / 4,653 default, 0 failed (4 skipped — exactly the
+      baseline, zero tests added or removed). Built
+      `./target/debug/simplewarp` and launched it — alive 76s, zero TCP
+      sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics, clean
+      shutdown.

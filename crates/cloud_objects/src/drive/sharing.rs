@@ -3,7 +3,6 @@ use session_sharing_protocol::common::{ProfileData as SessionSharingProfileData,
 use warp_graphql::object_permissions::AccessLevel;
 
 use crate::auth::UserUid;
-use crate::cloud_object::Owner;
 use crate::ids::ServerId;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -129,14 +128,6 @@ impl TeamKind {
 }
 
 impl Subject {
-    /// Convert an [`Owner`] into the closest [`Subject`] type.
-    pub fn from_owner(owner: Owner) -> Self {
-        match owner {
-            Owner::User { user_uid } => Subject::User(UserKind::Account(user_uid)),
-            Owner::Team { team_uid } => Subject::Team(TeamKind::Team { team_uid }),
-        }
-    }
-
     /// Gets the user UID for this subject, if it has one.
     pub fn user_uid(&self) -> Option<UserUid> {
         match self {
