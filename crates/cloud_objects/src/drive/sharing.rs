@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use session_sharing_protocol::common::{ProfileData as SessionSharingProfileData, Role};
+use session_sharing_protocol::common::Role;
 use warp_graphql::object_permissions::AccessLevel;
 
 use crate::auth::UserUid;
@@ -70,9 +70,6 @@ pub enum Subject {
 pub enum UserKind {
     /// A Warp user account, tracked in the [`UserProfiles`] model.
     Account(UserUid),
-    /// A session-sharing participant.
-    // TODO(CLD-2283): Remove this once we have Firebase UIDs for shared session participants.
-    SharedSessionParticipant(SessionSharingProfileData),
 }
 
 impl Subject {
@@ -80,9 +77,6 @@ impl Subject {
     pub fn is_user(&self, other_uid: UserUid) -> bool {
         match self {
             Subject::User(UserKind::Account(user_uid)) => *user_uid == other_uid,
-            Subject::User(UserKind::SharedSessionParticipant(profile_data)) => {
-                profile_data.firebase_uid.as_str() == other_uid.as_str()
-            }
         }
     }
 }
@@ -91,9 +85,6 @@ impl PartialEq for UserKind {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Account(self_uid), Self::Account(other_uid)) => self_uid == other_uid,
-            // Shared session participant data does not implement `PartialEq`. We only compare
-            // `UserKind`s in tests, so support isn't yet needed.
-            _ => false,
         }
     }
 }

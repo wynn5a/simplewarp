@@ -7595,3 +7595,93 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       `./target/debug/simplewarp` and launched it — alive 81s,
       zero TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty),
       0 panics, clean shutdown (SIGTERM). Did not `cargo clean`.
+
+- [x] **`UserKind::SharedSessionParticipant` (4ek) — DONE 2026-09-23.**
+      The 4ej-designated next slice: the unconstructible variant behind
+      the TODO CLD-2283, whose removal — unlike prior variant rounds —
+      edits the LIVE `is_user` match and the manual `PartialEq for
+      UserKind` impl, mirroring 4ei's unreachable-arm removal
+      (behavior-preserving: an unconstructible variant's arm can never
+      run). Independent verification: construction-site search
+      `git grep -n "UserKind::SharedSessionParticipant" -- '*.rs'`
+      exactly one hit — the `is_user` destructure pattern at
+      `sharing.rs:83` (a pattern, not a construction);
+      `SharedSessionParticipant::` path-form zero in all files; bare
+      `SharedSessionParticipant` only the variant def at `:75`, that
+      `:83` pattern, and the `plan.md` ledger mentions — `schema.graphql`
+      zero, `*.json` fixtures zero, no `use UserKind::*` glob, no
+      re-export. Match-arm mapping: `UserKind` is referenced nowhere
+      outside `sharing.rs` — the only mentions are the `Subject::User`
+      payload field type (`:64`), the `is_user` arms (`:82-85`), and the
+      manual `PartialEq` impl (`:90-99`); after deleting the variant's
+      own `is_user` arm, the match's remaining
+      `Subject::User(UserKind::Account(user_uid))` arm is exhaustive
+      (Subject has one variant, UserKind one), and `PartialEq`'s
+      `_ => false` wildcard plus its participant-specific comment became
+      newly unreachable and went with it (single
+      `(Self::Account, Self::Account)` arm now exhaustive), per the 4ei
+      precedent. Serde-rule check: `UserKind` derives only
+      `Debug, Clone` and `Subject` only `Debug, Clone, PartialEq` — no
+      `Serialize`/`Deserialize` on either, no persistence or GraphQL type
+      carries `UserKind`, so the "persisted serde enums keep variants"
+      convention does not apply and deletion (not `is_available() =>
+      false`) is correct. TODO CLD-2283 sat directly on the variant
+      ("Remove this once we have Firebase UIDs for shared session
+      participants") and the `/// A session-sharing participant.` doc
+      comment was variant-specific — both deleted with it; the
+      `UserKind` container doc left untouched. Import consequence
+      resolved within the round: `SessionSharingProfileData` (alias of
+      `session_sharing_protocol::common::ProfileData`) was used only by
+      the deleted variant, so the import shrank to
+      `use session_sharing_protocol::common::Role;` (`Role` stays —
+      used by the live `From<Role>` / `From<SharingAccessLevel> for
+      Role` impls). Deleted the variant + its doc + TODO, its `is_user`
+      arm, and the `PartialEq` wildcard arm + comment (1 file,
+      +1/−10). Deliberately left: `UserKind` itself and `Subject::User`
+      (structurally live via `is_user` — callers
+      `crates/cloud_objects/src/cloud_object/mod.rs:483` and
+      `app/src/cloud_object/model/view.rs:180` — and the
+      `CloudObjectGuest.subject` field type at
+      `cloud_object/mod.rs:503`), `as_concrete_type`
+      (`ServerObject` default trait method, re-verified zero call forms
+      in any spelling repo-wide — only the definition at
+      `server_object.rs:43` plus ledger mentions; designated next),
+      the `From<Role>` / `From<SharingAccessLevel> for Role` pair
+      (needs a dedicated `.into()`-target inference trace — apply the
+      4ei alias/turbofish lesson), the creation.rs dead-type cluster
+      (`CreateObjectRequest` / `BulkCreateGenericStringObjectsRequest`
+      / `CreatedCloudObject` / `CreateCloudObjectResult` /
+      `BulkCreateCloudObjectResult`, zero repo hits outside
+      creation.rs — each its own slice; `ServerCreationInfo` /
+      `RevisionAndLastEditor` there are LIVE), and all `ids.rs` /
+      `drive/mod.rs` survivors. Local-only safety: zero constructions
+      means zero behavior change — the deleted match arm and wildcard
+      could never execute (the variant could never be built), so
+      `is_user` and `UserKind` equality behave identically for every
+      value that can exist; drive sharing subjects, permission gates,
+      terminal, tabs, panes, BYOK AI, settings, themes, and all other
+      local features untouched; only an unconstructible
+      session-participant variant and its already-dead arm are gone.
+
+      Acceptance: clippy baseline captured at HEAD FIRST in both
+      configs (12 sorted warning+location pairs each — the 12
+      pre-existing warnings: 11 unneeded-return in
+      `app/src/terminal/input.rs` + 1 single-element-loop in
+      `terminal/model/lifecycle/mod_tests.rs:277`); after the edit,
+      `-p warp --lib --all-targets` is warning-identical to the
+      baseline in BOTH configs (default and `--no-default-features
+      --features simplewarp` — diff empty each, no
+      newly-unreachable-arm or unused-import warnings). All 7 checks
+      exit 0 (`check -p cloud_objects --all-targets` ±
+      `--all-features`, `check -p warp --lib --all-targets` both
+      feature sets, `--bin simplewarp`, `--bin warp-oss`,
+      `--all-targets -p integration`) with only the two pre-existing
+      `step.rs` unused-import warnings (`single_terminal_view_for_tab`,
+      `crate::terminal::CLIAgent`, observed in the integration check);
+      format clean (`./script/format`, diff still exactly +1/−10).
+      Nextest `-p warp --lib --no-fail-fast`: 4,652 simplewarp passed /
+      4,653 default passed, 4 skipped each, 0 failed (exactly the
+      baseline, zero tests added or removed, no flakes). Built
+      `./target/debug/simplewarp` and launched it — alive 65s, zero
+      TCP sockets (`lsof -nP -a -p <pid> -iTCP` empty), 0 panics,
+      clean shutdown (SIGTERM). Did not `cargo clean`.
