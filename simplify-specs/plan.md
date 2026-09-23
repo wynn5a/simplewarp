@@ -9717,3 +9717,178 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       this commit contains only plan.md (verified with
       `git show --stat`); no clippy/nextest required; app not
       launched; no .rs file touched.
+
+- [x] **telemetry slice 1 — remote send path (4fa) — DONE 2026-09-23.**
+      Executed the 4ez SLICE 1: every file/function that exists to
+      ship telemetry events to Rudderstack is gone; the queue-side
+      machinery (macros' enqueue halves, `warpui_core` queue, event
+      catalog, `context_provider.rs`) and all local behavior are
+      untouched. 20 files changed, 22 insertions(+), 1,881
+      deletions(-) (git diff --stat vs 4ez HEAD c372dcfa3).
+
+      DELETED wholesale (9 files, verified remote-only before
+      removal): `app/src/server/telemetry/collector.rs` (229;
+      TelemetryCollector — all three pollers, the startup
+      disk-read flush, the shutdown flush/disk-write, the
+      UpdateIsTelemetryEnabled clear_event_queue subscription);
+      `telemetry/context.rs` (103; TelemetryContext + AttachContext
+      — sole consumer was mod.rs's send path); `telemetry/
+      rudder_message.rs` (249) + `telemetry/
+      LICENSE-RUDDER-SDK-RUST.txt` (31; no `rudder` crate exists in
+      any Cargo.toml/Cargo.lock — the license entry was vestigial);
+      `telemetry/secret_redaction.rs` (132) + `telemetry/
+      secret_redaction_tests.rs` (222; grep-verified the AI-side
+      `ai/blocklist/.../secret_redaction.rs` is a different module
+      whose consumers are untouched); `telemetry/mod_tests.rs` (61);
+      `server/telemetry_ext.rs` (127) + `server/
+      telemetry_ext_tests.rs` (103; 4ez map correction — they live
+      in `server/`, not `telemetry/`).
+
+      DELETED from surviving files: `telemetry/mod.rs` rewritten
+      412→5 lines (mod.rs now only declares `context_provider`,
+      `events`, `macros` and re-exports events) — TelemetryApi, its
+      reqwest client, flush_events/flush_persisted_events_to_rudder/
+      flush_and_persist_events/persist_events_at_path/
+      persist_events_to_telemetry_log_file, send_telemetry_event
+      (+internal), send_batch_messages_to_rudder/
+      send_rudder_request, `clear_event_queue`,
+      `rudder_event_file_path` and the `rudder_telemetry_events.json`
+      constant all gone (grep: zero remaining references to
+      TelemetryApi/TelemetryCollector/telemetry_context/
+      clear_event_queue anywhere). `server/server_api.rs`: the
+      `telemetry_api` field, the `TelemetryApi` import, the 3 flush/
+      persist methods, and the `Path` import are gone; the
+      `network_log` install shrank to `[&mut client]` (the network
+      logging pane itself is untouched). `lib.rs`: TelemetryCollector
+      import, the singleton registration + its
+      INITIALIZE_TELEMETRY_COLLECTION mark_interval_end (no matching
+      start site exists anywhere — inert), and the shutdown
+      `flush_telemetry_events_for_shutdown` call are gone — the
+      shutdown `rudder_telemetry_events.json` write died with the
+      collector. `auth/auth_manager.rs`: the login one-off FLUSH is
+      gone (snapshot read, server_api clone, `flush_telemetry_events`
+      call); the `record_identify_user_event`/`record_event` enqueue
+      lines and the DB persist above stay (2b removes the record
+      lines). `terminal/view.rs`: the Drop-impl
+      SessionAbandonedBeforeBootstrap send block is gone (the local
+      `log::log!` abandonment line stays) plus the
+      `privacy_settings_snapshot` field trio (decl, the
+      UpdateIsTelemetryEnabled subscription, the init). `terminal/
+      secret_regex_updater.rs`: the `update_telemetry_secrets_regex`
+      call + its regex re-mapping are gone;
+      `set_user_and_enterprise_secret_regexes` (live local
+      redaction) stays. `remote_server/unix/mod.rs`: comment trimmed
+      (it claimed TelemetryCollector was running periodic flushes
+      and sending to Rudderstack). Scripts: rudder-sdk-rust license
+      entries removed from `script/prepare_bundled_resources` and
+      `script/windows/prepare_bundled_resources.ps1`.
+
+      BRIDGE DECISION: `ServerApi::send_telemetry_event` is kept as
+      a parameterless no-op stub (`pub async fn send_telemetry_event
+      (&self) -> Result<()> { Ok(()) }`), and the two sync-macro
+      bodies in `telemetry/macros.rs` were slimmed to match (they no
+      longer build the privacy snapshot; the enablement_state gate
+      and the ServerApiProvider lookup remain). All 12 sync-macro
+      call sites compile unchanged; the 608 queue macros were never
+      touched. The stub takes NO parameters (rather than keeping the
+      `(event, snapshot)` signature with `_`-prefixed params) per
+      the AGENTS.md no-underscore-params rule; `macros.rs` + the
+      stub still die together in 2b, so no extra churn later.
+
+      4ez-PLAN DEVIATIONS (all fallout-forced, all subtractive, all
+      required to keep clippy warning-identical): (1) `AuthManager
+      .server_api` field was readerless after the login-flush
+      deletion — removed the field, `AuthManager::new`'s
+      `server_api` param (one call site, `lib.rs`), and the
+      `new_for_test` lookup lines. (2) `TerminalView` fields
+      `server_api`, `bootstrap_start`, `background_executor` (+
+      `Background`/`ServerApi` imports) were readerless after the
+      Drop-block deletion — removed decls + inits;
+      `TerminalViewResources.server_api` stays (Input consumes it).
+      (3) `server/mod.rs`'s `pub use warp_core::...
+      ::OperatingSystemInfo` re-export was consumerless (its only
+      user was the deleted `context.rs`); the warp_core type itself
+      stays (graphql + http_client). (4) `PrivacySettings`/`Privacy
+      SettingsChangedEvent`/`PrivacySettingsSnapshot` imports
+      dropped from view.rs and auth_manager.rs where the deleted
+      blocks were the last users.
+
+      Deliberately left (slices 2a/2b/2c per the 4ez plan): the 620
+      macro sites, `events.rs`/`events_tests.rs` + the 17 event-def
+      files, `PrintTelemetryEvents` (2a); `warpui_core/src/
+      telemetry/` queue, `warp_core/src/telemetry.rs` trait/
+      inventory machinery, `context_provider.rs` + `lib.rs:1147`
+      registration, `telemetry/macros.rs` + the ServerApi stub,
+      auth_manager record lines, `notebook_tests.rs:330` queue
+      reader, the 5 test-harness `AppTelemetryContextProvider`
+      registrations + `test_util/terminal.rs` (2b); the
+      `PrivacySettingsSnapshot` type (its `should_disable_telemetry`
+      accessor now has zero external callers but is pub-on-lib so no
+      lint fires), `is_telemetry_enabled`/`is_telemetry_force_
+      enabled`, the privacy-page toggle (2c); channel-config
+      `telemetry_config`/`RudderStack*`/`telemetry_file_name`,
+      `WithSandboxTelemetry`/`SendTelemetryToFile`/
+      `RecordAppActiveEvents` flags (slice 3). Note: warp_logging's
+      `ChannelState::telemetry_file_name()` rotate call (native.rs:
+      189) still references the slice-3 config item.
+
+      Local-only safety: the deleted code could never fire a network
+      request in this fork (4 gates: telemetry_config None,
+      no release_bundle, no sandbox flag, so all three collector
+      pollers were never scheduled — 4ez RUNTIME ANSWER); events
+      already piled into the bounded-1024 queue and were dropped,
+      which is exactly what happens now minus the collector/flush
+      churn. Log output, report_error!/Sentry, the network logging
+      pane, AI-side visual secret redaction, terminal model
+      redaction (user/enterprise regexes), privacy settings with
+      live local readers, and the shutdown log line are all
+      preserved; the only on-disk delta is that
+      `rudder_telemetry_events.json` is no longer written at GUI
+      shutdown (a file that could never be read back in this fork).
+
+      Acceptance: clippy baselines captured at HEAD FIRST in BOTH
+      configs — 12 sorted warning+location pairs each (11
+      needless_return in `terminal/input.rs` + 1 single-element-loop
+      in `lifecycle/mod_tests.rs:277`); post-edit re-runs are
+      warning-IDENTICAL in both (sorted-pair diff empty).
+      wasm32-unknown-unknown: target IS installed but has zero
+      cached artifacts for this checkout (no HEAD baseline to diff
+      against), so the optional check was SKIPPED per its terms;
+      instead grep-verified every deleted wasm-gated branch —
+      `Client::default()`, `boxed_local()`, `wasm::user_agent()`,
+      `cfg_attr(wasm, allow(clippy::question_mark))` — lived only in
+      wholesale-deleted files; the remaining gates are in events.rs/
+      events_tests.rs (slice 2a, untouched) and two pre-existing
+      server_api.rs sites (unchanged). Check suite exit 0, 0 errors:
+      `check -p warp --lib --all-targets` default (0 warnings),
+      simplewarp (clean), `--no-default-features --features
+      simplewarp --bin simplewarp` (clean), `--bin warp-oss`
+      (clean), `--all-targets -p integration` (only the two
+      pre-existing `step.rs` unused-import warnings,
+      `single_terminal_view_for_tab` and `crate::terminal::CLIAgent`),
+      `check -p warp --lib --tests --features skip_login` (clean).
+      `./script/format` idempotent (diff stable at +22/−1,881 across
+      runs). Nextest `-p warp --lib --no-fail-fast`: default 4,631
+      passed, 4 skipped, 0 failed; simplewarp 4,630 passed, 4
+      skipped, 0 failed — exactly baseline minus the 22 telemetry
+      tests deleted with their units (1 mod_tests
+      `test_persist_events_doesnt_include_ugc_events`, 3
+      telemetry_ext `to_rudder_batch_message_*`, 18
+      secret_redaction_tests; 18 = 4 redact_secrets_in_string + 6
+      replace_byte_ranges + 4 redact_secrets_in_value + 4
+      compose_patterns). No flakes. Runtime smoke SKIPPED: user
+      away, nobody to answer the macOS password prompt, so per the
+      2026-09-23 convention change the GUI binary was not built or
+      launched; the no-TCP claim rests on the 4ez static gating
+      analysis, which this slice only shrinks. Did not `cargo clean`.
+
+      DESIGNATED NEXT: slice 2a — the event catalog + call sites
+      (~8,500 lines, ~160 files) exactly per the 4ez plan: delete
+      all 620 macro invocations (142 files), `events.rs` +
+      `events_tests.rs`, the event parts of the 17 other event-def
+      files + `register_telemetry_event!` sites, `CliTelemetryEvent`,
+      `PrintTelemetryEvents` (`warp_cli/src/lib.rs:428,439` +
+      dispatch `:629`), payload-type imports (`lib.rs` import shrinks).
+      Respect landmines 1/8/9 (cfg-gated `local_fs`/`windows` arms
+      vanish with the file; delete the hidden-command arm with the
+      dispatch; double-check `OnboardingEvent` senders).

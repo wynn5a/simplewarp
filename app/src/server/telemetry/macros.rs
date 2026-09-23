@@ -1,6 +1,5 @@
-/// Sends a telemetry event to Rudderstack immediately instead of adding it to the event queue that is
-/// periodically flushed. This is useful under certain conditions where we want to ensure an event
-/// is immediately sent to Rudderstack even if the user quits before the queue is flushed.
+/// Sends a telemetry event directly to `ServerApi` instead of adding it to the event queue that is
+/// periodically flushed.
 #[macro_export]
 macro_rules! send_telemetry_sync_from_ctx {
     ($event:expr_2021, $ctx:expr_2021) => {
@@ -14,16 +13,9 @@ macro_rules! send_telemetry_sync_from_ctx {
                 )
                 .as_ref($ctx)
                 .get();
-            let privacy_settings_snapshot =
-                <$crate::settings::PrivacySettings as warpui::SingletonEntity>::handle($ctx)
-                    .as_ref($ctx)
-                    .get_snapshot($ctx);
             let _ = $ctx.spawn(
                 async move {
-                    if let Err(error) = server_api
-                        .send_telemetry_event(event, privacy_settings_snapshot)
-                        .await
-                    {
+                    if let Err(error) = server_api.send_telemetry_event().await {
                         log::warn!("Error occurred with sending telemetry event: {}", error);
                     }
                 },
@@ -33,7 +25,7 @@ macro_rules! send_telemetry_sync_from_ctx {
     };
 }
 
-/// Sends a telemetry event to Rudderstack immediately. This is the same as [`send_telemetry_sync_from_ctx`],
+/// Sends a telemetry event immediately. This is the same as [`send_telemetry_sync_from_ctx`],
 /// but can be used when the caller only has access to an [`App`] and not a
 /// `ViewContext`.
 #[macro_export]
@@ -48,17 +40,10 @@ macro_rules! send_telemetry_sync_from_app_ctx {
                 )
                 .as_ref($app_ctx)
                 .get();
-            let privacy_settings_snapshot =
-                <$crate::settings::PrivacySettings as warpui::SingletonEntity>::handle($app_ctx)
-                    .as_ref($app_ctx)
-                    .get_snapshot($app_ctx);
             $app_ctx
                 .background_executor()
                 .spawn(async move {
-                    if let Err(error) = server_api
-                        .send_telemetry_event($event, privacy_settings_snapshot)
-                        .await
-                    {
+                    if let Err(error) = server_api.send_telemetry_event().await {
                         log::warn!("Error occurred with sending telemetry event: {error}");
                     }
                 })

@@ -79,10 +79,7 @@ pub(crate) fn launch_daemon(identity_key: &str, ctx: &mut warpui::AppContext) {
     //
     // All telemetry dependencies are ready at this point:
     // `AppTelemetryContextProvider` and `AuthStateProvider` are
-    // registered during `initialize_app` (before `launch` calls us),
-    // and `TelemetryCollector` is already running its periodic flush.
-    // The flush sends directly to Rudderstack using a baked-in write
-    // key — no user auth token is required.
+    // registered during `initialize_app` (before `launch` calls us).
     let timing_data =
         warp_core::interval_timer::IntervalTimer::handle(ctx).update(ctx, |timer, _| {
             timer.mark_interval_end("DAEMON_SOCKET_BOUND");

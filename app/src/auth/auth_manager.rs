@@ -15,9 +15,7 @@ use super::user::User;
 use super::user_properties::UserProperties;
 use super::{AuthStateProvider, UserUid};
 use crate::persistence::ModelEvent;
-use crate::server::server_api::ServerApi;
 use crate::server::server_api::auth::{AuthClient, FetchUserResult, UserAuthenticationError};
-use crate::settings::PrivacySettings;
 use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
 use crate::settings::initializer::SettingsInitializer;
 use crate::terminal::general_settings::GeneralSettings;
@@ -46,7 +44,6 @@ pub type LoginGatedFeature = &'static str;
 /// If you need to access the state, use `AuthStateProvider`.
 pub struct AuthManager {
     auth_state: Arc<AuthState>,
-    server_api: Arc<ServerApi>,
     auth_client: Arc<dyn AuthClient>,
     /// A generated state token that the web app must provide back to the client.
     pending_auth_state: Option<String>,
@@ -55,16 +52,11 @@ pub struct AuthManager {
 impl AuthManager {
     /// Creates a new instance of the AuthManager. The auth state must already be initialized through
     /// [`AuthStateProvider`].
-    pub fn new(
-        server_api: Arc<ServerApi>,
-        auth_client: Arc<dyn AuthClient>,
-        ctx: &mut ModelContext<Self>,
-    ) -> Self {
+    pub fn new(auth_client: Arc<dyn AuthClient>, ctx: &mut ModelContext<Self>) -> Self {
         let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
 
         Self {
             auth_state,
-            server_api,
             auth_client,
             pending_auth_state: None,
         }
@@ -74,14 +66,11 @@ impl AuthManager {
     pub fn new_for_test(ctx: &mut ModelContext<Self>) -> Self {
         use crate::server::server_api::ServerApiProvider;
 
-        let server_api_provider = ServerApiProvider::as_ref(ctx);
-        let server_api = server_api_provider.get();
-        let auth_client = server_api_provider.get_auth_client();
+        let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
         let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
 
         Self {
             auth_state,
-            server_api,
             auth_client,
             pending_auth_state: None,
         }
@@ -284,19 +273,11 @@ impl AuthManager {
                     );
                 };
 
-                let privacy_settings_snapshot =
-                    PrivacySettings::handle(ctx).as_ref(ctx).get_snapshot(ctx);
-
-                let server_api = self.server_api.clone();
                 let user_id = self.auth_state.user_id().unwrap_or_default();
                 let anonymous_id = self.auth_state.anonymous_id();
                 let _ = ctx.spawn(
-                    // Synchronously add the identify and login event to the telemetry event queue and
-                    // then flush the queue to ensure the events get to Rudderstack. We need to do this
-                    // one-off because the login event happens only once for the user and we don't want
-                    // to drop the event if the user quits the app before the next flush of the queue.
-                    // TODO(alokedesai): Investigate a more robust way of handling events
-                    // that don't get flushed to Rudderstack outside of this event specifically.
+                    // The login event happens only once for the user, so the identify and login
+                    // events are recorded into the telemetry event queue immediately here.
                     async move {
                         warpui::telemetry::record_identify_user_event(
                             user_id.as_string(),
@@ -311,16 +292,6 @@ impl AuthManager {
                             TelemetryEvent::Login.contains_ugc(),
                             warpui::time::get_current_time(),
                         );
-
-                        // Note that this snapshot might get overwritten to disabled after the server fetch.
-                        // However, it is still fine to flush to Rudderstack here as the login event is low-risk
-                        // and it is better to err on the side of over-reporting than under-reporting.
-                        if let Err(e) = server_api
-                            .flush_telemetry_events(privacy_settings_snapshot)
-                            .await
-                        {
-                            log::info!("Failed to flush events from Telemetry queue: {e}");
-                        }
                     },
                     |_, _, _| {},
                 );
