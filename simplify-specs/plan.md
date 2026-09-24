@@ -11628,3 +11628,277 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       4ff-style scope record of cloud_objects + warp_graphql type
       consumers) — do NOT start deleting cloud_objects/warp_graphql
       in the survey round.
+
+- [ ] **the endgame scope survey + slice plan (4fk) — RECORDED 2026-09-23.**
+      SCOPING round for 4ca item (8) endgame — no code deleted; this
+      entry is the deliverable. THE DECISION (orchestrator's, now
+      grounded): cloud_objects is NO LONGER a wire crate — after
+      4eg–4ey it is the LOCAL cloud-object model layer, and the
+      endgame deletes only what is still wire/remote-SHAPED (server
+      intake paths, GraphQL conversion walls, dead sync-queue event
+      verticals, type-only schema fragments) while the local model
+      layer stays. There is no live server sync left anywhere: the
+      only GraphQL op built workspace-wide is GetUser
+      (`crates/warp_server_auth/src/auth_client.rs:110`, moved in
+      4fi); `ServerApiProvider` is `{get_http_client, get_auth_client}`
+      + the AuthEvent pump; nothing else can reach a server.
+
+      WIRE-VS-LOCAL CLASSIFICATION (verified at HEAD a9f688b64).
+      cloud_objects (1,946 lines, 87 importer files — down from 102 at
+      4ff): LOCAL-STAYS — `ids.rs` (416: SyncId/ServerId/ClientId/
+      FolderId/GenericStringObjectId, sqlite hashes, HashableId,
+      ToServerId, serde; `app/src/server/ids.rs` is a pure re-export
+      shim of it); `cloud_object/mod.rs` local types (ObjectIdType,
+      ObjectType + FromStr/Display/sqlite prefixes,
+      GenericStringObjectFormat/JsonObjectType (live: env_vars,
+      facts, profiles, mcp, blocklist), Revision, Owner,
+      ServerObjectContainer (typed in local model fields),
+      CloudObjectSyncStatus/NumInFlightRequests + CloudObjectStatuses
+      `render_icon` (LIVE drive UI, `drive/items/*.rs`),
+      CloudObjectMetadata/-Permissions/-Statuses, CloudLinkSharing/
+      CloudObjectGuest, SerializedModel, CloudObjectEventEntrypoint,
+      RevisionAndLastEditor (sqlite read path)); `generic_cloud_object.rs`
+      (181: GenericCloudObject + CloudObjectUpsertParams — the
+      `upsert_event`/`bulk_upsert_event` constructor machinery is LIVE
+      per the retired-4ei trace: folders.rs:36, notebooks/mod.rs:66,
+      workflows/mod.rs:216, generic_string_model.rs:175 impls;
+      update_manager.rs:143,668,694 + persistence.rs:906,1749 senders;
+      terminal_pane.rs:1570 `maybe_build_ai_query_upsert_event`);
+      `generic_string_model.rs` (41, local Serializer/GenericStringModel);
+      `drive/mod.rs` (137, CloudObjectTypeAndId — 12 importers);
+      `drive/sharing.rs` (49, `can_move_drive` live via
+      app/src/drive/index.rs:2304, `is_user` live via
+      cloud_object/mod.rs:483 + model/view.rs:180); `auth/mod.rs`
+      (1-line warp_server_auth UserUid re-export — local identity).
+      WIRE-FALLS (zero live production feeders, callers are tests
+      only): `server_object.rs` GenericServerObject (79; ConflictStatus
+      in that file STAYS — runtime state, live reader
+      notebooks/active_notebook_data.rs:271); the whole GraphQL
+      conversion wall in `cloud_object/mod.rs:786-1017` +
+      ObjectType↔gql conversions :228-262 (only consumer is
+      cloud_object_models/server_cloud_object.rs's TryFromGql bridge,
+      whose entry `TryFrom<warp_graphql::object::CloudObject>` has
+      ZERO callers repo-wide); ServerMetadata/ServerPermissions/
+      ServerGuestSubject/ServerObjectGuest/ServerLinkSharing
+      (guest/sharing trio: zero users outside the wall);
+      `creation.rs` ServerCreationInfo; new_from_server/
+      update_from_server_object on GenericCloudObject/CloudObjectMetadata/
+      CloudObjectPermissions. ToServerId/to_server_id traced per
+      anchor: ALL uses are LOCAL (notebooks/editor/embedded_item.rs:211
+      and embedding_model.rs:186 uid lookups,
+      cloud_object_persistence/objects.rs:528, generic bounds in
+      app/src/cloud_object/mod.rs + model/persistence.rs) — it is an
+      "extract inner ServerId" accessor on typed ids, misnamed but
+      load-bearing; STAYS. UpdateManager
+      (app/src/server/cloud_objects/update_manager.rs, 1,051): LOCAL
+      — writes SQLite + in-memory CloudModel only, no server calls at
+      all despite the directory name; live callers: cloud_preferences_
+      syncer, toast_message, terminal input/view record_object_action,
+      integration_testing QA, drive/import queue (local file import →
+      create_folder/create_notebook). STAYS ENTIRELY. The sync-queue
+      EVENT vertical is dead: ModelEvent::MarkObjectAsSynced,
+      ::IncrementRetryCount, ::UpdateObjectAfterServerCreation,
+      ::RecordTimeOfNextRefresh have ZERO senders (handlers only:
+      sqlite.rs:657,668,674,718); `set_latest_revision_and_editor`,
+      `check_and_maybe_clear_current_conflict`,
+      `cloud_objects_force_refresh_pending` (persistence.rs:246,263,
+      1761) zero callers; the refresh chain
+      (record/read_time_of_next_force_object_refresh + the
+      cloud_objects_refreshes table + CloudModel's
+      time_of_next_force_refresh field + lib.rs:1204/1225/1574
+      wiring) is orphaned end to end. The server-INTAKE half of
+      CloudModel (`upsert_from_server_object` family
+      persistence.rs:402-532,1662-1749, `update_object_after_server_
+      creation`:139) has zero production callers — only
+      model_tests.rs/profiles_tests.rs/data_source_tests.rs. Pricing:
+      `PricingInfoModel::pricing_info` is `None`-initialized with NO
+      setter — promotion_message() can only return None
+      (ai/pricing_promotion.rs:55 is the sole live read); the three
+      accessor methods already carry `#[allow(dead_code)]`. The
+      workspaces gql wall: `gql_convert.rs` (1,343 + 363 tests) is
+      self-referential (`gql_convert::` referenced nowhere else) and
+      every From impl consumes gql types that no op can ever
+      construct; the LOCAL workspace/team types it fed stay — they
+      are constructed from sqlite (NewTeamMember/NewTeamSettings
+      sqlite.rs:1935-2080, sqlite.rs:2730) and literals
+      (user_workspaces.rs:826). Adjacent orphan (AI vertical, not
+      cloud_objects scope): ServerAIConversationMetadata
+      (agent/conversation.rs:4454, holds ServerMetadata +
+      ServerPermissions) — `set_server_metadata` has zero production
+      callers; deletable before or with slice 2b.
+
+      warp_graphql (crates/graphql, 2,757 lines, 30 importer files):
+      the LIVE terminal core is exactly what warp_server_auth's login
+      flow needs — `client.rs` (220: Operation trait/send_request/
+      RequestOptions/get_request_context), `api/queries/get_user.rs`
+      (109, the only sent op), `api/mutations/create_anonymous_user.rs`
+      (66: AnonymousUserType), `api/object_permissions.rs` OwnerType
+      (auth_state.rs:9, credentials.rs:11, get_user), `api/
+      experiment.rs` (78, get_user fragment), `api/request_context.rs`
+      (21), `scalars/` (55: Time via ServerTimestamp ×10 importers,
+      Uint32), `lib.rs`+`api/mod.rs`+schema link (30). Everything else
+      is type-only or orphaned: billing.rs (438), workspace.rs (428),
+      get_conversation_usage.rs (329 — types-only; op never built),
+      ai.rs (246 — BUT AgentTaskState + AgentHarness are LIVE local
+      vocabulary CONSTRUCTED in app code: agent_sdk/driver.rs:34,
+      error_classification.rs, harness_availability.rs:137; the rest
+      — AIConversationArtifact ×8, FileArtifact, AICreditAvailability*,
+      PlatformErrorCode zero users, artifact fragments — is dead),
+      object.rs (116), generic_string_object.rs (79 — one LIVE
+      consumer: blocklist/controller/input_context.rs:283 uses the gql
+      format enum's to_string() for the local DriveObjectPayload
+      string), folder (18), notebook (34), workflow (10), user (17),
+      error.rs (70, ZERO importers), mcp_gallery_template (27, zero),
+      object_actions (41, zero), response_context (6, zero),
+      ai_tests (153), billing_tests (60). cloud_object_models
+      (3,720): local model types + persistence adapters STAY;
+      `server_cloud_object.rs` (327, the gql→ServerCloudObject
+      bridge) + the 13 `Server*` GenericServerObject type aliases
+      FALL with slice 2b. cloud_object_persistence (668): LOCAL
+      sqlite helpers — STAYS minus the sync remnants
+      (mark_object_as_synced, increment_retry_count,
+      update_object_after_server_creation, refresh.rs) that slice 1
+      orphans.
+
+      PER-CRATE TERMINAL-STATE DECISION (what the endgame records):
+      (1) cloud_objects — STAYS as a crate, shrunk ≈1,946 → ≈1,350
+      lines: the local cloud-object model substrate (ids, object
+      types/formats, owner/metadata/permissions/statuses,
+      GenericCloudObject + upsert events, GenericStringModel, drive,
+      sharing). NOT deleted and NOT merged — 87 importer files across
+      app/cloud_object_models/cloud_object_persistence keep it the
+      shared model layer. (2) warp_graphql — STAYS as a crate,
+      shrunk ≈2,757 → ≈700 lines to the login identity core (client +
+      get_user + create_anonymous_user + OwnerType + experiment +
+      request_context + scalars + schema link); NOT folded into
+      warp_server_auth (the merge would churn 5 crates' imports to
+      save zero code; the crate boundary documents "GraphQL wire
+      schema for login"). GetUser remains the only op for as long as
+      login remains a dev-bin feature. (3) warp_graphql_schema —
+      FOLDED into crates/graphql: move `api/schema.graphql` + the
+      1-line `#[cynic::schema]` module + package.json/graphql.config
+      TS download tooling decision (drop it — nothing in script/ or
+      .github/ invokes codegen; the SDL refresh was a manual dev
+      flow against staging) → delete the crate + workspace member.
+      cynic's standard single-crate layout supports schema + queries
+      in one crate; graphql/build.rs already registers the SDL.
+      AGENTS.md's GraphQL section (mentions codegen from
+      crates/warp_graphql_schema) gets updated in that slice.
+
+      SLICE PLAN (each state compiles; smallest blast radius first):
+      SLICE 1 — the dead sync-queue event vertical + refresh chain
+      (~12 files, ≈−400): ModelEvent variants MarkObjectAsSynced/
+      IncrementRetryCount/UpdateObjectAfterServerCreation/
+      RecordTimeOfNextRefresh + their 4 sqlite handler arms +
+      persistence/mod.rs imports; cloud_object_persistence
+      mark_object_as_synced/increment_retry_count/
+      update_object_after_server_creation + refresh.rs (35) + lib.rs
+      exports; CloudModel's update_object_after_server_creation,
+      set_latest_revision_and_editor,
+      check_and_maybe_clear_current_conflict,
+      cloud_objects_force_refresh_pending + the
+      time_of_next_force_refresh field/ctor param + lib.rs:1204/1225/
+      1574 wiring + the sqlite load-struct field. Test fallout:
+      model_tests.rs:329/430/481 + profiles_tests.rs:284 blocks.
+      Risk LOW — every deletion is a zero-sender/zero-caller removal;
+      acceptance: both feature sets check/clippy, nextest baseline,
+      no sqlite schema changes (leave the table + columns).
+      SLICE 2a — CloudModel server-intake functions + tests
+      (~6 files, ≈−700, half of it tests): upsert_from_server_object/
+      _internal/_notebook/_cloud_object, update_cloud_object_if_exists,
+      bulk equivalents (persistence.rs:402-532,1662-1749); delete the
+      server halves of model_tests.rs/profiles_tests.rs/
+      search/ai_context_menu/rules/data_source_tests.rs (ServerAIFact)
+      that only exercise them. Risk LOW-moderate — largest test
+      rewrite of the round; keep the local halves of those files
+      green. SLICE 2b — GenericServerObject + Server* aliases +
+      Server* metadata/permissions types + the conversion wall
+      (~10 files, ≈−900): crates/cloud_objects server_object.rs
+      GenericServerObject (ConflictStatus stays), creation.rs,
+      ServerMetadata/ServerPermissions/ServerGuestSubject/
+      ServerObjectGuest/ServerLinkSharing + the :786-1017 TryFrom
+      wall + :228-262 gql ObjectType conversions + From<Owner> for
+      gql Owner; cloud_object_models/server_cloud_object.rs (327,
+      whole file) + the 13 Server* aliases + lib.rs re-exports; app
+      re-export cloud_object/mod.rs:890. BEFORE this slice: decide
+      ServerAIConversationMetadata (delete it here or in its own
+      micro-slice — it is the last ServerMetadata/ServerPermissions
+      consumer in app). Risk moderate — pub types give no dead-code
+      warnings, so the callgraph is the only evidence; hand-check
+      `--features test-util` compiles (mock_current_user/
+      mock_personal constructors ride the deleted types).
+      SLICE 3a — the app conversion walls + pricing (~8 files,
+      ≈−2,000): gql_convert.rs + gql_convert_tests.rs (1,706),
+      pricing/mod.rs + pricing_tests.rs + ai/pricing_promotion.rs +
+      lib.rs:1313 registration (~200 — read collapses to None, the
+      exact always-None behavior today), workspace.rs's
+      `pub use warp_graphql::billing` re-export + ServiceAgreement
+      field localized to local copies (drop cynic derives),
+      crates/ai/llm_provider.rs From<gql LlmProvider> impl,
+      artifacts/mod.rs TryFrom<gql AIConversationArtifact> + its
+      test half. Risk LOW-moderate — the policy/usage local types
+      stay but become permanently-default; do NOT cascade-prune
+      workspace policy fields here (follow-up candidates, local-path
+      churn). SLICE 3b — warp_graphql dead modules (~20 files,
+      ≈−2,100): delete billing, workspace, get_conversation_usage,
+      object, folder, notebook, workflow, user, error,
+      mcp_gallery_template, object_actions, response_context,
+      ai_tests, billing_tests; shrink ai.rs to AgentTaskState +
+      AgentHarness (or move the two enums to crates/ai — decide in
+      slice); shrink generic_string_object.rs by repointing
+      input_context.rs:283 to the LOCAL GenericStringObjectFormat's
+      Display first. Update object_permissions.rs toward OwnerType-
+      only (AccessLevel's last users are slice-2b's wall + warp_
+      server_auth conversions — verify). Risk moderate: cynic
+      fragments cross-reference; delete leaf modules first and
+      compile the crate per step. SLICE 4 — schema crate fold +
+      terminal tidy (~8 files, ≈−50 code + 1 crate): move
+      api/schema.graphql + the schema module into crates/graphql,
+      delete crates/warp_graphql_schema + workspace member + TS
+      tooling, update AGENTS.md's GraphQL section. Risk LOW; hand-
+      compile (build.rs change). Total endgame ≈ −6,200..−7,000.
+
+      LANDMINES: (1) persisted sqlite shapes are NOT serde'd through
+      the falling types — cloud_object_persistence reads/writes
+      columns and builds Owner/RevisionAndLastEditor directly
+      (objects.rs:155,604); the serde formats that MUST stay exactly:
+      SyncId/ServerId custom serde (ids.rs), Owner
+      User{user_uid}/Team{team_uid}, ServerObjectContainer,
+      SharingAccessLevel, GenericStringObjectFormat/JsonObjectType
+      (persisted as strings via as_str/sqlite prefixes). Deleting
+      ServerObjectGuest etc. touches no persisted bytes (server
+      response types, never written). (2) NO migrations this round —
+      the `cloud_objects_refreshes` table and sync-retry columns stay
+      in schema.rs; slices stop reading/writing them. (3) cynic
+      derive coupling: surviving fragments pin their transitive
+      types (get_user → OwnerType/experiment/request_context/Time/
+      AnonymousUserType); exhaustively compile crates/graphql after
+      each module deletion. (4) input_context.rs's GraphQLFormat is
+      a live local string formatter for AI prompt payloads — repoint
+      before deleting the gql enum (slice 3b). (5) workspace.rs
+      re-exports billing types used as local field types
+      (ServiceAgreement, AiCreditsUsage*) — localize first (3a) or
+      billing.rs cannot fall (3b). (6) cfg/wasm: client.rs + auth
+      chain carry wasm gates presubmit never compiles — slices 3b/4
+      must be verbatim-subtractive there. (7) `pub` aliases/types
+      (Server* in cloud_object_models) produce no dead-code warnings
+      — the zero-production-caller evidence is the trace above, not
+      the compiler. (8) ConflictStatus/has_conflicting_changes is
+      LIVE (active_notebook_data.rs:271) even though conflicts can
+      now never arise at runtime — keep the state machine, delete
+      only its dead feeders (update_from_server_object, 2b). (9)
+      integration_testing QA (assertions.rs, cloud_object/mod.rs,
+      workflow/step.rs, rules/step.rs) drives UpdateManager — stays
+      green through every slice; do not repoint it. (10) the warp
+      Local-channel login flow (AuthClientImpl → GetUser) is
+      untouchable: no slice may stub or reorder AuthClientImpl/
+      AuthSession; network-log install order stays. (11) AGENTS.md
+      says "Schema and client code generation from
+      crates/warp_graphql_schema/api/schema.graphql" — stale after
+      slice 4; update it in that slice. (12) server_api.rs's
+      AuthEvent-pump comments still mention ServerApi (left in 4fj)
+      — cosmetic, not this endgame's scope. DESIGNATED NEXT:
+      slice 1 exactly as scoped above. Acceptance for THIS round:
+      no code changes — this commit contains only plan.md (verified
+      with `git show --stat`); no clippy/nextest required; app not
+      launched; no .rs file touched.
