@@ -10,7 +10,6 @@ use warp_core::context_flag::ContextFlag;
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
 use warp_server_client::auth::{AuthClientImpl, AuthEvent};
 use warp_server_client::base_client::{BaseClient, GraphqlRoutingConfig};
-use warp_server_client::network_logging::NetworkLogModel;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::get_relevant_files::api::{GetRelevantFiles, GetRelevantFilesResponse};
@@ -20,6 +19,7 @@ use crate::ai::predict::{generate_ai_input_suggestions, generate_am_query_sugges
 use crate::ai::voice::transcribe::{TranscribeRequest, TranscribeResponse};
 use crate::auth::auth_manager::AuthManager;
 use crate::auth::auth_state::AuthState;
+use crate::server::network_logging::NetworkLogModel;
 
 /// We use a special error code header `X-Warp-Error-Code` to allow the server to send
 /// more specific error code information, so that the client can discern between different

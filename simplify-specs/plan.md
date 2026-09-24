@@ -10888,3 +10888,129 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       contains only plan.md (verified with `git show --stat`); no
       clippy/nextest required; app not launched; no .rs file
       touched.
+
+- [x] **the fold slice 1 — network_logging moves to app (4fg) —
+      DONE 2026-09-23.** Executed the 4ff SLICE 1: pure code
+      motion — `network_logging` now lives in the app and no
+      longer routes through (or links into) warp_server_client;
+      first crack in the falling crate. 7 files, 4 insertions(+),
+      4 deletions(-) on top of two byte-identical git renames
+      (235 lines moved); net workspace line delta 0.
+
+      MOVE TABLE. crates/warp_server_client/src/network_logging.rs
+      (164 lines: NetworkLogModel + install_on_clients +
+      NetworkLogItem) → app/src/server/network_logging.rs,
+      byte-identical rename; crates/warp_server_client/src/
+      network_logging_tests.rs (71 lines, 3 tests) →
+      app/src/server/network_logging_tests.rs, byte-identical
+      (the `#[path = "network_logging_tests.rs"]` wiring moved
+      unchanged — both files stay in the same directory).
+
+      REPOINTS (the only edits). app/src/server/mod.rs:
+      `pub mod network_logging;` (alphabetical, after
+      network_log_view). The import
+      `warp_server_client::network_logging::NetworkLogModel` →
+      `crate::server::network_logging::NetworkLogModel` in 3
+      files: app/src/lib.rs (was :203; new line sits in the
+      crate:: group next to update_manager), server/
+      network_log_view.rs (was :13), server/server_api.rs
+      (was :13). crates/warp_server_client/src/lib.rs: dropped
+      `pub mod network_logging;` — the crate is now exactly
+      auth/ + base_client + drive + ids + two re-exports.
+      No Cargo.toml touched: the module's full dep set
+      (http_client, warpui_core, warp_errors, bounded_vec_deque,
+      chrono, async_channel, anyhow, reqwest types) was already
+      app's.
+
+      REGISTRATION ORDER PRESERVED VERBATIM (landmine 4): the
+      lib.rs comment + `add_singleton_model(NetworkLogModel::
+      default())` (:1123-1126) still precede the
+      `ServerApiProvider::new` closure (:1129-1130), and the hook
+      install is untouched (server_api.rs:275-279: NetworkLog
+      Console gate → `install_on_clients([&mut client])` inside
+      `ServerApi::new`, which runs during provider construction,
+      i.e. after registration).
+
+      DEVIATIONS FROM THE 4FF MAP. (1) Zero in-file edits — 4ff
+      priced ≈+20/−240 with visibility adjustments, but every item
+      was already `pub` and the test wiring is path-relative, so
+      the renames needed no touches at all; the round's real diff
+      is +4/−4 of import rewiring. (2) The dep list was slightly
+      broader than 4ff recorded (also async_channel + anyhow +
+      reqwest for the item Debug formatting) — still zero
+      coupling to the falling crates, so the "moves cleanly"
+      conclusion held. (3) Baseline line refs at this HEAD: the
+      single-element-loop clippy warning sits at
+      mod_tests.rs:272 (4fe-consistent), not :277; ServerApi's
+      install block is at server_api.rs:275-279, not 283-285.
+
+      FOR SLICE 4 (noted, not done): warp_server_client's
+      `bounded-vec-deque` dep is now orphaned (network_logging was
+      its only user); async_channel/anyhow still have auth +
+      base_client users. No network_logging re-export existed in
+      warp_server_client beyond the mod decl, and no other crate
+      imports it (importers were app-only; all three repointed).
+
+      Deliberately left: slice 2 — drive.rs + ids.rs 1-line
+      cloud_objects shims fall, cloud_object/folders.rs +
+      cloud_object/model/generic_string_model.rs repoint to
+      `cloud_objects::ids::`, lib.rs re-exports (`UserUid`,
+      `server_id_traits`) die. Slice 3 — BaseClient dissolves
+      into AuthClientImpl (GraphqlRoutingConfig + the cfg
+      agent_mode_evals eval-user block move in; hand-compile with
+      `--features agent_mode_evals`), server_api.rs loses
+      base_client + Deref, CopyAccessTokenToClipboard +
+      auth_tests.rs repoint to
+      get_auth_client().get_or_refresh_access_token().
+      Slice 4 — warp_server_client + firebase crates fall, auth
+      half moves into warp_server_auth (feature-forwarding chains
+      local_only/skip_login/test-util/integration_tests repoint;
+      automock dies in the move), orphaned bounded-vec-deque dep
+      removed. Slice 5 — the four Err-stub walls + their callers,
+      then the Arc<ServerApi> plumbing dissolution into
+      ServerApiProvider accessors.
+
+      Local-only safety: the network log pane is a local
+      debugging surface — before_request/after_response taps on
+      the app's own http_client::Client feeding a bounded async
+      channel into an in-memory singleton, gated only by the
+      local ContextFlag::NetworkLogConsole. It reads nothing
+      remote, persists nothing, and touches no auth path. The
+      move changed module paths only: same registration order,
+      same hooks on the same client instance, so pane behavior is
+      identical. The kept local warp-server login flow is
+      untouched — no AuthManager/ServerApiProvider construction
+      or AuthClient code changed this round.
+
+      Acceptance: clippy baselines captured at HEAD FIRST in both
+      configs (12 canonical file:line + message tuples each: 11
+      needless-return in terminal/input.rs + 1
+      single-element-loop in lifecycle/mod_tests.rs:272);
+      post-edit re-runs with `--message-format=json` primary-span
+      extraction are warning-IDENTICAL in both configs (empty
+      diff — same 12 warnings, same lines). Check suite 0 errors:
+      `check -p warp --lib --all-targets` default + simplewarp,
+      `--no-default-features --features simplewarp --bin
+      simplewarp`, `--bin warp-oss`, `--all-targets -p
+      integration` (only the two pre-existing step.rs
+      unused-import warnings), `check -p warp --lib --tests
+      --features skip_login`, `-p warp_server_client
+      --all-targets` (the moved-from crate still compiles clean).
+      `./script/format` no diff — still exactly 7 files / 4
+      insertions / 4 deletions. Nextest `-p warp --lib
+      --no-fail-fast`: default 4,614 passed / 3 skipped / 0
+      failed; simplewarp 4,613 passed / 3 skipped / 0 failed —
+      exactly the post-4fe baselines (4,611 / 4,610) plus the 3
+      moved network_logging tests, verified individually passing
+      in both configs under `warp server::network_logging::tests`.
+      Disk healthy (~45GB free at round start; no stale-executable
+      cleanup needed, no cargo clean). Runtime smoke SKIPPED per
+      the 2026-09-23 convention (user away, macOS password prompt
+      unanswerable); no binary launched — cargo check/clippy/
+      nextest builds only.
+
+      DESIGNATED NEXT: fold slice 2 — the shims fall (~4 files,
+      ≈−10): folders.rs + generic_string_model.rs repoint to
+      `cloud_objects::ids::`; delete drive.rs, ids.rs, and the
+      lib.rs re-exports. Then slice 3 — BaseClient dissolves into
+      AuthClientImpl + client-only ServerApi (~8 files, ≈−250).
