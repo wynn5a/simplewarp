@@ -33,7 +33,6 @@ impl TerminalView {
         use pathfinder_geometry::vector::vec2f;
         use warpui::units::{IntoPixels as _, Pixels};
 
-        use crate::server::server_api::ServerApiProvider;
         use crate::terminal::BlockPadding;
         use crate::terminal::event_listener::ChannelEventListener;
         use crate::terminal::model::block::BlockSize;
@@ -68,10 +67,8 @@ impl TerminalView {
             warp_prompt_height_lines: WARP_PROMPT_HEIGHT_LINES,
         };
 
-        let server_api = ServerApiProvider::new_for_test().get();
         let terminal_view_resources = TerminalViewResources {
             tips_completed: tips_model,
-            server_api: server_api.clone(),
             model_event_sender: None,
         };
 

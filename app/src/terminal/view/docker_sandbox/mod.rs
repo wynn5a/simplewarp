@@ -14,7 +14,7 @@ use warpui::ViewContext;
 #[cfg(feature = "local_tty")]
 use warpui::geometry::vector::Vector2F;
 #[cfg(not(target_family = "wasm"))]
-use warpui::{SingletonEntity, View, ViewHandle};
+use warpui::{View, ViewHandle};
 
 use super::TerminalView;
 #[cfg(not(target_family = "wasm"))]
@@ -33,7 +33,6 @@ use crate::persistence::ModelEvent;
 #[cfg(not(target_family = "wasm"))]
 use crate::server::ids::{ServerId, SyncId};
 #[cfg(any(feature = "local_tty", not(target_family = "wasm")))]
-use crate::server::server_api::ServerApiProvider;
 #[cfg(feature = "local_tty")]
 use crate::terminal::TerminalManager;
 #[cfg(feature = "local_tty")]
@@ -183,7 +182,6 @@ impl TerminalView {
 
         let resources = TerminalViewResources {
             tips_completed: self.tips_completed.clone(),
-            server_api: ServerApiProvider::as_ref(ctx).get(),
             model_event_sender: self.model_event_sender.clone(),
         };
         let pane_configuration = self.pane_configuration().clone();

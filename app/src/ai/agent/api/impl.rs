@@ -8,11 +8,10 @@ use warp_multi_agent_api as api;
 use super::convert_to::convert_input;
 use super::{ConvertToAPITypeError, RequestParams, ResponseStream};
 use crate::ai::agent::redaction;
-use crate::server::server_api::{AIApiError, ServerApi};
+use crate::server::server_api::AIApiError;
 use crate::terminal::model::session::SessionType;
 
 pub async fn generate_multi_agent_output(
-    server_api: Arc<ServerApi>,
     mut params: RequestParams,
     cancellation_rx: futures::channel::oneshot::Receiver<()>,
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
@@ -140,7 +139,6 @@ pub async fn generate_multi_agent_output(
     // SimpleWarp runs the model call on this machine, so the request never leaves for a Warp
     // server and the API keys inside it never do either. The event stream has the same shape,
     // so everything downstream is unchanged.
-    let _ = &server_api;
     match local_inference::generate_local_output(&request).await {
         Ok(stream) => {
             let output_stream = stream

@@ -854,7 +854,6 @@ impl From<&Arc<AIApiError>> for RenderableAIError {
                 TransientNetworkErrorKind::Api(value.clone()),
             ),
             AIApiError::Deserialization(DeserializationError::Json(_))
-            | AIApiError::NoContextFound
             | AIApiError::ErrorStatus(_, _)
             | AIApiError::Other(_)
             | AIApiError::Stream { .. } => Self::Other {

@@ -2,7 +2,6 @@ pub mod auth;
 
 use std::sync::Arc;
 
-use anyhow::{Result, anyhow};
 use auth::AuthClient;
 use serde::Deserialize;
 use warp_core::context_flag::ContextFlag;
@@ -11,11 +10,6 @@ use warp_server_auth::auth_client::{AuthClientImpl, GraphqlRoutingConfig};
 use warp_server_auth::session::AuthEvent;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
-use crate::ai::get_relevant_files::api::{GetRelevantFiles, GetRelevantFilesResponse};
-use crate::ai::predict::generate_ai_input_suggestions::GenerateAIInputSuggestionsRequest;
-use crate::ai::predict::generate_am_query_suggestions::GenerateAMQuerySuggestionsRequest;
-use crate::ai::predict::{generate_ai_input_suggestions, generate_am_query_suggestions};
-use crate::ai::voice::transcribe::{TranscribeRequest, TranscribeResponse};
 use crate::auth::auth_manager::AuthManager;
 use crate::auth::auth_state::AuthState;
 use crate::server::network_logging::NetworkLogModel;
@@ -63,9 +57,6 @@ pub enum AIApiError {
 
     #[error("Failed to deserialize API response.")]
     Deserialization(#[source] DeserializationError),
-
-    #[error("No context found on context search.")]
-    NoContextFound,
 
     #[error("Failed with status code {0}: {1}")]
     ErrorStatus(http::StatusCode, String),
@@ -210,113 +201,16 @@ impl ErrorExt for AIApiError {
             AIApiError::Stream { source, .. } => source.is_actionable(),
             AIApiError::ErrorStatus(_, _) => self.is_recoverable(),
             AIApiError::UnexpectedEof => true,
-            AIApiError::QuotaLimit { .. }
-            | AIApiError::ServerOverloaded
-            | AIApiError::NoContextFound => false,
+            AIApiError::QuotaLimit { .. } | AIApiError::ServerOverloaded => false,
         }
     }
 }
 register_error!(AIApiError);
 
-#[derive(thiserror::Error, Debug)]
-pub enum TranscribeError {
-    #[error("Request failed due to lack of Voice quota.")]
-    QuotaLimit,
-
-    #[error("Warp is currently overloaded. Please try again later.")]
-    ServerOverloaded,
-
-    #[error("Internal error occurred at transport layer.")]
-    Transport,
-
-    #[error("Failed to deserialize JSON.")]
-    Deserialization,
-
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
-}
-
-/// SimpleWarp has no Warp server, so every request primitive below fails here
-/// rather than opening a connection. The channel config points at hostnames that
-/// cannot resolve, which already stops traffic; failing in the client turns a DNS
-/// timeout into an immediate, legible error and leaves nothing to time out on.
-const LOCAL_ONLY_MESSAGE: &str =
-    "SimpleWarp is a local-only build; this operation needs Warp's servers";
-
-pub(crate) fn local_only_error() -> anyhow::Error {
-    anyhow!(LOCAL_ONLY_MESSAGE)
-}
-
-/// An API wrapper struct with methods to requests to warp-server.
-///
-/// Prefer NOT adding new methods directly on this struct; instead, add to one of the existing
-/// client trait objects, or create your own. This helps keep `ServerApi` from being overloaded
-/// with disparate types of calls, and allows you to mock methods in tests.
-pub struct ServerApi {
-    http_client: Arc<http_client::Client>,
-}
-
-impl ServerApi {
-    fn new(ctx: &mut ModelContext<ServerApiProvider>) -> Self {
-        let mut client = http_client::Client::new();
-        if ContextFlag::NetworkLogConsole.is_enabled() {
-            NetworkLogModel::handle(ctx).update(ctx, |model, model_ctx| {
-                model.install_on_clients([&mut client], model_ctx);
-            });
-        }
-        Self {
-            http_client: Arc::new(client),
-        }
-    }
-
-    fn http_client(&self) -> Arc<http_client::Client> {
-        self.http_client.clone()
-    }
-
-    #[cfg(test)]
-    fn new_for_test() -> Self {
-        Self {
-            http_client: Arc::new(http_client::Client::new_for_test()),
-        }
-    }
-
-    /// Hits the /ai/generate_input_suggestions endpoint to get the predicted next action, based on past context.
-    pub async fn generate_ai_input_suggestions(
-        &self,
-        _request: &GenerateAIInputSuggestionsRequest,
-    ) -> Result<generate_ai_input_suggestions::GenerateAIInputSuggestionsResponseV2, AIApiError>
-    {
-        Err(AIApiError::Other(local_only_error()))
-    }
-
-    pub async fn get_relevant_files(
-        &self,
-        _request: &GetRelevantFiles,
-    ) -> Result<GetRelevantFilesResponse, AIApiError> {
-        Err(AIApiError::Other(local_only_error()))
-    }
-
-    /// Hits the /ai/generate_am_query_suggestions endpoint to get the predicted next query.
-    pub async fn generate_am_query_suggestions(
-        &self,
-        _request: &GenerateAMQuerySuggestionsRequest,
-    ) -> Result<generate_am_query_suggestions::GenerateAMQuerySuggestionsResponse, AIApiError> {
-        Err(AIApiError::Other(local_only_error()))
-    }
-
-    /// Hits the /ai/transcribe endpoint to get the transcription for the given audio.
-    pub async fn transcribe(
-        &self,
-        _request: &TranscribeRequest,
-    ) -> Result<TranscribeResponse, TranscribeError> {
-        Err(TranscribeError::Other(local_only_error()))
-    }
-}
-
-/// A singleton entity that provides access to the global [`ServerApi`] instance,
-/// or any of its implemented trait objects.
+/// A singleton entity that provides access to the app's shared HTTP client and
+/// auth client.
 pub struct ServerApiProvider {
-    server_api: Arc<ServerApi>,
+    http_client: Arc<http_client::Client>,
     auth_client: Arc<dyn AuthClient>,
 }
 
@@ -325,7 +219,13 @@ impl ServerApiProvider {
     pub fn new(auth_state: Arc<AuthState>, ctx: &mut ModelContext<Self>) -> Self {
         let (event_sender, event_receiver) = async_channel::bounded(10);
 
-        let server_api = Arc::new(ServerApi::new(ctx));
+        let mut client = http_client::Client::new();
+        if ContextFlag::NetworkLogConsole.is_enabled() {
+            NetworkLogModel::handle(ctx).update(ctx, |model, model_ctx| {
+                model.install_on_clients([&mut client], model_ctx);
+            });
+        }
+        let http_client = Arc::new(client);
         let graphql_routing = GraphqlRoutingConfig {
             #[cfg(feature = "agent_mode_evals")]
             path_prefix: Some("/agent-mode-evals".to_string()),
@@ -333,7 +233,7 @@ impl ServerApiProvider {
             path_prefix: None,
         };
         let auth_client = Arc::new(AuthClientImpl::new(
-            server_api.http_client(),
+            http_client.clone(),
             auth_state,
             event_sender,
             graphql_routing,
@@ -368,7 +268,7 @@ impl ServerApiProvider {
             |_, _| {},
         );
         Self {
-            server_api,
+            http_client,
             auth_client,
         }
     }
@@ -377,23 +277,17 @@ impl ServerApiProvider {
     #[cfg(test)]
     pub fn new_for_test() -> Self {
         let (event_sender, _) = async_channel::unbounded();
-        let server_api = Arc::new(ServerApi::new_for_test());
+        let http_client = Arc::new(http_client::Client::new_for_test());
         let auth_client = Arc::new(AuthClientImpl::new(
-            server_api.http_client(),
+            http_client.clone(),
             Arc::new(AuthState::new_for_test()),
             event_sender,
             GraphqlRoutingConfig::default(),
         ));
         Self {
-            server_api,
+            http_client,
             auth_client,
         }
-    }
-
-    /// Returns a handle to the underlying [`ServerApi`] object.
-    /// Prefer retrieving a specific trait object related to the methods you're calling.
-    pub fn get(&self) -> Arc<ServerApi> {
-        self.server_api.clone()
     }
 
     pub fn get_auth_client(&self) -> Arc<dyn AuthClient> {
@@ -403,7 +297,7 @@ impl ServerApiProvider {
     /// Returns the shared HTTP client. This client is wired into network logging
     /// and includes standard Warp request headers.
     pub fn get_http_client(&self) -> Arc<http_client::Client> {
-        self.server_api.http_client()
+        self.http_client.clone()
     }
 }
 

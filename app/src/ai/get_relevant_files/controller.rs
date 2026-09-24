@@ -3,16 +3,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use ai::index::locations::CodeContextLocation;
-use anyhow::anyhow;
 use futures_util::stream::AbortHandle;
-use warp_errors::report_error;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity as _};
 
 use crate::ai::agent::{AIAgentActionId, SearchCodebaseResult};
 use crate::ai::blocklist::SessionContext;
-use crate::ai::get_relevant_files::api::{FileContext as FileContextRequest, GetRelevantFiles};
 use crate::ai::outline::{OutlineStatus, RepoOutlines};
-use crate::server::server_api::{AIApiError, ServerApiProvider};
 #[cfg_attr(not(target_family = "wasm"), path = "remote_search/native.rs")]
 #[cfg_attr(target_family = "wasm", path = "remote_search/wasm.rs")]
 mod remote_search;
@@ -90,7 +86,7 @@ impl GetRelevantFilesController {
         self.cancel_request_for_action(&action_id, ctx);
         match target {
             GetRelevantFilesRequestTarget::Local { directory } => {
-                self.send_local_request(&directory, query, partial_path_segments, action_id, ctx)
+                self.send_local_request(&directory, partial_path_segments, action_id, ctx)
             }
             GetRelevantFilesRequestTarget::Remote {
                 session_context,
@@ -109,19 +105,16 @@ impl GetRelevantFilesController {
     fn send_local_request(
         &mut self,
         directory: &Path,
-        query: String,
         partial_path_segments: Option<&Vec<String>>,
         action_id: AIAgentActionId,
         ctx: &mut ModelContext<Self>,
     ) -> Result<(), GetRelevantFilesError> {
-        const MINIMUM_FILE_COUNT_FOR_API_CALL: usize = 2;
+        const WHOLE_REPO_SUGGESTION_FILE_LIMIT: usize = 2;
 
         match RepoOutlines::as_ref(ctx).get_outline(directory) {
-            Some((OutlineStatus::Complete(outline), base_path)) => {
-                let server_api = ServerApiProvider::as_ref(ctx).get();
-
+            Some((OutlineStatus::Complete(outline), _)) => {
                 let file_outlines = outline.to_file_symbols(partial_path_segments);
-                if file_outlines.len() < MINIMUM_FILE_COUNT_FOR_API_CALL {
+                if file_outlines.len() < WHOLE_REPO_SUGGESTION_FILE_LIMIT {
                     ctx.emit(GetRelevantFilesControllerEvent::Success {
                         action_id,
                         result: GetRelevantFilesControllerResult::Locations(Arc::new(
@@ -134,54 +127,10 @@ impl GetRelevantFilesController {
                         )),
                     });
                 } else {
-                    let outline_request = GetRelevantFiles {
-                        query,
-                        files: file_outlines
-                            .into_iter()
-                            .map(|outline| FileContextRequest {
-                                path: outline.path,
-                                symbols: outline.symbols,
-                            })
-                            .collect(),
-                    };
-                    let action_id_clone = action_id.clone();
-                    let request_abort_handle = ctx
-                        .spawn(
-                            async move {
-                                let response =
-                                    server_api.get_relevant_files(&outline_request).await?;
-                                Ok(Arc::new(
-                                    response
-                                        .relevant_file_paths
-                                        .into_iter()
-                                        .filter_map(|path| {
-                                            let file_path = base_path.join(path);
-                                            // Validate the returned file paths.
-                                            if file_path.exists() {
-                                                Some(CodeContextLocation::WholeFile(file_path))
-                                            } else {
-                                                None
-                                            }
-                                        })
-                                        .collect(),
-                                ))
-                            },
-                            move |me,
-                                  relevant_file_paths: Result<
-                                Arc<HashSet<CodeContextLocation>>,
-                                AIApiError,
-                            >,
-                                  ctx| {
-                                me.handle_relevant_file_paths_result(
-                                    relevant_file_paths.map_err(|e| anyhow!(e)),
-                                    action_id_clone,
-                                    ctx,
-                                )
-                            },
-                        )
-                        .abort_handle();
-                    self.pending_requests
-                        .insert(action_id, request_abort_handle);
+                    // Ranking files within a larger outline ran on Warp's server, which
+                    // no longer exists; the search can only fail, so report that without
+                    // opening a connection.
+                    ctx.emit(GetRelevantFilesControllerEvent::Error { action_id });
                 }
                 Ok(())
             }
@@ -213,29 +162,6 @@ impl GetRelevantFilesController {
             result: GetRelevantFilesControllerResult::SearchResult(result),
         });
         Ok(())
-    }
-
-    fn handle_relevant_file_paths_result(
-        &mut self,
-        relevant_file_locations: anyhow::Result<Arc<HashSet<CodeContextLocation>>>,
-        action_id: AIAgentActionId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if self.pending_requests.remove(&action_id).is_none() {
-            return;
-        }
-        match relevant_file_locations {
-            Ok(relevant_file_locations) => {
-                ctx.emit(GetRelevantFilesControllerEvent::Success {
-                    action_id,
-                    result: GetRelevantFilesControllerResult::Locations(relevant_file_locations),
-                });
-            }
-            Err(e) => {
-                report_error!(anyhow!(e).context("get_relevant_files failed"));
-                ctx.emit(GetRelevantFilesControllerEvent::Error { action_id });
-            }
-        };
     }
 
     /// Returns the path to the root directory for a codebase search where pwd is `directory`.

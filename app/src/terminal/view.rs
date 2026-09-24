@@ -881,13 +881,6 @@ struct ShellProcessTerminatedBanner {
     was_premature_termination: bool,
 }
 
-#[derive(Debug, Clone)]
-pub enum AgentModePromptSuggestion {
-    Success(PromptSuggestion),
-    None,
-    Error,
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PromptSuggestion {
     pub id: String,
@@ -3220,7 +3213,6 @@ impl TerminalView {
             Input::new(
                 model.clone(),
                 resources.tips_completed.clone(),
-                resources.server_api.clone(),
                 sessions.clone(),
                 size_info,
                 menu_positioning_provider,
@@ -4581,14 +4573,14 @@ impl TerminalView {
 
             if should_show_execute_plan_suggestion && let Some(block) = self.last_ai_block() {
                 let block_id = BlockId::from(block.id().to_string());
-                let suggestion = AgentModePromptSuggestion::Success(PromptSuggestion {
+                let suggestion = PromptSuggestion {
                     id: Uuid::new_v4().to_string(),
                     label: Some("Execute this plan".to_string()),
                     prompt: "Execute this plan".to_string(),
                     coding_query_context: None,
                     static_prompt_suggestion_name: Some("EXECUTE_CREATED_PLAN".to_string()),
                     should_start_new_conversation: false,
-                });
+                };
 
                 self.on_legacy_prompt_suggestion_generated(suggestion, block_id, ctx);
             }
@@ -12914,63 +12906,55 @@ impl TerminalView {
 
     fn on_legacy_prompt_suggestion_generated(
         &mut self,
-        prompt_suggestion: AgentModePromptSuggestion,
+        suggestion: PromptSuggestion,
         block_id: BlockId,
         ctx: &mut ViewContext<TerminalView>,
     ) {
-        match prompt_suggestion {
-            AgentModePromptSuggestion::Success(suggestion) => {
-                if suggestion.prompt.is_empty() {
-                    return;
-                }
-
-                let banner_id = self.inline_banners_state.next_banner_id();
-
-                self.clear_prompt_suggestions(ctx);
-
-                // Don't show banner if is coding query
-                let is_coding_query =
-                    suggestion.is_coding_query() && Self::passive_code_diffs_enabled(ctx);
-                let static_prompt_suggestion_name =
-                    suggestion.static_prompt_suggestion_name.clone();
-                let _suggestion_id = suggestion.id.clone();
-
-                let trigger = {
-                    let model = self.model.lock();
-                    let Some(block_context) =
-                        block_context_from_terminal_model(&model, &block_id, false)
-                    else {
-                        return;
-                    };
-                    PassiveSuggestionTrigger::ShellCommandCompleted(ShellCommandCompletedTrigger {
-                        executed_shell_command: Box::new(block_context),
-                        relevant_files: vec![],
-                    })
-                };
-
-                let banner_state = PromptSuggestionBannerState {
-                    banner_id,
-                    prompt_suggestion: suggestion,
-                    accept_button_mouse_state: Default::default(),
-                    llm_warning_learn_more_hyperlink: Default::default(),
-                    should_hide: is_coding_query,
-                    trigger: Some(trigger),
-                    conversation_id: None,
-                };
-
-                self.inline_banners_state.prompt_suggestions_banner = Some(banner_state.clone());
-
-                self.input.update(ctx, |input, ctx| {
-                    input.set_prompt_suggestions_banner_state(Some(banner_state), ctx);
-                    input.notify_and_notify_children(ctx);
-                });
-
-                if let Some(_static_name) = static_prompt_suggestion_name {}
-
-                ctx.notify();
-            }
-            AgentModePromptSuggestion::None | AgentModePromptSuggestion::Error => {}
+        if suggestion.prompt.is_empty() {
+            return;
         }
+
+        let banner_id = self.inline_banners_state.next_banner_id();
+
+        self.clear_prompt_suggestions(ctx);
+
+        // Don't show banner if is coding query
+        let is_coding_query = suggestion.is_coding_query() && Self::passive_code_diffs_enabled(ctx);
+        let static_prompt_suggestion_name = suggestion.static_prompt_suggestion_name.clone();
+        let _suggestion_id = suggestion.id.clone();
+
+        let trigger = {
+            let model = self.model.lock();
+            let Some(block_context) = block_context_from_terminal_model(&model, &block_id, false)
+            else {
+                return;
+            };
+            PassiveSuggestionTrigger::ShellCommandCompleted(ShellCommandCompletedTrigger {
+                executed_shell_command: Box::new(block_context),
+                relevant_files: vec![],
+            })
+        };
+
+        let banner_state = PromptSuggestionBannerState {
+            banner_id,
+            prompt_suggestion: suggestion,
+            accept_button_mouse_state: Default::default(),
+            llm_warning_learn_more_hyperlink: Default::default(),
+            should_hide: is_coding_query,
+            trigger: Some(trigger),
+            conversation_id: None,
+        };
+
+        self.inline_banners_state.prompt_suggestions_banner = Some(banner_state.clone());
+
+        self.input.update(ctx, |input, ctx| {
+            input.set_prompt_suggestions_banner_state(Some(banner_state), ctx);
+            input.notify_and_notify_children(ctx);
+        });
+
+        if let Some(_static_name) = static_prompt_suggestion_name {}
+
+        ctx.notify();
     }
 
     /// Generates command corrections, if applicable.

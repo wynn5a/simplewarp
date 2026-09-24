@@ -29,7 +29,6 @@ use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::completer::SessionContext;
 #[cfg(feature = "local_fs")]
 use crate::persistence::{database_file_path_for_current_scope, establish_ro_connection};
-use crate::server::server_api::{AIApiError, ServerApi};
 use crate::settings::AISettings;
 use crate::terminal::event::UserBlockCompleted;
 use crate::terminal::input::{CompleterData, IntelligentAutosuggestionResult};
@@ -131,7 +130,6 @@ pub struct ZeroStateSuggestionInfo {
 pub struct NextCommandModel {
     sessions: ModelHandle<Sessions>,
     model: Arc<FairMutex<TerminalModel>>,
-    server_api: Arc<ServerApi>,
     #[cfg(feature = "local_fs")]
     conn: Option<Arc<Mutex<SqliteConnection>>>,
 
@@ -152,11 +150,7 @@ pub enum NextCommandModelEvent {
 }
 
 impl NextCommandModel {
-    pub fn new(
-        sessions: ModelHandle<Sessions>,
-        model: Arc<FairMutex<TerminalModel>>,
-        server_api: Arc<ServerApi>,
-    ) -> Self {
+    pub fn new(sessions: ModelHandle<Sessions>, model: Arc<FairMutex<TerminalModel>>) -> Self {
         #[cfg(feature = "local_fs")]
         let conn = database_file_path_for_current_scope()
             .to_str()
@@ -168,7 +162,6 @@ impl NextCommandModel {
         Self {
             sessions,
             model,
-            server_api,
             #[cfg(feature = "local_fs")]
             conn,
             next_command_state: NextCommandSuggestionState::None,
@@ -341,7 +334,6 @@ impl NextCommandModel {
         previous_result: Option<IntelligentAutosuggestionResult>,
         ctx: &mut ModelContext<Self>,
     ) {
-        let server_api = self.server_api.clone();
         let terminal_model = self.model.clone();
         let cached_next_command_context = self.cached_zerostate_next_command_context.clone();
 
@@ -440,11 +432,11 @@ impl NextCommandModel {
                                     previous_result,
                                 );
                                 return (
-                                    Ok(GenerateAIInputSuggestionsResponseV2 {
+                                    GenerateAIInputSuggestionsResponseV2 {
                                         commands: vec![most_likely_next_command.to_owned()],
                                         ai_queries: vec![],
                                         most_likely_action: most_likely_next_command.to_owned(),
-                                    }),
+                                    },
                                     request,
                                     false,
                                     start_ts_ms,
@@ -465,7 +457,7 @@ impl NextCommandModel {
                     // For zero-state next command suggestions, return the result immediately.
                     let Some(prefix) = prefix else {
                         return (
-                            generate_ai_input_suggestions_if_available(&server_api, &request).await,
+                            GenerateAIInputSuggestionsResponseV2::default(),
                             request,
                             true,
                             start_ts_ms,
@@ -481,11 +473,11 @@ impl NextCommandModel {
                     for reverse_chronological_command in reverse_chronological_potential_autosuggestions.unwrap_or_default() {
                         if is_command_valid(&reverse_chronological_command.command, completion_context.as_ref(), session_env_vars.as_ref()).await {
                             return (
-                                Ok(GenerateAIInputSuggestionsResponseV2 {
+                                GenerateAIInputSuggestionsResponseV2 {
                                     commands: vec![reverse_chronological_command.command.clone()],
                                 ai_queries: vec![],
                                 most_likely_action: reverse_chronological_command.command,
-                            }),
+                            },
                             request,
                             false,
                             start_ts_ms,
@@ -529,11 +521,11 @@ impl NextCommandModel {
                         if let Some(autosuggestion) = autosuggestion
                             && is_command_valid(&autosuggestion, Some(&completion_context), session_env_vars.as_ref()).await {
                                 return (
-                                    Ok(GenerateAIInputSuggestionsResponseV2 {
+                                    GenerateAIInputSuggestionsResponseV2 {
                                         commands: vec![autosuggestion.clone()],
                                     ai_queries: vec![],
                                     most_likely_action: autosuggestion,
-                                }),
+                                },
                                 request,
                                 false,
                                     start_ts_ms,
@@ -544,8 +536,10 @@ impl NextCommandModel {
                             }
                     };
 
-                    // Only if we have no commands from history and no completions, use the LLM to generate a partial suggestion.
-                    let response = generate_ai_input_suggestions_if_available(&server_api, &request).await;
+                    // Only if we have no commands from history and no completions would the LLM
+                    // have been asked for a partial suggestion. That request ran on Warp's server,
+                    // which no longer exists, so there is no suggestion here.
+                    let response = GenerateAIInputSuggestionsResponseV2::default();
                     (
                         response,
                         request,
@@ -565,7 +559,7 @@ impl NextCommandModel {
     fn on_next_command_suggestion_result(
         &mut self,
         result: (
-            Result<GenerateAIInputSuggestionsResponseV2, AIApiError>,
+            GenerateAIInputSuggestionsResponseV2,
             GenerateAIInputSuggestionsRequest,
             bool,
             i64,
@@ -577,7 +571,7 @@ impl NextCommandModel {
     ) {
         self.next_command_abort_handle = None;
         let (
-            result,
+            response,
             request,
             is_from_ai,
             start_ts_ms,
@@ -590,77 +584,46 @@ impl NextCommandModel {
         if request.prefix.is_none() {
             self.cached_zerostate_next_command_context = Some(next_command_context);
         }
-        match result {
-            Ok(response) => {
-                // An empty action is not a suggestion, so there is nothing to show and nothing to
-                // report. This is what a build with no Warp account produces, and it must not turn
-                // into a warning about a prefix that an empty string could never match.
-                if response.most_likely_action.is_empty() {
-                    return;
-                }
-                if let Some(prefix) = &request.prefix {
-                    if !response.most_likely_action.starts_with(prefix) {
-                        // This is not expected to happen because the server applies its own filtering,
-                        // but check just in case.
-                        log::warn!(
-                            "Next command suggestion `{}` does not start with prefix `{}`.",
-                            response.most_likely_action,
-                            prefix
-                        );
-                        return;
-                    }
-                } else {
-                    self.zerostate_suggestion_info = Some(ZeroStateSuggestionInfo {
-                        request: Box::new(request.clone()),
-                        response: response.clone(),
-                        request_duration_ms,
-                        is_from_ai,
-                        history_based_autosuggestion_state: history_based_autosuggestion_state
-                            .clone(),
-                    });
-                }
+        // An empty action is not a suggestion, so there is nothing to show and nothing to
+        // report. This is what a build with no Warp account produces, and it must not turn
+        // into a warning about a prefix that an empty string could never match.
+        if response.most_likely_action.is_empty() {
+            return;
+        }
+        if let Some(prefix) = &request.prefix {
+            if !response.most_likely_action.starts_with(prefix) {
+                // This is not expected to happen because the server applies its own filtering,
+                // but check just in case.
+                log::warn!(
+                    "Next command suggestion `{}` does not start with prefix `{}`.",
+                    response.most_likely_action,
+                    prefix
+                );
+                return;
+            }
+        } else {
+            self.zerostate_suggestion_info = Some(ZeroStateSuggestionInfo {
+                request: Box::new(request.clone()),
+                response: response.clone(),
+                request_duration_ms,
+                is_from_ai,
+                history_based_autosuggestion_state: history_based_autosuggestion_state.clone(),
+            });
+        }
 
-                self.next_command_state = NextCommandSuggestionState::Ready {
-                    request: Box::new(request),
-                    response,
-                    request_duration_ms,
-                    is_from_ai,
-                    is_from_cycle,
-                    history_based_autosuggestion_state,
-                };
-                ctx.emit(NextCommandModelEvent::NextCommandSuggestionReady);
-            }
-            Err(err) => {
-                log::error!("Failed to generate Next Command suggestion: {err:#}");
-            }
+        self.next_command_state = NextCommandSuggestionState::Ready {
+            request: Box::new(request),
+            response,
+            request_duration_ms,
+            is_from_ai,
+            is_from_cycle,
+            history_based_autosuggestion_state,
         };
+        ctx.emit(NextCommandModelEvent::NextCommandSuggestionReady);
     }
 }
 
 impl SingletonEntity for NextCommandModel {}
-
-/// Asks Warp's server for a next-command suggestion, unless this build has no Warp account.
-///
-/// These suggestions run on Warp's server, not on the user's own provider, so a build with no
-/// account has no source for them. The history-based suggestion earlier in the same function needs
-/// nothing but the user's own shell history, so it keeps working.
-///
-/// An empty reply means "no suggestion", and [`NextCommandModel::on_next_command_suggestion_result`]
-/// drops it without a word. Calling the server instead fails on the missing session and logs an
-/// error for something that can never succeed.
-async fn generate_ai_input_suggestions_if_available(
-    server_api: &ServerApi,
-    request: &GenerateAIInputSuggestionsRequest,
-) -> Result<GenerateAIInputSuggestionsResponseV2, AIApiError> {
-    if !crate::features::warp_account_available() {
-        return Ok(GenerateAIInputSuggestionsResponseV2 {
-            commands: Vec::new(),
-            ai_queries: Vec::new(),
-            most_likely_action: String::new(),
-        });
-    }
-    server_api.generate_ai_input_suggestions(request).await
-}
 
 /// Validates that the arg is valid given its type (e.g. filepath exists if it's a filepath arg).
 /// This uses a file system call, so this function should be called only in background threads.

@@ -50,8 +50,6 @@ use crate::context_chips::prompt_type::PromptType;
 use crate::context_chips::{self, ContextChipKind};
 use crate::features::FeatureFlag;
 use crate::network::NetworkStatus;
-#[cfg(feature = "voice_input")]
-use crate::server::server_api::TranscribeError;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
     PrivacySettingsChangedEvent,
@@ -143,8 +141,6 @@ pub struct AgentInputFooter {
     cli_voice_input_lifecycle: VoiceInputLifecycle,
     #[cfg(feature = "voice_input")]
     cli_recording_handle: Option<SpawnedFutureHandle>,
-    #[cfg(feature = "voice_input")]
-    cli_transcription_handle: Option<SpawnedFutureHandle>,
 
     /// Pending one-shot timer that refreshes the context-window button at the
     /// prompt-cache expiry instant so the notification dot appears while idle.
@@ -455,8 +451,6 @@ impl AgentInputFooter {
             cli_voice_input_lifecycle: VoiceInputLifecycle::default(),
             #[cfg(feature = "voice_input")]
             cli_recording_handle: None,
-            #[cfg(feature = "voice_input")]
-            cli_transcription_handle: None,
             prompt_cache_expiry_timer_handle: None,
             prompt_cache_expired: false,
         };
@@ -742,16 +736,11 @@ impl AgentInputFooter {
     #[cfg(feature = "voice_input")]
     fn stop_cli_voice_and_reset(&mut self, ctx: &mut ViewContext<Self>) {
         let lifecycle_state = self.cli_voice_input_lifecycle.state();
-        if lifecycle_state == VoiceInputLifecycleState::Idle
-            && self.cli_recording_handle.is_none()
-            && self.cli_transcription_handle.is_none()
+        if lifecycle_state == VoiceInputLifecycleState::Idle && self.cli_recording_handle.is_none()
         {
             return;
         }
         if let Some(handle) = self.cli_recording_handle.take() {
-            handle.abort();
-        }
-        if let Some(handle) = self.cli_transcription_handle.take() {
             handle.abort();
         }
         voice_input::VoiceInput::handle(ctx).update(ctx, |voice_input, _| {
@@ -855,78 +844,15 @@ impl AgentInputFooter {
         result: VoiceSessionResult,
         ctx: &mut ViewContext<Self>,
     ) {
-        use crate::editor::VoiceTranscriber;
         self.cli_recording_handle = None;
 
+        // Recording exists in this build, but transcription does not: there is no
+        // transcriber to send the audio to, so every session ends without text.
         match result {
-            VoiceSessionResult::Audio {
-                wav_base64,
-                session_duration_ms: _,
-            } => {
-                let voice_transcriber = VoiceTranscriber::as_ref(ctx);
-                if let Some(transcriber) = voice_transcriber.transcriber() {
-                    let transcriber = transcriber.clone();
-                    let language = AISettings::as_ref(ctx)
-                        .voice_input_language_code()
-                        .map(str::to_owned);
-                    if !self.cli_voice_input_lifecycle.begin_transcribing() {
-                        return;
-                    }
-
-                    voice_input::VoiceInput::handle(ctx).update(ctx, |voice, _| {
-                        voice.set_transcribing_active(true);
-                    });
-
-                    self.cli_transcription_handle = Some(ctx.spawn(
-                        async move { transcriber.transcribe(wav_base64, language).await },
-                        AgentInputFooter::apply_cli_transcribed_voice_input,
-                    ));
-                } else {
-                    self.cli_voice_input_lifecycle.fail();
-                }
-            }
-            VoiceSessionResult::Aborted { .. } => {
+            VoiceSessionResult::Audio { .. } | VoiceSessionResult::Aborted { .. } => {
                 self.cli_voice_input_lifecycle.fail();
             }
         }
-        self.update_cli_mic_button_state(ctx);
-        ctx.notify();
-    }
-
-    #[cfg(feature = "voice_input")]
-    fn apply_cli_transcribed_voice_input(
-        &mut self,
-        result: Result<String, TranscribeError>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !self.cli_voice_input_lifecycle.complete() {
-            return;
-        }
-
-        voice_input::VoiceInput::handle(ctx).update(ctx, |voice, _| {
-            voice.set_transcribing_active(false);
-        });
-
-        match result {
-            Ok(transcribed_text) => {
-                if !transcribed_text.is_empty() {
-                    ctx.emit(AgentInputFooterEvent::InsertIntoCLIPty(transcribed_text));
-                }
-            }
-            Err(e) => match e {
-                TranscribeError::QuotaLimit => {
-                    self.show_cli_voice_error_toast("Voice input limit reached", ctx);
-                }
-                _ => {
-                    report_error!(
-                        anyhow::Error::new(e).context("Failed to transcribe CLI voice input")
-                    );
-                    self.show_cli_voice_error_toast("Failed to transcribe voice input", ctx);
-                }
-            },
-        }
-
-        self.cli_transcription_handle = None;
         self.update_cli_mic_button_state(ctx);
         ctx.notify();
     }

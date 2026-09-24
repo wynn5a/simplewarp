@@ -140,10 +140,9 @@ impl TerminalManager for MockTerminalManager {
 #[cfg(test)]
 mod testing {
     use warpui::platform::WindowStyle;
-    use warpui::{App, Element, SingletonEntity};
+    use warpui::{App, Element};
 
     use super::*;
-    use crate::server::server_api::ServerApiProvider;
     use crate::terminal::ShellLaunchState;
     use crate::terminal::shell::{ShellName, ShellType};
 
@@ -174,13 +173,11 @@ mod testing {
             app: &mut App,
             restored_blocks: Option<&[SerializedBlockListItem]>,
         ) -> ViewHandle<TerminalView> {
-            let server_api = app.read(|ctx| ServerApiProvider::as_ref(ctx).get());
             let tips_model = app.add_model(|_| Default::default());
 
             let (window_id, _) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
                 let resources = TerminalViewResources {
                     tips_completed: tips_model,
-                    server_api,
                     model_event_sender: None,
                 };
                 let terminal_init = MockTerminalManager::create_model(

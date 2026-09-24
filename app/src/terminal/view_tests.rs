@@ -5626,14 +5626,14 @@ fn ctrl_c_does_not_accept_prompt_suggestion_banner() {
 
         terminal.update(&mut app, |view, ctx| {
             view.on_legacy_prompt_suggestion_generated(
-                AgentModePromptSuggestion::Success(PromptSuggestion {
+                PromptSuggestion {
                     id: "suggestion".to_owned(),
                     label: Some("Do something".to_owned()),
                     prompt: "Do something".to_owned(),
                     coding_query_context: None,
                     static_prompt_suggestion_name: None,
                     should_start_new_conversation: false,
-                }),
+                },
                 block_id.clone(),
                 ctx,
             );

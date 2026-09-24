@@ -14,7 +14,7 @@ use crate::ai::agent::api::{self, ConvertToAPITypeError, generate_multi_agent_ou
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{AIIdentifiers, CancellationReason};
 use crate::network::NetworkStatus;
-use crate::server::server_api::{AIApiError, ServerApiProvider};
+use crate::server::server_api::AIApiError;
 
 /// Maximum number of times a single MAA request is re-sent before the failure is
 /// surfaced.
@@ -314,9 +314,8 @@ impl ResponseStream {
         cancellation_rx: oneshot::Receiver<()>,
         ctx: &mut ModelContext<Self>,
     ) {
-        let server_api = ServerApiProvider::as_ref(ctx).get();
         let _ = ctx.spawn(
-            async move { generate_multi_agent_output(server_api, params, cancellation_rx).await },
+            async move { generate_multi_agent_output(params, cancellation_rx).await },
             move |me, stream, ctx| {
                 me.handle_response_stream_result(request_id, stream, ctx);
             },

@@ -13,11 +13,10 @@ use warpui::ui_components::button::ButtonTooltipPosition;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, SingletonEntity, ViewContext, ViewHandle, elements};
 
-use super::{EditorAction, EditorView, VoiceTranscriber, VoiceTranscriptionOptions};
+use super::{EditorAction, EditorView, VoiceTranscriptionOptions};
 use crate::ai::blocklist::InputType;
 use crate::appearance::Appearance;
 use crate::editor::EditorElement;
-use crate::server::server_api::TranscribeError;
 use crate::settings::{AISettings, VoiceInputToggleKey};
 use crate::themes::theme::Fill;
 use crate::ui_components::buttons::{icon_button, icon_button_with_color};
@@ -33,7 +32,6 @@ const NUM_TIMES_TO_SHOW_VOICE_NEW_FEATURE_POPUP: usize = 4;
 pub(super) struct VoiceInputState {
     lifecycle: VoiceInputLifecycle,
     recording_handle: Option<SpawnedFutureHandle>,
-    transcription_handle: Option<SpawnedFutureHandle>,
 }
 
 impl VoiceInputState {
@@ -174,10 +172,6 @@ impl EditorView {
         let mut state = self.voice_input_state.clone();
         if let Some(handle) = state.recording_handle.take() {
             log::debug!("Aborting voice input recording callback");
-            handle.abort();
-        }
-        if let Some(handle) = state.transcription_handle.take() {
-            log::debug!("Aborting voice input transcription");
             handle.abort();
         }
         state.lifecycle.cancel();
@@ -417,90 +411,14 @@ impl EditorView {
             return;
         }
 
-        let is_udi_enabled = crate::settings::InputSettings::handle(ctx)
-            .as_ref(ctx)
-            .is_universal_developer_input_enabled(ctx);
-        let current_input_mode = if self.is_ai_input {
-            InputType::AI
-        } else {
-            InputType::Shell
-        };
-
+        // Recording exists in this build, but transcription does not: there is no
+        // transcriber to send the audio to, so every session ends without text.
         match result {
-            VoiceSessionResult::Audio {
-                wav_base64,
-                session_duration_ms,
-            } => {
-                // Start transcription
-                let voice_transcriber = VoiceTranscriber::handle(ctx).as_ref(ctx);
-                if let Some(transcriber) = voice_transcriber.transcriber() {
-                    let transcriber = transcriber.clone();
-                    let language = AISettings::as_ref(ctx)
-                        .voice_input_language_code()
-                        .map(str::to_owned);
-                    if !state.lifecycle.begin_transcribing() {
-                        return;
-                    }
-
-                    VoiceInput::handle(ctx).update(ctx, |voice, _| {
-                        voice.set_transcribing_active(true);
-                    });
-
-                    state.transcription_handle = Some(ctx.spawn(
-                        async move { transcriber.transcribe(wav_base64, language).await },
-                        EditorView::apply_transcribed_voice_input,
-                    ));
-                    self.set_voice_input_state(state, ctx);
-                } else if state.lifecycle.fail() {
-                    self.set_voice_input_state(state, ctx);
-                }
-            }
-            VoiceSessionResult::Aborted {
-                session_duration_ms,
-            } => {
-                log::info!("Aborted listening for voice input");
-
+            VoiceSessionResult::Audio { .. } | VoiceSessionResult::Aborted { .. } => {
                 if state.lifecycle.fail() {
                     self.set_voice_input_state(state, ctx);
                 }
             }
-        }
-        ctx.notify();
-    }
-
-    fn apply_transcribed_voice_input(
-        &mut self,
-        result: Result<String, TranscribeError>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !self.voice_transcription_options.is_enabled() {
-            self.stop_transcribing_voice_input(ctx);
-            return;
-        }
-
-        let mut state = self.voice_input_state.clone();
-        if !state.lifecycle.complete() {
-            return;
-        }
-        state.transcription_handle = None;
-        VoiceInput::handle(ctx).update(ctx, |voice, _| voice.set_transcribing_active(false));
-        self.set_voice_input_state(state, ctx);
-        match result {
-            Ok(transcribe_response) => {
-                log::debug!("Transcribed voice input: {transcribe_response:?}");
-                self.user_insert(&transcribe_response, ctx);
-            }
-            Err(e) => match e {
-                TranscribeError::QuotaLimit => {
-                    self.voice_error_toast(super::VOICE_LIMIT_HIT_TOAST_TEXT, ctx)
-                }
-                _ => {
-                    report_error!(
-                        anyhow::Error::new(e).context("Failed to transcribe voice input")
-                    );
-                    self.voice_error_toast(super::VOICE_ERROR_TOAST_TEXT, ctx)
-                }
-            },
         }
         ctx.notify();
     }

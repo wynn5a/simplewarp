@@ -43,7 +43,6 @@ use crate::pane_group::{NewTerminalOptions, PanesLayout};
 use crate::persistence::ModelEvent;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::auth::UserAuthenticationError;
-use crate::server::server_api::{ServerApi, ServerApiProvider};
 use crate::settings::QuakeModeSettings;
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::settings_view::{SettingsSection, flags};
@@ -1386,7 +1385,6 @@ pub(crate) fn has_completed_local_onboarding(ctx: &AppContext) -> bool {
 
 pub struct RootView {
     workspace: ViewHandle<Workspace>,
-    pub server_api: Arc<ServerApi>,
     pub model_event_sender: Option<SyncSender<ModelEvent>>,
 }
 
@@ -1401,9 +1399,6 @@ impl RootView {
         UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
             user_workspaces.register_window(window_id, team_uid, ctx);
         });
-        let server_api_provider = ServerApiProvider::as_ref(ctx);
-        let server_api = server_api_provider.get();
-
         ctx.subscribe_to_model(&AuthManager::handle(ctx), |me, _, event, ctx| {
             me.handle_auth_manager_event(event, ctx);
         });
@@ -1418,7 +1413,6 @@ impl RootView {
         // directly in the workspace.
         Self {
             workspace: workspace_args.create_workspace(ctx),
-            server_api: server_api.clone(),
             model_event_sender,
         }
     }

@@ -11413,3 +11413,218 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       `Err(local_only_error())` stub walls + their callers, then the
       `Arc<ServerApi>` plumbing dissolution into ServerApiProvider
       accessors; cloud_objects/warp_graphql endgame thereafter.
+
+- [x] **the fold slice 5 tail — AI stub walls + ServerApi plumbing
+      dissolves (4fj) — DONE 2026-09-23.** Executed the 4ff SLICE 5:
+      the four `Err(local_only_error())` walls fall together with
+      their caller chains, `ServerApi` dissolves into
+      `ServerApiProvider`, and the `Arc<ServerApi>` threading across
+      the 9 files is gone. 37 files, 141 insertions(+), 1,114
+      deletions(−) — net −973; 12 files deleted outright
+      (server/voice_transcriber.rs, voice/{mod,transcriber}.rs,
+      ai/voice/ + transcribe/api/ (4 files),
+      ai/predict/generate_am_query_suggestions{,/api/} (4 files),
+      ai/get_relevant_files/api.rs).
+
+      PER-WALL CALLER-CHAIN EVIDENCE AND DISPOSITIONS. Every stub
+      was an unconditional `Err` in every feature set, so each
+      server feature could only ever fail locally; per the
+      4cc/4cf precedents the caller's guaranteed outcome was kept
+      where a consumer still needs an answer, and the whole chain
+      died where nothing local could answer.
+      * transcribe — ServerVoiceTranscriber (the ONLY Transcriber
+        impl) → VoiceTranscriber singleton → two consumers:
+        editor voice dictation (voice.rs handle_voice_session_result)
+        and CLI-agent dictation (agent_input_footer
+        handle_cli_voice_session_result). Both consumers already
+        had a `transcriber() == None` degrade path
+        (`lifecycle.fail()`), so the collapse deletes the trait +
+        singleton + ServerVoiceTranscriber + both
+        apply_transcribed_* callbacks + the
+        VoiceInputState/cli_transcription_handle transcription
+        handles, and both session handlers now send every
+        VoiceSessionResult (Audio or Aborted) to the fail path that
+        the None branch always produced. The genuinely local half
+        is KEPT: the voice_input crate recording (mic buttons,
+        lifecycle UI, VoiceInput singleton, settings, limit toasts)
+        is untouched — recording still works, it simply can no
+        longer produce text because nothing could ever transcribe
+        it. Downstream: TranscribeError, crate::ai::voice
+        (TranscribeRequest/Response/Provider), the editor re-export
+        `Transcriber, VoiceTranscriber`, and the un-gated
+        lib.rs registration all fall.
+      * get_relevant_files — controller.rs send_local_request
+        Complete-outline arm: <2 files → local WholeFile Success
+        (kept verbatim); >=2 files → server ranking → always
+        `Err(local_only_error())` → report_error + Error event. The
+        agent-facing guaranteed outcome was the Error event, so the
+        else-branch now emits `Error { action_id }` synchronously;
+        the report_error of the stub error, the spawned future,
+        handle_relevant_file_paths_result, the outline_request
+        building, and get_relevant_files/api.rs types all die. The
+        `>= 2` const is renamed
+        MINIMUM_FILE_COUNT_FOR_API_CALL →
+        WHOLE_REPO_SUGGESTION_FILE_LIMIT. pending_requests/cancel
+        machinery stays (search_codebase.rs calls
+        cancel_request_for_action). The remote (SSH) half is
+        untouched.
+      * generate_am_query_suggestions — passive_suggestions/legacy
+        generate_prompt_suggestions: static-suggestion half (local,
+        kept) vs server fetch (dies). The `warp_account_available()`
+        early-return, request building, spawned fetch, error arm
+        (report_error + `AgentModePromptSuggestion::Error`),
+        build_prompt_suggestions_request, map_prompt_suggestions_
+        response, and the never-again-set
+        prompt_suggestions_future_handle all die;
+        4ff's "whole file likely falls" was WRONG — the unit-test
+        suggestion (git diff + BYOK controller) and passive code
+        diff (BYOK) halves are live local behavior and stay. The
+        module ai/predict/generate_am_query_suggestions{,/api/} had
+        no other consumers and falls. Cascade: the stub error was
+        the ONLY producer of `AgentModePromptSuggestion::Error`,
+        and map_prompt_suggestions_response the only producer of
+        `::None`, so the enum collapses to its inner
+        PromptSuggestion (terminal/view.rs definition, the
+        execute-plan construction site, on_legacy_prompt_suggestion_
+        generated match → direct body, view_tests call site).
+      * generate_ai_input_suggestions — next_command_model
+        generate_ai_input_suggestions_if_available (with its
+        warp_account_available guard) dies; the zero-state and
+        prefix-fallback call sites return
+        GenerateAIInputSuggestionsResponseV2::default() (exactly
+        what the guard produced in local_only builds), the always-Ok
+        Result in the 7-tuple is flattened, and the Err arm's
+        log::error dies. NextCommandModel loses server_api;
+        Input::new and TerminalViewResources lose the param. The
+        history-based suggestion logic (the genuinely local half)
+        is untouched.
+
+      SERVERAPI DISSOLUTION SHAPE. Option A from the task: the
+      struct VANISHES with its members moving into
+      ServerApiProvider = { http_client: Arc<http_client::Client>,
+      auth_client: Arc<dyn AuthClient> }. ServerApi::new's
+      NetworkLogConsole hook install now runs at the top of
+      ServerApiProvider::new (still inside provider construction,
+      after NetworkLogModel registration — landmine 4 intact); the
+      same Arc feeds AuthClientImpl and get_http_client() (7 sites,
+      signatures unchanged: persisted_workspace ×4, init_project
+      ×2, load_ai_conversation ×1), so the network-log taps still
+      see GraphQL traffic. `get()` is deleted; get_auth_client() (3
+      sites: auth_manager, remote_server_controller, lib.rs) and
+      new_for_test are reshaped with identical wiring. The
+      Arc<ServerApi> plumbing dies in root_view (field),
+      workspace/view (field + 3 PaneGroup ctor args),
+      pane_group/mod (PaneGroup field, TerminalViewResources field,
+      4 ctor params, new_internal, 3 resources clones),
+      terminal/view (Input::new arg), terminal/input (Input::new
+      param + NextCommandModel::new), mock_terminal_manager,
+      docker_sandbox, testing.rs, response_stream
+      (generate_multi_agent_output loses its dead `server_api`
+      param — it has run on local_inference since the BYOK move,
+      `let _ = &server_api;` included), and the dead
+      ai/agent/api/impl.rs field. AuthEvent subscribers are
+      attached IDENTICALLY (landmine 3): the pump body is
+      byte-identical and the three subscribers
+      (workspace/view observe_server_api, remote_server/mod,
+      mcp templatable_manager/native) are untouched — two of the
+      three files have no diff at all.
+
+      ORPHANS CHECKED AND DELETED: local_only_error +
+      LOCAL_ONLY_MESSAGE (last producers were the stubs),
+      TranscribeError (last consumers were the deleted voice
+      apply-paths), AIApiError::NoContextFound (verified ZERO
+      producers already at HEAD — only match arms; deleted with its
+      agent/mod.rs arm). Checked and KEPT: all other AIApiError
+      variants (live via local inference/response_stream/agent
+      rendering), DeserializationError, the
+      GenerateAIInputSuggestions types (they type the local
+      history-path state), HistoryContext/NextCommandContext.
+
+      Deliberately left: the CLOUD_OBJECTS/WARP_GRAPHQL ENDGAME —
+      orchestrator scopes the survey next; NOT started here (cloud
+      objects ~1,900 lines + the graphql type half fall only as
+      their consumers fall; terminal warp_graphql = schema +
+      get_user + client.rs + scalars stays alive as
+      warp_server_auth's identity dependency). Also left: the
+      next-command LOCAL path's request assembly
+      (create_generate_ai_input_suggestions_request +
+      get_context_messages + NextCommandContext.context_messages/
+      ai_execution_context) — the assembled request is stored in
+      NextCommandSuggestionState/ZeroStateSuggestionInfo but never
+      read (its consumer was the server body); removing it cascades
+      into WarpAiExecutionContext plumbing through input.rs and is
+      local-path churn, not a stub wall — follow-up candidate. The
+      AuthEvent pump's comments still mention `ServerApi` (logic
+      unchanged, kept byte-identical). The logging-and-ERROR-
+      reporting SKILL.md path (left in 4fi, orchestrator call).
+
+      Local-only safety: zero behavior change for any locally
+      runnable feature. Every collapsed caller now produces exactly
+      what its stub-fed code path always produced: voice sessions
+      end in the lifecycle fail path (the toast the stub error
+      raised died with the stub), large-repo search returns the
+      Error event the agent already always received, prompt
+      suggestions are static-only (server suggestions never
+      succeeded), next-command falls back to the empty response the
+      local_only guard already returned. Login flow untouched:
+      AuthClientImpl/AuthSession/fetch_user/refresh_user/Reauth/
+      auth-redirect intake all byte-identical; AuthEvent pump and
+      all three subscribers unchanged; network-log pane machinery
+      (registration order, hook install on the one shared client)
+      unchanged; BYOK agent paths (local_inference, blocklist
+      controller streams) only lost a dead parameter.
+
+      Acceptance: clippy baselines captured at HEAD FIRST in both
+      configs (12 primary-span message|location pairs each: 11
+      needless-return in terminal/input.rs + 1 single-element-loop
+      in lifecycle/mod_tests.rs:272); post-edit re-runs are
+      warning-IDENTICAL in both configs except the 11 input.rs
+      needless-return warnings, which sit 3 lines higher (10642 →
+      10639 … 10717 → 10714) because this round deleted 3 lines of
+      server_api plumbing INSIDE input.rs above them — same 12
+      warnings, same messages, zero new or removed. Check suite 0
+      errors: `check -p warp --lib --all-targets` default + 
+      simplewarp (0 warnings at all), `--no-default-features
+      --features simplewarp --bin simplewarp`, `--bin warp-oss`,
+      `--all-targets -p integration` (only the two pre-existing
+      step.rs unused-import warnings), `check -p warp --lib --tests
+      --features skip_login`, `check -p warp_server_auth
+      --all-targets`, and the forwarding hand-checks: `--features
+      agent_mode_evals` (0 errors, 5 warnings = its 4fi baseline:
+      3 dead-code + 2 step.rs, line-shifted) and `--features
+      voice_input` for the de-gated voice edits — that gate was
+      ALREADY broken at HEAD (2 byte-identical pre-existing errors
+      in agent_input_footer's subscribe closure: undeclared
+      CLIAgentSessionsModelEvent + missing `me`, both present
+      verbatim in the HEAD file); this round's voice code compiles
+      clean under it and removes two of its pre-existing unused-
+      variable warnings. `./script/format` run twice: idempotent,
+      no diff beyond the round's own edits. Nextest `-p warp --lib
+      --no-fail-fast`: default 4,614 run / 4,614 passed / 3 skipped
+      / 0 failed; simplewarp 4,613 run / 4,613 passed / 3 skipped /
+      0 failed — EXACTLY the post-4fi baseline, no deltas, no
+      flake. Disk healthy throughout (47GB free at round start and
+      after; no stale-executable cleanup, no cargo clean). Runtime
+      smoke SKIPPED per the 2026-09-23 convention (user away, macOS
+      password prompt unanswerable); no binary launched — cargo
+      check/clippy/nextest builds only.
+
+      FOLD COMPLETION VERDICT (4ca item 8). DONE: network_logging
+      moved into the app (4fg); the ids/drive shims fell and
+      BaseClient dissolved into AuthClientImpl + a client-only
+      ServerApi (4fh); warp_server_client + firebase fell and the
+      auth half became warp_server_auth, the single identity crate
+      (4fi); and now the four AI stub walls + their caller chains
+      are deleted and ServerApi is dissolved — ServerApiProvider IS
+      the network surface: {get_http_client, get_auth_client} + the
+      AuthEvent pump. warp_server_auth stays as local identity;
+      the local warp-server login flow is intact. REMAINING of
+      item 8: the ENDGAME only — cloud_objects (≈1,900 lines, ~100
+      importer files) and the warp_graphql type half fall as their
+      consumers fall (workspaces/pricing/cloud_object/drive);
+      terminal warp_graphql = schema + get_user + client.rs +
+      scalars stays alive for as long as login remains a dev-bin
+      feature. DESIGNATED NEXT: the endgame survey (plan-only,
+      4ff-style scope record of cloud_objects + warp_graphql type
+      consumers) — do NOT start deleting cloud_objects/warp_graphql
+      in the survey round.
