@@ -330,13 +330,9 @@ pub enum ModelEvent {
     SaveBlock(BlockCompleted),
     DeleteBlocks(Vec<u8>),
     Snapshot(AppState),
-    UpsertWorkflows(Vec<CloudWorkflow>),
-    UpsertNotebooks(Vec<CloudNotebook>),
-    UpsertFolders(Vec<CloudFolder>),
     UpsertGenericStringObject {
         object: Box<dyn CloudStringObject>,
     },
-    UpsertGenericStringObjects(Vec<Box<dyn CloudStringObject>>),
     UpsertNotebook {
         notebook: CloudNotebook,
     },

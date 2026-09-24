@@ -16,7 +16,7 @@ use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::{CloudViewModel, Editor, EditorState};
-use crate::cloud_object::{OpenWarpDriveObjectSettings, Owner, ServerNotebook};
+use crate::cloud_object::{OpenWarpDriveObjectSettings, Owner};
 use crate::editor::{DisplayPoint, EditorAction, SelectAction};
 use crate::network::NetworkStatus;
 use crate::notebooks::active_notebook_data::Mode;
@@ -134,22 +134,11 @@ fn cloud_notebook(title: impl Into<String>, data: impl Into<String>) -> CloudNot
     )
 }
 
-/// Upsert server notebooks into the cloud model so that tests requiring
-/// "up-to-date" notebooks can run.
-async fn initial_load(app: &mut App, updated_notebooks: impl Into<Vec<ServerNotebook>>) {
-    CloudModel::handle(app).update(app, |cloud_model, ctx| {
-        for notebook in updated_notebooks.into() {
-            cloud_model.upsert_from_server_notebook(notebook, ctx);
-        }
-    });
-}
-
 /// Test that command-block execution events are correctly translated into workflows.
 #[test]
 fn test_command_block_dispatches_event() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
-        initial_load(&mut app, []).await;
 
         let (window, notebook, root) = create_notebook(&mut app);
         open_notebook(
@@ -218,7 +207,6 @@ echo hello
 fn test_focus_tracking() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
-        initial_load(&mut app, []).await;
 
         let (window, notebook, root) = create_notebook(&mut app);
         open_notebook(
@@ -308,10 +296,6 @@ fn test_no_eager_baton_grab_without_initial_load() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        // Seed the cloud model the way the old initial-load helper did; it no
-        // longer resolves any load gate.
-        initial_load(&mut app, vec![]).await;
-
         let (_, notebook_view, _) = create_notebook(&mut app);
         let mut cloud_notebook = cloud_notebook("Test Notebook", r#"A notebook"#);
 
@@ -351,9 +335,6 @@ fn test_no_eager_baton_grab_without_initial_load() {
 fn test_not_eager_baton_grab_different_editor() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
-
-        // Seed the cloud model the way the old initial-load helper did.
-        initial_load(&mut app, vec![]).await;
 
         let uid = "ian@warp.dev".to_string();
         let email = "ian@warp.dev".to_string();

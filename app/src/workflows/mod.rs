@@ -219,10 +219,6 @@ impl CloudModelType for CloudWorkflowModel {
         }
     }
 
-    fn bulk_upsert_event(objects: Vec<CloudObjectUpsertParams<Self>>) -> ModelEvent {
-        ModelEvent::UpsertWorkflows(objects.into_iter().map(CloudWorkflow::from).collect())
-    }
-
     fn should_update_after_server_conflict(&self) -> bool {
         true
     }

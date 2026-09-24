@@ -69,10 +69,6 @@ impl CloudModelType for CloudNotebookModel {
         }
     }
 
-    fn bulk_upsert_event(objects: Vec<CloudObjectUpsertParams<Self>>) -> ModelEvent {
-        ModelEvent::UpsertNotebooks(objects.into_iter().map(CloudNotebook::from).collect())
-    }
-
     fn should_update_after_server_conflict(&self) -> bool {
         true
     }

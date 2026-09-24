@@ -39,10 +39,6 @@ impl CloudModelType for CloudFolderModel {
         }
     }
 
-    fn bulk_upsert_event(objects: Vec<CloudObjectUpsertParams<Self>>) -> ModelEvent {
-        ModelEvent::UpsertFolders(objects.into_iter().map(CloudFolder::from).collect())
-    }
-
     fn should_update_after_server_conflict(&self) -> bool {
         false
     }

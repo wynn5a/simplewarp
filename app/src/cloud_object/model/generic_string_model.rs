@@ -196,19 +196,6 @@ where
         self.string_model.can_export()
     }
 
-    fn bulk_upsert_event(objects: Vec<CloudObjectUpsertParams<Self>>) -> ModelEvent {
-        ModelEvent::UpsertGenericStringObjects(
-            objects
-                .into_iter()
-                .map(|params| {
-                    Box::new(GenericCloudObject::<GenericStringObjectId, Self>::from(
-                        params,
-                    )) as Box<dyn CloudStringObject>
-                })
-                .collect(),
-        )
-    }
-
     fn should_clear_on_unique_key_conflict(&self) -> bool {
         self.string_model.should_clear_on_unique_key_conflict()
     }

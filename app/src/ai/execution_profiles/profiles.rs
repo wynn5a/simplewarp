@@ -1875,9 +1875,8 @@ impl AIExecutionProfilesModel {
     /// Reconcile model state with `CloudModel` once an initial bulk load
     /// completes.
     ///
-    /// The initial load path (`update_objects_from_initial_load`) inserts
-    /// cloud objects into `CloudModel` *without* emitting per-object
-    /// `ObjectCreated` events — it emits a single
+    /// The initial load path inserts cloud objects into `CloudModel` *without*
+    /// emitting per-object `ObjectCreated` events — it emits a single
     /// `CloudModelEvent::InitialLoadCompleted` afterward instead. That means
     /// our normal `handle_ai_execution_profile_created` handler never fires
     /// for execution profiles that arrived via initial load, and the model

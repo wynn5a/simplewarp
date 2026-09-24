@@ -12044,3 +12044,209 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       stands in. DESIGNATED NEXT: slice 2a exactly as scoped in
       the 4fk plan (CloudModel server-intake + server-half
       tests, ≈−700, half of it tests).
+
+- [x] **endgame slice 2a — CloudModel server-intake half (4fm) —
+      DONE 2026-09-24.** Executed the 4fk SLICE 2A: the nine
+      server-intake functions on CloudModel, their test halves,
+      and the one-hop orphans that surfaced (the bulk_upsert_event
+      trait method + its ModelEvent variants) — 17 files changed,
+      132 insertions(+), 674 deletions(−), net −542 (no whole
+      file deleted; 4fk's ≈−700 estimate assumed deleting the
+      server-half test files, but nearly all of those tests were
+      LOCAL migration/scoring tests that got re-seeded instead —
+      the "largest test rewrite" the 4fk predicted).
+
+      PER-FUNCTION VERIFICATION (all at HEAD 2ccd869df,
+      pre-delete; repo-wide PCRE call-syntax sweep
+      `\.NAME\s*\(` plus qualified-path form). Every intake
+      function had ZERO production callers — the server halves
+      that fed them died in earlier rounds (4fl confirmed). Only
+      test callers remained:
+      (1) `upsert_from_server_object` — profiles_tests.rs ×15,
+      data_source_tests.rs ×6, the in-file wrappers, and the
+      cfg(test) `update_objects`; DELETED.
+      (2) `upsert_from_server_object_internal` — only caller
+      `update_objects_from_initial_load` (itself falling);
+      DELETED.
+      (3) `update_cloud_object_if_exists` — only callers were
+      (1) and (2); DELETED.
+      (4) `upsert_from_server_notebook` — only
+      `upsert_from_server_cloud_object` + model_tests.rs:244 +
+      notebook_tests.rs:142; DELETED.
+      (5) `upsert_from_server_cloud_object` — the ServerCloudObject
+      dispatcher had ZERO callers repo-wide (not even tests);
+      DELETED.
+      (6) `upsert_from_server_folder` — only the dispatcher;
+      DELETED.
+      (7) `upsert_from_server_workflow` — only the dispatcher;
+      DELETED.
+      (8) `update_objects_from_initial_load` (bulk equivalent 1)
+      — only profiles_tests.rs:325/721/1033 + a doc-comment
+      mention in profiles.rs (comment fixed); DELETED.
+      (9) `#[cfg(test)] update_objects` (bulk equivalent 2, the
+      4fk's pre-4fl :1662-1749 block) — only
+      model_tests.rs:271/272; DELETED.
+
+      LIVE-SHAPE TRAPS: none — no intake function was reachable
+      from live code. One pre-existing deadness surfaced: 
+      `CloudModelEvent::InitialLoadCompleted` has no production
+      emitter at HEAD (only profiles_tests emits it — kept, the
+      rewrites need it); this is NOT newly orphaned (it was
+      already emitter-less before this round) and its 6 subscriber
+      arms stay; recorded under next-candidates.
+
+      ONE-HOP CONSEQUENCES RESOLVED IN THIS ROUND. (1)
+      `GenericCloudObject::update_from_server_object`
+      (crates/cloud_objects/generic_cloud_object.rs) — only caller
+      was `update_cloud_object_if_exists`; DELETED. It was the
+      last PRODUCER of `ConflictStatus::ConflictingChanges`; per
+      landmine 8 the state machine stays (field, enum,
+      has_conflicting_changes with its live reader
+      active_notebook_data.rs:271, and the trait consumers
+      conflicting_object_revision/clear_conflict_status/
+      replace_object_with_conflict). (2)
+      `maybe_open_welcome_folder` — only caller was
+      update_objects_from_initial_load; DELETED, cascading to
+      drive/mod.rs `should_auto_open_welcome_folder` +
+      `write_has_auto_opened_welcome_folder_to_user_defaults`
+      (zero other callers) and the orphaned
+      `HAS_AUTO_OPENED_WELCOME_FOLDER` const in drive/settings.rs;
+      chain dead end-to-end. (3) `create_object_internal` — its
+      "used during initial load" purpose vanished; inlined into
+      `create_object` (create_object itself keeps live callers:
+      UpdateManager, drive index tests, catalog tests). (4)
+      `CloudModelType::bulk_upsert_event` + its 4 impls
+      (folders.rs, notebooks/mod.rs, workflows/mod.rs,
+      generic_string_model.rs) — the ONLY call site in the
+      workspace was the falling cfg(test) `update_objects`;
+      DELETED, cascading to the 4 `ModelEvent` variants it built —
+      UpsertWorkflows/UpsertNotebooks/UpsertFolders/
+      UpsertGenericStringObjects — whose only constructors those
+      impls were; variants + their 4 sqlite handler arms deleted
+      in the same edit set (exhaustive-match safe; the singular
+      Upsert* variants and the upsert_workflows/notebooks/folders/
+      generic_string_objects sqlite helpers stay, still fed by the
+      singular events; `From<CloudObjectUpsertParams>` stays, fed
+      by the singular impls). (5) the app re-export
+      `pub use cloud_object_models::{ServerCloudObject,
+      ServerFolder, ServerNotebook, ServerWorkflow}`
+      (app/src/cloud_object/mod.rs) — unused after the dispatcher
+      died; removed, repointing notebooks/editor/model_tests.rs to
+      `cloud_object_models::ServerWorkflow` directly (front-runs
+      the 2b re-export item; the cloud_object_models side of the
+      aliases stays for 2b).
+
+      TEST HANDLING (delete vs rewrite, per the 4fk "keep the
+      local halves green"). model_tests.rs: deleted
+      `test_update_with_deleted_objects` (the round's ONLY test
+      deletion; 9→8) — it exercised the intake machinery itself
+      (upsert_from_server_notebook + update_objects
+      reconciliation) — plus its 4 orphaned server-mock helpers
+      (mock_server_metadata/mock_server_permissions/
+      mock_server_workflows/mock_server_notebooks) and the
+      chrono::Utc/ServerMetadata/ServerPermissions/
+      NumInFlightRequests/CloudWorkflowModel imports. The other 8
+      local tests untouched. data_source_tests.rs: both
+      RulesDataSource scoring tests KEPT; seeding rewritten from
+      the ServerAIFact alias + upsert_from_server_object to
+      locally-constructed `CloudAIFact` (GenericCloudObject::new
+      with a hand-built CloudObjectMetadata carrying the same
+      revision timestamps that drive the scoring) + `add_object`.
+      profiles_tests.rs: all 17 tests KEPT (they test LOCAL
+      migration logic); seeding rewritten to `add_object` of
+      locally-constructed `CloudAIExecutionProfile`/`CloudPreference`;
+      owned_legacy_profile dropped its ServerMetadata-only
+      metadata_id param; tests whose old upsert seeding relied on
+      the created-handler's Unsynced→Synced transition now emit
+      `CloudModelEvent::InitialLoadCompleted` after seeding to
+      drive the equivalent reconcile_with_cloud_state_after_
+      initial_load transition (the event stream production
+      actually produces for initial-load objects; verified
+      handle_ai_execution_profile_created and the reconcile
+      handler perform the same state transitions), while tests
+      that used the events-free update_objects_from_initial_load
+      were re-seeded without any emit, preserving each test's
+      original event semantics; the reconciles_... doc comment's
+      reference to the deleted function name reworded.
+      notebook_tests.rs: the `initial_load` helper was vestigial —
+      all 4 call sites passed EMPTY vectors (no-ops with comments
+      already saying so); helper + call sites + ServerNotebook
+      import deleted, 5 tests kept. Final PCRE sweep over every
+      deleted name: zero references remain.
+
+      Deliberately left (per the 4fk plan): SLICE 2b —
+      GenericServerObject (server_object.rs; ConflictStatus
+      stays), the remaining 13 Server* aliases in
+      cloud_object_models, server_cloud_object.rs (NOTE: its last
+      consumer, upsert_from_server_cloud_object, died this round —
+      2b just gets smaller, same as creation.rs after 4fl), the
+      cloud_object/mod.rs TryFrom wall (:786-1017) + :228-262 gql
+      ObjectType conversions, and GenericCloudObject::new_from_
+      server + CloudObjectMetadata/CloudObjectPermissions::
+      new_from_server (they keep ONE out-of-scope test caller, the
+      mock_server_workflow helper in notebooks/editor/
+      model_tests.rs:1860, which falls with 2b's Server* types).
+      SLICE 3a — app conversion walls + pricing (PricingInfoModel
+      verified NOT intake-shaped this round: a standalone
+      always-None singleton model with no gql/intake entanglement
+      — untouched). SLICE 3b — warp_graphql dead modules. SLICE 4
+      — schema crate fold. Also untouched by design:
+      UpdateManager's local write paths, the login flow, sqlite
+      schema/migrations, ConflictStatus state machine.
+
+      NEXT CANDIDATES (beyond the planned slices): (a) slice 2b
+      exactly as scoped above — DESIGNATED NEXT; (b) a follow-up
+      micro-slice candidate: CloudModelEvent::InitialLoadCompleted
+      (variant + its 6 subscriber arms at cloud_object/model/
+      view.rs:357, cloud_environments/catalog.rs:40, ai_document_
+      model.rs:402, execution_profiles/profiles.rs:399/1868,
+      drive/index.rs:1113) — emitter-less in production at HEAD;
+      requires rewriting the 3 profiles_tests tests that emit it
+      by hand to drive the reconcile handler directly; do it with
+      or after 2b/3a; (c) step.rs cosmetic: the AuthEvent-pump
+      comments (4fk landmine 12) still pending, not this endgame.
+
+      Local-only safety: every deletion is a zero-production-
+      caller function, a constructor-less event variant with its
+      handler arm, or a cfg(test) helper — no reachable runtime
+      path changed. UpdateManager's local write paths (upsert_
+      event/bulk_upsert_event CONSTRUCTORS were never touched —
+      note `bulk_upsert_event` the trait METHOD was only ever
+      called from the deleted test helper; UpdateManager sends
+      the singular `upsert_event`, which stays) untouched; sqlite
+      schema.rs and migrations untouched (verified: no schema or
+      migration file in the diff; the cloud_objects_refreshes
+      table and sync-retry columns keep their no-migration
+      status); the local warp-server login flow (AuthClientImpl →
+      GetUser) untouched; persisted serde shapes never routed
+      through the falling types (Owner/Revision/ids serde, the
+      serde formats list in landmine 1 — all stay; the deleted
+      ModelEvent variants were write-only events, not persisted
+      shapes), so no stored bytes change. The rewritten tests
+      assert identical end states: default nextest pass counts
+      differ from baseline by exactly the 1 deleted test.
+
+      Acceptance: (1) clippy baseline diff — captured FIRST at
+      HEAD in both configs (12 warnings each, sort -u pairs:
+      11 needless-return in terminal/input.rs at identical lines +
+      1 single-element-loop in terminal/model/lifecycle/
+      mod_tests.rs:272; input.rs untouched all round); post-change
+      runs are WARNING-IDENTICAL to baseline in BOTH the default
+      and `--no-default-features --features simplewarp` configs
+      (12 = 12, machine-diffed on location+message pairs). (2)
+      cargo check suite 0 errors: -p warp --lib --all-targets
+      default AND simplewarp; --no-default-features --features
+      simplewarp --bin simplewarp; --bin warp-oss; --all-targets
+      -p integration (shows only the 2 pre-existing
+      integration_testing/input/step.rs unused-import warnings);
+      -p warp --lib --tests --features skip_login; -p
+      cloud_objects --all-targets. (3) ./script/format — ran
+      twice, idempotent, the 17-file working tree is already in
+      formatted state. (4) nextest -p warp --lib --no-fail-fast:
+      default 4,607 run = 4,608 baseline − 1 deleted test
+      (test_update_with_deleted_objects), 4,607 passed, 3 skipped,
+      0 failed, no flake encountered; simplewarp 4,606 run =
+      4,607 baseline − 1, 4,606 passed, 3 skipped, 0 failed.
+      Runtime smoke SKIPPED per round instructions (user away —
+      app must not be launched; password prompt unanswerable);
+      compile + test evidence stands in.

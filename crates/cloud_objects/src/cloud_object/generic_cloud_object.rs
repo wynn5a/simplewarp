@@ -143,22 +143,6 @@ impl<K, M> GenericCloudObject<K, M> {
         }
     }
 
-    pub fn update_from_server_object(&mut self, server_object: GenericServerObject<K, M>) {
-        // Check if we should create a conflict or apply the update.
-        if self.metadata.has_pending_content_changes() || self.conflict_status.has_conflicts() {
-            // There are pending changes, so this creates a conflict.
-            self.conflict_status = ConflictStatus::ConflictingChanges {
-                object: Arc::new(server_object),
-            };
-        } else {
-            // No pending changes, apply the server update.
-            self.metadata
-                .update_revision_from_server(&server_object.metadata);
-            self.model = server_object.model.into();
-            self.conflict_status = ConflictStatus::NoConflicts;
-        }
-    }
-
     /// Returns portable upsert parameters for this object.
     pub fn upsert_params(&self, object_type: ObjectType) -> CloudObjectUpsertParams<M>
     where

@@ -1,6 +1,3 @@
-use chrono::{DateTime, Utc};
-use cloud_object_models::{ServerAIExecutionProfile, ServerPreference};
-use cloud_objects::cloud_object::ServerPermissions;
 use settings::Setting as _;
 use warp_core::features::FeatureFlag;
 use warpui::{App, SingletonEntity};
@@ -8,7 +5,8 @@ use warpui::{App, SingletonEntity};
 use crate::LaunchMode;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::execution_profiles::{
-    AIExecutionProfile, ActionPermission, CloudAIExecutionProfileModel, ExecutionProfileId,
+    AIExecutionProfile, ActionPermission, CloudAIExecutionProfile, CloudAIExecutionProfileModel,
+    ExecutionProfileId,
 };
 use crate::ai::llms::LLMId;
 use crate::ai::mcp::TemplatableMCPServerManager;
@@ -17,55 +15,72 @@ use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::user::User;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{Revision, ServerMetadata};
+use crate::cloud_object::{
+    CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus, Owner,
+    Revision,
+};
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
-use crate::settings::cloud_preferences::{CloudPreferenceModel, CloudPreferencesSettings};
+use crate::settings::cloud_preferences::{
+    CloudPreference, CloudPreferenceModel, CloudPreferencesSettings,
+};
 use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
 use crate::settings::{AISettings, PrivacySettings, WarpDrivePrivacySettings};
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
-fn mock_server_metadata(uid: ServerId) -> ServerMetadata {
-    ServerMetadata {
-        uid,
-        revision: Revision::now(),
-        metadata_last_updated_ts: DateTime::<Utc>::default().into(),
-        trashed_ts: None,
+fn mock_cloud_metadata() -> CloudObjectMetadata {
+    CloudObjectMetadata {
+        pending_changes_statuses: CloudObjectStatuses {
+            content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
+            has_pending_metadata_change: false,
+            has_pending_permissions_change: false,
+            pending_untrash: false,
+            pending_delete: false,
+        },
         folder_id: None,
+        revision: Some(Revision::now()),
+        metadata_last_updated_ts: None,
+        current_editor_uid: None,
+        trashed_ts: None,
         is_welcome_object: false,
         creator_uid: None,
         last_editor_uid: None,
-        current_editor_uid: None,
+        last_task_run_ts: None,
     }
 }
 
-fn owned_legacy_profile(
-    sync_id: SyncId,
-    metadata_id: ServerId,
-    profile: AIExecutionProfile,
-) -> ServerAIExecutionProfile {
-    ServerAIExecutionProfile::new(
+fn mock_cloud_permissions() -> CloudObjectPermissions {
+    CloudObjectPermissions {
+        owner: Owner::mock_current_user(),
+        guests: Vec::new(),
+        permissions_last_updated_ts: None,
+        anyone_with_link: None,
+    }
+}
+
+fn owned_legacy_profile(sync_id: SyncId, profile: AIExecutionProfile) -> CloudAIExecutionProfile {
+    CloudAIExecutionProfile::new(
         sync_id,
         CloudAIExecutionProfileModel::new(profile),
-        mock_server_metadata(metadata_id),
-        ServerPermissions::mock_personal(),
+        mock_cloud_metadata(),
+        mock_cloud_permissions(),
     )
 }
 
 /// Creates the minimal cloud preference needed to model a previously migrated account.
-fn cloud_execution_profiles_preference(server_id: ServerId) -> ServerPreference {
-    ServerPreference::new(
+fn cloud_execution_profiles_preference(server_id: ServerId) -> CloudPreference {
+    CloudPreference::new(
         SyncId::ServerId(server_id),
         CloudPreferenceModel::deserialize_owned(
             r#"{"storage_key":"ExecutionProfiles","value":{},"platform":"Global"}"#,
         )
         .expect("execution profiles preference should deserialize"),
-        mock_server_metadata(server_id),
-        ServerPermissions::mock_personal(),
+        mock_cloud_metadata(),
+        mock_cloud_permissions(),
     )
 }
 
@@ -240,15 +255,14 @@ fn migration_retries_after_auth_completes() {
         let server_id = ServerId::from(504);
         let legacy_profile = owned_legacy_profile(
             SyncId::ServerId(server_id),
-            server_id,
             AIExecutionProfile {
                 name: "Migrated after auth".to_string(),
                 read_files: ActionPermission::AlwaysAllow,
                 ..Default::default()
             },
         );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_object(legacy_profile, ctx);
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
+            cloud_model.add_object(legacy_profile.id, legacy_profile);
         });
 
         let _profile_model = app.add_singleton_model(|ctx| {
@@ -314,15 +328,14 @@ fn auth_completion_waits_for_cloud_initial_load_before_migrating() {
         let server_id = ServerId::from(516);
         let legacy_profile = owned_legacy_profile(
             SyncId::ServerId(server_id),
-            server_id,
             AIExecutionProfile {
                 name: "Loaded after auth".to_string(),
                 read_files: ActionPermission::AlwaysAllow,
                 ..Default::default()
             },
         );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.update_objects_from_initial_load(vec![legacy_profile], false, false, ctx);
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
+            cloud_model.add_object(legacy_profile.id, legacy_profile);
         });
         complete_cloud_initial_load(&mut app);
 
@@ -358,7 +371,6 @@ fn feature_disabled_keeps_legacy_backend_behavior() {
         let legacy_model = LLMId::from("gpt-5-6-sol-high");
         let legacy_default = owned_legacy_profile(
             SyncId::ServerId(server_id),
-            server_id,
             AIExecutionProfile {
                 name: "Legacy default".to_string(),
                 is_default_profile: true,
@@ -366,8 +378,8 @@ fn feature_disabled_keeps_legacy_backend_behavior() {
                 ..Default::default()
             },
         );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_object(legacy_default, ctx);
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
+            cloud_model.add_object(legacy_default.id, legacy_default);
         });
 
         let profile_model = app.add_singleton_model(|ctx| {
@@ -407,7 +419,6 @@ fn migration_imports_owned_legacy_profiles_with_deterministic_keys() {
         let custom_server_id = ServerId::from(502);
         let default_profile = owned_legacy_profile(
             SyncId::ServerId(default_server_id),
-            default_server_id,
             AIExecutionProfile {
                 name: "Default".to_string(),
                 is_default_profile: true,
@@ -417,7 +428,6 @@ fn migration_imports_owned_legacy_profiles_with_deterministic_keys() {
         );
         let custom_profile = owned_legacy_profile(
             SyncId::ServerId(custom_server_id),
-            custom_server_id,
             AIExecutionProfile {
                 name: "Review".to_string(),
                 is_default_profile: false,
@@ -425,9 +435,9 @@ fn migration_imports_owned_legacy_profiles_with_deterministic_keys() {
                 ..Default::default()
             },
         );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_object(default_profile, ctx);
-            cloud_model.upsert_from_server_object(custom_profile, ctx);
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
+            cloud_model.add_object(default_profile.id, default_profile);
+            cloud_model.add_object(custom_profile.id, custom_profile);
         });
 
         app.add_singleton_model(|ctx| {
@@ -473,7 +483,6 @@ fn pending_migration_keeps_legacy_default_model_until_import_succeeds() {
         let legacy_model = LLMId::from("gpt-5-6-sol-high");
         let legacy_default = owned_legacy_profile(
             SyncId::ServerId(server_id),
-            server_id,
             AIExecutionProfile {
                 name: "Default".to_string(),
                 is_default_profile: true,
@@ -481,8 +490,8 @@ fn pending_migration_keeps_legacy_default_model_until_import_succeeds() {
                 ..Default::default()
             },
         );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_object(legacy_default, ctx);
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
+            cloud_model.add_object(legacy_default.id, legacy_default);
         });
 
         let profile_model = app.add_singleton_model(|ctx| {
@@ -537,7 +546,6 @@ fn malformed_cloud_collection_falls_back_to_legacy_import() {
         let preference_server_id = ServerId::from(513);
         let legacy_default = owned_legacy_profile(
             SyncId::ServerId(legacy_server_id),
-            legacy_server_id,
             AIExecutionProfile {
                 name: "Default".to_string(),
                 is_default_profile: true,
@@ -546,9 +554,9 @@ fn malformed_cloud_collection_falls_back_to_legacy_import() {
             },
         );
         let cloud_preference = cloud_execution_profiles_preference(preference_server_id);
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_object(legacy_default, ctx);
-            cloud_model.upsert_from_server_object(cloud_preference, ctx);
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
+            cloud_model.add_object(legacy_default.id, legacy_default);
+            cloud_model.add_object(cloud_preference.id, cloud_preference);
         });
 
         let profile_model = app.add_singleton_model(|ctx| {
@@ -585,8 +593,8 @@ fn malformed_cloud_collection_without_legacy_profiles_materializes_default() {
             });
         });
         let cloud_preference = cloud_execution_profiles_preference(ServerId::from(519));
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_object(cloud_preference, ctx);
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
+            cloud_model.add_object(cloud_preference.id, cloud_preference);
         });
 
         let profile_model = app.add_singleton_model(|ctx| {
@@ -620,7 +628,6 @@ fn settings_sync_disabled_imports_legacy_profiles() {
         let preference_server_id = ServerId::from(515);
         let legacy_default = owned_legacy_profile(
             SyncId::ServerId(legacy_server_id),
-            legacy_server_id,
             AIExecutionProfile {
                 name: "Default".to_string(),
                 is_default_profile: true,
@@ -629,9 +636,9 @@ fn settings_sync_disabled_imports_legacy_profiles() {
             },
         );
         let cloud_preference = cloud_execution_profiles_preference(preference_server_id);
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_object(legacy_default, ctx);
-            cloud_model.upsert_from_server_object(cloud_preference, ctx);
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
+            cloud_model.add_object(legacy_default.id, legacy_default);
+            cloud_model.add_object(cloud_preference.id, cloud_preference);
         });
 
         let profile_model = app.add_singleton_model(|ctx| {
@@ -708,7 +715,6 @@ fn cloud_initial_load_retries_pending_migration() {
         let legacy_model = LLMId::from("gpt-5-6-sol-high");
         let legacy_default = owned_legacy_profile(
             SyncId::ServerId(server_id),
-            server_id,
             AIExecutionProfile {
                 name: "Default".to_string(),
                 is_default_profile: true,
@@ -717,8 +723,8 @@ fn cloud_initial_load_retries_pending_migration() {
             },
         );
 
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.update_objects_from_initial_load(vec![legacy_default], false, false, ctx);
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
+            cloud_model.add_object(legacy_default.id, legacy_default);
         });
         complete_cloud_initial_load(&mut app);
 
@@ -750,7 +756,6 @@ fn completed_migration_is_not_reapplied_and_legacy_ids_restore_after_restart() {
         let migrated_model = LLMId::from("gpt-5-6-sol-high");
         let default_profile = owned_legacy_profile(
             SyncId::ServerId(default_server_id),
-            default_server_id,
             AIExecutionProfile {
                 name: "Default".to_string(),
                 is_default_profile: true,
@@ -760,15 +765,14 @@ fn completed_migration_is_not_reapplied_and_legacy_ids_restore_after_restart() {
         );
         let custom_profile = owned_legacy_profile(
             SyncId::ServerId(custom_server_id),
-            custom_server_id,
             AIExecutionProfile {
                 name: "Review".to_string(),
                 ..Default::default()
             },
         );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_object(default_profile, ctx);
-            cloud_model.upsert_from_server_object(custom_profile, ctx);
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
+            cloud_model.add_object(default_profile.id, default_profile);
+            cloud_model.add_object(custom_profile.id, custom_profile);
         });
 
         let profile_model = app.add_singleton_model(|ctx| {
@@ -778,7 +782,6 @@ fn completed_migration_is_not_reapplied_and_legacy_ids_restore_after_restart() {
 
         let changed_legacy_default = owned_legacy_profile(
             SyncId::ServerId(default_server_id),
-            default_server_id,
             AIExecutionProfile {
                 name: "Default".to_string(),
                 is_default_profile: true,
@@ -787,7 +790,7 @@ fn completed_migration_is_not_reapplied_and_legacy_ids_restore_after_restart() {
             },
         );
         CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_object(changed_legacy_default, ctx);
+            cloud_model.add_object(changed_legacy_default.id, changed_legacy_default);
             ctx.emit(CloudModelEvent::InitialLoadCompleted);
         });
         profile_model.update(&mut app, |model, ctx| {
@@ -846,7 +849,6 @@ fn reset_without_explicit_collection_reimports_the_next_accounts_legacy_profile(
         let server_id = ServerId::from(518);
         let legacy_default = owned_legacy_profile(
             SyncId::ServerId(server_id),
-            server_id,
             AIExecutionProfile {
                 name: "Default".to_string(),
                 is_default_profile: true,
@@ -855,7 +857,10 @@ fn reset_without_explicit_collection_reimports_the_next_accounts_legacy_profile(
             },
         );
         CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_object(legacy_default, ctx);
+            cloud_model.add_object(legacy_default.id, legacy_default);
+            // The old server upsert fired ObjectCreated to transition the model to
+            // Synced; InitialLoadCompleted drives the equivalent reconciliation.
+            ctx.emit(CloudModelEvent::InitialLoadCompleted);
         });
         complete_cloud_initial_load(&mut app);
 
@@ -889,15 +894,14 @@ fn profile_sources_preserve_state_across_migration_and_rollout() {
         let server_id = ServerId::from(506);
         let legacy_default = owned_legacy_profile(
             SyncId::ServerId(server_id),
-            server_id,
             AIExecutionProfile {
                 name: "Legacy default".to_string(),
                 is_default_profile: true,
                 ..Default::default()
             },
         );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_object(legacy_default, ctx);
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
+            cloud_model.add_object(legacy_default.id, legacy_default);
         });
 
         let settings_model = {
@@ -980,9 +984,8 @@ fn profile_sources_preserve_state_across_migration_and_rollout() {
 
 /// Regression test for the "log in to an existing user after onboarding"
 /// bug. Cloud objects arriving via the initial bulk load are inserted into
-/// `CloudModel` *without* firing per-object `ObjectCreated` events —
-/// `update_objects_from_initial_load` passes `emit_events: false` and emits
-/// a single `CloudModelEvent::InitialLoadCompleted` afterward instead.
+/// `CloudModel` *without* firing per-object `ObjectCreated` events — a single
+/// `CloudModelEvent::InitialLoadCompleted` is emitted afterward instead.
 /// Without the reconciliation handler for `InitialLoadCompleted`, the
 /// existing user's default profile sits in `CloudModel` but
 /// `AIExecutionProfilesModel` stays in `Unsynced`, so a subsequent
@@ -1018,19 +1021,17 @@ fn reconciles_unsynced_default_profile_with_cloud_after_initial_load() {
             apply_code_diffs: ActionPermission::AlwaysAllow,
             ..Default::default()
         };
-        let server_object = ServerAIExecutionProfile::new(
+        let existing_profile = CloudAIExecutionProfile::new(
             cloud_sync_id,
             CloudAIExecutionProfileModel::new(cloud_profile),
-            mock_server_metadata(cloud_uid),
-            ServerPermissions::mock_personal(),
+            mock_cloud_metadata(),
+            mock_cloud_permissions(),
         );
 
-        // Insert the object into CloudModel via the initial-load path
-        // (`emit_events=false`) and then emit `InitialLoadCompleted` so the
-        // reconciliation handler fires.
+        // Insert the object into CloudModel without per-object events and then
+        // emit `InitialLoadCompleted` so the reconciliation handler fires.
         CloudModel::handle(&app).update(&mut app, move |cloud_model, ctx| {
-            let server_objects: Vec<ServerAIExecutionProfile> = vec![server_object];
-            cloud_model.update_objects_from_initial_load(server_objects, false, false, ctx);
+            cloud_model.add_object(existing_profile.id, existing_profile);
             ctx.emit(CloudModelEvent::InitialLoadCompleted);
         });
 

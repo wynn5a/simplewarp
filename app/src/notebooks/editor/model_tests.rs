@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::ops::Range;
 
 use chrono::Utc;
+use cloud_object_models::ServerWorkflow;
 use futures::prelude::*;
 use itertools::Itertools;
 use markdown_parser::markdown_parser::RUNNABLE_BLOCK_MARKDOWN_LANG;
@@ -33,7 +34,7 @@ use super::NotebooksEditorModel;
 use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{Owner, Revision, ServerMetadata, ServerPermissions, ServerWorkflow};
+use crate::cloud_object::{Owner, Revision, ServerMetadata, ServerPermissions};
 use crate::editor::InteractionState;
 use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::notebooks::editor::model::DEBOUNCED_RESIZE_PERIOD;

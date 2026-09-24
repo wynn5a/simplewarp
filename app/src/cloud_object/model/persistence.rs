@@ -11,15 +11,11 @@ use super::generic_string_model::GenericStringObjectId;
 use crate::ai::execution_profiles::CloudAIExecutionProfile;
 use crate::cloud_object::folders::{CloudFolder, CloudFolderModel};
 use crate::cloud_object::{
-    CloudModelType, CloudObject, CloudObjectLocation, GenericCloudObject, GenericServerObject,
+    CloudModelType, CloudObject, CloudObjectLocation, GenericCloudObject,
     GenericStringObjectFormat, JsonObjectType, ObjectIdType, ObjectType, Owner, Revision,
-    ServerCloudObject, ServerFolder, ServerMetadata, ServerNotebook, ServerPermissions,
-    ServerWorkflow, Space,
+    ServerMetadata, ServerPermissions, Space,
 };
-use crate::drive::{
-    CloudObjectTypeAndId, DriveIndexVariant, should_auto_open_welcome_folder,
-    write_has_auto_opened_welcome_folder_to_user_defaults,
-};
+use crate::drive::{CloudObjectTypeAndId, DriveIndexVariant};
 use crate::env_vars::{CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVarCollection};
 use crate::notebooks::CloudNotebook;
 use crate::persistence::ModelEvent;
@@ -214,14 +210,8 @@ impl CloudModel {
         ctx.emit(CloudModelEvent::ObjectCreated {
             type_and_id: object.cloud_object_type_and_id(),
         });
-        self.create_object_internal(id, object);
-        ctx.notify();
-    }
-
-    // Does not emit events or notify — used during initial load where
-    // InitialLoadCompleted is emitted once afterward instead.
-    fn create_object_internal(&mut self, id: SyncId, object: impl CloudObject + 'static) {
         self.objects_by_id.insert(id.uid(), Box::new(object));
+        ctx.notify();
     }
 
     pub fn delete_objects_by_id(
@@ -303,169 +293,6 @@ impl CloudModel {
 
     pub fn check_if_object_is_in_cloudmodel(&mut self, uid: ObjectUid) -> bool {
         self.objects_by_id.contains_key(&uid)
-    }
-
-    /// Updates an existing object from a server response. Returns `None` if the object
-    /// was found and updated, or `Some(id)` if it doesn't exist yet.
-    /// Does not emit events or notify — callers are responsible for that.
-    fn update_cloud_object_if_exists<K, M>(
-        &mut self,
-        server_object: GenericServerObject<K, M>,
-    ) -> Option<SyncId>
-    where
-        K: HashableId + ToServerId + std::fmt::Debug + Into<String> + Clone + 'static,
-        M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
-    {
-        let id = server_object.id;
-        let boxed_option = self.get_mut_by_uid(&id.uid());
-        if let Some(boxed) = boxed_option {
-            let object: Option<&mut GenericCloudObject<K, M>> = boxed.into();
-            if let Some(object) = object {
-                object.update_from_server_object(server_object);
-            } else {
-                log::warn!(
-                    "Unable to update server object.  Expected object to implement GenericCloudObject"
-                );
-                debug_assert!(false, "Unable to update server object.  Failed downcast");
-            }
-            None
-        } else {
-            Some(id)
-        }
-    }
-
-    /// Update the in-memory object with an update from the server. If the object has not been
-    /// seen before a new object is created. Emits events and notifies.
-    pub fn upsert_from_server_object<K, M>(
-        &mut self,
-        server_object: GenericServerObject<K, M>,
-        ctx: &mut ModelContext<Self>,
-    ) where
-        K: HashableId + ToServerId + std::fmt::Debug + Into<String> + Clone + 'static,
-        M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
-    {
-        let id_if_doesnt_exist = self.update_cloud_object_if_exists(server_object.clone());
-        if let Some(id) = id_if_doesnt_exist {
-            // If we haven't seen the object before--attempt to insert.
-            self.create_object(
-                id,
-                GenericCloudObject::<K, M>::new_from_server(server_object),
-                ctx,
-            );
-        } else {
-            // Object existed and was updated — emit ObjectUpdated if no conflict.
-            let uid = server_object.id.uid();
-            if let Some(object) = self.get_by_uid(&uid)
-                && !object.has_conflicting_changes()
-            {
-                ctx.emit(CloudModelEvent::ObjectUpdated {
-                    type_and_id: object.cloud_object_type_and_id(),
-                    source: UpdateSource::Server,
-                });
-            }
-        }
-        ctx.notify();
-    }
-
-    // Does not emit events or notify — used during initial load where
-    // InitialLoadCompleted is emitted once afterward instead.
-    fn upsert_from_server_object_internal<K, M>(&mut self, server_object: GenericServerObject<K, M>)
-    where
-        K: HashableId + ToServerId + std::fmt::Debug + Into<String> + Clone + 'static,
-        M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
-    {
-        let id_if_doesnt_exist = self.update_cloud_object_if_exists(server_object.clone());
-        if let Some(id) = id_if_doesnt_exist {
-            self.create_object_internal(
-                id,
-                GenericCloudObject::<K, M>::new_from_server(server_object),
-            );
-        }
-    }
-
-    /// Update the in-memory notebook with an update from the server. If the object has not been
-    /// seen before--a new object is created.
-    pub fn upsert_from_server_notebook(
-        &mut self,
-        server_notebook: ServerNotebook,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.upsert_from_server_object(server_notebook, ctx);
-    }
-
-    /// Upsert either inserts a new cloud object or updates an existing one. When updating an object,
-    /// this overwrites all fields that are protected by the revision. For fields protected by the metadata ts,
-    /// see update_object_metadata().
-    pub fn upsert_from_server_cloud_object(
-        &mut self,
-        server_cloud_object: ServerCloudObject,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match server_cloud_object {
-            ServerCloudObject::Notebook(notebook) => {
-                self.upsert_from_server_notebook(notebook, ctx);
-            }
-            ServerCloudObject::Workflow(workflow) => {
-                self.upsert_from_server_workflow(*workflow, ctx);
-            }
-            ServerCloudObject::Folder(folder) => {
-                self.upsert_from_server_folder(folder, ctx);
-            }
-            ServerCloudObject::Preference(preferences) => {
-                self.upsert_from_server_object(preferences, ctx);
-            }
-            ServerCloudObject::EnvVarCollection(env_var_collection) => {
-                self.upsert_from_server_object(env_var_collection, ctx);
-            }
-            ServerCloudObject::WorkflowEnum(workflow_enum) => {
-                self.upsert_from_server_object(workflow_enum, ctx);
-            }
-            ServerCloudObject::AIFact(aifact) => {
-                self.upsert_from_server_object(aifact, ctx);
-            }
-            ServerCloudObject::MCPServer(mcp_server) => {
-                self.upsert_from_server_object(mcp_server, ctx);
-            }
-            ServerCloudObject::AIExecutionProfile(ai_execution_profile) => {
-                self.upsert_from_server_object(ai_execution_profile, ctx);
-            }
-            ServerCloudObject::TemplatableMCPServer(templatable_mcp_server) => {
-                self.upsert_from_server_object(templatable_mcp_server, ctx);
-            }
-            ServerCloudObject::AmbientAgentEnvironment(ambient_agent_environment) => {
-                self.upsert_from_server_object(ambient_agent_environment, ctx);
-            }
-            ServerCloudObject::ScheduledAmbientAgent(scheduled_ambient_agent) => {
-                self.upsert_from_server_object(scheduled_ambient_agent, ctx);
-            }
-            ServerCloudObject::CloudAgentConfig(cloud_agent_config) => {
-                self.upsert_from_server_object(cloud_agent_config, ctx);
-            }
-        }
-    }
-
-    /// Updates the in-memory folder with an update from the server. If the object has not been
-    /// seen before--a new object is created.
-    pub fn upsert_from_server_folder(
-        &mut self,
-        mut server_folder: ServerFolder,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(folder) = self.get_folder(&server_folder.id) {
-            server_folder.model.is_open = folder.model().is_open;
-        }
-
-        self.upsert_from_server_object(server_folder, ctx);
-    }
-
-    /// Updates the in-memory workflow with an update from the server. If the object has not been
-    /// seen before--a new object is created.
-    pub fn upsert_from_server_workflow(
-        &mut self,
-        server_workflow: ServerWorkflow,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.upsert_from_server_object(server_workflow, ctx);
     }
 
     /// Overwrites the trashed_ts, current_editor, etc of the object only if the new_metadata timestamp
@@ -1560,110 +1387,6 @@ impl CloudModel {
     #[cfg(test)]
     pub fn mock(_ctx: &mut ModelContext<Self>) -> Self {
         Self::new(None, Vec::new())
-    }
-
-    /// When `emit_events` is false (on the first load after login), per-object events
-    /// are suppressed to avoid blocking the main thread. Subscribers react to the single
-    /// `InitialLoadCompleted` event emitted afterward instead. Subsequent periodic polls
-    /// pass `true` so that normal per-object events fire for incremental updates.
-    pub fn update_objects_from_initial_load<K, M>(
-        &mut self,
-        cloud_objects: Vec<GenericServerObject<K, M>>,
-        force_refresh: bool,
-        emit_events: bool,
-        ctx: &mut ModelContext<Self>,
-    ) -> Vec<GenericCloudObject<K, M>>
-    where
-        K: HashableId + ToServerId + std::fmt::Debug + Into<String> + Clone + 'static,
-        M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
-    {
-        let updated_objects = cloud_objects
-            .into_iter()
-            .filter_map(|object| {
-                let sync_id = object.id;
-                let metadata = object.metadata.clone();
-                let permissions = object.permissions.clone();
-                self.upsert_from_server_object_internal(object);
-                self.maybe_update_object_metadata_internal(
-                    &sync_id.uid(),
-                    metadata,
-                    force_refresh,
-                    emit_events,
-                    ctx,
-                );
-                self.update_object_permissions_internal(&sync_id.uid(), permissions);
-                self.maybe_open_welcome_folder(&sync_id, ctx);
-                self.get_object_of_type(&sync_id).cloned()
-            })
-            .collect();
-
-        ctx.notify();
-        updated_objects
-    }
-
-    // If the object is a folder and a welcome object, open it if we haven't opened a welcome folder before.
-    fn maybe_open_welcome_folder(&mut self, object_id: &SyncId, ctx: &mut ModelContext<Self>) {
-        if let Some(object) = self.get_by_uid(&object_id.uid()) {
-            let folder: Option<&CloudFolder> = object.into();
-            if let Some(folder) = folder
-                && folder.metadata().is_welcome_object
-            {
-                // Doing this as a nested check as a slight optimization
-                if should_auto_open_welcome_folder(ctx) {
-                    self.set_folder_open_state(folder.id, FolderOpenState::Open, ctx);
-                    write_has_auto_opened_welcome_folder_to_user_defaults(ctx);
-                }
-            }
-        }
-    }
-
-    #[cfg(test)]
-    pub fn update_objects<K, M>(
-        &mut self,
-        server_objects: impl IntoIterator<Item = GenericServerObject<K, M>>,
-        ctx: &mut ModelContext<Self>,
-    ) where
-        K: HashableId + ToServerId + std::fmt::Debug + Into<String> + Clone + 'static,
-        M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
-    {
-        // List of all in memory objects that don't have pending changes, that potentially may
-        // need to be removed from memory.
-        let mut to_remove = self
-            .get_all_objects_of_type::<K, M>()
-            .filter(|&object| !object.metadata.has_pending_content_changes())
-            .map(|object| object.id.uid())
-            .collect::<HashSet<String>>();
-
-        let objects_without_pending_changes = server_objects
-            .into_iter()
-            .filter_map(|server_object| {
-                let id = server_object.id;
-                self.upsert_from_server_object(server_object, ctx);
-
-                // Remove the object from the set of objects that need to be deleted since we now
-                // know the object still exists on the server.
-                to_remove.remove(&id.uid());
-
-                self.get_object_of_type::<K, M>(&id).cloned()
-            })
-            .collect::<Vec<_>>();
-
-        // Remaining objects (those that were not synced back from the server) should be removed
-        // from memory.
-        to_remove.into_iter().for_each(|id| {
-            self.objects_by_id.remove(&id);
-        });
-
-        if let Some(model_event_sender) = &self.model_event_sender
-            && let Err(e) = model_event_sender.send(M::bulk_upsert_event(
-                objects_without_pending_changes
-                    .iter()
-                    .map(|object| object.upsert_params(object.object_type()))
-                    .collect(),
-            ))
-        {
-            report_error!(anyhow::Error::new(e).context("Error saving team objects to cache"));
-        }
     }
 
     pub fn reset(&mut self) {

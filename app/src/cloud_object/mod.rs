@@ -437,11 +437,6 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
     where
         Self: Sized;
 
-    /// Returns a bulk upsert event for putting a list of this model into the SQLite database.
-    fn bulk_upsert_event(objects: Vec<CloudObjectUpsertParams<Self>>) -> ModelEvent
-    where
-        Self: Sized;
-
     /// Returns a serialized model.
     fn serialized(&self) -> SerializedModel;
 
@@ -880,7 +875,6 @@ fn get_top_folder_trashed_ts(
     None
 }
 
-pub use cloud_object_models::{ServerCloudObject, ServerFolder, ServerNotebook, ServerWorkflow};
 use warp_errors::report_error;
 
 #[derive(Default, Clone, Copy, Debug, Eq, Derivative)]
