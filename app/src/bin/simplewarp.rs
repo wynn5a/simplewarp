@@ -25,7 +25,6 @@ fn main() -> Result<()> {
             logfile_name: "simplewarp.log".into(),
             server_config: WarpServerConfig::local_only(),
             oz_config: OzConfig::local_only(),
-            telemetry_config: None,
             crash_reporting_config: None,
             mcp_static_config: None,
         },

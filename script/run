@@ -127,8 +127,7 @@ fi
 # invocations keep working.
 for mapping in \
     "with_local_server:WITH_LOCAL_SERVER" \
-    "with_local_session_sharing_server:WITH_LOCAL_SESSION_SHARING_SERVER" \
-    "with_sandbox_telemetry:WITH_SANDBOX_TELEMETRY"; do
+    "with_local_session_sharing_server:WITH_LOCAL_SESSION_SHARING_SERVER"; do
     feature="${mapping%%:*}"
     env_var="${mapping##*:}"
     if [[ ",$FEATURES," =~ ,"$feature", ]]; then

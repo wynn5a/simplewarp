@@ -51,7 +51,6 @@ pub fn main() -> Result<()> {
                 oz_root_url: "http://192.0.2.0:9".into(),
                 workload_audience_url: None,
             },
-            telemetry_config: None,
             crash_reporting_config: None,
             mcp_static_config: None,
         },

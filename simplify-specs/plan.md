@@ -10513,3 +10513,142 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       needs a content-behavior decision on block.rs's serialized
       output truncation before any deletion, (5) rename pass for the
       five now-misnamed telemetry modules holding live types.
+
+- [x] **telemetry slice 3 — flags and config plumbing (4fe) — DONE
+      2026-09-23.** Executed the 4ez SLICE 3: the switches that
+      existed to turn the deleted pipeline on are gone. 17 files, 5
+      insertions(+), 139 deletions(-).
+
+      PER-ITEM VERDICTS. (1) Channel-config family DELETED:
+      `ChannelConfig.telemetry_config` + `TelemetryConfig` +
+      `RudderStackConfig` (with its non_ugc/ugc_destination methods)
+      + `RudderStackDestination` (channel/config.rs), and
+      ChannelState's `telemetry_file_name` / `is_telemetry_available`
+      / `rudderstack_non_ugc_destination` /
+      `rudderstack_ugc_destination` accessors + the `init()`
+      `telemetry_config: None` (channel/state.rs). Zero callers at
+      HEAD for all four accessors (4fa/4fb already consumed the
+      pipeline readers); the explicit `telemetry_config: None,`
+      constructor lines fell out of all four remaining bins
+      (app/src/bin/{simplewarp,oss,integration}.rs, crates/integration
+      /src/bin/integration.rs — dev/stable/preview/local deserialize
+      via `load_config!`, and serde ignores the now-unknown key in
+      generator output, so config loading is unchanged). The family's
+      last live reader chain fell too: warp_logging/native.rs's
+      telemetry-file rotation branch
+      (`SendTelemetryToFile.is_enabled()` →
+      `ChannelState::telemetry_file_name()`), incl. the FeatureFlag
+      import; `rotate_log_files` now rotates logs only. (2)
+      execution_mode::send_telemetry_at_shutdown DELETED (10 lines) —
+      zero callers since 4fa killed the shutdown flush;
+      ExecutionMode::Sdk/RemoteServerDaemon stay live via
+      is_autonomous. (3) FeatureFlag variants DELETED from
+      warp_features: WithSandboxTelemetry (zero is_enabled readers at
+      HEAD — the collector gates died in 4fa; sole enabler was
+      bin/local.rs under the WITH_SANDBOX_TELEMETRY env var),
+      RecordAppActiveEvents (zero readers; the usage poller died in
+      4fa), SendTelemetryToFile (one reader — the rotation branch
+      above). Their enablement plumbing went with them:
+      app/src/features.rs's two cfg-gated entries, local.rs's
+      WITH_SANDBOX_TELEMETRY block (`let mut` → `let`), app cargo
+      features `record_app_active_events` + `send_telemetry_to_file`,
+      the `"warpui/log_named_telemetry_events"` entry in app's
+      agent_mode_evals, warpui's + warpui_core's
+      `log_named_telemetry_events` feature declarations (zero
+      `cfg(feature = ...)` readers remained after 4fc deleted the
+      queue — pure declaration residue), the
+      `with_sandbox_telemetry:WITH_SANDBOX_TELEMETRY` legacy-feature
+      mapping line in script/run + script/wasm/bundle, and
+      app/build.rs's `rerun-if-env-changed=WITH_SANDBOX_TELEMETRY`.
+      NOT touched: the `release_bundle` cargo feature +
+      `ChannelState::is_release_bundle()` — packaging machinery with
+      live non-telemetry consumers (app_services, login_item,
+      warp_channel_config, profiling); its only telemetry reader
+      (collector.rs) died in 4fa. (4) EnablementState: already gone —
+      the telemetry type died in 4fc with warp_core/src/telemetry.rs;
+      the `EnablementState` surviving in
+      app/src/ai/persisted_workspace.rs is the unrelated LSP-server
+      enablement type with live persistence/sqlite readers. Nothing
+      dangles. (5) AppAnalyticsWidget residue: none (4fd deleted the
+      widget; zero refs). KEPT as live local behavior, none of it
+      implied by the three deleted flags: `flags::TELEMETRY_FLAG` is
+      a &str context-flag const in settings_view/mod.rs (a separate
+      mechanism from the FeatureFlag enum — not one of the 4ez
+      three), the "app analytics" palette toggle binding
+      (privacy_page.rs init_actions_from_parent_view →
+      PrivacyPageAction::ToggleTelemetry → toggle_telemetry →
+      set_is_telemetry_enabled), the `is_telemetry_enabled` setting +
+      WarpDrivePrivacySettings plumbing + UpdateIsTelemetryEnabled
+      event, `is_telemetry_force_enabled` (CrashReportsWidget
+      org-force gate), and TelemetryBanner +
+      check_and_trigger_telemetry_banner_for_existing_users
+      (workspace/view.rs, defined :6896 called :9832) — deleting any
+      of these would remove reachable local UI, violating the
+      zero-behavior-change constraint.
+
+      Deliberately left: TerminalModel's is_ai_ugc_telemetry_enabled
+      / should_collect_ai_ugc_telemetry / block.rs serialized-output
+      truncation (user decision pending — real content behavior); the
+      five telemetry-named module renames (cosmetic, skipped);
+      `.agents/skills/add-telemetry` SKILL.md, which still documents
+      the deleted pipeline + `log_named_telemetry_events` (lockfile-
+      managed common skill — orchestrator call); the remote GraphQL
+      `TelemetrySettings` workspace types (item-8 endgame);
+      crash_reporting_config (non-telemetry, live readers via
+      sentry_url / is_crash_reporting_available).
+
+      Local-only safety: every deleted switch was already inert in
+      this fork's builds — the 4ez four-brakes analysis now holds
+      structurally: there is no telemetry_config to populate, no flag
+      to set, no accessor to call. SendTelemetryToFile's sole reader
+      guarded rotation of a file nothing writes anymore (the shutdown
+      write died in 4fa); log_named_telemetry_events had no code
+      readers; the script mapping only exported an env var whose sole
+      reader (local.rs) is deleted. Channel deserialization for the
+      remaining keys is unchanged (plain serde struct, unknown-field
+      tolerant); all remaining ChannelConfig fields keep their
+      values.
+
+      Acceptance: clippy baselines captured at HEAD FIRST in both
+      configs (12 sorted short-format warning|location pairs each:
+      11 needless-return in terminal/input.rs + 1
+      single-element-loop in lifecycle/mod_tests.rs:272); post-edit
+      re-runs are warning-IDENTICAL in both configs (empty diff, not
+      even line shifts — nothing above input.rs's warnings moved).
+      Check suite 0 errors: `check -p warp --lib --all-targets`
+      default + simplewarp, `--no-default-features --features
+      simplewarp --bin simplewarp`, `--bin warp-oss`, `--all-targets
+      -p integration` (only the two pre-existing step.rs
+      unused-import warnings), `check -p warp --lib --tests
+      --features skip_login`, `-p warp_cli --all-targets`, plus
+      `-p {warp_core,warp_features,warp_logging,warpui,warpui_core}
+      --all-targets` for every member whose Cargo.toml or code lost a
+      feature or flag. `./script/format` run twice: idempotent, diff
+      still exactly 17 files / 5 insertions / 139 deletions. Nextest
+      `-p warp --lib --no-fail-fast`: default 4,611 passed / 3
+      skipped / 0 failed; simplewarp 4,610 passed / 3 skipped / 0
+      failed (one informational nextest "leaky" annotation on a
+      passing test) — passed/skipped counts identical to the
+      post-4fd baseline. Disk healthy throughout (~29GB free at
+      round start, ~45GB after; no stale-executable cleanup needed,
+      no cargo clean). Runtime smoke SKIPPED per the 2026-09-23
+      convention (user away, macOS password prompt unanswerable); no
+      binary launched — cargo check/clippy/nextest builds only.
+
+      TELEMETRY EFFORT COMPLETE (4ez–4fe): every remote-telemetry
+      component is deleted — scope plan (4ez, plan-only), send path
+      (4fa: 21 files, 1,881−), event catalog + producer sites (4fb:
+      199 files, 16,435−), queue + trait machinery (4fc: 41 files,
+      1,118−), events shell + privacy fields (4fd: 55 files,
+      1,436−), switches + config plumbing (4fe: 17 files, 139−) —
+      21,009 deleted vs 1,533 inserted across the five code rounds,
+      ≈19,500 net lines gone. What remains is local-only (blocklist
+      secret redaction, report_error!/warp_errors, network logging,
+      privacy settings with local readers, the analytics
+      banner/toggle UI, the ai_ugc content-behavior switch) plus the
+      cosmetic rename candidates. DESIGNATED NEXT: item 8, the fold —
+      per the 4ca plan: "ServerApi/Provider/BaseClient collapse,
+      warp_server_client and firebase fall, network_logging moves,
+      warp_server_auth stays as local identity, and cloud_objects +
+      the warp_graphql types are the endgame." The ORCHESTRATOR will
+      scope it; NOT started here.

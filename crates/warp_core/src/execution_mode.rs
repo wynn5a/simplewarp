@@ -85,16 +85,6 @@ impl AppExecutionMode {
         self.is_app()
     }
 
-    /// Whether telemetry should be sent synchronously at shutdown.
-    /// In CLI and daemon modes, we synchronously send events at shutdown because there's
-    /// a higher likelihood that they will be lost otherwise.
-    pub fn send_telemetry_at_shutdown(&self) -> bool {
-        matches!(
-            self.mode,
-            ExecutionMode::Sdk | ExecutionMode::RemoteServerDaemon
-        )
-    }
-
     /// If true, the app is running autonomously, without a user present.
     /// Wherever possible, prefer more targeted capability checks like
     /// [`Self::can_autostart_mcp_servers`].

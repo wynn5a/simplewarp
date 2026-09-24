@@ -13,9 +13,6 @@ integration_tests = ["dep:minimp4", "dep:openh264"]
 # When enabled, skip eager scene building from the window-invalidation callback
 # and rely on the normal platform redraw path instead; see core/app.rs.
 defer_scene_build = []
-# If enabled, writes named telemetry events to the info log.  Should never be
-# enabled in release builds without a PII audit of telemetry data.
-log_named_telemetry_events = []
 schema_gen = ["dep:schemars"]
 settings_value = ["dep:settings_value"]
 # Enables utilities for testing.

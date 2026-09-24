@@ -15,7 +15,6 @@ fn main() -> Result<()> {
             logfile_name: "warp-oss.log".into(),
             server_config: WarpServerConfig::production(),
             oz_config: OzConfig::production(),
-            telemetry_config: None,
             crash_reporting_config: None,
             mcp_static_config: None,
         },

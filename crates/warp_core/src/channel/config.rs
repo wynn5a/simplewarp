@@ -16,9 +16,6 @@ pub struct ChannelConfig {
     pub server_config: WarpServerConfig,
     /// Configuration for Oz/ambient agents.
     pub oz_config: OzConfig,
-    /// Configuration for telemetry sending, or [`None`] if telemetry should be
-    /// disabled for this build.
-    pub telemetry_config: Option<TelemetryConfig>,
     /// Configuration for crash reporting.
     pub crash_reporting_config: Option<CrashReportingConfig>,
     /// Configuration for statically-bundled MCP OAuth credentials.
@@ -91,43 +88,6 @@ impl OzConfig {
             workload_audience_url: None,
         }
     }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct TelemetryConfig {
-    /// The name of the file in which not-yet-sent telemetry events will be stored.
-    pub telemetry_file_name: Cow<'static, str>,
-    /// Configuration for Rudderstack, for reporting telemetry events.
-    pub rudderstack_config: Option<RudderStackConfig>,
-}
-
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct RudderStackConfig {
-    pub write_key: Cow<'static, str>,
-    pub root_url: Cow<'static, str>,
-    pub ugc_write_key: Cow<'static, str>,
-}
-
-impl RudderStackConfig {
-    pub fn non_ugc_destination(&self) -> RudderStackDestination {
-        RudderStackDestination {
-            root_url: self.root_url.clone(),
-            write_key: self.write_key.clone(),
-        }
-    }
-
-    pub fn ugc_destination(&self) -> RudderStackDestination {
-        RudderStackDestination {
-            root_url: self.root_url.clone(),
-            write_key: self.ugc_write_key.clone(),
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct RudderStackDestination {
-    pub root_url: Cow<'static, str>,
-    pub write_key: Cow<'static, str>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
