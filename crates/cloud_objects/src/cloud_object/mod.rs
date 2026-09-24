@@ -23,12 +23,10 @@ use crate::auth::UserUid;
 use crate::drive::sharing::{SharingAccessLevel, Subject};
 use crate::ids::{FolderId, ServerId, SyncId};
 
-mod creation;
 mod generic_cloud_object;
 mod generic_string_model;
 mod server_object;
 
-pub use creation::*;
 pub use generic_cloud_object::*;
 pub use generic_string_model::*;
 pub use server_object::*;
@@ -775,12 +773,6 @@ impl From<String> for SerializedModel {
     fn from(s: String) -> Self {
         Self(s)
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct RevisionAndLastEditor {
-    pub revision: Revision,
-    pub last_editor_uid: Option<String>,
 }
 
 // GraphQL conversion impls.

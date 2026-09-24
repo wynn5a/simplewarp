@@ -1,9 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::SyncSender;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use itertools::Itertools;
-use rand::Rng;
 use warp_errors::report_error;
 use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
@@ -12,10 +11,10 @@ use super::generic_string_model::GenericStringObjectId;
 use crate::ai::execution_profiles::CloudAIExecutionProfile;
 use crate::cloud_object::folders::{CloudFolder, CloudFolderModel};
 use crate::cloud_object::{
-    CloudModelType, CloudObject, CloudObjectLocation, CloudObjectPermissions, GenericCloudObject,
-    GenericServerObject, GenericStringObjectFormat, JsonObjectType, ObjectIdType, ObjectType,
-    Owner, Revision, RevisionAndLastEditor, ServerCloudObject, ServerCreationInfo, ServerFolder,
-    ServerMetadata, ServerNotebook, ServerPermissions, ServerWorkflow, Space,
+    CloudModelType, CloudObject, CloudObjectLocation, GenericCloudObject, GenericServerObject,
+    GenericStringObjectFormat, JsonObjectType, ObjectIdType, ObjectType, Owner, Revision,
+    ServerCloudObject, ServerFolder, ServerMetadata, ServerNotebook, ServerPermissions,
+    ServerWorkflow, Space,
 };
 use crate::drive::{
     CloudObjectTypeAndId, DriveIndexVariant, should_auto_open_welcome_folder,
@@ -24,17 +23,11 @@ use crate::drive::{
 use crate::env_vars::{CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVarCollection};
 use crate::notebooks::CloudNotebook;
 use crate::persistence::ModelEvent;
-use crate::server::ids::{ClientId, HashableId, ObjectUid, ServerId, SyncId, ToServerId};
+use crate::server::ids::{HashableId, ObjectUid, SyncId, ToServerId};
 use crate::settings::cloud_preferences::{CloudPreference, CloudPreferenceModel};
 use crate::workflows::workflow::Workflow;
 use crate::workflows::workflow_enum::{CloudWorkflowEnum, CloudWorkflowEnumModel, WorkflowEnum};
 use crate::workflows::{CloudWorkflow, CloudWorkflowModel};
-
-// Equivalent to 24 hours
-const MIN_MINUTES_UNTIL_NEXT_FORCE_REFRESH: i64 = 1440;
-
-// Equivalent to 36 hours
-const MAX_MINUTES_UNTIL_NEXT_FORCE_REFRESH: i64 = 2160;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateSource {
@@ -85,12 +78,6 @@ pub enum CloudModelEvent {
     ObjectForceExpanded {
         id: String,
     },
-    /// A SyncId was converted from ClientId to ServerId after successful object creation on the server.
-    ObjectSynced {
-        type_and_id: CloudObjectTypeAndId,
-        client_id: ClientId,
-        server_id: ServerId,
-    },
     /// The initial bulk load of cloud objects from the server has completed.
     InitialLoadCompleted,
     /// Environment last-task timestamps fetched outside the generic cloud-object sync were merged.
@@ -110,15 +97,12 @@ enum FolderOpenState {
 pub struct CloudModel {
     objects_by_id: HashMap<ObjectUid, Box<dyn CloudObject>>,
     model_event_sender: Option<SyncSender<ModelEvent>>,
-
-    time_of_next_force_refresh: Option<DateTime<Utc>>,
 }
 
 impl CloudModel {
     pub fn new(
         model_event_sender: Option<SyncSender<ModelEvent>>,
         cached_objects: Vec<Box<dyn CloudObject>>,
-        time_of_next_force_refresh: Option<DateTime<Utc>>,
     ) -> Self {
         let objects_by_id = cached_objects
             .into_iter()
@@ -128,44 +112,6 @@ impl CloudModel {
         Self {
             objects_by_id,
             model_event_sender,
-            time_of_next_force_refresh,
-        }
-    }
-
-    /// This method updates the in-memory object after the CreateObject() endpoint returns successfully.
-    /// It uses the existing client_id to locate the object and then it:
-    /// (1) Sets the object's server_id
-    /// (2) Sets the object's creation statistics (creator_uid)
-    pub fn update_object_after_server_creation(
-        &mut self,
-        client_id: ClientId,
-        server_creation_info: ServerCreationInfo,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let creator_uid = server_creation_info.creator_uid;
-        let server_id = server_creation_info.server_id_and_type.id;
-        let server_permissions = server_creation_info.permissions;
-
-        // Use server id for the object going forward.
-        if let Some((_, mut object)) = self.objects_by_id.remove_entry(&client_id.to_string()) {
-            object.set_server_id(server_id);
-            object.metadata_mut().creator_uid = creator_uid;
-
-            // Update permissions from server response
-            let new_permissions = CloudObjectPermissions::new_from_server(server_permissions);
-            *object.permissions_mut() = new_permissions;
-
-            let type_and_id = object.cloud_object_type_and_id();
-            self.objects_by_id.insert(object.uid(), object);
-
-            // Emit CloudModelEvent for SyncId conversion
-            ctx.emit(CloudModelEvent::ObjectSynced {
-                type_and_id,
-                client_id,
-                server_id,
-            });
-
-            ctx.notify();
         }
     }
 
@@ -241,43 +187,6 @@ impl CloudModel {
         self.objects_by_id
             .get(hashed_id)
             .map(|object| object.location(self, app))
-    }
-
-    pub fn set_latest_revision_and_editor(
-        &mut self,
-        uid: &str,
-        revision_and_editor: RevisionAndLastEditor,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(object) = self.objects_by_id.get_mut(uid) {
-            object.metadata_mut().revision = Some(revision_and_editor.revision);
-            object.metadata_mut().last_editor_uid = revision_and_editor.last_editor_uid;
-        }
-        ctx.notify();
-    }
-
-    /// Checks if the current object has a conflict and clears the conflict if that conflicts revision
-    /// is behind the current revision of the object. We need this because occasionally echo'd back updates
-    /// from RTC will result in a conflict, and we want to clear it once the server response is successful.
-    ///
-    /// This must only be called after the server *accepts* an update.
-    pub fn check_and_maybe_clear_current_conflict(
-        &mut self,
-        uid: &str,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(object) = self.objects_by_id.get_mut(uid)
-            && let Some(conflicting_revision) = object.conflicting_object_revision()
-            && let Some(current_revision) = object.metadata().revision
-        {
-            // If the pending conflict is out of date compared to the current revision, clear it.
-            // If we received the RTC update for an edit before the server response, the
-            // conflict's revision may be the same as the current revision.
-            if conflicting_revision <= current_revision {
-                object.clear_conflict_status();
-            }
-        }
-        ctx.notify();
     }
 
     pub fn get_by_uid(&self, uid: &ObjectUid) -> Option<&dyn CloudObject> {
@@ -1650,7 +1559,7 @@ impl CloudModel {
 
     #[cfg(test)]
     pub fn mock(_ctx: &mut ModelContext<Self>) -> Self {
-        Self::new(None, Vec::new(), None)
+        Self::new(None, Vec::new())
     }
 
     /// When `emit_events` is false (on the first load after login), per-object events
@@ -1757,31 +1666,8 @@ impl CloudModel {
         }
     }
 
-    /// Whether the next object sync should force a refresh on all cloud objects
-    pub fn cloud_objects_force_refresh_pending(&self) -> bool {
-        // If there's no stated time for the next refresh, assume we should do one now. Otherwise,
-        // check if we're at or past the time of the next refresh.
-        self.time_of_next_force_refresh
-            .is_none_or(|time_of_next_refresh| Utc::now() >= time_of_next_refresh)
-    }
-
-    /// After a successful force refresh, mark the state as completed by picking a
-    /// time for the next refresh.
-    pub fn mark_cloud_objects_refresh_as_completed(&mut self) -> DateTime<Utc> {
-        // In order to offset when clients are performing the force refresh, we introduce
-        // a small amount of randomness into the calculation. This is intended to distribute
-        // server load to whatever extent possible.
-        let mut rng = rand::thread_rng();
-        let minutes_until_next_refresh = rng
-            .gen_range(MIN_MINUTES_UNTIL_NEXT_FORCE_REFRESH..MAX_MINUTES_UNTIL_NEXT_FORCE_REFRESH);
-        let next_refresh_time = Utc::now() + Duration::minutes(minutes_until_next_refresh);
-        self.time_of_next_force_refresh = Some(next_refresh_time);
-        next_refresh_time
-    }
-
     pub fn reset(&mut self) {
         self.objects_by_id = HashMap::new();
-        self.time_of_next_force_refresh = None;
     }
 }
 

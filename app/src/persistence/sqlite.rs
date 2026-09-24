@@ -20,9 +20,7 @@ use cloud_object_models::workflow::persistence as workflow_persistence;
 use cloud_object_models::workflow::persistence::upsert_workflows;
 use cloud_object_persistence::{
     GenericStringObjectPersistenceData, delete_cloud_object, delete_generic_string_object,
-    increment_retry_count, load_cloud_object_read_context, mark_object_as_synced,
-    read_time_of_next_force_object_refresh, record_time_of_next_refresh,
-    update_object_after_server_creation, update_object_metadata,
+    load_cloud_object_read_context, update_object_metadata,
     upsert_generic_string_objects as upsert_generic_string_object_rows,
 };
 use diesel::connection::{DefaultLoadingMode, SimpleConnection};
@@ -654,28 +652,9 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
         ModelEvent::UpsertFolder { folder } => {
             upsert_folders(connection, vec![folder]).context("error upserting folder")
         }
-        ModelEvent::MarkObjectAsSynced {
-            revision_and_editor,
-            metadata_ts,
-            hashed_sqlite_id,
-        } => mark_object_as_synced(
-            connection,
-            hashed_sqlite_id,
-            revision_and_editor,
-            metadata_ts,
-        )
-        .context("error marking object as synced"),
-        ModelEvent::IncrementRetryCount(id) => {
-            increment_retry_count(connection, id).context("error incrementing retry count")
-        }
         ModelEvent::DeleteObjects { ids } => {
             delete_objects(connection, ids).context("error deleting objects")
         }
-        ModelEvent::UpdateObjectAfterServerCreation {
-            client_id,
-            server_creation_info,
-        } => update_object_after_server_creation(connection, client_id, server_creation_info)
-            .context("error executing object creation succeeded callback"),
         ModelEvent::UpsertCodebaseIndexMetadata { index_metadata } => {
             save_codebase_index_metadata(connection, *index_metadata)
                 .context("error upserting codebase index metadata")
@@ -714,10 +693,6 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
         }
         ModelEvent::ClearUserProfiles => {
             clear_user_profiles(connection).context("error clearing user profiles")
-        }
-        ModelEvent::RecordTimeOfNextRefresh { timestamp } => {
-            record_time_of_next_refresh(connection, timestamp)
-                .context("error marking object refresh as completed")
         }
         ModelEvent::InsertObjectAction { object_action } => {
             insert_object_action(connection, object_action).context("error inserting object action")
@@ -2469,7 +2444,6 @@ fn read_sqlite_data(
             current_workspace_uid: None,
             command_history: Default::default(),
             user_profiles: Default::default(),
-            time_of_next_force_object_refresh: None,
             object_actions: Default::default(),
             ai_queries: Default::default(),
             nld_prompts: Default::default(),
@@ -2841,8 +2815,6 @@ fn read_sqlite_data(
         Vec::new()
     };
 
-    let time_of_next_force_object_refresh = read_time_of_next_force_object_refresh(conn)?;
-
     // Seed up-arrow prompt history and (optionally) NLD prompt-history matching from a single
     // SQLite read, deriving both from the same in-memory query vector instead of reading twice.
     // TODO: Once up-arrow prompt history supports pagination, drop the 100-row up-arrow cap and
@@ -2874,7 +2846,6 @@ fn read_sqlite_data(
         current_workspace_uid,
         command_history: commands,
         user_profiles,
-        time_of_next_force_object_refresh,
         object_actions,
         ai_queries,
         nld_prompts,

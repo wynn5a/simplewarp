@@ -1110,7 +1110,6 @@ impl DriveIndex {
             | CloudModelEvent::ObjectDeleted { .. }
             | CloudModelEvent::ObjectPermissionsUpdated { .. }
             | CloudModelEvent::NotebookEditorChangedFromServer { .. }
-            | CloudModelEvent::ObjectSynced { .. }
             | CloudModelEvent::InitialLoadCompleted
             | CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated => {}
         }

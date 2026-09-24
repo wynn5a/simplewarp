@@ -107,9 +107,6 @@ pub trait CloudObject: Debug {
     /// Returns the CloudObjectTypeAndId for this object.
     fn cloud_object_type_and_id(&self) -> CloudObjectTypeAndId;
 
-    /// Sets the server id on this object.
-    fn set_server_id(&mut self, server_id: ServerId);
-
     /// Returns whether this object can be moved to the given space.
     fn can_move_to_space(&self, _space: Space, _app: &AppContext) -> bool {
         true
@@ -625,10 +622,6 @@ where
                 self.conflict_status = ConflictStatus::NoConflicts;
             }
         }
-    }
-
-    fn set_server_id(&mut self, server_id: ServerId) {
-        self.id = SyncId::ServerId(server_id);
     }
 
     fn object_link(&self) -> Option<String> {

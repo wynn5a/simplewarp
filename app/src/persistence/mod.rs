@@ -24,7 +24,7 @@ use std::thread::JoinHandle;
 
 use ai::project_context::model::ProjectRulePath;
 use ai::workspace::WorkspaceMetadata as CodeWorkspaceMetadata;
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Local};
 use instant::Instant;
 use lsp::supported_servers::LSPServerType;
 #[cfg(any(feature = "local_fs", feature = "integration_tests"))]
@@ -39,7 +39,6 @@ pub use sqlite::establish_ro_connection;
 use uuid::Uuid;
 use warp_core::command::ExitCode;
 use warp_errors::report_error;
-use warp_graphql::scalars::time::ServerTimestamp;
 use warp_multi_agent_api as api;
 use warpui::{AppContext, Entity, SingletonEntity};
 
@@ -52,9 +51,7 @@ use crate::auth::auth_manager::PersistedCurrentUserInformation;
 use crate::cloud_object::folders::CloudFolder;
 use crate::cloud_object::model::actions::ObjectAction;
 use crate::cloud_object::model::generic_string_model::CloudStringObject;
-use crate::cloud_object::{
-    CloudObject, CloudObjectMetadata, ObjectIdType, RevisionAndLastEditor, ServerCreationInfo,
-};
+use crate::cloud_object::{CloudObject, CloudObjectMetadata, ObjectIdType};
 use crate::notebooks::CloudNotebook;
 use crate::server::ids::SyncId;
 use crate::suggestions::ignored_suggestions_model::SuggestionType;
@@ -280,7 +277,6 @@ pub struct PersistedData {
     pub current_workspace_uid: Option<WorkspaceUid>,
     pub command_history: Vec<PersistedCommand>,
     pub user_profiles: Vec<UserProfileWithUID>,
-    pub time_of_next_force_object_refresh: Option<DateTime<Utc>>,
     pub object_actions: Vec<ObjectAction>,
     pub ai_queries: Vec<PersistedAIInput>,
     pub nld_prompts: Vec<(String, DateTime<Local>)>,
@@ -337,12 +333,6 @@ pub enum ModelEvent {
     UpsertWorkflows(Vec<CloudWorkflow>),
     UpsertNotebooks(Vec<CloudNotebook>),
     UpsertFolders(Vec<CloudFolder>),
-    MarkObjectAsSynced {
-        hashed_sqlite_id: String,
-        revision_and_editor: RevisionAndLastEditor,
-        metadata_ts: Option<ServerTimestamp>,
-    },
-    IncrementRetryCount(String),
     UpsertGenericStringObject {
         object: Box<dyn CloudStringObject>,
     },
@@ -355,10 +345,6 @@ pub enum ModelEvent {
     },
     UpsertFolder {
         folder: CloudFolder,
-    },
-    UpdateObjectAfterServerCreation {
-        client_id: String,
-        server_creation_info: ServerCreationInfo,
     },
     DeleteObjects {
         ids: Vec<(SyncId, ObjectIdType)>,
@@ -386,9 +372,6 @@ pub enum ModelEvent {
         profiles: Vec<UserProfileWithUID>,
     },
     ClearUserProfiles,
-    RecordTimeOfNextRefresh {
-        timestamp: DateTime<Utc>,
-    },
     // `PauseAndRemoveDatabase` and `ReconstructAndResume` are used to pause and resume the writer thread.
     // These are employed as part of Logout v0 to ensure that the writer thread
     // does not continue writing to the DB after the user has logged out and the DB is deleted.

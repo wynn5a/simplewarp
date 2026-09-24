@@ -262,15 +262,6 @@ impl MCPServersListPageView {
                         id: _,
                     },
                 folder_id: _,
-            }
-            | CloudModelEvent::ObjectSynced {
-                type_and_id:
-                    CloudObjectTypeAndId::GenericStringObject {
-                        object_type: GenericStringObjectFormat::Json(JsonObjectType::MCPServer),
-                        id: _,
-                    },
-                client_id: _,
-                server_id: _,
             } => {
                 me.refresh_server_cards(ctx);
             }

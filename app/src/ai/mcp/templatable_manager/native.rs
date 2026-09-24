@@ -300,16 +300,6 @@ impl TemplatableMCPServerManager {
                     },
                 folder_id: _,
             }
-            | CloudModelEvent::ObjectSynced {
-                type_and_id:
-                    CloudObjectTypeAndId::GenericStringObject {
-                        object_type:
-                            GenericStringObjectFormat::Json(JsonObjectType::TemplatableMCPServer),
-                        id: _,
-                    },
-                client_id: _,
-                server_id: _,
-            }
             | CloudModelEvent::ObjectMoved {
                 type_and_id:
                     CloudObjectTypeAndId::GenericStringObject {

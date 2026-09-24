@@ -1201,7 +1201,6 @@ pub(crate) fn initialize_app(
         app_state,
         command_history,
         restored_user_profiles,
-        time_of_next_force_object_refresh,
         object_actions,
         ai_queries,
         nld_prompts,
@@ -1222,7 +1221,6 @@ pub(crate) fn initialize_app(
                 sqlite_data.app_state,
                 sqlite_data.command_history,
                 sqlite_data.user_profiles,
-                sqlite_data.time_of_next_force_object_refresh,
                 sqlite_data.object_actions,
                 sqlite_data.ai_queries,
                 sqlite_data.nld_prompts,
@@ -1238,7 +1236,6 @@ pub(crate) fn initialize_app(
         })
         .unwrap_or_else(|| {
             (
-                Default::default(),
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -1567,13 +1564,7 @@ pub(crate) fn initialize_app(
         .cloned()
         .collect::<Vec<_>>();
 
-    ctx.add_singleton_model(|_ctx| {
-        CloudModel::new(
-            persistence_writer.sender(),
-            cloud_objects,
-            time_of_next_force_object_refresh,
-        )
-    });
+    ctx.add_singleton_model(|_ctx| CloudModel::new(persistence_writer.sender(), cloud_objects));
 
     // Seed the orchestration pin set from persisted conversation data
     // before the conversations vec is consumed by the singletons below.

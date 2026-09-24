@@ -4,7 +4,7 @@ use cloud_objects::UserUid;
 use cloud_objects::cloud_object::{
     CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus,
     GENERIC_STRING_OBJECT_PREFIX, GenericStringObjectFormat, NumInFlightRequests, ObjectIdType,
-    ObjectType, Owner, Revision, RevisionAndLastEditor, ServerCreationInfo,
+    ObjectType, Owner, Revision,
 };
 use cloud_objects::ids::{ClientId, FolderId, HashableId, SyncId, ToServerId};
 use diesel::result::Error;
@@ -414,81 +414,6 @@ pub fn delete_generic_string_object(
     use schema::generic_string_objects::dsl::*;
     diesel::delete(generic_string_objects.filter(id.eq(generic_string_object_id))).execute(conn)?;
     Ok(())
-}
-
-/// Mark a shareable object as no longer having pending changes.
-pub fn mark_object_as_synced(
-    conn: &mut SqliteConnection,
-    hashed_sqlite_id: String,
-    new_revision_and_editor: RevisionAndLastEditor,
-    new_metadata_ts: Option<ServerTimestamp>,
-) -> Result<(), Error> {
-    use schema::object_metadata::dsl::*;
-    conn.transaction::<(), Error, _>(|conn| {
-        diesel::update(object_metadata.filter(server_id.eq(Some(hashed_sqlite_id.as_str()))))
-            .set(is_pending.eq(false))
-            .execute(conn)?;
-        diesel::update(object_metadata.filter(server_id.eq(Some(hashed_sqlite_id.clone()))))
-            .set((
-                revision_ts.eq(new_revision_and_editor.revision.timestamp_micros()),
-                last_editor_uid.eq(new_revision_and_editor.last_editor_uid),
-            ))
-            .execute(conn)?;
-
-        if let Some(metadata_ts) = new_metadata_ts {
-            diesel::update(object_metadata.filter(server_id.eq(Some(hashed_sqlite_id))))
-                .set((metadata_last_updated_ts.eq(metadata_ts.timestamp_micros()),))
-                .execute(conn)?;
-        }
-        Ok(())
-    })
-}
-
-pub fn increment_retry_count(
-    conn: &mut SqliteConnection,
-    server_id_string: String,
-) -> Result<(), Error> {
-    use schema::object_metadata::dsl::*;
-    conn.transaction::<(), Error, _>(|conn| {
-        diesel::update(object_metadata.filter(server_id.eq(Some(server_id_string))))
-            .set(retry_count.eq(retry_count + 1))
-            .execute(conn)?;
-        Ok(())
-    })
-}
-
-pub fn update_object_after_server_creation(
-    conn: &mut SqliteConnection,
-    client_id_string: String,
-    server_creation_info: ServerCreationInfo,
-) -> Result<(), Error> {
-    use schema::commands::dsl::*;
-    use schema::object_metadata::dsl::*;
-
-    conn.transaction::<(), Error, _>(|conn| {
-        diesel::update(object_metadata.filter(client_id.eq(Some(client_id_string.clone()))))
-            .set((
-                server_id.eq(Some(
-                    server_creation_info
-                        .server_id_and_type
-                        .sqlite_type_and_uid_hash(),
-                )),
-                creator_uid.eq(server_creation_info.creator_uid),
-            ))
-            .execute(conn)?;
-
-        diesel::update(commands.filter(cloud_workflow_id.eq(Some(client_id_string))))
-            .set(
-                cloud_workflow_id.eq(Some(
-                    server_creation_info
-                        .server_id_and_type
-                        .sqlite_type_and_uid_hash(),
-                )),
-            )
-            .execute(conn)?;
-
-        Ok(())
-    })
 }
 
 /// SQLite endpoint for the ObjectMetadataUpdated RTC message that updates the metadata ts and other

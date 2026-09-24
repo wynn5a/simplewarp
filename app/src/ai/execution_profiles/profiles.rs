@@ -396,26 +396,7 @@ impl AIExecutionProfilesModel {
                     if !me.settings_are_authoritative() {
                         me.handle_cloud_model_event(event, ctx);
                     }
-                    if let CloudModelEvent::ObjectSynced {
-                        type_and_id:
-                            CloudObjectTypeAndId::GenericStringObject {
-                                object_type:
-                                    GenericStringObjectFormat::Json(
-                                        JsonObjectType::AIExecutionProfile,
-                                    ),
-                                ..
-                            },
-                        client_id,
-                        server_id,
-                    } = event
-                    {
-                        me.replace_client_id_with_server_id(
-                            SyncId::ServerId(*server_id),
-                            SyncId::ClientId(*client_id),
-                            ctx,
-                        );
-                        me.migrate_settings_profiles(ctx);
-                    } else if matches!(event, CloudModelEvent::InitialLoadCompleted) {
+                    if matches!(event, CloudModelEvent::InitialLoadCompleted) {
                         me.migrate_settings_profiles(ctx);
                     }
                 });
@@ -2111,68 +2092,6 @@ impl AIExecutionProfilesModel {
                 ctx,
             );
         }
-    }
-
-    /// Replaces a temporary client sync ID with the server ID assigned after object creation.
-    ///
-    /// Migration-capable sources also replace generated profile keys with their deterministic
-    /// migrated keys in settings and active/default references.
-    pub fn replace_client_id_with_server_id(
-        &mut self,
-        server_id: SyncId,
-        client_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let Some(profile_id) = self
-            .profile_id_to_sync_id
-            .iter()
-            .find_map(|(profile_id, sync_id)| (*sync_id == client_id).then(|| profile_id.clone()))
-        else {
-            return;
-        };
-        let is_default_profile = profile_id == self.default_profile_state.id();
-        let migrated_profile_id = if self.source.imports_legacy_profiles() {
-            self.source.legacy_profile_id(server_id, is_default_profile)
-        } else {
-            profile_id.clone()
-        };
-
-        self.profile_id_to_sync_id.remove(&profile_id);
-        self.profile_id_to_sync_id
-            .insert(migrated_profile_id.clone(), server_id);
-        if migrated_profile_id != profile_id {
-            if self.settings_are_authoritative() {
-                let mut profiles = AISettings::as_ref(ctx).execution_profiles.value().clone();
-                if let Some(profile) = profiles.remove(&profile_id) {
-                    profiles.insert(migrated_profile_id.clone(), profile);
-                    if let Err(error) = AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                        settings.execution_profiles.set_value(profiles, ctx)
-                    }) {
-                        report_error!(
-                            error.context("Failed to re-key migrated execution profile settings")
-                        );
-                    }
-                }
-            }
-            for active_profile_id in self.active_profiles_per_session.values_mut() {
-                if *active_profile_id == profile_id {
-                    active_profile_id.clone_from(&migrated_profile_id);
-                }
-            }
-            match &mut self.default_profile_state {
-                DefaultProfileState::Unsynced { id, .. }
-                | DefaultProfileState::Synced { id }
-                | DefaultProfileState::Cli { id, .. }
-                    if *id == profile_id =>
-                {
-                    id.clone_from(&migrated_profile_id);
-                }
-                DefaultProfileState::Unsynced { .. }
-                | DefaultProfileState::Synced { .. }
-                | DefaultProfileState::Cli { .. } => {}
-            }
-        }
-        log::info!("Updated profile id mapping after creating a new execution profile");
     }
 
     /// Replaces the given profile's data with CLI defaults for the given sandboxed state.

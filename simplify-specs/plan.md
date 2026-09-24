@@ -11902,3 +11902,145 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       no code changes — this commit contains only plan.md (verified
       with `git show --stat`); no clippy/nextest required; app not
       launched; no .rs file touched.
+
+- [x] **endgame slice 1 — dead sync events + force-refresh chain
+      (4fl) — DONE 2026-09-24.** Executed the 4fk SLICE 1: the four
+      zero-sender sync-queue ModelEvents, their handler arms, the
+      cloud_object_persistence sync helpers, the whole orphaned
+      force-refresh chain, and the one-hop orphans that surfaced —
+      22 files changed, 37 insertions(+), 882 deletions(−), net
+      −845 (2 files deleted outright:
+      cloud_object_persistence/src/refresh.rs,
+      cloud_objects/src/cloud_object/creation.rs).
+
+      PER-EVENT VERIFICATION (all at HEAD ea4ef344, pre-delete).
+      A repo-wide PCRE sweep (`(?<![A-Za-z0-9_])ModelEvent::` —
+      lookbehind form because `\b` fails on this host — excluding
+      the terminal ModelEvent, a different enum) shows each of the
+      four names appears ONLY in the enum definition
+      (persistence/mod.rs) and the sqlite subscriber match
+      (persistence/sqlite.rs): MarkObjectAsSynced,
+      IncrementRetryCount, UpdateObjectAfterServerCreation,
+      RecordTimeOfNextRefresh — zero senders each, exactly as the
+      4fk predicted. Deleted the 4 variants + their 4 handler arms
+      together (exhaustive-match safe: arms and variants removed in
+      the same edit set), plus the now-unused imports
+      (RevisionAndLastEditor, ServerCreationInfo, ServerTimestamp,
+      chrono::Utc) in persistence/mod.rs.
+
+      CHAIN SPAN + DELETION EVIDENCE. Force-refresh chain, verified
+      orphaned end-to-end before deletion: sqlite.rs read
+      (`read_time_of_next_force_object_refresh` at the old
+      :2844) → PersistedData.time_of_next_force_object_refresh
+      field → lib.rs tuple wiring (old :1204/:1225/:1574) →
+      CloudModel::new third param → the
+      time_of_next_force_refresh field →
+      cloud_objects_force_refresh_pending +
+      mark_cloud_objects_refresh_as_completed (the latter had zero
+      callers even before this round) → RecordTimeOfNextRefresh
+      event → record_time_of_next_refresh + refresh.rs
+      (cloud_objects_refreshes table read/write). Every link had
+      zero live callers outside the chain itself. Also fell:
+      CloudModel's set_latest_revision_and_editor,
+      check_and_maybe_clear_current_conflict (zero callers each),
+      update_object_after_server_creation (callers were the three
+      dedicated model_tests tests + one profiles_tests block, all
+      in slice-1 fallout), the MIN/MAX_MINUTES_UNTIL_NEXT_FORCE_
+      REFRESH constants + the rand/Duration imports, and the three
+      cloud_object_persistence helpers mark_object_as_synced/
+      increment_retry_count/update_object_after_server_creation.
+
+      ONE-HOP CONSEQUENCES RESOLVED IN THIS ROUND. (1)
+      CloudModelEvent::ObjectSynced — its ONLY emitter was
+      CloudModel::update_object_after_server_creation, so the
+      variant fell with its 7 dead subscriber arms:
+      cloud_environments/catalog.rs, ai_document_model.rs (its
+      reconcile arm; reconcile_server_backed_notebook stays live
+      via ObjectCreated/ObjectUpdated), cloud_object/model/view.rs,
+      drive/index.rs, mcp_servers/list_page.rs,
+      templatable_manager/native.rs, execution_profiles/profiles.rs
+      (the if-let arm calling replace_client_id_with_server_id —
+      restructured to the InitialLoadCompleted-only check). (2)
+      replace_client_id_with_server_id itself: its only production
+      trigger was the deleted ObjectSynced arm, so it fell together
+      with the two profiles_tests tests whose sole purpose was
+      driving it (migration_retries_after_pending_legacy_profile_
+      receives_server_id, materialized_pending_profile_is_rekeyed_
+      after_server_id_arrives — both also rode slice-2a's
+      upsert_from_server_object). legacy_profile_id/
+      imports_legacy_profiles stay (12+ live callers). (3)
+      CloudObject::set_server_id trait method + its single impl —
+      only caller was the deleted update_object_after_server_
+      creation. (4) RevisionAndLastEditor struct — the 4fk
+      "sqlite read path" note is stale at HEAD; its only remaining
+      users were the falling methods, so the struct fell (cloud_
+      objects/cloud_object/mod.rs). (5) creation.rs
+      ServerCreationInfo — after slice-1 removals its users were
+      zero (the 4fk slice-2b listing front-ran; 2b just gets
+      smaller). (6) NewCloudObjectsRefresh + CloudObjectsRefresh
+      persistence structs — only users were refresh.rs. (7) Test
+      fallout beyond the named blocks: the
+      cloud_model_sync_event_reconciles_stale_document_client_id
+      test + its add_server_backed_plan_notebook helper
+      (ai_document_model_tests.rs, fed the deleted variant
+      directly), and CloudModel::new 2-arg updates at 3 test call
+      sites + the #[cfg(test)] CloudModel::mock constructor.
+      Final PCRE sweep over every deleted name: zero references
+      remain; nothing newly-orphaned left unresolved.
+
+      Deliberately left (per the 4fk plan): SLICE 2a — CloudModel
+      server-intake functions + the remaining server-half tests
+      (upsert_from_server_object family persistence.rs
+      :402-532/:1662-1749 pre-4fl numbering,
+      update_cloud_object_if_exists, bulk equivalents; the server
+      halves of profiles_tests.rs/model_tests.rs/data_source_
+      tests.rs). SLICE 2b — GenericServerObject + Server* aliases +
+      Server* metadata/permissions types + the conversion wall
+      (server_object.rs with ConflictStatus kept, the
+      cloud_object/mod.rs :786-1017 TryFrom wall, :228-262 gql
+      ObjectType conversions, server_cloud_object.rs; creation.rs
+      already gone). SLICE 3a — app conversion walls + pricing.
+      SLICE 3b — warp_graphql dead modules. SLICE 4 — schema crate
+      fold. Also untouched by design: the cloud_objects_refreshes
+      sqlite table + object_metadata sync-retry columns (no
+      migrations, slices stop reading/writing them), UpdateManager
+      (local, stays entirely), ConflictStatus state machine (live
+      reader in active_notebook_data.rs).
+
+      Local-only safety: every deletion is a zero-sender event, a
+      zero-caller function, or a subscriber arm of a
+      never-emitted event — no reachable runtime path changed.
+      UpdateManager's local write paths (SQLite + in-memory
+      CloudModel) untouched; sqlite schema.rs and migrations
+      untouched (verified: no schema/migration file in the diff);
+      the local warp-server login flow (AuthClientImpl → GetUser)
+      untouched; persisted serde shapes never routed through the
+      falling types (per the 4fk landmines), so no stored bytes
+      change.
+
+      Acceptance: (1) clippy baseline diff — captured FIRST at
+      HEAD in both configs (sort -u pairs), post-change runs are
+      WARNING-IDENTICAL: the same 12 pre-existing warnings
+      (11 needless-return in terminal/input.rs at identical line
+      numbers — input.rs untouched; 1 single-element-loop in
+      terminal/model/lifecycle/mod_tests.rs:272), one new
+      transient warning (replace_client_id_with_server_id never
+      used) was resolved by deleting the method rather than
+      suppressed. (2) cargo check suite 0 errors, both feature
+      sets (-p warp --lib --all-targets default + --no-default-
+      features --features simplewarp), --bin simplewarp,
+      --bin warp-oss, --all-targets -p integration (shows only
+      the 2 pre-existing step.rs unused-import warnings),
+      --lib --tests --features skip_login, -p cloud_objects
+      --all-targets. (3) ./script/format — idempotent, no diff
+      after rerun. (4) nextest -p warp --lib: default 4,608 run
+      (4,614 baseline − 6 tests deleted this round), 4,607
+      passed + the known test_command_block_dispatches_event
+      load flake failing once and passing on isolated rerun,
+      3 skipped, 0 failed; simplewarp 4,607 run (= 4,613 − 6),
+      all passed, 3 skipped, 0 failed. Runtime smoke SKIPPED per
+      round instructions (user away — app must not be launched;
+      password prompt unanswerable); compile + test evidence
+      stands in. DESIGNATED NEXT: slice 2a exactly as scoped in
+      the 4fk plan (CloudModel server-intake + server-half
+      tests, ≈−700, half of it tests).

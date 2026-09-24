@@ -390,9 +390,6 @@ impl AIDocumentModel {
 
     fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
         match event {
-            CloudModelEvent::ObjectSynced { server_id, .. } => {
-                self.reconcile_server_backed_notebook(SyncId::ServerId(*server_id), ctx);
-            }
             CloudModelEvent::ObjectCreated {
                 type_and_id: CloudObjectTypeAndId::Notebook(sync_id),
             }

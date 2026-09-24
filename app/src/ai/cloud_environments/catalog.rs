@@ -46,8 +46,7 @@ impl CloudEnvironmentCatalog {
                 | CloudModelEvent::NotebookEditorChangedFromServer { .. }
                 | CloudModelEvent::ObjectDeleted { .. }
                 | CloudModelEvent::ObjectPermissionsUpdated { .. }
-                | CloudModelEvent::ObjectForceExpanded { .. }
-                | CloudModelEvent::ObjectSynced { .. } => catalog.refresh(ctx),
+                | CloudModelEvent::ObjectForceExpanded { .. } => catalog.refresh(ctx),
             }
         });
         let (environments, orchestration_default_environment_id) = Self::current_environments(ctx);
