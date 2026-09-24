@@ -10652,3 +10652,239 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       warp_server_auth stays as local identity, and cloud_objects +
       the warp_graphql types are the endgame." The ORCHESTRATOR will
       scope it; NOT started here.
+- [ ] **the fold scope survey + slice plan (4ff) — RECORDED 2026-09-23.**
+      SCOPING round for 4ca item (8) — no code deleted; this entry is
+      the deliverable.
+
+      TASK-9 ANSWER (what network identity remains after the fold):
+      identity/transport code STAYS, and which binaries can reach it is
+      decided by channel config + feature set, exactly the telemetry
+      pattern. (a) The product bin `simplewarp` is fully braked:
+      `app/src/bin/simplewarp.rs` hardcodes
+      `WarpServerConfig::local_only()` (`.invalid` RFC-2606 hosts,
+      `firebase_auth_api_key: ""`) and reads NO env override —
+      `SERVER_ROOT_URL`/`WS_SERVER_URL` flow only through the
+      `warp-channel-config` generator consumed by the dev/local/
+      preview/stable bins — and its feature set is `local_only` +
+      `skip_login` (+ `SkipFirebaseAnonymousUser` flag):
+      `AuthState::initialize` stops before adopting any user,
+      `AuthSession::get_or_refresh_access_token` bails on both
+      `cfg!` gates before touching credentials, and
+      `sign_in_url()` targets a `.invalid` root, so no login path can
+      succeed. (b) Login against a LOCAL warp-server is a KEPT
+      developer feature of the `warp` Local-channel bin
+      (`script/run` picks it when `warp-channel-config` is on PATH;
+      WITH_LOCAL_SERVER per AGENTS.md): the whole flow is live —
+      browser redirect → `AuthRedirectPayload` intake
+      (`root_view.rs:1533`) → `AuthManager::initialize_user_from_
+      auth_payload` → `AuthClient::fetch_user` (Firebase token
+      exchange + the GetUser GraphQL call) → override-warning modal,
+      plus startup `refresh_user` (`lib.rs:1718`) and the `Reauth`
+      workspace action (`view.rs:20825`). (c) `warp-oss`
+      (default-run bin) uses `WarpServerConfig::production()` and
+      also keeps the flows functional. (d) A second live AuthClient
+      consumer outside login: `remote_server::wire_auth_token_
+      rotation` + `auth_context.rs` use
+      `get_or_refresh_access_token()`/`AccessTokenRefreshed` for SSH
+      daemon tokens (compiled non-wasm, all bins). CONSEQUENCE: the
+      4ca wording "warp_server_client falls entirely" needs one
+      correction — the CRATE falls, but its auth half
+      (AuthClient/AuthSession/AuthEvent/fetch_user/GetUser) MOVES
+      into `warp_server_auth`, which becomes the single identity
+      crate (state + credentials + session + token exchange +
+      GetUser). Deleting it instead would kill the documented local
+      warp-server dev flow and login in the warp/warp-oss bins. GetUser
+      is therefore the last LIVE GraphQL op and stays.
+
+      PER-CRATE MAPS (verified at f2b2e2137). ServerApi
+      (`app/src/server/server_api.rs`, 445 + auth.rs 5 + auth_tests
+      54): `ServerApi = { base_client: Arc<BaseClient> }` +
+      `Deref<BaseClient>` + four `Err(local_only_error())` stubs
+      (generate_ai_input_suggestions, get_relevant_files,
+      generate_am_query_suggestions, transcribe);
+      `ServerApiProvider` singleton = `{ server_api, auth_client }`
+      + the AuthEvent pump (`:377-404`: NeedsReauth→AuthManager,
+      UserAccountDisabled→`app:log_out` global action, re-emit).
+      `get()` callers: `Arc<ServerApi>` threaded as a plumbing type
+      through 9 files (root_view, workspace/view, pane_group/mod,
+      terminal/view resources, terminal/input, docker_sandbox,
+      mock_terminal_manager, view/testing, ai/agent/api/impl.rs —
+      the last already dead: `let _ = &server_api;`); actual method
+      calls are only the 4 stubs (voice_transcriber.rs:34,
+      get_relevant_files/controller.rs:152,
+      blocklist/passive_suggestions/legacy.rs:274,
+      predict/next_command_model.rs:662) plus BaseClient's
+      `get_or_refresh_access_token` via Deref
+      (workspace/view.rs:20718, CopyAccessTokenToClipboard dev
+      action). `get_auth_client()`: auth_manager (login),
+      remote_server_controller.rs:536, tests. `get_http_client()`:
+      7 sites (init_project ×2, load_ai_conversation,
+      persisted_workspace ×4). AuthEvent subscribers: workspace/
+      view.rs:2192 (StagingAccessBlocked), remote_server/mod.rs:57
+      (AccessTokenRefreshed→rotate), mcp/templatable_manager/
+      native.rs:370. BaseClient (crates/warp_server_client/src/
+      base_client.rs, 107+28 tests): `{client, auth_state,
+      auth_session, graphql_routing}` + the cfg `agent_mode_evals`
+      EVAL_USER_IDS key-install block; accessors
+      owned_http_client/auth_session/anonymous_id/user_id/
+      graphql_request_options_with_token — every one consumed only
+      by server_api.rs or AuthClientImpl; sole external importer is
+      app/src/server/server_api.rs. → fully dissolvable.
+      warp_server_client (863 src lines): auth/mod.rs (198 —
+      AuthClient trait + automock, AuthClientImpl, FetchUserResult,
+      UserAuthenticationError + `From<FirebaseError>`,
+      EXPERIMENT_ID_HEADER), auth/session.rs (219 — AuthSession,
+      AuthEvent, identitytoolkit exchange with proxy fallback),
+      base_client (135), network_logging (235 w/ tests), drive.rs +
+      ids.rs (1-line cloud_objects re-export shims), lib.rs (8).
+      External importers: exactly 9 app files (listed as consumers
+      above + cloud_object/folders.rs and
+      cloud_object/model/generic_string_model.rs for the ids
+      shims); Cargo dependents: app only.
+      firebase (145 lines, pure serde data types: FirebaseError,
+      AccountInfo/GetAccountInfoResponse, FetchAccessTokenResponse;
+      no HTTP, no config, no feature): both importers are
+      warp_server_client/auth; the actual network calls live in
+      AuthSession::fetch_auth_tokens and are braked per the task-9
+      answer; app/Cargo.toml:430 declares the dep but no app/src
+      file imports firebase (already dead).
+      network_logging: `NetworkLogModel` +
+      `install_on_clients` (`set_before_request_fn`/
+      `set_after_response_fn` → bounded async channel → model);
+      deps are http_client + warpui_core + warp_errors +
+      bounded_vec_deque + chrono ONLY — no auth/graphql/firebase
+      coupling, so it moves cleanly to `app/src/server/`.
+      Registration order matters: lib.rs:1123-1126 registers it
+      BEFORE ServerApiProvider. Pane surface (network_log_view.rs +
+      network_log_pane_manager.rs) is already app-side and stays;
+      everything gated on `ContextFlag::NetworkLogConsole`.
+      warp_server_auth (1,432 lines): anonymous_id, auth_state
+      (AuthState/AuthStateProvider/PersistAction; initialize order
+      test user → WARP_USER_SECRET → persisted user; `local_only`
+      stops first), credentials, user (+ secure-storage
+      persistence), user_uid. CORRECTION to "no dependency on the
+      falling crates": it depends on warp_graphql today —
+      auth_state/credentials use object_permissions::OwnerType,
+      user.rs converts FROM get_user types (FirebaseProfile,
+      PrincipalType, AnonymousUserPersonalObjectLimits,
+      ServerTimestamp) and mutations::create_anonymous_user. So
+      "stays" = keeps warp_graphql and GAINS http_client +
+      async-channel + async-trait + instant when the auth half
+      moves in. warp_graphql (crates/graphql; 31 importer files,
+      down from 49 at 4ca): GetUser::build at
+      warp_server_client/src/auth/mod.rs:70 is the ONLY op build
+      site workspace-wide (4ca's "four operations" is now one; the
+      api-key trio fell in 4cd); get_conversation_usage and
+      create_anonymous_user are types-only; client.rs has exactly
+      2 importer files, both warp_server_client; type half by
+      consumer: scalars::ServerTimestamp ×10, billing ×5
+      (app/pricing), workspace ×4 (app/workspaces),
+      object_permissions ×4, generic_string_object ×4,
+      ai::AgentTaskState ×3, object ×2, get_user ×4. cloud_objects
+      (1,946 lines, 102 importer files: 74 app,
+      21 cloud_object_models, 3 warp_server_client [the shims],
+      2 persistence, 2 cloud_object_persistence): endgame,
+      untouched by the fold except the shim repoint.
+
+      SLICE PLAN (every intermediate state compiles;
+      behavior-preserving; smallest blast radius first):
+      SLICE 1 — network_logging moves to app (~7 files, ≈+20/−240,
+      mostly git-mv): move network_logging.rs + tests →
+      app/src/server/; `pub mod network_logging;` in server/mod.rs;
+      repoint 3 imports (lib.rs:203, network_log_view.rs:13,
+      server_api.rs:13); drop the module from
+      warp_server_client/src/lib.rs. Risk LOW — self-contained, all
+      deps are already app deps, tests are warpui_core-only.
+      Acceptance: check + clippy both feature sets, nextest (3
+      tests move), optional smoke: NetworkLogConsole pane still
+      populates. SLICE 2 — the shims fall (~4 files, ≈−10):
+      folders.rs + generic_string_model.rs repoint to
+      `cloud_objects::ids::`; delete drive.rs, ids.rs, and lib.rs
+      re-exports (`warp_server_client::UserUid` and
+      `::server_id_traits` verified zero external users). Risk:
+      none. SLICE 3 — BaseClient dissolves (~8 files, ≈−250):
+      GraphqlRoutingConfig + the agent_mode_evals eval-user block
+      move into `AuthClientImpl::new(client, auth_state,
+      event_sender, routing)`, which builds its own AuthSession;
+      graphql_request_options_with_token inlines; delete
+      base_client.rs + tests; server_api.rs loses base_client +
+      Deref — `ServerApi = { http_client: Arc<http_client::Client>
+      }` + the 4 stubs; CopyAccessTokenToClipboard and
+      auth_tests.rs:48 repoint to
+      `get_auth_client().get_or_refresh_access_token()`;
+      ServerApiProvider::new constructs AuthClientImpl directly.
+      Risk: moderate — the evals block is cfg'd code presubmit
+      never compiles (4ca skip_login class); hand-compile with
+      `--features agent_mode_evals`. SLICE 4 — warp_server_client
+      + firebase fall; auth half moves into warp_server_auth (~12
+      files touched, 2 crates + workspace entries deleted, ≈−1,050
+      net, ~630 lines move): git mv auth/{mod,session}.rs +
+      session_tests → warp_server_auth/src/{auth_client,session}.rs;
+      firebase/src/lib.rs → warp_server_auth/src/firebase.rs;
+      warp_server_auth Cargo.toml gains http_client,
+      async-channel, async-trait, instant; app repoints
+      server_api.rs imports, the server_api/auth.rs re-export
+      source (auth_manager/root_view import paths unchanged), the
+      3 AuthEvent consumers; Cargo.toml drops firebase +
+      warp_server_client members; app/Cargo.toml drops both deps +
+      the dead firebase line:430 and repoints the feature
+      forwardings — local_only/skip_login (:893-894), test-util
+      (:906), integration_tests (:912), dev-dep (:444-445). Delete
+      the automock while moving (zero MockAuthClient users) so
+      mockall/test-util need not follow into warp_server_auth.
+      Risk: highest of the round — feature-forwarding chains,
+      wasm `async_trait(?Send)` branches move verbatim,
+      integration_tests code is never compiled by presubmit
+      (hand-check), ServerApiProvider::new_for_test harnesses.
+      Acceptance: check + clippy in default AND simplewarp sets,
+      plus `--features integration_tests` and `fast_dev`
+      hand-checks, nextest both sets. SLICE 5 — optional tail, its
+      own round: the four stub walls + callers together
+      (established 4cf/4cg pattern — every stub is an
+      unconditional Err, so taking the existing error fallback is
+      behavior-identical): voice_transcriber,
+      get_relevant_files/controller path,
+      blocklist/passive_suggestions/legacy.rs (whole file likely
+      falls), next_command_model suggestion path, the dead
+      ai/agent/api/impl.rs field; then dissolve the
+      `Arc<ServerApi>` plumbing across the 9 files into
+      ServerApiProvider::{get_http_client, get_auth_client} — the
+      provider keeps {http_client, auth_client} + event pump.
+      ≈−500..800. ENDGAME (recorded, not scheduled): cloud_objects
+      + the warp_graphql type half fall as their consumers fall
+      (workspaces/pricing/cloud_object/drive); terminal
+      warp_graphql = schema + get_user + client.rs + scalars, alive
+      as warp_server_auth's identity dependency for as long as
+      login remains a dev-bin feature.
+
+      LANDMINES: (1) the four feature-forwarding chains
+      app→warp_server_client→warp_server_auth (local_only,
+      skip_login, integration_tests, test-util) must all repoint in
+      slice 4 — `fast_dev = ["skip_login"]` and the simplewarp set
+      ride them. (2) cfg code presubmit never compiles:
+      agent_mode_evals (slice 3), wasm async_trait(?Send) +
+      `initialize_user_from_session_cookie` (slice 4),
+      integration_tests (slice 4). (3) the AuthEvent pump's
+      `app:log_out` global action exists to avoid a circular model
+      reference (comment at server_api.rs:381-386) — any provider
+      refactor must keep the pump shape. (4) NetworkLogModel must
+      stay registered BEFORE ServerApiProvider (lib.rs:1123-1126).
+      (5) test fixtures carry bearer/refresh tokens
+      (session_tests `Bearer("daemon-token")`, base_client_tests) —
+      move with their modules; never add them to logs. (6)
+      EXPERIMENT_ID_HEADER + anonymous_id decoration on GetUser
+      must move with fetch_user_properties. (7) the login UI's
+      server interactions (Reauth/sign_in_url, auth-redirect
+      intake, override-warning modal, startup refresh_user) must
+      keep working against a LOCAL warp-server via the warp
+      Local-channel bin — no AuthManager path may be stubbed in
+      this round. (8) `app/Cargo.toml:430` firebase is already a
+      dead dep — verified zero app/src imports before removing.
+      (9) `warp_server_client::auth` re-exports
+      `warp_server_auth::user_uid` — the app-side re-export chain
+      (`crate::auth`) must stay intact when the module moves.
+      DESIGNATED NEXT: slice 1 exactly as scoped above.
+      Acceptance for THIS round: no code changes — this commit
+      contains only plan.md (verified with `git show --stat`); no
+      clippy/nextest required; app not launched; no .rs file
+      touched.
