@@ -13,12 +13,11 @@ pub use session::*;
 use thiserror::Error;
 pub use user_uid::{TEST_USER_EMAIL, TEST_USER_UID, UserUid};
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
-use warp_graphql::client::Operation as _;
+use warp_graphql::client::{Operation as _, RequestOptions};
 use warp_graphql::queries::get_user::{GetUser, GetUserVariables, UserOutput as GqlUserOutput};
+use warp_server_auth::auth_state::AuthState;
 use warp_server_auth::credentials::{AuthToken, Credentials, LoginToken};
 pub use warp_server_auth::user_uid;
-
-use crate::base_client::BaseClient;
 
 /// Header key used to associate unauthenticated requests with an experiment identity.
 pub const EXPERIMENT_ID_HEADER: &str = "X-Warp-Experiment-Id";
@@ -51,18 +50,65 @@ pub trait AuthClient: Send + Sync {
     ) -> StdResult<FetchUserResult, UserAuthenticationError>;
 }
 
-/// Implements the [`AuthClient`] trait on top of a base client and auth session.
+/// IDs in the staging database that were created specifically for evals.
+///
+/// Keep this list in sync with `script/populate_agent_mode_eval_user.sql` in warp-server.
+#[cfg(feature = "agent_mode_evals")]
+const EVAL_USER_IDS: [i32; 11] = [
+    2162, 2164, 2165, 2166, 2167, 2168, 2169, 2172, 2173, 2174, 2175,
+];
+
+/// Provides GraphQL path routing that applies independently of authentication.
+#[derive(Clone, Debug, Default)]
+pub struct GraphqlRoutingConfig {
+    pub path_prefix: Option<String>,
+}
+
+/// Implements the [`AuthClient`] trait over the shared HTTP client and auth session.
 pub struct AuthClientImpl {
-    base_client: Arc<BaseClient>,
+    client: Arc<http_client::Client>,
+    auth_state: Arc<AuthState>,
     auth_session: Arc<AuthSession>,
+    graphql_routing: GraphqlRoutingConfig,
 }
 
 impl AuthClientImpl {
-    pub fn new(base_client: Arc<BaseClient>) -> Self {
-        let auth_session = base_client.auth_session();
+    pub fn new(
+        client: Arc<http_client::Client>,
+        auth_state: Arc<AuthState>,
+        event_sender: async_channel::Sender<AuthEvent>,
+        graphql_routing: GraphqlRoutingConfig,
+    ) -> Self {
+        // We generate one random user ID per client so evals can run in parallel.
+        #[cfg(feature = "agent_mode_evals")]
+        let eval_user_id = {
+            use rand::Rng as _;
+
+            Some(EVAL_USER_IDS[rand::thread_rng().gen_range(0..EVAL_USER_IDS.len())])
+        };
+        #[cfg(feature = "agent_mode_evals")]
+        if let Some(eval_user_id) = eval_user_id {
+            // Set a deterministic per-user API key so all requests — including
+            // REST endpoints like the SSE event stream — carry a real
+            // Authorization header. The key format mirrors what SeedEvalAPIKeys()
+            // inserts in warp-server at eval startup:
+            // wk-1.<user_id as 64-char zero-padded lowercase hex>.
+            let eval_key = format!("wk-1.{eval_user_id:0>64x}");
+            auth_state.set_credentials(Some(Credentials::ApiKey {
+                key: eval_key,
+                owner_type: None,
+            }));
+        }
+        let auth_session = Arc::new(AuthSession::new(
+            client.clone(),
+            auth_state.clone(),
+            event_sender,
+        ));
         Self {
-            base_client,
+            client,
+            auth_state,
             auth_session,
+            graphql_routing,
         }
     }
 
@@ -70,15 +116,17 @@ impl AuthClientImpl {
         let operation = GetUser::build(GetUserVariables {
             request_context: warp_graphql::client::get_request_context(),
         });
-        let mut options = self
-            .base_client
-            .graphql_request_options_with_token(auth_token.map(ToOwned::to_owned));
+        let mut options = RequestOptions {
+            auth_token: auth_token.map(ToOwned::to_owned),
+            path_prefix: self.graphql_routing.path_prefix.clone(),
+            ..RequestOptions::default()
+        };
         options.headers.insert(
             EXPERIMENT_ID_HEADER.to_string(),
-            self.base_client.anonymous_id(),
+            self.auth_state.anonymous_id(),
         );
         let response = operation
-            .send_request(self.base_client.owned_http_client(), options)
+            .send_request(self.client.clone(), options)
             .await?
             .data
             .ok_or_else(|| anyhow!("Expected valid response.data"))?;

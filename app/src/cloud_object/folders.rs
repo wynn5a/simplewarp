@@ -1,8 +1,7 @@
 use async_trait::async_trait;
 pub use cloud_object_models::{CloudFolder, CloudFolderModel};
 use cloud_objects::cloud_object::SerializedModel;
-// Re-exported from warp_server_client.
-pub use warp_server_client::ids::FolderId;
+pub use cloud_objects::ids::FolderId;
 
 use super::{CloudModelType, CloudObjectUpsertParams, ObjectType, Space};
 use crate::appearance::Appearance;

@@ -20714,8 +20714,11 @@ impl TypedActionView for Workspace {
             CopyAccessTokenToClipboard => {
                 // Blocking is ok here only because this action is only registered in dev and local
                 // builds to aid in debugging and development.
-                let access_token =
-                    warpui::r#async::block_on(self.server_api.get_or_refresh_access_token());
+                let access_token = warpui::r#async::block_on(
+                    ServerApiProvider::as_ref(ctx)
+                        .get_auth_client()
+                        .get_or_refresh_access_token(),
+                );
                 if let Ok(token) = access_token
                     && let Some(bearer) = token.bearer_token()
                 {

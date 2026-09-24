@@ -1,6 +1,5 @@
 pub mod auth;
 
-use std::ops::Deref;
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
@@ -8,8 +7,7 @@ use auth::AuthClient;
 use serde::Deserialize;
 use warp_core::context_flag::ContextFlag;
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
-use warp_server_client::auth::{AuthClientImpl, AuthEvent};
-use warp_server_client::base_client::{BaseClient, GraphqlRoutingConfig};
+use warp_server_client::auth::{AuthClientImpl, AuthEvent, GraphqlRoutingConfig};
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::get_relevant_files::api::{GetRelevantFiles, GetRelevantFilesResponse};
@@ -31,14 +29,6 @@ const WARP_ERROR_CODE_HEADER: &str = "X-Warp-Error-Code";
 /// state, but if Cloud Run is overloaded, it can also send 429s that aren't credit-related.
 /// So we use this to distinguish between the two cases.
 const WARP_ERROR_CODE_OUT_OF_CREDITS: &str = "OUT_OF_CREDITS";
-
-impl Deref for ServerApi {
-    type Target = BaseClient;
-
-    fn deref(&self) -> &Self::Target {
-        &self.base_client
-    }
-}
 
 /// Wrapper for deserialization errors. This covers both:
 /// * Using `serde` directly
@@ -262,68 +252,31 @@ pub(crate) fn local_only_error() -> anyhow::Error {
 /// client trait objects, or create your own. This helps keep `ServerApi` from being overloaded
 /// with disparate types of calls, and allows you to mock methods in tests.
 pub struct ServerApi {
-    base_client: Arc<BaseClient>,
+    http_client: Arc<http_client::Client>,
 }
 
 impl ServerApi {
-    fn new(
-        auth_state: Arc<AuthState>,
-        event_sender: async_channel::Sender<AuthEvent>,
-        ctx: &mut ModelContext<ServerApiProvider>,
-    ) -> Self {
+    fn new(ctx: &mut ModelContext<ServerApiProvider>) -> Self {
         let mut client = http_client::Client::new();
         if ContextFlag::NetworkLogConsole.is_enabled() {
             NetworkLogModel::handle(ctx).update(ctx, |model, model_ctx| {
                 model.install_on_clients([&mut client], model_ctx);
             });
         }
-        Self::new_with_parts(Arc::new(client), auth_state, event_sender)
+        Self {
+            http_client: Arc::new(client),
+        }
     }
 
-    fn new_with_parts(
-        client: Arc<http_client::Client>,
-        auth_state: Arc<AuthState>,
-        event_sender: async_channel::Sender<AuthEvent>,
-    ) -> Self {
-        let graphql_routing = GraphqlRoutingConfig {
-            #[cfg(feature = "agent_mode_evals")]
-            path_prefix: Some("/agent-mode-evals".to_string()),
-            #[cfg(not(feature = "agent_mode_evals"))]
-            path_prefix: None,
-        };
-        let base_client = Arc::new(BaseClient::new(
-            client,
-            auth_state,
-            event_sender,
-            graphql_routing,
-        ));
-
-        Self { base_client }
+    fn http_client(&self) -> Arc<http_client::Client> {
+        self.http_client.clone()
     }
 
     #[cfg(test)]
     fn new_for_test() -> Self {
-        let (tx, _) = async_channel::unbounded();
-        let auth_state = Arc::new(AuthState::new_for_test());
-        let client = Arc::new(http_client::Client::new_for_test());
-
-        Self::new_with_parts(client, auth_state, tx)
-    }
-
-    #[cfg(all(test, feature = "skip_login"))]
-    fn new_for_test_with_bearer_token(
-        bearer_token: Option<String>,
-        event_sender: async_channel::Sender<AuthEvent>,
-    ) -> Self {
-        let auth_state = Arc::new(AuthState::new_logged_out_for_test());
-        if let Some(bearer_token) = bearer_token {
-            auth_state.set_remote_server_bearer_token(bearer_token);
+        Self {
+            http_client: Arc::new(http_client::Client::new_for_test()),
         }
-        Self::new_with_parts(
-            Arc::new(http_client::Client::new_for_test()),
-            auth_state,
-            event_sender,
-        )
     }
 
     /// Hits the /ai/generate_input_suggestions endpoint to get the predicted next action, based on past context.
@@ -368,11 +321,22 @@ pub struct ServerApiProvider {
 
 impl ServerApiProvider {
     /// Constructs a new ServerApiProvider.
-    #[cfg_attr(target_family = "wasm", allow(unused_variables))]
     pub fn new(auth_state: Arc<AuthState>, ctx: &mut ModelContext<Self>) -> Self {
         let (event_sender, event_receiver) = async_channel::bounded(10);
 
-        let server_api = ServerApi::new(auth_state.clone(), event_sender, ctx);
+        let server_api = Arc::new(ServerApi::new(ctx));
+        let graphql_routing = GraphqlRoutingConfig {
+            #[cfg(feature = "agent_mode_evals")]
+            path_prefix: Some("/agent-mode-evals".to_string()),
+            #[cfg(not(feature = "agent_mode_evals"))]
+            path_prefix: None,
+        };
+        let auth_client = Arc::new(AuthClientImpl::new(
+            server_api.http_client(),
+            auth_state,
+            event_sender,
+            graphql_routing,
+        ));
 
         ctx.spawn_stream_local(
             event_receiver,
@@ -402,8 +366,6 @@ impl ServerApiProvider {
             },
             |_, _| {},
         );
-        let server_api = Arc::new(server_api);
-        let auth_client = Arc::new(AuthClientImpl::new(server_api.base_client.clone()));
         Self {
             server_api,
             auth_client,
@@ -413,8 +375,14 @@ impl ServerApiProvider {
     /// Constructs a new SeverApiProvider for tests.
     #[cfg(test)]
     pub fn new_for_test() -> Self {
+        let (event_sender, _) = async_channel::unbounded();
         let server_api = Arc::new(ServerApi::new_for_test());
-        let auth_client = Arc::new(AuthClientImpl::new(server_api.base_client.clone()));
+        let auth_client = Arc::new(AuthClientImpl::new(
+            server_api.http_client(),
+            Arc::new(AuthState::new_for_test()),
+            event_sender,
+            GraphqlRoutingConfig::default(),
+        ));
         Self {
             server_api,
             auth_client,
@@ -434,7 +402,7 @@ impl ServerApiProvider {
     /// Returns the shared HTTP client. This client is wired into network logging
     /// and includes standard Warp request headers.
     pub fn get_http_client(&self) -> Arc<http_client::Client> {
-        self.server_api.owned_http_client()
+        self.server_api.http_client()
     }
 }
 

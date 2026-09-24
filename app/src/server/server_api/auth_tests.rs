@@ -1,8 +1,6 @@
 use anyhow::Result;
 
 use crate::auth::credentials::{FirebaseToken, RefreshToken};
-#[cfg(feature = "skip_login")]
-use crate::server::server_api::ServerApi;
 
 #[test]
 fn test_firebase_token_urls() -> Result<()> {
@@ -41,11 +39,22 @@ fn test_firebase_token_urls() -> Result<()> {
 #[cfg(feature = "skip_login")]
 #[test]
 fn access_token_skip_login_rejects_bearer_token() {
-    let (event_sender, _) = async_channel::unbounded();
-    let server_api =
-        ServerApi::new_for_test_with_bearer_token(Some("daemon-token".to_string()), event_sender);
+    use std::sync::Arc;
 
-    let error = futures::executor::block_on(server_api.get_or_refresh_access_token()).unwrap_err();
+    use warp_server_auth::auth_state::AuthState;
+    use warp_server_client::auth::{AuthClient, AuthClientImpl, GraphqlRoutingConfig};
+
+    let (event_sender, _) = async_channel::unbounded();
+    let auth_state = Arc::new(AuthState::new_logged_out_for_test());
+    auth_state.set_remote_server_bearer_token("daemon-token".to_string());
+    let auth_client = AuthClientImpl::new(
+        Arc::new(http_client::Client::new()),
+        auth_state,
+        event_sender,
+        GraphqlRoutingConfig::default(),
+    );
+
+    let error = futures::executor::block_on(auth_client.get_or_refresh_access_token()).unwrap_err();
 
     assert_eq!(
         error.to_string(),

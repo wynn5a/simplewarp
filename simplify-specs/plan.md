@@ -11014,3 +11014,203 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       `cloud_objects::ids::`; delete drive.rs, ids.rs, and the
       lib.rs re-exports. Then slice 3 — BaseClient dissolves into
       AuthClientImpl + client-only ServerApi (~8 files, ≈−250).
+
+- [x] **the fold slices 2+3 — shims fall, BaseClient dissolves (4fh)
+      — DONE 2026-09-23.** Executed the 4ff SLICES 2 + 3 combined
+      (small-cluster precedent): the ids/drive re-export shims are
+      gone and BaseClient is dissolved into AuthClientImpl + a
+      client-only ServerApi. 11 files, 113 insertions(+), 229
+      deletions(-) — net −116; four files deleted outright
+      (drive.rs, ids.rs, base_client.rs, base_client_tests.rs);
+      warp_server_client/src/lib.rs is now the single line
+      `pub mod auth;`.
+
+      SHIM TABLE (item → real home → importer repoint). All four
+      shims verified as pure `pub use cloud_objects::…::*`
+      one-liners before deletion:
+      * `warp_server_client::ids::FolderId` →
+        `cloud_objects::ids::FolderId` (pub struct,
+        crates/cloud_objects/src/ids.rs:398) →
+        app/src/cloud_object/folders.rs re-export repointed; the
+        stale `// Re-exported from warp_server_client.` comment
+        deleted with it.
+      * `warp_server_client::ids::GenericStringObjectId` →
+        `cloud_objects::ids::GenericStringObjectId`
+        (crates/cloud_objects/src/ids.rs:409) →
+        app/src/cloud_object/model/generic_string_model.rs
+        re-export repointed.
+      * `warp_server_client::drive::*` → `cloud_objects::drive::*`
+        → zero importers workspace-wide; module deleted with no
+        repoint needed.
+      * `warp_server_client::UserUid` (lib re-export) and
+        `warp_server_client::server_id_traits` (lib re-export) →
+        verified ZERO external users (`git grep` on the
+        call-syntax forms: every UserUid user goes through
+        `crate::auth` or `cloud_objects`/`warp_server_auth` direct;
+        every server_id_traits! invocation is
+        `cloud_objects::server_id_traits!`); both re-export lines
+        deleted. `auth/mod.rs`'s own
+        `pub use warp_server_auth::user_uid;` chain (4ff landmine
+        9) untouched.
+
+      BASECLIENT DISSOLUTION EVIDENCE (where each piece landed).
+      * Transport + session: `AuthClientImpl`
+        (crates/warp_server_client/src/auth/mod.rs) now owns
+        {client: Arc<http_client::Client>, auth_state:
+        Arc<AuthState>, auth_session: Arc<AuthSession>,
+        graphql_routing: GraphqlRoutingConfig};
+        `AuthClientImpl::new(client, auth_state, event_sender,
+        graphql_routing)` builds its own AuthSession exactly as
+        BaseClient::new did.
+      * GraphqlRoutingConfig moved to auth/mod.rs (pub, Default)
+        and is imported by the app as
+        `warp_server_client::auth::GraphqlRoutingConfig`.
+      * The cfg `agent_mode_evals` EVAL_USER_IDS eval-user block
+        moved VERBATIM into AuthClientImpl::new — including the
+        `wk-1.{eval_user_id:0>64x}` Credentials::ApiKey install
+        (base_client's cfg-gated `use …Credentials` died:
+        auth/mod.rs already imports Credentials unconditionally).
+        The rand dep was already
+        `agent_mode_evals = ["dep:rand"]` on
+        warp_server_client — no Cargo.toml change.
+      * `graphql_request_options_with_token` inlined into its sole
+        caller fetch_user_properties as a RequestOptions literal;
+        the EXPERIMENT_ID_HEADER + anonymous_id decoration
+        survives (landmine 6, now via
+        self.auth_state.anonymous_id()).
+      * ServerApi = { http_client: Arc<http_client::Client> } +
+        the four `Err(local_only_error())` stubs (untouched —
+        slice 5); the Deref impl is gone;
+        ServerApi::new(ctx) still builds the client and installs
+        the NetworkLogConsole hooks, and ServerApi::http_client()
+        hands that SAME Arc to both get_http_client() (7 sites)
+        and AuthClientImpl (so the network-log taps still see
+        GraphQL traffic) — registration order preserved
+        (ServerApi::new runs inside provider construction, after
+        NetworkLogModel registration; landmine 4 intact).
+      * ServerApiProvider::new constructs AuthClientImpl directly
+        with server_api.http_client(); the AuthEvent pump body is
+        byte-identical (NeedsReauth → AuthManager, UserAccountDisabled
+        → `app:log_out` global action, re-emit) — the circular
+        reference workaround is not broken (landmine 3);
+        ServerApiProvider::new_for_test now creates the test
+        AuthState itself (ServerApi::new_for_test no longer can).
+      * get_or_refresh_access_token is reachable only through the
+        AuthClient trait: CopyAccessTokenToClipboard
+        (workspace/view.rs:20714) repointed from
+        `self.server_api.get_or_refresh_access_token()` (Deref)
+        to `ServerApiProvider::as_ref(ctx)
+        .get_auth_client().get_or_refresh_access_token()`;
+        remote_server/auth_context.rs already used the trait and
+        is untouched. get_auth_client() (2 sites) and
+        get_http_client() (7 sites) signatures unchanged.
+
+      AGENT_MODE_EVALS LANDMINE HANDLING. Feature spelling
+      confirmed from app/Cargo.toml:809-816:
+      `agent_mode_evals = ["integration_tests", …,
+      "warp_server_client/agent_mode_evals"]` (which enables
+      warp_server_client's `dep:rand`). Baselined BEFORE editing:
+      `cargo check -p warp --lib --features agent_mode_evals` at
+      HEAD = exit 0 with 5 warnings (3 pre-existing dead-code:
+      profiles.rs:2120, request_usage_model.rs:73, lib.rs:299;
+      plus the 2 step.rs unused-imports), saved via
+      primary-span JSON extraction. Post-edit rerun: 0 errors,
+      warning list byte-identical (empty diff) — the moved block
+      compiles under its feature.
+
+      DEVIATIONS FROM THE 4FF MAP. (1) auth_tests.rs:48 repointed
+      to a DIRECT AuthClientImpl construction (bearer token set on
+      AuthState::new_logged_out_for_test, plain
+      http_client::Client::new()) rather than through
+      get_auth_client(): the test had built ServerApi — not the
+      provider — so there was no provider to ask; the exercised
+      path (AuthSession's skip_login bail) is identical, and
+      ServerApi::new_for_test_with_bearer_token is deleted.
+      (2) 4ff's "GraphqlRoutingConfig … move into
+      AuthClientImpl::new(… routing)" is true for the TYPE and the
+      evals block, but the routing VALUE construction (the
+      agent_mode_evals path_prefix cfg pair) moved to
+      ServerApiProvider::new/new_for_test — the only caller left
+      holding the feature context, matching 4ff's own "provider
+      constructs AuthClientImpl directly". (3) The wasm-only
+      `#[cfg_attr(target_family = "wasm",
+      allow(unused_variables))]` on ServerApiProvider::new was
+      dropped: auth_state is now consumed unconditionally, so the
+      allow is dead on every target (wasm not compiled here; the
+      async_trait(?Send) branches moved nowhere and stay verbatim).
+      (4) Deleted size came in at net −116, not 4ff's ≈−260: ~70
+      of base_client's lines MOVED (evals block + routing config +
+      constructor) rather than vanished, and slice 2 was −9 not
+      −10. (5) Nextest counts are UNCHANGED from baseline —
+      base_client_tests.rs lived in the warp_server_client
+      package, never in `-p warp --lib`, so its 1 test was never
+      in the 4,614/4,613 counts.
+
+      Deliberately left (SLICE 4 — designated next): warp_server_client's
+      remaining auth half (auth/mod.rs + auth/session.rs +
+      session_tests) and the firebase crate's serde types move
+      into warp_server_auth, the two crates merge, the workspace
+      member + app dep lines and the four feature-forwarding
+      chains (local_only, skip_login, test-util, integration_tests)
+      repoint, app/Cargo.toml's already-dead firebase line drops
+      (landmine 8), the orphaned bounded-vec-deque dep is removed,
+      and the zero-user automock dies in the move; hand-compile
+      `--features integration_tests` + wasm-gated
+      `initialize_user_from_session_cookie` (landmine 2). SLICE 5
+      after that: the four `Err(local_only_error())` stub walls +
+      their callers, then the `Arc<ServerApi>` plumbing
+      dissolution across the 9 files into ServerApiProvider
+      accessors.
+
+      Local-only safety: zero behavior change for every locally
+      runnable feature. The locally-compiled code paths are the
+      same objects wired the same way: one http_client::Client
+      Arc carrying the same optional network-log hooks, one
+      AuthSession over the same AuthState, one AuthEvent channel
+      of the same bounded capacity feeding the unchanged pump, and
+      the same four stub methods returning the same error. The
+      kept local warp-server login flow is intact end to end:
+      fetch_user (Firebase exchange → GetUser with
+      EXPERIMENT_ID_HEADER + anonymous_id), refresh_user, the
+      Reauth action, NeedsReauth → set_needs_reauth, and
+      remote_server token rotation via AccessTokenRefreshed are
+      all byte-for-byte the same logic; no AuthManager path is
+      stubbed. skip_login/local_only still bail in AuthSession
+      before any network call, and the eval-user block compiles
+      only under agent_mode_evals with identical values.
+
+      Acceptance: clippy baselines captured at HEAD FIRST in both
+      configs (12 primary-span file:line + message tuples each:
+      11 needless-return in terminal/input.rs + 1
+      single-element-loop in lifecycle/mod_tests.rs:272);
+      post-edit re-runs are warning-IDENTICAL in both configs
+      (empty diffs). Check suite 0 errors in all eight
+      configurations: `check -p warp --lib --all-targets` default
+      + simplewarp, `--no-default-features --features simplewarp
+      --bin simplewarp`, `--bin warp-oss`, `--all-targets -p
+      integration` (only the two pre-existing step.rs
+      unused-import warnings), `check -p warp --lib --tests
+      --features skip_login`, `check -p warp_server_client
+      --all-targets`, and `check -p warp --lib --features
+      agent_mode_evals` (warnings identical to its HEAD baseline).
+      `./script/format` exit 0, no diff beyond the round's own
+      edits. Nextest `-p warp --lib --no-fail-fast`: default 4,614
+      run / 4,613 passed / 3 skipped / 0 failed; simplewarp 4,613
+      run / 4,613 passed / 3 skipped / 0 failed — both identical
+      to the post-4fg baseline (one load-flake timeout on
+      test_char_cell_diff_pipeline_populates_ghosts_and_hidden_ranges
+      in the default run passed in 0.08s on individual rerun,
+      same class as the known
+      test_command_block_dispatches_event flake). Also `nextest
+      -p warp_server_client`: 3/3 session tests pass. Disk healthy
+      (44GB free at round start, 41GB after; no stale-executable
+      cleanup needed, no cargo clean). Runtime smoke SKIPPED per
+      the 2026-09-23 convention (user away, macOS password prompt
+      unanswerable); no binary launched — cargo
+      check/clippy/nextest builds only.
+
+      DESIGNATED NEXT: fold slice 4 — warp_server_client + firebase
+      fall, the auth half moves into warp_server_auth, both crates
+      merge (feature-forwarding chains repoint; bounded-vec-deque
+      and the dead firebase dep drop). Then slice 5 — the stub
+      walls and the Arc<ServerApi> plumbing dissolution.
