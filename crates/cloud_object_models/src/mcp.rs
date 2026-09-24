@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use cloud_objects::cloud_object::{
-    GenericCloudObject, GenericServerObject, GenericStringModel, JsonObjectType,
-};
+use cloud_objects::cloud_object::{GenericCloudObject, GenericStringModel, JsonObjectType};
 use cloud_objects::ids::GenericStringObjectId;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -104,8 +102,6 @@ impl JsonModel for MCPServer {
 
 pub type CloudMCPServer = GenericCloudObject<GenericStringObjectId, CloudMCPServerModel>;
 pub type CloudMCPServerModel = GenericStringModel<MCPServer, JsonSerializer>;
-pub type ServerMCPServer = GenericServerObject<GenericStringObjectId, CloudMCPServerModel>;
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default, Hash)]
 pub struct JsonTemplate {
     pub json: String,
@@ -211,9 +207,6 @@ impl JsonModel for TemplatableMCPServer {
 pub type CloudTemplatableMCPServer =
     GenericCloudObject<GenericStringObjectId, CloudTemplatableMCPServerModel>;
 pub type CloudTemplatableMCPServerModel = GenericStringModel<TemplatableMCPServer, JsonSerializer>;
-pub type ServerTemplatableMCPServer =
-    GenericServerObject<GenericStringObjectId, CloudTemplatableMCPServerModel>;
-
 #[cfg(test)]
 #[path = "mcp_tests.rs"]
 mod tests;

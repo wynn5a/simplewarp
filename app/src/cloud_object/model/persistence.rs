@@ -12,8 +12,7 @@ use crate::ai::execution_profiles::CloudAIExecutionProfile;
 use crate::cloud_object::folders::{CloudFolder, CloudFolderModel};
 use crate::cloud_object::{
     CloudModelType, CloudObject, CloudObjectLocation, GenericCloudObject,
-    GenericStringObjectFormat, JsonObjectType, ObjectIdType, ObjectType, Owner, Revision,
-    ServerMetadata, ServerPermissions, Space,
+    GenericStringObjectFormat, JsonObjectType, ObjectIdType, ObjectType, Owner, Revision, Space,
 };
 use crate::drive::{CloudObjectTypeAndId, DriveIndexVariant};
 use crate::env_vars::{CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVarCollection};
@@ -64,11 +63,6 @@ pub enum CloudModelEvent {
         type_and_id: CloudObjectTypeAndId,
         /// The parent folder of this object, since it's no longer in the model.
         folder_id: Option<SyncId>,
-    },
-    /// An object's permissioned were changed.
-    ObjectPermissionsUpdated {
-        type_and_id: CloudObjectTypeAndId,
-        source: UpdateSource,
     },
     /// An object identified by `id` was force expanded.
     ObjectForceExpanded {
@@ -295,110 +289,6 @@ impl CloudModel {
         self.objects_by_id.contains_key(&uid)
     }
 
-    /// Overwrites the trashed_ts, current_editor, etc of the object only if the new_metadata timestamp
-    /// is greater than the one currently in memory. Also check to see if any important
-    /// changes have occurred that should trigger a model event, like a notebook editor changing.
-    /// Returns true if the update was applied and false if it was not.
-    pub fn maybe_update_object_metadata(
-        &mut self,
-        uid: &ObjectUid,
-        new_metadata: ServerMetadata,
-        force_refresh: bool,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        let update_applied = self.maybe_update_object_metadata_internal(
-            uid,
-            new_metadata,
-            force_refresh,
-            true, /* emit_events */
-            ctx,
-        );
-        if update_applied {
-            ctx.notify();
-        }
-        update_applied
-    }
-
-    /// Internal logic of above function, without using a ctx.notify call.
-    /// When `emit_events` is false (during initial load), per-object events are suppressed.
-    pub fn maybe_update_object_metadata_internal(
-        &mut self,
-        uid: &ObjectUid,
-        new_metadata: ServerMetadata,
-        force_refresh: bool,
-        emit_events: bool,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        if let Some(object) = self.objects_by_id.get_mut(uid) {
-            if let Some(current_ts) = object.metadata().metadata_last_updated_ts {
-                // Only perform the update if the new timestamp is greater than the current one.
-                if new_metadata.metadata_last_updated_ts > current_ts
-                    || (force_refresh && new_metadata.metadata_last_updated_ts == current_ts)
-                {
-                    let old_editor = object.metadata().current_editor_uid.clone();
-                    let old_folder_id = object.metadata().folder_id;
-                    let old_trashed_ts = object.metadata().trashed_ts;
-
-                    object
-                        .metadata_mut()
-                        .update_from_new_metadata_ts(new_metadata.clone());
-
-                    // Since we're overwriting the metadata, it should not be marked as pending anymore.
-                    // This is also important to do so that the sqlite upsert doesn't skip certain metadata fields.
-                    object
-                        .metadata_mut()
-                        .pending_changes_statuses
-                        .has_pending_metadata_change = false;
-
-                    if emit_events {
-                        let new_editor = object.metadata().current_editor_uid.clone();
-                        let new_folder_id = object.metadata().folder_id;
-                        let new_trashed_ts = object.metadata().trashed_ts;
-                        // Some metadata updates should emit custom events.
-                        // For example, changes to current editor of a notebook or parent folder of an object
-                        let notebook: Option<&mut CloudNotebook> = object.into();
-                        if let Some(notebook) = notebook
-                            && new_editor != old_editor
-                        {
-                            ctx.emit(CloudModelEvent::NotebookEditorChangedFromServer {
-                                notebook_id: notebook.id,
-                            });
-                        }
-                        if new_folder_id != old_folder_id {
-                            ctx.emit(CloudModelEvent::ObjectMoved {
-                                type_and_id: object.cloud_object_type_and_id(),
-                                source: UpdateSource::Server,
-                                from_folder: old_folder_id,
-                                to_folder: new_folder_id,
-                            })
-                        }
-
-                        match (old_trashed_ts, new_trashed_ts) {
-                            (None, Some(_)) => ctx.emit(CloudModelEvent::ObjectTrashed {
-                                type_and_id: object.cloud_object_type_and_id(),
-                                source: UpdateSource::Server,
-                            }),
-                            (Some(_), None) => ctx.emit(CloudModelEvent::ObjectUntrashed {
-                                type_and_id: object.cloud_object_type_and_id(),
-                                source: UpdateSource::Server,
-                            }),
-                            _ => (),
-                        }
-                    }
-
-                    return true;
-                } else {
-                    log::debug!(
-                        "in memory metadata ts is greater or equal to metadata ts from update, ignoring"
-                    );
-                }
-            }
-        } else {
-            log::info!("object does not exist in-memory, ignoring");
-        }
-        false
-    }
-
     /// Update an object's location (folder and owner). This is an implementation detail of
     /// `UpdateManager` to keep local state in sync with optimistic moves. It does not validate
     /// that the move is valid and MUST not be used elsewhere.
@@ -438,45 +328,6 @@ impl CloudModel {
                 });
                 ctx.notify();
             }
-        }
-    }
-
-    /// Overwrites the space and permissions last updated at ts of the object.
-    pub fn update_object_permissions(
-        &mut self,
-        uid: &ObjectUid,
-        new_permissions: ServerPermissions,
-        source: UpdateSource,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.update_object_permissions_internal(uid, new_permissions);
-        if let Some(object) = self.get_by_uid(uid) {
-            ctx.notify();
-            ctx.emit(CloudModelEvent::ObjectPermissionsUpdated {
-                type_and_id: object.cloud_object_type_and_id(),
-                source,
-            });
-        }
-    }
-
-    // Moving this to a separate function so this can be called without ctx.notify()
-    // to reduce the amount of notify's made during our app initialization
-    pub fn update_object_permissions_internal(
-        &mut self,
-        uid: &ObjectUid,
-        new_permissions: ServerPermissions,
-    ) {
-        if let Some(object) = self.objects_by_id.get_mut(uid) {
-            // Since we're overwriting the permissions, they should not be marked as pending anymore.
-            // This is also important to do so that the sqlite upsert doesn't skip updating the permissions.
-            object
-                .metadata_mut()
-                .pending_changes_statuses
-                .has_pending_permissions_change = false;
-
-            object
-                .permissions_mut()
-                .update_from_new_permissions_ts(new_permissions);
         }
     }
 

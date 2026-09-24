@@ -45,7 +45,6 @@ impl CloudEnvironmentCatalog {
                 | CloudModelEvent::ObjectUntrashed { .. }
                 | CloudModelEvent::NotebookEditorChangedFromServer { .. }
                 | CloudModelEvent::ObjectDeleted { .. }
-                | CloudModelEvent::ObjectPermissionsUpdated { .. }
                 | CloudModelEvent::ObjectForceExpanded { .. } => catalog.refresh(ctx),
             }
         });

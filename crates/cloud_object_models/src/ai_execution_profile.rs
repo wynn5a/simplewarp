@@ -1,9 +1,7 @@
 use std::path::PathBuf;
 
 use ai::LLMId;
-use cloud_objects::cloud_object::{
-    GenericCloudObject, GenericServerObject, GenericStringModel, JsonObjectType,
-};
+use cloud_objects::cloud_object::{GenericCloudObject, GenericStringModel, JsonObjectType};
 use cloud_objects::ids::GenericStringObjectId;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -511,5 +509,3 @@ impl JsonModel for AIExecutionProfile {
 pub type CloudAIExecutionProfile =
     GenericCloudObject<GenericStringObjectId, CloudAIExecutionProfileModel>;
 pub type CloudAIExecutionProfileModel = GenericStringModel<AIExecutionProfile, JsonSerializer>;
-pub type ServerAIExecutionProfile =
-    GenericServerObject<GenericStringObjectId, CloudAIExecutionProfileModel>;

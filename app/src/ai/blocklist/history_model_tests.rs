@@ -1010,8 +1010,6 @@ fn create_server_ai_conversation_metadata(title: &str) -> ServerAIConversationMe
         creator: None,
         permissions: ServerPermissions {
             space: Owner::mock_current_user(),
-            guests: Vec::new(),
-            anyone_link_sharing: None,
             permissions_last_updated_ts: Utc::now().into(),
         },
         ambient_agent_task_id: None,

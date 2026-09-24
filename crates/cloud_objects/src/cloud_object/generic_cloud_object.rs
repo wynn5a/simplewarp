@@ -1,10 +1,28 @@
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use super::{
     CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus,
-    ConflictStatus, GenericServerObject, NumInFlightRequests, ObjectType, Owner,
+    NumInFlightRequests, ObjectType, Owner,
 };
 use crate::ids::{ClientId, SyncId};
+
+#[derive(Clone, Debug, Default)]
+pub enum ConflictStatus<T> {
+    #[default]
+    NoConflicts,
+    ConflictingChanges {
+        object: Arc<T>,
+    },
+}
+
+impl<T> ConflictStatus<T> {
+    /// Utility function that allows for a more ergonomic way of figuring out whether there is a
+    /// conflict (for cases where we don't care about the conflict details).
+    pub fn has_conflicts(&self) -> bool {
+        matches!(self, ConflictStatus::ConflictingChanges { .. })
+    }
+}
 
 /// A portable payload for persisting or otherwise upserting a cloud object without app-local event types.
 #[derive(Clone, Debug)]
@@ -37,7 +55,7 @@ pub struct GenericCloudObject<K, M> {
     pub permissions: CloudObjectPermissions,
     /// Tracks whether this object has a conflict with the server version.
     /// This is runtime state (not persisted) - conflicts are always NoConflicts when loaded from SQLite.
-    pub conflict_status: ConflictStatus<GenericServerObject<K, M>>,
+    pub conflict_status: ConflictStatus<Self>,
 
     // Intentionally not public to prevent users of this class from holding
     // onto references to the model outside of this struct.
@@ -49,6 +67,9 @@ pub struct GenericCloudObject<K, M> {
     // Callers who want to update the model need to call set_model to update the
     // entire model atomically.
     model: Arc<M>,
+    /// Keeps `K` well-formed now that the id type only appears (via `Self`) in the
+    /// conflict snapshot, which is only ever held behind an `Arc`.
+    _marker: PhantomData<fn() -> K>,
 }
 
 impl<K, M> PartialEq for GenericCloudObject<K, M>
@@ -89,6 +110,7 @@ impl<K, M> GenericCloudObject<K, M> {
             metadata,
             permissions,
             conflict_status: ConflictStatus::NoConflicts,
+            _marker: PhantomData,
         }
     }
 
@@ -129,17 +151,7 @@ impl<K, M> GenericCloudObject<K, M> {
                 permissions_last_updated_ts: None,
             },
             conflict_status: ConflictStatus::NoConflicts,
-        }
-    }
-
-    /// Creates a new [`GenericCloudObject`] from a [`GenericServerObject`].
-    pub fn new_from_server(server_object: GenericServerObject<K, M>) -> Self {
-        Self {
-            id: server_object.id,
-            model: server_object.model.into(),
-            metadata: CloudObjectMetadata::new_from_server(server_object.metadata),
-            permissions: CloudObjectPermissions::new_from_server(server_object.permissions),
-            conflict_status: ConflictStatus::NoConflicts,
+            _marker: PhantomData,
         }
     }
 

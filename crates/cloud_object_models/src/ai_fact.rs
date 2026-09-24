@@ -1,8 +1,6 @@
 use std::fmt::Display;
 
-use cloud_objects::cloud_object::{
-    GenericCloudObject, GenericServerObject, GenericStringModel, JsonObjectType,
-};
+use cloud_objects::cloud_object::{GenericCloudObject, GenericStringModel, JsonObjectType};
 use cloud_objects::ids::GenericStringObjectId;
 use serde::{Deserialize, Serialize};
 
@@ -56,4 +54,3 @@ impl JsonModel for AIFact {
 
 pub type CloudAIFact = GenericCloudObject<GenericStringObjectId, CloudAIFactModel>;
 pub type CloudAIFactModel = GenericStringModel<AIFact, JsonSerializer>;
-pub type ServerAIFact = GenericServerObject<GenericStringObjectId, CloudAIFactModel>;

@@ -304,8 +304,7 @@ impl CloudViewModel {
         match event {
             CloudModelEvent::ObjectUpdated { type_and_id, .. }
             | CloudModelEvent::ObjectTrashed { type_and_id, .. }
-            | CloudModelEvent::ObjectUntrashed { type_and_id, .. }
-            | CloudModelEvent::ObjectPermissionsUpdated { type_and_id, .. } => {
+            | CloudModelEvent::ObjectUntrashed { type_and_id, .. } => {
                 // If an object is updated, we need to recompute the timestamps of its parents.
                 if self.invalidate_object_timestamps(&type_and_id.uid(), CloudModel::as_ref(ctx)) {
                     ctx.emit(CloudViewModelEvent::SortTimestampsChanged);

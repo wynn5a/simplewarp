@@ -1,7 +1,7 @@
 #[cfg(not(target_family = "wasm"))]
 pub mod persistence;
 
-use cloud_objects::cloud_object::{GenericCloudObject, GenericServerObject};
+use cloud_objects::cloud_object::GenericCloudObject;
 use cloud_objects::ids::{GenericStringObjectId, ServerId, SyncId};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -339,8 +339,6 @@ cloud_objects::server_id_traits! { WorkflowId, "Workflow" }
 
 /// `CloudWorkflow` is a workflow retrieved from the server.
 pub type CloudWorkflow = GenericCloudObject<WorkflowId, CloudWorkflowModel>;
-pub type ServerWorkflow = GenericServerObject<WorkflowId, CloudWorkflowModel>;
-
 impl From<CloudWorkflow> for Workflow {
     fn from(cloud_workflow: CloudWorkflow) -> Self {
         cloud_workflow.model().data.clone()

@@ -407,7 +407,6 @@ impl AIDocumentModel {
             | CloudModelEvent::ObjectTrashed { .. }
             | CloudModelEvent::ObjectUntrashed { .. }
             | CloudModelEvent::ObjectDeleted { .. }
-            | CloudModelEvent::ObjectPermissionsUpdated { .. }
             | CloudModelEvent::ObjectForceExpanded { .. }
             | CloudModelEvent::ObjectCreated { .. }
             | CloudModelEvent::NotebookEditorChangedFromServer { .. }

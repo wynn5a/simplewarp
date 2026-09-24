@@ -2,7 +2,7 @@
 pub mod persistence;
 
 use ai::document::AIDocumentId;
-use cloud_objects::cloud_object::{GenericCloudObject, GenericServerObject};
+use cloud_objects::cloud_object::GenericCloudObject;
 use cloud_objects::ids::{ServerId, SyncId};
 use serde::{Deserialize, Serialize};
 
@@ -36,4 +36,3 @@ impl From<NotebookId> for SyncId {
 
 /// `CloudNotebook` is a notebook retrieved from the server.
 pub type CloudNotebook = GenericCloudObject<NotebookId, CloudNotebookModel>;
-pub type ServerNotebook = GenericServerObject<NotebookId, CloudNotebookModel>;

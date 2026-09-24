@@ -12250,3 +12250,221 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       Runtime smoke SKIPPED per round instructions (user away —
       app must not be launched; password prompt unanswerable);
       compile + test evidence stands in.
+
+- [x] **endgame slice 2b — GenericServerObject, the Server* aliases,
+      and the GraphQL conversion wall (4fn) — DONE 2026-09-24.**
+      Executed the 4fk SLICE 2B with two scope adjustments
+      discovered during verification: ServerAIConversationMetadata
+      STAYS (see decision below), so ServerMetadata stays intact
+      and ServerPermissions stays trimmed to its live fields —
+      27 files changed, 51 insertions(+), 989 deletions(−), net
+      −938 (2 files deleted outright:
+      cloud_objects/src/cloud_object/server_object.rs,
+      cloud_object_models/src/server_cloud_object.rs).
+
+      PER-NAME VERIFICATION (all at HEAD b8efe85bd, pre-delete;
+      repo-wide PCRE sweeps with lookbehind form
+      `(?<![A-Za-z0-9_])Name` because `\b` is unreliable on this
+      host). (1) GenericServerObject — only definers/users were
+      server_object.rs, generic_cloud_object.rs's conflict_status
+      field + new_from_server, the 13 cloud_object_models aliases,
+      and server_cloud_object.rs's TryFromGql bridge; the bridge's
+      TryFrom<warp_graphql::object::CloudObject> entry had zero
+      callers repo-wide (as 4fk predicted). (2) All 13 Server*
+      aliases (ServerFolder/ServerNotebook/ServerWorkflow/
+      ServerPreference/ServerEnvVarCollection/ServerWorkflowEnum/
+      ServerAIFact/ServerMCPServer/ServerTemplatableMCPServer/
+      ServerAIExecutionProfile/ServerAmbientAgentEnvironment/
+      ServerScheduledAmbientAgent/ServerCloudAgentConfig) +
+      ServerCloudObject — after 4fm, ONLY server_cloud_object.rs
+      consumed them (plus the model_tests mock_server_workflow
+      test helper). (3) ServerGuestSubject/ServerObjectGuest/
+      ServerLinkSharing — zero references outside
+      cloud_objects/cloud_object/mod.rs; their only constructors
+      were the wall's TryFrom impls; zero field readers. (4) The
+      conversion wall in cloud_object/mod.rs — TryFrom<gql
+      ObjectMetadata/ObjectPermissions/ObjectGuest/GuestSubject/
+      LinkSharing/Container/Space>, From<Owner> for gql Owner,
+      From<CloudObjectEventEntrypoint>/From<GenericStringObject
+      UniqueKey>/From<UniquePer> for their gql twins, and the
+      :226-260 ObjectType↔gql ObjectIdType/ObjectType
+      conversions — a full enumeration of every
+      `warp_graphql::`-importing file outside crates/graphql
+      shows NO file can even name those gql target types (the
+      only gql consumers elsewhere are warp_server_auth's login
+      core, ServerTimestamp users, and slice-3a/3b surfaces:
+      pricing/billing, workspaces/gql_convert, artifacts TryFrom,
+      llm_provider, user_profile, input_context's GraphQLFormat).
+      ZERO invocations → all deleted. (5) new_from_server trio +
+      GenericCloudObject::new_from_server — only caller was the
+      model_tests mock_server_workflow helper (rewritten, test
+      kept). (6) One-hop dead chains found by parameter sweep:
+      CloudModel::maybe_update_object_metadata(_internal) and
+      update_object_permissions(_internal) (app
+      cloud_object/model/persistence.rs) — the only remaining
+      production takers of ServerMetadata/ServerPermissions —
+      had ZERO callers (incl. tests, incl. integration_testing);
+      they fell, orphaning CloudObjectMetadata::update_from_new_
+      metadata_ts, CloudObjectPermissions::update_from_new_
+      permissions_ts, and CloudObjectMetadata::update_revision_
+      _from_server, all deleted.
+
+      ConflictStatus state machine (landmine 8) PRESERVED with a
+      re-typed payload: GenericCloudObject::conflict_status was
+      ConflictStatus<GenericServerObject<K, M>> — the deleted
+      type WAS the conflict snapshot. Re-pointed to
+      ConflictStatus<Self> and moved ConflictStatus verbatim
+      from server_object.rs into generic_cloud_object.rs (its
+      only type-level consumer; the deleted file's glob re-export
+      path stays valid via the generic_cloud_object glob). K
+      needed a PhantomData<fn() -> K> marker — the deleted
+      GenericServerObject had silently carried it. The two
+      readers keep identical semantics: conflicting_object_
+      revision reads object.metadata.revision (now Option on the
+      local CloudObjectMetadata), and replace_object_with_
+      conflict inlines update_revision_from_server's exact
+      unconditional revision+last_editor_uid overwrite before
+      set_model(object.model().clone()). Trait surface
+      (has_conflicting_changes with its live
+      active_notebook_data.rs:271 reader, conflicting_object_
+      revision, clear_conflict_status, replace_object_with_
+      conflict) untouched.
+
+      ServerAIConversationMetadata DECISION: NOT deleted — the
+      4fk/2b preconditions ("set_server_metadata has zero
+      production callers; delete it here") do not hold at HEAD.
+      set_server_metadata indeed has zero production callers
+      (merge_cloud_conversation_metadata and set_server_metadata_
+      _for_conversation are already caller-less) and there is no
+      production constructor at all — every value is permanently
+      None — but the TYPE has live production READERS: pane_impl
+      selected_conversation_server_metadata (read by
+      agent_icon.rs's terminal_view_agent_icon_variant for
+      ambient_agent_task_id), history_model's get_server_
+      _conversation_metadata read by context_menu.rs:212,
+      workspace/view.rs:3679 (owner check via metadata.creator_
+      _uid + permissions.space), and agent_conversations_model/
+      entry.rs:350 (creator display), plus AIConversation's
+      server_id()/orchestration_harness fallback/title update.
+      Deleting it means restructuring live UI code (sharing
+      dialog, context menu, conversation list, icon logic), not
+      "rewriting test-only callers" — out of 2b scope. CONSEQUENCE:
+      ServerMetadata STAYS intact (uid/creator_uid have live
+      readers through it); ServerPermissions STAYS trimmed — its
+      guests/anyone_link_sharing fields (typed by the falling
+      trio) had zero readers and zero constructors once the wall
+      fell, so the struct now holds only space +
+      permissions_last_updated_ts (mock_personal updated; 1 test
+      literal updated). Recorded under next-candidates as a
+      future micro-slice: kill the whole always-None
+      ServerAIConversationMetadata vertical including its UI
+      readers.
+
+      ONE-HOP CONSEQUENCES RESOLVED. (1)
+      CloudModelEvent::ObjectPermissionsUpdated — its ONLY
+      emitter was the deleted update_object_permissions; variant
+      + its 5 subscriber arms deleted in the same edit set
+      (exhaustive-match safe; env_var_collection.rs,
+      drive/index.rs, cloud_environments/catalog.rs,
+      ai_document_model.rs, cloud_object/model/view.rs). All
+      other CloudModelEvent variants keep live emitters
+      (verified per-variant). update_editor_interactivity keeps
+      its other caller. (2) The GraphQL crate keeps
+      From<GenericStringObjectFormat> for gql
+      GenericStringObjectFormat in cloud_objects — input_context
+      .rs:283 converts through it live (4fk landmine 4; slice 3b
+      repoints). (3) WorkflowId/NotebookId/CloudFolder etc. stay
+      (12+ live uses each; only the alias lines fell).
+
+      TEST HANDLING. Zero tests deleted. model_tests.rs
+      mock_server_workflow rewritten to construct CloudWorkflow
+      locally (GenericCloudObject::new + CloudObjectMetadata::
+      :mock + CloudObjectPermissions::mock_personal, same
+      SyncId::ServerId id) — test_interleaving_command_and_
+      embedding kept green with identical embedded ids;
+      chrono::Utc/ServerWorkflow/ServerMetadata/ServerPermissions
+      imports dropped. history_model_tests.rs'
+      create_server_ai_conversation_metadata dropped the two
+      trimmed ServerPermissions fields.
+
+      Deliberately left (per the 4fk plan): SLICE 3a — app
+      conversion walls + pricing (gql_convert.rs, pricing/,
+      workspace.rs billing re-export, llm_provider From<gql
+      LlmProvider>, artifacts TryFrom<gql AIConversationArtifact>
+      — all confirmed still present at this HEAD). SLICE 3b —
+      warp_graphql dead modules; NOTE the 2b deletions made
+      these gql types consumer-less outside crates/graphql:
+      object::{ObjectType, CloudObjectEventEntrypoint,
+      ObjectMetadata, Container, Space, CloudObject(+WithDescendants)},
+      object_permissions::{ObjectPermissions, ObjectGuest,
+      GuestSubject, LinkSharing, Owner, AccessLevel} (AccessLevel
+      now has zero non-graphql users), generic_string_object::
+      {GenericStringObject, GenericStringObjectUniqueKey,
+      UniquePer}, and user::PublicUserProfile's From target —
+      they fall with 3b's module sweep. SLICE 4 — schema crate
+      fold. Also untouched by design: UpdateManager (local),
+      ToServerId (local), login flow, sqlite schema/migrations
+      (no schema/migration file in the diff — verified),
+      ConflictStatus state machine, From<GenericStringObjectFormat>
+      for gql format (input_context.rs feeds on it until 3b),
+      ServerMetadata + trimmed ServerPermissions (live fields of
+      the staying ServerAIConversationMetadata).
+
+      NEXT CANDIDATES: (a) slice 3a — DESIGNATED NEXT; (b) the
+      ServerAIConversationMetadata always-None vertical
+      micro-slice (see decision above; rewrite agent_icon/
+      context_menu/workspace-view/entry readers, drop
+      AIConversation.server_metadata + AIConversationMetadata
+      .server_conversation_metadata + both dead loader fns +
+      hydrate_remote_child_placeholder_with_cloud_transcript
+      (zero production callers, 2 tests) — then ServerMetadata/
+      ServerPermissions fall entirely); (c) InitialLoadCompleted
+      micro-candidate from 4fm still open; (d) PRE-EXISTING
+      break discovered: `-p warp --lib --features test-util`
+      fails at HEAD too (input_model.rs:22 gates
+      `use warpui::EntityId` behind #[cfg(test)] while its
+      #[cfg(any(test, feature = "test-util"))] mock uses it —
+      one-line gate fix, not caused by 2fn, left alone).
+
+      Local-only safety: every deletion is a zero-caller
+      function, a constructor-less type with zero field readers,
+      a conversion impl whose gql target type is unnameable
+      outside the deleted code, or an arm of a now
+      emitter-less event. No reachable runtime path changed:
+      the conflict state machine's runtime behavior is
+      field-for-field identical, all rewritten test helpers
+      produce the same model state, persisted serde shapes are
+      untouched (the falling types were never persisted —
+      landmine 1), UpdateManager's local write paths and the
+      warp_server_auth login flow are untouched.
+
+      Acceptance: (1) clippy baseline diff — captured FIRST at
+      HEAD in both configs (12 warnings each, sort -u pairs:
+      11 needless-return in terminal/input.rs at identical lines
+      + 1 single-element-loop in terminal/model/lifecycle/
+      mod_tests.rs:272); post-change runs are WARNING-IDENTICAL
+      to baseline in BOTH default and `--no-default-features
+      --features simplewarp` (machine-diffed, `diff` clean).
+      (2) cargo check 0 errors: -p warp --lib --all-targets
+      default AND simplewarp; --no-default-features --features
+      simplewarp --bin simplewarp; --bin warp-oss; --all-targets
+      -p integration (only the 2 pre-existing step.rs
+      unused-import warnings); -p warp --lib --tests --features
+      skip_login; -p cloud_objects --all-targets (default and
+      test-util); -p cloud_object_models --all-targets (default
+      and test-util). `--features test-util` on warp surfaces a
+      PRE-EXISTING EntityId error verified identical at HEAD
+      (candidate (d) above). (3) ./script/format — run to
+      idempotency (git diff stable across reruns). (4) nextest
+      -p warp --lib --no-fail-fast: default 4,607 run = 4,607
+      baseline − 0 (no tests deleted; the only affected test was
+      rewritten), 4,607 passed, 3 skipped, 0 failed, no flake;
+      simplewarp 4,606 run = 4,606 baseline − 0, 4,606 passed,
+      3 skipped, 0 failed. (The simplewarp baseline was
+      re-captured cleanly at HEAD via stash after an initial
+      capture raced the first edits; the default baseline was
+      never contaminated.) Runtime smoke SKIPPED per round
+      instructions (user away — app must not be launched;
+      password prompt unanswerable); compile + test evidence
+      stands in. DESIGNATED NEXT: slice 3a exactly as scoped in
+      the 4fk plan (app conversion walls + pricing, ≈−2,000).

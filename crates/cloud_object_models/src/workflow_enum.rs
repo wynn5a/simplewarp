@@ -1,6 +1,4 @@
-use cloud_objects::cloud_object::{
-    GenericCloudObject, GenericServerObject, GenericStringModel, JsonObjectType,
-};
+use cloud_objects::cloud_object::{GenericCloudObject, GenericStringModel, JsonObjectType};
 use cloud_objects::ids::GenericStringObjectId;
 use serde::{Deserialize, Serialize};
 
@@ -35,4 +33,3 @@ impl JsonModel for WorkflowEnum {
 
 pub type CloudWorkflowEnum = GenericCloudObject<GenericStringObjectId, CloudWorkflowEnumModel>;
 pub type CloudWorkflowEnumModel = GenericStringModel<WorkflowEnum, JsonSerializer>;
-pub type ServerWorkflowEnum = GenericServerObject<GenericStringObjectId, CloudWorkflowEnumModel>;

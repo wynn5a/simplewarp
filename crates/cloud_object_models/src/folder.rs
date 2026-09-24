@@ -1,7 +1,7 @@
 #[cfg(not(target_family = "wasm"))]
 pub mod persistence;
 
-use cloud_objects::cloud_object::{GenericCloudObject, GenericServerObject};
+use cloud_objects::cloud_object::GenericCloudObject;
 use cloud_objects::ids::FolderId;
 
 /// The model for a `CloudFolder`.
@@ -27,4 +27,3 @@ impl CloudFolderModel {
 
 /// `CloudFolder` is a folder retrieved from the server.
 pub type CloudFolder = GenericCloudObject<FolderId, CloudFolderModel>;
-pub type ServerFolder = GenericServerObject<FolderId, CloudFolderModel>;

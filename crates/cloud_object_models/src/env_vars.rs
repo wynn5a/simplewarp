@@ -1,6 +1,4 @@
-use cloud_objects::cloud_object::{
-    GenericCloudObject, GenericServerObject, GenericStringModel, JsonObjectType,
-};
+use cloud_objects::cloud_object::{GenericCloudObject, GenericStringModel, JsonObjectType};
 use cloud_objects::ids::GenericStringObjectId;
 use serde::{Deserialize, Serialize};
 use warp_util::path::ShellFamily;
@@ -195,5 +193,3 @@ impl JsonModel for EnvVarCollection {
 pub type CloudEnvVarCollection =
     GenericCloudObject<GenericStringObjectId, CloudEnvVarCollectionModel>;
 pub type CloudEnvVarCollectionModel = GenericStringModel<EnvVarCollection, JsonSerializer>;
-pub type ServerEnvVarCollection =
-    GenericServerObject<GenericStringObjectId, CloudEnvVarCollectionModel>;

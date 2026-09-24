@@ -1,7 +1,5 @@
 use anyhow::{Result, anyhow};
-use cloud_objects::cloud_object::{
-    GenericCloudObject, GenericServerObject, GenericStringModel, JsonObjectType,
-};
+use cloud_objects::cloud_object::{GenericCloudObject, GenericStringModel, JsonObjectType};
 use cloud_objects::ids::GenericStringObjectId;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -110,4 +108,3 @@ impl JsonModel for Preference {
 
 pub type CloudPreference = GenericCloudObject<GenericStringObjectId, CloudPreferenceModel>;
 pub type CloudPreferenceModel = GenericStringModel<Preference, JsonSerializer>;
-pub type ServerPreference = GenericServerObject<GenericStringObjectId, CloudPreferenceModel>;

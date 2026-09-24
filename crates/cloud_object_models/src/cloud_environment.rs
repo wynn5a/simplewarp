@@ -1,8 +1,6 @@
 use std::fmt;
 
-use cloud_objects::cloud_object::{
-    GenericCloudObject, GenericServerObject, GenericStringModel, JsonObjectType,
-};
+use cloud_objects::cloud_object::{GenericCloudObject, GenericStringModel, JsonObjectType};
 use cloud_objects::ids::GenericStringObjectId;
 use serde::{Deserialize, Serialize};
 
@@ -281,9 +279,6 @@ pub type CloudAmbientAgentEnvironment =
     GenericCloudObject<GenericStringObjectId, CloudAmbientAgentEnvironmentModel>;
 pub type CloudAmbientAgentEnvironmentModel =
     GenericStringModel<AmbientAgentEnvironment, JsonSerializer>;
-pub type ServerAmbientAgentEnvironment =
-    GenericServerObject<GenericStringObjectId, CloudAmbientAgentEnvironmentModel>;
-
 #[cfg(test)]
 #[path = "cloud_environment_tests.rs"]
 mod tests;

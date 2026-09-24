@@ -4469,7 +4469,7 @@ pub struct ServerAIConversationMetadata {
     /// Public profile for the conversation's creator, when available.
     pub creator: Option<UserProfileWithUID>,
 
-    /// Permissions for this conversation (space, guests, link sharing).
+    /// Permissions for this conversation (owning space, last updated timestamp).
     pub permissions: crate::cloud_object::ServerPermissions,
 
     /// The ID of the associated ambient agent task, if any.

@@ -927,13 +927,6 @@ impl EnvVarCollectionView {
             | CloudModelEvent::ObjectDeleted { .. }
             | CloudModelEvent::ObjectUntrashed { .. }
             | CloudModelEvent::ObjectMoved { .. } => ctx.notify(),
-            CloudModelEvent::ObjectPermissionsUpdated { type_and_id, .. }
-                if self
-                    .as_active_env_var_collection_id(type_and_id, ctx)
-                    .is_some() =>
-            {
-                self.update_editor_interactivity(ctx);
-            }
             _ => (),
         }
     }

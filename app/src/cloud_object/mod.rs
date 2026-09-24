@@ -588,7 +588,7 @@ where
 
     fn conflicting_object_revision(&self) -> Option<Revision> {
         match &self.conflict_status {
-            ConflictStatus::ConflictingChanges { object } => Some(object.metadata.revision),
+            ConflictStatus::ConflictingChanges { object } => object.metadata.revision,
             ConflictStatus::NoConflicts => None,
         }
     }
@@ -607,9 +607,10 @@ where
             && self.model().should_update_after_server_conflict()
         {
             // Update metadata revision from the server object.
-            self.metadata.update_revision_from_server(&object.metadata);
+            self.metadata.revision = object.metadata.revision;
+            self.metadata.last_editor_uid = object.metadata.last_editor_uid.clone();
             // Update the model from the server.
-            self.set_model(object.model.clone());
+            self.set_model(object.model().clone());
             // Update conflict status - this may create a new conflict if there are pending changes.
             if self.metadata.has_pending_content_changes() {
                 self.conflict_status = ConflictStatus::ConflictingChanges { object };

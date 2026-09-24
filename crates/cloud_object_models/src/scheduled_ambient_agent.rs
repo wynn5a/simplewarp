@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use cloud_objects::cloud_object::{
-    GenericCloudObject, GenericServerObject, GenericStringModel, JsonObjectType,
-};
+use cloud_objects::cloud_object::{GenericCloudObject, GenericStringModel, JsonObjectType};
 use cloud_objects::ids::GenericStringObjectId;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use warp_cli::agent::Harness;
@@ -205,9 +203,6 @@ pub type CloudScheduledAmbientAgent =
     GenericCloudObject<GenericStringObjectId, CloudScheduledAmbientAgentModel>;
 pub type CloudScheduledAmbientAgentModel =
     GenericStringModel<ScheduledAmbientAgent, JsonSerializer>;
-pub type ServerScheduledAmbientAgent =
-    GenericServerObject<GenericStringObjectId, CloudScheduledAmbientAgentModel>;
-
 pub type AgentConfigMap = HashMap<String, serde_json::Value>;
 
 #[cfg(test)]
