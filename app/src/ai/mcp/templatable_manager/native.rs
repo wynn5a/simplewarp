@@ -20,7 +20,7 @@ use warp_core::features::FeatureFlag;
 use warp_core::safe_error;
 use warp_core::settings::Setting as _;
 use warp_errors::report_error;
-use warp_server_client::auth::AuthEvent;
+use warp_server_auth::session::AuthEvent;
 use warpui::windowing::WindowManager;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 

@@ -1,23 +1,18 @@
-mod session;
-
 use std::result::Result as StdResult;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
 use cynic::QueryBuilder;
-use firebase::FirebaseError;
-#[cfg(any(test, feature = "test-util"))]
-use mockall::automock;
-pub use session::*;
 use thiserror::Error;
-pub use user_uid::{TEST_USER_EMAIL, TEST_USER_UID, UserUid};
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
 use warp_graphql::client::{Operation as _, RequestOptions};
 use warp_graphql::queries::get_user::{GetUser, GetUserVariables, UserOutput as GqlUserOutput};
-use warp_server_auth::auth_state::AuthState;
-use warp_server_auth::credentials::{AuthToken, Credentials, LoginToken};
-pub use warp_server_auth::user_uid;
+
+use crate::auth_state::AuthState;
+use crate::credentials::{AuthToken, Credentials, LoginToken};
+use crate::firebase::FirebaseError;
+use crate::session::{AuthEvent, AuthSession};
 
 /// Header key used to associate unauthenticated requests with an experiment identity.
 pub const EXPERIMENT_ID_HEADER: &str = "X-Warp-Experiment-Id";
@@ -31,7 +26,6 @@ pub struct FetchUserResult {
     pub from_refresh: bool,
 }
 
-#[cfg_attr(any(test, feature = "test-util"), automock)]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 pub trait AuthClient: Send + Sync {

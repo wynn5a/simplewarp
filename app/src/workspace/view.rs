@@ -67,7 +67,7 @@ use warp_core::ui::theme::{AnsiColors, Fill};
 use warp_core::user_preferences::GetUserPreferences as _;
 use warp_editor::editor::NavigationKey;
 use warp_errors::{report_error, report_if_error};
-use warp_server_client::auth::AuthEvent;
+use warp_server_auth::session::AuthEvent;
 use warp_util::path::{LineAndColumnArg, user_friendly_path};
 use warpui::accessibility::{
     AccessibilityContent, AccessibilityVerbosity, ActionAccessibilityContent, WarpA11yRole,

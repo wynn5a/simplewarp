@@ -7,6 +7,7 @@ publish.workspace = true
 license.workspace = true
 
 [features]
+agent_mode_evals = ["dep:rand"]
 integration_tests = []
 # A build with no Warp account behind it: never adopt a user (test, env-var, or persisted) and
 # never obtain a token. Distinct from `skip_login`, which installs a stand-in test user so the
@@ -17,11 +18,16 @@ test-util = []
 
 [dependencies]
 anyhow.workspace = true
+async-channel.workspace = true
+async-trait.workspace = true
 chrono.workspace = true
 cynic.workspace = true
+http_client.workspace = true
+instant.workspace = true
 lasso.workspace = true
 log.workspace = true
 parking_lot.workspace = true
+rand = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -31,3 +37,6 @@ warp_errors.workspace = true
 warp_graphql.workspace = true
 warpui_core.workspace = true
 warpui_extras = { workspace = true, features = ["default"] }
+
+[dev-dependencies]
+futures.workspace = true

@@ -3,17 +3,15 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
-use firebase::FetchAccessTokenResponse;
 use instant::Duration;
 use warp_core::channel::ChannelState;
-use warp_server_auth::auth_state::AuthState;
-use warp_server_auth::credentials::{
-    AuthToken, Credentials, FirebaseToken, LoginToken, RefreshToken,
-};
-use warp_server_auth::user::FirebaseAuthTokens;
 use warpui_core::r#async::BoxFuture;
 
-use super::UserAuthenticationError;
+use crate::auth_client::UserAuthenticationError;
+use crate::auth_state::AuthState;
+use crate::credentials::{AuthToken, Credentials, FirebaseToken, LoginToken, RefreshToken};
+use crate::firebase::FetchAccessTokenResponse;
+use crate::user::FirebaseAuthTokens;
 
 const FETCH_ACCESS_TOKEN_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -120,7 +118,7 @@ impl AuthSession {
                 }
             }
             Credentials::SessionCookie => Ok(AuthToken::NoAuth),
-            #[cfg(any(feature = "integration_tests", feature = "skip_login"))]
+            #[cfg(any(test, feature = "integration_tests", feature = "skip_login"))]
             Credentials::Test => Ok(AuthToken::NoAuth),
         }
     }

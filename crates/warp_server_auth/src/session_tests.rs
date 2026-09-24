@@ -2,15 +2,15 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use futures::executor::block_on;
-use warp_server_auth::auth_state::AuthState;
-use warp_server_auth::credentials::{AuthToken, Credentials, LoginToken};
-use warp_server_auth::user::FirebaseAuthTokens;
 
-use super::AuthSession;
+use crate::auth_state::AuthState;
+use crate::credentials::{AuthToken, Credentials, LoginToken};
+use crate::session::{AuthEvent, AuthSession};
+use crate::user::FirebaseAuthTokens;
 
 fn session_with_state(
     auth_state: Arc<AuthState>,
-) -> (AuthSession, async_channel::Receiver<super::AuthEvent>) {
+) -> (AuthSession, async_channel::Receiver<AuthEvent>) {
     let (event_sender, event_receiver) = async_channel::unbounded();
     let session = AuthSession::new(
         Arc::new(http_client::Client::new()),

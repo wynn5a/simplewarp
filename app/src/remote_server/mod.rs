@@ -4,7 +4,7 @@ use remote_server::manager::RemoteServerManager;
 // `crate::remote_server::*` imports in `app` continue to work.
 pub use remote_server::*;
 #[cfg(not(target_family = "wasm"))]
-use warp_server_client::auth::AuthEvent;
+use warp_server_auth::session::AuthEvent;
 #[cfg(not(target_family = "wasm"))]
 use warpui::SingletonEntity as _;
 

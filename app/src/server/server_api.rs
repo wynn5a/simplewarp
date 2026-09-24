@@ -7,7 +7,8 @@ use auth::AuthClient;
 use serde::Deserialize;
 use warp_core::context_flag::ContextFlag;
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
-use warp_server_client::auth::{AuthClientImpl, AuthEvent, GraphqlRoutingConfig};
+use warp_server_auth::auth_client::{AuthClientImpl, GraphqlRoutingConfig};
+use warp_server_auth::session::AuthEvent;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::get_relevant_files::api::{GetRelevantFiles, GetRelevantFilesResponse};

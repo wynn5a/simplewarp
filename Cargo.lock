@@ -4823,14 +4823,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "firebase"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde",
-]
-
-[[package]]
 name = "fixedbitset"
 version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14199,7 +14191,6 @@ dependencies = [
  "env_logger",
  "event-listener",
  "field_mask",
- "firebase",
  "flate2",
  "float-cmp",
  "freedesktop-desktop-entry",
@@ -14387,7 +14378,6 @@ dependencies = [
  "warp_ripgrep",
  "warp_search_core",
  "warp_server_auth",
- "warp_server_client",
  "warp_terminal",
  "warp_util",
  "warp_web_event_bus",
@@ -14843,11 +14833,17 @@ name = "warp_server_auth"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-channel",
+ "async-trait",
  "chrono",
  "cynic",
+ "futures",
+ "http_client",
+ "instant",
  "lasso",
  "log",
  "parking_lot",
+ "rand 0.8.6",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
@@ -14857,52 +14853,6 @@ dependencies = [
  "warp_graphql",
  "warpui_core",
  "warpui_extras",
-]
-
-[[package]]
-name = "warp_server_client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-channel",
- "async-trait",
- "bincode",
- "bounded-vec-deque",
- "cfg-if",
- "chrono",
- "cloud_object_models",
- "cloud_objects",
- "cynic",
- "derivative",
- "diesel",
- "firebase",
- "futures",
- "http 1.4.0",
- "http_client",
- "instant",
- "itertools 0.14.0",
- "lasso",
- "log",
- "mockall",
- "mockito",
- "parking_lot",
- "pathfinder_geometry",
- "rand 0.8.6",
- "reqwest",
- "schemars 1.0.4",
- "serde",
- "serde_json",
- "session-sharing-protocol",
- "settings_value",
- "thiserror 2.0.17",
- "url",
- "uuid",
- "warp_core",
- "warp_errors",
- "warp_graphql",
- "warp_isolation_platform",
- "warp_server_auth",
- "warpui_core",
 ]
 
 [[package]]

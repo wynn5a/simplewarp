@@ -11214,3 +11214,202 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       merge (feature-forwarding chains repoint; bounded-vec-deque
       and the dead firebase dep drop). Then slice 5 — the stub
       walls and the Arc<ServerApi> plumbing dissolution.
+
+- [x] **the fold slice 4 — warp_server_client + firebase fall (4fi)
+      — DONE 2026-09-23.** Executed the 4ff SLICE 4: the
+      warp_server_client and firebase crates are deleted and their
+      auth half lives in warp_server_auth, now the single identity
+      crate. 19 files, 42 insertions(+), 168 deletions(−) — net
+      −126 — plus 677 lines moved in four git renames (532
+      warp_server_client + 145 firebase); two crate directories
+      removed from the workspace.
+
+      MOVE TABLE (module → new home). All four renames moved the
+      bodies verbatim; only import paths were rewritten:
+      * crates/warp_server_client/src/auth/mod.rs (246 lines) →
+        crates/warp_server_auth/src/auth_client.rs — AuthClient
+        trait (+ wasm `async_trait(?Send)` attrs verbatim),
+        AuthClientImpl {client, auth_state, auth_session,
+        graphql_routing}, FetchUserResult,
+        UserAuthenticationError + From<FirebaseError> +
+        register_error!, EXPERIMENT_ID_HEADER, GraphqlRoutingConfig,
+        the cfg agent_mode_evals EVAL_USER_IDS block (moved
+        byte-identical).
+      * crates/warp_server_client/src/auth/session.rs (219) →
+        crates/warp_server_auth/src/session.rs — AuthSession,
+        AuthEvent (+ the redacting Debug and the wasm dead_code
+        allow on the token field), get_or_refresh_access_token
+        (skip_login/local_only cfg! bails verbatim),
+        exchange_credentials, fetch_auth_tokens (identitytoolkit
+        POST + proxy fallback), fetch_access_token_via_proxy.
+      * crates/warp_server_client/src/auth/session_tests.rs (66) →
+        crates/warp_server_auth/src/session_tests.rs — 3 tests with
+        their bearer/refresh token fixtures intact (landmine 5).
+      * crates/firebase/src/lib.rs (145) →
+        crates/warp_server_auth/src/firebase.rs — pure serde types
+        (FirebaseError, AccountInfo, GetAccountInfoResponse[Payload],
+        FetchAccessTokenResponse), byte-identical; both its
+        importers were the moved auth files.
+      * warp_server_auth/src/lib.rs: `pub mod {auth_client,
+        firebase, session};` added to the alphabetical module list.
+      * warp_server_auth/Cargo.toml: gains http_client,
+        async-channel, async-trait, instant, optional rand, feature
+        `agent_mode_evals = ["dep:rand"]`, dev-dep futures (the
+        moved tests' block_on). Existing role/deps unchanged —
+        warp_graphql stays (GetUser is the last live op).
+
+      CRATE DELETIONS + MANIFESTS. Deleted outright:
+      crates/warp_server_client/Cargo.toml (63) + src/lib.rs (1),
+      crates/firebase/Cargo.toml (12). Root Cargo.toml: both
+      [workspace.dependencies] entries dropped (members list is a
+      `crates/*` glob — no member edit). app/Cargo.toml: main-dep
+      line (:246), already-dead dev-dep `firebase.workspace = true`
+      (:430, landmine 8 — verified zero app/src imports), and
+      dev-dep warp_server_client (:444) dropped. Cargo.lock
+      refreshed (both packages and their now-unreachable dep edges
+      pruned, −51 lines). warp_server_client's orphaned
+      `bounded-vec-deque` dep went with the crate (network_logging
+      was its last user, moved to app in 4fg).
+
+      REPOINTS (all six app importers at HEAD; 4ff's nine included
+      the three consumed by 4fh's slice 2/3). `AuthEvent` (3 files:
+      ai/mcp/templatable_manager/native.rs, remote_server/mod.rs,
+      workspace/view.rs) → `warp_server_auth::session::AuthEvent`;
+      server_api.rs → `warp_server_auth::auth_client::
+      {AuthClientImpl, GraphqlRoutingConfig}` + the session AuthEvent;
+      server_api/auth.rs's re-export source →
+      `warp_server_auth::auth_client::{AuthClient, FetchUserResult,
+      UserAuthenticationError}` (the app-side `crate::auth` chain —
+      4ff landmine 9 — stays intact for auth_manager/root_view);
+      server_api/auth_tests.rs:45 → auth_client paths. The
+      ServerApiProvider construction sites (4fh deviation 2) needed
+      no edits beyond that import line.
+
+      FEATURE-FORWARDING DISPOSITIONS (4ff landmine 1). The readers
+      moved with the code, so the chains now end at
+      warp_server_auth directly: `local_only` and `skip_login` →
+      `warp_server_auth/{local_only,skip_login}` (the cfg! bails and
+      the Credentials::Test arm live in moved session.rs);
+      `integration_tests` → `warp_server_auth/integration_tests`
+      (auth_state.rs readers predate the move); `test-util` list
+      entry `warp_server_client/test-util` → `cloud_objects/test-util`
+      — that was the old feature's only real cargo (its mockall half
+      existed solely for the automock, which dies this round, so
+      mockall does not follow into warp_server_auth; the
+      `warp_server_auth/test-util` forwarding is untouched —
+      auth_state/credentials read it); `agent_mode_evals` →
+      `warp_server_auth/agent_mode_evals` (new feature owning the
+      moved EVAL_USER_IDS block; `dep:rand`). The integration crate
+      is untouched — its `warp = { features = ["integration_tests"] }`
+      rides the repointed app chain.
+
+      AUTOMOCK. Deleted in the move (4ff instruction): `git grep
+      MockAuthClient` = zero users at HEAD; the trait's
+      cfg_attr(automock) + the mockall imports are gone.
+
+      DEVIATIONS FROM THE 4FF MAP. (1) Importer count is 6, not 9
+      (above). (2) session.rs's `Credentials::Test` match arm gained
+      `test` in its cfg (`any(test, feature = "integration_tests",
+      feature = "skip_login")`, now exactly matching credentials.rs's
+      gating): inside the crate, cfg(test) compiles the variant into
+      warp_server_auth's own unit-test builds, so the match would
+      not be exhaustive without it; as an external dependency
+      warp_server_auth was never compiled with cfg(test), so no
+      product config is affected — only this crate's own nextest
+      target. (3) auth/mod.rs's two user_uid re-export lines
+      (`pub use user_uid::{TEST_USER_EMAIL, TEST_USER_UID, UserUid}`
+      and `pub use warp_server_auth::user_uid;`) were dropped rather
+      than moved: zero importers reach them through
+      warp_server_client (all users go via app `crate::auth::user`,
+      `cloud_objects::auth`, or warp_server_auth directly), and
+      inside warp_server_auth they would be self-re-exports. The
+      `pub use session::*` glob became direct
+      `crate::session::{AuthEvent, AuthSession}` imports; app
+      consumers import the two modules directly. (4) .github/
+      STAKEHOLDERS: `/crates/warp_server_client/ @ianhodge`
+      repointed to `/crates/warp_server_auth/` — the repo had zero
+      stale ownership paths; letting this one dangle would have
+      created the first. (5) Deleted size came in at net −126, not
+      4ff's ≈−1,050: 4fh had already consumed ~330 of the crate's
+      src lines, and the bulk of slice 4's volume (677 lines) MOVES
+      as renames; what actually fell is the crate shells (76: both
+      manifests + warp_server_client's 1-line lib.rs), lockfile
+      pruning (−51), and the forwarding/import
+      churn. (6) The wasm-gated branches (async_trait(?Send),
+      initialize_user_from_session_cookie — landmine 2) moved
+      verbatim; wasm is not compiled on this host, same as every
+      prior round.
+
+      Deliberately left (SLICE 5 — designated next): the four
+      `Err(local_only_error())` stub walls + their callers
+      (voice_transcriber, get_relevant_files/controller,
+      blocklist/passive_suggestions/legacy.rs, next_command_model
+      suggestion path, the dead ai/agent/api/impl.rs field), then
+      the `Arc<ServerApi>` plumbing dissolution across the 9 files
+      into ServerApiProvider::{get_http_client, get_auth_client}
+      (+ event pump). ENDGAME after that (per 4ff, recorded, not
+      scheduled): cloud_objects + the warp_graphql type half fall
+      as their consumers fall; terminal warp_graphql = schema +
+      get_user + client.rs + scalars, alive as warp_server_auth's
+      identity dependency. Also left: the
+      logging-and-error-reporting SKILL.md's example path
+      (crates/warp_server_client/src/auth/mod.rs) — lockfile-managed
+      common skill, orchestrator call, same disposition as 4fe left
+      add-telemetry.
+
+      Local-only safety: zero behavior change for every locally
+      runnable feature — the moved bodies are byte-identical, so
+      each login-path piece is verified by construction plus
+      compile/test: fetch_user (AuthSession::exchange_credentials →
+      identitytoolkit POST with proxy fallback → GetUser with
+      EXPERIMENT_ID_HEADER + anonymous_id + routing path_prefix),
+      startup refresh_user (get_or_refresh_access_token's 5-minute
+      lookahead branch: NeedsReauth on DeniedAccessToken,
+      AccessTokenRefreshed + update_firebase_tokens on success),
+      the Reauth workspace action and AuthEvent pump
+      (NeedsReauth → AuthManager, UserAccountDisabled → `app:log_out`
+      — server_api.rs bodies untouched, only its import line), and
+      remote_server wire_auth_token_rotation (its consumer file
+      changed only the import) all compile unchanged in every
+      checked config; the skip_login/local_only bails still fire
+      before any network call (skip_login's reject test re-run
+      green in the warp suite); AuthManager, sign_in_url, the
+      auth-redirect intake and override-warning modal were not
+      modified at all. Token-bearing fixtures moved with their
+      tests; AuthEvent's Debug keeps redacting the token.
+
+      Acceptance: clippy baselines captured at HEAD FIRST in both
+      configs (12 primary-span message|location pairs each: 11
+      needless-return in terminal/input.rs + 1 single-element-loop
+      in lifecycle/mod_tests.rs:272), plus a 16-pair
+      agent_mode_evals baseline (11 needless-return — that config
+      runs without --all-targets, so the test-only loop warning is
+      absent — + 3 pre-existing dead-code + 2 step.rs
+      unused-imports); post-edit re-runs are
+      warning-IDENTICAL in all three (empty diffs). Check suite 0
+      errors in ten configurations: `check -p warp --lib
+      --all-targets` default + simplewarp, `--no-default-features
+      --features simplewarp --bin simplewarp`, `--bin warp-oss`,
+      `--all-targets -p integration` (only the two pre-existing
+      step.rs warnings), `check -p warp --lib --tests --features
+      skip_login`, `check -p warp_server_auth --all-targets`, and
+      the forwarding hand-checks `--features {agent_mode_evals,
+      integration_tests, local_only, fast_dev}` (the latter two
+      presubmit never compiles). `./script/format` exit 0, no diff
+      beyond the round's own edits. Nextest `-p warp --lib
+      --no-fail-fast`: default 4,614 run / 4,614 passed / 3
+      skipped / 0 failed; simplewarp 4,613 run / 4,613 passed / 3
+      skipped / 0 failed — both identical to the post-4fh baseline
+      (no flake this round). `nextest -p warp_server_auth`: 7 run /
+      7 passed / 0 skipped — the crate's 4 pre-existing tests plus
+      the 3 moved session tests, now running under the identity
+      crate in both default and test cfgs. Disk healthy (41GB free
+      at round start; no stale-executable cleanup needed, no cargo
+      clean). Runtime smoke SKIPPED per the 2026-09-23 convention
+      (user away, macOS password prompt unanswerable); no binary
+      launched — cargo check/clippy/nextest builds only.
+
+      DESIGNATED NEXT: fold slice 5 tail — the four
+      `Err(local_only_error())` stub walls + their callers, then the
+      `Arc<ServerApi>` plumbing dissolution into ServerApiProvider
+      accessors; cloud_objects/warp_graphql endgame thereafter.

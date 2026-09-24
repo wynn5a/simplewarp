@@ -41,8 +41,8 @@ fn test_firebase_token_urls() -> Result<()> {
 fn access_token_skip_login_rejects_bearer_token() {
     use std::sync::Arc;
 
+    use warp_server_auth::auth_client::{AuthClient, AuthClientImpl, GraphqlRoutingConfig};
     use warp_server_auth::auth_state::AuthState;
-    use warp_server_client::auth::{AuthClient, AuthClientImpl, GraphqlRoutingConfig};
 
     let (event_sender, _) = async_channel::unbounded();
     let auth_state = Arc::new(AuthState::new_logged_out_for_test());

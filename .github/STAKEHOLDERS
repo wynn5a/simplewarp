@@ -175,7 +175,7 @@
 /crates/graphql/ @ianhodge
 /crates/http_client/ @ianhodge
 /crates/http_server/ @ianhodge
-/crates/warp_server_client/ @ianhodge
+/crates/warp_server_auth/ @ianhodge
 
 # Session sharing
 /app/src/terminal/shared_session/ @szgupta @bnavetta

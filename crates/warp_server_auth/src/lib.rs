@@ -1,6 +1,9 @@
 pub mod anonymous_id;
+pub mod auth_client;
 pub mod auth_state;
 pub mod credentials;
+pub mod firebase;
+pub mod session;
 pub mod user;
 pub mod user_uid;
 
