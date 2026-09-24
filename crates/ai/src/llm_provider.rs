@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use warp_core::ui::icons::Icon;
-use warp_errors::report_error;
 
 use crate::api_keys::ApiKeys;
 
@@ -58,26 +57,6 @@ impl LLMProvider {
             Self::Unknown => return false,
         }
         true
-    }
-}
-
-impl From<warp_graphql::workspace::LlmProvider> for LLMProvider {
-    fn from(value: warp_graphql::workspace::LlmProvider) -> Self {
-        match value {
-            warp_graphql::workspace::LlmProvider::Openai => Self::OpenAI,
-            warp_graphql::workspace::LlmProvider::Anthropic => Self::Anthropic,
-            warp_graphql::workspace::LlmProvider::Google => Self::Google,
-            warp_graphql::workspace::LlmProvider::Xai
-            | warp_graphql::workspace::LlmProvider::Unknown => Self::Unknown,
-            warp_graphql::workspace::LlmProvider::Other(value) => {
-                report_error!(
-                    "Invalid LlmProvider; update client GraphQL types",
-                    extra: { "provider" => %value },
-                    warp_errors::ReportErrorLogMode::OncePerRun
-                );
-                Self::Unknown
-            }
-        }
     }
 }
 

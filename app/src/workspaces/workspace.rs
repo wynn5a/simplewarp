@@ -3,11 +3,6 @@ use std::path::PathBuf;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-pub use warp_graphql::billing::{
-    AiCreditsUsageAndCostSubjectType, AiCreditsUsageAndCostType, AiCreditsUsageBucket,
-    AiCreditsUsageSource,
-};
-use warp_graphql::billing::{ServiceAgreement, ServiceAgreementType};
 
 use super::team::{MembershipRole, Team};
 use crate::ai::execution_profiles::{
@@ -468,6 +463,25 @@ pub struct BillingMetadata {
     pub ai_overages: Option<AiOverages>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ServiceAgreement {
+    pub type_: ServiceAgreementType,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ServiceAgreementType {
+    Enterprise,
+    Legacy,
+    ProTrial,
+    Prosumer,
+    SelfServe,
+    TeamTrial,
+    Turbo,
+    Business,
+    Lightspeed,
+    Other(String),
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct BonusGrantsPurchased {
     pub total_credits_purchased: i32,
@@ -479,6 +493,43 @@ pub struct AiOverages {
     pub current_monthly_request_cost_cents: i32,
     pub current_monthly_requests_used: i32,
     pub current_period_end: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AiCreditsUsageAndCostSubjectType {
+    Team,
+    User,
+    ServiceAccount,
+    Other(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AiCreditsUsageAndCostType {
+    BaseLimit,
+    BonusGrant,
+    Payg,
+    AmbientBonusGrant,
+    Aggregate,
+    Other(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AiCreditsUsageBucket {
+    Ai,
+    Compute,
+    Platform,
+    SuggestedCodeDiffs,
+    Voice,
+    Aggregate,
+    Other(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AiCreditsUsageSource {
+    Local,
+    Cloud,
+    Aggregate,
+    Other(String),
 }
 
 /// A single redacted usage entry from `Workspace.billingCycleUsageHistory`.

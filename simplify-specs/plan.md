@@ -12468,3 +12468,184 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       password prompt unanswerable); compile + test evidence
       stands in. DESIGNATED NEXT: slice 3a exactly as scoped in
       the 4fk plan (app conversion walls + pricing, ≈−2,000).
+
+- [x] **endgame slice 3a — the app conversion walls + the pricing
+      vertical (4fo) — DONE 2026-09-24.** Executed the 4fk SLICE 3A
+      with one scope discovery: the pricing vertical's UI surface is
+      bigger than the 4fk listing (PricingPromotionState had two LIVE
+      view consumers), but every added deletion is provably the same
+      always-None path — 25 files changed, 70 insertions(+),
+      2,261 deletions(−), net −2,191 (6 files deleted outright:
+      workspaces/gql_convert.rs, workspaces/gql_convert_tests.rs,
+      pricing/mod.rs, pricing/pricing_tests.rs, ai/pricing_promotion.rs,
+      ai/pricing_promotion_tests.rs).
+
+      PER-NAME VERIFICATION (all at HEAD b124e6488, pre-delete;
+      repo-wide PCRE sweeps with lookbehind form
+      `(?<![A-Za-z0-9_])Name`, call syntax `.name(` / `Name::` /
+      `: Name` / imports / re-export paths). (1) gql_convert —
+      `gql_convert` appears ONLY in workspaces/mod.rs's module decl
+      and its own two files (1,343 + 363 lines, self-referential as
+      4fk predicted); every From/TryFrom impl consumes gql types no
+      op can construct (GetUser is the only built op and selects none
+      of them); the local Workspace/Team/TeamMember/TeamSettings it
+      fed stay, constructed from literals (user_workspaces.rs
+      setup_test_workspace) and BillingMetadata::default(). Deleted
+      file+tests+mod line. (2) PricingInfoModel — `pricing_info` is
+      None-initialized with NO setter (only `new()`); the sole live
+      read is ai/pricing_promotion.rs:55
+      `PricingInfoModel::as_ref(app).promotion_message()`, which can
+      only return None — the exact always-None behavior preserved by
+      deletion. The three `#[allow(dead_code)]` accessors had zero
+      callers; the only other references were the cfg(test)
+      registrations (6 files) and pricing_tests.rs's direct private-
+      field construction. (3) PricingPromotionState — consumers:
+      terminal_message_bar.rs (subscribe Updated + visible_message +
+      dismiss via TerminalInputMessageBarAction::DismissPricingPromotion)
+      and agent_message_bar.rs (subscribe + visible_message +
+      record_visible_promotion→record_displayed + the
+      UpgradePricingPromotion/DismissPricingPromotion pill actions).
+      END-TO-END NO-OP TRACE: visible_message returns
+      promotion_message() = always None → the terminal X button and
+      the agent promo pill NEVER render (both are inside
+      `if promotion_message.is_some()` / `.map()` over None) → the
+      only dispatchers of dismiss/record_clicked/UpgradePricingPromotion
+      are unreachable → PricingPromotionStateEvent::Updated never
+      emitted → the subscriptions never fire → dismiss's
+      private_user_preferences writes never run (the two
+      pricing_promotion_*_dismissed keys were never written at any
+      point) → record_visible_promotion always early-returns at the
+      `.is_none()` check. Every UI branch deleted was unreachable;
+      the local message bars render byte-identical output.
+      (4) render_dismissible_promo_pill (zero_state_block.rs) — only
+      caller was the deleted agent_message_bar pill block. (5)
+      AuthManager::upgrade_url — sole caller was the deleted
+      UpgradePricingPromotion arm (data_source.rs/workspace view
+      upgrade links use UserWorkspaces::upgrade_link*, unrelated);
+      generate_auth_state keeps its login_url caller. (6) the
+      `From<gql workspace::LlmProvider>` impl in crates/ai/
+      llm_provider.rs — the ONLY reference to that gql type outside
+      crates/graphql (controller.rs's LlmProvider is
+      warp_multi_agent_api's); deleted with its report_error import.
+      (7) `TryFrom<gql AIConversationArtifact>` in ai/artifacts/
+      mod.rs — zero production constructors of the gql type (only
+      GetUser is built; artifact events come from
+      api::message::artifact_event, whose From impls stay); deleted
+      with sanitized_basename kept (live file_button_label caller).
+
+      BILLING LOCALIZATION (landmine 5 enabler): workspace.rs's
+      `pub use warp_graphql::billing::{AiCreditsUsageAndCostSubjectType,
+      AiCreditsUsageAndCostType, AiCreditsUsageBucket,
+      AiCreditsUsageSource}` + `use ...::{ServiceAgreement,
+      ServiceAgreementType}` replaced with local pub types defined in
+      workspace.rs, cynic derives dropped — ServiceAgreement trimmed
+      to its one read field (`type_`, read by
+      BillingMetadata::is_on_build_business_plan; the other five gql
+      fields incl. the Time-scalar timestamps were never read and
+      nothing constructs the struct — BillingMetadata::default() has
+      an empty vec, and the field is `#[serde(skip)]`), enums keep
+      their full variant vocabulary incl. Other(String). Same import
+      paths keep working (crate::workspaces::workspace::*). crates/
+      graphql's billing.rs now has ZERO consumers outside the crate.
+
+      ONE-HOP CONSEQUENCES RESOLVED. (1) The two message-bar views
+      were registered via `ctx.add_typed_action_view` (input.rs:2269,
+      status_bar.rs:325) which requires the TypedActionView bound —
+      both switched to plain `ctx.add_view` (handles are only stored/
+      notified/ChildView'd, and neither view handles actions anymore,
+      so action routing is identical: empty). (2)
+      TerminalInputMessageBarAction + AgentMessageBarAction enums and
+      their TypedActionView impls fell with their dispatch sites;
+      TerminalMessageArgs lost its promotion_close_mouse_state field.
+      (3) zero_state_block.rs: CREDITS_BANNER_FONT_SIZE const (only
+      the pill used it) + 6 now-unused imports removed; compiler-
+      verified. (4) agent_message_bar: the 5 record_visible_promotion
+      call sites + method, the PricingPromotionState subscription,
+      the two mouse-state fields, right_element collapses to None
+      (render_standard_message_bar gets the same Option::None the
+      wasm branch always produced). (5) Test registrations removed
+      from 6 files (pane_group/mod_tests, workspace/view_tests,
+      test_util/terminal.rs, ai/request_usage_model_tests,
+      ai/blocklist/prompt/prompt_alert_tests, terminal/input_tests).
+
+      TEST HANDLING: 10 tests deleted, 0 rewritten, 0 deleted-test
+      subjects preserved: 7 in gql_convert_tests.rs (all exercised
+      the deleted conversion wall itself — invite filtering /
+      settings conversion / StripeSubscriptionPlan mapping /
+      invite-link gating are converter logic with no local subject),
+      promotion_message_is_exposed_verbatim (pricing_tests),
+      agent_and_terminal_dismissals_are_independent
+      (pricing_promotion_tests), converts_graphql_file_artifact
+      (artifacts/mod_tests — the deleted TryFrom; the 15 remaining
+      artifact tests are local serde/roundtrip/parse logic, kept).
+      Final PCRE sweep over every deleted name: zero references
+      remain (AIConversationArtifact/FileArtifact/gql LlmProvider/
+      gql billing now appear only inside crates/graphql and the SDL).
+
+      Deliberately left (per the 4fk plan): SLICE 3b — the
+      warp_graphql dead-module sweep, which this round made strictly
+      smaller: warp_graphql::billing (whole module),
+      warp_graphql::workspace (whole module — LlmProvider was its
+      last outside mention), and get_conversation_usage now have
+      ZERO consumers outside crates/graphql; ai.rs retains only
+      AgentTaskState/AgentHarness consumers (agent_sdk/driver.rs,
+      driver/error_classification.rs + tests, harness_availability.rs);
+      user::PublicUserProfile keeps its single From in
+      cloud_object_models/user_profile.rs; object/object_permissions/
+      generic_string_object unchanged from the 2b record
+      (From<GenericStringObjectFormat> for the gql format still feeds
+      input_context.rs:283 until 3b repoints it). SLICE 4 — schema
+      crate fold. Also untouched by design: ServerAIConversationMetadata
+      always-None vertical (2b's next-candidate (b), UI restructuring
+      out of scope), CloudModelEvent::InitialLoadCompleted (4fm
+      next-candidate (c)), UpdateManager (local), login flow,
+      sqlite schema/migrations (no schema or migration file in the
+      diff — verified), ConflictStatus state machine.
+
+      Local-only safety: every deletion is a zero-caller conversion
+      impl (its gql input type unconstructable by any op), a
+      None-initialized singleton with no setter whose single read
+      collapses to the identical always-None value, UI branches
+      unreachable because the value they test is always None, or
+      test registrations of those singletons. No reachable runtime
+      path changed: message bars render identical output, the two
+      dismissal preference keys were never written by any reachable
+      path (and remain in the preferences namespace untouched), no
+      persisted serde shape routes through a falling type
+      (service_agreements is #[serde(skip)]; BillingCycleUsageEntry
+      has no serde derives; the localized enums replace types that
+      were never serialized — the serde formats in landmine 1 are
+      untouched), UpdateManager and the warp_server_auth login flow
+      (AuthClientImpl → GetUser) are untouched.
+
+      Acceptance: (1) clippy baseline diff — captured FIRST at HEAD
+      in both configs (12 warnings each, sort -u location+message
+      pairs: 11 needless-return in terminal/input.rs at identical
+      lines + 1 single-element-loop in terminal/model/lifecycle/
+      mod_tests.rs:272); post-change runs are WARNING-IDENTICAL in
+      BOTH default and `--no-default-features --features simplewarp`
+      (machine-diffed, `diff` clean; the 2 transient warnings that
+      surfaced mid-round — unused `me`, dead CREDITS_BANNER_FONT_SIZE
+      — were resolved by deleting the dead code, not suppressed).
+      (2) cargo check 0 errors: -p warp --lib --all-targets default
+      AND simplewarp; --no-default-features --features simplewarp
+      --bin simplewarp; --bin warp-oss; --all-targets -p integration
+      (only the 2 pre-existing integration_testing/input/step.rs
+      unused-import warnings); -p warp --lib --tests --features
+      skip_login; -p cloud_objects / cloud_object_models / ai
+      --all-targets. `--features test-util` on warp surfaces the
+      PRE-EXISTING EntityId cfg-gate error, verified byte-identical
+      via stash at HEAD (the 4fn-recorded input_model.rs gate, now
+      reported at :295); ai/cloud_objects/cloud_object_models
+      test-util clean. (3) ./script/format — run to idempotency
+      (diff hash stable across reruns). (4) nextest -p warp --lib
+      --no-fail-fast: default 4,597 run = 4,607 baseline − 10 deleted
+      tests, 4,597 passed, 3 skipped, 0 failed, no flake;
+      simplewarp 4,596 run = 4,606 baseline − 10, 4,596 passed,
+      3 skipped, 0 failed. Runtime smoke SKIPPED per round
+      instructions (user away — app must not be launched; password
+      prompt unanswerable); compile + test evidence stands in.
+      DESIGNATED NEXT: slice 3b exactly as scoped in the 4fk plan
+      (warp_graphql dead modules, ≈−2,100 now that billing/workspace/
+      get_conversation_usage are fully consumer-less), with the
+      input_context.rs GraphQLFormat repoint done first.

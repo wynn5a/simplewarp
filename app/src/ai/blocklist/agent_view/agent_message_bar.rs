@@ -7,9 +7,7 @@ use warpui::assets::asset_cache::AssetSource;
 use warpui::elements::{Element, Empty, MouseStateHandle};
 use warpui::keymap::Keystroke;
 use warpui::platform::OperatingSystem;
-use warpui::{
-    AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-};
+use warpui::{AppContext, Entity, ModelHandle, SingletonEntity, View, ViewContext};
 
 use super::{AgentViewState, EphemeralMessageModel, EphemeralMessageModelEvent};
 use crate::BlocklistAIHistoryModel;
@@ -18,7 +16,6 @@ use crate::ai::agent::{
     AIAgentExchangeId, AIAgentOutputStatus, FinishedAIAgentOutput, RenderableAIError,
 };
 use crate::ai::blocklist::agent_view::shortcuts::AgentShortcutViewModel;
-use crate::ai::blocklist::agent_view::zero_state_block::render_dismissible_promo_pill;
 use crate::ai::blocklist::agent_view::{
     AgentViewController, AgentViewControllerEvent, is_in_cloud_context,
 };
@@ -29,10 +26,6 @@ use crate::ai::blocklist::{
 use crate::ai::document::ai_document_model::{AIDocumentModel, AIDocumentModelEvent};
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::mcp::templatable_manager::{FigmaMcpStatus, TemplatableMCPServerManagerEvent};
-use crate::ai::pricing_promotion::{
-    PricingPromotionState, PricingPromotionStateEvent, PricingPromotionSurface,
-};
-use crate::auth::auth_manager::AuthManager;
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
 use crate::terminal::input::message_bar::attached_context::{
@@ -72,8 +65,6 @@ pub struct AgentMessageBarMouseStates {
     pub figma_install_button: MouseStateHandle,
     /// Mouse state handle for the "Enable Figma MCP" contextual button.
     pub figma_enable_button: MouseStateHandle,
-    pub pricing_promotion: MouseStateHandle,
-    pub pricing_promotion_close: MouseStateHandle,
 }
 
 /// Renders contextual hint text at the bottom of the agent view status bar.
@@ -96,11 +87,6 @@ pub struct AgentMessageBar {
 impl Entity for AgentMessageBar {
     type Event = ();
 }
-#[derive(Clone, Debug)]
-pub enum AgentMessageBarAction {
-    UpgradePricingPromotion,
-    DismissPricingPromotion,
-}
 
 impl AgentMessageBar {
     #[allow(clippy::too_many_arguments)]
@@ -116,13 +102,12 @@ impl AgentMessageBar {
         terminal_model: Arc<FairMutex<TerminalModel>>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        ctx.subscribe_to_model(&agent_view_controller, |me, _, event, ctx| {
+        ctx.subscribe_to_model(&agent_view_controller, |_, _, event, ctx| {
             if matches!(
                 event,
                 AgentViewControllerEvent::EnteredAgentView { .. }
                     | AgentViewControllerEvent::ExitedAgentView { .. }
             ) {
-                me.record_visible_promotion(ctx);
                 ctx.notify();
             }
         });
@@ -169,7 +154,6 @@ impl AgentMessageBar {
                     me.ephemeral_message_model
                         .update(ctx, |m, ctx| m.try_dismiss_explicit_message(ctx));
                 }
-                me.record_visible_promotion(ctx);
                 ctx.notify();
             }
         });
@@ -183,12 +167,6 @@ impl AgentMessageBar {
                 event,
                 BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
             ) {
-                ctx.notify();
-            }
-        });
-        ctx.subscribe_to_model(&PricingPromotionState::handle(ctx), |me, _, event, ctx| {
-            if matches!(event, PricingPromotionStateEvent::Updated) {
-                me.record_visible_promotion(ctx);
                 ctx.notify();
             }
         });
@@ -227,7 +205,7 @@ impl AgentMessageBar {
             );
         }
 
-        let message_bar = Self {
+        Self {
             agent_view_controller,
             ephemeral_message_model,
             shortcut_view_model,
@@ -239,9 +217,7 @@ impl AgentMessageBar {
             terminal_model,
             mouse_states: AgentMessageBarMouseStates::default(),
             figma_detected: false,
-        };
-        message_bar.record_visible_promotion(ctx);
-        message_bar
+        }
     }
 }
 
@@ -280,27 +256,6 @@ impl AgentMessageBar {
         } else {
             None
         }
-    }
-
-    fn record_visible_promotion(&self, ctx: &mut ViewContext<Self>) {
-        if cfg!(target_family = "wasm")
-            || !self.agent_view_controller.as_ref(ctx).is_active()
-            || self
-                .input_suggestions_model
-                .as_ref(ctx)
-                .is_inline_menu_open()
-        {
-            return;
-        }
-        if PricingPromotionState::as_ref(ctx)
-            .visible_message(PricingPromotionSurface::AgentMessageBar, ctx)
-            .is_none()
-        {
-            return;
-        }
-        PricingPromotionState::handle(ctx).update(ctx, |state, ctx| {
-            state.record_displayed(PricingPromotionSurface::AgentMessageBar, ctx);
-        });
     }
 }
 
@@ -369,23 +324,7 @@ impl View for AgentMessageBar {
             return Empty::new().finish();
         };
 
-        let right_element = if cfg!(target_family = "wasm") {
-            None
-        } else {
-            PricingPromotionState::as_ref(app)
-                .visible_message(PricingPromotionSurface::AgentMessageBar, app)
-                .map(|message| {
-                    render_dismissible_promo_pill(
-                        message,
-                        appearance.theme().ansi_fg_green(),
-                        Some(self.mouse_states.pricing_promotion.clone()),
-                        Some(AgentMessageBarAction::UpgradePricingPromotion),
-                        self.mouse_states.pricing_promotion_close.clone(),
-                        AgentMessageBarAction::DismissPricingPromotion,
-                        app,
-                    )
-                })
-        };
+        let right_element = None;
 
         // Append a Figma MCP chip to the message if applicable.
         match self.figma_button_status(app) {
@@ -420,28 +359,6 @@ impl View for AgentMessageBar {
     }
 }
 
-impl TypedActionView for AgentMessageBar {
-    type Action = AgentMessageBarAction;
-
-    fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
-        match action {
-            AgentMessageBarAction::UpgradePricingPromotion => {
-                PricingPromotionState::handle(ctx).update(ctx, |state, ctx| {
-                    state.record_clicked(PricingPromotionSurface::AgentMessageBar, ctx);
-                });
-                let upgrade_url = AuthManager::handle(ctx)
-                    .update(ctx, |auth_manager, _| auth_manager.upgrade_url());
-                ctx.open_url(&upgrade_url);
-            }
-            AgentMessageBarAction::DismissPricingPromotion => {
-                PricingPromotionState::handle(ctx).update(ctx, |state, ctx| {
-                    state.dismiss(PricingPromotionSurface::AgentMessageBar, ctx);
-                });
-                ctx.notify();
-            }
-        }
-    }
-}
 /// Arguments for agent message producers.
 #[derive(Copy, Clone)]
 pub struct AgentMessageArgs<'a> {

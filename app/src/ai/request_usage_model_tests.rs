@@ -4,7 +4,6 @@ use warpui::{App, ModelHandle};
 
 use super::*;
 use crate::auth::AuthStateProvider;
-use crate::pricing::PricingInfoModel;
 use crate::server::server_api::ServerApiProvider;
 
 fn add_request_usage_model(app: &mut App) -> ModelHandle<AIRequestUsageModel> {
@@ -28,7 +27,6 @@ fn add_request_usage_model_without_auth(app: &mut App) -> ModelHandle<AIRequestU
         warpui_extras::secure_storage::register_noop("test", ctx);
         ctx.add_singleton_model(ApiKeyManager::new);
     });
-    app.add_singleton_model(|_| PricingInfoModel::new());
     app.add_singleton_model(|_| AIRequestUsageModel::new())
 }
 
