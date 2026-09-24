@@ -1,23 +1,18 @@
 use warpui::ViewContext;
 
 use super::TerminalView;
-use crate::server::telemetry::InteractionSource;
 use crate::terminal::view::CodeDiffAction;
 
 #[derive(Copy, Clone, Debug)]
 pub enum PromptSuggestionResolution {
-    Accept {
-        interaction_source: InteractionSource,
-    },
-    Reject {
-        ctrl_c: bool,
-    },
+    Accept,
+    Reject { ctrl_c: bool },
 }
 
 impl From<PromptSuggestionResolution> for CodeDiffAction {
     fn from(value: PromptSuggestionResolution) -> Self {
         match value {
-            PromptSuggestionResolution::Accept { .. } => CodeDiffAction::Accept,
+            PromptSuggestionResolution::Accept => CodeDiffAction::Accept,
             PromptSuggestionResolution::Reject { .. } => CodeDiffAction::Reject,
         }
     }
@@ -66,13 +61,11 @@ impl TerminalView {
         };
 
         let handled = match resolution {
-            PromptSuggestionResolution::Accept { interaction_source } => {
-                ai_block.update(ctx, |ai_block, ctx| {
-                    ai_block.accept_pending_unit_test_suggestion(interaction_source, ctx)
-                })
-            }
+            PromptSuggestionResolution::Accept => ai_block.update(ctx, |ai_block, ctx| {
+                ai_block.accept_pending_unit_test_suggestion(ctx)
+            }),
             PromptSuggestionResolution::Reject { .. } => ai_block.update(ctx, |ai_block, ctx| {
-                ai_block.dismiss_pending_suggested_prompt(InteractionSource::Keybinding, ctx)
+                ai_block.dismiss_pending_suggested_prompt(ctx)
             }),
         };
         ctx.notify();

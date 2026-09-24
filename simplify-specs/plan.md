@@ -10085,9 +10085,9 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
 - [x] **telemetry slice 2b — queue and machinery (4fc) — DONE 2026-09-23.**
       Executed the 4ez SLICE 2b: the event queue and everything that
       existed to buffer events between producer and the slice-1-deleted
-      sender is gone. 41 files changed, 835 insertions(+), 1,929
+      sender is gone. 41 files changed, 193 insertions(+), 1,118
       deletions(-) (git diff --stat vs 4fb HEAD b50a55edc, includes
-      plan.md).
+      plan.md; code-only: 40 files, +5/−1,118).
 
       DELETED wholesale (7 files, 884 lines; each re-verified at HEAD
       before removal): `crates/warpui_core/src/telemetry/` — mod.rs (112;
@@ -10269,3 +10269,247 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       eyeball). If the relocation proves entangled (import churn
       across 100+ files), do 2c alone and split 2a′ into per-cluster
       slices.
+
+- [x] **telemetry slices 2a′ + 2c — events shell dissolved + privacy fields
+      (4fd) — DONE 2026-09-23.** `server/telemetry/` is gone: events.rs
+      (362) + mod.rs (3) + the `pub mod telemetry;` decl deleted, all
+      `crate::server::telemetry::` import paths eliminated (PCRE
+      sweep: zero hits; also caught the sneaky
+      `crate::terminal::view::telemetry::PromptSuggestionFallbackReason`
+      path in view.rs:430 that resolved THROUGH the `use ...::{self,
+      ...}` binding at :303 — a path-through-binding pattern to watch
+      for in future module dissolutions). Code diff vs 4fc HEAD
+      74d556162: 54 files, +137/−1,434 (includes crates/integration;
+      plan.md excluded).
+
+      Of the 29 types 4fb kept in events.rs as "live-shared", only 2
+      had genuinely live consumers — RELOCATED as pure moves (2):
+      `PaletteSource` → `search/command_palette/mod.rs` (LIVE:
+      workspace/view.rs OpenPalette/TogglePalette handlers branch on
+      `matches!(source, CtrlTab{..})` to pick ctrl_tab_palette vs
+      palette, plus TitleBarSearchBar checks; emitted from lib.rs quit
+      modal ×2, auth log-out modal, agent_tips, slash_commands
+      keybinding, pane_group QuitModal, workspace/mod.rs keybindings,
+      workspace/action.rs payloads) and `CommandXRayTrigger` →
+      `editor/view/mod.rs` next to sibling `CommandXRayAnchor` (LIVE:
+      input.rs show_xray's `trigger == Keystroke` decides whether the
+      x-ray description is announced via a11y). RELOCATION LANDMINE:
+      keep derives identical to the source — the original was
+      Clone-only (no Copy) and deriving Copy broke the non-move
+      closure in start_xray_at_offset (E0373: non-move closures
+      capture even Copy types by reference; Clone-only ones move them
+      by value). The other 27 types were DEAD after re-verification —
+      every remaining reader was a discarded `let _x`/`_param`
+      threading that only existed to feed deleted producers — deleted
+      together with their threading (27):
+      DownloadSource (whole file download_method.rs 78 lines: spawned
+      a task that ran `brew list --cask warp` on macOS into a
+      discarded `let _download_source`; lib.rs call + mod decl gone),
+      TelemetryCloudObjectType + TelemetrySpace +
+      CloudObjectTelemetryMetadata (only builders were the two
+      `#[cfg_attr(not(wasm), allow(dead_code))]` zero-caller fns
+      notebook.rs::generic_telemetry_metadata and
+      workflow_view.rs::telemetry_metadata — both deleted),
+      WorkflowTelemetryMetadata (view.rs built it then
+      `if let Some(_metadata) = ... {}`; WorkflowSelectionSource
+      import orphaned), EnvVarTelemetryMetadata (input.rs dead let),
+      MCPTemplateInstallationSource (list_page.rs dead let; the
+      is_server_template_shared method itself keeps 7 live callers),
+      CLIAgentType + From<CLIAgent> impl (readers: use_agent_footer
+      discarded let + one test assert on the impl itself), 
+      NotificationAgentVariant (`_agent_variant` param of
+      send_agent_desktop_notification_or_show_banner + 2 sites),
+      PtySpawnMode (spawner.rs discarded let + the write-only
+      is_fallback bookkeeping; the fallback spawn path and
+      report_error! stay), SaveAsWorkflowModalSource (`_source` param
+      of open_workflow_modal_with_command + 2 sites),
+      LaunchConfigUiLocation (OpenLaunchConfigArg.ui_location never
+      read by open_launch_config; field + 4 app constructors +
+      type_getters.rs getter (file emptied, deleted, mod decl
+      removed) + 7 crates/integration construction lines),
+      AICommandSearchEntrypoint (dead let in show_ai_command_search),
+      AnonymousUserSignupEntrypoint (payload threading
+      InputEvent→TerminalView Event→terminal_pane→pane_group Event→
+      initiate_user_signup(_entrypoint) whose body only opens the
+      require-login modal; field removed from all 3 event variants +
+      re-emits + 5 direct constructor sites + fn param),
+      PromptChoice (editor_modal dead `let _prompt_info`;
+      context_chips::telemetry_name() had it as sole caller — method
+      deleted), ToggleBlockFilterSource (TerminalAction payload,
+      handler ignored; Binding keybinding + ContextMenu menu sites +
+      Display arm), AgentModeEntrypoint +
+      AgentModeEntrypointSelectionType (NewTab/NewPaneInAgentMode
+      `entrypoint: _` arms ignored it; field removed from both
+      variants + NewPaneBinding binding + integration-test TabBar
+      constructor + the lib.rs `pub use
+      crate::server::telemetry::{AgentModeEntrypoint,
+      AgentModeEntrypointSelectionType}` re-export — note
+      input.rs:299's `#[allow(unused_imports)]` line had been masking
+      the dead re-export import), InteractionSource
+      (PromptSuggestionResolution::Accept{interaction_source} →
+      `let _interaction_source = match ...` discard; variant became
+      unit `Accept`, 4 constructors + block.rs 5 accept/dismiss sites
+      updated), AgentModeRewindEntrypoint (RewindAIConversation
+      payload ignored by show_rewind_confirmation_dialog; Button/
+      ContextMenu/SlashCommand constructor sites),
+      PromptSuggestionFallbackReason (PassiveCodeDiffFailed{reason};
+      handler ignored; 7 emission sites in legacy.rs — the
+      early-return control flow around each emit kept),
+      AgentModeAutoDetectionFalsePositivePayload (
+      maybe_send_autodetection_telemetry_on_manual_toggle was 100%
+      dead computation — fn + both call sites deleted),
+      AddTabWithShellSource (AddTabWithShell source payload →
+      add_tab_with_shell(_source) ignored; ShellSelectorMenu +
+      CommandPalette constructors), SharingDialogSource (
+      WorkspaceAction::OpenObjectSharingSettings had ZERO constructors
+      repo-wide and a `{ .. } => {}` handler arm — the whole variant +
+      2 arms deleted), ImageProtocol (Event::ImageReceived +
+      ModelEvent::ImageReceived payload; sole subscriber matched
+      `image_protocol: _`; 4 ansi_handler emission sites),
+      QueuedPromptSendNowTrigger (send_queued_row_immediately(_trigger)
+      ignored; SendNowButton + EnterOnEmptyInput sites),
+      PromptSuggestionViewType (prompt_suggestion_view_type() fed only
+      `let _view = ...`).
+
+      4fc-DESIGNATED EXTRAS: notebooks/telemetry.rs's
+      NotebookTelemetryAction enum deleted — it only fed the EMPTY
+      `send_telemetry_action(_action, _ctx)` stubs in notebook.rs and
+      file/mod.rs (16 call sites); ActionEntrypoint/BlockInfo/
+      EmbeddedObjectInfo/SelectionMode stay (live in the notebook
+      editor's copy/cut/insert/selection paths). The gutted
+      edit-telemetry timer skeleton deleted: check_edited (woke every
+      EDIT_WINDOW_DURATION to compute `let _delta` and discard it),
+      edit_telemetry_handle/send_edit_telemetry/last_content_length
+      fields + inits + reset sites, both cfg'd EDIT_WINDOW_DURATION
+      consts, Timer/AbortHandle imports; SAVE_PERIOD + the throttled
+      save stream stay (live). EditorViewEvent::
+      OpenedBlockInsertionMenu(BlockInsertionSource) payload removed —
+      both subscribers ignored it; the type itself stays live in the
+      insertion menu. Same-class ugc residue swept:
+      input.rs/blocked `_should_collect_ugc`, input_model.rs
+      `_buffer_length`/`_input_buffer_text_for_telemetry`/
+      `other_buffer_cloned`/`_is_udi_enabled`, block.rs
+      `should_collect_ugc`/`_redacted_query` dead block,
+      view.rs `_query_string`/`_block_command` dead if-let,
+      PassiveSuggestionsEvent::PromptSuggestionsGenerated lost its
+      write-only command/request_duration_ms fields.
+
+      PART B (2c) — re-verified at HEAD before touching; the 4ez 2c
+      premise partially dissolved because the flag's readers were NOT
+      all in the deleted pipeline: DELETED: PrivacySettingsSnapshot
+      whole type + its 5 accessors + should_disable_telemetry + mock()
+      + PrivacySettings::get_snapshot — zero callers repo-wide (the
+      4ez-era readers incl. terminal/view.rs's snapshot field died in
+      4fa/4fb); this also removes the AgentModeAnalytics force
+      coupling (4ez landmine #6, explicitly blessed). DELETED:
+      AppAnalyticsWidget (privacy_page.rs) + ZDR badge + TELEMETRY_
+      TITLE/TELEMETRY_DESCRIPTION{_OLD}/TELEMETRY_DOCS_URL consts +
+      widget-list entry — should_render returned false in every build
+      of this fork (ChannelState::is_telemetry_available() == false:
+      all three bins pass telemetry_config: None), so it never
+      rendered. KEPT with live local readers: `is_telemetry_enabled`
+      (model field + WarpDrivePrivacySettings setting + setter + cloud
+      -sync subscribe arm + UpdateIsTelemetryEnabled event variant)
+      — read by check_and_trigger_telemetry_banner_for_existing_users
+      (workspace/view.rs), the flags::TELEMETRY_FLAG context flag, and
+      the LIVE "app analytics" toggle binding in
+      init_actions_from_parent_view (PrivacyPageAction::
+      ToggleTelemetry + toggle_telemetry handler stay; the toggle is
+      reachable outside the deleted widget via the settings-toggle
+      bindings path); `is_telemetry_force_enabled` (field + getter/
+      setter + user_workspaces teams plumbing) — read by
+      CrashReportsWidget::should_render's org-force gate (deviation
+      from the 4ez 2c list: the gate IS a live reader; note
+      is_crash_reporting_available() is also false in this fork's
+      bins); crash reporting, cloud conversation storage, user/
+      enterprise secret regexes: untouched. KEPT for slice 3:
+      TerminalModel's is_ai_ugc_telemetry_enabled plumbing +
+      should_collect_ai_ugc_telemetry + TelemetryBanner UI — the flag
+      switches block.rs serialized output between content_summary
+      (2500,2500) and force-obfuscated truncation, i.e. REAL content
+      behavior, not telemetry-only. Settings schema: no
+      define_settings_group/maybe_define_setting definitions changed,
+      so nothing to regenerate; verified by running `cargo run --bin
+      generate_settings_schema` → 193 settings written,
+      privacy.telemetry_enabled still present as expected.
+
+      Deliberately left (slice 3 per 4ez): channel-config
+      telemetry_config/TelemetryConfig/RudderStack*/
+      telemetry_file_name/is_telemetry_available + the six-bin
+      telemetry_config: None decision, execution_mode::
+      send_telemetry_at_shutdown, warp_features WithSandboxTelemetry/
+      SendTelemetryToFile/RecordAppActiveEvents + app cargo features
+      send_telemetry_to_file/record_app_active_events + warpui's
+      unreferenced log_named_telemetry_events cargo feature, the
+      EnablementState-flag sweep (flags newly callerless after 4fb),
+      the is_ai_ugc_telemetry_enabled/should_collect_ai_ugc_telemetry/
+      TelemetryBanner cluster (above), AgentModeAnalytics flag itself,
+      and rename candidates for now-misnamed telemetry-named modules
+      that hold live types (notebooks/telemetry.rs,
+      workspace/view/vertical_tabs.rs telemetry mod, tab_configs/
+      telemetry.rs, code_review/telemetry_event.rs,
+      ai/skills/telemetry.rs).
+
+      Local-only safety: every deleted statement was either (a) an
+      enqueue-only telemetry producer remnant, (b) a value computed
+      and bound to an underscore/discarded name with zero readers
+      (each verified by PCRE grep at HEAD before deletion), or (c)
+      the DownloadSource `brew` probe whose result was discarded
+      (deleting it removes an invisible background subprocess spawn,
+      nothing else). The Action/Event payload removals touch
+      dispatch/emit plumbing only where the field was provably never
+      read; all handler bodies, control flow around emissions
+      (legacy.rs early returns), the resolve_prompt_suggestion
+      Reject path, and the rewind confirmation flow are unchanged.
+      CommandXRayTrigger moved verbatim (derives adjusted back to the
+      original Clone-only set — see landmine above; Debug was added,
+      which is inert). No signature changed beyond dropping provably
+      unread parameters/fields; no visibility widened beyond the two
+      relocated enums.
+
+      Acceptance: clippy baselines captured at HEAD FIRST in both
+      configs — 12 sorted warning|location pairs each (11
+      needless-return in terminal/input.rs + 1 single-element-loop in
+      lifecycle/mod_tests.rs:272); post-edit re-runs are 12 pairs in
+      both configs, warning-IDENTICAL modulo in-file line shifts in
+      terminal/input.rs (10705→10642 etc., from deletions above them)
+      — 0 new, 0 gone by normalized warning+file multiset diff.
+      Check suite 0 errors, 7/7 post-incident re-run:
+      `check -p warp --lib --all-targets` default + simplewarp,
+      `--no-default-features --features simplewarp --bin simplewarp`,
+      `--bin warp-oss`, `--all-targets -p integration` (only the two
+      pre-existing step.rs unused-import warnings),
+      `check -p warp --lib --tests --features skip_login`,
+      `-p warp_cli --all-targets`. `./script/format` idempotent
+      (second run: zero new changes). Nextest `-p warp --lib
+      --no-fail-fast`: default 4,611 passed / 3 skipped / 0 failed;
+      simplewarp 4,610 passed / 3 skipped / 0 failed — passed and
+      skipped counts IDENTICAL to the post-4fc baseline. INCIDENT:
+      the data volume hit 100% during the first simplewarp test build
+      (ENOSPC → 4 spurious workspaces::workspace purchase_policy
+      FAILs, all temp/DB-writing tests); freed ~2GB by deleting stale
+      relinkable target/debug/deps executables before the round's
+      builds, macOS purged more under pressure, and the full run
+      passed on rerun with disk restored (~16-19GB free) — rerun
+      before attributing, per the standing flake rule; a post-incident
+      re-run of all 7 check commands was 0 errors. Runtime smoke
+      SKIPPED per the 2026-09-23 convention (user away, macOS
+      password prompt unanswerable); the GUI binary was not built or
+      launched. Did not `cargo clean`.
+
+      DESIGNATED NEXT: slice 3 per 4ez, now the only remaining
+      telemetry work — (1) channel-config telemetry_config family
+      (TelemetryConfig/RudderStack*/telemetry_file_name/
+      is_telemetry_available; touches all three remaining bins that
+      pass `telemetry_config: None` — decide removal vs keep) and
+      crash_reporting_config symmetric decision, (2) execution_mode::
+      send_telemetry_at_shutdown, (3) the three feature flags
+      WithSandboxTelemetry/SendTelemetryToFile/RecordAppActiveEvents
+      + their cargo features + warpui's log_named_telemetry_events
+      feature decl, (4) the EnablementState-flag sweep is moot
+      (EnablementState itself died in 4fc) — replace with the
+      is_ai_ugc_telemetry_enabled/should_collect_ai_ugc_telemetry/
+      AgentModeAnalytics/GlobalAIAnalyticsBanner flag cluster, which
+      needs a content-behavior decision on block.rs's serialized
+      output truncation before any deletion, (5) rename pass for the
+      five now-misnamed telemetry modules holding live types.

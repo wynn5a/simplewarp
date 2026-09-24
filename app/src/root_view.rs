@@ -44,7 +44,6 @@ use crate::persistence::ModelEvent;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::auth::UserAuthenticationError;
 use crate::server::server_api::{ServerApi, ServerApiProvider};
-use crate::server::telemetry::LaunchConfigUiLocation;
 use crate::settings::QuakeModeSettings;
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::settings_view::{SettingsSection, flags};
@@ -161,7 +160,6 @@ pub struct OpenFromRestoredArg {
 
 pub struct OpenLaunchConfigArg {
     pub launch_config: launch_config::LaunchConfig,
-    pub ui_location: LaunchConfigUiLocation,
 
     /// Tries to open the launch config into the active window, if any.
     ///

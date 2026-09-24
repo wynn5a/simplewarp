@@ -146,7 +146,6 @@ use crate::ai::blocklist::block::cli_controller::{CLISubagentController, CLISuba
 use crate::ai::blocklist::block::status_bar::BlocklistAIStatusBar;
 use crate::ai::blocklist::conversation_selection::ConversationSelectionHandle;
 use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
-use crate::ai::blocklist::telemetry_banner::should_collect_ai_ugc_telemetry;
 use crate::ai::blocklist::{
     AttachmentType, BLOCK_CONTEXT_ATTACHMENT_REGEX, BlocklistAIActionModel,
     BlocklistAIContextEvent, BlocklistAIContextModel, BlocklistAIController,
@@ -173,9 +172,9 @@ use crate::ai::predict::prompt_suggestions::{
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::channel::{Channel, ChannelState};
+use crate::cloud_object::CloudObject;
 use crate::cloud_object::model::actions::ObjectActionType;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{CloudObject, Space};
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::code_review::diff_state::DiffMode;
@@ -186,9 +185,9 @@ use crate::context_chips::prompt_type::PromptType;
 use crate::context_chips::spacing;
 use crate::editor::{
     AttachedImage as AttachedImageRawData, AutosuggestionLocation, AutosuggestionType,
-    BaselinePositionComputationMethod, CommandXRayAnchor, CrdtOperation, CursorColors,
-    DisplayPoint, EditOrigin, EditorAction, EditorDecoratorElements, EditorOptions, EditorSnapshot,
-    EditorView, Event as EditorEvent, ImageContextOptions, InteractionState,
+    BaselinePositionComputationMethod, CommandXRayAnchor, CommandXRayTrigger, CrdtOperation,
+    CursorColors, DisplayPoint, EditOrigin, EditorAction, EditorDecoratorElements, EditorOptions,
+    EditorSnapshot, EditorView, Event as EditorEvent, ImageContextOptions, InteractionState,
     MAX_IMAGES_PER_CONVERSATION, PathTransformerFn, PlainTextEditorViewAction,
     Point as BufferPoint, PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys,
     PropagateHorizontalNavigationKeys, TextRun, default_cursor_colors,
@@ -210,15 +209,11 @@ use crate::search::QueryFilter;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::ai_context_menu::search::is_valid_search_query;
 use crate::search::ai_context_menu::view::AIContextMenuAction;
+use crate::search::command_palette::PaletteSource;
 use crate::search::slash_command_menu::static_commands::commands::{self, COMMAND_REGISTRY};
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::SyncId;
 use crate::server::server_api::ServerApi;
-use crate::server::telemetry::{
-    AICommandSearchEntrypoint, AgentModeAutoDetectionFalsePositivePayload,
-    AnonymousUserSignupEntrypoint, CommandXRayTrigger, EnvVarTelemetryMetadata, PaletteSource,
-    QueuedPromptSendNowTrigger,
-};
 use crate::session_management::SessionNavigationPromptElements;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, AliasExpansionSettings, AppEditorSettings,
@@ -296,7 +291,7 @@ use crate::workspace::{
     RestoreConversationLayout, ToastStack, WorkspaceAction,
 };
 #[allow(unused_imports)]
-use crate::{AgentModeEntrypoint, ServerApiProvider, cmd_or_ctrl_shift};
+use crate::{ServerApiProvider, cmd_or_ctrl_shift};
 
 /// Drop target data for dropping content on the [`Input`].
 #[derive(Debug, Clone)]
@@ -870,9 +865,7 @@ pub enum Event {
     EditorFocused,
     UnhandledCmdEnter,
     CtrlEnter,
-    SignupAnonymousUser {
-        entrypoint: AnonymousUserSignupEntrypoint,
-    },
+    SignupAnonymousUser,
     OpenSettings(SettingsSection),
     #[cfg(feature = "local_fs")]
     OpenCodeInWarp {
@@ -3024,7 +3017,6 @@ impl Input {
                     *query_id,
                     text.clone(),
                     *is_command,
-                    QueuedPromptSendNowTrigger::SendNowButton,
                     ctx,
                 );
             }
@@ -3046,7 +3038,6 @@ impl Input {
         query_id: QueuedQueryId,
         text: String,
         is_command: bool,
-        _trigger: QueuedPromptSendNowTrigger,
         ctx: &mut ViewContext<Self>,
     ) {
         // Read the origin before dispatch; the row is removed once it fires.
@@ -5625,8 +5616,6 @@ impl Input {
                         is_from_ai,
                         predicted_command: response.most_likely_action.clone(),
                     });
-
-                let _should_collect_ugc = should_collect_ai_ugc_telemetry(ctx);
             }
             // Reset state for whether the user accepted the intelligent autosuggestion.
             self.was_intelligent_autosuggestion_accepted = false;
@@ -6148,20 +6137,6 @@ impl Input {
         match event {
             WorkflowsInfoBoxViewEvent::PrefixCommandWithEnvironmentVariables(env_vars) => {
                 self.reset_workflow_state(*env_vars, ctx);
-
-                // The ID may be `None` if the user is *clearing* environment variables.
-                if let Some(env_vars_id) = env_vars {
-                    let env_vars_object =
-                        CloudModel::as_ref(ctx).get_env_var_collection(env_vars_id);
-                    let _telemetry_metadata = EnvVarTelemetryMetadata {
-                        object_id: env_vars_id.into_server().map(Into::into),
-                        team_uid: env_vars_object
-                            .and_then(|object| object.permissions.owner.into()),
-                        space: env_vars_object
-                            .map_or(Space::Personal, |object| object.space(ctx))
-                            .into(),
-                    };
-                }
             }
         }
     }
@@ -7100,40 +7075,6 @@ impl Input {
                 self.set_input_mode_natural_language_detection(ctx);
             }
             ctx.emit(Event::Escape);
-        }
-    }
-
-    /// Emits an `AgentModeAutodetectionFalsePositive` telemetry event if the current input text has
-    /// been autodetected as AI input and the user manually toggled to shell.
-    /// Also emits `AgentModeChangedInputType` if the user is part of the analytics experiment.
-    ///
-    /// This is intended to be called whenever the user manually toggles the input to new_input_type. Because the user is manually toggling
-    /// back to shell mode after input has been autodetected as natural language, we infer that the
-    /// current input text may not have been correctly classified as natural language.
-    /// For users opted in to the analytics experiment, we collect the input buffer text whenever the input type is toggled
-    /// in either direction.
-    fn maybe_send_autodetection_telemetry_on_manual_toggle(
-        &self,
-        new_input_type: InputType,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let input_buffer_text = self.buffer_text(ctx);
-        let _buffer_length = input_buffer_text.len();
-        let _input = should_collect_ai_ugc_telemetry(ctx).then_some(input_buffer_text);
-        let _is_udi_enabled = InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
-
-        let ai_input_model = self.ai_input_model.as_ref(ctx);
-        if matches!(new_input_type, InputType::Shell) && !ai_input_model.is_input_type_locked() {
-            let current_input_text = self.buffer_text(ctx);
-            if !current_input_text.is_empty() {
-                let _event_payload = if ChannelState::channel().is_dogfood() {
-                    AgentModeAutoDetectionFalsePositivePayload::InternalDogfoodUsers {
-                        input_text: current_input_text,
-                    }
-                } else {
-                    AgentModeAutoDetectionFalsePositivePayload::ExternalUsers
-                };
-            }
         }
     }
 
@@ -8629,7 +8570,6 @@ impl Input {
             EditorEvent::DeleteAllLeft => {
                 if self.ai_input_model.as_ref(ctx).is_ai_input_enabled() {
                     let new_input_type = InputType::Shell;
-                    self.maybe_send_autodetection_telemetry_on_manual_toggle(new_input_type, ctx);
                     self.ai_input_model.update(ctx, |ai_input_model, ctx| {
                         ai_input_model.set_input_config_for_classic_mode(
                             InputConfig {
@@ -9246,13 +9186,10 @@ impl Input {
             });
         } else {
             // Otherwise backspace away the AI icon.
-            let new_input_type = self.ai_input_model.update(ctx, |ai_input_model, ctx| {
+            self.ai_input_model.update(ctx, |ai_input_model, ctx| {
                 let new_input_config = ai_input_model.input_config().with_toggled_type().locked();
-                let new_input_type = new_input_config.input_type;
                 ai_input_model.set_input_config_for_classic_mode(new_input_config, ctx);
-                new_input_type
             });
-            self.maybe_send_autodetection_telemetry_on_manual_toggle(new_input_type, ctx);
         }
     }
 
@@ -10771,14 +10708,7 @@ impl Input {
             if let (Some(conversation_id), Some((query_id, text, is_command))) =
                 (conversation_id, top_row)
             {
-                self.send_queued_row_immediately(
-                    conversation_id,
-                    query_id,
-                    text,
-                    is_command,
-                    QueuedPromptSendNowTrigger::EnterOnEmptyInput,
-                    ctx,
-                );
+                self.send_queued_row_immediately(conversation_id, query_id, text, is_command, ctx);
             }
             return;
         } else if self.maybe_queue_input_for_in_progress_conversation(ctx)
@@ -12353,12 +12283,6 @@ impl Input {
         });
 
         ctx.emit(Event::ShowCommandSearch(Default::default()));
-
-        let _entrypoint = if buffer_starts_with_trigger {
-            AICommandSearchEntrypoint::ShortHandTrigger
-        } else {
-            AICommandSearchEntrypoint::Keybinding
-        };
         ctx.notify();
     }
 
@@ -12402,9 +12326,7 @@ impl Input {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            PromptSuggestionsEvent::SignupAnonymousUser => ctx.emit(Event::SignupAnonymousUser {
-                entrypoint: AnonymousUserSignupEntrypoint::SignUpAIPrompt,
-            }),
+            PromptSuggestionsEvent::SignupAnonymousUser => ctx.emit(Event::SignupAnonymousUser),
         }
     }
 

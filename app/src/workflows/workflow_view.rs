@@ -70,7 +70,6 @@ use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
 use crate::server::ids::{ClientId, SyncId};
-use crate::server::telemetry::{CloudObjectTelemetryMetadata, TelemetryCloudObjectType};
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
@@ -736,24 +735,6 @@ impl WorkflowView {
         }
 
         None
-    }
-
-    /// Generic object telemetry metadata for the currently-open object.
-    #[cfg_attr(not(target_family = "wasm"), allow(dead_code))]
-    fn telemetry_metadata(&self, ctx: &mut ViewContext<Self>) -> CloudObjectTelemetryMetadata {
-        let space = CloudModel::as_ref(ctx)
-            .get_workflow(&self.workflow_id)
-            .map(|workflow| workflow.space(ctx));
-
-        CloudObjectTelemetryMetadata {
-            object_type: TelemetryCloudObjectType::Workflow,
-            object_uid: self.workflow_id.into_server(),
-            space: space.map(Into::into),
-            team_uid: match self.owner {
-                Some(Owner::Team { team_uid, .. }) => Some(team_uid),
-                _ => None,
-            },
-        }
     }
 
     pub fn is_team_workflow(&self) -> bool {

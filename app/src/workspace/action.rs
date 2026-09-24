@@ -28,10 +28,8 @@ use crate::drive::CloudObjectTypeAndId;
 use crate::palette::PaletteMode;
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::search;
+use crate::search::command_palette::PaletteSource;
 use crate::server::ids::{ServerId, SyncId};
-use crate::server::telemetry::{
-    AddTabWithShellSource, AgentModeEntrypoint, PaletteSource, SharingDialogSource,
-};
 use crate::settings_view::{SettingsAction as SettingsTabAction, SettingsSection};
 use crate::tab::{NewSessionMenuItem, SelectedTabColor};
 use crate::tab_configs::TabConfig;
@@ -260,7 +258,6 @@ pub enum WorkspaceAction {
     },
     AddTabWithShell {
         shell: AvailableShell,
-        source: AddTabWithShellSource,
     },
     AddGetStartedTab,
     /// Add a new tab that immediately enters agent view with a new conversation.
@@ -454,11 +451,6 @@ pub enum WorkspaceAction {
     FocusRightPanel,
     /// An action to view a newly created/edited workflow in WD from the toast
     ViewObjectInWarpDrive(WarpDriveItemId),
-    /// Open the object's sharing settings in WD.
-    OpenObjectSharingSettings {
-        object_id: CloudObjectTypeAndId,
-        source: SharingDialogSource,
-    },
     UndoTrash(CloudObjectTypeAndId),
     /// Open a local path in the file explorer.
     OpenInExplorer {
@@ -488,15 +480,11 @@ pub enum WorkspaceAction {
     },
     /// Open a new tab with its input in AI mode.
     NewTabInAgentMode {
-        /// The entrypoint that triggered this action.
-        entrypoint: AgentModeEntrypoint,
         /// The type of zero state prompt suggestion to start with (optional).
         zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
     },
     /// Open a new pane with its input in AI mode.
     NewPaneInAgentMode {
-        /// The entrypoint that triggered this action.
-        entrypoint: AgentModeEntrypoint,
         /// The type of zero state prompt suggestion to start with (optional).
         zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
     },
@@ -1027,7 +1015,6 @@ impl WorkspaceAction {
             | UndoTrash(_)
             | OpenFilePath { .. }
             | ViewObjectInWarpDrive(_)
-            | OpenObjectSharingSettings { .. }
             | TerminateApp
             | SignInAnonymousWebUser
             | TabHoverWidthStart { .. }

@@ -45,7 +45,6 @@ use crate::editor::{
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::pane_group::Direction;
 use crate::search_bar::SearchBar;
-use crate::server::telemetry::MCPTemplateInstallationSource;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::settings_view::mcp_servers::server_card::{
     ServerCardEvent, ServerCardOptions, ServerCardStatus, ServerCardView, TitleChip,
@@ -707,8 +706,6 @@ impl MCPServersListPageView {
                 ServerCardItemId::TemplatableMCP(template_uuid) => {
                     let templatable_mcp_server = TemplatableMCPServerManager::as_ref(ctx)
                         .get_templatable_mcp_server(*template_uuid);
-                    let is_shared = TemplatableMCPServerManager::as_ref(ctx)
-                        .is_server_template_shared(*template_uuid, ctx);
 
                     if let Some(templatable_mcp_server) = templatable_mcp_server {
                         ctx.emit(MCPServersListPageViewEvent::StartInstallation {
@@ -716,10 +713,6 @@ impl MCPServersListPageView {
                             instructions_in_markdown: None,
                             origin: InstallOrigin::InApp,
                         });
-                        let _source: MCPTemplateInstallationSource = match is_shared {
-                            true => MCPTemplateInstallationSource::Shared,
-                            false => MCPTemplateInstallationSource::Local,
-                        };
                     }
                 }
                 ServerCardItemId::TemplatableMCPInstallation(_) => {

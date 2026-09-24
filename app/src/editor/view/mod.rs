@@ -8380,6 +8380,16 @@ pub enum CommandXRayAnchor {
     Hover(DisplayPoint),
 }
 
+/// What triggered showing command x-ray information
+#[derive(Clone, PartialEq, Eq)]
+pub enum CommandXRayTrigger {
+    /// The user pressed a key to show x-ray info.
+    Keystroke,
+
+    /// X-ray info is shown while hovering the command.
+    Hover,
+}
+
 #[derive(Debug)]
 pub enum Event {
     Activate,

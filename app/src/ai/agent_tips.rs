@@ -7,7 +7,7 @@ use warpui::keymap::Keystroke;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use crate::palette::PaletteMode;
-use crate::server::telemetry::PaletteSource;
+use crate::search::command_palette::PaletteSource;
 use crate::settings::AISettings;
 use crate::terminal::input::SET_INPUT_MODE_AGENT_ACTION_NAME;
 use crate::terminal::view::init::{

@@ -27,7 +27,6 @@ use crate::launch_configs::launch_config::LaunchConfig;
 use crate::linear::{LinearAction, LinearIssueWork};
 use crate::root_view::{OpenLaunchConfigArg, open_new_window_get_handles};
 use crate::server::ids::ServerId;
-use crate::server::telemetry::LaunchConfigUiLocation;
 use crate::settings_view::{SettingsSection, settings_widget_deeplink_target};
 use crate::tab_configs::TabConfig;
 use crate::user_config::{load_launch_configs, load_tab_configs, tab_configs_dir};
@@ -166,7 +165,6 @@ impl UriHost {
                             "root_view:open_launch_config",
                             &OpenLaunchConfigArg {
                                 launch_config: config.clone(),
-                                ui_location: LaunchConfigUiLocation::Uri,
                                 open_in_active_window: false,
                             },
                         )

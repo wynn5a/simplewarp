@@ -4,12 +4,10 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use settings::macros::{define_settings_group, maybe_define_setting, register_settings_events};
 use settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
-use warp_core::features::FeatureFlag;
 use warp_errors::{report_error, report_if_error};
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity, UpdateModel};
 
 use super::cloud_preferences_syncer::CloudPreferencesSyncer;
-use crate::ai::blocklist::telemetry_banner::should_collect_ai_ugc_telemetry;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::terminal::safe_mode_settings::SafeModeSettings;
 use crate::workspaces::workspace::EnterpriseSecretRegex;
@@ -155,59 +153,6 @@ pub struct PrivacySettings {
     /// Whether or not the user's organization has enabled enterprise secret redaction.
     /// This is populated by the server when teams data is fetched.
     pub is_enterprise_secret_redaction_enabled: bool,
-}
-
-/// A snapshot of a user's [`PrivacySettings`] settings at some point in time.
-#[derive(Clone, Copy)]
-pub struct PrivacySettingsSnapshot {
-    is_telemetry_enabled: bool,
-    is_crash_reporting_enabled: bool,
-    is_telemetry_force_enabled: bool,
-    should_collect_ai_ugc_telemetry: bool,
-    // This is an option so that, if a user has not set this value (and it's set to its default value of true),
-    // the default value won't override a value that the user previously set on a different device.
-    // This is set to a non-option once the user manually changes this setting.
-    cloud_conversation_storage_enabled: Option<bool>,
-}
-
-impl PrivacySettingsSnapshot {
-    pub fn cloud_conversation_storage_enabled(&self) -> Option<bool> {
-        self.cloud_conversation_storage_enabled
-    }
-
-    pub fn is_telemetry_enabled(&self) -> bool {
-        self.is_telemetry_enabled
-    }
-
-    pub fn is_crash_reporting_enabled(&self) -> bool {
-        self.is_crash_reporting_enabled
-    }
-
-    pub fn is_telemetry_force_enabled(&self) -> bool {
-        self.is_telemetry_force_enabled
-    }
-
-    pub fn should_disable_telemetry(&self) -> bool {
-        // If a user has opted in to the agent mode analytics experiment, telemetry must be enabled.
-        !self.is_telemetry_enabled
-            && !self.is_telemetry_force_enabled
-            && !FeatureFlag::AgentModeAnalytics.is_enabled()
-    }
-
-    pub fn should_collect_ai_ugc_telemetry(&self) -> bool {
-        self.should_collect_ai_ugc_telemetry
-    }
-
-    #[cfg(test)]
-    pub fn mock() -> Self {
-        Self {
-            cloud_conversation_storage_enabled: None,
-            is_telemetry_enabled: true,
-            is_crash_reporting_enabled: true,
-            is_telemetry_force_enabled: true,
-            should_collect_ai_ugc_telemetry: true,
-        }
-    }
 }
 
 impl PrivacySettings {
@@ -369,21 +314,6 @@ impl PrivacySettings {
             is_telemetry_force_enabled: false,
             is_enterprise_secret_redaction_enabled: false,
             enterprise_secret_regex_list: Vec::new(),
-        }
-    }
-
-    /// Returns a snapshot of the user's privacy settings.
-    ///
-    /// The returned snapshot is not stateful, thus its values should be used shortly after the
-    /// snapshot is returned.
-    pub fn get_snapshot(&self, app: &AppContext) -> PrivacySettingsSnapshot {
-        PrivacySettingsSnapshot {
-            cloud_conversation_storage_enabled: (!self.is_cloud_conversation_storage_enabled)
-                .then_some(false),
-            is_telemetry_enabled: self.is_telemetry_enabled,
-            is_crash_reporting_enabled: self.is_crash_reporting_enabled,
-            is_telemetry_force_enabled: self.is_telemetry_force_enabled,
-            should_collect_ai_ugc_telemetry: should_collect_ai_ugc_telemetry(app),
         }
     }
 

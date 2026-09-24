@@ -27,7 +27,7 @@ use crate::env_vars::manager::EnvVarCollectionManager;
 use crate::notebooks::manager::NotebookManager;
 use crate::palette::PaletteMode;
 use crate::root_view::RootView;
-use crate::server::telemetry::PaletteSource;
+use crate::search::command_palette::PaletteSource;
 use crate::session_management::{RunningSessionSummary, SessionNavigationData};
 use crate::settings::{
     AISettings, CRASH_REPORTING_ENABLED_DEFAULTS_KEY, CloudPreferencesSettings, PrivacySettings,

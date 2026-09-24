@@ -4,7 +4,6 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::Utc;
 #[cfg(not(target_family = "wasm"))]
 use command::r#async::Command;
 use parking_lot::FairMutex;
@@ -28,7 +27,6 @@ use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::network::NetworkStatus;
 use crate::safe_warn;
 use crate::server::server_api::ServerApiProvider;
-use crate::server::telemetry::PromptSuggestionFallbackReason;
 use crate::settings::AISettings;
 use crate::terminal::event::{BlockType, UserBlockCompleted};
 use crate::terminal::model::block::BlockId;
@@ -53,12 +51,8 @@ pub enum PassiveSuggestionsEvent {
     PromptSuggestionsGenerated {
         prompt_suggestion: AgentModePromptSuggestion,
         block_id: BlockId,
-        command: String,
-        request_duration_ms: u64,
     },
-    PassiveCodeDiffFailed {
-        reason: PromptSuggestionFallbackReason,
-    },
+    PassiveCodeDiffFailed,
 }
 
 pub struct PassiveSuggestionsModel {
@@ -239,15 +233,11 @@ impl PassiveSuggestionsModel {
         ctx: &mut ModelContext<Self>,
     ) {
         let block_id = block_completed.serialized_block.id.clone();
-        let command = block_completed.command.clone();
-        let start_ts_ms = Utc::now().timestamp_millis();
 
         if let Some(suggestion) = fetch_static_prompt_suggestion(&block_completed) {
             ctx.emit(PassiveSuggestionsEvent::PromptSuggestionsGenerated {
                 prompt_suggestion: suggestion.clone(),
                 block_id: block_id.clone(),
-                command,
-                request_duration_ms: 0,
             });
             self.maybe_generate_passive_code_diff(suggestion, block_id, ctx);
             return;
@@ -286,8 +276,6 @@ impl PassiveSuggestionsModel {
         self.prompt_suggestions_future_handle =
             Some(ctx.spawn(request_future, move |me, result, ctx| {
                 me.prompt_suggestions_future_handle = None;
-                let end_ts_ms = Utc::now().timestamp_millis();
-                let request_duration_ms = end_ts_ms.saturating_sub(start_ts_ms) as u64;
                 let prompt_suggestion = match result {
                     Ok(response) => map_prompt_suggestions_response(response),
                     Err(err) => {
@@ -301,8 +289,6 @@ impl PassiveSuggestionsModel {
                 ctx.emit(PassiveSuggestionsEvent::PromptSuggestionsGenerated {
                     prompt_suggestion: prompt_suggestion.clone(),
                     block_id: block_id.clone(),
-                    command,
-                    request_duration_ms,
                 });
                 me.maybe_generate_passive_code_diff(prompt_suggestion, block_id, ctx);
             }));
@@ -410,12 +396,7 @@ impl PassiveSuggestionsModel {
             .map(|session_type| matches!(session_type, SessionType::WarpifiedRemote { .. }))
             .unwrap_or(true);
         if !can_read_file || should_skip_for_remote {
-            let reason = if !can_read_file {
-                PromptSuggestionFallbackReason::NoReadFilesPermission
-            } else {
-                PromptSuggestionFallbackReason::SSHRemoteSession
-            };
-            ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed { reason });
+            ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed);
             return;
         }
 
@@ -446,18 +427,14 @@ impl PassiveSuggestionsModel {
                                     content.failed_files
                                 )
                             );
-                            ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed {
-                                reason: PromptSuggestionFallbackReason::MissingFile,
-                            });
+                            ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed);
                             return;
                         }
                         content
                     }
                     Err(err) => {
                         log::warn!("Failed to retrieve file content for suggested code diffs: {err}");
-                        ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed {
-                            reason: PromptSuggestionFallbackReason::FailedToRetrieveFile,
-                        });
+                        ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed);
                         return;
                     }
                 };
@@ -479,15 +456,7 @@ impl PassiveSuggestionsModel {
                     || total_lines >= PASSIVE_CODE_DIFF_TOTAL_LINE_LIMIT
                     || total_bytes >= PASSIVE_CODE_DIFF_TOTAL_BYTE_LIMIT
                 {
-                    let reason =
-                        if has_large_file && total_lines >= PASSIVE_CODE_DIFF_LONG_FILE_LINE_LIMIT {
-                            PromptSuggestionFallbackReason::FileTooManyLines
-                        } else {
-                            PromptSuggestionFallbackReason::FileTooManyBytes
-                        };
-                    ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed {
-                        reason,
-                    });
+                    ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed);
                     return;
                 }
 
@@ -506,9 +475,7 @@ impl PassiveSuggestionsModel {
                         me.start_code_diff_timeout(stream_id, ctx);
                     }
                     Err(_) => {
-                        ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed {
-                            reason: PromptSuggestionFallbackReason::FailedToSendAIRequest,
-                        });
+                        ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed);
                     }
                 }
             },
@@ -546,9 +513,7 @@ impl PassiveSuggestionsModel {
                         );
                     });
                     me.pending_code_diff_stream_id = None;
-                    ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed {
-                        reason: PromptSuggestionFallbackReason::AIQueryTimeout,
-                    });
+                    ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed);
                 }
             },
         ));

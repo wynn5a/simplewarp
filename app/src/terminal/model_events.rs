@@ -11,7 +11,6 @@ use super::model::session::{IsSSHWrapperSession, SessionId, SessionInfo};
 use super::model::terminal_model::{CommandType, ExitReason, HandlerEvent};
 use crate::features::FeatureFlag;
 use crate::remote_server::manager::RemoteServerManager;
-use crate::server::telemetry::ImageProtocol;
 use crate::terminal::ClipboardType;
 use crate::terminal::event::{
     AfterBlockCompletedEvent, BlockCompletedEvent, BlockMetadataReceivedEvent,
@@ -264,11 +263,9 @@ impl ModelEventDispatcher {
             Event::ImageReceived {
                 image_id,
                 image_data,
-                image_protocol,
             } => ModelEvent::ImageReceived {
                 image_id,
                 image_data,
-                image_protocol,
             },
             Event::BootstrapPrecmdDone => ModelEvent::BootstrapPrecmdDone,
             Event::AgentTaggedInChanged {
@@ -448,7 +445,6 @@ pub enum ModelEvent {
     ImageReceived {
         image_id: u32,
         image_data: Vec<u8>,
-        image_protocol: ImageProtocol,
     },
     BootstrapPrecmdDone,
     AgentTaggedInChanged {

@@ -463,18 +463,6 @@ impl ContextChipKind {
         RendererStyles::new(color, font_properties)
     }
 
-    /// The name of this context chip to use in telemetry, or `None` if it should not
-    /// be reported at all.
-    ///
-    /// This lets us measure which chips are being used without reporting private
-    /// user-created chips.
-    pub fn telemetry_name(&self) -> Option<String> {
-        match self {
-            Self::Custom { .. } => None,
-            chip => Some(format!("{chip:?}")),
-        }
-    }
-
     /// Formats a value of this context chip for display.
     ///
     /// This is temporary until chip prefixes/suffixes are user-configurable.

@@ -81,13 +81,11 @@ use super::inline_action::requested_command_attribution::is_command_copied_from_
 use super::permissions::is_agent_mode_autonomy_allowed;
 use super::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
 use super::suggested_rule_modal::SuggestedRuleAndId;
-use super::telemetry_banner::should_collect_ai_ugc_telemetry;
 use super::{
     BlocklistAIActionModel, BlocklistAIController, BlocklistAIHistoryEvent,
     BlocklistAIHistoryModel, BlocklistAIPermissions, ResponseStreamId,
 };
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent::redaction::redact_secrets;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType, AIAgentAttachment,
     AIAgentCitation, AIAgentContext, AIAgentInput, AIAgentOutput, AIAgentOutputMessage,
@@ -161,7 +159,6 @@ use crate::editor::InteractionState;
 use crate::notebooks::editor::model::FileLinkResolutionContext;
 use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorView};
 use crate::server::ids::SyncId;
-use crate::server::telemetry::{AgentModeRewindEntrypoint, InteractionSource};
 use crate::settings::{
     AISettings, AISettingsChangedEvent, AgentModeCodingPermissionsType, FontSettings,
     InputModeSettings, InputModeSettingsChangedEvent, InputSettings,
@@ -1361,7 +1358,6 @@ impl AIBlock {
                         ai_block_view_id,
                         exchange_id,
                         conversation_id,
-                        entrypoint: AgentModeRewindEntrypoint::Button,
                     });
                 })
         });
@@ -3954,22 +3950,14 @@ impl AIBlock {
         self.gemini_enterprise_credentials_error_view = Some(view);
         ctx.notify();
     }
-    pub fn accept_pending_unit_test_suggestion(
-        &mut self,
-        interaction_source: InteractionSource,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
+    pub fn accept_pending_unit_test_suggestion(&mut self, ctx: &mut ViewContext<Self>) -> bool {
         let Some(suggested_prompt) = self.pending_unit_test_suggestion(ctx) else {
             return false;
         };
-        self.accept_unit_test_suggestion(suggested_prompt.clone(), interaction_source, ctx)
+        self.accept_unit_test_suggestion(suggested_prompt.clone(), ctx)
     }
 
-    pub fn dismiss_pending_suggested_prompt(
-        &mut self,
-        _interaction_source: InteractionSource,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
+    pub fn dismiss_pending_suggested_prompt(&mut self, ctx: &mut ViewContext<Self>) -> bool {
         let Some(suggested_prompt) = self.pending_unit_test_suggestion(ctx) else {
             return false;
         };
@@ -3997,7 +3985,6 @@ impl AIBlock {
     fn accept_unit_test_suggestion(
         &mut self,
         view: ViewHandle<SuggestedUnitTestsView>,
-        _interaction_source: InteractionSource,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
         let Some(query) = view.as_ref(ctx).query() else {
@@ -4033,17 +4020,6 @@ impl AIBlock {
             view.set_is_hidden(true);
         });
 
-        let _identifiers = view.as_ref(ctx).identifiers().clone();
-        let query = view.as_ref(ctx).query().unwrap_or_default();
-
-        let should_collect_ugc = should_collect_ai_ugc_telemetry(ctx);
-        let _redacted_query = if should_collect_ugc {
-            let mut redacted_query = query.clone();
-            redact_secrets(&mut redacted_query);
-            Some(redacted_query)
-        } else {
-            None
-        };
         ctx.notify();
         true
     }
@@ -4139,10 +4115,10 @@ impl AIBlock {
 
         match event {
             SuggestedUnitTestsEvent::Accept => {
-                self.accept_unit_test_suggestion(view, InteractionSource::Button, ctx);
+                self.accept_unit_test_suggestion(view, ctx);
             }
             SuggestedUnitTestsEvent::Cancel => {
-                self.dismiss_pending_suggested_prompt(InteractionSource::Button, ctx);
+                self.dismiss_pending_suggested_prompt(ctx);
             }
             SuggestedUnitTestsEvent::Blur => {
                 ctx.emit(AIBlockEvent::FocusTerminal);

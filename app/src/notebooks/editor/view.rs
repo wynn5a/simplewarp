@@ -949,7 +949,7 @@ pub enum EditorViewEvent {
     RunWorkflow(NotebookWorkflow),
     EditWorkflow(SyncId),
     /// The block insertion menu was opened.
-    OpenedBlockInsertionMenu(BlockInsertionSource),
+    OpenedBlockInsertionMenu,
     /// The embedded object search menu was opened.
     OpenedEmbeddedObjectSearch,
     /// The find bar was opened.

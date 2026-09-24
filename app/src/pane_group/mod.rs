@@ -81,11 +81,11 @@ use crate::pane_group::pane::ActionOrigin;
 use crate::pane_group::pane::get_started_pane::GetStartedPane;
 use crate::persistence::ModelEvent;
 use crate::quit_warning::UnsavedStateSummary;
+use crate::search::command_palette::PaletteSource;
 #[cfg(target_family = "wasm")]
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ObjectUid, SyncId};
 use crate::server::server_api::ServerApi;
-use crate::server::telemetry::{AnonymousUserSignupEntrypoint, PaletteSource};
 use crate::session_management::SessionNavigationData;
 use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
@@ -606,9 +606,7 @@ pub enum Event {
         flavor: ToastFlavor,
         pane_id: Option<PaneId>,
     },
-    SignupAnonymousUser {
-        entrypoint: AnonymousUserSignupEntrypoint,
-    },
+    SignupAnonymousUser,
     OpenThemeChooser,
     InvalidatedActiveConversation,
     OpenConversationHistory,

@@ -17,7 +17,6 @@ use warp_util::path::EscapeChar;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::ai::blocklist::CLAUDE_ORANGE;
-use crate::server::telemetry::CLIAgentType;
 use crate::ui_components::icons::Icon;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
@@ -443,30 +442,6 @@ impl CLIAgent {
             .iter()
             .flat_map(|workspace| workspace.teams.iter())
             .any(|team| team.uid.uid() == UBER_TEAM_UID)
-    }
-}
-
-impl From<CLIAgent> for CLIAgentType {
-    fn from(agent: CLIAgent) -> Self {
-        match agent {
-            CLIAgent::Claude => CLIAgentType::Claude,
-            CLIAgent::Gemini => CLIAgentType::Gemini,
-            CLIAgent::Codex => CLIAgentType::Codex,
-            CLIAgent::Amp => CLIAgentType::Amp,
-            CLIAgent::Droid => CLIAgentType::Droid,
-            CLIAgent::OpenCode => CLIAgentType::OpenCode,
-            CLIAgent::Copilot => CLIAgentType::Copilot,
-            CLIAgent::Pi => CLIAgentType::Pi,
-            CLIAgent::OhMyPi => CLIAgentType::OhMyPi,
-            CLIAgent::Auggie => CLIAgentType::Auggie,
-            CLIAgent::CursorCli => CLIAgentType::Cursor,
-            CLIAgent::Goose => CLIAgentType::Goose,
-            CLIAgent::Hermes => CLIAgentType::Hermes,
-            CLIAgent::Vibe => CLIAgentType::Vibe,
-            CLIAgent::Antigravity => CLIAgentType::Antigravity,
-            CLIAgent::WarpTui => CLIAgentType::WarpTui,
-            CLIAgent::Unknown => CLIAgentType::Unknown,
-        }
     }
 }
 

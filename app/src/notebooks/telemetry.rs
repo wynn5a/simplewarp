@@ -1,40 +1,9 @@
-//! Notebook-specific telemetry definitions.
+//! Notebook interaction types shared by the editor and its views.
 
 use serde::{Deserialize, Serialize};
 
-use super::editor::BlockInsertionSource;
 use crate::server::ids::ServerId;
 use crate::workflows::WorkflowId;
-
-/// A user action within a notebook. Some actions, like running a command, are not included here
-/// because they're covered by existing telemetry.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "action")]
-pub enum NotebookTelemetryAction {
-    /// The user manually took edit control.
-    GrabEditingBaton,
-    /// An object was embedded into the notebook.
-    InsertEmbeddedObject(EmbeddedObjectInfo),
-    /// A block within the notebook was copied to the clipboard.
-    /// Currently, this only applies to command-like blocks.
-    CopyBlock {
-        #[serde(flatten)]
-        block: BlockInfo,
-        entrypoint: ActionEntrypoint,
-    },
-    /// The user opened the block insertion menu.
-    OpenBlockInsertionMenu { source: BlockInsertionSource },
-    /// The user opened the search menu for embedded objects.
-    OpenEmbeddedObjectSearch,
-    /// The user opened the find bar.
-    OpenFindBar,
-    /// The user opened the right-click context menu.
-    OpenContextMenu,
-    /// The selection mode changed.
-    ChangeSelectionMode { mode: SelectionMode },
-    /// The user navigated between command/code blocks or embedded workflows with the keyboard.
-    CommandKeyboardNavigation,
-}
 
 /// Generic entrypoint information for actions that might be keyboard or mouse driven.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

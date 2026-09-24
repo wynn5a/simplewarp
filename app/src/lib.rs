@@ -24,7 +24,6 @@ mod crash_recovery;
 mod crash_reporting;
 mod debug_dump;
 mod default_terminal;
-mod download_method;
 mod drive;
 #[cfg(windows)]
 mod dynamic_libraries;
@@ -252,9 +251,8 @@ use crate::projects::ProjectManagementModel;
 use crate::root_view::{
     OpenFromRestoredArg, OpenPath, quake_mode_window_id, quake_mode_window_is_open,
 };
+use crate::search::command_palette::PaletteSource;
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::telemetry::PaletteSource;
-pub use crate::server::telemetry::{AgentModeEntrypoint, AgentModeEntrypointSelectionType};
 use crate::session_management::{RunningSessionSummary, SessionNavigationData};
 use crate::settings::cloud_preferences_syncer::initialize_cloud_preferences_syncer;
 use crate::settings::manager::SettingsManager;
@@ -1408,13 +1406,6 @@ pub(crate) fn initialize_app(
                 crash_recovery.on_frame_drawn(window_id, ctx);
             });
         })
-    } else {
-        // If the app was opened while logged out, record an event for measuring new users.
-        // This is sent immediately in case they quit the app on the signup screen.
-        download_method::determine_and_report(
-            auth_state.clone(),
-            ctx.background_executor().clone(),
-        );
     }
 
     #[cfg(not(target_family = "wasm"))]

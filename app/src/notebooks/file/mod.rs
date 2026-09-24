@@ -35,7 +35,6 @@ use warpui::{
 use super::context_menu::{ContextMenuAction, ContextMenuState, show_rich_editor_context_menu};
 use super::editor::view::{EditorViewEvent, RichTextEditorConfig, RichTextEditorView};
 use super::link::{NotebookLinks, SessionSource};
-use super::telemetry::NotebookTelemetryAction;
 use super::{NotebookLocation, styles};
 use crate::appearance::Appearance;
 #[cfg(feature = "local_fs")]
@@ -531,13 +530,6 @@ impl FileNotebookView {
         self.file_state = FileState::Loaded(SourceFile::Static { title });
     }
 
-    fn send_telemetry_action(
-        &self,
-        _action: NotebookTelemetryAction,
-        _ctx: &mut ViewContext<Self>,
-    ) {
-    }
-
     /// Reload the file that was most recently opened (or attempted to open).
     fn reload_file(&mut self, ctx: &mut ViewContext<Self>) {
         // We can take the file state here because either it's (a) already NoFile or (b) about to
@@ -739,32 +731,13 @@ impl FileNotebookView {
                     source,
                 });
             }
-            EditorViewEvent::OpenedBlockInsertionMenu(source) => self.send_telemetry_action(
-                NotebookTelemetryAction::OpenBlockInsertionMenu { source: *source },
-                ctx,
-            ),
-            EditorViewEvent::OpenedEmbeddedObjectSearch => {
-                self.send_telemetry_action(NotebookTelemetryAction::OpenEmbeddedObjectSearch, ctx)
-            }
-            EditorViewEvent::OpenedFindBar => {
-                self.send_telemetry_action(NotebookTelemetryAction::OpenFindBar, ctx)
-            }
-            EditorViewEvent::InsertedEmbeddedObject(info) => self
-                .send_telemetry_action(NotebookTelemetryAction::InsertEmbeddedObject(*info), ctx),
-            EditorViewEvent::CopiedBlock { block, entrypoint } => self.send_telemetry_action(
-                NotebookTelemetryAction::CopyBlock {
-                    block: *block,
-                    entrypoint: *entrypoint,
-                },
-                ctx,
-            ),
-            EditorViewEvent::NavigatedCommands => {
-                self.send_telemetry_action(NotebookTelemetryAction::CommandKeyboardNavigation, ctx)
-            }
-            EditorViewEvent::ChangedSelectionMode(mode) => self.send_telemetry_action(
-                NotebookTelemetryAction::ChangeSelectionMode { mode: *mode },
-                ctx,
-            ),
+            EditorViewEvent::OpenedBlockInsertionMenu => (),
+            EditorViewEvent::OpenedEmbeddedObjectSearch => (),
+            EditorViewEvent::OpenedFindBar => (),
+            EditorViewEvent::InsertedEmbeddedObject(_) => (),
+            EditorViewEvent::CopiedBlock { .. } => (),
+            EditorViewEvent::NavigatedCommands => (),
+            EditorViewEvent::ChangedSelectionMode(_) => (),
             EditorViewEvent::Navigate(_)
             | EditorViewEvent::Edited
             | EditorViewEvent::EditWorkflow(_)
@@ -1039,11 +1012,8 @@ impl TypedActionView for FileNotebookView {
             #[cfg(feature = "local_fs")]
             FileNotebookAction::OpenAsCode => self.open_as_code(ctx),
             FileNotebookAction::ContextMenu(action) => {
-                if matches!(action, ContextMenuAction::Open(_)) {
-                    self.send_telemetry_action(NotebookTelemetryAction::OpenContextMenu, ctx);
-                    let copy_file_path = self.file_state.path().map(|p| p.display_path());
-                    self.context_menu.set_copy_file_path(copy_file_path);
-                }
+                let copy_file_path = self.file_state.path().map(|p| p.display_path());
+                self.context_menu.set_copy_file_path(copy_file_path);
                 self.context_menu.handle_action(action, ctx);
             }
             FileNotebookAction::ToggleMarkdownDisplayMode(mode) => {

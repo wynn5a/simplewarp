@@ -251,6 +251,7 @@ use crate::prompt::editor_modal::{
 use crate::quit_warning::UnsavedStateSummary;
 use crate::remote_server::manager::RemoteServerManager;
 use crate::root_view::{NewWorkspaceSource, OpenLaunchConfigArg};
+use crate::search::command_palette::PaletteSource;
 use crate::search::command_palette::view::{
     Event as CommandPaletteEvent, NavigationMode, View as CommandPalette,
 };
@@ -267,9 +268,6 @@ use crate::server::cloud_objects::update_manager::{
 use crate::server::ids::{ObjectUid, ServerId, SyncId};
 use crate::server::network_log_pane_manager::NetworkLogPaneManager;
 use crate::server::server_api::{ServerApi, ServerApiProvider};
-use crate::server::telemetry::{
-    AddTabWithShellSource, AnonymousUserSignupEntrypoint, LaunchConfigUiLocation, PaletteSource,
-};
 use crate::session_management::{SessionNavigationData, SessionSource, TabNavigationData};
 use crate::settings::cloud_preferences::CloudPreferencesSettings;
 use crate::settings::{
@@ -5697,7 +5695,6 @@ impl Workspace {
                             let item = MenuItemFields::new(shell_name)
                                 .with_on_select_action(WorkspaceAction::AddTabWithShell {
                                     shell: shell.clone(),
-                                    source: AddTabWithShellSource::ShellSelectorMenu,
                                 })
                                 .with_icon(icon);
                             menu_items.push(item.into_item());
@@ -5956,7 +5953,6 @@ impl Workspace {
                 "root_view:open_launch_config",
                 OpenLaunchConfigArg {
                     launch_config,
-                    ui_location: LaunchConfigUiLocation::TabMenu,
                     open_in_active_window: false,
                 },
             ),
@@ -10778,12 +10774,7 @@ impl Workspace {
     }
 
     // Adds a tab with a specific shell, only meant to be dispatched directly by actions.
-    fn add_tab_with_shell(
-        &mut self,
-        shell: AvailableShell,
-        _source: AddTabWithShellSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn add_tab_with_shell(&mut self, shell: AvailableShell, ctx: &mut ViewContext<Self>) {
         self.add_new_session_tab_with_default_mode(
             NewSessionSource::Tab,
             Some(ctx.window_id()),
@@ -12864,7 +12855,7 @@ impl Workspace {
                 self.open_network_log_pane(ctx);
             }
             SettingsViewEvent::SignupAnonymousUser => {
-                self.initiate_user_signup(AnonymousUserSignupEntrypoint::SignUpButton, ctx);
+                self.initiate_user_signup(ctx);
             }
             SettingsViewEvent::Pane(_) | SettingsViewEvent::StartResize => {}
             SettingsViewEvent::ShowToast { message, flavor } => {
@@ -13836,7 +13827,7 @@ impl Workspace {
                 self.open_suggested_rule_modal(rule_and_id, ctx);
             }
             pane_group::Event::AnonymousUserSignup => {
-                self.initiate_user_signup(AnonymousUserSignupEntrypoint::RenotificationBlock, ctx);
+                self.initiate_user_signup(ctx);
             }
             pane_group::Event::OpenPalette {
                 mode,
@@ -13988,8 +13979,8 @@ impl Workspace {
                     toast_stack.add_ephemeral_toast(toast, ctx);
                 });
             }
-            pane_group::Event::SignupAnonymousUser { entrypoint } => {
-                self.initiate_user_signup(*entrypoint, ctx);
+            pane_group::Event::SignupAnonymousUser => {
+                self.initiate_user_signup(ctx);
             }
             pane_group::Event::OpenThemeChooser => {
                 self.show_theme_chooser_for_custom_theme(ctx);
@@ -19543,11 +19534,7 @@ impl Workspace {
     /// SimpleWarp is local-only: signing up can never succeed (3l), so this no longer opens a
     /// browser tab to a sign-up page that can't complete. Just shows the same toast as any
     /// other login-gated feature.
-    fn initiate_user_signup(
-        &mut self,
-        _entrypoint: AnonymousUserSignupEntrypoint,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn initiate_user_signup(&mut self, ctx: &mut ViewContext<Self>) {
         self.open_require_login_modal(ctx);
     }
 
@@ -19968,9 +19955,7 @@ impl TypedActionView for Workspace {
                 );
                 ctx.notify();
             }
-            AddTabWithShell { shell, source } => {
-                self.add_tab_with_shell(shell.clone(), *source, ctx)
-            }
+            AddTabWithShell { shell } => self.add_tab_with_shell(shell.clone(), ctx),
             AddGetStartedTab => self.add_get_started_tab(ctx),
             AddAgentTab => self.add_terminal_tab_with_new_agent_view(ctx),
             AddDockerSandboxTab => self.add_docker_sandbox_tab(ctx),
@@ -20657,13 +20642,11 @@ impl TypedActionView for Workspace {
                 ctx.open_file_path(path);
             }
             NewTabInAgentMode {
-                entrypoint: _,
                 zero_state_prompt_suggestion_type,
             } => {
                 self.add_terminal_tab_in_ai_mode(*zero_state_prompt_suggestion_type, ctx);
             }
             NewPaneInAgentMode {
-                entrypoint: _,
                 zero_state_prompt_suggestion_type,
             } => {
                 self.add_terminal_pane_in_ai_mode(*zero_state_prompt_suggestion_type, ctx);
@@ -20844,7 +20827,7 @@ impl TypedActionView for Workspace {
                 });
             }
             SignupAnonymousUser => {
-                self.initiate_user_signup(AnonymousUserSignupEntrypoint::SignUpButton, ctx);
+                self.initiate_user_signup(ctx);
             }
             SignInAnonymousWebUser => {
                 self.redirect_to_sign_in();
@@ -20917,7 +20900,6 @@ impl TypedActionView for Workspace {
             // never happen in this build (see simplify-specs/plan.md, Phase 4 Track A/C), so this
             // was already unreachable. Left as a no-op rather than deleting the action, since
             // `sharing/` is otherwise live code (it also serves AIConversation sharing).
-            OpenObjectSharingSettings { .. } => {}
             UndoTrash(cloud_object_type_and_id) => {
                 self.update_warp_drive_view(ctx, |warp_drive, ctx| {
                     warp_drive.undo_trash(cloud_object_type_and_id, ctx);

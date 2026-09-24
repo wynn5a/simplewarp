@@ -4,7 +4,6 @@ use std::fmt;
 use warpui::Action;
 
 use crate::WorkspaceAction;
-use crate::server::telemetry::AddTabWithShellSource;
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::view::TerminalAction;
 
@@ -103,7 +102,6 @@ impl NewSessionOption {
         match &self.config {
             NewSessionConfig::NewTab(shell) => Box::new(WorkspaceAction::AddTabWithShell {
                 shell: shell.clone(),
-                source: AddTabWithShellSource::CommandPalette,
             }),
             NewSessionConfig::NewWindow(shell) => Box::new(WorkspaceAction::AddWindowWithShell {
                 shell: shell.clone(),

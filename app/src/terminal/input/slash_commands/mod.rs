@@ -646,7 +646,7 @@ impl Input {
                         }
                     }
                     _ => {
-                        use crate::server::telemetry::PaletteSource;
+                        use crate::search::command_palette::PaletteSource;
 
                         ctx.emit(Event::OpenFilesPalette {
                             source: PaletteSource::Keybinding,

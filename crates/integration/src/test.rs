@@ -91,6 +91,7 @@ pub use typeahead::*;
 use version_compare::Cmp;
 pub use video_recording::*;
 use warp::appearance::Appearance;
+use warp::cmd_or_ctrl_shift;
 use warp::features::FeatureFlag;
 use warp::integration_testing::assertions::{
     assert_binding_display_string, go_offline, go_online, join_a_workspace,
@@ -184,7 +185,6 @@ use warp::workflows::categories::CategoriesView;
 use warp::workspace::{
     NEW_SESSION_MENU_BUTTON_POSITION_ID, NEW_TAB_BUTTON_POSITION_ID, Workspace, WorkspaceAction,
 };
-use warp::{AgentModeEntrypoint, cmd_or_ctrl_shift};
 use warpui_core::event::KeyState;
 use warpui_core::integration::{AssertionOutcome, StepData, TestStep};
 use warpui_core::keymap::{Keystroke, PerPlatformKeystroke, Trigger};
@@ -6723,7 +6723,6 @@ pub fn test_agent_mode_pane_minimum_size() -> Builder {
                         *window_id,
                         &[workspace_view_id],
                         &WorkspaceAction::NewPaneInAgentMode {
-                            entrypoint: AgentModeEntrypoint::TabBar,
                             zero_state_prompt_suggestion_type: None,
                         },
                     );

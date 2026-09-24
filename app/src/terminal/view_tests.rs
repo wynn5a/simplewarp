@@ -5635,8 +5635,6 @@ fn ctrl_c_does_not_accept_prompt_suggestion_banner() {
                     should_start_new_conversation: false,
                 }),
                 block_id.clone(),
-                "ls".to_owned(),
-                0,
                 ctx,
             );
 

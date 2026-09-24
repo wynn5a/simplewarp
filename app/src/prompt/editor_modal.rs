@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
 use serde::Serialize;
 use settings::Setting as _;
@@ -25,7 +24,6 @@ use crate::context_chips::renderer::Renderer as ContextChipRenderer;
 use crate::context_chips::{
     ChipAvailability, ChipRuntimeCapabilities, ContextChipKind, available_chips,
 };
-use crate::server::telemetry::PromptChoice;
 use crate::settings::{FontSettings, WarpPromptSeparator};
 use crate::terminal::SizeInfo;
 use crate::terminal::blockgrid_element::BlockGridElement;
@@ -340,19 +338,6 @@ impl EditorModal {
                 }
                 PromptType::Warp => {}
             }
-
-            let _prompt_info = match self.prompt_type {
-                PromptType::PS1 => PromptChoice::PS1,
-                PromptType::WarpDefault => PromptChoice::Default,
-                PromptType::Warp => PromptChoice::Custom {
-                    builtin_chips: self
-                        .chip_configurator
-                        .used_chips
-                        .iter()
-                        .filter_map(|r| r.chip_kind().and_then(|k| k.telemetry_name()))
-                        .collect_vec(),
-                },
-            };
         }
     }
 

@@ -213,7 +213,7 @@ use crate::ai::blocklist::orchestration_topology::OrchestrationNavigationDirecti
 use crate::ai::blocklist::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
 use crate::ai::blocklist::suggested_rule_modal::SuggestedRuleAndId;
 use crate::ai::blocklist::summarization_cancel_dialog::SummarizationCancelDialog;
-use crate::ai::blocklist::telemetry_banner::{TelemetryBanner, should_collect_ai_ugc_telemetry};
+use crate::ai::blocklist::telemetry_banner::TelemetryBanner;
 use crate::ai::blocklist::usage::conversation_usage_view::{
     ConversationUsageInfo, ConversationUsageView, TimingInfo,
 };
@@ -297,14 +297,10 @@ use crate::pane_group::{
 use crate::persistence::{self, FinishedCommandMetadata};
 use crate::projects::ProjectManagementModel;
 use crate::remote_server::manager::{RemoteServerManager, RemoteServerManagerEvent};
+use crate::search::command_palette::PaletteSource;
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ObjectUid, SyncId};
-use crate::server::telemetry::{
-    self, AgentModeRewindEntrypoint, AnonymousUserSignupEntrypoint, InteractionSource,
-    NotificationAgentVariant, PaletteSource, PromptSuggestionViewType, SaveAsWorkflowModalSource,
-    ToggleBlockFilterSource, WorkflowTelemetryMetadata,
-};
 use crate::session_management::{CommandContext, SessionNavigationPromptElements};
 use crate::settings::ai::FocusedTerminalInfo;
 #[cfg(feature = "local_fs")]
@@ -427,7 +423,6 @@ use crate::terminal::view::ssh_remote_server_failed_banner::{
 use crate::terminal::view::ssh_tmux_deprecation_banner::{
     SshTmuxDeprecationBanner, SshTmuxDeprecationBannerEvent,
 };
-use crate::terminal::view::telemetry::PromptSuggestionFallbackReason;
 use crate::terminal::view::zero_state_block::TerminalViewZeroStateBlock;
 use crate::terminal::warpify::SubshellSource;
 use crate::terminal::warpify::render::render_subshell_separator;
@@ -470,7 +465,6 @@ use crate::util::truncation::truncate_from_end;
 use crate::view_components::action_button::{ActionButton, ButtonSize, KeystrokeSource};
 use crate::view_components::find::{Event as FindEvent, Find, FindDirection, FindWithinBlockState};
 use crate::view_components::{DismissibleToast, ToastFlavor};
-use crate::workflows::WorkflowSelectionSource;
 use crate::workflows::workflow::Workflow;
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::{
@@ -1620,9 +1614,7 @@ pub enum Event {
     RemoteServerSkipRequested {
         session_id: SessionId,
     },
-    SignupAnonymousUser {
-        entrypoint: AnonymousUserSignupEntrypoint,
-    },
+    SignupAnonymousUser,
 
     OpenThemeChooser,
     OpenConversationHistory,
@@ -4598,13 +4590,7 @@ impl TerminalView {
                     should_start_new_conversation: false,
                 });
 
-                self.on_legacy_prompt_suggestion_generated(
-                    suggestion,
-                    block_id,
-                    "".to_string(),
-                    0,
-                    ctx,
-                );
+                self.on_legacy_prompt_suggestion_generated(suggestion, block_id, ctx);
             }
 
             self.update_input_prompt_suggestions_banner_state(ctx);
@@ -4862,19 +4848,15 @@ impl TerminalView {
             LegacyPassiveSuggestionsEvent::PromptSuggestionsGenerated {
                 prompt_suggestion,
                 block_id,
-                command,
-                request_duration_ms,
             } => {
                 self.on_legacy_prompt_suggestion_generated(
                     prompt_suggestion.clone(),
                     block_id.clone(),
-                    command.clone(),
-                    *request_duration_ms,
                     ctx,
                 );
             }
-            LegacyPassiveSuggestionsEvent::PassiveCodeDiffFailed { reason } => {
-                self.try_clear_prompt_suggestions_banner_code_state(*reason, ctx);
+            LegacyPassiveSuggestionsEvent::PassiveCodeDiffFailed => {
+                self.try_clear_prompt_suggestions_banner_code_state(ctx);
             }
         }
     }
@@ -6457,18 +6439,6 @@ impl TerminalView {
                     _ => command.clone(),
                 };
 
-                let workflow_telem_metadata = associated_workflow.map(|workflow| {
-                    let workflow_data = &workflow.model().data;
-                    WorkflowTelemetryMetadata {
-                        workflow_source: workflow.space(ctx).into(),
-                        workflow_categories: workflow_data.tags().cloned(),
-                        workflow_selection_source: WorkflowSelectionSource::AgentMode,
-                        workflow_id: workflow.sync_id().into_server().map(Into::into),
-                        workflow_space: Some(workflow.space(ctx).into()),
-                        enum_ids: workflow_data.get_server_enum_ids(),
-                    }
-                });
-
                 let agent_metadata =
                     AgentInteractionMetadata::new_hidden(action_id.clone(), conversation.id());
 
@@ -6517,7 +6487,6 @@ impl TerminalView {
                     },
                 );
 
-                if let Some(_metadata) = workflow_telem_metadata {}
                 ctx.notify();
             }
             ShellCommandExecutorEvent::WriteToPty { input, mode } => {
@@ -8529,23 +8498,13 @@ impl TerminalView {
         });
     }
 
-    /// Returns the view type for prompt suggestion telemetry based on whether agent view is active.
-    fn prompt_suggestion_view_type(&self, ctx: &ViewContext<Self>) -> PromptSuggestionViewType {
-        if FeatureFlag::AgentView.is_enabled() && self.agent_view_controller.as_ref(ctx).is_active()
-        {
-            PromptSuggestionViewType::AgentView
-        } else {
-            PromptSuggestionViewType::TerminalView
-        }
-    }
-
     fn resolve_prompt_suggestion(
         &mut self,
         resolution: PromptSuggestionResolution,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        let _interaction_source = match resolution {
-            PromptSuggestionResolution::Accept { interaction_source } => interaction_source,
+        match resolution {
+            PromptSuggestionResolution::Accept => (),
             PromptSuggestionResolution::Reject { ctrl_c } => {
                 // ctrl-c shouldn't clear prompt suggestions, but all other rejections should.
                 if !ctrl_c {
@@ -8553,7 +8512,7 @@ impl TerminalView {
                 }
                 return false;
             }
-        };
+        }
 
         // Return early if we've run out of AI usage.
         if !AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx) {
@@ -8569,7 +8528,6 @@ impl TerminalView {
             return false;
         }
 
-        let _view = self.prompt_suggestion_view_type(ctx);
         let suggestion = &banner_state.prompt_suggestion;
         let prompt = suggestion.prompt.clone();
         let _suggestion_id = suggestion.id.clone();
@@ -8614,11 +8572,7 @@ impl TerminalView {
 
     /// Try clearing agent mode query banner's passive code generation state.
     /// Called when a suggested code diff fails and we need to fall back to prompt suggestions.
-    fn try_clear_prompt_suggestions_banner_code_state(
-        &mut self,
-        _fallback_reason: PromptSuggestionFallbackReason,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn try_clear_prompt_suggestions_banner_code_state(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(banner) = &mut self.inline_banners_state.prompt_suggestions_banner {
             banner.should_hide = false;
             banner.prompt_suggestion.coding_query_context = None;
@@ -8834,9 +8788,7 @@ impl TerminalView {
     ) {
         match action {
             AnonymousUserLoginBannerAction::SignUp => {
-                ctx.emit(Event::SignupAnonymousUser {
-                    entrypoint: AnonymousUserSignupEntrypoint::LoginGatedFeature,
-                });
+                ctx.emit(Event::SignupAnonymousUser);
                 self.remove_anonymous_user_ai_sign_up_banner(ctx);
             }
             AnonymousUserLoginBannerAction::Close => {
@@ -10884,7 +10836,6 @@ impl TerminalView {
             ModelEvent::ImageReceived {
                 image_id,
                 image_data,
-                image_protocol: _,
             } => {
                 AssetCache::handle(ctx).update(ctx, |asset_cache, ctx| {
                     asset_cache.insert_raw_asset_bytes::<ImageType>(
@@ -11511,13 +11462,7 @@ impl TerminalView {
         } else {
             NotificationsTrigger::AgentTaskCompleted(true)
         };
-        self.send_agent_desktop_notification_or_show_banner(
-            trigger,
-            title,
-            description,
-            Some(NotificationAgentVariant::CLIAgent((*agent).into())),
-            ctx,
-        );
+        self.send_agent_desktop_notification_or_show_banner(trigger, title, description, ctx);
     }
 
     /// Handles the initialization of a session within this terminal pane.
@@ -12971,8 +12916,6 @@ impl TerminalView {
         &mut self,
         prompt_suggestion: AgentModePromptSuggestion,
         block_id: BlockId,
-        command: String,
-        _request_duration_ms: u64,
         ctx: &mut ViewContext<TerminalView>,
     ) {
         match prompt_suggestion {
@@ -12980,12 +12923,6 @@ impl TerminalView {
                 if suggestion.prompt.is_empty() {
                     return;
                 }
-
-                let (_query_string, _block_command) = if should_collect_ai_ugc_telemetry(ctx) {
-                    (Some(suggestion.prompt.to_string()), Some(command))
-                } else {
-                    (None, None)
-                };
 
                 let banner_id = self.inline_banners_state.next_banner_id();
 
@@ -13230,7 +13167,6 @@ impl TerminalView {
             trigger,
             block_summary.title,
             block_summary.description,
-            Some(NotificationAgentVariant::Oz),
             ctx,
         );
     }
@@ -13242,7 +13178,6 @@ impl TerminalView {
         trigger: NotificationsTrigger,
         title: String,
         description: String,
-        _agent_variant: Option<NotificationAgentVariant>,
         ctx: &mut ViewContext<Self>,
     ) {
         let notification_settings = SessionSettings::as_ref(ctx).notifications.value().clone();
@@ -14150,9 +14085,7 @@ impl TerminalView {
                 items.append(&mut vec![
                     MenuItemFields::new("Toggle block filter")
                         .with_on_select_action(
-                            TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock(
-                                ToggleBlockFilterSource::ContextMenu,
-                            ),
+                            TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock,
                         )
                         .with_key_shortcut_label(keybinding_name_to_display_string(
                             TOGGLE_BLOCK_FILTER_KEYBINDING,
@@ -14317,7 +14250,6 @@ impl TerminalView {
                                         ai_block_view_id: *rich_content_view_id,
                                         exchange_id: ai_metadata.exchange_id,
                                         conversation_id: ai_metadata.conversation_id,
-                                        entrypoint: AgentModeRewindEntrypoint::ContextMenu,
                                     })
                                     .into_item(),
                             );
@@ -14789,11 +14721,7 @@ impl TerminalView {
         let selected_block_contents =
             self.selected_block_contents_as_string(BlockEntity::Command, " &&\n", ctx);
 
-        self.open_workflow_modal_with_command(
-            selected_block_contents,
-            SaveAsWorkflowModalSource::Block,
-            ctx,
-        );
+        self.open_workflow_modal_with_command(selected_block_contents, ctx);
     }
 
     fn open_block_filter_editor(
@@ -16341,7 +16269,7 @@ impl TerminalView {
             selected_input_text
         };
 
-        self.open_workflow_modal_with_command(command, SaveAsWorkflowModalSource::Input, ctx);
+        self.open_workflow_modal_with_command(command, ctx);
     }
 
     fn toggle_input_hint_text(&mut self, ctx: &mut ViewContext<Self>) {
@@ -16353,12 +16281,7 @@ impl TerminalView {
         // Send the same telemetry event that we do from the features page to make data analysis easier.
     }
 
-    fn open_workflow_modal_with_command(
-        &mut self,
-        command: String,
-        _source: SaveAsWorkflowModalSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn open_workflow_modal_with_command(&mut self, command: String, ctx: &mut ViewContext<Self>) {
         ctx.emit(Event::OpenWorkflowModalWithCommand(command));
     }
 
@@ -18424,22 +18347,12 @@ impl TerminalView {
             }
             InputEvent::UnhandledCmdEnter => {
                 if is_accept_prompt_suggestion_bound_to_cmd_enter(ctx) {
-                    self.resolve_passive_suggestion(
-                        PromptSuggestionResolution::Accept {
-                            interaction_source: InteractionSource::Keybinding,
-                        },
-                        ctx,
-                    );
+                    self.resolve_passive_suggestion(PromptSuggestionResolution::Accept, ctx);
                 }
             }
             InputEvent::CtrlEnter => {
                 if is_accept_prompt_suggestion_bound_to_ctrl_enter(ctx) {
-                    self.resolve_passive_suggestion(
-                        PromptSuggestionResolution::Accept {
-                            interaction_source: InteractionSource::Keybinding,
-                        },
-                        ctx,
-                    );
+                    self.resolve_passive_suggestion(PromptSuggestionResolution::Accept, ctx);
                 }
             }
             InputEvent::EnterAgentView {
@@ -18624,10 +18537,8 @@ impl TerminalView {
                 ctx.dispatch_typed_action(&PaneGroupAction::HandleFocusChange);
                 ctx.notify();
             }
-            InputEvent::SignupAnonymousUser { entrypoint } => {
-                ctx.emit(Event::SignupAnonymousUser {
-                    entrypoint: *entrypoint,
-                });
+            InputEvent::SignupAnonymousUser => {
+                ctx.emit(Event::SignupAnonymousUser);
             }
             InputEvent::OpenSettings(section) => {
                 ctx.emit(Event::OpenSettings(*section));
@@ -21532,7 +21443,6 @@ impl TerminalView {
         ai_block_view_id: EntityId,
         exchange_id: AIAgentExchangeId,
         conversation_id: AIConversationId,
-        _entrypoint: AgentModeRewindEntrypoint,
         ctx: &mut ViewContext<Self>,
     ) {
         ctx.dispatch_typed_action(&WorkspaceAction::ShowRewindConfirmationDialog {
@@ -21814,11 +21724,7 @@ impl TerminalView {
     /// When a filter is toggled off, it is set as inactive but the query remains
     /// saved on the block. It can be reactivated by toggling on. If there is no
     /// inactive query, toggling on a filter will simply open the filter editor.
-    fn toggle_block_filter_on_selected_or_last_block(
-        &mut self,
-        _source: ToggleBlockFilterSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn toggle_block_filter_on_selected_or_last_block(&mut self, ctx: &mut ViewContext<Self>) {
         let model = self.model.lock();
         let Some(selected_or_last_block_index) = self
             .selected_blocks
@@ -22805,7 +22711,7 @@ impl TypedActionView for TerminalView {
             | OnboardingFlow(_)
             | ImportSettings
             | DragAndDropFiles(_)
-            | ToggleBlockFilterOnSelectedOrLastBlock(_)
+            | ToggleBlockFilterOnSelectedOrLastBlock
             | SetMarkedText { .. }
             | ResumeConversation
             | ForkConversationFromLastKnownGoodState
@@ -22998,13 +22904,11 @@ impl TypedActionView for TerminalView {
                 ai_block_view_id,
                 exchange_id,
                 conversation_id,
-                entrypoint,
             } => {
                 self.show_rewind_confirmation_dialog(
                     *ai_block_view_id,
                     *exchange_id,
                     *conversation_id,
-                    *entrypoint,
                     ctx,
                 );
             }
@@ -23037,7 +22941,6 @@ impl TypedActionView for TerminalView {
                         ai_block_view_id,
                         *exchange_id,
                         *conversation_id,
-                        AgentModeRewindEntrypoint::SlashCommand,
                         ctx,
                     );
                 } else {
@@ -23284,8 +23187,8 @@ impl TypedActionView for TerminalView {
                     self.add_settings_import_block(ctx);
                 }
             }
-            ToggleBlockFilterOnSelectedOrLastBlock(source) => {
-                self.toggle_block_filter_on_selected_or_last_block(*source, ctx);
+            ToggleBlockFilterOnSelectedOrLastBlock => {
+                self.toggle_block_filter_on_selected_or_last_block(ctx);
             }
             ToggleSnackbarInActivePane => self.toggle_snackbar_in_active_pane(ctx),
             MiddleClickOnGrid { position } => self.middle_click_on_grid(position, ctx),

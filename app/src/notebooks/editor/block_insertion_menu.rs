@@ -153,7 +153,7 @@ impl RichTextEditorView {
         // By default we should show the block insertion menu.
         self.insertion_menu_state.embedded_object_search_open = false;
         ctx.focus(&self.insertion_menu_state.menu);
-        ctx.emit(EditorViewEvent::OpenedBlockInsertionMenu(source));
+        ctx.emit(EditorViewEvent::OpenedBlockInsertionMenu);
     }
 
     pub(super) fn open_embedded_object_search(&mut self, ctx: &mut ViewContext<Self>) {
