@@ -14693,16 +14693,6 @@ dependencies = [
  "serde",
  "thiserror 2.0.17",
  "warp_core",
- "warp_graphql_schema",
-]
-
-[[package]]
-name = "warp_graphql_schema"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "cynic",
- "cynic-codegen",
 ]
 
 [[package]]

@@ -85,7 +85,6 @@ warp_errors = { path = "crates/warp_errors" }
 warp_features = { path = "crates/warp_features" }
 warp_files = { path = "crates/warp_files" }
 warp_graphql = { path = "crates/graphql" }
-warp_graphql_schema = { path = "crates/warp_graphql_schema" }
 warp_isolation_platform = { path = "crates/isolation_platform" }
 warp_js = { path = "crates/warp_js" }
 warp_logging = { path = "crates/warp_logging" }

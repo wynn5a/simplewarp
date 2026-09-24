@@ -18,7 +18,6 @@ reqwest.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 warp_core.workspace = true
-warp_graphql_schema.workspace = true
 
 [build-dependencies]
 anyhow.workspace = true

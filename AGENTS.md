@@ -206,8 +206,8 @@ for itself.
 - Schema defined in `crates/persistence/src/schema.rs`
 
 **GraphQL**:
-- Schema and client code generation from `crates/warp_graphql_schema/api/schema.graphql`
-- TypeScript types generated for frontend integration
+- Schema SDL at `crates/graphql/api/schema.graphql`, registered for the cynic derives by the crate's build.rs
+- Hand-maintained client around the login flow (GetUser is the only operation sent)
 
 ### Feature Flags
 
