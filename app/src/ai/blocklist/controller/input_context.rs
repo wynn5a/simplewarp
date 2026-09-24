@@ -5,7 +5,6 @@ use chrono::Local;
 use lazy_static::lazy_static;
 use regex::Regex;
 use warp_core::features::FeatureFlag;
-use warp_graphql::generic_string_object::GenericStringObjectFormat as GraphQLFormat;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::ai::agent::conversation::AIConversationId;
@@ -279,12 +278,9 @@ fn get_object_attachment_payload(
                 .and_then(|object| {
                     if let Some(ai_fact) = object.as_any().downcast_ref::<GenericCloudObject<GenericStringObjectId, CloudAIFactModel>>() {
                         let string_object = ai_fact as &dyn CloudStringObject;
-                        // Convert the format to GraphQL format since that's what the server expects
-                        let graphql_format: GraphQLFormat =
-                            string_object.generic_string_object_format().into();
                         Some(DriveObjectPayload::GenericStringObject {
                             payload: string_object.serialized().model_as_str().to_string(),
-                            object_type: graphql_format.to_string(),
+                            object_type: string_object.generic_string_object_format().to_string(),
                         })
                     } else {
                         None

@@ -308,7 +308,6 @@ dependencies = [
  "virtual-fs",
  "warp_core",
  "warp_errors",
- "warp_graphql",
  "warp_multi_agent_api",
  "warp_terminal",
  "warp_util",
@@ -2849,7 +2848,6 @@ dependencies = [
  "warp_cli",
  "warp_core",
  "warp_errors",
- "warp_graphql",
  "warp_util",
 ]
 
@@ -5755,7 +5753,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aa2e818b9e62654f2039d524c92a19495fcc2b0139ffc0354956865b3c7e939"
 dependencies = [
  "async-channel",
- "cynic",
  "futures-lite 2.6.1",
  "futures-sink",
  "futures-timer",
@@ -14685,25 +14682,18 @@ name = "warp_graphql"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-channel",
  "chrono",
  "cynic",
  "cynic-codegen",
- "futures",
- "futures-util",
- "graphql-ws-client",
  "http 1.4.0",
  "http_client",
  "instant",
  "log",
- "persistence",
  "reqwest",
  "serde",
  "thiserror 2.0.17",
  "warp_core",
  "warp_graphql_schema",
- "websocket",
- "ws_stream_wasm",
 ]
 
 [[package]]

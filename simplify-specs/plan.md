@@ -12649,3 +12649,182 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       (warp_graphql dead modules, ≈−2,100 now that billing/workspace/
       get_conversation_usage are fully consumer-less), with the
       input_context.rs GraphQLFormat repoint done first.
+
+- [x] **endgame slice 3b — the warp_graphql dead modules, shrunk to
+      the login core (4fp) — DONE 2026-09-24.** Executed the 4fk
+      SLICE 3B; the round was RESUMED after two network-killed
+      attempts — the working tree held uncommitted partial work on
+      top of f0b249d11 which was re-verified from scratch (every
+      deletion's evidence re-derived at HEAD, all five assessment
+      points confirmed sound) and then completed: 27 files changed,
+      1 insertion(+), 2,263 deletions(−), net −2,262 (14 files
+      deleted outright: api/{billing.rs, billing_tests.rs, error.rs,
+      folder.rs, generic_string_object.rs, mcp_gallery_template.rs,
+      notebook.rs, object.rs, object_actions.rs, user.rs, workflow.rs,
+      workspace.rs, ai_tests.rs, queries/get_conversation_usage.rs}).
+
+      PER-MODULE DELETION EVIDENCE (re-verified at HEAD f0b249d11;
+      repo-wide PCRE sweeps with lookbehind form
+      `(?<![A-Za-z0-9_])Name` over gql-qualified paths
+      `warp_graphql::<module>` and unqualified type names, excluding
+      the SDL). (1) billing.rs (438) + billing_tests.rs (60) —
+      zero references to `warp_graphql::billing` or any of its types
+      (AiCreditsUsageBucket, StripeSubscriptionPlan, ServiceAgreement)
+      outside crates/graphql at HEAD; 3a's workspace.rs localization
+      removed the last consumer. (2) workspace.rs (428) — zero
+      `warp_graphql::workspace` references at HEAD (LlmProvider's
+      From impl fell in 3a; the billing re-export was localized in
+      3a). (3) get_conversation_usage.rs (329) — types-only, the op
+      was never built by anything; zero references. (4) object.rs
+      (116), folder.rs (18), notebook.rs (34), workflow.rs (10) —
+      zero external references (2b's wall was their last consumer;
+      confirmed again by sweep: `CloudObjectEventEntrypoint` outside
+      crates/graphql appears only as the LOCAL cloud_objects enum).
+      (5) user.rs (17) — PublicUserProfile's single external consumer
+      was cloud_object_models/user_profile.rs's
+      From<PublicUserProfile> impl, deleted with it; the impl had
+      zero live feeders (the gql type has zero literal constructions
+      outside crates/graphql and no op selects it — GetUser selects
+      FirebaseProfile). (6) error.rs (70), response_context.rs (6),
+      mcp_gallery_template.rs (27), object_actions.rs (41) — zero
+      importers each, exactly as 4fk predicted. (7)
+      generic_string_object.rs (79) — its one live consumer
+      (input_context.rs:283) repointed (decision 2 below); the
+      From<GenericStringObjectFormat> conversion impl in
+      cloud_objects/cloud_object/mod.rs deleted with the module. (8)
+      ai.rs (246 → 29) — shrunk in place to AgentTaskState +
+      AgentHarness; the dead remainder (AIConversationArtifact ×8,
+      FileArtifact, AICreditAvailability*, PlatformErrorCode, the
+      persistence::model From impls) had zero external references at
+      HEAD (the FileArtifact hits elsewhere are the live MAA
+      api::message::artifact_event type, a different type).
+
+      THE TWO IN-SLICE DECISIONS. (1) ai.rs STAYS in crates/graphql
+      (the 4fk "shrink to the two enums" option, not the move-to-
+      crates/ai option) — zero churn to the four live consumer files'
+      imports (agent_sdk/driver.rs:34, driver/error_classification.rs
+      :1 + its tests, harness_availability.rs:137); the enums remain
+      cynic vocabulary typed against the schema link. (2)
+      input_context.rs repoint: `object_type:
+      string_object.generic_string_object_format().to_string()` on
+      the LOCAL cloud_objects enum (its `impl ToString`) — the
+      deleted hop built the gql format ("what the server expects")
+      and Display'd that. The DriveObjectPayload::GenericStringObject
+      .object_type STRING CONTENT changes from schema vocabulary
+      (e.g. "JsonAIFact") to the local sqlite-prefix form
+      (GENERIC_STRING_JSON_AI_FACT); verified safe: the field is a
+      free-form `string object_type` in the multi-agent attachment
+      proto (attachment.proto:107), no enum constraint on the wire,
+      and no test asserts the old value (only a comment mention in
+      warp_agent_page.rs, describing local GSO storage, not the
+      payload). The LOCAL GenericStringObjectFormat serde and sqlite
+      paths are byte-identical (the repoint touches only this one
+      call site).
+
+      ALSO FELL (one-hop cascades). (1)
+      create_anonymous_user.rs: the CreateAnonymousUser op machinery
+      (variables/input/fragment/result inline fragments/
+      CreateAnonymousUserOutput, AnonymousUserExpirationType, the
+      define_operation) — zero builders at HEAD (GetUser is the only
+      op built anywhere); only the SDL mentions those names. The file
+      keeps AnonymousUserType, which warp_server_auth's TryFrom
+      (user.rs:40-51) consumes — login-core, intact. (2)
+      object_permissions.rs shrunk to OwnerType + its Display:
+      AccessLevel, UserGuest, PendingUserGuest, TeamGuest,
+      GuestSubject, ObjectPermissions, ObjectGuest, LinkSharing and
+      the gql Owner InputObject — at HEAD every one appeared outside
+      crates/graphql ONLY in the SDL; warp_server_auth's actual usage
+      today is OwnerType only (auth_state.rs:9, credentials.rs:11) +
+      get_user types + ServerTimestamp + client + AnonymousUserType.
+      The ObjectPermissions hits in cloud_object_persistence are the
+      LOCAL diesel struct (schema::object_permissions table), a
+      different type. (3) crates/graphql Cargo.toml: dropped deps
+      with zero src references at HEAD (websocket, graphql-ws-client
+      both targets, ws_stream_wasm, futures, futures-util,
+      async-channel — leftovers from the deleted subscription stack)
+      and persistence (fell with ai.rs's dead half); dropped the
+      [dev-dependencies] http_client[test-util] and the now-consumer-
+      less test-util feature (their consumers ai_tests/billing_tests
+      fell this round). (4) crates/ai dropped its warp_graphql dep —
+      zero src references at HEAD (a 3a leftover: llm_provider's From
+      impl was the last use). (5) cloud_object_models dropped its
+      warp_graphql dep — user_profile's From impl was the last use.
+
+      WHAT SURVIVED (the login identity core, per the 4fk terminal
+      state): client.rs UNTOUCHED (Operation trait/send_request/
+      RequestOptions/get_request_context/define_operation; wasm cfg
+      gates verbatim), api/queries/get_user.rs (the only op),
+      api/mutations/create_anonymous_user.rs (AnonymousUserType),
+      api/object_permissions.rs (OwnerType), api/experiment.rs,
+      api/request_context.rs, scalars/ (Time via ServerTimestamp,
+      Uint32 via impl_scalar), lib.rs + api/mod.rs + the
+      `pub use warp_graphql_schema::schema` link (SDL file untouched
+      — slice 4 moves it). Remaining external consumers, exactly the
+      terminal surface: warp_server_auth (login core), ServerTimestamp
+      users (app cloud_object model/mod + update_manager +
+      request_usage_model, cloud_objects, cloud_object_persistence),
+      the two AI enums (agent_sdk driver + error_classification +
+      tests + harness_availability), and auth/user_properties
+      (GetUser UserOutput).
+
+      TEST HANDLING: zero -p warp tests touched — the two deleted
+      test files (ai_tests 153 lines, billing_tests 60) were
+      -p warp_graphql tests, so -p warp counts are expected flat;
+      warp_graphql now contains 0 tests (suite runs green with none).
+
+      Deliberately left (per the 4fk plan): SLICE 4 — schema crate
+      fold (move api/schema.graphql + the schema module into
+      crates/graphql, delete crates/warp_graphql_schema + workspace
+      member + the TS download tooling; hand-compile — build.rs
+      changes), plus AGENTS.md's stale GraphQL section (landmine 11:
+      "Schema and client code generation from
+      crates/warp_graphql_schema/api/schema.graphql"; note
+      "TypeScript types generated for frontend integration" is also
+      stale — no TS codegen remains in the repo) and the terminal
+      tidy. Also untouched by design: ServerAIConversationMetadata
+      always-None vertical (2b next-candidate (b)),
+      CloudModelEvent::InitialLoadCompleted (4fm next-candidate
+      (c)), UpdateManager (local), login flow, sqlite
+      schema/migrations (no schema or migration file in the diff —
+      verified), ConflictStatus state machine.
+
+      Local-only safety: every deletion is a module/type with zero
+      consumers outside crates/graphql at HEAD (callgraph evidence —
+      pub items give no dead-code warnings), the one deleted op was
+      never built by any code, and the single live-behavior touch is
+      the content of a free-form AI-attachment label string whose
+      consumer is a proto string field. The warp_server_auth login
+      flow (AuthClientImpl → GetUser) untouched; client.rs untouched;
+      persisted serde shapes untouched (the falling types were
+      wire-shaped only; the landmine-1 serde formats all stay);
+      UpdateManager and ConflictStatus untouched.
+
+      Acceptance: (1) clippy — post-change runs WARNING-IDENTICAL to
+      the 4fo-recorded baseline in BOTH default and
+      `--no-default-features --features simplewarp` (12 warnings
+      each: 11 needless-return in terminal/input.rs at identical
+      lines + 1 single-element-loop in terminal/model/lifecycle/
+      mod_tests.rs:272; both files untouched all round; machine-diff
+      on location+message pairs, `diff` clean). (2) cargo check
+      0 errors: -p warp --lib --all-targets default AND simplewarp;
+      --no-default-features --features simplewarp --bin simplewarp;
+      --bin warp-oss; --all-targets -p integration (only the 2
+      pre-existing integration_testing/input/step.rs unused-import
+      warnings); -p warp --lib --tests --features skip_login;
+      -p warp_graphql/warp_server_auth/ai/cloud_objects/
+      cloud_object_models --all-targets --all-features (test-util
+      included, clean). The -p warp --features test-util failure was
+      not re-run (known pre-existing EntityId cfg-gate error,
+      recorded at 4fn/4fo as pre-existing at HEAD). (3)
+      ./script/format — run twice, idempotent (27 changed paths
+      stable across reruns). (4) nextest -p warp --lib --no-fail-fast:
+      default 4,597 run = 4,597 baseline − 0, 4,597 passed, 3
+      skipped, 0 failed, no flake; simplewarp 4,596 run = 4,596
+      baseline − 0, 4,596 passed, 3 skipped, 0 failed;
+      nextest -p warp_graphql: 0 tests (both test files fell with
+      the round), crate compiles green. Runtime smoke SKIPPED per
+      round instructions (user away — app must not be launched;
+      password prompt unanswerable); compile + test evidence stands
+      in. DESIGNATED NEXT: SLICE 4 (schema crate fold + AGENTS.md
+      GraphQL section update + terminal tidy) exactly as scoped in
+      the 4fk plan.
