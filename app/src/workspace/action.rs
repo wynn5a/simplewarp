@@ -17,7 +17,6 @@ use super::tab_settings::{
 };
 use super::view::{OnboardingTutorial, WorkspaceBanner};
 use crate::ai::agent::AIAgentExchangeId;
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::PendingAttachment;
@@ -573,12 +572,6 @@ pub enum WorkspaceAction {
         /// Where to open the forked conversation.
         destination: ForkedConversationDestination,
     },
-    /// Fork an existing AI conversation into a new pane and prefill the input with a local
-    /// continuation command (selecting all text).
-    #[cfg(not(target_family = "wasm"))]
-    ContinueConversationLocally {
-        conversation_id: AIConversationId,
-    },
     /// Insert the /fork slash command into the active terminal's input.
     InsertForkSlashCommand,
     /// Open a local-to-cloud handoff pane next to the active conversation
@@ -696,9 +689,8 @@ pub enum WorkspaceAction {
         conversation_id: AIConversationId,
         terminal_view_id: Option<EntityId>,
     },
-    /// Load conversation data into a transcript viewer when the sandbox is not running.
+    /// Focus the terminal pane already viewing an ambient agent task's conversation.
     OpenConversationTranscriptViewer {
-        conversation_id: ServerConversationToken,
         ambient_agent_task_id: Option<AmbientAgentTaskId>,
     },
     /// Toggle the conversation transcript details panel (WASM-only).
@@ -806,8 +798,6 @@ impl WorkspaceAction {
     pub fn should_save_app_state_on_action(&self) -> bool {
         use WorkspaceAction::*;
         match self {
-            #[cfg(not(target_family = "wasm"))]
-            ContinueConversationLocally { .. } => true,
             ActivateTab(_)
             | ActivateTabByNumber(_)
             | ActivatePrevTab

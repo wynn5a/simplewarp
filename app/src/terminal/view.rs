@@ -3651,7 +3651,6 @@ impl TerminalView {
         // Conversation details panel (cloud Oz runs and any active local AI conversation).
         let conversation_details_panel = ctx.add_typed_action_view(|ctx| {
             crate::ai::conversation_details_panel::ConversationDetailsPanel::new(
-                false, // don't show "Open" button since we're already viewing the conversation
                 320.0, // initial width
                 ctx,
             )

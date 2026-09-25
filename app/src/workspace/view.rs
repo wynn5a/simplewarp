@@ -21063,7 +21063,6 @@ impl TypedActionView for Workspace {
             }
             OpenConversationTranscriptViewer {
                 ambient_agent_task_id,
-                ..
             } => {
                 // Check if there's already a terminal viewing this conversation's task.
                 if let Some(task_id) = ambient_agent_task_id
@@ -21071,16 +21070,7 @@ impl TypedActionView for Workspace {
                         self.find_pane_with_ambient_agent_conversation(*task_id, ctx)
                 {
                     self.focus_pane(locator, ctx);
-                    return;
                 }
-                // Cloud conversation storage requires a Warp account/server, which this
-                // build never has, so a transcript viewer tab can only fail to load.
-                report_error!("Failed to load conversation from server");
-                self.toast_stack.update(ctx, |view, ctx| {
-                    let new_toast =
-                        DismissibleToast::error("Failed to load conversation data.".to_string());
-                    view.add_ephemeral_toast(new_toast, ctx);
-                });
             }
             ForkAIConversation {
                 conversation_id,
@@ -21099,19 +21089,6 @@ impl TypedActionView for Workspace {
                     initial_prompt.clone(),
                     initial_attachments.clone(),
                     *destination,
-                    ctx,
-                );
-            }
-            #[cfg(not(target_family = "wasm"))]
-            ContinueConversationLocally { conversation_id } => {
-                self.fork_ai_conversation(
-                    *conversation_id,
-                    None,
-                    false,
-                    None,
-                    None,
-                    vec![],
-                    ForkedConversationDestination::SplitPane,
                     ctx,
                 );
             }

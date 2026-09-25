@@ -83,7 +83,7 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<ConversationDetailsPanel> {
         let panel = ctx.add_typed_action_view(|ctx| {
-            ConversationDetailsPanel::new(false, TRANSCRIPT_PANEL_WIDTH, ctx)
+            ConversationDetailsPanel::new(TRANSCRIPT_PANEL_WIDTH, ctx)
         });
 
         ctx.subscribe_to_view(&panel, |me, _, event, ctx| match event {

@@ -16,7 +16,7 @@ use warpui::elements::{
     Border, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius,
     CrossAxisAlignment, DragBarSide, Empty, Expanded, Flex, MainAxisAlignment, MainAxisSize,
     MouseStateHandle, ParentElement, Radius, Resizable, ResizableStateHandle, SelectableArea,
-    SelectionHandle, Shrinkable, Text, Wrap, resizable_state_handle,
+    SelectionHandle, Shrinkable, Text, resizable_state_handle,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::keymap::FixedBinding;
@@ -26,33 +26,22 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::ai::agent::conversation::{
-    AIConversation, AIConversationId, ConversationStatus, StatusColorStyle,
-};
-use crate::ai::agent_management::details_action_buttons::{
-    ActionButtonsConfig, AgentDetailsButtonEvent, ConversationActionButtonsRow,
-};
-use crate::ai::ambient_agents::cancel_task_with_toast;
+use crate::ai::agent::conversation::{AIConversation, ConversationStatus, StatusColorStyle};
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
 use crate::appearance::Appearance;
 use crate::notebooks::NotebookId;
-#[cfg(not(target_family = "wasm"))]
-use crate::settings::ai::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::CustomAction;
 use crate::util::time_format::human_readable_precise_duration;
 use crate::view_components::DismissibleToast;
-#[cfg(not(target_family = "wasm"))]
-use crate::view_components::action_button::PrimaryTheme;
-use crate::view_components::action_button::{ActionButton, ButtonSize};
 use crate::view_components::copyable_text_field::{
     COPY_FEEDBACK_DURATION, CopyableTextFieldConfig, render_copyable_text_field,
 };
-use crate::workspace::{ForkedConversationDestination, ToastStack, WorkspaceAction};
+use crate::workspace::ToastStack;
 
 const FIELD_SPACING: f32 = 16.0;
 const HEADER_SPACING: f32 = 12.0;
@@ -68,8 +57,6 @@ enum PanelMode {
     Conversation {
         /// Working directory where the conversation took place.
         directory: Option<String>,
-        /// Internal conversation ID (for action buttons).
-        ai_conversation_id: Option<AIConversationId>,
         /// Status of the conversation.
         status: Option<ConversationStatus>,
     },
@@ -79,7 +66,6 @@ impl Default for PanelMode {
     fn default() -> Self {
         PanelMode::Conversation {
             directory: None,
-            ai_conversation_id: None,
             status: None,
         }
     }
@@ -116,8 +102,6 @@ pub struct ConversationDetailsData {
     run_time: Option<Duration>,
     /// Artifacts created during the conversation (plans, PRs, branches).
     artifacts: Vec<Artifact>,
-    /// Action to dispatch when "Open" button is clicked.
-    open_action: Option<WorkspaceAction>,
     /// Source prompt that initiated this conversation/task.
     source_prompt: Option<String>,
     /// Parsed skill spec referenced by the task configuration.
@@ -154,7 +138,6 @@ impl ConversationDetailsData {
         ConversationDetailsData {
             mode: PanelMode::Conversation {
                 directory,
-                ai_conversation_id: None,
                 status: Some(conversation.status().clone()),
             },
             title: conversation
@@ -164,7 +147,6 @@ impl ConversationDetailsData {
             credits: Some(conversation.credits_spent()),
             run_time,
             artifacts: conversation.artifacts().to_vec(),
-            open_action: None,
             source_prompt: conversation.initial_query(),
             skill_spec: None,
             harness: Some(Harness::Oz),
@@ -187,14 +169,6 @@ pub enum ConversationDetailsPanelAction {
     CopyInitialQuery,
     Focus,
     CopySelectedText,
-    #[cfg(not(target_family = "wasm"))]
-    ContinueLocally,
-}
-
-#[cfg(not(target_family = "wasm"))]
-#[derive(Debug)]
-enum DetailsPanelLocalContinuationInfo {
-    Conversation(AIConversationId),
 }
 
 pub fn init(app: &mut AppContext) {
@@ -215,12 +189,6 @@ pub struct ConversationDetailsPanel {
     artifact_buttons_row: ViewHandle<ArtifactButtonsRow>,
     resizable_state_handle: ResizableStateHandle,
     scroll_state: ClippedScrollStateHandle,
-    action_buttons: ViewHandle<ConversationActionButtonsRow>,
-    /// Whether to show the "Open conversation" button (we don't want to show a navigate to
-    /// conversation button in the transcript view, but do in the management details view).
-    show_open_button: bool,
-    #[cfg(not(target_family = "wasm"))]
-    continue_locally_button: ViewHandle<ActionButton>,
     /// Tracks when each copy button was last clicked (for checkmark feedback).
     copy_feedback_times: HashMap<CopyButtonKind, Instant>,
     /// Selection state for cmd+C copy.
@@ -235,42 +203,18 @@ fn trimmed_initial_query(source_prompt: &Option<String>) -> Option<&str> {
 
 impl ConversationDetailsPanel {
     /// Create a new panel.
-    /// - `show_open_button`: whether to show the "Open" button (management view: true, transcript: false)
     /// - `initial_width`: starting width of the panel in pixels
-    pub fn new(show_open_button: bool, initial_width: f32, ctx: &mut ViewContext<Self>) -> Self {
+    pub fn new(initial_width: f32, ctx: &mut ViewContext<Self>) -> Self {
         let artifact_buttons_row =
             ctx.add_typed_action_view(|ctx| ArtifactButtonsRow::new(&[], ctx));
         ctx.subscribe_to_view(&artifact_buttons_row, |this, _, event, ctx| {
             this.handle_artifact_buttons_event(event, ctx)
         });
 
-        let action_buttons = ctx.add_typed_action_view(ConversationActionButtonsRow::new);
-        ctx.subscribe_to_view(&action_buttons, Self::handle_action_buttons_event);
-
-        #[cfg(not(target_family = "wasm"))]
-        let continue_locally_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Continue locally", PrimaryTheme)
-                .with_tooltip("Fork this conversation locally")
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(ConversationDetailsPanelAction::ContinueLocally);
-                })
-        });
-        #[cfg(not(target_family = "wasm"))]
-        ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
-            if matches!(event, AISettingsChangedEvent::IsAnyAIEnabled { .. }) {
-                ctx.notify();
-            }
-        });
-
         Self {
             data: ConversationDetailsData::default(),
             mouse_states: PanelMouseStates::default(),
             artifact_buttons_row,
-            action_buttons,
-            show_open_button,
-            #[cfg(not(target_family = "wasm"))]
-            continue_locally_button,
             resizable_state_handle: resizable_state_handle(initial_width),
             scroll_state: ClippedScrollStateHandle::default(),
             copy_feedback_times: HashMap::new(),
@@ -285,35 +229,8 @@ impl ConversationDetailsPanel {
         ctx: &mut ViewContext<Self>,
     ) {
         self.set_artifacts(&data, ctx);
-        self.set_action_buttons(&data, ctx);
         self.data = data;
         ctx.notify();
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    fn local_continuation_info(
-        &self,
-        app: &AppContext,
-    ) -> Option<DetailsPanelLocalContinuationInfo> {
-        if !AISettings::as_ref(app).is_any_ai_enabled(app) {
-            return None;
-        }
-
-        match &self.data.mode {
-            PanelMode::Conversation {
-                ai_conversation_id,
-                status,
-                ..
-            } => {
-                let status = status.as_ref()?;
-                if status.is_in_progress() {
-                    return None;
-                }
-                Some(DetailsPanelLocalContinuationInfo::Conversation(
-                    *ai_conversation_id.as_ref()?,
-                ))
-            }
-        }
     }
 
     fn set_artifacts(&mut self, data: &ConversationDetailsData, ctx: &mut ViewContext<Self>) {
@@ -351,72 +268,6 @@ impl ConversationDetailsPanel {
             }
             ArtifactButtonsRowEvent::DownloadFile { artifact_uid } => {
                 crate::ai::artifacts::download_file_artifact(artifact_uid, ctx);
-            }
-        }
-    }
-
-    fn action_buttons_config_from_data(
-        &self,
-        data: &ConversationDetailsData,
-    ) -> Option<ActionButtonsConfig> {
-        let open_action = self
-            .show_open_button
-            .then(|| data.open_action.clone())
-            .flatten();
-        let PanelMode::Conversation {
-            ai_conversation_id, ..
-        } = &data.mode;
-        let conversation_id = *ai_conversation_id.as_ref()?;
-        Some(ActionButtonsConfig::for_conversation(
-            conversation_id,
-            open_action,
-        ))
-    }
-
-    fn set_action_buttons(&mut self, data: &ConversationDetailsData, ctx: &mut ViewContext<Self>) {
-        let config = self
-            .action_buttons_config_from_data(data)
-            .unwrap_or_default();
-        self.action_buttons
-            .update(ctx, |row, ctx| row.set_config(config, ctx));
-    }
-
-    fn handle_action_buttons_event(
-        &mut self,
-        _: ViewHandle<ConversationActionButtonsRow>,
-        event: &AgentDetailsButtonEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            AgentDetailsButtonEvent::Open => {
-                // Send telemetry based on panel mode
-                if let PanelMode::Conversation {
-                    ai_conversation_id: Some(_conversation_id),
-                    ..
-                } = &self.data.mode
-                {}
-
-                if let Some(action) = &self.data.open_action {
-                    ctx.dispatch_typed_action(action);
-                }
-            }
-            AgentDetailsButtonEvent::CancelTask { task_id } => {
-                cancel_task_with_toast(*task_id, ctx);
-            }
-            AgentDetailsButtonEvent::ForkConversation { conversation_id } => {
-                ctx.dispatch_typed_action(&WorkspaceAction::ForkAIConversation {
-                    conversation_id: *conversation_id,
-                    fork_from_exchange: None,
-                    summarize_after_fork: false,
-                    summarization_prompt: None,
-                    initial_prompt: None,
-                    initial_attachments: vec![],
-                    destination: ForkedConversationDestination::NewTab,
-                });
-            }
-            AgentDetailsButtonEvent::ViewDetails => {
-                // ViewDetails not shown in the details panel because we're already viewing it,
-                // only in management view cards
             }
         }
     }
@@ -821,52 +672,6 @@ impl View for ConversationDetailsPanel {
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::End)
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
-        // Add continue locally button (left-aligned) and action icon buttons (right-aligned).
-        let has_action_buttons = !self.action_buttons.as_ref(app).is_empty();
-
-        #[cfg(not(target_family = "wasm"))]
-        let has_local_continuation_info = self.local_continuation_info(app).is_some();
-        #[cfg(target_family = "wasm")]
-        let has_local_continuation_info = false;
-
-        if has_local_continuation_info {
-            let mut buttons_wrap = Wrap::row().with_spacing(8.).with_run_spacing(8.);
-
-            #[cfg(not(target_family = "wasm"))]
-            if has_local_continuation_info {
-                buttons_wrap.add_child(ChildView::new(&self.continue_locally_button).finish());
-            }
-
-            header_row.add_child(
-                Expanded::new(
-                    1.,
-                    Container::new(buttons_wrap.finish())
-                        .with_margin_right(8.)
-                        .finish(),
-                )
-                .finish(),
-            );
-        }
-
-        if has_action_buttons {
-            header_row.add_child(ChildView::new(&self.action_buttons).finish());
-            // Vertical divider between action buttons and close button
-            header_row.add_child(
-                Container::new(
-                    ConstrainedBox::new(
-                        Container::new(Empty::new().finish())
-                            .with_border(Border::left(1.).with_border_fill(theme.outline()))
-                            .finish(),
-                    )
-                    .with_height(16.)
-                    .finish(),
-                )
-                .with_margin_left(8.)
-                .with_margin_right(4.)
-                .finish(),
-            );
-        }
-
         header_row.add_child(close_button);
         content.add_child(
             Container::new(header_row.finish())
@@ -1089,16 +894,6 @@ impl TypedActionView for ConversationDetailsPanel {
             ConversationDetailsPanelAction::CopySelectedText => {
                 if let Some(text) = self.selected_text.read().clone().filter(|t| !t.is_empty()) {
                     ctx.clipboard().write(ClipboardContent::plain_text(text));
-                }
-            }
-            #[cfg(not(target_family = "wasm"))]
-            ConversationDetailsPanelAction::ContinueLocally => {
-                if let Some(continuation_info) = self.local_continuation_info(ctx) {
-                    let DetailsPanelLocalContinuationInfo::Conversation(conversation_id) =
-                        continuation_info;
-                    ctx.dispatch_typed_action(&WorkspaceAction::ContinueConversationLocally {
-                        conversation_id,
-                    });
                 }
             }
         }

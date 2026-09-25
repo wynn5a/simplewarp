@@ -13665,3 +13665,138 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       acceptance (no wasm target in presubmit/nextest), so touching it
       could not be validated; revisit only in a wasm-aware round. Next
       round id: 4fy.
+
+- [x] **ai_conversation_id always-None vertical deleted (4fy) — DONE
+      2026-09-25.** 4fx next-candidate (c) folded with 4fw's (d)-adjacent
+      OpenConversationTranscriptViewer.conversation_id write-only field
+      (the wasm WebIntent producer itself stays PARKED): 10 files changed,
+      12 insertions(+), 492 deletions(−) (code only; + this ledger entry).
+
+      DUAL-CONFIRM (premise verified at HEAD before editing). PCRE census
+      with lookbehind `(?<![A-Za-z0-9_])ai_conversation_id`: 38 hits across
+      11 files, censused per owning type. (1) `Block::ai_conversation_id()`
+      (interaction_mode.rs:188) — a live LOCAL method (terminal block's
+      in-memory conversation id) with live callers in terminal/view.rs,
+      use_agent_footer, queued_query, cli_controller, context_menu, and
+      local-variable bindings in conversation_list/view.rs feeding
+      ForkAIConversation / ShowDeleteConfirmationDialog — LIVE, untouched.
+      (2) doc comments (rich_content.rs, block_list_viewport.rs). (3) The
+      target: `PanelMode::Conversation.ai_conversation_id` on Conversa-
+      tionDetailsData (conversation_details_panel.rs). Writer census: both
+      private constructors write None (Default + from_conversation); the
+      upstream APP-3595 commit (564ea2ae5) states the field "is populated
+      only by the management view path (from_conversation_metadata)" — that
+      feeder died with the 4ft ServerAIConversationMetadata vertical. Zero
+      Some-writers repo-wide, production AND test (the test asserted
+      is_none). Reader census: action_buttons_config_from_data (bails at
+      `ai_conversation_id.as_ref()?` → row config always default → row
+      always empty), local_continuation_info (same bail → Continue-locally
+      button never rendered), one EMPTY `if let ... Some(_conversation_id)`
+      telemetry stub, the test pin. Companion field `ConversationDetails-
+      Data.open_action`: also always-None (sole non-Default writer is
+      from_conversation's `open_action: None`); only readers were the
+      dying row config and its never-shown Open button. OpenConversation-
+      TranscriptViewer.conversation_id: handler bound `..` (write-only);
+      sole constructors agent_conversations_model.rs:453 (ServerToken
+      subject — variant is #[allow(dead_code)], constructed only by tests)
+      and :517 (resolve_entry_open_action tail) — the tail is production-
+      unreachable: the sole production entry constructor (entry_for_
+      conversation_parts) always sets local_conversation_id=Some and
+      ambient_agent_task_id=None, and BOTH production AIConversationMetadata
+      constructors set has_local_data=true, so resolve_entry_open_action
+      always returns RestoreOrNavigateToConversation before the tail.
+
+      BOUNDARY between dead server-shaped gating and live local paths.
+      KEPT: the action's focus_pane success path — OpenConversation-
+      TranscriptViewer variant + ambient_agent_task_id field + the
+      find_pane_with_ambient_agent_conversation/focus_pane handler body
+      survive verbatim (mandated by 4fw; it is the action's one live local
+      success path). ForkAIConversation + fork_ai_conversation: untouched —
+      many live local dispatchers (conversation list, slash commands,
+      terminal view, context menu, command palette, input). Block::ai_
+      conversation_id() and all its call sites: untouched. resolve_open_
+      action's ServerToken arm LOCAL resolution (entry_for_server_token →
+      find_conversation_id_by_server_token against the local history
+      model): kept — find_... retains its live blocklist output.rs:999
+      caller and history-model tests (4fw verdict preserved). Artifacts
+      row, status/harness/skill/source sections, header close button,
+      cancel_task_with_toast (live terminal_pane caller): kept.
+
+      DELETIONS with caller verdicts. conversation_details_panel.rs: mode
+      ai_conversation_id field (+Default+from_conversation inits), the
+      always-None open_action field, DetailsPanelLocalContinuationInfo,
+      local_continuation_info, ConversationDetailsPanelAction::Continue-
+      Locally + handler arm, continue_locally_button + its AISettings
+      subscription (existed only to re-render that button), action_buttons
+      row handle + subscription + set_action_buttons + action_buttons_
+      config_from_data + handle_action_buttons_event (incl. the empty
+      telemetry stub — sole place reading Some(_conversation_id)), the
+      header's action-buttons/continue-locally blocks (collapsed to the
+      close button), show_open_button param/field (sole use fed the dying
+      config; both construction sites passed false anyway) — new() now
+      (initial_width, ctx), updated at terminal/view.rs + wasm_view.rs.
+      Orphan cascade: agent_management/details_action_buttons.rs deleted
+      ENTIRE (ConversationActionButtonsRow, ActionButtonsConfig,
+      AgentDetailsButtonEvent, AgentDetailsAction — sole consumer was the
+      panel; the management-view toolbelt user referenced in 4fx's note no
+      longer exists at HEAD — drift confirmed by import census) + mod decl;
+      agent_management_model untouched (live lib.rs/workspace users).
+      workspace/action.rs: ContinueConversationLocally variant + cfg +
+      should_save_app_state_on_action entry + ServerConversationToken
+      import (sole use was the deleted field). workspace/view.rs: the
+      ContinueConversationLocally handler arm (sole dispatcher was the
+      dead panel button; its body is a thin fork_ai_conversation wrapper,
+      that local capability stays reachable via ForkAIConversation's many
+      dispatchers); OpenConversationTranscriptViewer arm rewritten to
+      focus-only — the toast fallback arm deleted per policy (it existed
+      to load conversation data from the gone server; no local traversal
+      reaches it: both action constructions were production-dead as census
+      above); report_error!/DismissibleToast keep their many other users.
+      agent_conversations_model.rs: the ServerToken arm's or_else fallback
+      (dispatched a guaranteed-toast action) and the resolve_entry_open_
+      action server-token tail (would dispatch a guaranteed-toast action;
+      function now returns None for cloud-only entries — unreachable in
+      production, constructible only in tests). Post-delete sweeps: zero
+      repo-wide references to any deleted symbol; OpenConversationTrans-
+      criptViewer now has zero constructors anywhere — precedent Open-
+      AgentManagementView shows unconstructed pub-enum variants don't
+      dead-code-lint, and both clippy sets confirmed zero new warnings.
+
+      TEST CHANGES: zero deletions, zero count delta. conversation_
+      details_panel_tests.rs: PanelMode destructure dropped the ai_
+      conversation_id binding + is_none assertion (field gone). agent_
+      conversations_model_tests.rs: test_resolve_open_action_handles_
+      server_token_subject_without_entry re-pinned from expecting the
+      toast-bound Some(OpenConversationTranscriptViewer) to expecting
+      None (unresolvable server token now has no local open action);
+      WorkspaceAction import dropped (sole use was that assertion). Both
+      tests verified passing by name.
+
+      Acceptance: (1) ./script/format run twice, idempotent — git-diff
+      shasum identical across runs; tree held exactly the 10 code files
+      (9 modified + 1 deleted). (2) clippy WARNING-IDENTICAL to the
+      pre-edit HEAD baseline (captured BEFORE editing) on BOTH `cargo
+      clippy -p warp --lib --all-targets` and --no-default-features
+      --features simplewarp: 12 = 12 location+lint+message pairs machine-
+      diffed per set, diff clean on both, zero new warnings, no dead_code
+      surfaced (12 pre-existing: 11 needless_return terminal/input.rs +
+      1 single_element_loop lifecycle/mod_tests.rs:272; neither file
+      touched) — verified again post-format. (3) cargo check --no-
+      default-features --features simplewarp --bin simplewarp green
+      (exit 0). (4) cargo check -p warp --lib --features test-util green
+      (exit 0). (5) nextest -p warp --lib --no-fail-fast: default 4,591
+      run / 4,591 passed / 3 skipped / 0 failed; simplewarp 4,590 / 4,590
+      / 3 / 0 — byte-identical to the 4ft–4fx baselines, zero deltas (no
+      tests deleted); no flakes. (6) DEVELOPER_DIR unset; no GUI launch,
+      no integration suite (per standing round policy).
+
+      NEXT CANDIDATES: the queue is otherwise EMPTY — only the PARKED
+      wasm-gated WebIntent::ConversationView producer (4fx's (d))
+      remains, still parked pending a wasm-aware round. NEW residue
+      observed, not deletion targets per 4fu policy (locally runnable):
+      AgentConversationNavigationSubject::ServerToken + entry_for_server_
+      token are now test-only-reachable producers whose arm still resolves
+      locally against the history model (kept; find_conversation_id_by_
+      server_token has the live blocklist link caller), and OpenConver-
+      sationTranscriptViewer now sits constructor-less as the mandated-kept
+      focus_pane carrier. Next round id: 4fz.

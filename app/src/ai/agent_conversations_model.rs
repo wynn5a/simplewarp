@@ -448,13 +448,7 @@ impl AgentConversationsModel {
                 .and_then(|entry| model.resolve_entry_open_action(&entry, restore_layout, app)),
             AgentConversationNavigationSubject::ServerToken(server_token) => model
                 .entry_for_server_token(&server_token, app)
-                .and_then(|entry| model.resolve_entry_open_action(&entry, restore_layout, app))
-                .or_else(|| {
-                    Some(WorkspaceAction::OpenConversationTranscriptViewer {
-                        ambient_agent_task_id: None,
-                        conversation_id: server_token,
-                    })
-                }),
+                .and_then(|entry| model.resolve_entry_open_action(&entry, restore_layout, app)),
         }
     }
 
@@ -510,14 +504,7 @@ impl AgentConversationsModel {
             }
         }
 
-        entry
-            .identity
-            .server_conversation_token
-            .as_ref()
-            .map(|token| WorkspaceAction::OpenConversationTranscriptViewer {
-                conversation_id: token.clone(),
-                ambient_agent_task_id: entry.identity.ambient_agent_task_id,
-            })
+        None
     }
 
     fn entry_for_server_token(

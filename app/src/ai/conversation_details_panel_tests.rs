@@ -120,12 +120,9 @@ fn test_from_conversation_populates_local_conversation_fields() {
             // Mode should be Conversation with the working directory.
             let PanelMode::Conversation {
                 directory: panel_directory,
-                ai_conversation_id,
                 status,
             } = &data.mode;
             assert_eq!(panel_directory.as_deref(), Some(directory));
-            // `from_conversation` does not populate the in-memory AIConversationId.
-            assert!(ai_conversation_id.is_none());
             assert!(status.is_some());
 
             assert_eq!(data.title, "test query");

@@ -28,7 +28,7 @@ use crate::ai::blocklist::history_model::{
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::auth::AuthStateProvider;
 use crate::test_util::ai_agent_tasks::{create_api_task, create_message};
-use crate::workspace::{WorkspaceAction, WorkspaceRegistry};
+use crate::workspace::WorkspaceRegistry;
 
 type CapturedConversationUpdate = Mutex<Option<ConversationUpdateKind>>;
 
@@ -379,15 +379,10 @@ fn test_resolve_open_action_handles_server_token_subject_without_entry() {
                 ctx,
             );
 
-            assert!(matches!(
-                action,
-                Some(WorkspaceAction::OpenConversationTranscriptViewer {
-                    conversation_id,
-                    ambient_agent_task_id: None,
-                }) if conversation_id == server_token
-            ));
+            // A server token with no locally-resolvable conversation has no local open action.
+            assert!(action.is_none());
         });
-    });
+    })
 }
 
 #[test]
