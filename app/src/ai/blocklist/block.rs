@@ -229,10 +229,12 @@ fn current_user_avatar_info(app: &AppContext) -> UserAvatarInfo {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn non_empty_photo_url(photo_url: &str) -> Option<String> {
     (!photo_url.is_empty()).then(|| photo_url.to_string())
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn display_name_for_user_profile(profile: &UserProfileWithUID) -> String {
     profile
         .display_name
@@ -243,6 +245,7 @@ fn display_name_for_user_profile(profile: &UserProfileWithUID) -> String {
         .unwrap_or_else(|| profile.firebase_uid.to_string())
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn user_avatar_info_for_conversation_creator(
     creator: Option<&UserProfileWithUID>,
     creator_uid: Option<&str>,
@@ -266,23 +269,6 @@ fn user_avatar_info_for_conversation_creator(
     }
 
     fallback
-}
-
-fn user_avatar_info_for_ai_block(
-    model: &dyn AIBlockModel<View = AIBlock>,
-    app: &AppContext,
-) -> UserAvatarInfo {
-    let fallback = current_user_avatar_info(app);
-    let server_metadata = model
-        .conversation(app)
-        .and_then(|conversation| conversation.server_metadata());
-
-    user_avatar_info_for_conversation_creator(
-        server_metadata.and_then(|metadata| metadata.creator.as_ref()),
-        server_metadata.and_then(|metadata| metadata.metadata.creator_uid.as_deref()),
-        fallback,
-        app,
-    )
 }
 
 pub fn init(app: &mut AppContext) {
@@ -1098,7 +1084,7 @@ impl AIBlock {
         terminal_view_id: EntityId,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let user_avatar_info = user_avatar_info_for_ai_block(model.as_ref(), ctx);
+        let user_avatar_info = current_user_avatar_info(ctx);
         let num_attached_context_blocks = num_attached_context_blocks(model.inputs_to_render(ctx));
         let has_attached_context_selected_text =
             has_attached_context_selected_text(model.inputs_to_render(ctx));
@@ -1745,7 +1731,7 @@ impl AIBlock {
         self.client_ids.conversation_id = new_conversation_id;
         self.model = new_model;
         self.is_passive = self.model.request_type(ctx).is_passive();
-        let user_avatar_info = user_avatar_info_for_ai_block(self.model.as_ref(), ctx);
+        let user_avatar_info = current_user_avatar_info(ctx);
         self.profile_image_path = user_avatar_info.profile_image_path;
         self.user_display_name = user_avatar_info.display_name;
         self.run_secret_redaction_on_user_query(new_conversation_id, ctx);

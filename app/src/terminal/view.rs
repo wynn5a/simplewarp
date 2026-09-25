@@ -6859,7 +6859,7 @@ impl TerminalView {
         let data = history_model
             .as_ref(ctx)
             .active_conversation(view_id)
-            .map(|conversation| ConversationDetailsData::from_conversation(conversation, ctx));
+            .map(ConversationDetailsData::from_conversation);
 
         if let Some(data) = data {
             self.conversation_details_panel.update(ctx, |panel, ctx| {

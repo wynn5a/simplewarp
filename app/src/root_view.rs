@@ -1591,15 +1591,14 @@ impl RootView {
     }
 
     /// Opens a cloud conversation in an existing window.
-    /// If the user owns the conversation, restores or navigates to it directly.
-    /// Otherwise, opens a read-only transcript viewer.
+    /// With server sync gone, the load can only surface the failure toast.
     pub fn open_cloud_conversation_in_existing_window(
         &mut self,
-        conversation_id: &ServerConversationToken,
+        _: &ServerConversationToken,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
         self.workspace.update(ctx, |workspace, ctx| {
-            workspace.open_cloud_conversation_from_server_token(conversation_id.clone(), ctx);
+            workspace.load_cloud_conversation_into_new_transcript_viewer(ctx);
         });
         let window_id = ctx.window_id();
         ctx.windows().show_window_and_focus_app(window_id);

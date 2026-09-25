@@ -26,8 +26,7 @@ use super::persistence::{PersistedAIInput, PersistedAIInputType};
 use crate::GlobalResourceHandlesProvider;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{
-    AIConversation, AIConversationId, ConversationStatus, ServerAIConversationMetadata, TodoStatus,
-    UpdateConversationError,
+    AIConversation, AIConversationId, ConversationStatus, TodoStatus, UpdateConversationError,
 };
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::task::helper::{MessageExt, ToolCallExt};
@@ -50,8 +49,7 @@ use crate::ui_components::icons::Icon;
 
 mod conversation_loader;
 pub use conversation_loader::{
-    CLIAgentConversation, CloudConversationData,
-    convert_persisted_conversation_to_ai_conversation_with_metadata,
+    CloudConversationData, convert_persisted_conversation_to_ai_conversation_with_metadata,
 };
 use warp_errors::report_error;
 
@@ -92,10 +90,6 @@ pub struct AIConversationMetadata {
     /// Artifacts (plans, PRs) created during this conversation.
     pub artifacts: Vec<Artifact>,
 
-    /// Full server metadata for cloud conversations, including permissions.
-    /// Used by the sharing dialog to display permissions when the full conversation isn't loaded.
-    pub server_conversation_metadata: Option<ServerAIConversationMetadata>,
-
     /// Local conversation ID of the parent that spawned this child, if any.
     /// Mirrors [`AIConversation::parent_conversation_id`]; stored here so
     /// child-agent status can be determined from metadata alone, without
@@ -113,8 +107,7 @@ impl From<&AIConversation> for AIConversationMetadata {
         let title = conversation.title().unwrap_or_default().to_string();
         let initial_query: String = conversation.initial_query().unwrap_or_default();
         let server_conversation_token = conversation.server_conversation_token().cloned();
-        let has_cloud_data =
-            conversation.server_metadata().is_some() || server_conversation_token.is_some();
+        let has_cloud_data = server_conversation_token.is_some();
 
         let last_modified_at = conversation
             .latest_exchange()
@@ -132,7 +125,6 @@ impl From<&AIConversation> for AIConversationMetadata {
             has_local_data: true,
             has_cloud_data,
             artifacts: conversation.artifacts().to_vec(),
-            server_conversation_metadata: conversation.server_metadata().cloned(),
             parent_conversation_id: conversation.parent_conversation_id(),
             parent_agent_id: conversation.parent_agent_id().map(ToString::to_string),
         }
@@ -140,60 +132,6 @@ impl From<&AIConversation> for AIConversationMetadata {
 }
 
 impl AIConversationMetadata {
-    /// Create metadata from server-fetched GraphQL data.
-    /// This is used when loading conversations from the cloud.
-    pub fn from_server_metadata(
-        conversation_id: AIConversationId,
-        server_conversation_metadata: ServerAIConversationMetadata,
-    ) -> Self {
-        let title = server_conversation_metadata.title.clone();
-        let last_modified_at = server_conversation_metadata
-            .metadata
-            .metadata_last_updated_ts
-            .utc()
-            .naive_utc();
-        let credits_spent = Some(
-            server_conversation_metadata.usage.credits_spent
-                + server_conversation_metadata.usage.platform_credits_spent,
-        );
-        let server_conversation_token = Some(
-            server_conversation_metadata
-                .server_conversation_token
-                .clone(),
-        );
-        let initial_working_directory = server_conversation_metadata.working_directory.clone();
-        let artifacts = server_conversation_metadata.artifacts.clone();
-
-        Self {
-            id: conversation_id,
-            title,
-            // Server doesn't currently provide initial query in metadata
-            // This is used to allow searching by initial query in command palette.
-            initial_query: String::new(),
-            last_modified_at,
-            initial_working_directory,
-            credits_spent,
-            server_conversation_token,
-            has_local_data: false,
-            has_cloud_data: true, // Server metadata implies cloud data exists
-            artifacts,
-            server_conversation_metadata: Some(server_conversation_metadata),
-            // Server conversation metadata does not currently expose parent
-            // linkage; child cloud runs are detected via the ambient task's
-            // `parent_run_id` instead (see `AgentConversationsModel::get_entries`).
-            parent_conversation_id: None,
-            parent_agent_id: None,
-        }
-    }
-
-    /// Whether this conversation is owned by an ambient agent run rather than
-    /// being a direct user conversation.
-    pub fn is_ambient_agent_conversation(&self) -> bool {
-        self.server_conversation_metadata
-            .as_ref()
-            .is_some_and(|m| m.ambient_agent_task_id.is_some())
-    }
-
     /// Whether this conversation was spawned by a parent orchestrator agent.
     /// Uses the same predicate as [`AIConversation::is_child_agent_conversation`]
     /// so the loaded and unloaded representations agree.
@@ -662,10 +600,6 @@ impl BlocklistAIHistoryModel {
         if metadata.server_conversation_token.is_some() {
             metadata.has_cloud_data = true;
         }
-        if let Some(server_metadata) = conversation.server_metadata() {
-            metadata.server_conversation_metadata = Some(server_metadata.clone());
-            metadata.has_cloud_data = true;
-        }
     }
 
     /// Renames a conversation in place. Returns an error message suitable for
@@ -704,9 +638,6 @@ impl BlocklistAIHistoryModel {
 
         if let Some(metadata) = self.all_conversations_metadata.get_mut(&conversation_id) {
             metadata.title = title.clone();
-            if let Some(server_metadata) = metadata.server_conversation_metadata.as_mut() {
-                server_metadata.title = title.clone();
-            }
             updated = true;
         }
 
@@ -844,41 +775,6 @@ impl BlocklistAIHistoryModel {
                 terminal_surface_id,
             });
         }
-    }
-
-    /// Sets server metadata for a conversation and emits the ConversationMetadataUpdated event.
-    /// This helper ensures we don't forget to emit the event when updating metadata.
-    /// Updates in-memory conversations, or historical metadata if the conversation isn't loaded.
-    pub fn set_server_metadata_for_conversation(
-        &mut self,
-        conversation_id: AIConversationId,
-        metadata: ServerAIConversationMetadata,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let terminal_surface_id;
-
-        // Update in-memory conversation if it exists
-        if let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) {
-            conversation.set_server_metadata(metadata);
-            terminal_surface_id = self.terminal_surface_id_for_conversation(&conversation_id);
-        } else if let Some(conversation_metadata) =
-            self.all_conversations_metadata.get_mut(&conversation_id)
-        {
-            // Conversation not in memory - update historical metadata instead
-            // This is needed because we might update permissions from share dialog in
-            // conversation list view when we only have metadata.
-            conversation_metadata.server_conversation_metadata = Some(metadata);
-            terminal_surface_id = None;
-        } else {
-            // Conversation not found anywhere
-            return;
-        }
-
-        // Emit event so sharing dialog and other listeners can refresh.
-        ctx.emit(BlocklistAIHistoryEvent::UpdatedConversationMetadata {
-            terminal_surface_id,
-            conversation_id,
-        });
     }
 
     /// Returns the ID of the conversation that processed or is processing the response stream.
@@ -2379,10 +2275,9 @@ impl BlocklistAIHistoryModel {
     }
 
     /// Returns local conversation metadata, excluding conversations that are
-    /// not navigable: ambient agent runs (represented by their task) and
-    /// child (orchestrated) agent conversations (represented under their
-    /// parent's status card). This is the canonical filter for unloaded
-    /// conversations, mirroring `AIConversation::should_exclude_from_navigation`
+    /// not navigable: child (orchestrated) agent conversations are represented
+    /// under their parent's status card. This is the canonical filter for
+    /// unloaded conversations, mirroring `AIConversation::should_exclude_from_navigation`
     /// for loaded ones. Individual conversations remain accessible by ID via
     /// [`Self::get_conversation_metadata`].
     pub fn get_local_conversations_metadata(
@@ -2390,7 +2285,7 @@ impl BlocklistAIHistoryModel {
     ) -> impl Iterator<Item = &AIConversationMetadata> {
         self.all_conversations_metadata
             .values()
-            .filter(|m| !m.is_ambient_agent_conversation() && !m.is_child_agent_conversation())
+            .filter(|m| !m.is_child_agent_conversation())
     }
 
     /// Returns conversation metadata for a specific conversation ID.
@@ -2399,55 +2294,6 @@ impl BlocklistAIHistoryModel {
         conversation_id: &AIConversationId,
     ) -> Option<&AIConversationMetadata> {
         self.all_conversations_metadata.get(conversation_id)
-    }
-
-    /// Returns whether a conversation can be shared.
-    ///
-    /// A conversation can be shared if we have server metadata available
-    /// (either from a loaded conversation or from conversation metadata).
-    pub fn can_conversation_be_shared(&self, conversation_id: &AIConversationId) -> bool {
-        self.get_server_conversation_metadata(conversation_id)
-            .is_some()
-    }
-
-    /// Returns the server conversation metadata, used by the sharing dialog.
-    ///
-    /// This checks:
-    /// 1. If the conversation is loaded in memory, returns from its server metadata
-    /// 2. Otherwise, falls back to data stored in conversation metadata
-    pub fn get_server_conversation_metadata(
-        &self,
-        conversation_id: &AIConversationId,
-    ) -> Option<&ServerAIConversationMetadata> {
-        // Check if conversation exists in memory and has server metadata
-        if let Some(conversation) = self.conversation(conversation_id)
-            && let Some(m) = conversation.server_metadata()
-        {
-            return Some(m);
-        }
-
-        // Fall back to conversation metadata
-        if let Some(metadata) = self.get_conversation_metadata(conversation_id) {
-            return metadata.server_conversation_metadata.as_ref();
-        }
-
-        None
-    }
-
-    pub fn get_server_conversation_metadata_by_server_token(
-        &self,
-        server_token: &ServerConversationToken,
-    ) -> Option<&ServerAIConversationMetadata> {
-        self.find_conversation_id_by_server_token(server_token)
-            .and_then(|conversation_id| self.get_server_conversation_metadata(&conversation_id))
-            .or_else(|| {
-                self.all_conversations_metadata
-                    .values()
-                    .find(|metadata| {
-                        metadata.server_conversation_token.as_ref() == Some(server_token)
-                    })
-                    .and_then(|metadata| metadata.server_conversation_metadata.as_ref())
-            })
     }
 
     /// Finds an AIConversationId by its server conversation token.
@@ -2584,63 +2430,6 @@ impl BlocklistAIHistoryModel {
         Ok(conversation)
     }
 
-    /// Rebuilds a remote-child placeholder conversation identified by
-    /// `local_placeholder_id` from the cloud `tasks` + `cloud_conversation`,
-    /// keeping the placeholder's local id and orchestration linkage
-    /// (parent ids, agent_name, run_id, is_remote_child, pinned)
-    /// authoritative. Cloud supplies the transcript and server-side metadata.
-    ///
-    /// Narrowly scoped to the remote-child placeholder hydration path
-    /// (`pane_group::hydrate_remote_child_transcript_in_place`). Returns
-    /// `Err` when the placeholder isn't loaded so the caller can fall back
-    /// instead of silently producing a detached conversation.
-    pub fn hydrate_remote_child_placeholder_with_cloud_transcript(
-        &mut self,
-        local_placeholder_id: AIConversationId,
-        tasks: Vec<warp_multi_agent_api::Task>,
-        cloud_conversation: AIConversation,
-    ) -> anyhow::Result<AIConversation> {
-        let placeholder = self
-            .conversations_by_id
-            .get(&local_placeholder_id)
-            .cloned()
-            .ok_or_else(|| {
-                anyhow!(
-                    "hydrate_remote_child_placeholder_with_cloud_transcript: \
-                     local placeholder {local_placeholder_id} not found in conversations_by_id; \
-                     refusing to construct a detached merged conversation"
-                )
-            })?;
-
-        let merged_conversation_data =
-            merged_remote_child_placeholder_conversation_data(&placeholder, &cloud_conversation);
-
-        let mut merged = AIConversation::new_restored(
-            local_placeholder_id,
-            tasks,
-            Some(merged_conversation_data),
-        )?;
-        merged.reassign_exchange_ids();
-
-        if let Some(metadata) = cloud_conversation.server_metadata() {
-            merged.set_server_metadata(metadata.clone());
-        }
-
-        if let Some(token) = merged.server_conversation_token() {
-            self.server_token_to_conversation_id
-                .insert(token.clone(), local_placeholder_id);
-        }
-
-        self.conversations_by_id
-            .insert(local_placeholder_id, merged.clone());
-
-        if let Some(parent_id) = self.resolved_parent_conversation_id_for_conversation(&merged) {
-            self.index_child_conversation(local_placeholder_id, parent_id);
-        }
-
-        Ok(merged)
-    }
-
     /// Clears all stored conversation-related data in memory.
     /// This is used when logging out to ensure no AI history persists across users.
     pub(crate) fn reset(&mut self) {
@@ -2656,79 +2445,6 @@ impl BlocklistAIHistoryModel {
         self.agent_id_to_conversation_id.clear();
         self.server_token_to_conversation_id.clear();
         self.children_by_parent.clear();
-    }
-}
-
-/// Builds the `AgentConversationData` for a remote-child placeholder
-/// hydrated from a cloud transcript.
-///
-/// **Placeholder authoritative** (local orchestration linkage that the cloud
-/// transcript cannot reconstruct):
-/// - `parent_conversation_id`, `is_remote_child`, `pinned`
-///
-/// **Placeholder-preferred, cloud fallback** (local value wins when present,
-/// cloud's value is used otherwise so we don't lose data on a stale
-/// placeholder):
-/// - `parent_agent_id`, `agent_name`, `orchestration_harness_type`, `run_id`
-///
-/// **Cloud authoritative** (server-side state the placeholder doesn't know):
-/// - `server_conversation_token`, `conversation_usage_metadata`,
-///   `forked_from_server_conversation_token`, `artifacts_json`,
-///   `last_event_sequence`
-///
-/// **Reset on merge** (rebuild-from-cloud invariants):
-/// - `reverted_action_ids = None`, `root_task_is_optimistic = None`,
-///   `autoexecute_override = None`
-fn merged_remote_child_placeholder_conversation_data(
-    placeholder: &AIConversation,
-    cloud_conversation: &AIConversation,
-) -> AgentConversationData {
-    AgentConversationData {
-        // Cloud authoritative.
-        server_conversation_token: cloud_conversation
-            .server_conversation_token()
-            .map(|t| t.as_str().to_string()),
-        conversation_usage_metadata: Some(cloud_conversation.usage_metadata()),
-        forked_from_server_conversation_token: cloud_conversation
-            .forked_from_server_conversation_token()
-            .map(|t| t.as_str().to_string()),
-        artifacts_json: serde_json::to_string(cloud_conversation.artifacts()).ok(),
-        last_event_sequence: cloud_conversation.last_event_sequence(),
-
-        // Placeholder-preferred, cloud fallback.
-        parent_agent_id: placeholder
-            .parent_agent_id()
-            .map(ToString::to_string)
-            .or_else(|| {
-                cloud_conversation
-                    .parent_agent_id()
-                    .map(ToString::to_string)
-            }),
-        agent_name: placeholder
-            .agent_name()
-            .map(ToString::to_string)
-            .or_else(|| cloud_conversation.agent_name().map(ToString::to_string)),
-        orchestration_harness_type: placeholder
-            .orchestration_harness_type()
-            .map(ToString::to_string)
-            .or_else(|| {
-                cloud_conversation
-                    .orchestration_harness_type()
-                    .map(ToString::to_string)
-            }),
-        run_id: placeholder.run_id().or_else(|| cloud_conversation.run_id()),
-
-        // Placeholder authoritative.
-        parent_conversation_id: placeholder
-            .parent_conversation_id()
-            .map(|id| id.to_string()),
-        is_remote_child: placeholder.is_remote_child(),
-        pinned: placeholder.is_pinned(),
-
-        // Reset on merge.
-        reverted_action_ids: None,
-        root_task_is_optimistic: None,
-        autoexecute_override: None,
     }
 }
 

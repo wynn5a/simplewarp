@@ -9,7 +9,6 @@ use warp_cli::agent::Harness;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::{Fill as WarpThemeFill, WarpTheme};
 
-use crate::ai::agent::conversation::AIAgentHarness;
 use crate::ai::blocklist::CLAUDE_ORANGE;
 use crate::terminal::cli_agent::{GEMINI_BLUE, OPENAI_COLOR, OPENCODE_COLOR};
 use crate::ui_components::icons::Icon;
@@ -72,25 +71,5 @@ pub fn icon_fill_on_circle(harness: Harness, theme: &WarpTheme) -> WarpThemeFill
             WarpThemeFill::Solid(ColorU::white())
         }
         Harness::Unknown => theme.main_text_color(internal_colors::fg_overlay_2(theme)),
-    }
-}
-
-/// Map [`AIAgentHarness`] (from `ServerAIConversationMetadata`) to the
-/// canonical [`Harness`].
-impl From<AIAgentHarness> for Harness {
-    fn from(harness: AIAgentHarness) -> Self {
-        match harness {
-            AIAgentHarness::Oz => Harness::Oz,
-            AIAgentHarness::ClaudeCode => Harness::Claude,
-            AIAgentHarness::Gemini => Harness::Gemini,
-            AIAgentHarness::Codex => Harness::Codex,
-            AIAgentHarness::Unknown => Harness::Unknown,
-        }
-    }
-}
-
-impl PartialEq<Harness> for AIAgentHarness {
-    fn eq(&self, other: &Harness) -> bool {
-        Harness::from(*self) == *other
     }
 }

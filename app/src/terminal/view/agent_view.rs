@@ -1,4 +1,3 @@
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_errors::report_error;
 use warpui::keymap::Keystroke;
@@ -11,7 +10,6 @@ use crate::ai::blocklist::agent_view::{
     AutoTriggerBehavior, DismissalStrategy, ENTER_OR_EXIT_CONFIRMATION_WINDOW, EnterAgentViewError,
     EphemeralMessage,
 };
-use crate::ai::blocklist::history_model::CloudConversationData;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
 use crate::persistence::ModelEvent;
 use crate::terminal::TerminalView;
@@ -146,31 +144,19 @@ impl TerminalView {
                     );
                     return;
                 };
-                // For Oz conversations, restore data and then re-enter agent view (the
-                // conversation will be in memory after restoration).
-                // For CLI agent conversations, restore the block snapshot only. Because we
-                // don't update the in-memory model in this case, attempting to re-enter agent
-                // view will trigger an infinite loop of fetching and loading conversation data
-                // from the server.
+                // Restore data and then re-enter agent view (the conversation
+                // will be in memory after restoration).
                 #[allow(clippy::type_complexity)]
                 let on_restored: Box<
                     dyn FnOnce(&mut Self, &mut ViewContext<Self>),
-                > = if matches!(&conversation, CloudConversationData::Oz(_)) {
-                    Box::new(move |me, ctx| {
-                        me.enter_agent_view_for_conversation(
-                            initial_prompt,
-                            origin,
-                            conversation_id,
-                            ctx,
-                        );
-                    })
-                } else {
-                    if !FeatureFlag::AgentHarness.is_enabled() {
-                        log::warn!("AgentHarness flag is disabled; ignoring CLI agent conversation {conversation_id}");
-                        return;
-                    }
-                    Box::new(|_, _| {})
-                };
+                > = Box::new(move |me, ctx| {
+                    me.enter_agent_view_for_conversation(
+                        initial_prompt,
+                        origin,
+                        conversation_id,
+                        ctx,
+                    );
+                });
                 let is_local = BlocklistAIHistoryModel::handle(ctx)
                     .as_ref(ctx)
                     .get_conversation_metadata(&conversation_id)

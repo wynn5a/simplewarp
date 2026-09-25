@@ -44,15 +44,11 @@ impl FetchConversationExecutor {
         });
 
         ActionExecution::new_async(load_future, move |cloud_conversation, _ctx| {
-            // TODO(REMOTE-1203): FetchConversation can't materialize non-Oz conversation transcripts yet.
-            let conversation = cloud_conversation.and_then(|cc| match cc {
-                CloudConversationData::Oz(c) => Some(c),
-                CloudConversationData::CLIAgent(_) => {
-                    log::warn!("FetchConversation does not support CLI agent conversations");
-                    None
-                }
+            let conversation = cloud_conversation.map(|cc| {
+                let CloudConversationData::Oz(c) = cc;
+                *c
             });
-            materialize_conversation(conversation.map(|c| *c), &conversation_id)
+            materialize_conversation(conversation, &conversation_id)
         })
     }
 

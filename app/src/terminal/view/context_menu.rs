@@ -202,16 +202,9 @@ impl TerminalView {
         ctx: &AppContext,
     ) -> Option<ServerConversationToken> {
         let history_model = BlocklistAIHistoryModel::as_ref(ctx);
-        // Prefer loaded conversation data when available.
         history_model
             .conversation(&conversation_id)
             .and_then(|conversation| conversation.debugging_server_conversation_token().cloned())
-            .or_else(|| {
-                // Restored entries may only have server metadata loaded.
-                history_model
-                    .get_server_conversation_metadata(&conversation_id)
-                    .map(|metadata| metadata.server_conversation_token.clone())
-            })
     }
 
     fn conversation_debug_request_id(

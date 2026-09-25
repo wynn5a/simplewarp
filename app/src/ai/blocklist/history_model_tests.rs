@@ -15,8 +15,7 @@ use super::{
 };
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{
-    AIAgentHarness, AIConversation, AIConversationId, ConversationStatus,
-    ServerAIConversationMetadata, TodoStatus,
+    AIConversation, AIConversationId, ConversationStatus, TodoStatus,
 };
 use crate::ai::agent::task::helper::MessageExt;
 use crate::ai::agent::todos::AIAgentTodoList;
@@ -32,14 +31,12 @@ use crate::ai::blocklist::ResponseStreamId;
 use crate::ai::blocklist::controller::RequestInput;
 use crate::ai::llms::LLMId;
 use crate::auth::AuthStateProvider;
-use crate::cloud_object::{Owner, Revision, ServerMetadata, ServerPermissions};
 use crate::input_suggestions::HistoryInputSuggestion;
 use crate::persistence::ModelEvent;
 use crate::persistence::model::{
     AgentConversation, AgentConversationData, AgentConversationRecord, AgentConversationSummary,
     PersistedAutoexecuteMode,
 };
-use crate::server::ids::ServerId;
 use crate::terminal::model::session::SessionId;
 use crate::test_util::ai_agent_tasks::create_api_task;
 use crate::test_util::settings::{
@@ -990,34 +987,6 @@ fn test_transcript_viewer_terminal_view_is_not_marked_historical() {
     });
 }
 
-fn create_server_ai_conversation_metadata(title: &str) -> ServerAIConversationMetadata {
-    ServerAIConversationMetadata {
-        title: title.to_string(),
-        working_directory: None,
-        harness: AIAgentHarness::Oz,
-        usage: crate::persistence::model::ConversationUsageMetadata::default(),
-        metadata: ServerMetadata {
-            uid: ServerId::default(),
-            revision: Revision::now(),
-            metadata_last_updated_ts: Utc::now().into(),
-            trashed_ts: None,
-            folder_id: None,
-            is_welcome_object: false,
-            creator_uid: None,
-            last_editor_uid: None,
-            current_editor_uid: None,
-        },
-        creator: None,
-        permissions: ServerPermissions {
-            space: Owner::mock_current_user(),
-            permissions_last_updated_ts: Utc::now().into(),
-        },
-        ambient_agent_task_id: None,
-        server_conversation_token: ServerConversationToken::new(title.to_string()),
-        artifacts: Vec::new(),
-    }
-}
-
 /// Minimal metadata entry for tests that exercise the listing predicates.
 fn test_metadata(id: AIConversationId, title: &str) -> AIConversationMetadata {
     AIConversationMetadata {
@@ -1031,64 +1000,9 @@ fn test_metadata(id: AIConversationId, title: &str) -> AIConversationMetadata {
         has_local_data: false,
         has_cloud_data: true,
         artifacts: Vec::new(),
-        server_conversation_metadata: None,
         parent_conversation_id: None,
         parent_agent_id: None,
     }
-}
-
-/// Server metadata carrying an ambient agent task id, marking the entry ambient.
-fn server_metadata_with_ambient_task(task_id: AmbientAgentTaskId) -> ServerAIConversationMetadata {
-    let mut metadata = create_server_ai_conversation_metadata("Ambient Conversation");
-    metadata.ambient_agent_task_id = Some(task_id);
-    metadata
-}
-
-#[test]
-fn test_ambient_agent_conversations_excluded_from_list_but_accessible_by_id() {
-    App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
-
-        let regular_id = AIConversationId::new();
-        let ambient_id = AIConversationId::new();
-
-        let ambient_task_id: AmbientAgentTaskId = uuid::Uuid::new_v4().to_string().parse().unwrap();
-
-        history_model.update(&mut app, |model, _| {
-            let mut regular_metadata = test_metadata(regular_id, "Regular Conversation");
-            regular_metadata.server_conversation_token =
-                Some(ServerConversationToken::new("token-regular".to_string()));
-            model
-                .all_conversations_metadata
-                .insert(regular_id, regular_metadata);
-
-            let mut ambient_metadata = test_metadata(ambient_id, "Ambient Conversation");
-            ambient_metadata.server_conversation_token =
-                Some(ServerConversationToken::new("token-ambient".to_string()));
-            ambient_metadata.server_conversation_metadata =
-                Some(server_metadata_with_ambient_task(ambient_task_id));
-            model
-                .all_conversations_metadata
-                .insert(ambient_id, ambient_metadata);
-        });
-
-        history_model.read(&app, |model, _| {
-            // get_local_conversations_metadata should exclude the ambient conversation
-            let listed: Vec<&AIConversationMetadata> =
-                model.get_local_conversations_metadata().collect();
-            assert_eq!(listed.len(), 1);
-            assert_eq!(listed[0].id, regular_id);
-
-            // get_conversation_metadata should return both by ID
-            assert!(model.get_conversation_metadata(&regular_id).is_some());
-            assert!(model.get_conversation_metadata(&ambient_id).is_some());
-            assert_eq!(
-                model.get_conversation_metadata(&ambient_id).unwrap().title,
-                "Ambient Conversation"
-            );
-        });
-    });
 }
 
 #[test]
@@ -3308,215 +3222,6 @@ fn test_fork_conversation_title_override_replaces_prefix() {
                 "title_override must replace the prefix+description",
             );
         });
-    });
-}
-
-/// LoadTranscript -> merge integration coverage for the orchestration
-/// remote-child restore path.
-///
-/// Simulates the smaller seam that
-/// `pane_group::hydrate_remote_child_transcript_in_place` reaches after a
-/// successful `load_conversation_by_server_token` fetch: it hands the
-/// fetched cloud transcript to
-/// `hydrate_remote_child_placeholder_with_cloud_transcript` on the local
-/// placeholder. Asserts the merged record:
-///   1. retains the placeholder's local `AIConversationId` (so it remains the
-///      canonical `child_agent_panes` key on the pane-group side),
-///   2. carries the placeholder's orchestration linkage forward
-///      (parent_conversation_id, agent_name, run_id, is_remote_child),
-///   3. surfaces the cloud transcript content (non-empty title + at least
-///      one exchange).
-///
-/// Also asserts the precondition guard: calling the merge against an
-/// unknown placeholder returns `Err` so the caller's tombstone fallback
-/// runs instead of silently constructing a detached conversation.
-#[test]
-fn hydrate_remote_child_placeholder_with_cloud_transcript_preserves_placeholder_identity() {
-    use crate::ai::agent::conversation::AIConversation;
-    use crate::ai::ambient_agents::AmbientAgentTaskId;
-    use crate::persistence::model::AgentConversationData;
-    use crate::test_util::ai_agent_tasks::create_api_task;
-
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
-        let terminal_view_id = EntityId::new();
-
-        // Build a placeholder "remote child" conversation with the
-        // orchestration linkage we want preserved across merge.
-        let parent_id = AIConversationId::new();
-        let placeholder_id = AIConversationId::new();
-        let placeholder_task_id_str = Uuid::new_v4().to_string();
-        let placeholder_task_id: AmbientAgentTaskId =
-            placeholder_task_id_str.parse().expect("task id must parse");
-
-        // The placeholder has no transcript yet — just a synthetic root
-        // task so `new_restored` succeeds. Real placeholders go through the
-        // optimistic-root construction path; for this test we just need a
-        // record with the right local-only fields.
-        let placeholder_root = create_api_task("placeholder-root", vec![]);
-        let placeholder = AIConversation::new_restored(
-            placeholder_id,
-            vec![placeholder_root],
-            Some(AgentConversationData {
-                server_conversation_token: None,
-                conversation_usage_metadata: None,
-                reverted_action_ids: None,
-                forked_from_server_conversation_token: None,
-                artifacts_json: None,
-                parent_agent_id: Some("parent-agent-id".to_string()),
-                agent_name: Some("worker".to_string()),
-                orchestration_harness_type: None,
-                parent_conversation_id: Some(parent_id.to_string()),
-                is_remote_child: true,
-                root_task_is_optimistic: Some(true),
-                run_id: Some(placeholder_task_id_str.clone()),
-                autoexecute_override: None,
-                last_event_sequence: None,
-                pinned: false,
-            }),
-        )
-        .expect("placeholder conversation should build");
-        // Sanity-check the placeholder before restore so a later regression
-        // in `new_restored` doesn't pass this test silently.
-        assert!(placeholder.is_remote_child());
-        assert_eq!(placeholder.task_id(), Some(placeholder_task_id));
-
-        history_model.update(&mut app, |model, ctx| {
-            model.restore_conversations(terminal_view_id, vec![placeholder], ctx);
-        });
-
-        // Build a cloud-side AIConversation with a non-empty root task
-        // description (so `title()` returns it) and a real user-query
-        // message (so the merged conversation has ≥1 exchange).
-        let cloud_id = AIConversationId::new();
-        let mut cloud_root = create_api_task(
-            "cloud-root-task",
-            vec![create_user_query_message(
-                "cloud-user-msg",
-                "cloud-root-task",
-                "cloud-request",
-                "What's the status?",
-            )],
-        );
-        cloud_root.description = "Cloud-side title".to_string();
-        let cloud_tasks = vec![cloud_root];
-        let cloud_conversation = AIConversation::new_restored(
-            cloud_id,
-            cloud_tasks.clone(),
-            Some(AgentConversationData {
-                server_conversation_token: Some("cloud-token".to_string()),
-                conversation_usage_metadata: None,
-                reverted_action_ids: None,
-                forked_from_server_conversation_token: None,
-                artifacts_json: None,
-                parent_agent_id: None,
-                agent_name: None,
-                orchestration_harness_type: None,
-                parent_conversation_id: None,
-                is_remote_child: false,
-                root_task_is_optimistic: None,
-                run_id: None,
-                autoexecute_override: None,
-                last_event_sequence: None,
-                pinned: false,
-            }),
-        )
-        .expect("cloud conversation should build");
-
-        let merged = history_model.update(&mut app, |model, _| {
-            model
-                .hydrate_remote_child_placeholder_with_cloud_transcript(
-                    placeholder_id,
-                    cloud_tasks,
-                    cloud_conversation,
-                )
-                .expect("hydration must succeed when placeholder is loaded")
-        });
-
-        assert_eq!(
-            merged.id(),
-            placeholder_id,
-            "merge must reuse the placeholder's local AIConversationId so child_agent_panes stays canonical",
-        );
-        assert_eq!(
-            merged.title().as_deref(),
-            Some("Cloud-side title"),
-            "merged conversation must surface the cloud-side root task title",
-        );
-        assert!(
-            merged.exchange_count() >= 1,
-            "merged conversation must have at least one exchange from the cloud transcript; got {}",
-            merged.exchange_count(),
-        );
-        assert!(
-            merged.is_remote_child(),
-            "merged conversation must retain the placeholder's is_remote_child flag",
-        );
-        assert_eq!(
-            merged.parent_conversation_id(),
-            Some(parent_id),
-            "merged conversation must retain the placeholder's parent_conversation_id",
-        );
-        assert_eq!(
-            merged.agent_name(),
-            Some("worker"),
-            "merged conversation must retain the placeholder's agent_name",
-        );
-        assert_eq!(
-            merged.task_id(),
-            Some(placeholder_task_id),
-            "merged conversation must retain the placeholder's task_id (orchestration run id)",
-        );
-
-        // And the history model's view of placeholder_id now reflects the
-        // merge — callers that look up the placeholder will see the cloud
-        // transcript content.
-        history_model.read(&app, |model, _| {
-            let live = model
-                .conversation(&placeholder_id)
-                .expect("placeholder must still be in conversations_by_id after merge");
-            assert_eq!(live.id(), placeholder_id);
-            assert_eq!(live.title().as_deref(), Some("Cloud-side title"));
-            assert!(live.exchange_count() >= 1);
-            assert!(live.is_remote_child());
-        });
-
-        // Precondition guard: merging against an unknown placeholder must
-        // return Err so the caller falls back instead of silently building a
-        // detached conversation.
-        let unknown_placeholder = AIConversationId::new();
-        let mut cloud_root_again = create_api_task(
-            "cloud-root-task-2",
-            vec![create_user_query_message(
-                "cloud-user-msg-2",
-                "cloud-root-task-2",
-                "cloud-request-2",
-                "another",
-            )],
-        );
-        cloud_root_again.description = "Cloud title 2".to_string();
-        let cloud_again = AIConversation::new_restored(
-            AIConversationId::new(),
-            vec![cloud_root_again.clone()],
-            None,
-        )
-        .expect("second cloud conversation should build");
-        let err = history_model.update(&mut app, |model, _| {
-            model
-                .hydrate_remote_child_placeholder_with_cloud_transcript(
-                    unknown_placeholder,
-                    vec![cloud_root_again],
-                    cloud_again,
-                )
-                .expect_err("hydration must error when placeholder is not loaded")
-        });
-        assert!(
-            format!("{err:#}").contains("not found in conversations_by_id"),
-            "error must surface the missing-placeholder reason; got: {err:#}",
-        );
     });
 }
 

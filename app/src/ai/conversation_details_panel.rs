@@ -6,7 +6,6 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, Local};
 use instant::Instant;
 use parking_lot::RwLock;
-use pathfinder_color::ColorU;
 use warp_cli::agent::Harness;
 use warp_cli::skill::SkillSpec;
 use warp_core::channel::ChannelState;
@@ -27,7 +26,6 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{
     AIConversation, AIConversationId, ConversationStatus, StatusColorStyle,
 };
@@ -39,16 +37,14 @@ use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
 use crate::appearance::Appearance;
-use crate::auth::UserUid;
 use crate::notebooks::NotebookId;
 #[cfg(not(target_family = "wasm"))]
 use crate::settings::ai::{AISettings, AISettingsChangedEvent};
-use crate::ui_components::avatar::{Avatar, AvatarContent};
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::CustomAction;
-use crate::util::time_format::{format_approx_duration_from_now, human_readable_precise_duration};
+use crate::util::time_format::human_readable_precise_duration;
 use crate::view_components::DismissibleToast;
 #[cfg(not(target_family = "wasm"))]
 use crate::view_components::action_button::PrimaryTheme;
@@ -57,7 +53,6 @@ use crate::view_components::copyable_text_field::{
     COPY_FEEDBACK_DURATION, CopyableTextFieldConfig, render_copyable_text_field,
 };
 use crate::workspace::{ForkedConversationDestination, ToastStack, WorkspaceAction};
-use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 
 const FIELD_SPACING: f32 = 16.0;
 const HEADER_SPACING: f32 = 12.0;
@@ -102,7 +97,6 @@ struct PanelMouseStates {
     copy_initial_query: MouseStateHandle,
     skill_link: MouseStateHandle,
     skill_source_link: MouseStateHandle,
-    executor_agent_link: MouseStateHandle,
 }
 
 /// Tracks which copy button action was last triggered (for checkmark feedback).
@@ -113,65 +107,12 @@ enum CopyButtonKind {
     InitialQuery,
 }
 
-/// Information about a principal involved in a conversation.
-#[derive(Debug, Clone)]
-struct PrincipalInfo {
-    /// Display name of the principal (or fallback identifier).
-    pub display_name: String,
-    /// Optional photo URL for the avatar.
-    pub photo_url: Option<String>,
-    /// UID of the principal, when known (used for building Oz links).
-    pub uid: Option<String>,
-    /// Whether this principal is a service account.
-    pub is_service_account: bool,
-}
-
-impl PrincipalInfo {
-    /// Create a new PrincipalInfo with a display name and optional photo URL.
-    fn new(display_name: String, photo_url: Option<String>) -> Self {
-        Self {
-            display_name,
-            photo_url,
-            uid: None,
-            is_service_account: false,
-        }
-    }
-
-    /// Create a PrincipalInfo with just the first character as a fallback.
-    fn from_uid_fallback(uid: &str) -> Self {
-        let first_char = uid.chars().next().unwrap_or('?').to_uppercase().to_string();
-        Self::new(first_char, None)
-    }
-
-    fn from_user_profile(profile: &UserProfileWithUID) -> Self {
-        let display_name = profile
-            .display_name
-            .as_ref()
-            .filter(|name| !name.is_empty())
-            .or_else(|| (!profile.email.is_empty()).then_some(&profile.email))
-            .cloned()
-            .unwrap_or_else(|| profile.firebase_uid.to_string());
-        let photo_url = Some(profile.photo_url.clone()).filter(|url| !url.is_empty());
-
-        Self {
-            display_name,
-            photo_url,
-            uid: Some(profile.firebase_uid.to_string()),
-            is_service_account: false,
-        }
-    }
-}
-
 /// Data model for the conversation details panel.
 /// Any field that is left as None will not be rendered.
 #[derive(Debug, Clone, Default)]
 pub struct ConversationDetailsData {
     mode: PanelMode,
     title: String,
-    /// Information about the creator.
-    creator: Option<PrincipalInfo>,
-    /// Principal the cloud run executed as.
-    executor: Option<PrincipalInfo>,
     /// When the conversation was created.
     created_at: Option<DateTime<Local>>,
     /// Total credits spent on the conversation/task.
@@ -193,37 +134,8 @@ pub struct ConversationDetailsData {
 }
 
 impl ConversationDetailsData {
-    pub fn from_conversation(conversation: &AIConversation, app: &AppContext) -> Self {
+    pub fn from_conversation(conversation: &AIConversation) -> Self {
         let mut directory = None;
-        let mut conversation_id = None;
-
-        // Server metadata (creator, timestamps)
-        let mut creator = None;
-        if let Some(server_metadata) = conversation.server_metadata() {
-            if let Some(creator_profile) = &server_metadata.creator {
-                creator = Some(PrincipalInfo::from_user_profile(creator_profile));
-            } else if let Some(creator_uid_str) = &server_metadata.metadata.creator_uid {
-                let creator_uid = UserUid::new(creator_uid_str);
-                let user_profiles = UserProfiles::handle(app).as_ref(app);
-
-                if let Some(profile) = user_profiles.profile_for_uid(creator_uid) {
-                    let display_name = profile.displayable_identifier();
-                    let photo_url = Some(profile.photo_url.clone()).filter(|url| !url.is_empty());
-                    creator = Some(PrincipalInfo::new(display_name, photo_url));
-                } else {
-                    // Fallback to first character of UID
-                    creator = Some(PrincipalInfo::from_uid_fallback(creator_uid_str));
-                }
-            }
-
-            // Conversation ID (from server token)
-            conversation_id = Some(
-                server_metadata
-                    .server_conversation_token
-                    .as_str()
-                    .to_string(),
-            );
-        }
 
         // Calculate run time from exchanges
         let first_exchange = conversation.first_exchange();
@@ -246,36 +158,25 @@ impl ConversationDetailsData {
             directory = first_exchange.working_directory.clone();
         }
 
-        let copy_link_url = conversation_id
-            .as_ref()
-            .map(|id| ServerConversationToken::new(id.clone()).conversation_link());
-
-        let harness = conversation
-            .server_metadata()
-            .map(|m| Harness::from(m.harness))
-            .or(Some(Harness::Oz));
-
         ConversationDetailsData {
             mode: PanelMode::Conversation {
                 directory,
-                server_conversation_id: conversation_id,
+                server_conversation_id: None,
                 ai_conversation_id: None,
                 status: Some(conversation.status().clone()),
             },
             title: conversation
                 .title()
                 .unwrap_or_else(|| "Conversation".to_string()),
-            creator,
-            executor: None,
             created_at,
             credits: Some(conversation.credits_spent()),
             run_time,
             artifacts: conversation.artifacts().to_vec(),
             open_action: None,
             source_prompt: conversation.initial_query(),
-            copy_link_url,
+            copy_link_url: None,
             skill_spec: None,
-            harness,
+            harness: Some(Harness::Oz),
         }
     }
 }
@@ -539,132 +440,6 @@ impl ConversationDetailsPanel {
                     .write(ClipboardContent::plain_text(link.clone()));
             }
         }
-    }
-
-    fn render_creator_section(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
-        let creator = self.data.creator.as_ref()?;
-        let created_at = self.data.created_at?;
-        let theme = appearance.theme();
-
-        let ui_font_size = appearance.ui_font_size();
-        let small_font_size = ui_font_size - 2.;
-
-        let avatar_content = creator
-            .photo_url
-            .as_ref()
-            .map(|url| AvatarContent::Image {
-                url: url.clone(),
-                display_name: creator.display_name.clone(),
-            })
-            .unwrap_or_else(|| AvatarContent::DisplayName(creator.display_name.clone()));
-        let avatar = Avatar::new(
-            avatar_content,
-            warpui::ui_components::components::UiComponentStyles {
-                width: Some(20.),
-                height: Some(20.),
-                border_radius: Some(warpui::elements::CornerRadius::with_all(
-                    warpui::elements::Radius::Percentage(50.),
-                )),
-                background: Some(blended_colors::accent(theme).into()),
-                font_color: Some(ColorU::black()),
-                font_family_id: Some(appearance.ui_font_family()),
-                font_weight: Some(warpui::fonts::Weight::Bold),
-                font_size: Some(small_font_size),
-                ..Default::default()
-            },
-        )
-        .build()
-        .finish();
-
-        let created_text = Text::new(
-            format!(
-                "Created by {} • {}",
-                creator.display_name,
-                format_approx_duration_from_now(created_at)
-            ),
-            appearance.ui_font_family(),
-            ui_font_size,
-        )
-        .with_color(blended_colors::text_sub(theme, theme.surface_1()))
-        .with_selectable(true)
-        .finish();
-
-        Some(
-            Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    Container::new(avatar)
-                        .with_margin_right(LABEL_VALUE_GAP)
-                        .finish(),
-                )
-                .with_child(Expanded::new(1., created_text).finish())
-                .finish(),
-        )
-    }
-
-    fn render_executor_section(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
-        let executor = self.data.executor.as_ref()?;
-        if !executor.is_service_account {
-            return None;
-        }
-        // Hide when the executor is the same person as the creator.
-        if self
-            .data
-            .creator
-            .as_ref()
-            .is_some_and(|c| match (&c.uid, &executor.uid) {
-                (Some(c_uid), Some(e_uid)) => c_uid == e_uid,
-                _ => c.display_name == executor.display_name,
-            })
-        {
-            return None;
-        }
-        let theme = appearance.theme();
-        let ui_font_size = appearance.ui_font_size();
-
-        let label_text = Text::new(
-            "Agent".to_string(),
-            appearance.ui_font_family(),
-            ui_font_size,
-        )
-        .with_color(blended_colors::text_sub(theme, theme.surface_1()))
-        .finish();
-
-        let agent_name_element = if let Some(uid) = &executor.uid {
-            let oz_root_url = ChannelState::oz_root_url();
-            let agent_url = format!("{oz_root_url}/agents/{}", urlencoding::encode(uid));
-            appearance
-                .ui_builder()
-                .link(
-                    executor.display_name.clone(),
-                    Some(agent_url),
-                    None,
-                    self.mouse_states.executor_agent_link.clone(),
-                )
-                .build()
-                .finish()
-        } else {
-            Text::new(
-                executor.display_name.clone(),
-                appearance.ui_font_family(),
-                ui_font_size,
-            )
-            .with_color(theme.foreground().into())
-            .with_selectable(true)
-            .finish()
-        };
-
-        Some(
-            Flex::column()
-                .with_cross_axis_alignment(CrossAxisAlignment::Start)
-                .with_child(
-                    Container::new(label_text)
-                        .with_margin_bottom(LABEL_VALUE_GAP)
-                        .finish(),
-                )
-                .with_child(agent_name_element)
-                .finish(),
-        )
     }
 
     fn render_status_section(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
@@ -1153,15 +928,6 @@ impl View for ConversationDetailsPanel {
             );
         }
 
-        // Creator section
-        if let Some(creator_section) = self.render_creator_section(appearance) {
-            content.add_child(
-                Container::new(creator_section)
-                    .with_margin_bottom(FIELD_SPACING)
-                    .finish(),
-            );
-        }
-
         // Divider
         content.add_child(
             Container::new(
@@ -1177,15 +943,6 @@ impl View for ConversationDetailsPanel {
         if let Some(status_section) = self.render_status_section(appearance) {
             content.add_child(
                 Container::new(status_section)
-                    .with_margin_bottom(FIELD_SPACING)
-                    .finish(),
-            );
-        }
-
-        // Executor section
-        if let Some(executor_section) = self.render_executor_section(appearance) {
-            content.add_child(
-                Container::new(executor_section)
                     .with_margin_bottom(FIELD_SPACING)
                     .finish(),
             );

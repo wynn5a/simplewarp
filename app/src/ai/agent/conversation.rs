@@ -67,13 +67,11 @@ use crate::persistence::model::{
     AgentConversationData, ContextWindowSegment, ConversationUsageMetadata, ModelTokenUsage,
     PersistedAutoexecuteMode, ToolUsageMetadata,
 };
-use crate::server::ids::ServerId;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::model::block::{
     AgentInteractionMetadata, AgentViewVisibility, BlockId, SerializedAIMetadata, SerializedBlock,
 };
 use crate::ui_components::icons::Icon;
-use crate::workspaces::user_profiles::UserProfileWithUID;
 use crate::{BlocklistAIHistoryModel, GlobalResourceHandlesProvider};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -301,13 +299,6 @@ pub struct AIConversation {
     /// The server conversation ID of the source conversation if this conversation was forked.
     forked_from_server_conversation_token: Option<ServerConversationToken>,
 
-    /// Metadata from the server for this conversation (permissions, timestamps, etc.).
-    /// This is None for new conversations and gets populated after the first response completes.
-    /// TODO (roland): server_conversation_token, conversation_usage_metadata, and artifacts are duplicated in here.
-    /// Those are updated via stream events on init and finished respectively, while this is fetched via graphQL
-    /// Consider consolidating by having the stream events return this whole metadata
-    server_metadata: Option<ServerAIConversationMetadata>,
-
     /// The active transaction for this conversation, if any.
     transaction: Option<Transaction>,
 
@@ -422,7 +413,6 @@ impl AIConversation {
             server_conversation_token: None,
             task_id: None,
             forked_from_server_conversation_token: None,
-            server_metadata: None,
             transaction: None,
             autoexecute_override: Default::default(),
             added_exchanges_by_response: Default::default(),
@@ -673,7 +663,6 @@ impl AIConversation {
             server_conversation_token,
             task_id: run_id.as_deref().and_then(|id| id.parse().ok()),
             forked_from_server_conversation_token,
-            server_metadata: None,
             transaction: None,
             autoexecute_override,
             added_exchanges_by_response: Default::default(),
@@ -1093,38 +1082,6 @@ impl AIConversation {
         self.forked_from_server_conversation_token = None;
     }
 
-    pub fn server_id(&self) -> Option<ServerId> {
-        self.server_metadata
-            .as_ref()
-            .map(|metadata| metadata.metadata.uid)
-    }
-
-    pub fn server_metadata(&self) -> Option<&ServerAIConversationMetadata> {
-        self.server_metadata.as_ref()
-    }
-
-    pub fn set_server_metadata(&mut self, metadata: ServerAIConversationMetadata) {
-        // An absent field (legacy server or conversation) must not erase a
-        // known baseline. Asynchronous metadata snapshots can also be stale
-        // relative to live per-request cost accounting, so a snapshot may
-        // only seed or advance the displayed total — never regress it or
-        // re-add costs the client already counted.
-        if let Some(total_provider_cost_in_cents) = metadata.usage.total_provider_cost_in_cents
-            && self
-                .total_provider_cost_in_cents
-                .is_none_or(|current| total_provider_cost_in_cents >= current)
-        {
-            self.total_provider_cost_in_cents = Some(total_provider_cost_in_cents);
-            self.conversation_usage_metadata
-                .total_provider_cost_in_cents = Some(total_provider_cost_in_cents);
-        }
-        // Usage evidence is derived from the metadata's contents (not its
-        // presence) so a zero-usage conversation keeps the footer entry
-        // hidden.
-        self.has_usage_metadata |= usage_metadata_indicates_usage(&metadata.usage);
-        self.server_metadata = Some(metadata);
-    }
-
     pub fn parent_agent_id(&self) -> Option<&str> {
         self.parent_agent_id.as_deref()
     }
@@ -1149,11 +1106,6 @@ impl AIConversation {
         self.orchestration_harness_type
             .as_deref()
             .map(parse_orchestration_harness_type)
-            .or_else(|| {
-                self.server_metadata
-                    .as_ref()
-                    .map(|metadata| Harness::from(metadata.harness))
-            })
     }
 
     pub fn set_orchestration_harness(&mut self, harness: Harness) {
@@ -1614,12 +1566,8 @@ impl AIConversation {
         title: String,
         ctx: &mut ModelContext<BlocklistAIHistoryModel>,
     ) {
-        let title_for_metadata = title.clone();
         self.task_store
             .modify_root_task(|root_task| root_task.update_description(title));
-        if let Some(metadata) = self.server_metadata.as_mut() {
-            metadata.title = title_for_metadata;
-        }
         self.write_updated_conversation_state(ctx);
     }
 
@@ -4436,50 +4384,6 @@ impl TryFrom<String> for AIConversationId {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Ok(Self(Uuid::try_parse(&value)?))
     }
-}
-
-/// The harness that produced an agent conversation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AIAgentHarness {
-    Oz,
-    ClaudeCode,
-    Gemini,
-    Codex,
-    Unknown,
-}
-
-/// Metadata for an AI conversation, containing all information from the GraphQL API
-/// except the full task list data.
-#[derive(Debug, Clone)]
-pub struct ServerAIConversationMetadata {
-    /// The title of the conversation.
-    pub title: String,
-
-    /// The working directory where the conversation was started.
-    pub working_directory: Option<String>,
-
-    /// The harness that produced this conversation.
-    pub harness: AIAgentHarness,
-
-    /// Usage metadata including token counts, credits spent, etc.
-    pub usage: ConversationUsageMetadata,
-
-    /// Server metadata (revision, timestamps, creator info, etc.).
-    pub metadata: crate::cloud_object::ServerMetadata,
-    /// Public profile for the conversation's creator, when available.
-    pub creator: Option<UserProfileWithUID>,
-
-    /// Permissions for this conversation (owning space, last updated timestamp).
-    pub permissions: crate::cloud_object::ServerPermissions,
-
-    /// The ID of the associated ambient agent task, if any.
-    pub ambient_agent_task_id: Option<crate::ai::ambient_agents::AmbientAgentTaskId>,
-
-    /// The server conversation token used to identify this conversation on the server.
-    pub server_conversation_token: ServerConversationToken,
-
-    /// Artifacts (plans, PRs) created during this conversation.
-    pub artifacts: Vec<Artifact>,
 }
 
 /// Returns an iterator over `AIAgentContext`s attached to inputs in the given `exchanges`, in the

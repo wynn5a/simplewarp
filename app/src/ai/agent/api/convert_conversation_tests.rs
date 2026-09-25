@@ -1,74 +1,9 @@
 use std::collections::HashMap;
 
-use chrono::Utc;
 use warp_multi_agent_api as api;
 
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::api::convert_conversation::*;
-use crate::ai::agent::conversation::{
-    AIAgentHarness, AIConversationId, ServerAIConversationMetadata,
-};
 use crate::ai::agent::{AIAgentInput, UserQueryMode};
-use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::cloud_object::{Revision, ServerMetadata, ServerPermissions};
-use crate::persistence::model::ConversationUsageMetadata;
-use crate::server::ids::ServerId;
-
-fn test_server_metadata(
-    server_token: &str,
-    ambient_agent_task_id: Option<AmbientAgentTaskId>,
-) -> ServerAIConversationMetadata {
-    ServerAIConversationMetadata {
-        title: "test conversation".to_string(),
-        working_directory: None,
-        harness: AIAgentHarness::Oz,
-        usage: ConversationUsageMetadata {
-            was_summarized: false,
-            context_window_usage: 0.0,
-            credits_spent: 0.0,
-            platform_credits_spent: 0.0,
-            total_provider_cost_in_cents: Some(3.2),
-            credits_spent_for_last_block: None,
-            token_usage: vec![],
-            tool_usage_metadata: Default::default(),
-            context_window_segments: Vec::new(),
-        },
-        metadata: ServerMetadata {
-            uid: ServerId::default(),
-            revision: Revision::now(),
-            metadata_last_updated_ts: Utc::now().into(),
-            trashed_ts: None,
-            folder_id: None,
-            is_welcome_object: false,
-            creator_uid: None,
-            last_editor_uid: None,
-            current_editor_uid: None,
-        },
-        permissions: ServerPermissions::mock_personal(),
-        creator: None,
-        ambient_agent_task_id,
-        server_conversation_token: ServerConversationToken::new(server_token.to_string()),
-        artifacts: vec![],
-    }
-}
-
-/// Builds an empty conversation the way the deleted cloud-restorer used to, so
-/// `set_server_metadata` semantics can still be exercised against a real model.
-fn empty_restored_conversation() -> crate::ai::agent::conversation::AIConversation {
-    crate::ai::agent::conversation::AIConversation::new_restored(
-        AIConversationId::new(),
-        vec![api::Task {
-            id: "root".to_string(),
-            messages: vec![],
-            dependencies: None,
-            description: String::new(),
-            summary: String::new(),
-            server_data: String::new(),
-        }],
-        None,
-    )
-    .expect("conversation should restore")
-}
 
 fn test_skill() -> api::Skill {
     api::Skill {
@@ -91,67 +26,6 @@ fn test_skill() -> api::Skill {
             line_range: None,
         }),
     }
-}
-
-/// A later server-metadata snapshot without the provider-cost field (legacy
-/// server or conversation) must not erase a known baseline, and usage
-/// evidence must be derived from the metadata's contents.
-#[test]
-#[allow(deprecated)]
-fn set_server_metadata_keeps_known_baseline_when_cost_field_is_absent() {
-    let mut conversation = empty_restored_conversation();
-    conversation.set_server_metadata(test_server_metadata("server-token", None));
-    assert_eq!(conversation.usage_totals().cost_in_cents, Some(3.2));
-
-    let mut legacy_snapshot = test_server_metadata("server-token", None);
-    legacy_snapshot.usage.total_provider_cost_in_cents = None;
-    legacy_snapshot.usage.credits_spent = 2.0;
-    conversation.set_server_metadata(legacy_snapshot);
-
-    let totals = conversation.usage_totals();
-    assert_eq!(totals.cost_in_cents, Some(3.2));
-    assert!(totals.has_usage);
-}
-
-/// Asynchronous GraphQL metadata snapshots can be stale relative to live
-/// stream accounting: a snapshot may seed or advance the known total but
-/// never regress it.
-#[test]
-#[allow(deprecated)]
-fn stale_server_metadata_snapshot_never_regresses_known_total() {
-    let mut conversation = empty_restored_conversation();
-    conversation.set_server_metadata(test_server_metadata("server-token", None));
-    assert_eq!(conversation.usage_totals().cost_in_cents, Some(3.2));
-
-    let mut newer_snapshot = test_server_metadata("server-token", None);
-    newer_snapshot.usage.total_provider_cost_in_cents = Some(4.4);
-    conversation.set_server_metadata(newer_snapshot);
-    assert_eq!(conversation.usage_totals().cost_in_cents, Some(4.4));
-
-    let mut stale_snapshot = test_server_metadata("server-token", None);
-    stale_snapshot.usage.total_provider_cost_in_cents = Some(3.2);
-    conversation.set_server_metadata(stale_snapshot);
-    assert_eq!(
-        conversation.usage_totals().cost_in_cents,
-        Some(4.4),
-        "a stale snapshot must never regress the displayed total"
-    );
-}
-
-/// A server-metadata snapshot whose usage contents are all-default carries no
-/// usage evidence, so the footer's usage entry stays hidden.
-#[test]
-#[allow(deprecated)]
-fn set_server_metadata_with_zero_usage_keeps_footer_usage_hidden() {
-    let mut zero_usage_metadata = test_server_metadata("server-token", None);
-    zero_usage_metadata.usage.total_provider_cost_in_cents = None;
-
-    let mut conversation = empty_restored_conversation();
-    conversation.set_server_metadata(zero_usage_metadata);
-
-    let totals = conversation.usage_totals();
-    assert!(!totals.has_usage);
-    assert_eq!(totals.cost_in_cents, None);
 }
 
 #[test]

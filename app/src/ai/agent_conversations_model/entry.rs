@@ -15,9 +15,8 @@ use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::history_model::{AIConversationMetadata, BlocklistAIHistoryModel};
 use crate::ai::blocklist::orchestration_topology::orchestration_aware_conversation_status;
 use crate::ai::conversation_navigation::ConversationNavigationData;
-use crate::auth::{AuthStateProvider, UserUid};
+use crate::auth::AuthStateProvider;
 use crate::workspace::RestoreConversationLayout;
-use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 
 /// Stable projection identity used by list and navigation surfaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -137,7 +136,6 @@ pub struct AgentConversationBackingData {
 pub struct AgentConversationCapabilities {
     pub can_open: bool,
     pub can_copy_link: bool,
-    pub can_share: bool,
     pub can_delete: bool,
     pub can_fork_locally: bool,
     pub can_cancel: bool,
@@ -326,40 +324,7 @@ fn conversation_artifacts(
         .unwrap_or_default()
 }
 
-fn principal_from_user_profile(profile: &UserProfileWithUID) -> AgentConversationPrincipal {
-    let name = profile
-        .display_name
-        .as_ref()
-        .filter(|name| !name.is_empty())
-        .or_else(|| (!profile.email.is_empty()).then_some(&profile.email))
-        .cloned()
-        .or_else(|| Some(profile.firebase_uid.to_string()));
-
-    AgentConversationPrincipal {
-        name,
-        uid: Some(profile.firebase_uid.to_string()),
-        principal_type: Some(PrincipalType::User),
-    }
-}
-
-fn conversation_creator(
-    metadata: &ConversationMetadata,
-    history_model: &BlocklistAIHistoryModel,
-    app: &AppContext,
-) -> AgentConversationPrincipal {
-    let server_metadata = history_model.get_server_conversation_metadata(&metadata.nav_data.id);
-    if let Some(profile) = server_metadata.and_then(|metadata| metadata.creator.as_ref()) {
-        return principal_from_user_profile(profile);
-    }
-
-    if let Some(uid) = server_metadata.and_then(|metadata| metadata.metadata.creator_uid.as_ref()) {
-        return AgentConversationPrincipal {
-            name: UserProfiles::as_ref(app).displayable_identifier_for_uid(UserUid::new(uid)),
-            uid: Some(uid.clone()),
-            principal_type: Some(PrincipalType::User),
-        };
-    }
-
+fn conversation_creator(app: &AppContext) -> AgentConversationPrincipal {
     AgentConversationPrincipal {
         name: current_user_name(app),
         uid: current_user_uid(app),
@@ -420,9 +385,7 @@ fn entry_for_conversation_parts(
         id: AgentConversationEntryId::Conversation(conversation_id),
         identity: AgentConversationIdentity {
             local_conversation_id: Some(conversation_id),
-            ambient_agent_task_id: conversation_metadata
-                .and_then(|metadata| metadata.server_conversation_metadata.as_ref())
-                .and_then(|metadata| metadata.ambient_agent_task_id),
+            ambient_agent_task_id: None,
             server_conversation_token: server_conversation_token_for_conversation(
                 conversation_id,
                 Some(&metadata.nav_data),
@@ -437,7 +400,7 @@ fn entry_for_conversation_parts(
             created_at: metadata.nav_data.last_updated.into(),
             last_updated: metadata.nav_data.last_updated.into(),
             status: status.clone(),
-            creator: conversation_creator(&metadata, history_model, app),
+            creator: conversation_creator(app),
             executor: None,
             request_usage: conversation_request_usage(&metadata, history_model),
             run_time: None,
@@ -449,18 +412,14 @@ fn entry_for_conversation_parts(
                 .clone()
                 .or_else(|| metadata.nav_data.initial_working_directory.clone()),
             environment_id: None,
-            harness: conversation_metadata
-                .and_then(|metadata| metadata.server_conversation_metadata.as_ref())
-                .map(|metadata| Harness::from(metadata.harness))
-                .or(Some(Harness::Oz)),
+            harness: Some(Harness::Oz),
             artifacts: conversation_artifacts(&metadata, history_model),
         },
         backing: AgentConversationBackingData {
             has_loaded_conversation,
             has_local_persisted_data,
             has_cloud_data,
-            has_ambient_run: conversation_metadata
-                .is_some_and(AIConversationMetadata::is_ambient_agent_conversation),
+            has_ambient_run: false,
         },
         capabilities: AgentConversationCapabilities {
             can_open: has_local_persisted_data || has_cloud_data,
@@ -470,7 +429,6 @@ fn entry_for_conversation_parts(
                 history_model,
             )
             .is_some(),
-            can_share: history_model.can_conversation_be_shared(&conversation_id),
             can_delete: has_local_persisted_data,
             can_fork_locally: has_local_persisted_data,
             can_cancel: status.is_cancellable(),

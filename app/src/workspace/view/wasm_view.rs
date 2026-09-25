@@ -159,7 +159,7 @@ impl Workspace {
         self.transcript_details_panel.update(ctx, |panel, ctx| {
             let history_model = BlocklistAIHistoryModel::handle(ctx).as_ref(ctx);
             if let Some(conversation) = history_model.active_conversation(terminal_view_id) {
-                let details = ConversationDetailsData::from_conversation(conversation, ctx);
+                let details = ConversationDetailsData::from_conversation(conversation);
                 panel.set_conversation_details(details, ctx);
             }
             ctx.notify();

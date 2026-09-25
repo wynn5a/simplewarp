@@ -15,9 +15,7 @@ use warpui::{
 };
 
 use super::{Event, PaneConfiguration, TerminalAction, TerminalViewState};
-use crate::ai::agent::conversation::{
-    AIConversation, ConversationStatus, ServerAIConversationMetadata,
-};
+use crate::ai::agent::conversation::{AIConversation, ConversationStatus};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::blocklist::agent_view::orchestration_conversation_links::parent_conversation_navigation_card;
 use crate::ai::blocklist::orchestration_topology::orchestration_aware_conversation_status;
@@ -843,15 +841,6 @@ impl TerminalView {
             .is_some_and(|conversation| {
                 conversation.is_child_agent_conversation() && !conversation.is_remote_child()
             })
-    }
-
-    /// Server metadata for the selected conversation, if any.
-    pub fn selected_conversation_server_metadata<'a>(
-        &'a self,
-        ctx: &'a AppContext,
-    ) -> Option<&'a ServerAIConversationMetadata> {
-        self.selected_conversation_for_user_facing_chrome(ctx)
-            .and_then(AIConversation::server_metadata)
     }
 
     pub fn selected_conversation_latest_user_prompt_for_tab_name(

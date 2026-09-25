@@ -20,7 +20,7 @@ use warpui_core::ui_components::components::UiComponent;
 
 use crate::auth::UserUid;
 use crate::drive::sharing::{SharingAccessLevel, Subject};
-use crate::ids::{FolderId, ServerId, SyncId};
+use crate::ids::{ServerId, SyncId};
 
 mod generic_cloud_object;
 mod generic_string_model;
@@ -313,40 +313,6 @@ impl From<Owner> for Option<ServerId> {
 pub enum ServerObjectContainer {
     Folder { folder_uid: ServerId },
     Drive { owner: Owner },
-}
-
-/// Metadata for a cloud object that was fetched from the server.
-#[derive(Clone, Debug)]
-pub struct ServerMetadata {
-    pub uid: ServerId,
-    pub revision: Revision,
-    pub metadata_last_updated_ts: ServerTimestamp,
-    pub trashed_ts: Option<ServerTimestamp>,
-    pub folder_id: Option<FolderId>,
-    pub is_welcome_object: bool,
-    pub creator_uid: Option<String>,
-    pub last_editor_uid: Option<String>,
-    pub current_editor_uid: Option<String>,
-}
-
-/// Permissions for a cloud object that was fetched from the server.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ServerPermissions {
-    /// The GraphQL definition of a `Space` is closer to the client's definition of an `Owner` (due
-    /// to sharing). This is also going to migrate back to [ServerMetadata] as part of the
-    /// `Container` migration.
-    pub space: Owner,
-    pub permissions_last_updated_ts: ServerTimestamp,
-}
-
-impl ServerPermissions {
-    #[cfg(any(test, feature = "test-util"))]
-    pub fn mock_personal() -> Self {
-        Self {
-            space: Owner::mock_current_user(),
-            permissions_last_updated_ts: DateTime::<Utc>::default().into(),
-        }
-    }
 }
 
 #[derive(Clone, Debug)]

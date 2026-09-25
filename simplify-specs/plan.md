@@ -13151,3 +13151,185 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       dead loader fns + hydrate_remote_child_placeholder_with_
       cloud_transcript — then ServerMetadata/ServerPermissions
       fall entirely).
+
+- [x] **ServerAIConversationMetadata always-None vertical deleted (4ft) — DONE
+      2026-09-25.** The 4fr next-candidate (a) / 4fn "restructure-not-delete"
+      record, the last queued 4fq item: 24 files changed, 246 insertions(+),
+      1,631 deletions(−) including this ledger entry (code diff alone:
+      23 files, +64/−1,631).
+
+      DUAL-CONFIRM (both at HEAD, pre-edit). (a) Writers of
+      AIConversation.server_metadata: PCRE sweeps `server_metadata\s*:`
+      + `\.server_metadata` + lookbehind `(?<![A-Za-z0-9_])
+      ServerAIConversationMetadata` found exactly two struct-literal
+      writers (conversation.rs `server_metadata: None` in AIConversation::
+      new and new_restored — both permanently None; AIConversation is
+      Debug+Clone only, no Serialize/Default, so no serde/derive
+      spelling can populate it) plus ONE Some-writer:
+      AIConversation::set_server_metadata. set_server_metadata's complete
+      caller census: set_server_metadata_for_conversation (history_model
+      :852, ZERO callers), merge_cloud_conversation_metadata
+      (conversation_loader :247, ZERO callers), hydrate_remote_child_
+      placeholder_with_cloud_transcript (:2597, ONLY history_model_tests
+      callers — its doc-named production caller pane_group::
+      hydrate_remote_child_transcript_in_place no longer exists), and
+      direct test calls (conversation_details_panel_tests, convert_
+      conversation_tests). Writers of AIConversationMetadata.
+      server_conversation_metadata: From<&AIConversation> (clones the
+      always-None conversation field), from_server_metadata (called only
+      by the dead merge_cloud_conversation_metadata), a None literal in
+      initialize_historical_conversations, set_server_metadata_for_
+      conversation (dead), and update_cached_metadata_for_conversation
+      (mirrors the always-None conversation field). PREMISE HELD: no
+      live production writer anywhere.
+
+      READER REWRITES (each inlined to its permanent None arm). (1)
+      agent_icon.rs terminal_view_agent_icon_variant: dropped the
+      server_ambient_task_id lookup; is_cloud = is_cloud_agent_session()
+      && !is_local_child (the `|| server_ambient_task_id.is_some()`
+      disjunct is dead); its feeder pane_impl::selected_conversation_
+      server_metadata deleted (sole caller). (2) context_menu.rs
+      conversation_server_token: dropped the .or_else(get_server_
+      conversation_metadata) token fallback — loaded-conversation branch
+      only. (3) workspace/view.rs open_cloud_conversation_from_server_
+      token: the ownership gate read (creator_uid + permissions.space)
+      can never establish ownership, so both branches of the fn ended in
+      the transcript-viewer failure path; the fn collapsed to that call
+      and was DELETED, its FromCloudConversationId arm calling
+      load_cloud_conversation_into_new_transcript_viewer directly
+      (root_view.rs's open_cloud_conversation_in_existing_window keeps
+      the action-arg contract `_: &ServerConversationToken` — uri/mod.rs
+      dispatches the token; the warp://conversation deep-link chain that
+      can now only ever toast an error is left for a future round). (4)
+      entry.rs: conversation_creator reduced to the current-user
+      principal (principal_from_user_profile deleted, sole caller);
+      ambient_agent_task_id = None; harness = Some(Harness::Oz);
+      has_ambient_run = false; can_share fell with can_conversation_
+      be_shared — and the AgentConversationCapabilities::can_share FIELD
+      itself had zero readers repo-wide (write-only since the share
+      dialog died), so the field fell too (agent_icon_tests literal
+      updated). (5) block.rs user_avatar_info_for_ai_block deleted
+      (server-metadata creator lookup); both call sites use
+      current_user_avatar_info directly; user_avatar_info_for_
+      conversation_creator + helpers kept for their block_tests callers
+      under #[cfg_attr(not(test), allow(dead_code))] (house pattern).
+      (6) conversation_details_panel.rs from_conversation: creator/
+      conversation_id stay None (the Some arms deleted), harness =
+      Some(Harness::Oz); the creator rewrite orphaned PrincipalInfo
+      (struct + all three ctors, sole-constructor type), the creator +
+      executor render sections, and the executor_agent_link mouse state
+      — all deleted; the unused `app` param removed from from_conversation
+      (three call sites updated: terminal/view.rs, wasm_view.rs, tests).
+      Also rewritten: history_model From<&AIConversation> has_cloud_data
+      = server_conversation_token.is_some() only; get_local_
+      conversations_metadata filter drops the is_ambient_agent_
+      conversation check (permanently false; fn deleted, sole caller);
+      update_cached_metadata_for_conversation + apply_conversation_title
+      drop their server-metadata mirror blocks; orchestration_harness()
+      drops the server-metadata Harness fallback; update_conversation_
+      title drops the metadata.title write-back.
+
+      DELETIONS with caller censuses (all pre-delete). AIConversation::
+      server_metadata (field), server_id() (ZERO callers — every other
+      `server_id()` hit is the drive/exec-profile ServerId type),
+      server_metadata() accessor (all callers listed above), set_server_
+      metadata (callers above); ServerAIConversationMetadata (type);
+      AIAgentHarness (sole value source was the type's harness field;
+      harness_display.rs's From<AIAgentHarness> + PartialEq impls —
+      only invocation sites were the two rewritten readers — fell with
+      it); AIConversationMetadata.server_conversation_metadata (field),
+      from_server_metadata (sole caller the dead merge), is_ambient_
+      agent_conversation (sole caller the rewritten filter); set_server_
+      metadata_for_conversation, get_server_conversation_metadata (all
+      four callers rewritten), get_server_conversation_metadata_by_
+      server_token (ZERO callers at HEAD), can_conversation_be_shared,
+      hydrate_remote_child_placeholder_with_cloud_transcript +
+      merged_remote_child_placeholder_conversation_data (sole caller);
+      conversation_loader.rs merge_cloud_conversation_metadata,
+      CLIAgentConversation (ZERO constructors repo-wide — it required a
+      ServerAIConversationMetadata field nobody could build) +
+      CloudConversationData::CLIAgent (never constructed; enum keeps the
+      single Oz variant), the AIConversationMetadata::merge impl (sole
+      caller the dead merge); load_ai_conversation.rs Conversation-
+      RestorationInNewPaneType::HistoricalCLIAgent (constructed only in
+      pane_group's dead CLIAgent arm) + restore_cli_agent_block_snapshot
+      (sole callers the CLIAgent arms); pane_group replace_loading_pane_
+      with_terminal + fetch_conversation + agent_view.rs CLIAgent match
+      arms rewritten (agent_view's matches!(Oz) branch was permanently
+      taken — the Box conditional collapsed to the Oz closure); block.rs
+      user_avatar_info_for_ai_block. THEN crates/cloud_objects:
+      ServerMetadata + ServerPermissions (+ ServerPermissions::
+      mock_personal) deleted — post-edit repo-wide lookbehind sweeps
+      find ZERO remaining rust references to either name (the last
+      non-test consumers were the type's two fields; the 4fn-trimmed
+      ServerPermissions had no other reader); cloud_object_persistence
+      hand-checked (no reference — server response types were never
+      persisted, 4fk landmine 1 confirmed); ServerGuestSubject/
+      ServerLinkSharing already gone since 4fn; FolderId import dropped
+      from cloud_object/mod.rs (ServerMetadata was its last local
+      consumer; the id type itself stays alive elsewhere).
+
+      ONE-HOP VERDICTS (call-syntax searches). find_conversation_id_
+      by_server_token KEPT (live: agent_conversations_model.rs:529,
+      block/view_impl/output.rs:999, 13 test sites — the workspace-view
+      call that fell was not its only caller). resolve_open_action
+      KEPT (entry.rs, conversation_list/view.rs x2, tests — only the
+      dead ownership-gated call site fell). restore_conversation_and_
+      directory_context KEPT (workspace/view.rs + agent_view.rs).
+      parse_orchestration_harness_type KEPT (orchestration_harness).
+      usage_metadata_indicates_usage KEPT (new_restored :587). Cloud
+      ConversationData keeps a single Oz variant (collapsing the enum
+      would touch 8 more call sites — recorded below as a candidate).
+
+      TEST CHANGES (−6 default, −6 simplewarp; all six exercised deleted
+      behavior). convert_conversation_tests.rs: the three set_server_
+      metadata semantics tests (keeps_known_baseline, stale_snapshot_
+      never_regresses, zero_usage_keeps_footer_hidden) + test_server_
+      metadata/empty_restored_conversation helpers deleted. conversation_
+      details_panel_tests.rs: test_from_conversation_prefers_server_
+      creator_profile + create_test_server_metadata deleted (the
+      surviving local-fields test asserts the now-permanent server_
+      conversation_id.is_none()). history_model_tests.rs:
+      test_ambient_agent_conversations_excluded_from_list (premise was
+      the deleted ambient filter) and hydrate_remote_child_placeholder_
+      with_cloud_transcript_preserves_placeholder_identity (tested the
+      deleted fn; its stale pane_group doc-name was already a ghost)
+      + create_server_ai_conversation_metadata/server_metadata_with_
+      ambient_task helpers deleted; test_metadata literal dropped the
+      server_conversation_metadata field; the child-agent exclusion
+      test covers the surviving filter. agent_icon_tests.rs can_share
+      literal dropped with the field.
+
+      Acceptance: (1) ./script/format run twice, idempotent — identical
+      23-file working-tree status across runs, format applied no
+      changes of its own. (2) clippy WARNING-IDENTICAL to the HEAD
+      baseline captured BEFORE editing, BOTH `cargo clippy -p warp
+      --lib --all-targets` and `--no-default-features --features
+      simplewarp`: 23 = 23 json location+message pairs machine-diffed
+      per set, `diff` clean on both, zero new warnings (the 12
+      pre-existing: 11 needless-return in app/src/terminal/input.rs +
+      1 single-element-loop in terminal/model/lifecycle/mod_tests.rs:
+      272; neither file touched this round). (3) `cargo check
+      --no-default-features --features simplewarp --bin simplewarp`
+      green. (4) `cargo check -p warp --lib --features test-util`
+      green (mock_current_user rides Owner/CloudObjectPermissions::
+      mock_personal, not ServerPermissions — unaffected). (5) nextest
+      -p warp --lib --no-fail-fast: default 4,591 run = 4,597 baseline
+      − 6 documented deletions, 4,591 passed, 3 skipped, 0 failed;
+      simplewarp 4,590 = 4,596 − 6, 4,590 passed, 3 skipped, 0 failed;
+      no flakes. Runtime smoke SKIPPED per standing round policy (no
+      GUI tests, app not launched).
+
+      NEXT CANDIDATES: the 4fq queue is now EMPTY — per the plan's
+      post-endgame section, feature-flag rounds are the next phase.
+      Residue noticed this round (all pre-existing-or-newly-exposed,
+      none blocking): (a) the warp://conversation URI deep-link chain
+      (uri/mod.rs UriHost::Conversation → root_view:open_conversation_
+      viewer / open_cloud_conversation_in_existing_window → New
+      WorkspaceSource::FromCloudConversationId, whose conversation_id
+      field is now write-only) can only ever surface the "Failed to
+      load conversation data" toast; (b) CloudConversationData is now a
+      single-variant (Oz) enum whose match sites could collapse to the
+      bare Box<AIConversation>; (c) ConversationDetailsData's copy_
+      link_url field and PanelMode::Conversation's server_conversation_
+      id are permanently None with their render rows still in place.

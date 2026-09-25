@@ -1,7 +1,7 @@
-//! This module contains functions for loading, fetching, and merging conversation data
-//! from local database and server sources.
+//! This module contains functions for loading and fetching conversation data
+//! from memory and the local database.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::future::Future;
 
 use futures::FutureExt;
@@ -13,24 +13,12 @@ use super::{
     agent_id_key_from_persisted_data,
 };
 use crate::ai::agent::api::ServerConversationToken;
-use crate::ai::agent::conversation::{
-    AIConversation, AIConversationId, ServerAIConversationMetadata,
-};
+use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 #[cfg(feature = "local_fs")]
 use crate::persistence::agent::read_agent_conversation_by_id;
 use crate::persistence::model::{
     AgentConversation, AgentConversationData, AgentConversationSummary,
 };
-use crate::terminal::model::block::SerializedBlock;
-
-/// A conversation transcript from a CLI agent harness (e.g. Claude Code).
-#[derive(Debug, Clone)]
-pub struct CLIAgentConversation {
-    /// Server metadata about this conversation.
-    pub metadata: ServerAIConversationMetadata,
-    /// A snapshot of the final agent TUI state.
-    pub block: SerializedBlock,
-}
 
 /// Representation of the conversation data that can be fetched from cloud storage.
 ///
@@ -39,8 +27,6 @@ pub enum CloudConversationData {
     /// A conversation produced by the Oz harness, which we can materialize into the
     /// [`AIConversation`] data model.
     Oz(Box<AIConversation>),
-    /// A conversation produced by an external CLI agent harness.
-    CLIAgent(Box<CLIAgentConversation>),
 }
 
 /// Converts an `AgentConversation` from the database to an `AIConversation`.
@@ -106,30 +92,6 @@ where
         } else {
             f.boxed()
         }
-    }
-}
-
-impl AIConversationMetadata {
-    fn merge(&mut self, other: AIConversationMetadata) -> &mut Self {
-        self.has_local_data |= other.has_local_data;
-        if self.initial_query.is_empty() {
-            self.initial_query = other.initial_query;
-        }
-        if self.initial_working_directory.is_none() {
-            self.initial_working_directory = other.initial_working_directory;
-        }
-        if self.artifacts.is_empty() {
-            self.artifacts = other.artifacts;
-        }
-        // Preserve parent linkage so a merged record (e.g. cloud metadata merged
-        // with the in-memory child's metadata) keeps its child-agent status.
-        if self.parent_conversation_id.is_none() {
-            self.parent_conversation_id = other.parent_conversation_id;
-        }
-        if self.parent_agent_id.is_none() {
-            self.parent_agent_id = other.parent_agent_id;
-        }
-        self
     }
 }
 
@@ -239,114 +201,6 @@ impl BlocklistAIHistoryModel {
         }
 
         None
-    }
-
-    /// Merges cloud conversation metadata with existing local metadata.
-    /// Deduplicates by conversation_id and server_conversation_token.
-    /// Also updates server_metadata on any already-restored conversations that match by token.
-    pub fn merge_cloud_conversation_metadata(
-        &mut self,
-        cloud_metadata_list: Vec<ServerAIConversationMetadata>,
-    ) {
-        let local_count = self.all_conversations_metadata.len();
-        let mut local_matched_with_server_count = 0;
-        let mut new_cloud_count = 0;
-        let mut restored_conversations_updated = 0;
-
-        // Collect tokens belonging to child agent conversations so we can skip them.
-        let mut child_conversation_tokens: HashSet<String> = HashSet::new();
-        for conv in self.conversations_by_id.values() {
-            if let Some(token) = conv.server_conversation_token()
-                && conv.is_child_agent_conversation()
-            {
-                child_conversation_tokens.insert(token.as_str().to_string());
-            }
-        }
-
-        for server_meta in cloud_metadata_list {
-            let server_token = server_meta.server_conversation_token.clone();
-            let server_token_str = server_token.as_str();
-
-            // Child agent conversations are managed by their parent's status card
-            // and should not appear in navigation/history.
-            if child_conversation_tokens.contains(server_token_str) {
-                continue;
-            }
-            let had_metadata_entry = self
-                .all_conversations_metadata
-                .values()
-                .any(|metadata| metadata.server_conversation_token.as_ref() == Some(&server_token));
-            let canonical_conversation_id =
-                self.get_or_set_canonical_conversation_id_for_server_token(&server_token);
-
-            if let Some(conversation) = self.conversations_by_id.get_mut(&canonical_conversation_id)
-            {
-                conversation.set_server_metadata(server_meta.clone());
-                restored_conversations_updated += 1;
-                log::debug!(
-                    "Updated server metadata for restored conversation {canonical_conversation_id} with token {server_token_str}"
-                );
-            }
-
-            let stale_metadata: Vec<(AIConversationId, AIConversationMetadata)> = self
-                .all_conversations_metadata
-                .iter()
-                .filter_map(|(conversation_id, metadata)| {
-                    (*conversation_id != canonical_conversation_id
-                        && metadata.server_conversation_token.as_ref() == Some(&server_token))
-                    .then_some((*conversation_id, metadata.clone()))
-                })
-                .collect();
-            for (stale_metadata_id, _) in &stale_metadata {
-                self.all_conversations_metadata.remove(stale_metadata_id);
-            }
-
-            let existing_metadata = self
-                .all_conversations_metadata
-                .get(&canonical_conversation_id)
-                .cloned();
-            let local_metadata = self
-                .conversations_by_id
-                .get(&canonical_conversation_id)
-                .map(AIConversationMetadata::from);
-            let mut metadata = AIConversationMetadata::from_server_metadata(
-                canonical_conversation_id,
-                server_meta,
-            );
-            for local_metadata in existing_metadata
-                .into_iter()
-                .chain(stale_metadata.into_iter().map(|(_, metadata)| metadata))
-                .chain(local_metadata)
-            {
-                metadata.merge(local_metadata);
-            }
-
-            self.server_token_to_conversation_id
-                .insert(server_token.clone(), canonical_conversation_id);
-            self.all_conversations_metadata
-                .insert(canonical_conversation_id, metadata);
-
-            if had_metadata_entry {
-                local_matched_with_server_count += 1;
-                log::debug!(
-                    "Matched local conversation {canonical_conversation_id} with server token {server_token_str}"
-                );
-            } else {
-                new_cloud_count += 1;
-                log::debug!(
-                    "Added new cloud-only conversation with local ID {canonical_conversation_id} and server token {server_token_str}"
-                );
-            }
-        }
-
-        log::info!(
-            "Merged cloud conversations: {} local, {} found matched cloud metadata, {} new cloud-only added, {} restored conversations updated. Total: {}",
-            local_count,
-            local_matched_with_server_count,
-            new_cloud_count,
-            restored_conversations_updated,
-            self.all_conversations_metadata.len()
-        );
     }
 
     /// Initializes historical conversations from restored agent conversations.
@@ -527,8 +381,6 @@ impl BlocklistAIHistoryModel {
                         server_conversation_token,
                         has_local_data: true,
                         artifacts,
-                        // Only populated when loading from server, not from local DB
-                        server_conversation_metadata: None,
                         // Carry parent linkage from persisted data so child-agent
                         // status survives even if the parent isn't resolvable
                         // locally (the child-skip above only fires when the
