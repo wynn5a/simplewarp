@@ -13567,3 +13567,101 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       the generic unknown-host error — wasm-only, unverifiable in this
       fork's acceptance, left for a wasm-aware round. Next round id:
       4fx.
+
+- [x] **CloudConversationData single-variant Oz enum collapsed to bare
+      Box<AIConversation> (4fx) — DONE 2026-09-25.** 4ft next-candidate
+      (b), carried through 4fv/4fw: 6 files changed, 26 insertions(+),
+      55 deletions(−) (code only; + this ledger entry). Pure dead-
+      structure refactor — zero behavior change, no deletion target.
+
+      DUAL-CONFIRM (premise verified at HEAD before editing). PCRE
+      census with lookbehind `(?<![A-Za-z0-9_])CloudConversationData`:
+      19 textual references across 6 files, ZERO in test files.
+      Definition: conversation_loader.rs `pub enum CloudConversationData
+      { Oz(Box<AIConversation>) }` — genuinely single-variant at HEAD,
+      NO derives at all (no Clone/Debug, no serde): a pure in-memory
+      carrier, so the collapse cannot alter any serialized bytes — no
+      STOP condition. Census remainder: 1 re-export (history_model.rs),
+      4 imports (fetch_conversation.rs, pane_group/mod.rs, load_ai_
+      conversation.rs, workspace/view.rs), conversation_loader's 2
+      constructions + 4 type positions (box_future return + bound,
+      load_conversation_data, load_conversation_by_server_token), 1
+      turbofish (fetch_conversation ActionExecution::<Option<…>>::
+      InvalidAction), 5 destructures/matches (fetch_conversation map-
+      closure, pane_group restoration match, load_ai_conversation ref-
+      destructure + closure match, workspace fork let-else). Variant
+      spellings swept separately: every other `Oz` hit repo-wide is the
+      unrelated Harness::Oz; no type aliases, no `as` re-imports, no
+      doc-link references.
+
+      COLLAPSE. The payload type is Box<AIConversation> everywhere the
+      enum stood: load_conversation_data / load_conversation_by_server_
+      token / box_future now return BoxFuture<'static, Option<Box<
+      AIConversation>>> (memory hit Some(Box::new(conversation.clone())),
+      DB hit .map(Box::new)); PaneGroup::replace_loading_pane_with_
+      terminal and TerminalView::restore_conversation_and_directory_
+      context take the Box by value; resolve_dir_restoration_state takes
+      &AIConversation (deref-coerced at the call site — a literal &Box<T>
+      param would trip clippy::borrowed_box) with its destructure
+      replaced by a direct initial_working_directory() call; the fork
+      spawn's let-else drops the wrapper pattern and hands the Box
+      straight to create_local_fork, whose Box<AIConversation> param
+      predates this round and is untouched. Both unwrap-only matches
+      (pane_group restoration, load_ai_conversation closure) collapsed
+      to direct construction/call. fetch_conversation.rs: the closure's
+      map-unbox shuffle deleted by widening materialize_conversation to
+      Option<Box<AIConversation>>; the InvalidAction turbofish became
+      Option<Box<AIConversation>> — SpawnableOutput is only a Send/
+      Unrestricted marker alias, so Option<Box<…>> satisfies it exactly
+      as the enum did. Post-collapse sweep: zero references repo-wide.
+
+      ORPHAN VERDICTS. The enum had NO impl block, so no conversion or
+      match helpers existed to fall; box_future (the only enum-adjacent
+      helper) survives with its retyped signature — 3 live call sites.
+      Clippy dead-code (both feature sets) surfaced nothing; call-syntax
+      sweeps of every changed-signature function enumerate only live
+      non-test callers: load_conversation_data x6 (agent_view, workspace
+      view x4, conversation_loader self-call), load_conversation_by_
+      server_token x1 (fetch_conversation), restore_conversation_and_
+      directory_context x2 (agent_view, workspace view),
+      replace_loading_pane_with_terminal x2 (workspace view),
+      resolve_dir_restoration_state x1 (in-file).
+
+      TEST CHANGES: none — no test file referenced the enum or any
+      changed signature (census + call-syntax sweeps); zero deletions,
+      zero count delta.
+
+      Acceptance: (1) ./script/format twice, idempotent — the git-diff
+      hash identical across runs; tree held exactly the 6 code files.
+      (2) clippy WARNING-IDENTICAL to the pre-edit HEAD baseline
+      (captured via stash before editing) on BOTH `cargo clippy -p warp
+      --lib --all-targets` and `--no-default-features --features
+      simplewarp`: 12 = 12 unique location+lint+message pairs machine-
+      diffed per set, diff clean on both, zero new warnings (the 12
+      pre-existing: 11 needless-return terminal/input.rs + 1 single-
+      element-loop lifecycle/mod_tests.rs:272; neither file touched).
+      (3) cargo check --no-default-features --features simplewarp --bin
+      simplewarp green (exit 0). (4) cargo check -p warp --lib
+      --features test-util green (exit 0). (5) nextest -p warp --lib
+      --no-fail-fast: default 4,591 run / 4,591 passed / 3 skipped / 0
+      failed; simplewarp 4,590 / 4,590 / 3 / 0 — byte-identical to the
+      4ft–4fw baselines, zero deltas; no flakes. (6) DEVELOPER_DIR
+      unset; no GUI launch, no integration suite (per standing round
+      policy).
+
+      NEXT CANDIDATES: (c) the ai_conversation_id permanently-None
+      vertical (4fv): details-panel action-buttons row + Continue-
+      locally button unreachable, now folded together with 4fw's
+      finding that OpenConversationTranscriptViewer.conversation_id is
+      write-only with a toast-only no-local-pane fallback arm — one
+      round, verify render reachability before deleting (Conversation-
+      ActionButtonsRow itself stays live for the management view
+      toolbelt); (d) the wasm-gated WebIntent::ConversationView
+      producer (web_intent_parser "conversation" arm feeding
+      open_url_on_desktop / set_context_flags / browser_url_handler)
+      rewrites server-hosted web URLs into warp://conversation/...
+      which now lands in the generic unknown-host error — EXPLICITLY
+      PARKED, not queued: wasm-only code is unverifiable in this fork's
+      acceptance (no wasm target in presubmit/nextest), so touching it
+      could not be validated; revisit only in a wasm-aware round. Next
+      round id: 4fy.

@@ -146,7 +146,6 @@ use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEd
 use crate::ai::blocklist::agent_view::editor::{AgentToolbarEditorEvent, AgentToolbarEditorModal};
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use crate::ai::blocklist::handoff::{HandoffLaunchAttachments, PendingCloudLaunch};
-use crate::ai::blocklist::history_model::CloudConversationData;
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
 use crate::ai::blocklist::suggested_agent_mode_workflow_modal::{
     SuggestedAgentModeWorkflowAndId, SuggestedAgentModeWorkflowModal,
@@ -11637,7 +11636,7 @@ impl Workspace {
             .load_conversation_data(conversation_id);
 
         ctx.spawn(future, move |workspace, source_conversation, ctx| {
-            let Some(CloudConversationData::Oz(source_conversation)) = source_conversation else {
+            let Some(source_conversation) = source_conversation else {
                 report_error!(
                     "Failed to load Oz conversation for forking.",
                     extra: { "conversation_id" => %conversation_id }

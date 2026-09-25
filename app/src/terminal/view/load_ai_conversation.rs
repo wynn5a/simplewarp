@@ -26,7 +26,7 @@ use crate::ai::blocklist::agent_view::{
     AgentViewEntryBlockParams, AgentViewEntryOrigin, DismissalStrategy, EphemeralMessage,
 };
 use crate::ai::blocklist::block::cli_controller::CLISubagentController;
-use crate::ai::blocklist::history_model::{BlocklistAIHistoryModel, CloudConversationData};
+use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 use crate::ai::blocklist::model::AIBlockModelImpl;
 use crate::ai::blocklist::{
     AIBlock, BlocklistAIActionModel, BlocklistAIContextModel, BlocklistAIController,
@@ -223,15 +223,14 @@ impl TerminalView {
     /// already in the right directory, or we need to cd.
     fn resolve_dir_restoration_state(
         &self,
-        cloud_conversation: &CloudConversationData,
+        cloud_conversation: &AIConversation,
         is_local_conversation: bool,
     ) -> RestorationDirState {
         if !is_local_conversation {
             return RestorationDirState::SkippedNonLocalConversation;
         }
 
-        let CloudConversationData::Oz(conversation) = cloud_conversation;
-        let target_dir = conversation.initial_working_directory();
+        let target_dir = cloud_conversation.initial_working_directory();
 
         let Some(target_dir) = target_dir else {
             // If we don't have a target dir, no need to cd
@@ -253,7 +252,7 @@ impl TerminalView {
     /// ensuring the conversation does not already exist in this terminal view.
     pub(crate) fn restore_conversation_and_directory_context<F>(
         &mut self,
-        cloud_conversation: CloudConversationData,
+        cloud_conversation: Box<AIConversation>,
         use_live_appearance: bool,
         entry_behavior: RestoreConversationEntryBehavior,
         is_local_conversation: bool,
@@ -271,16 +270,12 @@ impl TerminalView {
                   ctx: &mut ViewContext<TerminalView>| {
                 me.maybe_show_restore_context_hint(restore_dir_state, ctx);
 
-                match cloud_conversation {
-                    CloudConversationData::Oz(conversation) => {
-                        me.restore_conversation_after_view_creation(
-                            RestoredAIConversation::new(*conversation),
-                            use_live_appearance,
-                            entry_behavior,
-                            ctx,
-                        );
-                    }
-                }
+                me.restore_conversation_after_view_creation(
+                    RestoredAIConversation::new(*cloud_conversation),
+                    use_live_appearance,
+                    entry_behavior,
+                    ctx,
+                );
 
                 on_restored(me, ctx);
             };

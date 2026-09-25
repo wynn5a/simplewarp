@@ -20,15 +20,6 @@ use crate::persistence::model::{
     AgentConversation, AgentConversationData, AgentConversationSummary,
 };
 
-/// Representation of the conversation data that can be fetched from cloud storage.
-///
-/// The exact format depends on the agent harness that produced the conversation.
-pub enum CloudConversationData {
-    /// A conversation produced by the Oz harness, which we can materialize into the
-    /// [`AIConversation`] data model.
-    Oz(Box<AIConversation>),
-}
-
 /// Converts an `AgentConversation` from the database to an `AIConversation`.
 /// This utility function extracts the conversion logic that was originally embedded
 /// in the terminal view restoration process.
@@ -82,9 +73,9 @@ pub fn convert_persisted_conversation_to_ai_conversation_with_metadata(
 
 /// Boxes a future with the right type for the platform.
 /// On WASM, futures must not implement Send.
-fn box_future<F>(f: F) -> warpui::r#async::BoxFuture<'static, Option<CloudConversationData>>
+fn box_future<F>(f: F) -> warpui::r#async::BoxFuture<'static, Option<Box<AIConversation>>>
 where
-    F: Future<Output = Option<CloudConversationData>> + warpui::r#async::Spawnable,
+    F: Future<Output = Option<Box<AIConversation>>> + warpui::r#async::Spawnable,
 {
     cfg_if::cfg_if! {
         if #[cfg(target_family = "wasm")] {
@@ -106,12 +97,10 @@ impl BlocklistAIHistoryModel {
     pub fn load_conversation_data(
         &self,
         conversation_id: AIConversationId,
-    ) -> warpui::r#async::BoxFuture<'static, Option<CloudConversationData>> {
+    ) -> warpui::r#async::BoxFuture<'static, Option<Box<AIConversation>>> {
         // First check if the conversation is already in memory
         if let Some(conversation) = self.conversations_by_id.get(&conversation_id) {
-            return box_future(futures::future::ready(Some(CloudConversationData::Oz(
-                Box::new(conversation.clone()),
-            ))));
+            return box_future(futures::future::ready(Some(Box::new(conversation.clone()))));
         }
 
         // Check metadata to determine the source
@@ -128,7 +117,7 @@ impl BlocklistAIHistoryModel {
             // Load from local database synchronously
             let result = self
                 .load_conversation_from_db(&conversation_id)
-                .map(|c| CloudConversationData::Oz(Box::new(c)));
+                .map(Box::new);
             box_future(futures::future::ready(result))
         } else {
             // Cloud conversation storage requires a Warp account/server, which
@@ -150,7 +139,7 @@ impl BlocklistAIHistoryModel {
     pub fn load_conversation_by_server_token(
         &mut self,
         server_token: &ServerConversationToken,
-    ) -> warpui::r#async::BoxFuture<'static, Option<CloudConversationData>> {
+    ) -> warpui::r#async::BoxFuture<'static, Option<Box<AIConversation>>> {
         let conversation_id =
             self.get_or_set_canonical_conversation_id_for_server_token(server_token);
         self.load_conversation_data(conversation_id)

@@ -9,7 +9,6 @@ use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversation;
 use crate::ai::agent::{AIAgentActionResultType, AIAgentActionType, conversation_yaml};
-use crate::ai::blocklist::history_model::CloudConversationData;
 
 pub struct FetchConversationExecutor;
 
@@ -33,7 +32,7 @@ impl FetchConversationExecutor {
     ) -> impl Into<AnyActionExecution> + use<> {
         let ExecuteActionInput { action, .. } = input;
         let AIAgentActionType::FetchConversation { conversation_id } = &action.action else {
-            return ActionExecution::<Option<CloudConversationData>>::InvalidAction;
+            return ActionExecution::<Option<Box<AIConversation>>>::InvalidAction;
         };
 
         let conversation_id = conversation_id.clone();
@@ -44,11 +43,7 @@ impl FetchConversationExecutor {
         });
 
         ActionExecution::new_async(load_future, move |cloud_conversation, _ctx| {
-            let conversation = cloud_conversation.map(|cc| {
-                let CloudConversationData::Oz(c) = cc;
-                *c
-            });
-            materialize_conversation(conversation, &conversation_id)
+            materialize_conversation(cloud_conversation, &conversation_id)
         })
     }
 
@@ -63,7 +58,7 @@ impl FetchConversationExecutor {
 
 /// Materializes a loaded conversation's tasks into YAML files on disk.
 fn materialize_conversation(
-    conversation: Option<AIConversation>,
+    conversation: Option<Box<AIConversation>>,
     server_conversation_id: &str,
 ) -> AIAgentActionResultType {
     let Some(conversation) = conversation else {

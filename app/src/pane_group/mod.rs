@@ -41,7 +41,6 @@ use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::ai_document_view::AIDocumentView;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
-use crate::ai::blocklist::history_model::CloudConversationData;
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
 use crate::ai::blocklist::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
 use crate::ai::blocklist::suggested_rule_modal::SuggestedRuleAndId;
@@ -4757,17 +4756,13 @@ impl PaneGroup {
     pub fn replace_loading_pane_with_terminal(
         &mut self,
         loading_pane_id: PaneId,
-        cloud_conversation: CloudConversationData,
+        cloud_conversation: Box<AIConversation>,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        let restoration = match cloud_conversation {
-            CloudConversationData::Oz(conversation) => {
-                ConversationRestorationInNewPaneType::Historical {
-                    conversation: *conversation,
-                    should_use_live_appearance: true,
-                    ambient_agent_task_id: None,
-                }
-            }
+        let restoration = ConversationRestorationInNewPaneType::Historical {
+            conversation: *cloud_conversation,
+            should_use_live_appearance: true,
+            ambient_agent_task_id: None,
         };
 
         // Get the initial working directory from the restored conversation.

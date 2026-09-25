@@ -48,9 +48,7 @@ use crate::terminal::view::blocklist_filter;
 use crate::ui_components::icons::Icon;
 
 mod conversation_loader;
-pub use conversation_loader::{
-    CloudConversationData, convert_persisted_conversation_to_ai_conversation_with_metadata,
-};
+pub use conversation_loader::convert_persisted_conversation_to_ai_conversation_with_metadata;
 use warp_errors::report_error;
 
 /// Mirrors [`crate::persistence::agent::MAX_PERSISTED_CONVERSATION_COUNT`].
