@@ -92,17 +92,6 @@ fn multiple_global_flags_before_subcommand_parse() {
 }
 
 #[test]
-fn logout_parses() {
-    let args = Args::try_parse_from(["warp", "logout"]).unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp logout` command");
-    };
-
-    assert!(matches!(boxed_cmd.as_ref(), CliCommand::Logout));
-}
-
-#[test]
 fn agent_run_accepts_file() {
     let args = Args::try_parse_from([
         "warp",

@@ -228,11 +228,6 @@ fn render_button(
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PromptSuggestionsEvent {
-    SignupAnonymousUser,
-}
-
 pub struct PromptSuggestionsView {
     ai_input_model: ModelHandle<BlocklistAIInputModel>,
     prompt_alert: ViewHandle<PromptAlertView>,
@@ -263,7 +258,11 @@ impl PromptSuggestionsView {
 }
 
 impl Entity for PromptSuggestionsView {
-    type Event = PromptSuggestionsEvent;
+    type Event = ();
+}
+
+impl TypedActionView for PromptSuggestionsView {
+    type Action = ();
 }
 
 impl View for PromptSuggestionsView {
@@ -326,22 +325,10 @@ impl View for PromptSuggestionsView {
         }
 
         Container::new(inner_banner_flex.finish())
-            // Add 1px top padding to balance out the 1px overdraw on the bottom
+            // Render 1px top padding to balance out the 1px overdraw on the bottom
             // and keep everything vertically centered.
             .with_padding_top(1.)
             .with_overdraw_bottom(1.)
             .finish()
-    }
-}
-
-impl TypedActionView for PromptSuggestionsView {
-    type Action = PromptSuggestionsEvent;
-
-    fn handle_action(&mut self, action: &PromptSuggestionsEvent, ctx: &mut ViewContext<Self>) {
-        match action {
-            PromptSuggestionsEvent::SignupAnonymousUser => {
-                ctx.emit(PromptSuggestionsEvent::SignupAnonymousUser);
-            }
-        }
     }
 }

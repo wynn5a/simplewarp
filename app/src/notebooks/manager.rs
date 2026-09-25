@@ -312,18 +312,6 @@ impl NotebookManager {
             }
         }
     }
-
-    /// Reset the notebook manager state for logout.
-    ///
-    /// This _does not_ save any pending notebook changes.
-    pub fn reset(&mut self) {
-        self.panes_by_hashed_id.clear();
-        for (_, status) in self.raw_text_by_hashed_id.drain() {
-            if let NotebookRawTextStatus::ParseInFlight(handle) = status {
-                handle.abort();
-            }
-        }
-    }
 }
 
 struct NotebookPaneData {

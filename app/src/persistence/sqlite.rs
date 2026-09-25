@@ -497,19 +497,6 @@ fn ensure_owner_only_file(_path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn remove(sender: SyncSender<ModelEvent>) {
-    // Instruct the writer thread to remove the database and pause processing
-    // events.
-    // Ideally, we'd drop any other events in the channel, but it's not worth the complexity right
-    // now. Having the writer thread remove the database file prevents race conditions if the
-    // thread is in the middle of another update.
-    report_if_error!(
-        sender
-            .send(ModelEvent::PauseAndRemoveDatabase)
-            .context("Error requesting database deletion")
-    );
-}
-
 pub(super) fn reconstruct(sender: SyncSender<ModelEvent>) {
     report_if_error!(
         sender

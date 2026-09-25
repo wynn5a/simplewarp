@@ -255,7 +255,7 @@ use crate::terminal::package_installers::command_at_cursor_has_common_package_in
 use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
 use crate::terminal::universal_developer_input::AtContextMenuDisabledReason;
 use crate::terminal::view::CodeDiffAction;
-use crate::terminal::view::inline_banner::{PromptSuggestionsEvent, PromptSuggestionsView};
+use crate::terminal::view::inline_banner::PromptSuggestionsView;
 use crate::tips::{
     Tip, TipAction, TipHint, TipsCompleted, mark_feature_used_and_write_to_user_defaults,
 };
@@ -864,7 +864,6 @@ pub enum Event {
     EditorFocused,
     UnhandledCmdEnter,
     CtrlEnter,
-    SignupAnonymousUser,
     OpenSettings(SettingsSection),
     #[cfg(feature = "local_fs")]
     OpenCodeInWarp {
@@ -2619,9 +2618,6 @@ impl Input {
 
         let prompt_suggestions_view = ctx
             .add_typed_action_view(|ctx| PromptSuggestionsView::new(ai_input_model.clone(), ctx));
-        ctx.subscribe_to_view(&prompt_suggestions_view, move |me, _, event, ctx| {
-            me.handle_prompt_suggestions_event(event, ctx);
-        });
 
         let slash_command_data_source = ctx.add_model(|ctx| {
             let args = slash_commands::GuiDataSourceArgs {
@@ -12315,16 +12311,6 @@ impl Input {
 
     pub fn should_show_universal_developer_input(&self, app: &AppContext) -> bool {
         InputSettings::as_ref(app).is_universal_developer_input_enabled(app)
-    }
-
-    fn handle_prompt_suggestions_event(
-        &mut self,
-        event: &PromptSuggestionsEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            PromptSuggestionsEvent::SignupAnonymousUser => ctx.emit(Event::SignupAnonymousUser),
-        }
     }
 
     /// Returns whether the input box is currently pinned to the top of the screen.

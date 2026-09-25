@@ -160,21 +160,6 @@ pub fn whoami(ctx: &mut AppContext, output_format: OutputFormat) -> Result<()> {
     Ok(())
 }
 
-/// Log out of Warp using the same logic as the app.
-pub fn logout(ctx: &mut AppContext) -> Result<()> {
-    let auth_state = AuthStateProvider::as_ref(ctx).get();
-    if !auth_state.is_logged_in() {
-        println!("You are not logged in.");
-        ctx.terminate_app(TerminationMode::ForceTerminate, None);
-        return Ok(());
-    }
-
-    crate::auth::log_out(ctx);
-    println!("Logged out successfully.");
-    ctx.terminate_app(TerminationMode::ForceTerminate, None);
-    Ok(())
-}
-
 #[cfg(test)]
 #[path = "admin_tests.rs"]
 mod tests;

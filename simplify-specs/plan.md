@@ -14200,3 +14200,148 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       SignIn event/action, main_page SignupAnonymousUser chain +
       settings event plumbing, CopyAccessTokenToClipboard (Reauth
       already gone via this round's deviation).
+
+- [x] **login slice 2 — logout + sign-up surfaces deleted (4gb) — DONE
+      2026-09-25.** Executed 4fz SLICE 2 exactly as scoped (Reauth was
+      already gone via 4ga's deviation). 43 files, +40/−1,413. Every
+      deletion target dual-confirmed first with PCRE lookbehind sweeps
+      (zero live production callers beyond the vertical); MCP-server
+      OAuth "Log out" buttons/tooltips and `terminal_status_log_
+      outcome`-style names were verified to be DIFFERENT verticals and
+      kept.
+
+      DELETIONS with evidence (all symbols zero-referenced post-delete,
+      PCRE lookbehind + call-syntax sweeps): auth/mod.rs logout
+      machinery — web_logout_url, maybe_log_out (+ its confirmation
+      modal + PaletteSource::LogOutModal "Show running processes"
+      dispatch), log_out_and_open_web, log_out (+ wasm
+      WarpEvent::LoggedOut emit; the variant stays in the wasm lib
+      crate, emitted nowhere), remove_cloud_persisted_settings — plus
+      mod_tests.rs (web_logout_url test). mod.rs is now just the mod
+      decls + re-export chain. global_actions.rs: app:maybe_log_out +
+      app:log_out registrations, trigger_maybe_log_out, trigger_log_
+      out. app_menus.rs "Log out" item. admin.rs logout + agent_sdk
+      dispatch arm + command_requires_auth arm + warp_cli CliCommand::
+      Logout variant + as_str_for_tracing arm. workspace: LogOut/
+      CopyAccessTokenToClipboard/SignupAnonymousUser/SignInAnonymous-
+      WebUser variants + registrations (workspace:log_out binding,
+      workspace:copy_access_token_to_clipboard debug binding) + all
+      handler arms + should_save_app_state_on_action arms;
+      initiate_user_signup + redirect_to_sign_in (wasm, verbatim per
+      landmine 6, incl. the wasm-only parse_current_url/update_browser_
+      url import); tab-bar sign-in/sign-up buttons + both render fns +
+      their warp_account_available gate + mouse_states.{sign_in,sign_
+      up}_button fields (util.rs); WorkspaceBanner::AnonymousUserAuth
+      variant + is_dismissible + dismiss arms (already a husk —
+      banner_fields never produced it); on_log_out. Settings chain:
+      SettingsViewEvent::SignupAnonymousUser + workspace arm,
+      MainSettingsPageEvent (enum deleted; Entity Event = ()),
+      handle_main_page_event + subscription, MainPageAction::
+      SignupAnonymousUser + arm + the anonymous-account "Sign up"
+      button, LogoutWidget + LOG_OUT_TEXT + registration, Account
+      WidgetStateHandles.anonymous_user_sign_up_button. warp_agent_
+      page: WarpAgentPage{Action,Event}::SignupAnonymousUser + arm +
+      the two dispatch sites — the is_anonymous AI-toggle sign-up
+      branch collapsed to the plain toggle, and the SoloUserByok
+      "Create an account" hyperlink-action else-if branch removed
+      (falls to the generic upgrade link). left_panel: LeftPanelAction
+      ::SignIn + LeftPanelEvent::SignInRequested + arms + the locked-
+      panel "Sign in" button + mouse handle (wall title/description
+      copy stays for slice 4's drive walls). Terminal relay chain (all
+      one-hop orphans of initiate_user_signup; the prompt-suggestions
+      chip that once dispatched PromptSuggestionsEvent was already
+      gone): PromptSuggestionsEvent enum + TypedActionView impl, input
+      Event::SignupAnonymousUser + handle_prompt_suggestions_event +
+      subscription, terminal Event::{SignupAnonymousUser, Anonymous-
+      UserSignup} + InputEvent arm, pane_group Event::{SignupAnony-
+      mousUser, AnonymousUserSignup} + terminal_pane relay arms, the
+      "Login for AI" anonymous-user banner in toto (241-line file +
+      TerminalAction::AnonymousUserAISignUpBanner + Display arm +
+      InlineBannerType::AnonymousUserAISignUp + is_visible_in_agent_
+      view arm + inline_banners_state field + insert/remove/action fns
+      + the SessionBootstrapped gate + the render insert + the
+      anonymous_user_ai_sign_up_banner_shown GeneralSettings key) —
+      the SignUp click was the last emitter into the dead relay.
+
+      ONE-HOP CONSEQUENCES (each hand-verified before deleting):
+      AuthManager::log_out (credential clearing, sole caller auth::
+      log_out; was 3a's "log_out leftovers" — pulled forward) + its
+      doc; root_view "root_view:log_out" registration + handler (the
+      fresh-workspace reset was logout-only) + UserAccountDisabled
+      arm's crate::auth::log_out call emptied (AuthFailed machinery
+      itself is 3a's); server_api pump's UserAccountDisabled arm
+      collapsed to the re-emit catch-all (landmine 5 swept: pump
+      dispatch was the only other app:log_out dispatcher; the pump
+      body itself is 3b's); persistence::remove + sqlite::remove; the
+      five logout-only model reset()s (AgentConversationsModel,
+      OrchestrationPillBarModel, BlocklistAIHistoryModel, EnvVar-
+      CollectionManager, NotebookManager — CloudModel/AIExecution-
+      ProfilesModel/WorkflowManager resets have other callers and
+      stay); focus_running_window_and_show_native_modal (lib.rs);
+      PrivacySettings::refresh_to_default; CloudModel::num_unsaved_
+      objects_to_warn_about_before_quitting; main_page/warp_agent_
+      page/left_panel unused-import cleanups. KEPT boundaries
+      (verified, recorded): Workspace::on_window_closed is the
+      warpui_core View::on_window_closed override (framework-invoked
+      on window close — NOT logout-only; rg of direct callers was a
+      trap); SettingsManager::clear_cloud_settings_local_state +
+      clear_fns plumbing (generic settings machinery fed by every
+      register_setting call — deleting would rewrite the settings
+      macro interface); ModelEvent::PauseAndRemoveDatabase + writer
+      pause/resume protocol (shared with reconstruct, which auth_
+      manager:140 still calls); warn_if_unsaved_at_quit trait +
+      ~15 impls (quit-warning semantics, now uncalled — slice 4
+      decides); warp_account_available + remaining gates, left-panel
+      "Sign in to access ..." wall copy, "Sign in to edit" tooltips,
+      drive/breadcrumbs sign-in walls (slice 4 account UI);
+      open_require_login_modal + attempt_login_gated_feature +
+      anonymous_user_hit_drive_object_limit toast emitters (landmine
+      13); MCP native.rs auth subscriptions (3a); whoami (3b);
+      WarpEvent::LoggedOut variant (wasm lib crate). Cosmetic string
+      falls: quit-warning settings widget retitled "Show warning
+      before quitting" + search terms trimmed of logout, main_page
+      AccountWidget search terms "account" (was "account sign up"),
+      quit_warning stale log-out TODO comment.
+
+      TEST CHANGES: 4 deletions, each justified: web_logout_url_
+      uses_configured_server_root (auth/mod_tests.rs, file deleted —
+      asserted the deleted fn), logout_does_not_require_auth
+      (agent_sdk mod_tests.rs, file deleted — asserted the deleted
+      CliCommand::Logout arm), test_find_by_token_returns_none_after_
+      reset (history_model_tests.rs — tested BlocklistAIHistoryModel::
+      reset, the deleted logout-only method), logout_parses (warp_cli
+      lib_tests.rs — asserted the deleted CLI parse; warp_cli nextest
+      75/75, was 76).
+
+      Acceptance: (1) ./script/format twice, idempotent (git-diff
+      shasum 7e8bc366… identical). (2) clippy default AND simplewarp:
+      exactly the known 12 pre-existing warnings (11 needless_return
+      app/src/terminal/input.rs + 1 single_element_loop lifecycle/
+      mod_tests.rs:272), zero new, no dead_code. (3) cargo check
+      --no-default-features --features simplewarp --bin simplewarp
+      green. (4) cargo check -p warp --lib --features test-util
+      green. (5) cargo check -p warp --lib --tests --features
+      skip_login green. (6) nextest -p warp --lib --no-fail-fast:
+      default 4,584 run / 4,584 passed / 3 skipped / 0 failed
+      (baseline 4,587, −3 = the warp-lib test deletions; the 4th was
+      warp_cli's); simplewarp 4,583 / 4,583 / 3 / 0 (baseline 4,586,
+      −3). (7) DEVELOPER_DIR unset; no GUI launch, no integration
+      suite. Slice acceptance string sweep: no palette/menu/settings-
+      entry string references Log out or Sign up anywhere (the two
+      remaining "Log out" strings are the MCP-server OAuth tooltips —
+      different vertical).
+
+      NEXT: slice 3a (4gc) — AuthManager slims to the toast emitters:
+      drop auth_client field/ctor param, on_user_fetched + complete_
+      authentication/set_and_persist/persist + refresh_user +
+      set_user_onboarded, AuthManagerEvent slims to {NeedsReauth,
+      AttemptedLoginGatedFeature}, subscriber arms updated (one_time_
+      modal_model, profiles, mcp native AuthManager subscription +
+      its now-stale "detach on logout" comment, root_view handle_
+      auth_manager_event + sync_local_onboarding_to_server,
+      agent_sdk authenticate_and_dispatch + requires_auth + NotLogged
+      In gate, lib.rs refresh_user call + registration arg, crash
+      set_user_id, SettingsInitializer/CloudPreferencesSyncer handle_
+      user_fetched, UpsertCurrentUserInformation, did_non_anonymous_
+      user_log_in write). Note: set_and_persist/persist survive 4ga
+      only until 3a; user_properties.rs falls with on_user_fetched.

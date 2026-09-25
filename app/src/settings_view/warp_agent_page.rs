@@ -34,7 +34,6 @@ use warpui::elements::{
 use warpui::fonts::{Properties, Weight};
 use warpui::keymap::{ContextPredicate, Keystroke};
 use warpui::platform::Cursor;
-use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::{SwitchStateHandle, TooltipConfig};
 use warpui::{
@@ -1646,7 +1645,6 @@ pub enum WarpAgentPageEvent {
     OpenCustomRouterEditor(Option<crate::ai::custom_model_routers::CustomModelRouter>),
     #[cfg(feature = "local_fs")]
     OpenCustomRouterFile(PathBuf),
-    SignupAnonymousUser,
     ShowModal,
     HideModal,
 }
@@ -1678,7 +1676,6 @@ pub enum WarpAgentPageAction {
     SetOrchestrationMessageDisplayMode(OrchestrationMessageDisplayMode),
     SetPromptSubmissionMode(PromptSubmissionMode),
     SetLongRunningCommandSubmissionMode(LongRunningCommandSubmissionMode),
-    SignupAnonymousUser,
     ToggleAwsBedrockAutoLogin,
     ToggleAwsBedrockCredentialsEnabled,
     RefreshAwsBedrockCredentials,
@@ -1927,9 +1924,6 @@ impl TypedActionView for WarpAgentPageView {
                 });
                 ctx.notify();
             }
-            WarpAgentPageAction::SignupAnonymousUser => {
-                ctx.emit(WarpAgentPageEvent::SignupAnonymousUser);
-            }
             WarpAgentPageAction::ToggleAwsBedrockAutoLogin => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(settings.aws_bedrock_auto_login.toggle_and_save_value(ctx));
@@ -2074,7 +2068,6 @@ impl From<ViewHandle<WarpAgentPageView>> for SettingsPageViewHandle {
 #[derive(Default)]
 struct GlobalAIWidget {
     switch_state: SwitchStateHandle,
-    sign_up_button: MouseStateHandle,
 }
 
 impl SettingsWidget for GlobalAIWidget {
@@ -2094,13 +2087,6 @@ impl SettingsWidget for GlobalAIWidget {
         let ui_builder = appearance.ui_builder();
         let is_ai_disabled_due_to_remote_session_org_policy =
             AISettings::as_ref(app).is_ai_disabled_due_to_remote_session_org_policy(app);
-
-        // Without an account to create, the sign-up branch below would replace the AI toggle with
-        // a dead end, and AI could never be switched on.
-        let is_anonymous = crate::features::warp_account_available()
-            && AuthStateProvider::as_ref(app)
-                .get()
-                .is_anonymous_or_logged_out();
 
         let mut row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
@@ -2134,75 +2120,20 @@ impl SettingsWidget for GlobalAIWidget {
             );
         }
 
-        // Show sign-up button for anonymous users, toggle for logged-in users
-        if is_anonymous {
-            row.add_child(
-                Flex::row()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_child(
-                        Container::new(
-                            Text::new_inline(
-                                "To use AI features, please create an account.",
-                                appearance.ui_font_family(),
-                                14.,
-                            )
-                            .with_color(
-                                appearance
-                                    .theme()
-                                    .sub_text_color(appearance.theme().surface_2())
-                                    .into_solid(),
-                            )
-                            .finish(),
-                        )
-                        .with_margin_right(16.)
-                        .finish(),
-                    )
-                    .with_child(
-                        Container::new(
-                            ui_builder
-                                .button(ButtonVariant::Accent, self.sign_up_button.clone())
-                                .with_style(UiComponentStyles {
-                                    font_size: Some(14.),
-                                    font_weight: Some(Weight::Semibold),
-                                    border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-                                    padding: Some(Coords {
-                                        top: 8.,
-                                        bottom: 8.,
-                                        left: 24.,
-                                        right: 24.,
-                                    }),
-                                    ..Default::default()
-                                })
-                                .with_text_label("Sign up".to_owned())
-                                .build()
-                                .on_click(move |ctx, _, _| {
-                                    ctx.dispatch_typed_action(
-                                        WarpAgentPageAction::SignupAnonymousUser,
-                                    );
-                                })
-                                .finish(),
-                        )
-                        .with_padding_right(TOGGLE_BUTTON_RIGHT_PADDING)
-                        .finish(),
-                    )
+        row.add_child(
+            Container::new(
+                ui_builder
+                    .switch(self.switch_state.clone())
+                    .check(AISettings::as_ref(app).is_any_ai_enabled(app))
+                    .build()
+                    .on_click(move |ctx, _, _| {
+                        ctx.dispatch_typed_action(WarpAgentPageAction::ToggleGlobalAI);
+                    })
                     .finish(),
-            );
-        } else {
-            row.add_child(
-                Container::new(
-                    ui_builder
-                        .switch(self.switch_state.clone())
-                        .check(AISettings::as_ref(app).is_any_ai_enabled(app))
-                        .build()
-                        .on_click(move |ctx, _, _| {
-                            ctx.dispatch_typed_action(WarpAgentPageAction::ToggleGlobalAI);
-                        })
-                        .finish(),
-                )
-                .with_padding_right(TOGGLE_BUTTON_RIGHT_PADDING)
-                .finish(),
-            );
-        }
+            )
+            .with_padding_right(TOGGLE_BUTTON_RIGHT_PADDING)
+            .finish(),
+        );
 
         Container::new(row.finish())
             .with_padding_bottom(15.)
@@ -4114,16 +4045,6 @@ impl SettingsWidget for ApiKeysWidget {
                         )]
                     }
                 }
-            } else if FeatureFlag::SoloUserByok.is_enabled()
-                && auth_state.is_anonymous_or_logged_out()
-            {
-                vec![
-                    FormattedTextFragment::hyperlink_action(
-                        "Create an account",
-                        WarpAgentPageAction::SignupAnonymousUser,
-                    ),
-                    FormattedTextFragment::plain_text(" to use your own API keys."),
-                ]
             } else {
                 let user_id = auth_state.user_id().unwrap_or_default();
                 let upgrade_url = UserWorkspaces::upgrade_link(user_id);

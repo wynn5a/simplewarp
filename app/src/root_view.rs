@@ -193,7 +193,6 @@ pub fn init(app: &mut AppContext) {
         "root_view:maybe_stop_active_voice_input",
         RootView::maybe_stop_active_voice_input,
     );
-    app.add_action("root_view:log_out", RootView::log_out);
     app.add_action(
         "root_view:add_session_at_path",
         RootView::add_session_at_path,
@@ -1373,31 +1372,6 @@ impl RootView {
         Some(&self.workspace)
     }
 
-    /// "Logging out" in a local-only build has no account to sign out of: it just resets the
-    /// local workspace to a fresh, empty one. There is no login screen to send the user to.
-    fn log_out(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
-        self.workspace.update(ctx, |workspace, ctx| {
-            workspace.on_log_out(ctx);
-        });
-
-        let global_resource_handles = GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
-        let workspace_setting = NewWorkspaceSource::Empty {
-            previous_active_window: None,
-            shell: None,
-        };
-        let workspace_args = WorkspaceArgs {
-            global_resource_handles,
-            workspace_setting,
-        };
-
-        // Destroy the old workspace view handle and create a fresh one in its place.
-        self.workspace = workspace_args.create_workspace(ctx);
-
-        ctx.focus_self();
-        ctx.notify();
-        true
-    }
-
     fn close_window(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
         if ContextFlag::CloseWindow.is_enabled() {
             ctx.close_window();
@@ -1653,11 +1627,7 @@ impl RootView {
                     // We show a banner in the app nudging them to reconnect, but don't
                     // actually log them out. That is handled in the workspace view.
                 }
-                UserAuthenticationError::UserAccountDisabled(_) => {
-                    // Force sign them out, as they should not be able to continue to use Warp.
-                    // Instead, they can sign in or up with a valid account.
-                    crate::auth::log_out(ctx);
-                }
+                UserAuthenticationError::UserAccountDisabled(_) => {}
                 UserAuthenticationError::Unexpected(_) => {
                     report_error!(err);
                 }

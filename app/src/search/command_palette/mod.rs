@@ -34,7 +34,6 @@ pub enum PaletteSource {
     CtrlTab { shift_pressed_initially: bool },
     WarpDrive,
     QuitModal,
-    LogOutModal,
     IntegrationTest,
     ConversationManager,
     ContextChip,

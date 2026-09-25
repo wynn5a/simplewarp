@@ -1095,14 +1095,6 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::SearchDrive),
     ]);
 
-    app.register_editable_bindings([EditableBinding::new(
-        "workspace:log_out",
-        "Log out",
-        WorkspaceAction::LogOut,
-    )
-    .with_group(bindings::BindingGroup::Settings.as_str())
-    .with_context_predicate(id!("Workspace") & !id!("IsAnonymousUser"))]);
-
     if cfg!(not(target_family = "wasm")) {
         app.register_editable_bindings([EditableBinding::new(
             "workspace:export_all_warp_drive_objects",
@@ -1252,18 +1244,6 @@ pub fn init(app: &mut AppContext) {
             id!("Workspace") & id!(flags::ENABLE_WARP_DRIVE) & id!("WarpDrive_BelongsToTeam"),
         ),
     ]);
-
-    // Register a debug-only action for writing the user's access token to the system clipboard
-    // to aid debugging and development.
-    #[cfg(not(feature = "skip_login"))]
-    if ChannelState::enable_debug_features() {
-        app.register_editable_bindings([EditableBinding::new(
-            "workspace:copy_access_token_to_clipboard",
-            "Copy access token to clipboard",
-            WorkspaceAction::CopyAccessTokenToClipboard,
-        )
-        .with_context_predicate(id!("Workspace"))]);
-    }
 
     app.register_editable_bindings([
         EditableBinding::new(

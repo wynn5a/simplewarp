@@ -9,7 +9,7 @@ use features_page::{FeaturesPageView, FeaturesSettingsPageEvent};
 use itertools::Itertools as _;
 use keybindings::KeybindingsView;
 use knowledge_page::{KnowledgePageAction, KnowledgePageEvent, KnowledgePageView};
-use main_page::{MainPageAction, MainSettingsPageEvent, MainSettingsPageView};
+use main_page::{MainPageAction, MainSettingsPageView};
 use mcp_servers_page::MCPServersSettingsPageView;
 use nav::{SettingsNavItem, SettingsUmbrella};
 use pathfinder_geometry::vector::Vector2F;
@@ -246,7 +246,6 @@ pub enum SettingsViewEvent {
     Pane(PaneEvent),
     StartResize,
     LaunchNetworkLogging,
-    SignupAnonymousUser,
     ShowToast {
         message: String,
         flavor: ToastFlavor,
@@ -1115,9 +1114,6 @@ impl SettingsView {
         let global_resource_handles = GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
         // Main settings page with accounts info
         let main_page_handle = ctx.add_typed_action_view(MainSettingsPageView::new);
-        ctx.subscribe_to_view(&main_page_handle, |me, _, event, ctx| {
-            me.handle_main_page_event(event, ctx);
-        });
 
         // Appearance & themes page
         let appearance_page_handle = ctx.add_typed_action_view(AppearanceSettingsPageView::new);
@@ -1547,18 +1543,6 @@ impl SettingsView {
             .collect();
     }
 
-    fn handle_main_page_event(
-        &mut self,
-        event: &MainSettingsPageEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            MainSettingsPageEvent::SignupAnonymousUser => {
-                ctx.emit(SettingsViewEvent::SignupAnonymousUser)
-            }
-        }
-    }
-
     fn handle_appearance_page_event(
         &mut self,
         event: &SettingsPageEvent,
@@ -1655,9 +1639,6 @@ impl SettingsView {
             #[cfg(feature = "local_fs")]
             WarpAgentPageEvent::OpenCustomRouterFile(path) => {
                 ctx.emit(SettingsViewEvent::OpenCustomRouterFile(path.clone()));
-            }
-            WarpAgentPageEvent::SignupAnonymousUser => {
-                ctx.emit(SettingsViewEvent::SignupAnonymousUser)
             }
             WarpAgentPageEvent::ShowModal | WarpAgentPageEvent::HideModal => {
                 // Modal rendering is handled in get_modal_content_for_page

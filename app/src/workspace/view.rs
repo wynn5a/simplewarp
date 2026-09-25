@@ -93,7 +93,7 @@ use warpui::platform::{
     Cursor, FilePickerConfiguration, FullscreenState, SystemTheme, TerminationMode,
 };
 use warpui::text_layout::ClipConfig;
-use warpui::ui_components::button::{Button, ButtonVariant};
+use warpui::ui_components::button::Button;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::windowing::state::ApplicationStage;
 use warpui::windowing::{StateEvent, WindowManager};
@@ -346,8 +346,6 @@ use crate::ui_components::buttons::{combo_inner_button, icon_button_with_color};
 use crate::ui_components::window_focus_dimming::WindowFocusDimming;
 use crate::ui_components::{blended_colors, icons};
 use crate::undo_close::UndoCloseStack;
-#[cfg(target_family = "wasm")]
-use crate::uri::browser_url_handler::{parse_current_url, update_browser_url};
 use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 #[cfg(feature = "local_fs")]
 use crate::user_config::{
@@ -578,8 +576,6 @@ enum TabConfigsMenuOpenSource {
 /// This enumerates the different kinds of banners we show to the user.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum WorkspaceBanner {
-    // to display an anonymous user has X days left to sign in
-    AnonymousUserAuth,
     /// to display when recovering from a crash that may have been due to use
     /// of Wayland
     #[cfg(target_os = "linux")]
@@ -592,7 +588,6 @@ impl WorkspaceBanner {
     /// We want some banners to have a close button and not others.
     fn is_dismissible(&self) -> bool {
         match self {
-            Self::AnonymousUserAuth => false,
             #[cfg(target_os = "linux")]
             Self::WaylandCrashRecovery => true,
             Self::InvalidSettings => true,
@@ -5389,9 +5384,6 @@ impl Workspace {
                     },
                     ctx,
                 );
-            }
-            LeftPanelEvent::SignInRequested => {
-                self.open_require_login_modal(ctx);
             }
         }
     }
@@ -12713,9 +12705,6 @@ impl Workspace {
             SettingsViewEvent::LaunchNetworkLogging => {
                 self.open_network_log_pane(ctx);
             }
-            SettingsViewEvent::SignupAnonymousUser => {
-                self.initiate_user_signup(ctx);
-            }
             SettingsViewEvent::Pane(_) | SettingsViewEvent::StartResize => {}
             SettingsViewEvent::ShowToast { message, flavor } => {
                 self.toast_stack.update(ctx, |toast_stack, ctx| {
@@ -13685,9 +13674,6 @@ impl Workspace {
             pane_group::Event::OpenSuggestedRuleModal { rule_and_id } => {
                 self.open_suggested_rule_modal(rule_and_id, ctx);
             }
-            pane_group::Event::AnonymousUserSignup => {
-                self.initiate_user_signup(ctx);
-            }
             pane_group::Event::OpenPalette {
                 mode,
                 source,
@@ -13837,9 +13823,6 @@ impl Workspace {
                     }
                     toast_stack.add_ephemeral_toast(toast, ctx);
                 });
-            }
-            pane_group::Event::SignupAnonymousUser => {
-                self.initiate_user_signup(ctx);
             }
             pane_group::Event::OpenThemeChooser => {
                 self.show_theme_chooser_for_custom_theme(ctx);
@@ -17415,23 +17398,6 @@ impl Workspace {
             );
         }
 
-        if crate::features::warp_account_available() && self.auth_state.is_anonymous_or_logged_out()
-        {
-            if is_web_anonymous_user {
-                target.add_child(
-                    Container::new(self.render_web_anonymous_user_sign_in_button(appearance))
-                        .with_margin_left(8.)
-                        .finish(),
-                );
-            } else {
-                target.add_child(
-                    Container::new(self.render_anonymous_sign_up_user_button(appearance))
-                        .with_margin_left(8.)
-                        .finish(),
-                );
-            }
-        }
-
         let zoom_factor = WindowSettings::as_ref(ctx).zoom_level.as_zoom_factor();
         let traffic_light_data = traffic_light_data(ctx, self.window_id);
         if let Some(traffic_light_data) = traffic_light_data.as_ref()
@@ -17780,92 +17746,6 @@ impl Workspace {
                 false,
             )
             .finish(),
-        )
-        .finish()
-    }
-
-    fn render_web_anonymous_user_sign_in_button(
-        &self,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        let default_styles = UiComponentStyles {
-            font_color: Some(appearance.theme().active_ui_text_color().into()),
-            font_size: Some(12.),
-            font_weight: Some(Weight::Light),
-            font_family_id: Some(appearance.ui_font_family()),
-            border_color: None,
-            border_radius: Some(CornerRadius::with_all(Radius::Pixels(5.))),
-            border_width: Some(1.),
-            width: Some(80.),
-            height: Some(24.),
-            ..Default::default()
-        };
-        let hovered_styles = UiComponentStyles {
-            font_color: Some(appearance.theme().accent().into()),
-            border_color: Some(appearance.theme().accent().into()),
-            ..default_styles
-        };
-        let button = appearance
-            .ui_builder()
-            .button_with_custom_styles(
-                ButtonVariant::Text,
-                self.mouse_states.sign_in_button.clone(),
-                default_styles,
-                Some(hovered_styles),
-                Some(hovered_styles),
-                None,
-            )
-            .with_centered_text_label(String::from("Sign up"));
-
-        Align::new(
-            button
-                .build()
-                .on_click(|ctx, _, _| {
-                    ctx.dispatch_typed_action(WorkspaceAction::SignInAnonymousWebUser)
-                })
-                .finish(),
-        )
-        .finish()
-    }
-
-    fn render_anonymous_sign_up_user_button(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let default_styles = UiComponentStyles {
-            font_color: Some(appearance.theme().active_ui_text_color().into()),
-            font_size: Some(12.),
-            font_weight: Some(Weight::Semibold),
-            font_family_id: Some(appearance.ui_font_family()),
-            border_color: Some(appearance.theme().active_ui_text_color().into()),
-            border_radius: Some(CornerRadius::with_all(Radius::Pixels(5.))),
-            border_width: Some(1.),
-            width: Some(80.),
-            height: Some(24.),
-            ..Default::default()
-        };
-        let hovered_styles = UiComponentStyles {
-            font_color: Some(appearance.theme().accent().into()),
-            border_color: Some(appearance.theme().accent().into()),
-            ..default_styles
-        };
-
-        let button = appearance
-            .ui_builder()
-            .button_with_custom_styles(
-                ButtonVariant::Text,
-                self.mouse_states.sign_up_button.clone(),
-                default_styles,
-                Some(hovered_styles),
-                Some(hovered_styles),
-                None,
-            )
-            .with_centered_text_label(String::from("Sign up"));
-
-        Align::new(
-            button
-                .build()
-                .on_click(|ctx, _, _| {
-                    ctx.dispatch_typed_action(WorkspaceAction::SignupAnonymousUser)
-                })
-                .finish(),
         )
         .finish()
     }
@@ -18398,7 +18278,6 @@ impl Workspace {
         banner_type: &WorkspaceBanner,
     ) {
         match banner_type {
-            WorkspaceBanner::AnonymousUserAuth => {}
             #[cfg(all(enable_crash_recovery, target_os = "linux"))]
             WorkspaceBanner::WaylandCrashRecovery => {
                 crash_recovery::dismiss_workspace_banner(ctx);
@@ -19364,40 +19243,6 @@ impl Workspace {
             .map(|team| team.uid)
     }
 
-    /// SimpleWarp is local-only: signing up can never succeed (3l), so this no longer opens a
-    /// browser tab to a sign-up page that can't complete. Just shows the same toast as any
-    /// other login-gated feature.
-    fn initiate_user_signup(&mut self, ctx: &mut ViewContext<Self>) {
-        self.open_require_login_modal(ctx);
-    }
-
-    fn redirect_to_sign_in(&mut self) {
-        #[cfg(target_family = "wasm")]
-        if let Some(current_url) = parse_current_url() {
-            update_browser_url(
-                Url::parse(&format!(
-                    "{}/login?redirect_to={}",
-                    ChannelState::server_root_url(),
-                    current_url.path()
-                ))
-                .ok(),
-                true,
-            );
-        } else {
-            update_browser_url(
-                Url::parse(&format!("{}/login", ChannelState::server_root_url())).ok(),
-                true,
-            );
-        }
-    }
-
-    /// Triggers the necessary cleanup for when a user logs out.
-    pub fn on_log_out(&mut self, ctx: &mut ViewContext<Self>) {
-        // Logging out should mimic the same behaviour as closing a window.
-        // This gives views a chance to clean up any state through on_view_detached before being dropped.
-        self.on_window_closed(ctx);
-    }
-
     fn show_feature_intro_modal(&mut self, id: FeatureIntroId, ctx: &mut ViewContext<Self>) {
         // Non-blocking popover: set the descriptor but intentionally do NOT focus it,
         // so the terminal and input stay usable while it is visible. Pin to the
@@ -20039,11 +19884,6 @@ impl TypedActionView for Workspace {
                 self.close_new_session_dropdown_menu(ctx);
                 self.open_folder_picker_for_worktree_submenu(ctx);
             }
-            LogOut => {
-                // Need to dispatch global action, or else we will not be able to retrieve
-                // the currently active session in the log out modal.
-                ctx.dispatch_global_action("app:maybe_log_out", ());
-            }
             ExportAllWarpDriveObjects => {
                 self.export_all_warp_drive_objects(ctx);
             }
@@ -20544,20 +20384,6 @@ impl TypedActionView for Workspace {
                     // `CrossWindowTabDrag::pending_source_window_closes`.
                 }
             }
-            CopyAccessTokenToClipboard => {
-                // Blocking is ok here only because this action is only registered in dev and local
-                // builds to aid in debugging and development.
-                let access_token = warpui::r#async::block_on(
-                    ServerApiProvider::as_ref(ctx)
-                        .get_auth_client()
-                        .get_or_refresh_access_token(),
-                );
-                if let Ok(token) = access_token
-                    && let Some(bearer) = token.bearer_token()
-                {
-                    ctx.clipboard().write(ClipboardContent::plain_text(bearer));
-                }
-            }
             CopyTextToClipboard(text) => {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(text.to_string()));
@@ -20655,12 +20481,6 @@ impl TypedActionView for Workspace {
                         DismissibleToast::success("Disabled all synchronized inputs.".to_string());
                     view.add_ephemeral_toast(new_toast, ctx);
                 });
-            }
-            SignupAnonymousUser => {
-                self.initiate_user_signup(ctx);
-            }
-            SignInAnonymousWebUser => {
-                self.redirect_to_sign_in();
             }
             HandleConflictingWorkflow(workflow_id) => {
                 self.toast_stack.update(ctx, |view, ctx| {

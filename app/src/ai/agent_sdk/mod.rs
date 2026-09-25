@@ -75,7 +75,6 @@ fn dispatch_command(
         CliCommand::Agent(agent_cmd) => run_agent(ctx, global_options, agent_cmd),
         CliCommand::MCP(mcp_cmd) => mcp::run(ctx, global_options, mcp_cmd),
         CliCommand::Model(model_cmd) => model::run(ctx, global_options, model_cmd),
-        CliCommand::Logout => admin::logout(ctx),
         CliCommand::Whoami => admin::whoami(ctx, global_options.output_format),
         CliCommand::Provider(provider_cmd) => {
             if !FeatureFlag::ProviderCommand.is_enabled() {
@@ -569,7 +568,6 @@ fn command_requires_auth(command: &CliCommand) -> bool {
         CliCommand::Model(model_cmd) => match model_cmd {
             ModelCommand::List => true,
         },
-        CliCommand::Logout => false,
         CliCommand::Whoami => true,
         CliCommand::Provider(_) => true,
     }
@@ -672,7 +670,3 @@ fn report_fatal_error(err: anyhow::Error, ctx: &mut AppContext) {
     let error = anyhow::anyhow!(message);
     ctx.terminate_app(TerminationMode::ForceTerminate, Some(Err(error)));
 }
-
-#[cfg(test)]
-#[path = "mod_tests.rs"]
-mod tests;

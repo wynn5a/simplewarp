@@ -13,8 +13,8 @@ use warpui::event::ModifiersState;
 use warpui::units::Lines;
 
 use super::inline_banner::{
-    AnonymousUserLoginBannerAction, AwsBedrockLoginBannerAction, AwsCliNotInstalledBannerAction,
-    OpenInWarpBannerAction, VimModeBannerAction,
+    AwsBedrockLoginBannerAction, AwsCliNotInstalledBannerAction, OpenInWarpBannerAction,
+    VimModeBannerAction,
 };
 use super::{
     AliasExpansionBannerAction, ContextMenuAction, GridHighlightedLink, InputContextMenuAction,
@@ -324,7 +324,6 @@ pub enum TerminalAction {
     ToggleAutoexecuteMode,
     ToggleQueueNextPrompt,
     AgentModeSetupSpeedbumpBanner(AgentModeSetupSpeedbumpBannerAction),
-    AnonymousUserAISignUpBanner(AnonymousUserLoginBannerAction),
     ResumeConversation,
     ForkConversationFromLastKnownGoodState,
     ToggleAIDocumentPane,
@@ -618,9 +617,6 @@ impl fmt::Debug for TerminalAction {
             ToggleQueueNextPrompt => write!(f, "ToggleQueueNextPrompt"),
             AgentModeSetupSpeedbumpBanner(action) => {
                 write!(f, "AgentModeSetupSpeedbumpBanner({action:?})")
-            }
-            AnonymousUserAISignUpBanner(action) => {
-                write!(f, "AnonymousUserLoginBanner({action:?})")
             }
             ResumeConversation => write!(f, "ResumeConversation"),
             ForkConversationFromLastKnownGoodState => {

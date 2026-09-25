@@ -33,7 +33,7 @@ enum QuitScope<'a> {
     EditorTab {
         file_name: Option<String>,
         editor_status: Vec<CodeEditorStatus>,
-    }, // TODO: Include the "log out" confirmation modal too.
+    },
 }
 
 /// Summary of unsaved data and running processes to show the user before they quit.

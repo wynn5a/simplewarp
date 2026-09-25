@@ -293,15 +293,6 @@ impl PrivacySettings {
         ctx.notify();
     }
 
-    pub fn refresh_to_default(&mut self) {
-        // TODO(zach): this seems incorrect - should we also update the values on disk?
-        self.is_telemetry_enabled = true;
-        self.is_crash_reporting_enabled = true;
-        self.is_cloud_conversation_storage_enabled = true;
-        self.is_telemetry_force_enabled = false;
-        self.is_enterprise_secret_redaction_enabled = false;
-    }
-
     /// Constructor for tests only.
     #[cfg(any(test, feature = "test-util"))]
     pub fn mock(_ctx: &mut ModelContext<Self>) -> Self {

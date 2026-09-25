@@ -4242,7 +4242,7 @@ impl SettingsWidget for QuitWarningModalWidget {
     type View = FeaturesPageView;
 
     fn search_terms(&self) -> &str {
-        "warning popup modal dialog quit logout log out close"
+        "warning popup modal dialog quit close"
     }
 
     fn render(
@@ -4254,7 +4254,7 @@ impl SettingsWidget for QuitWarningModalWidget {
         let general_settings = GeneralSettings::as_ref(app);
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Show warning before quitting/logging out".into(),
+            "Show warning before quitting".into(),
             None,
             LocalOnlyIconState::for_setting(
                 ShowWarningBeforeQuitting::storage_key(),

@@ -596,12 +596,6 @@ impl AgentConversationsModel {
             }
         }
     }
-
-    /// Clears all stored conversation data in memory.
-    /// This is used when logging out to ensure no conversation history persists across users.
-    pub(crate) fn reset(&mut self) {
-        self.conversations.clear();
-    }
 }
 
 #[cfg(test)]

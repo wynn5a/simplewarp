@@ -12,11 +12,10 @@ use warpui::elements::{
     Element, Empty, Flex, Image, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
     Radius, Shrinkable, Text,
 };
-use warpui::fonts::Weight;
 use warpui::keymap::ContextPredicate;
 use warpui::platform::Cursor;
 use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
-use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{
     Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
@@ -44,7 +43,6 @@ use crate::workspaces::workspace::CustomerType;
 const PHOTO_SIZE: f32 = 40.;
 const REGULAR_TEXT_FONT_SIZE: f32 = 12.;
 const VERTICAL_MARGIN: f32 = 24.;
-const LOG_OUT_TEXT: &str = "Log out";
 lazy_static! {
     static ref SETTINGS_SYNC_BINDINGS_ADDED: Arc<Mutex<bool>> = Default::default();
 }
@@ -98,7 +96,6 @@ pub enum MainPageAction {
         team_uid: Option<ServerId>,
         user_id: UserUid,
     },
-    SignupAnonymousUser,
     OpenUrl(String),
 }
 
@@ -120,11 +117,6 @@ impl From<&MainPageAction> for LoginGatedFeature {
     }
 }
 
-#[derive(Clone, Copy)]
-pub enum MainSettingsPageEvent {
-    SignupAnonymousUser,
-}
-
 pub struct MainSettingsPageView {
     self_handle: WeakViewHandle<Self>,
     page: PageType<Self>,
@@ -132,7 +124,7 @@ pub struct MainSettingsPageView {
 }
 
 impl Entity for MainSettingsPageView {
-    type Event = MainSettingsPageEvent;
+    type Event = ();
 }
 
 impl TypedActionView for MainSettingsPageView {
@@ -172,9 +164,6 @@ impl TypedActionView for MainSettingsPageView {
                     ctx.open_url(&UserWorkspaces::upgrade_link(*user_id));
                 }
             },
-            MainPageAction::SignupAnonymousUser => {
-                ctx.emit(MainSettingsPageEvent::SignupAnonymousUser);
-            }
             MainPageAction::OpenUrl(url) => {
                 ctx.open_url(url);
             }
@@ -216,8 +205,6 @@ impl MainSettingsPageView {
             widgets.push(Box::new(VersionInfoWidget::default()));
         }
 
-        widgets.push(Box::new(LogoutWidget::default()));
-
         let page = PageType::new_uncategorized(widgets, Some("Account"));
 
         MainSettingsPageView {
@@ -231,7 +218,6 @@ impl MainSettingsPageView {
 #[derive(Default)]
 struct AccountWidgetStateHandles {
     upgrade_link: MouseStateHandle,
-    anonymous_user_sign_up_button: MouseStateHandle,
     enterprise_contact_us_link: MouseStateHandle,
 }
 
@@ -246,33 +232,6 @@ impl AccountWidget {
         auth_state: &AuthState,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-        let button_styles = UiComponentStyles {
-            font_size: Some(14.),
-            font_weight: Some(Weight::Semibold),
-            border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-            padding: Some(Coords {
-                top: 12.,
-                bottom: 12.,
-                left: 40.,
-                right: 40.,
-            }),
-            ..Default::default()
-        };
-
-        let user_info = appearance
-            .ui_builder()
-            .button(
-                ButtonVariant::Accent,
-                self.ui_state_handles.anonymous_user_sign_up_button.clone(),
-            )
-            .with_style(button_styles)
-            .with_text_label("Sign up".to_owned())
-            .build()
-            .on_click(move |ctx, _, _| {
-                ctx.dispatch_typed_action(MainPageAction::SignupAnonymousUser);
-            })
-            .finish();
-
         let mut plan_info = Flex::column()
             .with_main_axis_alignment(MainAxisAlignment::SpaceEvenly)
             .with_cross_axis_alignment(CrossAxisAlignment::End);
@@ -315,17 +274,6 @@ impl AccountWidget {
         );
 
         Flex::row()
-            .with_child(
-                Shrinkable::new(
-                    1.0,
-                    Flex::row()
-                        .with_child(user_info)
-                        .with_main_axis_alignment(MainAxisAlignment::Start)
-                        .with_main_axis_size(MainAxisSize::Max)
-                        .finish(),
-                )
-                .finish(),
-            )
             .with_child(Align::new(plan_info.finish()).right().finish())
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .finish()
@@ -513,7 +461,7 @@ impl SettingsWidget for AccountWidget {
     type View = MainSettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "account sign up"
+        "account"
     }
 
     fn render(
@@ -738,59 +686,6 @@ impl SettingsWidget for VersionInfoWidget {
             report_error!("Shouldn't render VersionInfoWidget without GIT_RELEASE_TAG");
             Empty::new().finish()
         }
-    }
-}
-
-#[derive(Default)]
-struct LogoutWidget {
-    mouse_state: MouseStateHandle,
-}
-
-impl LogoutWidget {
-    fn render_logout_button(&self, appearance: &Appearance) -> Box<dyn Element> {
-        appearance
-            .ui_builder()
-            .button(ButtonVariant::Secondary, self.mouse_state.clone())
-            .with_text_label(LOG_OUT_TEXT.into())
-            .with_style(UiComponentStyles {
-                font_size: Some(14.),
-                padding: Some(Coords::uniform(8.).left(32.).right(32.)),
-                ..Default::default()
-            })
-            .build()
-            .on_click(|ctx, _, _| {
-                ctx.dispatch_typed_action(WorkspaceAction::LogOut);
-            })
-            .finish()
-    }
-}
-
-impl SettingsWidget for LogoutWidget {
-    type View = MainSettingsPageView;
-
-    fn search_terms(&self) -> &str {
-        "sign out log out logout"
-    }
-
-    fn should_render(&self, app: &AppContext) -> bool {
-        !AuthStateProvider::as_ref(app)
-            .get()
-            .is_anonymous_or_logged_out()
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        _app: &AppContext,
-    ) -> Box<dyn Element> {
-        Container::new(
-            Align::new(self.render_logout_button(appearance))
-                .left()
-                .finish(),
-        )
-        .with_margin_top(VERTICAL_MARGIN)
-        .finish()
     }
 }
 

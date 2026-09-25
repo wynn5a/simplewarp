@@ -222,14 +222,6 @@ impl AuthManager {
         }
     }
 
-    /// Helper function for logging out the user.
-    /// NOTE: You probably want to call auth::log_out instead; this only manages the auth state,
-    /// it doesn't shut down any other user-dependent parts of the app.
-    /// TODO(jeff): Can we move those pieces in here?
-    pub(super) fn log_out(&mut self, ctx: &mut ModelContext<Self>) {
-        self.set_and_persist(None, None, ctx);
-    }
-
     /// Sets whether or not this user's Firebase credentials are invalid and thus needs to reauth.
     pub fn set_needs_reauth(&self, needs_reauth: bool, ctx: &mut ModelContext<Self>) {
         let became_true = self.auth_state.set_needs_reauth(needs_reauth);

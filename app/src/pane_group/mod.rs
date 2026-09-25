@@ -567,7 +567,6 @@ pub enum Event {
         /// If set, open the fact collection to the specific rule.
         sync_id: Option<SyncId>,
     },
-    AnonymousUserSignup,
     /// Request that the workspace open the command palette.
     OpenPalette {
         mode: PaletteMode,
@@ -604,7 +603,6 @@ pub enum Event {
         flavor: ToastFlavor,
         pane_id: Option<PaneId>,
     },
-    SignupAnonymousUser,
     OpenThemeChooser,
     InvalidatedActiveConversation,
     OpenConversationHistory,
