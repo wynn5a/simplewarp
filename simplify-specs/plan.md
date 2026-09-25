@@ -13333,3 +13333,36 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       bare Box<AIConversation>; (c) ConversationDetailsData's copy_
       link_url field and PanelMode::Conversation's server_conversation_
       id are permanently None with their render rows still in place.
+
+- [x] **deletion-policy reaffirmation — local features are never
+      deletion targets (4fu) — RECORDED 2026-09-25.** User decision,
+      plan-only round (no code changes; commit contains only this
+      ledger, verified with `git show --stat`). The scope rule at the
+      top of this file (2026-09-15: "Delete only what **requires a
+      remote service**. A feature that works fully locally stays, even
+      when its flag is constant-false in the simplewarp build") is
+      REAFFIRMED as standing policy: nothing that runs locally is a
+      deletion candidate in this effort, ever. Consequence for the
+      queue: the "feature-flag rounds for local-but-disabled flags"
+      phase is REMOVED from this cleanup's queue — EditableMarkdown-
+      Mermaid, ImeMarkedText, and ITermImages are exactly what the
+      scope rule always said they were: enable-in-simplewarp
+      candidates, a separate per-feature product decision OUTSIDE this
+      deletion effort (precedent: JupyterNotebookRendering, enabled
+      2026-09-15 as its own decision). They appear here only in
+      historical round records, which stay untouched. The deletion
+      queue after this round consists solely of remote-service-shaped
+      residue, all from 4ft's next-candidates note: (a) the warp://
+      conversation deep-link chain (UriHost::Conversation → root_view
+      open_conversation_viewer/open_cloud_conversation_in_existing_
+      window → WorkspaceSource::FromCloudConversationId with its
+      write-only conversation_id), which can only ever surface the
+      "Failed to load conversation data" toast — it exists to load
+      conversation data from the gone server; (c) ConversationDetails
+      Data's copy_link_url field and PanelMode::Conversation's
+      server_conversation_id render rows, permanently None because
+      their server feeders are gone; and (b) the CloudConversation
+      Data single-variant (Oz) collapse — not a feature deletion but
+      dead structure exposed by the sync removal (collapsing deletes
+      no local behavior; optional, lowest priority). Nothing else
+      queued. Next round id: 4fv.
