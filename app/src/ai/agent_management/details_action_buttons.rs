@@ -9,7 +9,6 @@ use crate::ai::agent_conversations_model::AgentConversationEntryId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
-use crate::view_components::copyable_text_field::COPY_FEEDBACK_DURATION;
 use crate::workspace::WorkspaceAction;
 
 const BUTTON_SPACING: f32 = 4.;
@@ -24,8 +23,6 @@ pub struct ActionButtonsConfig {
     /// Shows an info button for viewing more details.
     /// Only used in management view hover toolbelt.
     pub view_details_item_id: Option<AgentConversationEntryId>,
-    /// Conversation link URL (either to the transcript or live session) for copy link button.
-    pub copy_link_url: Option<String>,
 }
 
 impl ActionButtonsConfig {
@@ -35,23 +32,19 @@ impl ActionButtonsConfig {
             && self.cancel_task_id.is_none()
             && self.fork_conversation_id.is_none()
             && self.view_details_item_id.is_none()
-            && self.copy_link_url.is_none()
     }
 
     /// Create config for a conversation.
     /// - `open_action`: pass `Some(action)` to show open button, `None` to hide
-    /// - `copy_link_url`: conversation link URL, or `None` to hide
     pub fn for_conversation(
         conversation_id: AIConversationId,
         open_action: Option<WorkspaceAction>,
-        copy_link_url: Option<String>,
     ) -> Self {
         Self {
             open_action,
             cancel_task_id: None,
             fork_conversation_id: Some(conversation_id),
             view_details_item_id: None,
-            copy_link_url,
         }
     }
 }
@@ -63,7 +56,6 @@ pub enum AgentDetailsButtonEvent {
     CancelTask { task_id: AmbientAgentTaskId },
     ForkConversation { conversation_id: AIConversationId },
     ViewDetails,
-    CopyLink { link: String },
 }
 
 /// Actions dispatched by button clicks (internal).
@@ -73,7 +65,6 @@ pub enum AgentDetailsAction {
     CancelTask,
     ForkConversation,
     ViewDetails,
-    CopyLink,
 }
 
 /// Reusable action buttons row for details panel.
@@ -83,7 +74,6 @@ pub struct ConversationActionButtonsRow {
     cancel_task_button: ViewHandle<ActionButton>,
     fork_conversation_button: ViewHandle<ActionButton>,
     view_details_button: ViewHandle<ActionButton>,
-    copy_link_button: ViewHandle<ActionButton>,
 }
 
 impl ConversationActionButtonsRow {
@@ -124,22 +114,12 @@ impl ConversationActionButtonsRow {
             )
         });
 
-        let copy_link_button = ctx.add_typed_action_view(|_| {
-            Self::make_action_button(
-                Icon::Link,
-                "Copy link to run",
-                None,
-                AgentDetailsAction::CopyLink,
-            )
-        });
-
         Self {
             config: ActionButtonsConfig::default(),
             open_button,
             cancel_task_button,
             fork_conversation_button,
             view_details_button,
-            copy_link_button,
         }
     }
 
@@ -192,10 +172,6 @@ impl View for ConversationActionButtonsRow {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(BUTTON_SPACING);
 
-        if self.config.copy_link_url.is_some() {
-            row.add_child(ChildView::new(&self.copy_link_button).finish());
-        }
-
         if self.config.open_action.is_some() {
             row.add_child(ChildView::new(&self.open_button).finish());
         }
@@ -236,25 +212,6 @@ impl TypedActionView for ConversationActionButtonsRow {
             AgentDetailsAction::ViewDetails => {
                 if self.config.view_details_item_id.is_some() {
                     ctx.emit(AgentDetailsButtonEvent::ViewDetails);
-                }
-            }
-            AgentDetailsAction::CopyLink => {
-                if let Some(link) = &self.config.copy_link_url {
-                    ctx.emit(AgentDetailsButtonEvent::CopyLink { link: link.clone() });
-                    self.copy_link_button.update(ctx, |button, ctx| {
-                        button.set_icon(Some(Icon::Check), ctx);
-                    });
-                    let duration = COPY_FEEDBACK_DURATION;
-                    ctx.spawn(
-                        async move {
-                            warpui::r#async::Timer::after(duration).await;
-                        },
-                        |me, _, ctx| {
-                            me.copy_link_button.update(ctx, |button, ctx| {
-                                button.set_icon(Some(Icon::Link), ctx);
-                            });
-                        },
-                    );
                 }
             }
         }

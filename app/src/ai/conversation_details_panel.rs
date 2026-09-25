@@ -68,8 +68,6 @@ enum PanelMode {
     Conversation {
         /// Working directory where the conversation took place.
         directory: Option<String>,
-        /// Unique identifier for the conversation (server token).
-        server_conversation_id: Option<String>,
         /// Internal conversation ID (for action buttons).
         ai_conversation_id: Option<AIConversationId>,
         /// Status of the conversation.
@@ -81,7 +79,6 @@ impl Default for PanelMode {
     fn default() -> Self {
         PanelMode::Conversation {
             directory: None,
-            server_conversation_id: None,
             ai_conversation_id: None,
             status: None,
         }
@@ -93,7 +90,6 @@ impl Default for PanelMode {
 struct PanelMouseStates {
     close_button: MouseStateHandle,
     copy_directory: MouseStateHandle,
-    copy_conversation_id: MouseStateHandle,
     copy_initial_query: MouseStateHandle,
     skill_link: MouseStateHandle,
     skill_source_link: MouseStateHandle,
@@ -103,7 +99,6 @@ struct PanelMouseStates {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum CopyButtonKind {
     Directory,
-    ConversationId,
     InitialQuery,
 }
 
@@ -125,8 +120,6 @@ pub struct ConversationDetailsData {
     open_action: Option<WorkspaceAction>,
     /// Source prompt that initiated this conversation/task.
     source_prompt: Option<String>,
-    /// Copy link URL (session link if sandbox running, otherwise conversation link).
-    copy_link_url: Option<String>,
     /// Parsed skill spec referenced by the task configuration.
     skill_spec: Option<SkillSpec>,
     /// Execution harness for this conversation/task.
@@ -161,7 +154,6 @@ impl ConversationDetailsData {
         ConversationDetailsData {
             mode: PanelMode::Conversation {
                 directory,
-                server_conversation_id: None,
                 ai_conversation_id: None,
                 status: Some(conversation.status().clone()),
             },
@@ -174,7 +166,6 @@ impl ConversationDetailsData {
             artifacts: conversation.artifacts().to_vec(),
             open_action: None,
             source_prompt: conversation.initial_query(),
-            copy_link_url: None,
             skill_spec: None,
             harness: Some(Harness::Oz),
         }
@@ -193,7 +184,6 @@ pub enum ConversationDetailsPanelEvent {
 pub enum ConversationDetailsPanelAction {
     Close,
     CopyDirectory,
-    CopyConversationId,
     CopyInitialQuery,
     Focus,
     CopySelectedText,
@@ -380,7 +370,6 @@ impl ConversationDetailsPanel {
         Some(ActionButtonsConfig::for_conversation(
             conversation_id,
             open_action,
-            data.copy_link_url.clone(),
         ))
     }
 
@@ -428,16 +417,6 @@ impl ConversationDetailsPanel {
             AgentDetailsButtonEvent::ViewDetails => {
                 // ViewDetails not shown in the details panel because we're already viewing it,
                 // only in management view cards
-            }
-            AgentDetailsButtonEvent::CopyLink { link } => {
-                if let PanelMode::Conversation {
-                    ai_conversation_id: Some(_conversation_id),
-                    ..
-                } = &self.data.mode
-                {}
-
-                ctx.clipboard()
-                    .write(ClipboardContent::plain_text(link.clone()));
             }
         }
     }
@@ -789,7 +768,6 @@ impl ConversationDetailsPanel {
     fn mouse_state_for_copy_button(&self, kind: CopyButtonKind) -> MouseStateHandle {
         match kind {
             CopyButtonKind::Directory => self.mouse_states.copy_directory.clone(),
-            CopyButtonKind::ConversationId => self.mouse_states.copy_conversation_id.clone(),
             CopyButtonKind::InitialQuery => self.mouse_states.copy_initial_query.clone(),
         }
     }
@@ -966,12 +944,7 @@ impl View for ConversationDetailsPanel {
 
         // Mode-specific fields
         match &self.data.mode {
-            PanelMode::Conversation {
-                directory,
-                server_conversation_id: conversation_id,
-                ai_conversation_id: _,
-                status: _,
-            } => {
+            PanelMode::Conversation { directory, .. } => {
                 if let Some(directory) = directory {
                     content.add_child(
                         Container::new(self.render_field_with_copy(
@@ -979,21 +952,6 @@ impl View for ConversationDetailsPanel {
                             directory,
                             ConversationDetailsPanelAction::CopyDirectory,
                             CopyButtonKind::Directory,
-                            appearance,
-                            app,
-                        ))
-                        .with_margin_bottom(FIELD_SPACING)
-                        .finish(),
-                    );
-                }
-
-                if let Some(id) = conversation_id {
-                    content.add_child(
-                        Container::new(self.render_field_with_copy(
-                            "Conversation ID",
-                            id,
-                            ConversationDetailsPanelAction::CopyConversationId,
-                            CopyButtonKind::ConversationId,
                             appearance,
                             app,
                         ))
@@ -1118,18 +1076,6 @@ impl TypedActionView for ConversationDetailsPanel {
                     self.record_copy(CopyButtonKind::Directory, ctx);
                 }
             }
-            ConversationDetailsPanelAction::CopyConversationId => {
-                if let PanelMode::Conversation {
-                    server_conversation_id: Some(id),
-                    ..
-                } = &self.data.mode
-                {
-                    ctx.clipboard()
-                        .write(ClipboardContent::plain_text(id.clone()));
-                    self.record_copy(CopyButtonKind::ConversationId, ctx);
-                }
-            }
-
             ConversationDetailsPanelAction::CopyInitialQuery => {
                 if let Some(trimmed) = trimmed_initial_query(&self.data.source_prompt) {
                     ctx.clipboard()

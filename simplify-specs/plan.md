@@ -13366,3 +13366,108 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       dead structure exposed by the sync removal (collapsing deletes
       no local behavior; optional, lowest priority). Nothing else
       queued. Next round id: 4fv.
+
+- [x] **permanently-None conversation link/id render residue deleted
+      (4fv) — DONE 2026-09-25.** 4ft next-candidate (c), the smallest
+      queued item: 3 files changed, 3 insertions(+), 105 deletions(−)
+      (code only; + this ledger entry).
+
+      DUAL-CONFIRM (both at HEAD, pre-edit). (1) ConversationDetails
+      Data.copy_link_url: PCRE sweeps — lookbehind `(?<![A-Za-z0-9_])
+      copy_link_url`, writer spellings `copy_link_url\s*:\s*Some` and
+      `copy_link_url\s*=[^=]` and `set_/with_copy_link_url` — found
+      ZERO Some-writers, ZERO assignments, ZERO setters repo-wide. The
+      field is private with exactly one non-Default writer: from_
+      conversation's `copy_link_url: None`; ConversationDetailsData is
+      Debug+Clone+Default-derive only (no serde, no Default impl that
+      could smuggle Some). Downstream: ActionButtonsConfig has exactly
+      two construction forms repo-wide — for_conversation (sole caller
+      the panel's action_buttons_config_from_data, passing the always-
+      None field) and derive-Default; no struct literals, no field
+      assignments — so ActionButtonsConfig.copy_link_url was equally
+      permanently None. (2) PanelMode::Conversation.server_conversation_
+      id: PanelMode is a private enum whose only constructors are
+      Default (None) and from_conversation (None); the single repo-wide
+      `server_conversation_id: Some(id)` hit is an `if let` PATTERN in
+      the CopyConversationId handler, not a writer. Same-named hits in
+      agent/telemetry.rs, blocklist controller/fetch_conversation,
+      ai_document_model are fields/locals of unrelated structs —
+      untouched. Premise held; no STOP condition.
+
+      DELETIONS with caller censuses (all pre-delete). Conversation-
+      DetailsData.copy_link_url (field + doc + from_conversation None
+      init). ActionButtonsConfig.copy_link_url (pub field, doc,
+      is_empty conjunct, for_conversation param/doc/init — for_
+      conversation's sole caller rewritten to 2 args). The "Copy link
+      to run" surface the field fed (its render gate `copy_link_url.
+      is_some()` could never be true): ConversationActionButtonsRow.
+      copy_link_button (field + construction + struct-init + render
+      row + the CopyLink handler arm with its checkmark Timer),
+      AgentDetailsAction::CopyLink (sole constructor the deleted
+      button), AgentDetailsButtonEvent::CopyLink (sole emitter the
+      deleted arm; sole handler the deleted panel match arm — which
+      also contained a dead empty `if let PanelMode::Conversation`
+      block), COPY_FEEDBACK_DURATION import (sole use in the deleted
+      arm). PanelMode::Conversation.server_conversation_id (field +
+      doc + both constructor inits). The "Conversation ID" row it fed:
+      the render block (render_field_with_copy row), Conversation-
+      DetailsPanelAction::CopyConversationId (sole constructor the
+      deleted row; its handler arm deleted with it — terminal/view.rs's
+      same-named action is a different, live type), CopyButtonKind::
+      ConversationId (surviving users after the row + handler fell:
+      only the mouse_state_for_copy_button arm), PanelMouseStates.
+      copy_conversation_id (sole reader that arm). The mode-specific
+      render match collapsed to
+  `PanelMode::Conversation { directory, .. }` — still exhaustive
+  (single variant, no wildcard arm).
+
+      NEW RESIDUE FOUND (queued, not touched): PanelMode::Conversation.
+      ai_conversation_id is ALSO permanently None — same two private
+      constructors write None. The surviving test comment claimed it is
+      "populated only by the management view path (`from_conversation_
+      metadata`)" — that function no longer exists repo-wide (ghost
+      since 4ft); comment corrected this round. Consequence: action_
+      buttons_config_from_data bails at `ai_conversation_id.as_ref()?`
+      and local_continuation_info does the same, so the panel's
+      action-buttons row (Open/Fork) and the "Continue locally" button
+      can never activate from ConversationDetailsData.
+
+      TEST CHANGES: zero deletions, zero count delta. conversation_
+      details_panel_tests.rs: the local-fields test's PanelMode
+      destructure dropped the server_conversation_id binding and its
+      is_none assertion (field gone); the ghost from_conversation_
+      metadata comment replaced with an accurate one-liner.
+
+      Acceptance: (1) ./script/format run twice, idempotent —
+      formatter applied no changes either run; working tree held
+      exactly the 3 code files. (2) clippy WARNING-IDENTICAL to the
+      HEAD baseline captured BEFORE editing, BOTH `cargo clippy -p
+      warp --lib --all-targets` and `--no-default-features --features
+      simplewarp`: 12 = 12 json location+message pairs machine-diffed
+      per set, `diff` clean on both, zero new warnings (the 12
+      pre-existing: 11 needless-return in app/src/terminal/input.rs +
+      1 single-element-loop in terminal/model/lifecycle/mod_tests.rs:
+      272; neither file touched). (3) `cargo check --no-default-
+      features --features simplewarp --bin simplewarp` green (exit 0).
+      (4) `cargo check -p warp --lib --features test-util` green
+      (exit 0). (5) nextest -p warp --lib --no-fail-fast: default
+      4,591 run / 4,591 passed / 3 skipped / 0 failed; simplewarp
+      4,590 / 4,590 / 3 / 0 — both byte-identical to the 4ft
+      baselines, zero deltas (no tests deleted); no flakes. (6)
+      DEVELOPER_DIR unset; no GUI launch, no integration suite (per
+      standing round policy).
+
+      NEXT CANDIDATES: (a) the warp://conversation URI deep-link chain
+      (unchanged from 4ft: UriHost::Conversation → root_view open_
+      conversation_viewer / open_cloud_conversation_in_existing_
+      window → WorkspaceSource::FromCloudConversationId with its
+      write-only conversation_id; can only surface the "Failed to load
+      conversation data" toast); (b) CloudConversationData single-
+      variant Oz collapse (optional structural refactor, not a
+      feature deletion); NEW (c) the always-None ai_conversation_id
+      vertical above (details-panel action-buttons row + Continue-
+      locally button unreachable; includes DetailsPanelLocalContinua-
+      tionInfo, continue_locally_button, and possibly the whole row
+      integration — verify render reachability before deleting, since
+      ConversationActionButtonsRow itself stays live for the
+      management view toolbelt). Next round id: 4fw.

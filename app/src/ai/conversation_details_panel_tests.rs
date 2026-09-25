@@ -117,19 +117,14 @@ fn test_from_conversation_populates_local_conversation_fields() {
                 .expect("conversation should be present");
             let data = ConversationDetailsData::from_conversation(conversation);
 
-            // Mode should be Conversation with the working directory and no server-side
-            // conversation id (since this conversation was restored without a server token).
+            // Mode should be Conversation with the working directory.
             let PanelMode::Conversation {
                 directory: panel_directory,
-                server_conversation_id,
                 ai_conversation_id,
                 status,
             } = &data.mode;
             assert_eq!(panel_directory.as_deref(), Some(directory));
-            assert!(server_conversation_id.is_none());
-            // `from_conversation` does not have access to the in-memory
-            // AIConversationId; that field is populated only by the
-            // management view path (`from_conversation_metadata`).
+            // `from_conversation` does not populate the in-memory AIConversationId.
             assert!(ai_conversation_id.is_none());
             assert!(status.is_some());
 
