@@ -13800,3 +13800,289 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       server_token has the live blocklist link caller), and OpenConver-
       sationTranscriptViewer now sits constructor-less as the mandated-kept
       focus_pane carrier. Next round id: 4fz.
+
+- [ ] **the login-vertical scope survey + slice plan (4fz) — RECORDED
+      2026-09-24.** SCOPING round — no code deleted; this entry is the
+      deliverable. USER DECISION (explicit, overrides 4fk landmine 10):
+      SimpleWarp is a local-only fork; login is not needed. The login flow
+      — the last remote-dependent vertical in the workspace — is now a
+      DELETION TARGET. 4fk landmine 10's ruling ("the warp Local-channel
+      login flow (AuthClientImpl → GetUser) is untouchable: no slice may
+      stub or reorder AuthClientImpl/AuthSession") is REVERSED: the
+      WITH_LOCAL_SERVER dev-login flow documented in AGENTS.md dies with
+      the rest, and AGENTS.md's two stale sections (WITH_LOCAL_SERVER,
+      "GetUser is the only operation sent") are rewritten in the final
+      slice. Standing 4fu policy still governs the boundary: everything
+      that runs locally SURVIVES — the sqlite Owner/persistence shapes
+      (4fk landmine 1), the local identity read API (AuthStateProvider is
+      imported by 89 files, 74 of them test files via the test-util
+      constructors), the remote_server SSH vertical, the anonymous id, the
+      local http client and network logging, the cloud_preferences_syncer
+      (LOCAL: it reconciles the settings file against the local CloudModel
+      sqlite store; its initial load fires at startup with no login —
+      4fs's kept InitialLoadCompleted verdict confirmed; only its
+      handle_user_fetched CALLER dies), and the login_item module (OS
+      launch-at-login — a NAMING TRAP, pure local feature).
+
+      PER-CRATE TERMINAL-STATE DECISION. (1) warp_server_auth STAYS,
+      shrunk 1,866 → ≈700 lines, as the local-identity crate:
+      user_uid.rs (UserUid + TEST_USER_UID/EMAIL, minus the dead
+      From<UserUid> for cynic::Id), anonymous_id.rs (persisted
+      "ExperimentId" user default), user.rs (User/UserMetadata/
+      PrincipalType/AnonymousUserType/PersonalObjectLimits/User::test,
+      minus the three gql conversions + FirebaseAuthTokens),
+      auth_state.rs (the read API — user_id/is_logged_in/user_email/
+      anonymous_id/is_service_account/is_onboarded/global_skills… — plus
+      the remote-server Bearer setters; initialize collapses to
+      logged-out), test-util feature + the three new_*_for_test
+      constructors. Falls: auth_client.rs (240), session.rs (217) +
+      session_tests.rs (66), firebase.rs (145), user/persistence.rs (83) +
+      persistence_tests.rs (156) — the keychain PersistedUser is never
+      read again (existing "User" keychain entries are left on disk,
+      harmless); Credentials shrinks to {Bearer (SSH daemon token),
+      SessionCookie (test-util), Test (cfg(test))} — the Firebase/ApiKey
+      variants, AuthToken, LoginToken, FirebaseToken, RefreshToken all
+      fall (sole constructors were exchange_credentials, the evals block,
+      apply_persisted_user). (2) warp_graphql DIES ENTIRELY — 13 .rs
+      files + 4,808-line SDL + build.rs, cynic leaves the workspace. The
+      two locally-used types MOVE: scalars/time.rs ServerTimestamp (7
+      non-login importers: cloud_objects, cloud_object_persistence,
+      app cloud_object/mod + model/persistence + model/view,
+      update_manager, request_usage_model) → its largest consumer home
+      (cloud_objects); api/ai.rs AgentTaskState + AgentHarness (agent_sdk
+      driver, error_classification + tests, harness_availability) →
+      crates/ai. Everything else is login-core with zero non-login
+      consumers at HEAD: client.rs (sole consumer AuthClientImpl),
+      get_user.rs + experiment.rs + request_context.rs (GetUser variables
+      only), object_permissions.rs OwnerType (auth_state/credentials/
+      get_user only), create_anonymous_user.rs AnonymousUserType (user.rs
+      TryFrom only), uint32.rs Uint32 (zero users), the schema module,
+      the impl_scalar!s, and BOTH dead cynic::Id conversions elsewhere
+      (user_uid.rs:38, ambient_agents/mod.rs:52 — verified zero call
+      sites). (3) ServerApiProvider STAYS as {http_client} +
+      NetworkLogModel install + get_http_client(): the auth_client field,
+      the AuthEvent pump, get_auth_client(), and Entity::Event =
+      AuthEvent all fall. get_http_client has 7 LIVE local consumers
+      (persisted_workspace x4 LSP discovery, init_project x2,
+      load_ai_conversation debug fetch). AIApiError (server_api.rs:46-
+      208, 6 importers) is the AI error taxonomy, NOT auth — stays.
+      (4) app/src/auth shrinks to the crate::auth re-export chain
+      (auth_state/user/user_uid/credentials — 89 importers): auth_
+      manager.rs, auth_view_modal.rs, auth_override_warning_modal.rs +
+      _body.rs (543 lines), user_properties.rs, and mod.rs's log-out
+      machinery all fall. (5) Account UI falls with the login that
+      justified it: features.rs warp_account_available() (= !local_only,
+      :364) becomes false-everywhere and the gated surfaces are deleted —
+      the shipped simplewarp bin already hides all of them (Settings-
+      Section::{Account, OzCloudAPIKeys} via needs_warp_account, the
+      tab-bar Sign-up buttons at workspace view :17476, the WarpDrive
+      toolbelt entry :19576, drive sign-in walls, warp_agent_page account
+      rows); after this effort the dev bins (warp/warp-oss/local/preview/
+      stable) behave identically. The BINS themselves stay — they are
+      channel configs, and nothing in them references auth.
+
+      LOGIN-VS-LOCAL INVENTORY (file:line evidence; DELETE = remote-
+      shaped, KEEP = locally required). DELETE, auth machinery: auth_
+      client.rs (AuthClient/AuthClientImpl/FetchUserResult/User-
+      AuthenticationError/EXPERIMENT_ID_HEADER/GraphqlRoutingConfig/
+      EVAL_USER_IDS), session.rs (AuthSession/AuthEvent/identitytoolkit
+      exchange), firebase.rs, user/persistence.rs keychain, AuthState::
+      {PersistAction, persist_action :181, apply_persisted_user :221,
+      update_firebase_tokens :321, api_key_owner_type :514, initialize's
+      test-user/WARP_USER_SECRET/keychain ladder :120-167}, Credentials
+      {Firebase, ApiKey} + AuthToken/LoginToken/FirebaseToken/
+      RefreshToken, user.rs {From<FirebaseProfile> :209, TryFrom<gql
+      AnonymousUserType> :40, FirebaseAuthTokens}. DELETE, GraphQL login
+      core: the whole crates/graphql minus the two moving types (census
+      above). DELETE, app login flow: AuthManager::{initialize_user_
+      from_auth_payload :82, resume_interrupted_auth_payload :149,
+      initialize_user_from_session_cookie :176 (wasm), refresh_user
+      :190, on_user_fetched :211, complete_authentication/set_and_persist/
+      persist :304-343, log_out :349, set_needs_reauth :358, sign_in_
+      url :389, generate/consume_auth_state :383/:402}, AuthManagerEvent
+      {AuthComplete, AuthFailed, NeedsReauth, LoginOverrideDetected},
+      AuthRedirectPayload (auth_view_modal.rs, parsed at uri/mod.rs:98
+      UriHost::Auth → root_view.rs:1497 handle_incoming_auth_url), the
+      override-warning modal + body, user_properties.rs, auth/mod.rs
+      {web_logout_url :51, maybe_log_out :60, log_out_and_open_web
+      :182, log_out :189, remove_cloud_persisted_settings :256},
+      global_actions.rs app:maybe_log_out/app:log_out :92-93, app_menus
+      "Log out" :214, lib.rs:1699 startup refresh_user (+ :1369
+      user_is_logged_in), ServerApiProvider pump :242-270 + get_auth_
+      client, auth.rs re-export shim + auth_tests.rs, workspace view
+      {Reauth action+banner :18242-18252, SignupAnonymousUser/
+      SignInAnonymousWebUser handlers :20742-20750, initiate_user_
+      signup :19454, redirect_to_sign_in (wasm), sign-in/sign-up tab-bar
+      buttons :17845/:17889 + their :17476 gate, AnonymousUserAuth
+      banner, CopyAccessTokenToClipboard :20634, observe_server_api's
+      StagingAccessBlocked arm :2189, LoginOverrideDetected arm :9736,
+      AuthComplete arm :9739, open_auth_override_warning_modal :12508,
+      is_auth_override_modal_open}, left_panel {LeftPanelAction::SignIn
+      :1109, LeftPanelEvent::SignInRequested :147}, main_page.rs
+      SignupAnonymousUser chain (:101/:175/:272), one_time_modal_
+      model.rs AuthComplete subscription :39, profiles.rs AuthComplete
+      arm :379 (the syncer-event arm :385-394 stays), mcp native.rs's
+      two auth subscriptions :348/:360 (Warp-hosted builtin servers need
+      credentials), remote_server {wire_auth_token_rotation mod.rs:57,
+      auth_context.rs token closure (logged-in branch was its only
+      AuthClient call)}, agent_sdk CLI {launch_command's requires_auth
+      :589, authenticate_and_dispatch :612, AgentDriver::new NotLoggedIn
+      gate driver.rs:566, builtin_factory_mcp_for_run credentials param
+      :1009, admin.rs logout :165 + whoami :95}, CliCommand Logout/
+      Whoami arms (warp_cli lib.rs:365-367), crash_reporting set_user_id
+      caller (auth_manager :230; crash_reporting/mod.rs user_id readers
+      STAY — they pass None), SettingsInitializer::handle_user_fetched,
+      CloudPreferencesSyncer::handle_user_fetched CALLER only,
+      UpsertCurrentUserInformation emission :261, GeneralSettings
+      did_non_anonymous_user_log_in write :247, settings Account page +
+      OzCloudAPIKeys, free_ai_removal_modal, skip_login + local_only
+      features + fast_dev + the cfg lattice, AGENTS.md's WITH_LOCAL_
+      SERVER + GraphQL sections. KEEP (locally required): UserUid +
+      Owner::User{user_uid} sqlite columns + ("USER", uid) subject rows
+      + team_members.user_uid (schema.rs:384) + read_sqlite_data's
+      current_user_id filter (Option; None = the shipped state),
+      AuthState read API + remote-server setters (apply_remote_server_
+      auth_context/set_remote_server_bearer_token/get_access_token_
+      ignoring_validity — server_model.rs:1239 reads the daemon token),
+      Credentials::Bearer, anonymous_id.rs, test-util {AuthStateProvider::
+      new_for_test ×69 files, new_logged_out_for_test, new_anonymous_
+      for_test — 74 files total; User::test; TEST_USER_UID; Owner::
+      mock_current_user (cloud_object/mod.rs:286) + CloudObject-
+      Permissions::mock_personal :356 (4ft)}, ServerApiProvider::
+      get_http_client + NetworkLogModel (4fg order: registered BEFORE
+      the provider, lib.rs:1119-1126), AIApiError, remote_server SSH
+      vertical entire, cloud_preferences_syncer + SettingsInitializer
+      minus the hook, login_item module, geap_credentials (self-gating:
+      user_id None → Disabled), personal_object_limits limit gates
+      (is_feature_gated_anonymous_user_past_* always false logged-out;
+      harmless, delete only if their caller features die), the avatar
+      button (it IS the settings gear when anonymous), whoami's
+      UserWorkspaces read (dies with whoami in slice 3b).
+
+      LANDMINES. (1) Persisted shapes are untouchable: Owner User{user_
+      uid}/Team{team_uid} serde, the ("USER"/"TEAM", subject_id) sqlite
+      rows, ServerTimestamp's exact derive set on its MOVE (Copy,Clone,
+      Debug,Serialize,Deserialize,Eq,PartialEq,Ord,PartialOrd — metadata
+      + RevisionAndLastEditor carry it), team_members.user_uid. The
+      ServerTimestamp move must be a pure re-path. (2) 74 test files
+      construct AuthStateProvider test constructors; test-util must
+      compile green after EVERY slice (cargo check -p warp --lib
+      --features test-util is a 4fs-mandated gate). (3) The cfg lattice
+      any(test, integration_tests, skip_login, test-util) appears at
+      ~15 sites; removing the skip_login/local_only features touches
+      app/Cargo.toml forwardings (:890-891, :899, :914), fast_dev
+      (:784), and the simplewarp list's "local_only" entry (:642) — do
+      it in the flags slice, last-but-one, keeping cfg(test) paths
+      intact throughout. (4) NetworkLogModel registration order
+      (lib.rs:1119-1126) survives the provider shrink. (5) The pump's
+      app:log_out dispatch exists to break a circular model reference
+      (server_api.rs:247-252 comment) — the whole pump falls together;
+      sweep for other app:log_out dispatchers before deleting the
+      action. (6) wasm-gated code presubmit never compiles
+      (initialize_user_from_session_cookie, async_trait(?Send),
+      redirect_to_sign_in, LoggedOut event): verbatim-subtractive. (7)
+      remote_server is LOCAL: only its token closure's logged-in branch
+      and the AccessTokenRefreshed rotation wire touch auth — collapse
+      to always-None token + anonymous_id identity (that is already
+      the shipped simplewarp behavior); keep Credentials::Bearer +
+      set_remote_server_bearer_token + apply_remote_server_auth_
+      context. (8) login_item = OS launch-at-login (features_page
+      :1585): KEEP — naming trap. (9) UriHost::Auth has FOUR match
+      surfaces (FromStr :98, handle :119, window_behavior_hint :443,
+      plus the root_view:handle_incoming_auth_url registration) —
+      exhaustive-match fallout; prefer collapsing the arm to the Team-
+      style log-and-ignore (host string "auth" stays parseable) or
+      delete the variant + arm everywhere in one slice. (10)
+      SettingsSection::{Account, OzCloudAPIKeys} removal must respect
+      the section_id STRING compatibility contract (mod.rs:330-340:
+      sqlite session-restore keys + public CLI argument) — either keep
+      the strings in Display/id mapping as tombstones or accept
+      available()-remapping; do not silently change surviving ids.
+      (11) agent_mode_evals rides AuthClientImpl (EVAL_USER_IDS +
+      path_prefix :230-233) — cfg code presubmit never compiles; its
+      auth half falls in 3b, the feature's other sites (request_usage_
+      model, ai_execution_profile) are out of login scope. (12)
+      AuthComplete test emissions exist (view_tests.rs:454, profiles_
+      tests.rs:284/:317, root_view_tests comment) — re-pin or delete
+      with the subscriber deletions; keep test counts honest. (13)
+      attempt_login_gated_feature/anonymous_user_hit_drive_object_
+      limit have LIVE callers (main_page :149, workspace view :19659,
+      drive index :4190, drive_helpers :86, update_manager :484/:550/
+      :583): AuthManager's terminal shape keeps these two emitters
+      (they only toast "sign-in isn't available" — the honest local UX)
+      OR their gates die with the gated features in slice 4; decide
+      per-caller, never leave a dangling emitter. (14) Onboarding:
+      HAS_COMPLETED_ONBOARDING_KEY + has_completed_local_onboarding
+      (root_view :1345-1351) and onboarding.rs are LOCAL (slide flow,
+      no auth) — only sync_local_onboarding_to_server (:1673) dies.
+      (15) No per-uid user-defaults keying exists in this fork (single
+      local user; CLD-2629 dedupe confirmed storage-key addressing) —
+      nothing to migrate; the keychain "User" entry is abandoned in
+      place, no migration.
+
+      SLICE PLAN (each state compiles; smallest blast radius first).
+      SLICE 1 (4ga) — the auth-redirect intake vertical (~10 files,
+      ≈−900): UriHost::Auth arms (uri/mod.rs), root_view handle_
+      incoming_auth_url + registration, AuthRedirectPayload file,
+      override-warning modal + body + auth/mod.rs init hook, workspace
+      open_auth_override_warning_modal + is_auth_override_modal_open +
+      LoginOverrideDetected arm, AuthManager's payload methods +
+      pending_auth_state + sign_in_url/consume/generate_auth_state +
+      should_silently_ignore_stale_redirect, auth_manager_tests.rs
+      payload tests. Acceptance: both feature sets check/clippy +
+      nextest, wasm branch verbatim-deleted, `warp://auth/...` URI now
+      log-and-ignore. SLICE 2 — logout + sign-up surfaces (~12 files,
+      ≈−700): auth/mod.rs logout machinery + global actions + app_menus
+      item + admin.rs logout, workspace Reauth/SignupAnonymousUser/
+      SignInAnonymousWebUser actions + banners + buttons + initiate_
+      user_signup/redirect_to_sign_in, left_panel SignIn event/action,
+      main_page SignupAnonymousUser chain + settings event plumbing,
+      CopyAccessTokenToClipboard. Acceptance: no Command Palette or
+      menu entry references Log out/Sign up anywhere (string sweep).
+      SLICE 3a — AuthManager slims to the toast emitters (~15 files,
+      ≈−800): drop auth_client field/ctor param, on_user_fetched +
+      complete_authentication/set_and_persist/persist + refresh_user +
+      set_user_onboarded + log_out leftovers, AuthManagerEvent slims to
+      {NeedsReauth, AttemptedLoginGatedFeature}; subscriber arms
+      updated (one_time_modal_model, profiles, mcp native AuthManager
+      subscription, root_view handle_auth_manager_event +
+      sync_local_onboarding_to_server, agent_sdk authenticate_and_
+      dispatch + requires_auth + NotLoggedIn gate, lib.rs refresh_user
+      call + registration arg, crash set_user_id, SettingsInitializer/
+      CloudPreferencesSyncer handle_user_fetched, UpsertCurrent-
+      UserInformation, did_non_anonymous_user_log_in write).
+      Acceptance: agent_sdk CLI commands dispatch without auth;
+      test-util green. SLICE 3b — the wire dies (~20 files, ≈−1,500):
+      delete warp_server_auth {auth_client, session, session_tests,
+      firebase, user/persistence + tests, user_tests}; shrink auth_
+      state/credentials/user per the inventory; server_api.rs {pump,
+      auth_client, get_auth_client, auth.rs shim, auth_tests.rs,
+      Event=()}; AuthEvent enum + its 3 subscribers; remote_server
+      auth_context collapse + wire_auth_token_rotation; whoami CLI;
+      agent_mode_evals auth half. Acceptance: warp_server_auth compiles
+      with no warp_graphql dep (client.rs is gone; get_user/experiment/
+      request_context/OwnerType/AnonymousUserType now unreferenced
+      outside crates/graphql — hold the crate deletion for slice 5);
+      skip_login still forwards (feature dies in 4). SLICE 4 —
+      account UI + flags (~15 files, ≈−800): warp_account_available →
+      deleted with its gated surfaces (settings Account/OzCloudAPIKeys
+      pages + sidebar + section_id tombstone decision, drive sign-in
+      walls, warp_agent_page account rows, free_ai_removal_modal,
+      WarpDrive toolbelt gate), remove skip_login + local_only +
+      fast_dev features and every cfg site, drop "local_only" from the
+      simplewarp list, update AGENTS.md (WITH_LOCAL_SERVER section
+      rewritten to a no-login statement; GraphQL section updated
+      pending slice 5). Acceptance: default features == simplewarp
+      behavior on account surfaces; all bins still build + run headless
+      checks; hand-compile agent_mode_evals remainder. SLICE 5 —
+      warp_graphql falls (~15 files, ≈−5,300 incl. SDL): move
+      ServerTimestamp (7 importers) + AgentTaskState/AgentHarness (5
+      files), delete the crate + SDL + build.rs + cynic from
+      workspace + app deps (ambient_agents cynic::Id impl falls),
+      final AGENTS.md GraphQL line. Acceptance: cargo tree -i cynic
+      errors; both feature sets + test-util green; nextest baseline
+      deltas documented per slice. Total ≈ −9,200..−10,000.
+      DESIGNATED NEXT: slice 1 exactly as scoped above. Acceptance for
+      THIS round: no code changes — this commit contains only
+      plan.md (verified with `git show --stat`); no clippy/nextest
+      required; app not launched; no .rs file touched.
