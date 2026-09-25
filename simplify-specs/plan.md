@@ -12973,3 +12973,82 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       The 4fk survey entry above is now marked [x]: all six
       slices it planned (1, 2a, 2b, 3a, 3b, 4) are executed and
       recorded (4fl, 4fm, 4fn, 4fo, 4fp, 4fq).
+
+- [x] **AuthEvent-pump comment tidy + test-util EntityId cfg-gate
+      fix (4fr) — DONE 2026-09-25.** The two small leftovers from
+      the 4fq next-candidates list, items (c) and (d), combined
+      into one tidy round: 4 files changed, 7 insertions(+),
+      6 deletions(−) including this ledger entry (code diff
+      alone: 3 files, +7/−5).
+
+      COMMENT TIDY (4fq candidate (c), 4fk landmine 12). A fresh
+      repo-wide `rg 'ServerApi' --type rust` minus ServerApiProvider
+      found exactly two comment-only sites — the remembered
+      "step.rs" location was stale (4fk-era); the pump has lived in
+      app/src/server/server_api.rs since the ServerApi dissolution
+      in 4fj, so sites were located by content. (1) the
+      AuthEvent::NeedsReauth arm's rationale comment in the pump
+      spawned by ServerApiProvider::new ("AuthManager depends on a
+      reference to ServerApi, so ServerApi can't easily hold a ref
+      to AuthManager. To get around this, we emit an event on
+      ServerApi...") rewritten to name ServerApiProvider and the
+      real mechanism: the auth client emits on the channel,
+      ServerApiProvider's pump calls AuthManager — the
+      circular-ref rationale itself re-verified still true
+      (auth_manager.rs does `ServerApiProvider::as_ref(ctx).
+      get_auth_client()`). (2) the `get_access_token_ignoring_
+      validity` doc in crates/warp_server_auth/src/auth_state.rs
+      pointed its rustdoc link at the dead
+      `[ServerApi::get_or_refresh_access_token]`; retargeted to
+      the living `crate::auth_client::AuthClient::
+      get_or_refresh_access_token` (the trait method whose own doc
+      describes exactly the refresh-if-expired behavior the note
+      recommends). Comments only, zero code-semantics changes;
+      post-edit sweep clean: no `ServerApi` outside
+      ServerApiProvider anywhere in Rust.
+
+      CFG-GATE FIX (4fq candidate (d), 4fn discovery). The red was
+      reproduced at HEAD BEFORE editing: `cargo check -p warp --lib
+      --features test-util` failed E0433 "use of undeclared type
+      `EntityId`" at app/src/ai/blocklist/input_model.rs:295 —
+      `EntityId::new()` inside `BlocklistAIInputModel::mock`, which
+      is gated `#[cfg(any(test, feature = "test-util"))]`, while
+      its import at line 21 was gated `#[cfg(test)]` only, so any
+      test-util build without cfg(test) compiled the use site
+      without the import. Fix: the one-line gate correction
+      `#[cfg(test)]` → `#[cfg(any(test, feature = "test-util"))]`
+      on that single `use warpui::EntityId;`. Minimal diff, nothing
+      else touched.
+
+      Acceptance: (1) `cargo check -p warp --lib --features
+      test-util` GREEN (headline deliverable; red at HEAD per the
+      reproduction above). (2) ./script/format run twice,
+      idempotent — identical working-tree status across runs,
+      format applied no changes of its own. (3) clippy
+      WARNING-IDENTICAL to the HEAD baseline captured BEFORE
+      editing, in BOTH default and `--no-default-features
+      --features simplewarp`: 12 = 12 location+message pairs
+      machine-diffed, `diff` clean on both feature sets, zero new
+      warnings (the 12 pre-existing: 11 needless-return in
+      app/src/terminal/input.rs + 1 single-element-loop in
+      terminal/model/lifecycle/mod_tests.rs:272; neither file
+      touched this round). (4) `cargo check --no-default-features
+      --features simplewarp --bin simplewarp` green. (5) nextest
+      -p warp --lib --no-fail-fast: default 4,597 run / 4,597
+      passed / 3 skipped / 0 failed; simplewarp 4,596 run / 4,596
+      passed / 3 skipped / 0 failed — identical to the 4fq
+      post-round baselines, test counts unchanged, no flakes.
+      Runtime smoke SKIPPED per standing round policy (no GUI
+      tests, app not launched).
+
+      NEXT CANDIDATES (both pre-existing records, untouched this
+      round): (a) the ServerAIConversationMetadata always-None
+      vertical (2b next-candidate (b): rewrite the agent_icon/
+      context_menu/workspace-view/entry UI readers, drop
+      AIConversation.server_metadata +
+      AIConversationMetadata.server_conversation_metadata + both
+      dead loader fns + hydrate_remote_child_placeholder_with_
+      cloud_transcript — then ServerMetadata/ServerPermissions
+      fall entirely); (b) CloudModelEvent::InitialLoadCompleted,
+      emitter-less in production (4fm next-candidate (c): variant
+      + 6 subscriber arms, 3 profiles_tests emitters to rewrite).

@@ -18,7 +18,7 @@ use session_sharing_protocol::common::{InputMode, InputType as ProtocolInputType
 use settings::Setting as _;
 use warp_completer::completer::CompletionContext;
 use warp_core::features::FeatureFlag;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-util"))]
 use warpui::EntityId;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 

@@ -345,7 +345,8 @@ impl AuthState {
     }
 
     /// Returns the cached access token, if any exists. This method *will not* check if the JWT is
-    /// still valid! Usually, you want to use [`ServerApi::get_or_refresh_access_token`] instead!
+    /// still valid! Usually, you want to use
+    /// [`crate::auth_client::AuthClient::get_or_refresh_access_token`] instead!
     pub fn get_access_token_ignoring_validity(&self) -> Option<String> {
         let credentials = self.credentials.read();
         credentials.as_ref()?.bearer_token().bearer_token()
