@@ -349,8 +349,7 @@ impl TemplatableMCPServerManager {
                 AuthManagerEvent::AuthFailed(_) | AuthManagerEvent::NeedsReauth => {
                     me.sync_builtin_servers(false, ctx)
                 }
-                AuthManagerEvent::AttemptedLoginGatedFeature
-                | AuthManagerEvent::LoginOverrideDetected(_) => {}
+                AuthManagerEvent::AttemptedLoginGatedFeature => {}
             });
 
             let server_api_provider = ServerApiProvider::handle(ctx);

@@ -9,12 +9,10 @@ use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
 use serde::{Deserialize, Serialize};
 use settings::Setting as _;
-use url::Url;
 use warp_core::context_flag::ContextFlag;
-use warp_core::safe_error;
 use warp_core::user_preferences::GetUserPreferences as _;
 use warp_errors::report_error;
-use warpui::elements::{Border, ParentElement, Stack};
+use warpui::elements::{ParentElement, Stack};
 use warpui::keymap::{EditableBinding, FixedBinding};
 use warpui::platform::{WindowBounds, WindowStyle};
 use warpui::presenter::ChildView;
@@ -32,7 +30,6 @@ use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::auth_state::AuthState;
-use crate::auth::auth_view_modal::AuthRedirectPayload;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{ObjectType, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
 use crate::interval_timer::IntervalTimer;
@@ -50,7 +47,7 @@ use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::keys_settings::KeysSettings;
 use crate::terminal::shell::ShellType;
 use crate::terminal::view::cell_size_and_padding;
-use crate::themes::theme::{AnsiColorIdentifier, Blend, Fill};
+use crate::themes::theme::AnsiColorIdentifier;
 use crate::uri::{OpenMCPSettingsArgs, OpenSettingsArgs};
 use crate::util::bindings::{self, is_binding_pty_compliant};
 use crate::view_components::DismissibleToast;
@@ -66,21 +63,6 @@ const WINDOW_TITLE: &str = "Warp";
 lazy_static! {
     static ref FALLBACK_WINDOW_SIZE: Vector2F = vec2f(800.0, 600.0);
     static ref QUAKE_STATE: Arc<Mutex<Option<QuakeModeState>>> = Arc::new(Mutex::new(None));
-}
-
-/// This is the color of the border wrapping the whole window.
-///
-/// On MacOS, this is drawn for us by the OS. On other platforms, we must draw it ourselves. Note
-/// that this is hard-coded for the default Dark theme. This is because it is only used by the
-/// AuthView and OnboardingSurveyModal which do not respect the chosen theme. So, do not use this for Views
-/// which respect themes.
-pub(crate) fn unthemed_window_border() -> Border {
-    if cfg!(all(not(target_os = "macos"), not(target_family = "wasm"))) {
-        // The 15% blend of fg into bg is the "ui surface" color.
-        Border::all(1.).with_border_fill(Fill::black().blend(&Fill::white().with_opacity(15)))
-    } else {
-        Border::all(1.).with_border_fill(Fill::black().with_opacity(0))
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -212,10 +194,6 @@ pub fn init(app: &mut AppContext) {
         RootView::maybe_stop_active_voice_input,
     );
     app.add_action("root_view:log_out", RootView::log_out);
-    app.add_action(
-        "root_view:handle_incoming_auth_url",
-        RootView::handle_incoming_auth_url,
-    );
     app.add_action(
         "root_view:add_session_at_path",
         RootView::add_session_at_path,
@@ -1489,24 +1467,6 @@ impl RootView {
     ) -> bool {
         // Focus the pane that the notification originated from.
         self.focus_pane(pane_view_locator, ctx);
-        true
-    }
-
-    #[allow(clippy::ptr_arg)]
-    fn handle_incoming_auth_url(&mut self, url: &Url, ctx: &mut ViewContext<Self>) -> bool {
-        match AuthRedirectPayload::from_url(url.clone()) {
-            Ok(redirect_payload) => {
-                AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                    auth_manager.initialize_user_from_auth_payload(redirect_payload, true, ctx);
-                });
-            }
-            Err(error) => {
-                safe_error!(
-                    safe: ("Unable to parse AuthResult from url"),
-                    full: ("Unable to parse AuthResult from url: {error}")
-                );
-            }
-        }
         true
     }
 

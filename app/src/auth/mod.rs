@@ -1,7 +1,4 @@
 pub mod auth_manager;
-mod auth_override_warning_body;
-pub mod auth_override_warning_modal;
-pub mod auth_view_modal;
 mod user_properties;
 use ::settings::{Setting, SettingsManager, ToggleableSetting};
 pub use auth_manager::AuthManager;
@@ -39,10 +36,6 @@ use crate::workspace::{Workspace, WorkspaceAction};
 use crate::{
     GlobalResourceHandlesProvider, focus_running_window_and_show_native_modal, persistence,
 };
-
-pub fn init(app: &mut AppContext) {
-    auth_override_warning_body::init(app);
-}
 
 /// Returns the configured Warp web logout URL.
 ///

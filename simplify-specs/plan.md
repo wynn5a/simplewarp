@@ -14086,3 +14086,117 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       THIS round: no code changes — this commit contains only
       plan.md (verified with `git show --stat`); no clippy/nextest
       required; app not launched; no .rs file touched.
+
+- [x] **login slice 1 — the auth-redirect intake vertical deleted
+      (4ga) — DONE 2026-09-25.** RESUME round: the previous agent died
+      mid-round on a transient network error and left ~11 files
+      uncommitted (+11/−894). Every hunk was independently re-verified
+      against the 4fz slice-1 map before being kept: the deletions of
+      auth_view_modal.rs (AuthRedirectPayload), auth_override_warning_
+      modal.rs + _body.rs, the UriHost::Auth handle arm → log-and-
+      ignore, root_view's handle_incoming_auth_url + action
+      registration + unthemed_window_border, auth/mod.rs's init hook +
+      3 mod decls, lib.rs's auth::init call, workspace's override-
+      modal plumbing + LoginOverrideDetected arm, and mcp native.rs's
+      LoginOverrideDetected arm all matched slice 1 and were KEPT
+      (zero-repo-reference sweeps per symbol, PCRE lookbehind form).
+      No hunk was reverted. The dead agent had NOT reached: pending_
+      auth_state + generate_auth_state + sign_in_url in auth_manager,
+      auth_manager_tests.rs payload tests, and the now-orphaned
+      Border/Fill/Blend imports in root_view + FirebaseToken/
+      LoginToken import in auth_manager — all completed this round.
+
+      DEVIATION from the 4fz map (one, documented): slice 2's
+      workspace Reauth surface was pulled forward. 4fz slice 1 lists
+      sign_in_url/consume/generate_auth_state + pending_auth_state
+      for deletion, but sign_in_url's sole repo-wide caller was the
+      Reauth action handler (view.rs:20690, banner button "Sign in");
+      deleting sign_in_url could not compile without it. Deleted as a
+      required one-hop consequence: WorkspaceAction::Reauth variant +
+      cfg entry (action.rs:435/:988), WorkspaceBanner::Reauth variant
+      + is_dismissible arm, reauth_banner_dismissed field + init +
+      dismiss arm, render_reauth_banner_element + its banner_fields
+      call, and the Reauth handler arm. AnonymousUserAuth banner +
+      the other banners untouched (slice 2). One further orphan:
+      AuthState::needs_reauth() getter lost its sole app reader —
+      kept per 4fz (AuthState read API stays; pub in warp_server_
+      auth, no dead-code lint).
+
+      DELETIONS with evidence (all symbols zero-referenced post-
+      delete, PCRE lookbehind sweeps): auth_view_modal.rs (56 lines,
+      AuthRedirectPayload + from_url + 5 query-param consts),
+      auth_override_warning_body.rs (419 lines, AuthOverrideWarningBody
+      + Action/Event enums + init), auth_override_warning_modal.rs
+      (124 lines, AuthOverrideWarningModal + Event + MODAL_WIDTH).
+      uri/mod.rs: Auth handle arm now `log::info!` ignore (host
+      "auth" STAYS parseable per 4fz landmine 9 — FromStr arm and
+      the desktop_redirect path check at :1220 keep the variant);
+      WindowActivationFallbackBehavior::NewWindow{replace_existing}
+      collapsed to unit variant NewWindow (Auth was the only
+      replace_existing:true user; TerminationMode import fell).
+      root_view.rs: handle_incoming_auth_url + "root_view:
+      handle_incoming_auth_url" registration + unthemed_window_border
+      (sole user was the deleted modal; override-warning doc comment
+      was stale — OnboardingSurveyModal no longer calls it) + url/
+      safe_error/Border/Fill/Blend imports. auth_manager.rs:
+      LoginOverrideDetected variant, initialize_user_from_auth_
+      payload, resume_interrupted_auth_payload, wasm initialize_
+      user_from_session_cookie (verbatim-subtractive per 4fz landmine
+      6), consume_auth_state, should_silently_ignore_stale_redirect,
+      generate_auth_state, sign_in_url, pending_auth_state field +
+      both ctor inits + log_out's CSRF-clearing lines (log_out itself
+      + its auth/mod.rs caller stay for slice 2), uuid + ChannelState
+      + FirebaseToken/LoginToken/UserUid/AuthRedirectPayload imports.
+      auth/mod.rs: pub fn init + 3 mod decls. lib.rs: auth::init call.
+      workspace/view.rs: auth_override_warning_modal field + builder
+      + event handler + render gate, open_auth_override_warning_
+      modal, LoginOverrideDetected subscriber arm (AuthComplete/
+      AuthFailed/NeedsReauth/AttemptedLoginGatedFeature arms stay),
+      AuthRedirectPayload + modal imports. workspace/util.rs: is_
+      auth_override_modal_open field + close_overlays reset
+      (WorkspaceState has no serde — no persisted-shape impact). mcp
+      native.rs: LoginOverrideDetected arm. export_all_warp_drive_
+      objects KEPT (2 live users: action registration :1108, handler
+      :20079 — only the modal's BulkExport dispatch died).
+
+      TEST CHANGES: 4 deletions, both feature-set counts −4.
+      auth_manager_tests.rs: test_duplicate_redirect_for_logged_in_
+      user_is_silently_ignored, test_stale_state_when_logged_out_
+      emits_invalid_state_parameter, test_mismatched_state_with_
+      different_user_uid_emits_invalid_state_parameter (all three
+      exercised initialize_user_from_auth_payload + consume_auth_
+      state + should_silently_ignore_stale_redirect — every deleted
+      symbol), test_log_out_clears_pending_auth_state (asserted the
+      deleted pending_auth_state clearing; log_out retains its live
+      auth/mod.rs caller), track_invalid_state_failures helper
+      (sole users were the deleted tests), and the Arc/AtomicBool/
+      Ordering/AuthRedirectPayload/RefreshToken/UserAuthentication-
+      Error/AuthManagerEvent imports. Kept: validated_api_key_is_
+      promoted_with_its_user + both persist-skip tests (complete_
+      authentication/persist survive until slice 3a), verified
+      passing by name.
+
+      Acceptance: (1) ./script/format twice, idempotent (git-diff
+      shasum identical). (2) clippy WARNING-IDENTICAL to the HEAD
+      baseline (captured via git stash/pop, both configs machine-
+      diffed on location+message pairs): 12 = 12 on default AND on
+      --no-default-features --features simplewarp; zero new warnings,
+      no dead_code surfaced. (3) cargo check --no-default-features
+      --features simplewarp --bin simplewarp green. (4) cargo check
+      -p warp --lib --features test-util green. (5) cargo check -p
+      warp --lib --tests --features skip_login green. (6) nextest
+      -p warp --lib --no-fail-fast: default 4,587 run / 4,587 passed
+      / 3 skipped / 0 failed (baseline 4,591, −4 = the 4 documented
+      test deletions); simplewarp 4,586 / 4,586 / 3 / 0 (baseline
+      4,590, −4). (7) DEVELOPER_DIR unset; no GUI launch, no
+      integration suite. `warp://auth/...` now parses then logs-
+      and-ignores, per the slice acceptance.
+
+      NEXT: slice 2 (4gb) — logout + sign-up surfaces (~12 files,
+      ≈−700) exactly as 4fz scoped: auth/mod.rs logout machinery +
+      global actions + app_menus item + admin.rs logout, workspace
+      SignupAnonymousUser/SignInAnonymousWebUser actions + banners +
+      buttons + initiate_user_signup/redirect_to_sign_in, left_panel
+      SignIn event/action, main_page SignupAnonymousUser chain +
+      settings event plumbing, CopyAccessTokenToClipboard (Reauth
+      already gone via this round's deviation).

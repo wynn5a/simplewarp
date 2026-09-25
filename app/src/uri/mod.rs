@@ -10,13 +10,11 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use anyhow::{Result, anyhow, ensure};
-use itertools::Itertools;
 use url::Url;
 #[cfg(not(target_family = "wasm"))]
 use warp_errors::report_error;
 use warp_util::path::LineAndColumnArg;
 use warpui::notification::UserNotification;
-use warpui::platform::TerminationMode;
 use warpui::{AppContext, SingletonEntity as _, TypedActionView, WindowId};
 
 use self::docker::open_docker_container;
@@ -117,25 +115,9 @@ impl UriHost {
         // Handle host
         match self {
             UriHost::Auth => {
-                ctx.window_ids()
-                    .collect_vec()
-                    .into_iter()
-                    .for_each(|window_id| {
-                        let Some(root_view_id) = ctx.root_view_id(window_id) else {
-                            return;
-                        };
-                        safe_info!(
-                            safe: ("Dispatched auth url to window {window_id}"),
-                            full: ("Dispatched auth url {url} to window {window_id}")
-                        );
-                        ctx.dispatch_action(
-                            window_id,
-                            &[root_view_id],
-                            "root_view:handle_incoming_auth_url",
-                            &url.clone(),
-                            log::Level::Info,
-                        );
-                    });
+                // OAuth-style login redirects belonged to the login flow,
+                // which this fork removed. Log and move on.
+                log::info!("Ignoring auth URI: login is removed in this build");
             }
             UriHost::Team => {
                 // Team invite/intent links belonged to the cloud team
@@ -440,10 +422,7 @@ impl UriHost {
     fn window_behavior_hint(&self) -> WindowBehaviorHint {
         use WindowBehaviorHint as W;
         match self {
-            Self::Auth => W::ShowPrimaryWindow(WindowActivationFallbackBehavior::NewWindow {
-                replace_existing: true,
-            }),
-            Self::Team | Self::Drive | Self::Settings => W::default(),
+            Self::Auth | Self::Team | Self::Drive | Self::Settings => W::default(),
             // These URLs always open new windows.
             Self::Launch | Self::Home => W::Nothing,
             // This will actually be handled by [`Action::window_behavior_hint`].
@@ -474,9 +453,7 @@ enum WindowBehaviorHint {
 
 impl Default for WindowBehaviorHint {
     fn default() -> Self {
-        Self::ShowPrimaryWindow(WindowActivationFallbackBehavior::NewWindow {
-            replace_existing: false,
-        })
+        Self::ShowPrimaryWindow(WindowActivationFallbackBehavior::NewWindow)
     }
 }
 
@@ -519,13 +496,7 @@ enum WindowActivationFallbackBehavior {
     /// notification.
     Notify { title: String, description: String },
     /// Create a new window to handle the URI.
-    NewWindow {
-        /// Close the former "primary window" as determined by [`get_primary_window`]. This should
-        /// generally default to `false` to avoid closing a window with information that the user
-        /// may still want. One exception is the Auth route where the old window just showed the
-        /// auth page.
-        replace_existing: bool,
-    },
+    NewWindow,
 }
 
 impl WindowActivationFallbackBehavior {
@@ -561,13 +532,8 @@ impl WindowActivationFallbackBehavior {
                 }
                 Some(primary_window_id)
             }
-            WindowActivationFallbackBehavior::NewWindow { replace_existing } => {
-                let new_window_id = open_new_window_get_handles(None, ctx).0;
-                if replace_existing {
-                    ctx.windows()
-                        .close_window(primary_window_id, TerminationMode::Cancellable);
-                }
-                Some(new_window_id)
+            WindowActivationFallbackBehavior::NewWindow => {
+                Some(open_new_window_get_handles(None, ctx).0)
             }
         }
     }
@@ -901,8 +867,7 @@ impl Action {
     }
 }
 
-/// Handles all incoming urls. These urls are file urls, auth urls for login,
-/// and team urls for opening team settings.
+/// Handles all incoming urls: file urls and `warp://` intent urls.
 pub fn handle_incoming_uri(url: &Url, ctx: &mut AppContext) {
     safe_info!(
         safe: ("received url"),

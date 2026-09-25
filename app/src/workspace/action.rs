@@ -432,7 +432,6 @@ pub enum WorkspaceAction {
     ShowHeaderToolbarContextMenu {
         position: Vector2F,
     },
-    Reauth,
     SignupAnonymousUser,
     SignInAnonymousWebUser,
     OpenLink(String),
@@ -985,7 +984,6 @@ impl WorkspaceAction {
             | OpenCLIAgentToolbarEditor
             | OpenHeaderToolbarEditor
             | ShowHeaderToolbarContextMenu { .. }
-            | Reauth
             | SignupAnonymousUser
             | LogOut
             | OpenLink(_)
