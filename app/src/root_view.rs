@@ -26,7 +26,6 @@ use warpui::{
     ViewContext, ViewHandle, WindowId, id,
 };
 
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::app_state::{AppState, PaneUuid, WindowSnapshot};
 use crate::appearance::Appearance;
@@ -240,15 +239,6 @@ pub fn init(app: &mut AppContext) {
         RootView::toggle_maximize_window,
     );
     app.add_action("root_view:toggle_fullscreen", RootView::toggle_fullscreen);
-
-    app.add_global_action(
-        "root_view:open_conversation_viewer",
-        open_conversation_viewer,
-    );
-    app.add_action(
-        "root_view:open_cloud_conversation_in_existing_window",
-        RootView::open_cloud_conversation_in_existing_window,
-    );
 
     app.add_global_action(
         "root_view:open_drive_object_new_window",
@@ -731,19 +721,6 @@ pub(crate) fn open_new_from_path(
         },
         ctx,
     )
-}
-
-/// Opens a new window to view a persisted view-only cloud conversation.
-/// The conversation data is loaded via GraphQL API.
-fn open_conversation_viewer(conversation_id: &ServerConversationToken, ctx: &mut AppContext) {
-    // Trigger the workspace loading mechanism by dispatching the LoadConversationData event
-    // This will open a new window with a loading state, fetch data via GraphQL, and display it
-    open_new_with_workspace_source(
-        NewWorkspaceSource::FromCloudConversationId {
-            conversation_id: conversation_id.clone(),
-        },
-        ctx,
-    );
 }
 
 fn open_settings_page_in_new_window(section: &SettingsSection, ctx: &mut AppContext) {
@@ -1265,9 +1242,6 @@ pub enum NewWorkspaceSource {
     Session {
         options: Box<NewTerminalOptions>,
     },
-    FromCloudConversationId {
-        conversation_id: ServerConversationToken,
-    },
     NotebookFromFilePath {
         file_path: Option<PathBuf>,
     },
@@ -1342,7 +1316,6 @@ impl NewWorkspaceSource {
             } => Some(*source_window_id),
             Self::FromTemplate { .. }
             | Self::Session { .. }
-            | Self::FromCloudConversationId { .. }
             | Self::NotebookFromFilePath { .. }
             | Self::NotebookById { .. }
             | Self::WorkflowById { .. }
@@ -1584,22 +1557,6 @@ impl RootView {
             arg.object_type
         );
 
-        let window_id = ctx.window_id();
-        ctx.windows().show_window_and_focus_app(window_id);
-        ctx.notify();
-        true
-    }
-
-    /// Opens a cloud conversation in an existing window.
-    /// With server sync gone, the load can only surface the failure toast.
-    pub fn open_cloud_conversation_in_existing_window(
-        &mut self,
-        _: &ServerConversationToken,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        self.workspace.update(ctx, |workspace, ctx| {
-            workspace.load_cloud_conversation_into_new_transcript_viewer(ctx);
-        });
         let window_id = ctx.window_id();
         ctx.windows().show_window_and_focus_app(window_id);
         ctx.notify();

@@ -3359,9 +3359,6 @@ impl Workspace {
                 );
                 self.check_and_trigger_onboarding(ctx);
             }
-            NewWorkspaceSource::FromCloudConversationId { .. } => {
-                self.load_cloud_conversation_into_new_transcript_viewer(ctx);
-            }
             NewWorkspaceSource::AgentSession {
                 options,
                 initial_query,
@@ -3497,13 +3494,11 @@ impl Workspace {
             | NewWorkspaceSource::TeamSwitched { .. }
             | NewWorkspaceSource::NotebookFromFilePath { .. } => should_default_open,
             #[cfg(not(target_family = "wasm"))]
-            NewWorkspaceSource::FromCloudConversationId { .. }
-            | NewWorkspaceSource::NotebookById { .. }
-            | NewWorkspaceSource::WorkflowById { .. } => should_default_open,
+            NewWorkspaceSource::NotebookById { .. } | NewWorkspaceSource::WorkflowById { .. } => {
+                should_default_open
+            }
             #[cfg(target_family = "wasm")]
-            NewWorkspaceSource::FromCloudConversationId { .. }
-            | NewWorkspaceSource::NotebookById { .. }
-            | NewWorkspaceSource::WorkflowById { .. } => {
+            NewWorkspaceSource::NotebookById { .. } | NewWorkspaceSource::WorkflowById { .. } => {
                 // Web opens these as single-purpose views without exposed multi-tab UI, so keep
                 // the tabs panel closed even though native windows still expose workspace chrome.
                 false
@@ -3653,21 +3648,6 @@ impl Workspace {
                 }
             }
         }
-    }
-
-    /// Load the conversation into a transcript viewer in a new tab (with no input/backing shell)
-    pub fn load_cloud_conversation_into_new_transcript_viewer(
-        &mut self,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Cloud conversation storage requires a Warp account/server, which this
-        // build never has, so the load can only fail.
-        report_error!("Failed to load conversation from server");
-        self.toast_stack.update(ctx, |view, ctx| {
-            let new_toast =
-                DismissibleToast::error("Failed to load conversation data.".to_string());
-            view.add_ephemeral_toast(new_toast, ctx);
-        });
     }
 
     pub fn is_conversation_transcript_viewer_focused(&self, app: &AppContext) -> bool {
@@ -21094,7 +21074,14 @@ impl TypedActionView for Workspace {
                     self.focus_pane(locator, ctx);
                     return;
                 }
-                self.load_cloud_conversation_into_new_transcript_viewer(ctx);
+                // Cloud conversation storage requires a Warp account/server, which this
+                // build never has, so a transcript viewer tab can only fail to load.
+                report_error!("Failed to load conversation from server");
+                self.toast_stack.update(ctx, |view, ctx| {
+                    let new_toast =
+                        DismissibleToast::error("Failed to load conversation data.".to_string());
+                    view.add_ephemeral_toast(new_toast, ctx);
+                });
             }
             ForkAIConversation {
                 conversation_id,

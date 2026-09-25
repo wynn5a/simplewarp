@@ -13471,3 +13471,99 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       integration — verify render reachability before deleting, since
       ConversationActionButtonsRow itself stays live for the
       management view toolbelt). Next round id: 4fw.
+
+- [x] **warp://conversation deep-link chain deleted (4fw) — DONE
+      2026-09-25.** 4ft next-candidate (a): 3 files changed, 13
+      insertions(+), 109 deletions(−) (code only; + this ledger entry).
+
+      DUAL-CONFIRM (premise verified at HEAD before editing). Entry
+      census: warp:// URIs enter via lib.rs handle_incoming_uri call
+      sites (OS scheme event, single-instance manager, Linux activation)
+      → validate_custom_uri → UriHost::from_str → UriHost::handle. The
+      UriHost::Conversation arm parsed the trailing path segment into a
+      ServerConversationToken and dispatched exactly two actions:
+      "root_view:open_cloud_conversation_in_existing_window" (existing
+      window) or global "root_view:open_conversation_viewer" (new
+      window). (1) open_conversation_viewer's sole body constructed
+      NewWorkspaceSource::FromCloudConversationId { conversation_id }
+      → open_new_with_workspace_source → workspace view.rs's arm called
+      load_cloud_conversation_into_new_transcript_viewer, whose entire
+      body (post-4ft) is report_error! + the "Failed to load
+      conversation data." toast. (2) open_cloud_conversation_in_
+      existing_window IGNORED its token argument (`_`) and called the
+      same loader directly. conversation_id field verified write-only:
+      sole construction root_view.rs:742, all three match arms bind
+      `{ .. }`, no other reader repo-wide (NewWorkspaceSource is
+      Clone-derive only, no serde). Every traversal of the chain ends
+      at the toast; no local resolution exists anywhere in it. STOP
+      check — one adjacent LOCAL path found and preserved:
+      WorkspaceAction::OpenConversationTranscriptViewer (dispatched
+      from local surfaces: conversation list, orchestration links,
+      terminal input) focuses an existing pane for ambient agent tasks
+      before its fallback; only its no-local-pane fallback could toast.
+
+      DELETIONS with caller censuses (pre-delete). uri/mod.rs:
+      UriHost::Conversation variant + FromStr arm + handle arm +
+      window_behavior_hint arm-list + validate_custom_uri arbitrary-
+      path entry + ServerConversationToken import (only uses). root_
+      view.rs: open_conversation_viewer fn + global-action
+      registration; RootView::open_cloud_conversation_in_existing_
+      window + registration (no Command Palette entries existed —
+      string sweep found none outside the two files); NewWorkspace-
+      Source::FromCloudConversationId variant (+ its write-only
+      conversation_id field) + team_uid arm entry + ServerConversation-
+      Token import (only uses). workspace/view.rs: the FromCloud-
+      ConversationId match arm + both cfg(vertical-tabs-panel) arm
+      entries; load_cloud_conversation_into_new_transcript_viewer
+      deleted — it had one surviving NON-chain caller (the OpenConver-
+      sationTranscriptViewer fallback), so its 13-line toast body was
+      inlined there verbatim, preserving behavior while deleting the
+      misleading load-plumbing name. Post-delete PCRE sweeps: zero
+      references repo-wide to any deleted symbol.
+
+      KEPT with verdicts. find_conversation_id_by_server_token: KEEP —
+      21 live call-site references (agent_conversations_model entry_
+      for_server_token, blocklist block view open-conversation link,
+      plus history-model tests); resolves against the LOCAL history
+      model, fully locally runnable. resolve_open_action: KEEP — live
+      callers in terminal input, conversation-list view (x2), orches-
+      tration_conversation_links, plus tests; same local-model nature.
+      OpenConversationTranscriptViewer action: KEEP — local focus_pane
+      success path for ambient agent tasks. Other UriHosts (launch,
+      tab_config, drive, settings, session, etc.): untouched local
+      features per standing policy.
+
+      TEST CHANGES: none — uri_tests.rs and all test files reference
+      none of the deleted items; zero deletions, zero count delta.
+
+      Acceptance: (1) ./script/format twice, idempotent (no changes
+      either run; tree held exactly the 3 code files). (2) clippy
+      WARNING-IDENTICAL to the pre-edit HEAD baseline on BOTH sets
+      (cargo clippy -p warp --lib --all-targets, and --no-default-
+      features --features simplewarp): 12 = 12 location+message pairs
+      machine-diffed, diff clean both, zero new warnings (12
+      pre-existing: 11 needless-return terminal/input.rs + 1 single-
+      element-loop lifecycle/mod_tests.rs:272; neither file touched) —
+      also the orphan sweep: no dead_code surfaced. (3) cargo check
+      --no-default-features --features simplewarp --bin simplewarp
+      green. (4) cargo check -p warp --lib --features test-util
+      green. (5) nextest -p warp --lib --no-fail-fast: default 4,591
+      run / 4,591 passed / 3 skipped / 0 failed; simplewarp 4,590 /
+      4,590 / 3 / 0 — byte-identical to the 4ft/4fv baselines, zero
+      deltas; no flakes. (6) DEVELOPER_DIR unset; no GUI launch, no
+      integration suite.
+
+      NEXT CANDIDATES: (b) CloudConversationData single-variant (Oz)
+      collapse (unchanged); (c) 4fv's always-None ai_conversation_id
+      vertical (details-panel action-buttons row + Continue-locally
+      button unreachable); NEW (d) OpenConversationTranscriptViewer's
+      conversation_id field is now write-only (handler binds `..`;
+      both constructors feed it) and its fallback arm can only toast —
+      collapses with (c) if that round takes it; also the wasm web-
+      intent producer WebIntent::ConversationView (web_intent_parser
+      "conversation" arm, matched in wasm-gated open_url_on_desktop /
+      set_context_flags / browser_url_handler) still rewrites server-
+      hosted web URLs into warp://conversation/... which now lands in
+      the generic unknown-host error — wasm-only, unverifiable in this
+      fork's acceptance, left for a wasm-aware round. Next round id:
+      4fx.
