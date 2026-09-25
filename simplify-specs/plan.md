@@ -13052,3 +13052,102 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       fall entirely); (b) CloudModelEvent::InitialLoadCompleted,
       emitter-less in production (4fm next-candidate (c): variant
       + 6 subscriber arms, 3 profiles_tests emitters to rewrite).
+
+- [x] **InitialLoadCompleted event vertical deleted (4fs) — DONE
+      2026-09-25.** The 4fr next-candidate (b), scoped by 4fm's
+      next-candidate (c): 7 files changed, 32 insertions(+),
+      44 deletions(−) including this ledger entry.
+
+      DUAL-CONFIRM. (a) Production-emitter sweep: PCRE-lookbehind
+      `rg -P '(?<![A-Za-z0-9_])InitialLoadCompleted'` over all Rust
+      found ZERO production emitters of
+      `CloudModelEvent::InitialLoadCompleted` — the only `ctx.emit`
+      sites were the 3 profiles_tests.rs shortcuts (re-seeded in
+      4fm); the server initial-load that once emitted the event died
+      with the sync path. Disambiguation: the identically-named
+      `CloudPreferencesSyncerEvent::InitialLoadCompleted` is a
+      DIFFERENT, live vertical (production emitter at
+      cloud_preferences_syncer.rs:561; subscribers at
+      one_time_modal_model.rs:52 and profiles.rs:389) — untouched
+      throughout. (b) Full arm inventory, located by symbol per
+      drift protocol: persistence.rs:71-72 (variant + "initial bulk
+      load from the server" doc); view.rs:356 (no-op `=> ()`
+      or-pattern member — arm did nothing); drive/index.rs:1112
+      (no-op `=> {}` or-pattern member — arm did nothing);
+      cloud_environments/catalog.rs:40 (or-pattern member sharing
+      `catalog.refresh(ctx)` with 7 other variants);
+      execution_profiles/profiles.rs:399-401 (`if matches!` block
+      in the imports_legacy_profiles CloudModel subscription calling
+      `migrate_settings_profiles` — production equivalent survives
+      via the syncer-event subscription at :385-394);
+      execution_profiles/profiles.rs:1868-1870 (arm calling
+      `reconcile_with_cloud_state_after_initial_load`); ai/document/
+      ai_document_model.rs:402-404 (arm calling
+      `reconcile_all_document_server_backing`).
+
+      DELETIONS. Variant + doc gone; all 6 subscriber sites updated
+      (4 or-pattern memberships dropped, 1 if-matches block dropped,
+      1 arm dropped — the pre-existing `_ => {}` in
+      handle_cloud_model_event predates the round and was not
+      extended to paper over anything). No wildcard added anywhere.
+
+      TEST REWRITES (3, all semantics-preserving, assertions
+      untouched). (1) `completed_migration_is_not_reapplied_and_
+      legacy_ids_restore_after_restart`: the emit became a direct
+      `model.reconcile_with_cloud_state_after_initial_load(ctx)` +
+      the already-present explicit `migrate_settings_profiles` call
+      (subscription order preserved: reconcile then migrate; the
+      reconcile is provably a no-op post-migration — Unsynced-arm
+      can't match, both profiles already tracked). (2)
+      `reset_without_explicit_collection_reimports_the_next_
+      accounts_legacy_profile`: emit → direct reconcile + migrate
+      on profile_model between the CloudModel add_object and
+      complete_cloud_initial_load, mirroring event-flush order.
+      (3) `reconciles_unsynced_default_profile_with_cloud_after_
+      initial_load`: emit → direct reconcile call (the flag-off
+      subscription path made the event drive ONLY the reconcile
+      here); test + fn doc comments rewritten to describe the
+      bulk-load reconciliation without naming the dead event.
+
+      ONE-HOP ORPHAN VERDICTS (call-syntax `\bname\s*\(` searches).
+      `reconcile_with_cloud_state_after_initial_load`: arm was its
+      only caller; 3 test callers remain → KEPT per test-only-user
+      precedent with `#[cfg_attr(not(test), allow(dead_code))]`
+      (house pattern: cloud_preferences_syncer.rs:225, llms.rs:468,
+      code_review_view.rs:572) so non-test lib builds stay
+      warning-clean. `migrate_settings_profiles`: live production
+      callers (AuthComplete sub :380, syncer-event sub :390,
+      construction catch-up :465). `reconcile_all_document_
+      server_backing`: live production caller
+      (`publish_documents_for_conversation` :301). Zero deletions
+      beyond the vertical itself.
+
+      Acceptance: (1) ./script/format run twice, idempotent —
+      identical 7-file working-tree status across runs, format
+      applied no changes of its own. (2) clippy WARNING-IDENTICAL
+      to the HEAD baseline captured BEFORE editing, BOTH default
+      and `--no-default-features --features simplewarp`: 12 = 12
+      location+message pairs machine-diffed (json span capture,
+      `diff` clean both sets, zero new warnings; the 12
+      pre-existing: 11 needless-return in app/src/terminal/input.rs
+      + 1 single-element-loop in terminal/model/lifecycle/
+      mod_tests.rs:272; neither file touched this round). (3)
+      `cargo check --no-default-features --features simplewarp
+      --bin simplewarp` green. (4) `cargo check -p warp --lib
+      --features test-util` green (fixed in 4fr, stayed green).
+      (5) nextest -p warp --lib --no-fail-fast: default 4,597 run /
+      4,597 passed / 3 skipped / 0 failed; simplewarp 4,596 /
+      4,596 / 3 / 0 — identical to the 4fq/4fr baselines, ZERO
+      test-count delta (3 rewritten, 0 deleted), no flakes. Runtime
+      smoke SKIPPED per standing round policy (no GUI tests, app
+      not launched).
+
+      NEXT CANDIDATES (one item left, pre-existing record, untouched
+      this round): the ServerAIConversationMetadata always-None
+      vertical (2b next-candidate (b): rewrite the agent_icon/
+      context_menu/workspace-view/entry UI readers, drop
+      AIConversation.server_metadata +
+      AIConversationMetadata.server_conversation_metadata + both
+      dead loader fns + hydrate_remote_child_placeholder_with_
+      cloud_transcript — then ServerMetadata/ServerPermissions
+      fall entirely).

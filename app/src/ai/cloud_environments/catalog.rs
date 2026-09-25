@@ -37,8 +37,7 @@ impl CloudEnvironmentCatalog {
                 CloudModelEvent::ObjectCreated { .. } => {
                     ctx.spawn(async {}, |catalog, (), ctx| catalog.refresh(ctx));
                 }
-                CloudModelEvent::InitialLoadCompleted
-                | CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated
+                CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated
                 | CloudModelEvent::ObjectMoved { .. }
                 | CloudModelEvent::ObjectUpdated { .. }
                 | CloudModelEvent::ObjectTrashed { .. }

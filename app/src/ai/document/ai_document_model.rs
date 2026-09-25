@@ -399,9 +399,6 @@ impl AIDocumentModel {
             } => {
                 self.reconcile_server_backed_notebook(*sync_id, ctx);
             }
-            CloudModelEvent::InitialLoadCompleted => {
-                self.reconcile_all_document_server_backing(ctx);
-            }
             CloudModelEvent::ObjectMoved { .. }
             | CloudModelEvent::ObjectUpdated { .. }
             | CloudModelEvent::ObjectTrashed { .. }

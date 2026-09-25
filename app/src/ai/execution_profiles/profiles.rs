@@ -396,9 +396,6 @@ impl AIExecutionProfilesModel {
                     if !me.settings_are_authoritative() {
                         me.handle_cloud_model_event(event, ctx);
                     }
-                    if matches!(event, CloudModelEvent::InitialLoadCompleted) {
-                        me.migrate_settings_profiles(ctx);
-                    }
                 });
             }
         }
@@ -1865,31 +1862,26 @@ impl AIExecutionProfilesModel {
             } => {
                 self.handle_ai_execution_profile_updated(*id, *source, ctx);
             }
-            CloudModelEvent::InitialLoadCompleted => {
-                self.reconcile_with_cloud_state_after_initial_load(ctx);
-            }
             _ => {}
         }
     }
 
-    /// Reconcile model state with `CloudModel` once an initial bulk load
-    /// completes.
+    /// Reconciles model state with `CloudModel` contents, for bulk loads that
+    /// insert cloud objects *without* emitting per-object `ObjectCreated`
+    /// events.
     ///
-    /// The initial load path inserts cloud objects into `CloudModel` *without*
-    /// emitting per-object `ObjectCreated` events — it emits a single
-    /// `CloudModelEvent::InitialLoadCompleted` afterward instead. That means
-    /// our normal `handle_ai_execution_profile_created` handler never fires
-    /// for execution profiles that arrived via initial load, and the model
-    /// stays in `Unsynced` even though the user already has a cloud default
-    /// profile.
+    /// Without this reconciliation, execution profiles that arrived via such
+    /// a bulk load are never seen by `handle_ai_execution_profile_created`,
+    /// and the model stays in `Unsynced` even though the user already has a
+    /// cloud default profile.
     ///
-    /// Without this reconciliation, a subsequent edit from `apply_agent_settings`
-    /// (onboarding) would hit the `Unsynced` branch of `edit_profile_internal`
-    /// and *create a duplicate* cloud default profile rather than editing the
-    /// existing one. That manifests as the default profile showing neither
-    /// the user's prior cloud values nor the onboarding choices — because the
-    /// UI ends up reading a fresh client-side default with only a few fields
-    /// touched.
+    /// A subsequent edit from `apply_agent_settings` (onboarding) would then
+    /// hit the `Unsynced` branch of `edit_profile_internal` and *create a
+    /// duplicate* cloud default profile rather than editing the existing one.
+    /// That manifests as the default profile showing neither the user's prior
+    /// cloud values nor the onboarding choices — because the UI ends up
+    /// reading a fresh client-side default with only a few fields touched.
+    #[cfg_attr(not(test), allow(dead_code))]
     fn reconcile_with_cloud_state_after_initial_load(&mut self, ctx: &mut ModelContext<Self>) {
         let cloud_model = CloudModel::as_ref(ctx);
         let all_profiles: Vec<(SyncId, bool)> = cloud_model

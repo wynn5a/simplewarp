@@ -14,7 +14,7 @@ use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::user::User;
 use crate::cloud_object::model::actions::ObjectActions;
-use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
+use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{
     CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus, Owner,
     Revision,
@@ -789,11 +789,11 @@ fn completed_migration_is_not_reapplied_and_legacy_ids_restore_after_restart() {
                 ..Default::default()
             },
         );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
             cloud_model.add_object(changed_legacy_default.id, changed_legacy_default);
-            ctx.emit(CloudModelEvent::InitialLoadCompleted);
         });
         profile_model.update(&mut app, |model, ctx| {
+            model.reconcile_with_cloud_state_after_initial_load(ctx);
             model.migrate_settings_profiles(ctx);
         });
 
@@ -856,11 +856,14 @@ fn reset_without_explicit_collection_reimports_the_next_accounts_legacy_profile(
                 ..Default::default()
             },
         );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
+        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
             cloud_model.add_object(legacy_default.id, legacy_default);
-            // The old server upsert fired ObjectCreated to transition the model to
-            // Synced; InitialLoadCompleted drives the equivalent reconciliation.
-            ctx.emit(CloudModelEvent::InitialLoadCompleted);
+        });
+        // The old server upsert fired ObjectCreated to transition the model to
+        // Synced; the initial-load reconciliation drives the equivalent transition.
+        profile_model.update(&mut app, |model, ctx| {
+            model.reconcile_with_cloud_state_after_initial_load(ctx);
+            model.migrate_settings_profiles(ctx);
         });
         complete_cloud_initial_load(&mut app);
 
@@ -984,9 +987,8 @@ fn profile_sources_preserve_state_across_migration_and_rollout() {
 
 /// Regression test for the "log in to an existing user after onboarding"
 /// bug. Cloud objects arriving via the initial bulk load are inserted into
-/// `CloudModel` *without* firing per-object `ObjectCreated` events — a single
-/// `CloudModelEvent::InitialLoadCompleted` is emitted afterward instead.
-/// Without the reconciliation handler for `InitialLoadCompleted`, the
+/// `CloudModel` *without* firing per-object `ObjectCreated` events, so the
+/// bulk-load reconciliation must adopt them afterward. Without it, the
 /// existing user's default profile sits in `CloudModel` but
 /// `AIExecutionProfilesModel` stays in `Unsynced`, so a subsequent
 /// onboarding edit creates a duplicate cloud default profile instead of
@@ -1029,10 +1031,12 @@ fn reconciles_unsynced_default_profile_with_cloud_after_initial_load() {
         );
 
         // Insert the object into CloudModel without per-object events and then
-        // emit `InitialLoadCompleted` so the reconciliation handler fires.
-        CloudModel::handle(&app).update(&mut app, move |cloud_model, ctx| {
+        // run the bulk-load reconciliation by hand.
+        CloudModel::handle(&app).update(&mut app, move |cloud_model, _| {
             cloud_model.add_object(existing_profile.id, existing_profile);
-            ctx.emit(CloudModelEvent::InitialLoadCompleted);
+        });
+        profile_model.update(&mut app, |model, ctx| {
+            model.reconcile_with_cloud_state_after_initial_load(ctx);
         });
 
         // The model should now be Synced with the cloud profile's sync_id,
