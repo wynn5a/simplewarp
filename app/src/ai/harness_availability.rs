@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use ai::agent::AgentHarness;
 use instant::Instant;
 use serde::{Deserialize, Serialize};
 use warp_cli::agent::Harness;
@@ -113,7 +114,7 @@ impl HarnessAvailabilityModel {
     /// resolves to `Failed` immediately rather than round-tripping through a client that
     /// could only ever answer with an error.
     fn fetch_auth_secrets(&mut self, harness: Harness, ctx: &mut ModelContext<Self>) {
-        if harness_to_graphql_harness(harness).is_none() {
+        if to_agent_harness(harness).is_none() {
             return;
         }
 
@@ -134,12 +135,12 @@ impl HarnessAvailabilityModel {
     }
 }
 
-fn harness_to_graphql_harness(harness: Harness) -> Option<warp_graphql::ai::AgentHarness> {
+fn to_agent_harness(harness: Harness) -> Option<AgentHarness> {
     match harness {
-        Harness::Oz => Some(warp_graphql::ai::AgentHarness::Oz),
-        Harness::Claude => Some(warp_graphql::ai::AgentHarness::ClaudeCode),
-        Harness::Gemini => Some(warp_graphql::ai::AgentHarness::Gemini),
-        Harness::Codex => Some(warp_graphql::ai::AgentHarness::Codex),
+        Harness::Oz => Some(AgentHarness::Oz),
+        Harness::Claude => Some(AgentHarness::ClaudeCode),
+        Harness::Gemini => Some(AgentHarness::Gemini),
+        Harness::Codex => Some(AgentHarness::Codex),
         Harness::OpenCode | Harness::Unknown => None,
     }
 }

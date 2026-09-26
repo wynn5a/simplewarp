@@ -86,7 +86,6 @@ call-out are surface-agnostic.
 - `crates/editor/` - Text editing functionality
 - `crates/warpui/` and `crates/warpui_core/` - Custom UI framework
 - `crates/ipc/` - Inter-process communication
-- `crates/graphql/` - GraphQL client and schema
 
 ### Key Architectural Patterns
 
@@ -195,9 +194,7 @@ for itself.
 - Migrations in `crates/persistence/migrations/`
 - Schema defined in `crates/persistence/src/schema.rs`
 
-**GraphQL**:
-- Schema SDL at `crates/graphql/api/schema.graphql`, registered for the cynic derives by the crate's build.rs
-- Login-core crate: with the login flow deleted, nothing outside it references the crate; it is pending deletion in a final slice (its two locally-used types move out first)
+**GraphQL**: there is no GraphQL client. The old `crates/graphql` crate (cynic client + schema SDL around the login flow) is gone; its two locally-used types live on in `crates/cloud_objects` (`ServerTimestamp`) and `crates/ai` (`AgentTaskState`, `AgentHarness`).
 
 ### Feature Flags
 

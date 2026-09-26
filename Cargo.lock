@@ -2023,12 +2023,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55248b47b0caf0546f7988906588779981c43bb1bc9d0c44087278f80cdb44ba"
 
 [[package]]
-name = "beef"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
-
-[[package]]
 name = "bimap"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2866,7 +2860,6 @@ dependencies = [
  "serde",
  "session-sharing-protocol",
  "warp_core",
- "warp_graphql",
 ]
 
 [[package]]
@@ -2875,7 +2868,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "cynic",
  "derivative",
  "itertools 0.14.0",
  "pathfinder_geometry",
@@ -2885,7 +2877,6 @@ dependencies = [
  "thiserror 2.0.17",
  "uuid",
  "warp_core",
- "warp_graphql",
  "warp_server_auth",
  "warpui_core",
 ]
@@ -3376,15 +3367,6 @@ dependencies = [
 
 [[package]]
 name = "counter"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d458e66999348f56fd3ffcfbb7f7951542075ca8359687c703de6500c1ddccd"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "counter"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f009fcafa949dc1fc46a762dae84d0c2687d3b550906b633c4979d58d2c6ae52"
@@ -3710,61 +3692,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2ae9bf77fbf2d39ef573205d554d87e86c12f1994e9ea335b0651b9b278bcf1"
 dependencies = [
  "cfg-if",
-]
-
-[[package]]
-name = "cynic"
-version = "3.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "394a4797bda697d5e028f3bc3fcb8c8c374a2b72cf8d22e0efc0e127c95fd11f"
-dependencies = [
- "cynic-proc-macros",
- "ref-cast",
- "serde",
- "static_assertions",
- "thiserror 1.0.63",
-]
-
-[[package]]
-name = "cynic-codegen"
-version = "3.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "408ad3d9c8d729e4d89e1aaed76eab918f76169f1bb3aa017c9fc1b39dac3066"
-dependencies = [
- "counter 0.5.7",
- "cynic-parser",
- "darling 0.20.8",
- "once_cell",
- "ouroboros",
- "proc-macro2",
- "quote",
- "rkyv",
- "strsim 0.10.0",
- "syn 2.0.117",
- "thiserror 1.0.63",
-]
-
-[[package]]
-name = "cynic-parser"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "718f6cd8c54ae5249fd42b0c86639df0100b8a86eea2e5f1b915cde2e1481453"
-dependencies = [
- "indexmap 2.12.0",
- "lalrpop-util",
- "logos",
-]
-
-[[package]]
-name = "cynic-proc-macros"
-version = "3.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f72af69ebf914a975468c4f7e3f81ddc5482e140dd98032d90e7602c535681d"
-dependencies = [
- "cynic-codegen",
- "darling 0.20.8",
- "quote",
- "syn 2.0.117",
 ]
 
 [[package]]
@@ -7068,15 +6995,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lalrpop-util"
-version = "0.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "507460a910eb7b32ee961886ff48539633b788a36b65692b95f225b844c82553"
-dependencies = [
- "regex-automata",
-]
-
-[[package]]
 name = "language-tags"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7356,39 +7274,6 @@ checksum = "68f9dd8546191c1850ecf67d22f5ff00a935b890d0e84713159a55495cc2ac5f"
 dependencies = [
  "backtrace",
  "log",
-]
-
-[[package]]
-name = "logos"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff1ceb190eb9bdeecdd8f1ad6a71d6d632a50905948771718741b5461fb01e13"
-dependencies = [
- "logos-derive",
-]
-
-[[package]]
-name = "logos-codegen"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90be66cb7bd40cb5cc2e9cfaf2d1133b04a3d93b72344267715010a466e0915a"
-dependencies = [
- "beef",
- "fnv",
- "lazy_static",
- "proc-macro2",
- "quote",
- "regex-syntax",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "logos-derive"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45154231e8e96586b39494029e58f12f8ffcb5ecf80333a603a13aa205ea8cbd"
-dependencies = [
- "logos-codegen",
 ]
 
 [[package]]
@@ -14163,13 +14048,12 @@ dependencies = [
  "console_error_panic_hook",
  "content_inspector",
  "core-foundation 0.10.1",
- "counter 0.6.0",
+ "counter",
  "crash-handler",
  "crc",
  "csv",
  "ctor",
  "cvt",
- "cynic",
  "dashmap",
  "deltae",
  "derivative",
@@ -14367,7 +14251,6 @@ dependencies = [
  "warp_editor",
  "warp_errors",
  "warp_files",
- "warp_graphql",
  "warp_isolation_platform",
  "warp_js",
  "warp_logging",
@@ -14675,24 +14558,6 @@ dependencies = [
  "warp_util",
  "warpui_core",
  "watcher",
-]
-
-[[package]]
-name = "warp_graphql"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "cynic",
- "cynic-codegen",
- "http 1.4.0",
- "http_client",
- "instant",
- "log",
- "reqwest",
- "serde",
- "thiserror 2.0.17",
- "warp_core",
 ]
 
 [[package]]

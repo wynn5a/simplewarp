@@ -2,9 +2,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::SyncSender;
 
 use chrono::{DateTime, Utc};
+use cloud_objects::time::ServerTimestamp;
 use itertools::Itertools;
 use warp_errors::report_error;
-use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use super::generic_string_model::GenericStringObjectId;

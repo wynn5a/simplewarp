@@ -14757,3 +14757,96 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       build.rs + cynic from the workspace, final AGENTS.md GraphQL line;
       then the accumulated compiler-invisible residue rounds (drive
       vertical, remote_server token remnants) per the lists above.
+
+- [x] **login slice 5 — warp_graphql falls (4gf) — DONE 2026-09-26.**
+      Executed 4fz SLICE 5, the final slice. 42 files, +45/−5,560, 18
+      files deleted (crates/graphql whole: 14 .rs files, the 4,808-line
+      api/schema.graphql SDL, build.rs, Cargo.toml, .gitignore), 2
+      created, 22 modified. The warp_graphql crate no longer exists.
+
+      THE MOVES (proof = diff vs `git show HEAD`). (1) ServerTimestamp:
+      crates/graphql/src/scalars/time.rs → crates/cloud_objects/
+      src/time.rs BYTE-IDENTICAL (git recorded the move as a pure
+      rename; the file had no module doc to adjust) — derive set
+      Copy,Clone,Debug,Serialize,Deserialize,Eq,PartialEq,Ord,
+      PartialOrd preserved exactly (landmine 1: CloudObjectMetadata +
+      RevisionAndLastEditor carry it); cloud_objects lib.rs gains
+      `pub mod time;`. Its 7 importers re-pathed: cloud_objects (now
+      `use crate::time::…`), cloud_object_persistence, app
+      cloud_object/mod + model/persistence + model/view,
+      server/cloud_objects/update_manager, ai/request_usage_model.
+      (2) AgentTaskState + AgentHarness: crates/graphql/src/api/ai.rs
+      → crates/ai/src/agent/{task_state,harness}.rs — DEVIATION
+      (structural, deliberate): the one file split at the module
+      boundary into two files named per type, matching crates/ai's
+      file-per-type convention; agent/mod.rs re-exports both at
+      `ai::agent::` level so consumer imports stay one-line. Type
+      content zero-drift: variant lists identical (Blocked/Cancelled/
+      Claimed/Error/InProgress/Succeeded/Failed; Oz/ClaudeCode/Gemini/
+      Codex/Other(String)) and the std derives byte-identical
+      (Clone,Copy,Debug,PartialEq / Clone,Debug,PartialEq); the
+      cynic::Enum derive + #[cynic(rename/fallback)] attributes fall
+      BY NECESSITY (cynic leaves the workspace; the derive only fed
+      GraphQL schema mapping, and no consumer ever serialized these
+      enums — matching/equality only). Consumers re-pathed: agent_sdk
+      driver.rs, driver/error_classification.rs + _tests
+      (`use ai::agent::AgentTaskState;` — plain `use ai::…` resolves
+      to the extern crate inside app despite app's private root module
+      `ai`, the dominant existing pattern), harness_availability.rs
+      (AgentHarness import; harness_to_graphql_harness renamed
+      to_agent_harness — the graphql name was this slice's own stale-
+      naming residue; the Some(Oz) entry point kept fully intact).
+
+      WHAT FELL: crates/graphql whole (client.rs, get_user,
+      experiment, request_context, object_permissions OwnerType,
+      create_anonymous_user AnonymousUserType, uint32 Uint32, the
+      schema module + impl_scalar!s); root Cargo.toml member +
+      warp_graphql/cynic/cynic-codegen workspace deps (cynic-proc-
+      macros was only transitive; Cargo.lock regenerated clean);
+      app/Cargo.toml cynic + warp_graphql; cloud_objects/Cargo.toml
+      cynic (zero .rs users there) + warp_graphql;
+      cloud_object_persistence/Cargo.toml warp_graphql;
+      ambient_agents/mod.rs From<AmbientAgentTaskId> for cynic::Id
+      (4fz-verified zero call sites). graphql-ws-client STAYS — a
+      third-party dep of the live websocket crate, pre-existing,
+      matching none of the sweep patterns. AGENTS.md: Core-Libraries
+      graphql line dropped and the **GraphQL** section replaced by a
+      one-line historical note (4ge WITH_LOCAL_SERVER style) naming
+      the new homes of the two moved types; .github/STAKEHOLDERS
+      /crates/graphql/ line dropped (dead path). Stale graphql
+      comments fixed: cloud_object_persistence objects.rs "deserialize
+      this from graphql" TODO (capability deleted), warp_cli agent.rs
+      Harness::Unknown "unknown GraphQL enum values" example (layer
+      deleted; the serde(other) string fallback remains true).
+
+      Acceptance: (1) ./script/format twice, idempotent. (2) HEAD
+      clippy baselines captured FIRST (tree was clean); post-edit
+      error+location pair sets IDENTICAL to baseline in both configs
+      — 14 workspace / 12 -p warp (11 needless-return input.rs + 1
+      single-element-loop mod_tests.rs:272 + 2 integration_testing
+      unused imports), machine-diffed, zero new, zero gone; plain
+      warnings identical. (3) cargo check --no-default-features
+      --features simplewarp --bin simplewarp green (zero warnings);
+      cargo check -p warp --lib --features test-util green (74-file
+      gate); cargo check -p warp --lib green. (4) nextest -p warp
+      --lib --no-fail-fast: default 4,559 run / 4,559 passed /
+      3 skipped / 0 failed; simplewarp 4,560 / 4,560 / 3 / 0 — EXACT
+      parity with the 4ge baseline (≈0 tests deleted, as scoped),
+      historical −1 offset preserved, zero flakes. (5) SLICE
+      ACCEPTANCE: `cargo tree -i cynic` errors ("did not match any
+      packages"); `rg "warp_graphql|warp-graphql|cynic"` clean in
+      every .rs and Cargo.toml; cargo tree -p cloud_objects /
+      -p warp show no warp_graphql or cynic. (6) DEVELOPER_DIR unset;
+      no GUI launch, no integration suite.
+
+      CAMPAIGN COMPLETE: the 4fz login-vertical effort (slices 1–5 —
+      4ga redirect intake, 4gb logout/sign-up, 4gc AuthManager slims,
+      4gd the wire, 4ge account UI + flags, 4gf the crate) is DONE:
+      the workspace has no login flow, no GraphQL, and no cynic.
+      Recorded residue lists remain the entry points for any future
+      rounds: 4gd leftovers (AuthState::needs_reauth/set_needs_reauth,
+      UserUid::Default, remote_server rotate_auth_token/authenticate)
+      and 4ge drive-round candidates (is_warp_drive_available/enabled
+      inert arms + ENABLE_WARP_DRIVE insert, DrivePanel/warp_drive_view
+      + LeftPanelAction::WarpDrive remnants, "Sign in to edit"
+      tooltips, warp_agent_page upgrade CTA, ShowUpgrade).

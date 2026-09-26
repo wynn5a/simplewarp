@@ -172,7 +172,6 @@
 
 # REST API and SDKs
 /app/src/server/server_api/ @ianhodge
-/crates/graphql/ @ianhodge
 /crates/http_client/ @ianhodge
 /crates/http_server/ @ianhodge
 /crates/warp_server_auth/ @ianhodge

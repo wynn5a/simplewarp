@@ -4,10 +4,10 @@ use std::sync::mpsc::SyncSender;
 use std::time::Duration;
 
 use chrono::Utc;
+use cloud_objects::time::ServerTimestamp;
 use lazy_static::lazy_static;
 use regex::Regex;
 use warp_errors::report_error;
-use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{AppContext, Entity, ModelContext, RetryOption, SingletonEntity};
 
 use crate::ai::execution_profiles::{AIExecutionProfile, CloudAIExecutionProfileModel};

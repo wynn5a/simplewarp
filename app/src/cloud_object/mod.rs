@@ -5,12 +5,12 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use cloud_objects::cloud_object::SerializedModel;
+use cloud_objects::time::ServerTimestamp;
 use derivative::Derivative;
 use lazy_static::lazy_static;
 use regex::Regex;
 use url::Url;
 use warp_core::channel::Channel;
-use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{AppContext, SingletonEntity};
 
 use self::breadcrumbs::ContainingObject;

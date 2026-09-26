@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use warp_core::ui::Icon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
-use warp_graphql::scalars::time::ServerTimestamp;
 use warpui_core::Element;
 use warpui_core::elements::{
     Align, ChildAnchor, ConstrainedBox, Hoverable, MouseStateHandle, OffsetPositioning,
@@ -21,6 +20,7 @@ use warpui_core::ui_components::components::UiComponent;
 use crate::auth::UserUid;
 use crate::drive::sharing::{SharingAccessLevel, Subject};
 use crate::ids::{ServerId, SyncId};
+use crate::time::ServerTimestamp;
 
 mod generic_cloud_object;
 mod generic_string_model;

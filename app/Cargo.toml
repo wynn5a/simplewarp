@@ -97,7 +97,6 @@ crc.workspace = true
 content_inspector = "0.2.4"
 concat-idents.workspace = true
 csv = "1.3.1"
-cynic.workspace = true
 dashmap.workspace = true
 deltae = "0.3.1"
 derivative.workspace = true
@@ -239,7 +238,6 @@ warp_completer.workspace = true
 warp_core.workspace = true
 warp_errors = { workspace = true, features = ["reqwest-errors"] }
 warp_editor.workspace = true
-warp_graphql.workspace = true
 warp_js = { workspace = true, optional = true }
 warp_search_core.workspace = true
 warp_server_auth.workspace = true

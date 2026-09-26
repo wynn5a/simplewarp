@@ -1,4 +1,4 @@
-use warp_graphql::ai::AgentTaskState;
+use ai::agent::AgentTaskState;
 
 use super::classify_driver_error;
 use crate::ai::agent::RenderableAIError;

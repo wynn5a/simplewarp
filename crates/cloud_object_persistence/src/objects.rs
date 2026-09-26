@@ -7,6 +7,7 @@ use cloud_objects::cloud_object::{
     ObjectType, Owner, Revision,
 };
 use cloud_objects::ids::{ClientId, FolderId, HashableId, SyncId, ToServerId};
+use cloud_objects::time::ServerTimestamp;
 use diesel::result::Error;
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection};
 use persistence::model::{
@@ -14,7 +15,6 @@ use persistence::model::{
     NewObjectPermissions, ObjectMetadata, ObjectPermissions,
 };
 use persistence::schema;
-use warp_graphql::scalars::time::ServerTimestamp;
 
 /// The SQLite id of a cloud object.
 pub type CloudObjectId = i32;
@@ -250,7 +250,6 @@ pub fn upsert_cloud_object(
                 shareable_object_id: object_id,
                 is_pending: has_pending_content_changes,
                 retry_count: 0,
-                // TODO: we need to deserialize this from graphql.
                 author_id: None,
                 // One of these is set below.
                 client_id: None,

@@ -49,12 +49,6 @@ impl FromStr for AmbientAgentTaskId {
     }
 }
 
-impl From<AmbientAgentTaskId> for cynic::Id {
-    fn from(id: AmbientAgentTaskId) -> Self {
-        Self::new(id.to_string())
-    }
-}
-
 /// High-level outcome of an ambient agent conversation.
 #[derive(Clone, Debug)]
 pub enum AmbientConversationStatus {

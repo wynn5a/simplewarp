@@ -1,6 +1,6 @@
 use chrono::Utc;
+use cloud_objects::time::ServerTimestamp;
 use serde::{Deserialize, Serialize};
-use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{AppContext, Entity, SingletonEntity};
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]

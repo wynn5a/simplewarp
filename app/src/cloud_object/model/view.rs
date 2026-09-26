@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use chrono::{Duration, Utc};
-use warp_graphql::scalars::time::ServerTimestamp;
+use cloud_objects::time::ServerTimestamp;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::persistence::{CloudModel, CloudModelEvent};

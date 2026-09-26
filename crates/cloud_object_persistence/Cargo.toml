@@ -16,7 +16,6 @@ log.workspace = true
 persistence.workspace = true
 serde.workspace = true
 warp_core.workspace = true
-warp_graphql.workspace = true
 
 [dev-dependencies]
 cloud_objects = { workspace = true, features = ["test-util"] }
