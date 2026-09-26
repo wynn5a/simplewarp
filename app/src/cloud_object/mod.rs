@@ -10,7 +10,6 @@ use regex::Regex;
 use warp_core::channel::Channel;
 use warpui::{AppContext, SingletonEntity};
 
-use self::breadcrumbs::ContainingObject;
 use self::model::generic_string_model::{
     GenericStringModel, GenericStringObjectId, Serializer, StringModel,
 };
@@ -24,7 +23,6 @@ use crate::workflows::{CloudWorkflow, WorkflowSource};
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
-pub mod breadcrumbs;
 pub mod cloud_object_styling;
 pub mod drive_object_type;
 pub mod export;
@@ -123,9 +121,6 @@ pub trait CloudObject: Debug {
     // Returns the name of the object.
     fn display_name(&self) -> String;
 
-    /// Returns whether this model type should render as a warp drive item.
-    fn renders_in_warp_drive(&self) -> bool;
-
     /// Returns whether this model type should show update toasts in the UI.
     fn should_show_activity_toasts(&self) -> bool {
         true
@@ -153,43 +148,33 @@ pub trait CloudObject: Debug {
     /// This could be a folder, or in the case of top-level objects,
     /// the name of the space it belongs to.
     fn containing_object_name(&self, app: &AppContext) -> String {
-        self.containing_objects_path(app)
-            .into_iter()
-            .next_back()
+        self.containing_object_names(app)
+            .pop()
             .expect("Object should have at least one ancestor")
-            .name
     }
 
-    // Returns the path of all the containing "objects" for this object.
-    // This could include folders or spaces.
-    fn containing_objects_path(&self, app: &AppContext) -> Vec<ContainingObject> {
-        let space = self.space(app);
-
-        match self.metadata().folder_id {
-            Some(folder_id) => {
-                let cloud_model = CloudModel::as_ref(app);
-                if let Some(folder) = cloud_model.get_folder_by_uid(&folder_id.uid()) {
-                    let mut path = vec![];
-                    let ancestors = folder.containing_objects_path(app);
-                    path.extend(ancestors);
-                    path.push(folder.into());
-                    path
-                } else {
-                    // if for whatever reason the folder id is messed up,
-                    // just default to showing the top-level space it wound up in
-                    vec![space.into_containing_object(app)]
-                }
+    // Returns the names of all the containing "objects" for this object, ordered from
+    // the space down to the direct parent. This could include folders or spaces.
+    fn containing_object_names(&self, app: &AppContext) -> Vec<String> {
+        let mut names = vec![self.space(app).name(app)];
+        if let Some(folder_id) = self.metadata().folder_id {
+            let cloud_model = CloudModel::as_ref(app);
+            let mut chain = Vec::new();
+            let mut current = cloud_model.get_folder_by_uid(&folder_id.uid());
+            while let Some(folder) = current {
+                chain.push(folder.display_name());
+                current = folder
+                    .metadata()
+                    .folder_id
+                    .and_then(|parent_id| cloud_model.get_folder_by_uid(&parent_id.uid()));
             }
-            None => vec![space.into_containing_object(app)],
+            names.extend(chain.into_iter().rev());
         }
+        names
     }
 
     fn breadcrumbs(&self, app: &AppContext) -> String {
-        self.containing_objects_path(app)
-            .into_iter()
-            .map(|object| object.name)
-            .collect::<Vec<String>>()
-            .join(" / ")
+        self.containing_object_names(app).join(" / ")
     }
 
     /// Returns whether this CloudObject is in the given space
@@ -390,9 +375,6 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
 
     /// Returns the ObjectType for this model.
     fn object_type(&self) -> ObjectType;
-
-    /// Returns whether this model type should render as a warp drive item.
-    fn renders_in_warp_drive(&self) -> bool;
 
     /// Returns whether this model type should show update toasts in the UI.
     fn should_show_activity_toasts(&self) -> bool {
@@ -649,10 +631,6 @@ where
 
     fn display_name(&self) -> String {
         self.model().display_name()
-    }
-
-    fn renders_in_warp_drive(&self) -> bool {
-        self.model().renders_in_warp_drive()
     }
 
     fn can_export(&self) -> bool {

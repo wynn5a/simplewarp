@@ -126,10 +126,6 @@ impl StringModel for EnvVarCollection {
         true
     }
 
-    fn renders_in_warp_drive(&self) -> bool {
-        true
-    }
-
     fn can_export(&self) -> bool {
         true
     }

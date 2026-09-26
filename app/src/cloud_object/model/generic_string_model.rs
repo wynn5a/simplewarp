@@ -62,11 +62,6 @@ pub trait StringModel: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// Returns the display name for this model.
     fn display_name(&self) -> String;
 
-    /// Returns whether this model type surfaces in the object UI (e.g. errored-object toasts).
-    fn renders_in_warp_drive(&self) -> bool {
-        false
-    }
-
     /// Returns whether this model can be exported to a file
     fn can_export(&self) -> bool {
         false
@@ -189,8 +184,5 @@ where
 
     fn should_update_after_server_conflict(&self) -> bool {
         true
-    }
-    fn renders_in_warp_drive(&self) -> bool {
-        self.string_model.renders_in_warp_drive()
     }
 }

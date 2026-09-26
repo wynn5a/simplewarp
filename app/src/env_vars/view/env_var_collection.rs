@@ -21,7 +21,6 @@ use super::command_dialog::EnvVarCommandDialog;
 use super::menus::Menus;
 use crate::Appearance;
 use crate::ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels;
-use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{CloudObjectTypeAndId, Owner};
 use crate::editor::EditorView;
@@ -45,7 +44,6 @@ use crate::server::ids::SyncId;
 use crate::sharing::ContentEditability;
 use crate::terminal::model::secrets::SecretLevel;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
-use crate::ui_components::breadcrumb::{BreadcrumbState, render_breadcrumbs};
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::ui_components::menu_button::{
@@ -279,7 +277,6 @@ pub struct EnvVarCollectionView {
     // (the key) or a rendered secret/command button. Once a menu item
     // is selected, we set this to Some(VariableRowIndex())
     pub(super) pending_variable_row_index: Option<VariableRowIndex>,
-    pub(super) breadcrumbs: Vec<BreadcrumbState<ContainingObject>>,
     // State vars used to manage menus; pane_context_menu_offset holds
     // the offset from the parent (i.e. origin of the element saved to
     // the below view_position_id variable) on a user's right click
@@ -549,7 +546,6 @@ impl EnvVarCollectionView {
             title_editor,
             description_editor,
             variable_rows: Vec::new(),
-            breadcrumbs: Vec::new(),
             menus,
             pending_variable_row_index: None,
             pane_context_menu_offset: None,
@@ -900,10 +896,6 @@ impl EnvVarCollectionView {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            ActiveEnvVarCollectionDataEvent::BreadcrumbsChanged => {
-                self.update_breadcrumbs(ctx);
-                ctx.notify()
-            }
             ActiveEnvVarCollectionDataEvent::TrashStatusChanged => {
                 self.pane_configuration.update(ctx, |pane_config, ctx| {
                     pane_config.refresh_pane_header_overflow_menu_items(ctx)
@@ -1225,35 +1217,6 @@ impl View for EnvVarCollectionView {
             .editability(app);
 
         content.extend(self.render_trash_banner(access_level, app));
-
-        content.add_child(
-            Align::new(
-                ConstrainedBox::new(
-                    Align::new(
-                        // Clicking a breadcrumb used to view the object in the Warp Drive
-                        // left-panel tab, which no longer exists (see simplify-specs/plan.md,
-                        // Phase 4 Track A). The breadcrumb is always non-interactive now
-                        // (`update_breadcrumbs` in fixed_view_components.rs disables the drive
-                        // link whenever Warp Drive is unavailable, which in this build is
-                        // always), so this callback can never fire.
-                        Container::new(render_breadcrumbs(
-                            self.breadcrumbs.clone(),
-                            appearance,
-                            |_, _, _| {},
-                        ))
-                        .with_horizontal_margin(CORE_HORIZONATAL_MARGIN)
-                        .with_vertical_margin(CORE_VERTICAL_MARGIN / 2.)
-                        .finish(),
-                    )
-                    .top_left()
-                    .finish(),
-                )
-                .with_max_width(CORE_MAX_WIDTH)
-                .finish(),
-            )
-            .top_center()
-            .finish(),
-        );
 
         if let TrashStatus::Active = self
             .active_env_var_collection_data

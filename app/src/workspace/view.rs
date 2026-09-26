@@ -13089,10 +13089,9 @@ impl Workspace {
                     ctx,
                 );
             }
-            // The prompt-creation flow this event served went away with the Warp Drive
-            // panel; the event is still emitted from the terminal surface until that
-            // surface cleans up, so accept it as a no-op.
-            pane_group::Event::OpenAddPromptPane { .. } => {}
+            pane_group::Event::OpenAddPromptPane { initial_content } => {
+                self.open_agent_mode_workflow_with_prompt(initial_content.clone(), ctx);
+            }
             pane_group::Event::OpenFilesPalette { source } => {
                 self.open_palette_action(PaletteMode::Files, *source, None, ctx);
             }
@@ -14817,6 +14816,28 @@ impl Workspace {
             owner,
             initial_folder_id: None,
             is_for_agent_mode: false,
+        };
+        self.open_workflow_in_pane(&source, WorkflowViewMode::Create, ctx);
+
+        ctx.notify();
+    }
+
+    /// Opens an agent-mode workflow for create, prepopulated with the given prompt.
+    fn open_agent_mode_workflow_with_prompt(
+        &mut self,
+        prompt: Option<String>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(owner) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) else {
+            log::warn!("Unable to open prompt as agent-mode workflow - unset personal drive");
+            return;
+        };
+        let source = WorkflowOpenSource::New {
+            title: None,
+            content: prompt,
+            owner,
+            initial_folder_id: None,
+            is_for_agent_mode: true,
         };
         self.open_workflow_in_pane(&source, WorkflowViewMode::Create, ctx);
 

@@ -48,7 +48,4 @@ impl CloudModelType for CloudFolderModel {
         // We don't currently support moving folders across spaces.
         current_space == new_space
     }
-    fn renders_in_warp_drive(&self) -> bool {
-        true
-    }
 }

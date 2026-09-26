@@ -12,7 +12,7 @@ use crate::ai::execution_profiles::CloudAIExecutionProfile;
 use crate::cloud_object::folders::{CloudFolder, CloudFolderModel};
 use crate::cloud_object::{
     CloudModelType, CloudObject, CloudObjectLocation, CloudObjectTypeAndId, GenericCloudObject,
-    GenericStringObjectFormat, JsonObjectType, ObjectIdType, ObjectType, Owner, Revision, Space,
+    ObjectIdType, ObjectType, Owner, Revision, Space,
 };
 use crate::env_vars::{CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVarCollection};
 use crate::notebooks::CloudNotebook;
@@ -69,12 +69,6 @@ pub enum CloudModelEvent {
     },
     /// Environment last-task timestamps fetched outside the generic cloud-object sync were merged.
     EnvironmentLastTaskRunTimestampsUpdated,
-}
-
-enum FolderOpenState {
-    Open,
-    Closed,
-    Reversed,
 }
 
 /// Persistence model for [CloudObject] information. In an ideal world, this singleton model
@@ -466,21 +460,10 @@ impl CloudModel {
         }
     }
 
-    fn set_folder_open_state(
-        &mut self,
-        folder_id: SyncId,
-        open_state: FolderOpenState,
-        ctx: &mut ModelContext<Self>,
-    ) {
+    fn open_folder_and_persist(&mut self, folder_id: SyncId, ctx: &mut ModelContext<Self>) {
         if let Some(folder) = self.get_folder_mut(&folder_id) {
-            let is_open = match open_state {
-                FolderOpenState::Open => true,
-                FolderOpenState::Closed => false,
-                FolderOpenState::Reversed => !folder.model().is_open,
-            };
-
             folder.set_model(CloudFolderModel {
-                is_open,
+                is_open: true,
                 is_warp_pack: folder.model().is_warp_pack,
                 name: folder.model().name.clone(),
             });
@@ -494,18 +477,6 @@ impl CloudModel {
 
             ctx.notify();
         }
-    }
-
-    pub fn open_folder(&mut self, folder_id: SyncId, ctx: &mut ModelContext<Self>) {
-        self.set_folder_open_state(folder_id, FolderOpenState::Open, ctx)
-    }
-
-    pub fn close_folder(&mut self, folder_id: SyncId, ctx: &mut ModelContext<Self>) {
-        self.set_folder_open_state(folder_id, FolderOpenState::Closed, ctx)
-    }
-
-    pub fn toggle_folder_open(&mut self, folder_id: SyncId, ctx: &mut ModelContext<Self>) {
-        self.set_folder_open_state(folder_id, FolderOpenState::Reversed, ctx)
     }
 
     /// Force expands the object identified by `hash_id` and any of its ancestors. If an object is
@@ -535,41 +506,11 @@ impl CloudModel {
         let folder: Option<&CloudFolder> = object.into();
 
         if let Some(folder) = folder {
-            self.set_folder_open_state(folder.id, FolderOpenState::Open, ctx);
+            self.open_folder_and_persist(folder.id, ctx);
         }
 
         if let Some(parent_folder_id) = parent_folder_id {
             self.force_expand_object_and_ancestors_internal(parent_folder_id, ctx);
-        }
-    }
-
-    /// Force expands object and its ancestors when given a CloudObjectTypeAndId input
-    pub fn force_expand_object_and_ancestors_cloud_id(
-        &mut self,
-        id: CloudObjectTypeAndId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match id {
-            CloudObjectTypeAndId::Notebook(sync_id) => {
-                self.force_expand_object_and_ancestors(sync_id, ctx)
-            }
-            CloudObjectTypeAndId::Workflow(sync_id) => {
-                self.force_expand_object_and_ancestors(sync_id, ctx)
-            }
-            CloudObjectTypeAndId::Folder(sync_id) => {
-                self.force_expand_object_and_ancestors(sync_id, ctx)
-            }
-            CloudObjectTypeAndId::GenericStringObject { object_type, id } => {
-                if let GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection) =
-                    object_type
-                {
-                    self.force_expand_object_and_ancestors(id, ctx)
-                } else {
-                    report_error!(
-                        "Attempted to force expand an unsupported GenericStringObject type"
-                    )
-                }
-            }
         }
     }
 
@@ -584,32 +525,6 @@ impl CloudModel {
             });
         }
         ctx.notify();
-    }
-
-    /// Number of cloud objects that have not synced to the cloud
-    pub fn num_unsaved_objects(&self) -> usize {
-        self.objects_by_id
-            .values()
-            .filter(|object| object.metadata().has_pending_content_changes())
-            .count()
-    }
-
-    /// Number of cloud objects that have errored in some way and are visible in the Warp Drive index
-    pub fn num_visible_errored_objects(&self) -> usize {
-        self.objects_by_id
-            .values()
-            .filter(|object| object.renders_in_warp_drive() && object.metadata().is_errored())
-            .count()
-    }
-
-    pub fn has_objects(&self) -> bool {
-        !self.objects_by_id.is_empty()
-    }
-
-    pub fn has_non_welcome_objects(&self) -> bool {
-        self.objects_by_id
-            .iter()
-            .any(|(_, object)| !object.metadata().is_welcome_object)
     }
 
     pub fn get_folder_by_uid(&self, uid: &str) -> Option<&CloudFolder> {
@@ -636,19 +551,11 @@ impl CloudModel {
             .collect()
     }
 
-    #[allow(unused)]
     /// Returns only active (not trashed) folders in cloud model.
     pub fn get_all_active_folders(&self) -> impl Iterator<Item = &CloudFolder> {
         self.objects_by_id
             .values()
             .filter(|object| !object.is_trashed(self))
-            .filter_map(|object| object.into())
-    }
-
-    /// Returns all folders (trashed or not) in cloud model.
-    pub fn get_all_active_and_inactive_folders(&self) -> impl Iterator<Item = &CloudFolder> {
-        self.objects_by_id
-            .values()
             .filter_map(|object| object.into())
     }
 

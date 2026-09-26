@@ -15320,3 +15320,92 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       care); then 4gl: dead cargo features
       (cloud_object_initial_load/enforce_revisions_to_cloud_objects/
       personal_cloud_objects), AGENTS.md drive mentions, remaining docs.
+- [x] **drive slice 3 — breadcrumbs + editor seams + fallout (4gk) —
+      DONE 2026-09-26.** 24 files, +81/−630, 2 deleted
+      (cloud_object/breadcrumbs.rs, ui_components/breadcrumb.rs).
+      Executed by one subagent; parent independently re-verified.
+
+      WHAT FELL. The breadcrumb UI + ContainingObject plumbing out of all
+      three callers (notebook details_bar — bar keeps editor label + mode
+      toggle, layout preserved; env_var fixed_view_components
+      update_breadcrumbs + field; workflow_view update_breadcrumb + render
+      child — edit-toggle row now right-aligned, vertical margin kept);
+      the generic Breadcrumb/BreadcrumbState/render_breadcrumbs helpers;
+      BreadcrumbsChanged events + emitters (ActiveNotebookDataEvent
+      ObjectMoved arm, env_var handle_cloud_model_event + subscription
+      whole); CloudObject::breadcrumbs()/containing_object_name() survived
+      via a new containing_object_names() String helper (space first,
+      direct parent last) for the live saved-prompts fuzzy search +
+      move-toasts; CloudModel dead methods (open_folder, close_folder,
+      toggle_folder_open, force_expand_object_and_ancestors_cloud_id,
+      has_non_welcome_objects, num_unsaved_objects,
+      num_visible_errored_objects, get_all_active_and_inactive_folders) —
+      all verified zero callers incl. tests; FolderOpenState collapsed
+      into open_folder_and_persist; the FULL renders_in_warp_drive cascade
+      (trait decls + impls across folders/generic_string_model/workflows/
+      env_vars/notebooks/mcp/templatable/execution_profiles/facts);
+      Icon::EmbedBlock AND Icon::WarpDrive (zero users; asset files left);
+      WorkflowSelectionSource::WarpDrive (unconstructable telemetry
+      variant); stale doc reference in orchestration_pill_bar.rs fixed;
+      single-arm match → let-else in active_notebook_data.rs.
+
+      RULINGS (evidence-backed KEEPS). AIAgentCitation::WarpDriveObject
+      KEPT — wire shape via TryFrom<warp_multi_agent_api::Citation>
+      (server responses can still cite drive object types) + live local
+      consumers (command-attribution matches it against local CloudModel).
+      SimplifiedWasmTabBarContent::WarpDriveObject KEPT — producer
+      PaneId::is_warp_drive_object_pane matches LIVE pane types
+      (notebook/workflow/env-var/AI-fact panes); cfg(wasm) code, not
+      compiled by the acceptance configs (noted). OpenWarpDriveObjectInPane
+      KEPT — drive-NAMED but live: producers
+      ConversationDetailsPanelEvent::OpenPlanNotebook + AIBlockEvent::
+      OpenWorkflow; handler opens local objects via open_notebook/
+      open_workflow_in_pane/open_env_var_collection.
+      WarpDrivePrivacySettings KEPT untouched — persisted settings
+      singleton, live readers in settings/privacy.rs (telemetry/crash-
+      reporting source of truth). NotebookLocation::PersonalCloud/Team
+      KEPT — PersonalCloud constructed live (notebook.rs:1343 fallback),
+      Team producible via persisted Owner::Team; serde-sensitive (rides in
+      WorkflowSource::Notebook). integration_testing/warp_drive/ path KEPT
+      (only assert_is_left_panel_open referenced; still live).
+
+      REWIRED. OpenAddPromptPane: the 4gi no-op arm now calls new
+      Workspace::open_agent_mode_workflow_with_prompt — opens the LOCAL
+      agent-mode workflow editor prepopulated with the prompt
+      (WorkflowOpenSource::New, is_for_agent_mode: true, owner =
+      personal_drive, the same convention as the live
+      open_workflow_with_command). The AI-block "save prompt as workflow"
+      and /add-prompt slash flow work locally again. The
+      drive/workflows/modal.rs open_with_new #[allow(dead_code)] bridge
+      REMAINS (its creation-mode path is superseded by the pane flow) —
+      4gl ruling: rewire or delete the modal's creation mode.
+
+      TEST DELTAS: none (0 net both configs).
+
+      ACCEPTANCE (parent re-ran). (1) Three cargo checks green ZERO
+      warnings. (2) format idempotent. (3) Clippy green configs, forced
+      re-check: A workspace 2 = 2 pairs HEAD-vs-worktree, B -p warp
+      simplewarp 0 = 0; comm-diff zero new. Subagent's fresh full-cache
+      baseline re-confirmed the historical pre-existing lint set
+      (11 needless_return terminal/input.rs + collapsible_if view.rs
+      + unnecessary_filter_map search/action/data_source.rs +
+      single_element_loop lifecycle/mod_tests.rs:272 + 2 integration
+      imports) is UNCHANGED — the earlier "2 pairs" captures were
+      cache-suppressed subsets. (4) nextest -p warp --lib: default
+      4,545/4,545/3/0; simplewarp 4,546/4,546/3/0 after the now-THRICE-
+      RECURRING transient test_command_block_dispatches_event flake
+      (failed once in the parallel simplewarp run, passed isolated + full
+      rerun — same test flaked in 4gi and 4gj too; candidate for a
+      dedicated flakiness round, out of deletion scope). (5) No GUI, no
+      integration suite.
+
+      NEXT: 4gl slice 4 (final) — dead cargo features
+      (cloud_object_initial_load, enforce_revisions_to_cloud_objects,
+      personal_cloud_objects — zero cfg readers), AGENTS.md drive mentions
+      (cloud sync/Drive lines), stale comments/identifiers sweep
+      (drive-named-but-live: sync_to_warp_drive/CreateWarpDriveNotebook,
+      WorkflowSource::PersonalCloud, ObjectOperation::MoveToDrive,
+      Icon::Warp → warp-drive.svg asset naming, integration_testing/
+      warp_drive/ path — rename ONLY if zero serialization risk),
+      drive/workflows/modal.rs creation-mode ruling, then a final
+      lint-invisible residue pass over cloud_object/.

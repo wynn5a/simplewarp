@@ -38,7 +38,6 @@ use super::{CloudWorkflowModel, WorkflowSource, WorkflowType, WorkflowViewMode};
 use crate::FeatureFlag;
 use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::appearance::Appearance;
-use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::cloud_object_styling::warp_drive_icon_color;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::CloudViewModel;
@@ -72,7 +71,6 @@ use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
-use crate::ui_components::breadcrumb::{BreadcrumbState, render_breadcrumbs};
 use crate::ui_components::buttons::{accent_icon_button, icon_button};
 use crate::ui_components::dialog::{Dialog, dialog_styles};
 use crate::ui_components::icons::Icon;
@@ -264,7 +262,6 @@ pub struct WorkflowView {
     alias_bar: ViewHandle<AliasBar>,
     env_vars_selector: ViewHandle<EnvVarSelector>,
     env_vars_state: EnvironmentVariablesState,
-    breadcrumbs: Vec<BreadcrumbState<ContainingObject>>,
     errors: WorkflowEditorErrorState,
     ui_state_handles: UiStateHandles,
     show_unsaved_changes: Option<UnsavedChangeType>,
@@ -407,7 +404,6 @@ impl WorkflowView {
             alias_bar,
             env_vars_selector,
             env_vars_state: Default::default(),
-            breadcrumbs: Vec::new(),
             errors: WorkflowEditorErrorState::new(),
             ui_state_handles: Default::default(),
             show_unsaved_changes: None,
@@ -682,7 +678,6 @@ impl WorkflowView {
                 });
             }
         }
-        self.update_breadcrumb(ctx);
         self.update_editors_interactivity(ctx);
         self.refresh_pane_overflow_menu(ctx);
 
@@ -1600,22 +1595,6 @@ impl WorkflowView {
         });
     }
 
-    fn update_breadcrumb(&mut self, ctx: &mut ViewContext<Self>) {
-        let workflow = self.get_cloud_workflow(ctx);
-
-        if let Some(the_workflow) = workflow {
-            let mut breadcrumbs = the_workflow.containing_objects_path(ctx);
-            // Without an account, "view in Warp Drive" only lands on Drive's sign-in dead
-            // end, so don't make the breadcrumb segments look clickable.
-            breadcrumbs
-                .iter_mut()
-                .for_each(ContainingObject::disable_drive_link);
-            self.breadcrumbs = breadcrumbs.into_iter().map(BreadcrumbState::new).collect();
-        } else {
-            log::warn!("Workflow not found from cloudmodel, could not update breadcrumb");
-        }
-    }
-
     pub fn focus(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.focus(&self.name_editor);
         ctx.emit(WorkflowViewEvent::Pane(PaneEvent::FocusSelf));
@@ -2467,49 +2446,30 @@ impl View for WorkflowView {
             ContainerConfiguration::SuggestionDialog => 0.,
         };
 
-        let mut row = Flex::row();
-        row.add_child(
-            Shrinkable::new(
-                2.,
-                // Clicking a breadcrumb used to view the object in the Warp Drive left-panel tab,
-                // which no longer exists (see simplify-specs/plan.md, Phase 4 Track A). The
-                // breadcrumb is always non-interactive now (`update_breadcrumb` disables the
-                // drive link whenever Warp Drive is unavailable, which in this build is always),
-                // so this callback can never fire.
-                Container::new(render_breadcrumbs(
-                    self.breadcrumbs.clone(),
-                    appearance,
-                    |_, _, _| {},
-                ))
-                .with_horizontal_margin(CORE_HORIZONATAL_MARGIN)
-                .with_vertical_margin(vertical_margin / 2.)
-                .finish(),
-            )
-            .finish(),
-        );
-
         // Workflows aren't runnable (so view mode is enabled) and the workflow is always
         // editable, so both view and edit modes are allowed.
         let mode_toggleable = !ContextFlag::RunWorkflow.is_enabled();
 
         if mode_toggleable {
+            let mut row = Flex::row();
             row.add_child(
                 Shrinkable::new(
                     1.,
                     Container::new(self.render_edit_toggle_button(appearance))
                         .with_margin_right(CORE_HORIZONATAL_MARGIN)
+                        .with_vertical_margin(vertical_margin / 2.)
                         .finish(),
                 )
                 .finish(),
-            )
-        }
+            );
 
-        content.add_child(
-            row.with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                .with_main_axis_size(MainAxisSize::Max)
-                .finish(),
-        );
+            content.add_child(
+                row.with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .with_main_axis_alignment(MainAxisAlignment::End)
+                    .with_main_axis_size(MainAxisSize::Max)
+                    .finish(),
+            );
+        }
 
         // We use a stack here with two children — an expanded transparent box and
         // container with the core ui elements. The core UI elements are layered

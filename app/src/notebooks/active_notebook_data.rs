@@ -2,7 +2,6 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use super::CloudNotebookModel;
 use crate::ai::document::ai_document_model::AIDocumentId;
-use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::{CloudViewModel, Editor, EditorState};
 use crate::cloud_object::{CloudObject, Owner, Space};
@@ -73,30 +72,19 @@ impl ActiveNotebookData {
     }
 
     fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
-        match event {
-            CloudModelEvent::NotebookEditorChangedFromServer { notebook_id } => {
-                if self.is_active_notebook(*notebook_id) {
-                    if let Some(new_editor) =
-                        CloudViewModel::as_ref(ctx).object_current_editor(&notebook_id.uid(), ctx)
-                        && self.mode == Mode::Editing
-                        && matches!(new_editor.state, EditorState::OtherUserActive)
-                    {
-                        self.mode = Mode::View;
-                        ctx.emit(ActiveNotebookDataEvent::ModeChangedFromServer);
-                    }
-                    ctx.notify();
-                }
+        let CloudModelEvent::NotebookEditorChangedFromServer { notebook_id } = event else {
+            return;
+        };
+        if self.is_active_notebook(*notebook_id) {
+            if let Some(new_editor) =
+                CloudViewModel::as_ref(ctx).object_current_editor(&notebook_id.uid(), ctx)
+                && self.mode == Mode::Editing
+                && matches!(new_editor.state, EditorState::OtherUserActive)
+            {
+                self.mode = Mode::View;
+                ctx.emit(ActiveNotebookDataEvent::ModeChangedFromServer);
             }
-            CloudModelEvent::ObjectMoved { type_and_id, .. } => {
-                if let Some(notebook_id) = type_and_id.as_notebook_id() {
-                    // Update breadcrumb when a notebook is moved, whether by the user or a
-                    // teammate.
-                    if self.is_active_notebook(notebook_id) {
-                        ctx.emit(ActiveNotebookDataEvent::BreadcrumbsChanged);
-                    }
-                }
-            }
-            _ => (),
+            ctx.notify();
         }
     }
 
@@ -166,13 +154,13 @@ impl ActiveNotebookData {
             initial_folder_id,
             new_id,
         )));
-        ctx.emit(ActiveNotebookDataEvent::BreadcrumbsChanged);
+        ctx.notify();
     }
 
     pub fn open_existing(&mut self, notebook_id: SyncId, ctx: &mut ModelContext<Self>) {
         self.reset();
         self.active_notebook = ActiveNotebook::CommittedNotebook(notebook_id);
-        ctx.emit(ActiveNotebookDataEvent::BreadcrumbsChanged);
+        ctx.notify();
     }
 
     pub fn id(&self) -> Option<SyncId> {
@@ -203,17 +191,6 @@ impl ActiveNotebookData {
             &self.active_notebook,
             ActiveNotebook::CommittedNotebook(SyncId::ServerId(_))
         )
-    }
-
-    /// Calculate the breadcrumbs for this object.
-    pub fn breadcrumbs(&self, ctx: &AppContext) -> Option<Vec<ContainingObject>> {
-        let cloud_notebook = match &self.active_notebook {
-            ActiveNotebook::None => None,
-            ActiveNotebook::CommittedNotebook(id) => CloudModel::as_ref(ctx).get_notebook(id),
-            ActiveNotebook::NewNotebook(notebook) => Some(notebook.as_ref()),
-        };
-
-        cloud_notebook.map(|notebook| notebook.containing_objects_path(ctx))
     }
 
     /// The space that the active notebook is shown in for this user.
@@ -304,9 +281,6 @@ impl ActiveNotebookData {
 pub enum ActiveNotebookDataEvent {
     /// Another user stole the baton for the current object.
     ModeChangedFromServer,
-    /// An edit to the current object was rejected.
-    /// The notebook's breadcrumbs were updated.
-    BreadcrumbsChanged,
     /// This notebook was trashed or untrashed (used for refreshing pane overflow items)
     TrashStatusChanged,
     // This notebook was moved to a shared space.

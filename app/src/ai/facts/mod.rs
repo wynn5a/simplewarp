@@ -43,10 +43,6 @@ impl StringModel for AIFact {
     fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {
         None
     }
-
-    fn renders_in_warp_drive(&self) -> bool {
-        false
-    }
 }
 
 impl JsonModel for AIFact {

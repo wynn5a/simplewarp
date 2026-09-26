@@ -179,8 +179,8 @@ enum NotebookSyncError {
 /// A view that allows viewing/execution and editing of a Warp notebook.
 /// We don't currently persist any data.
 pub struct NotebookView {
-    /// This is a stateful component that shows information about the notebook like its location
-    /// breadcrumbs and the current editor. It's shown immediately above the title editor.
+    /// This is a stateful component that shows information about the notebook like the current
+    /// editor. It's shown immediately above the title editor.
     details_bar: DetailsBar,
     title: ViewHandle<EditorView>,
     input: ViewHandle<RichTextEditorView>,
@@ -505,9 +505,6 @@ impl NotebookView {
             ActiveNotebookDataEvent::ModeChangedFromServer => {
                 log::info!("Edit mode stolen");
                 self.switch_to_view(ctx);
-            }
-            ActiveNotebookDataEvent::BreadcrumbsChanged => {
-                self.update_breadcrumbs(ctx);
             }
             ActiveNotebookDataEvent::TrashStatusChanged | ActiveNotebookDataEvent::MovedToSpace => {
                 self.pane_configuration.update(ctx, |pane_config, ctx| {
@@ -1200,7 +1197,6 @@ impl NotebookView {
         self.active_notebook_data.update(ctx, |data, ctx| {
             data.open_existing(notebook.id, ctx);
         });
-        self.update_breadcrumbs(ctx);
 
         ctx.notify();
     }
@@ -1228,8 +1224,6 @@ impl NotebookView {
                 title_editor.system_clear_buffer(true, ctx);
             });
         }
-
-        self.update_breadcrumbs(ctx);
 
         self.switch_to_edit(ctx);
     }
@@ -1298,13 +1292,6 @@ impl NotebookView {
                 report_error!("Tried to save notebook, but none were active")
             }
         }
-    }
-
-    /// Update the breadcrumbs for this notebook.
-    fn update_breadcrumbs(&mut self, ctx: &mut ViewContext<Self>) {
-        self.details_bar
-            .update_breadcrumbs(self.active_notebook_data.as_ref(ctx), ctx);
-        ctx.notify();
     }
 
     /// Save this notebook before detaching it from a pane.

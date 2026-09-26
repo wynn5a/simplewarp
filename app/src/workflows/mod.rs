@@ -55,7 +55,6 @@ pub enum WorkflowSource {
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Hash, PartialOrd)]
 pub enum WorkflowSelectionSource {
-    WarpDrive,
     CommandPalette,
     UniversalSearch,
     Voltron,
@@ -221,10 +220,6 @@ impl CloudModelType for CloudWorkflowModel {
     fn should_update_after_server_conflict(&self) -> bool {
         true
     }
-    fn renders_in_warp_drive(&self) -> bool {
-        true
-    }
-
     fn can_export(&self) -> bool {
         true
     }

@@ -51,10 +51,6 @@ impl StringModel for TemplatableMCPServer {
             unique_per: UniquePer::User,
         })
     }
-
-    fn renders_in_warp_drive(&self) -> bool {
-        false
-    }
 }
 
 impl JsonModel for TemplatableMCPServer {

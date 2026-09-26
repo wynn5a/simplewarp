@@ -11,46 +11,26 @@ use warpui::{AppContext, Element, SingletonEntity};
 use super::super::active_notebook_data::ActiveNotebookData;
 use super::{EDIT_BUTTON_MARGIN, NotebookAction};
 use crate::appearance::Appearance;
-use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::view::{Editor, EditorState};
 use crate::notebooks::active_notebook_data::Mode;
 use crate::notebooks::styles;
 use crate::sharing::ContentEditability;
-use crate::ui_components::breadcrumb::{BreadcrumbState, render_breadcrumbs};
 use crate::ui_components::buttons::{accent_icon_button, icon_button};
 use crate::ui_components::icons::Icon;
 use crate::workspaces::user_profiles::UserProfiles;
 
 /// Component to show details about a notebook:
-/// * Interactive breadcrumbs for its location within Warp Drive
 /// * The current editor of the notebook
 /// * Grab-the-baton UI controls
 pub struct DetailsBar {
-    breadcrumbs: Vec<BreadcrumbState<ContainingObject>>,
     edit_mode_button_mouse_state: MouseStateHandle,
 }
 
 impl DetailsBar {
     pub fn new() -> Self {
         Self {
-            breadcrumbs: Vec::new(),
             edit_mode_button_mouse_state: Default::default(),
         }
-    }
-
-    /// Update the cached breadcrumbs in the notebook header.
-    pub fn update_breadcrumbs(&mut self, notebook_data: &ActiveNotebookData, ctx: &AppContext) {
-        self.breadcrumbs = notebook_data
-            .breadcrumbs(ctx)
-            .map(|mut breadcrumbs| {
-                // Without an account, "view in Warp Drive" only lands on Drive's sign-in
-                // dead end, so don't make the breadcrumb segments look clickable.
-                breadcrumbs
-                    .iter_mut()
-                    .for_each(ContainingObject::disable_drive_link);
-                breadcrumbs.into_iter().map(BreadcrumbState::new).collect()
-            })
-            .unwrap_or_default();
     }
 
     pub fn render(
@@ -59,25 +39,8 @@ impl DetailsBar {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let mut header_row = Flex::row()
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center);
-
-        header_row.add_child(
-            Shrinkable::new(
-                2.,
-                // Clicking a breadcrumb used to view the object in the Warp Drive left-panel
-                // tab, which no longer exists (see simplify-specs/plan.md, Phase 4 Track A). The
-                // breadcrumb is always non-interactive now (`update_breadcrumbs` above disables
-                // the drive link whenever Warp Drive is unavailable, which in this build is
-                // always), so this callback can never fire.
-                render_breadcrumbs(self.breadcrumbs.iter().cloned(), appearance, |_, _, _| {}),
-            )
-            .finish(),
-        );
-
         let mut editing_state_row = Flex::row()
+            .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::End)
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
         if let Some(editor) = notebook_data.current_editor(app) {
@@ -92,9 +55,7 @@ impl DetailsBar {
             appearance,
         ));
 
-        header_row.add_child(Shrinkable::new(1., editing_state_row.finish()).finish());
-
-        header_row.finish()
+        editing_state_row.finish()
     }
 
     /// Renders a toggle button for the editing mode.

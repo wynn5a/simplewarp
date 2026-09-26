@@ -5,7 +5,6 @@
 pub(crate) mod agent_icon;
 pub(crate) mod avatar;
 pub(crate) mod blended_colors;
-pub(crate) mod breadcrumb;
 pub mod buttons;
 pub(crate) mod color_dot;
 pub(crate) mod dialog;

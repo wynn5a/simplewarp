@@ -69,10 +69,6 @@ impl CloudModelType for CloudNotebookModel {
     fn should_update_after_server_conflict(&self) -> bool {
         true
     }
-    fn renders_in_warp_drive(&self) -> bool {
-        true
-    }
-
     fn can_export(&self) -> bool {
         true
     }
