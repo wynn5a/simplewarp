@@ -38,8 +38,10 @@ const STRIPE_SUBSCRIPTION_INTERVAL_PAGE_PREFIX: &str = "/upgrade";
 #[allow(clippy::enum_variant_names)]
 pub enum UserWorkspacesEvent {
     /// Fired whenever the set of teams the user is on changes.
+    #[allow(dead_code)]
     TeamsChanged,
     /// Fired when the selected workspace actually changes to a different one.
+    #[allow(dead_code)]
     CurrentWorkspaceChanged,
     /// Fired when a single window's team assignment changes. Windows are independent, so
     /// subscribers that hold per-window state must only react to their own window.
@@ -100,6 +102,9 @@ impl UserWorkspaces {
         }
     }
 
+    // Only the retained-but-unreachable drive index calls this since the Warp
+    // Drive panel fell; the drive index slice removes both sides.
+    #[allow(dead_code)]
     pub fn upgrade_link_for_team(team_uid: ServerId) -> String {
         format!(
             "{}{}/{}",

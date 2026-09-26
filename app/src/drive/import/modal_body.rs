@@ -135,6 +135,9 @@ impl ImportModalBody {
         }
     }
 
+    // Only the modal's (now unreachable) open path calls this; see
+    // `ImportModal::open_with_target`.
+    #[allow(dead_code)]
     pub fn set_new_target(&mut self, owner: Owner, initial_folder_id: Option<SyncId>) {
         // TODO: this should take an owner OR folder.
         self.owner = Some(owner);

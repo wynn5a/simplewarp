@@ -321,7 +321,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_can_auto_bootstrap);
 
     register_test!(test_ask_warp_ai_keybinding_for_selected_block);
-    register_test!(test_create_folder_from_command_palette);
 
     register_test!(test_tab_behavior_setting);
 

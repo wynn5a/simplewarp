@@ -298,12 +298,38 @@ pub enum CodeReviewPaneSnapshot {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum LeftPanelDisplayedTab {
     FileTree,
     GlobalSearch,
-    WarpDrive,
     ConversationListView,
+}
+
+impl<'de> Deserialize<'de> for LeftPanelDisplayedTab {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "PascalCase")]
+        enum Tab {
+            FileTree,
+            GlobalSearch,
+            ConversationListView,
+            // "WarpDrive" named the Warp Drive tab, deleted along with the rest
+            // of the drive surface. Old sessions still store the name, so it is
+            // remapped here, at the boundary, to the neutral panel instead of
+            // failing the whole `LeftPanelSnapshot` parse.
+            WarpDrive,
+        }
+
+        Ok(match Tab::deserialize(deserializer)? {
+            Tab::FileTree => Self::FileTree,
+            Tab::GlobalSearch => Self::GlobalSearch,
+            Tab::ConversationListView => Self::ConversationListView,
+            Tab::WarpDrive => Self::FileTree,
+        })
+    }
 }
 
 impl From<ToolPanelView> for LeftPanelDisplayedTab {
@@ -311,7 +337,6 @@ impl From<ToolPanelView> for LeftPanelDisplayedTab {
         match view {
             ToolPanelView::ProjectExplorer => LeftPanelDisplayedTab::FileTree,
             ToolPanelView::GlobalSearch { .. } => LeftPanelDisplayedTab::GlobalSearch,
-            ToolPanelView::WarpDrive => LeftPanelDisplayedTab::WarpDrive,
             ToolPanelView::ConversationListView => LeftPanelDisplayedTab::ConversationListView,
         }
     }

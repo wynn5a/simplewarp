@@ -71,7 +71,9 @@ pub async fn generate_multi_agent_output(
                 ..Default::default()
             }),
             rules_enabled: params.is_memory_enabled,
-            warp_drive_context_enabled: params.warp_drive_context_enabled,
+            // Warp Drive context fell with the drive surface; the wire field
+            // belongs to the external API contract and can never be enabled.
+            warp_drive_context_enabled: false,
             web_context_retrieval_enabled: true,
             supports_parallel_tool_calls: true,
             use_anthropic_text_editor_tools: false,

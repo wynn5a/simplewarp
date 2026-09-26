@@ -1,3 +1,6 @@
+// Retained until the drive index/browse slice removes this file; nothing
+// constructs it since the Warp Drive panel fell, hence the lint bridge.
+#![allow(dead_code)]
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -59,7 +62,6 @@ use crate::cloud_object::{
     GenericCloudObject, GenericStringObjectFormat, JsonObjectType, ObjectType, Space,
     WarpDriveItemId,
 };
-use crate::drive::panel::DrivePanelAction;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};
 use crate::env_vars::CloudEnvVarCollection;
 use crate::features::FeatureFlag;
@@ -443,9 +445,6 @@ struct SpaceMenuState {
 }
 
 /// The main view for the Warp Drive sidebar.
-/// `DriveIndex` is different from `DrivePanel` in that it is responsible for
-/// all the logic within Warp Drive, whereas `DrivePanel` is responsible for
-/// how Warp Drive interacts with the workspace and the rest of the app.
 #[derive(Clone)]
 pub struct DriveIndex {
     window_id: WindowId,
@@ -2134,12 +2133,12 @@ impl DriveIndex {
             self.mouse_state_handles.search_button_mouse_state.clone(),
         )
         .build()
-        .on_click(|ctx, _, _| ctx.dispatch_typed_action(DrivePanelAction::OpenSearch))
         .finish();
 
+        // Right padding between the search button and the close button.
         title_right_side.add_child(
             Container::new(Align::new(search_button).finish())
-                .with_padding_right(crate::drive::panel::styles::SEARCH_BUTTON_PADDING_RIGHT)
+                .with_padding_right(4.)
                 .finish(),
         );
 

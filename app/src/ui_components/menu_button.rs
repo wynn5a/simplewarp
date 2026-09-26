@@ -87,8 +87,10 @@ where
     button_with_menu
 }
 
-/// Variant with surface_1 hover background for Warp Drive items
+// Only the retained-but-unreachable drive item UI calls these since the Warp
+// Drive panel fell; the drive index slice removes both sides.
 #[allow(clippy::too_many_arguments)]
+#[allow(dead_code)]
 pub fn icon_button_with_context_menu_drive<F, V: View>(
     icon: Icon,
     on_click_action: F,
@@ -123,7 +125,7 @@ where
     button_with_menu
 }
 
-/// Variant with surface_1 hover background for Warp Drive items (highlighted)
+#[allow(dead_code)]
 pub fn highlight_icon_button_with_context_menu_drive<F, V: View>(
     icon: Icon,
     on_click_action: F,

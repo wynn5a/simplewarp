@@ -6,10 +6,8 @@ pub mod export;
 pub mod import;
 pub(crate) mod index;
 pub mod items;
-pub mod panel;
 pub mod settings;
 pub mod workflows;
 
 pub use cloud_objects::drive::CloudObjectTypeAndId;
 pub use index::DriveIndexVariant;
-pub use panel::{DrivePanel, DrivePanelEvent};

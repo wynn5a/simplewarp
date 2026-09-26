@@ -15091,3 +15091,116 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
         test mocks (UpdateManager::mock stays if update_manager stays),
         dead cargo features from (7), AGENTS.md drive mentions, stale
         comments; then a residue check (lint-invisible leftovers).
+- [x] **drive slice 1 — the tools-panel + menu + settings + flag surface
+      (4gi) — DONE 2026-09-26.** 48 files, +183/−2,371, 2 deleted
+      (drive/panel.rs + panel_tests.rs). Executed per the 4gh plan by one
+      subagent; parent independently re-verified every gate and reviewed
+      the full diff.
+
+      WHAT FELL. (1) ToolPanelView::WarpDrive + DrivePanel/DrivePanelEvent/
+      DrivePanelAction + warp_drive_view + LeftPanelAction/LeftPanelEvent::
+      WarpDrive + WorkspaceState.is_warp_drive_open + is_warp_drive_active/
+      is_warp_drive_open + open_or_toggle_warp_drive + view_in_warp_drive/
+      update_warp_drive_view/set_focused_index + set_selected_object (all
+      object→panel selection-sync legs in open_notebook/
+      open_workflow_from_intent/open_env_var_collection/
+      open_ai_fact_collection_pane/PaneFocused/run_cloud_workflow) + the
+      standalone CloudObjectNamingModal field/construction + the
+      configure_empty_workspace auto-open-drive block (incl.
+      has_non_welcome_objects candidate-pane replacement) +
+      create_cloud_object_pane + LeftPanelTargetView::WarpDrive +
+      handle_warp_drive_event whole. (2) Menus: make_new_drive_menu + menu
+      bar entry + View-menu ToggleWarpDrive; CustomAction::{ToggleWarpDrive,
+      SearchDrive, NewPersonal/Team Workflow|Notebook|EnvVars|AIPrompt} +
+      keystroke arms; cmd-\ now binds workspace:toggle_left_panel directly.
+      (3) Search chain: workspace:search_drive binding +
+      WorkspaceAction::OpenPalette WarpDrive arm + PaletteMode::WarpDrive +
+      PaletteSource::WarpDrive + QueryFilter::Drive (incl. the warp_search_core
+      variant + drive: atom + chip renderer arm) + zero_state
+      WarpDriveSettings subscriber + the is_excluded_binding
+      search_drive filter in search/action/data_source.rs (whole helper).
+      (4) TipAction::OpenWarpDrive + arm. (5) ENABLE_WARP_DRIVE const + all
+      13 constant-false registrations + orphaned WorkspaceAction variants
+      (CreatePersonal/Team Notebook|Workflow|Folder|AIPrompt,
+      CreateTeamEnvVarCollection, ImportToPersonal/TeamDrive,
+      ExportAllWarpDriveObjects, ViewObjectInWarpDrive, UndoTrash) + handler
+      arms + team_uid helper + the WarpDrive_BelongsToTeam context insert.
+      KEPT: CreatePersonalEnvVarCollection — two LIVE dispatchers outside
+      drive (workflows/workflow_view/argument_editor.rs:826,
+      workflows/info_box.rs:605). (6) Settings: enable_warp_drive +
+      sharing_onboarding_block_shown + appearance ToolsPanelWarpDriveWidget/
+      ToggleToolsPanelWarpDrive + knowledge WarpDriveContextWidget/
+      ToggleWarpDriveContext + WarpDriveContextEnabled setting +
+      is_warp_drive_context_enabled + WARP_DRIVE_CONTEXT_FLAG + the whole
+      RequestParams.warp_drive_context_enabled chain (ai/agent api.rs,
+      impl.rs, impl_tests.rs) — impl.rs now hardcodes the external
+      warp_multi_agent_api wire field to false with a why-comment. (7)
+      Fallback pick: ToolPanelView::ProjectExplorer (GlobalSearch is doubly
+      gated — FeatureFlag + setting; ProjectExplorer renders harmlessly in
+      every build); LeftPanelDisplayedTab::WarpDrive tombstoned via a
+      hand-written Deserialize remapping "WarpDrive" → FileTree at the parse
+      boundary (never nukes the whole LeftPanelSnapshot) + unit test.
+      (8) Width consts MAX_SIDEBAR_WIDTH_RATIO/MIN_SIDEBAR_WIDTH relocated
+      to left_panel.rs (both panels consume); warp_drive_icon_color moved
+      to cloud_object_styling.rs (live consumers remain: vertical_tabs
+      cloud-object pane icons, search chips, notebook/workflow search
+      items).
+
+      WarpDriveSettings verdict: PARTIAL keep — only sorting_choice
+      survives (drive/index.rs reads/writes it; index falls in 4gj, then
+      the group dies whole).
+
+      BRIDGE ALLOWS (retained-but-unreachable, each with a why-comment,
+      all deleted by 4gj/4gk): drive/index.rs, items/{item,ai_fact_
+      collection,mcp_server_collection}.rs, cloud_object_naming_dialog.rs,
+      empty_trash_confirmation_dialog.rs, import/modal open_with_target +
+      modal_body set_new_target, WorkflowModal::open_with_new, ui_components/
+      menu_button drive-button helpers, update_manager empty_trash/
+      rename_folder/persist_current_workspace + OperationSuccessType::
+      Rejection + ObjectOperation::EmptyTrash, user_workspaces
+      upgrade_link_for_team; ALSO never-emitted event variants
+      UserWorkspacesEvent::{TeamsChanged, CurrentWorkspaceChanged} and
+      cloud_object metadata helpers (semantic_permadeletion_countdown,
+      get_top_folder_trashed_ts). pane_group::Event::OpenAddPromptPane now
+      an explicit no-op arm (terminal slash surface still emits it).
+
+      TEST DELTAS (net −2 per config, exactly as documented): deleted
+      panel_tests (1) + view_tests test_open_or_toggle_warp_drive +
+      test_create_personal_folder_shows_naming_dialog… (2); rewrote
+      test_switch_focus_panels (dropped the WD focus leg only); added
+      app_state_tests left_panel_displayed_tab_parses_warp_drive_tombstone_
+      as_file_tree; integration: test_create_folder_from_command_palette +
+      registry line deleted, 2 orphaned drive assertions removed from
+      integration_testing/warp_drive/assertion.rs. TipAction note:
+      OpenWarpDrive left the serialized tips enum — old persisted
+      welcome-tips sets containing it fail that set's parse and reset tips
+      state (cosmetic, accepted).
+
+      ACCEPTANCE (parent re-ran everything). (1) cargo check
+      --no-default-features --features simplewarp --bin simplewarp green
+      ZERO warnings; -p warp --lib --features test-util green zero
+      warnings; -p warp --lib green. (2) ./script/format twice idempotent.
+      (3) Clippy: the historical --all-features configs DO NOT COMPILE at
+      this HEAD (pre-existing: voice_input/heap_usage_tracking/
+      cocoa_sentry-gated code in agent_input_footer/system/crash_reporting
+      + profiles_tests migrate_settings_profiles ×7 — the "11 pre-existing
+      errors" red baseline), so pair-diffs were taken in the two GREEN
+      configs with forced full re-checks: A = workspace --all-targets
+      --tests default features: HEAD 5 pairs = work-tree 5 pairs
+      IDENTICAL; B = -p warp --no-default-features --features simplewarp
+      --all-targets --tests: HEAD 0 = work-tree 0. CONFIRMED PRE-EXISTING
+      at HEAD, newly recorded: crates/integration fails to compile in
+      config A (3× SettingsSection::Account in test/settings_navigation.rs,
+      4ge leftovers) — repair item for 4gl. (4) nextest -p warp --lib
+      --no-fail-fast: default 4,555/4,555/3 skipped/0 failed (post-4gg
+      4,557, −3+1); simplewarp 4,556/4,556/3/0 (4,558, −3+1). One
+      transient (test_command_block_dispatches_event, first simplewarp
+      parallel run) passed in isolation + full rerun. (5) No GUI, no
+      integration suite.
+
+      NEXT: 4gj slice 2 — drive/index.rs + items/ + import/ + export.rs +
+      ExportManager + naming dialog + empty-trash + warp:// object links +
+      OpenWarpDriveObjectSettings ruling + warp_drive_index_width chain +
+      zero_state remnant + the bridge list above + the
+      OpenAIFactCollection/OpenMCPServerCollection binding ruling (settings
+      mcp_servers pages supersede?).

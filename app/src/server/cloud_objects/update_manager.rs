@@ -56,6 +56,9 @@ lazy_static! {
 #[derive(Debug, PartialEq)]
 pub enum OperationSuccessType {
     Success,
+    // Only constructed by the trash/rename flows that died with the Warp Drive
+    // panel; matching code still exists across the object substrate.
+    #[allow(dead_code)]
     Rejection,
 }
 
@@ -66,7 +69,12 @@ pub enum ObjectOperation {
     MoveToDrive,
     Trash,
     Untrash,
-    Delete { initiated_by: InitiatedBy },
+    Delete {
+        initiated_by: InitiatedBy,
+    },
+    // Only constructed by the trash flows that died with the Warp Drive panel;
+    // matching code still exists across the object substrate.
+    #[allow(dead_code)]
     EmptyTrash,
 }
 
@@ -134,6 +142,10 @@ impl UpdateManager {
     }
 
     /// Persists the user's current-workspace selection to SQLite.
+    ///
+    /// Only the retained-but-unreachable drive index calls this since the Warp
+    /// Drive panel fell; the drive index slice removes both sides.
+    #[allow(dead_code)]
     pub fn persist_current_workspace(&self, workspace_uid: WorkspaceUid) {
         self.save_to_db([ModelEvent::SetCurrentWorkspace { workspace_uid }]);
     }
@@ -917,6 +929,9 @@ impl UpdateManager {
         ctx.notify();
     }
 
+    // Only the retained-but-unreachable drive index calls this since the Warp
+    // Drive panel fell; the drive index slice removes both sides.
+    #[allow(dead_code)]
     pub fn empty_trash(&mut self, space: Space, ctx: &mut ModelContext<Self>) {
         let Some(owner) = UserWorkspaces::as_ref(ctx).space_to_owner(space, ctx) else {
             // TODO: For the Shared space, this should delete every object that's shared with the user
@@ -1000,6 +1015,9 @@ impl UpdateManager {
         num_deleted_objects
     }
 
+    // Only the retained-but-unreachable drive index calls this since the Warp
+    // Drive panel fell; the drive index slice removes both sides.
+    #[allow(dead_code)]
     pub fn rename_folder(
         &mut self,
         folder_id: SyncId,

@@ -106,3 +106,27 @@ fn test_code_pane_snapshot_with_multiple_tabs() {
     assert_eq!(tabs[2].path, None);
     assert!(matches!(source, Some(CodeSource::Link { .. })));
 }
+
+#[test]
+fn left_panel_displayed_tab_parses_warp_drive_tombstone_as_file_tree() {
+    // Sessions persisted before the Warp Drive tab was deleted store
+    // "WarpDrive"; the whole LeftPanelSnapshot must still parse.
+    let snapshot: LeftPanelSnapshot = serde_json::from_str(
+        r#"{"left_panel_displayed_tab":"WarpDrive","pane_group_id":"pg","width":300}"#,
+    )
+    .expect("WarpDrive tombstone should not fail the snapshot parse");
+    assert_eq!(
+        snapshot.left_panel_displayed_tab,
+        LeftPanelDisplayedTab::FileTree
+    );
+    assert_eq!(snapshot.width, 300);
+
+    let snapshot: LeftPanelSnapshot = serde_json::from_str(
+        r#"{"left_panel_displayed_tab":"GlobalSearch","pane_group_id":"pg","width":300}"#,
+    )
+    .expect("live variants should keep parsing");
+    assert_eq!(
+        snapshot.left_panel_displayed_tab,
+        LeftPanelDisplayedTab::GlobalSearch
+    );
+}

@@ -66,6 +66,9 @@ impl ImportModal {
         }
     }
 
+    // Its openers (the drive import bindings/panel event) fell with the Warp
+    // Drive panel; the import modal itself is removed by the drive index slice.
+    #[allow(dead_code)]
     pub fn open_with_target(
         &mut self,
         owner: Owner,

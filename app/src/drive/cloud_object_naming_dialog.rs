@@ -1,3 +1,6 @@
+// Retained until the drive index/browse slice removes this file; nothing
+// constructs it since the Warp Drive panel fell, hence the lint bridge.
+#![allow(dead_code)]
 use warpui::elements::{
     Border, Clipped, Container, CornerRadius, Dismiss, Empty, Flex, MainAxisSize, MouseStateHandle,
     ParentElement, Radius, Shrinkable, Text,

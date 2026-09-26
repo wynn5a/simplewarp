@@ -23,7 +23,7 @@ use super::settings_page::{
 };
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
 use crate::appearance::Appearance;
-use crate::settings::{AISettings, MemoryEnabled, RuleSuggestionsEnabled, WarpDriveContextEnabled};
+use crate::settings::{AISettings, MemoryEnabled, RuleSuggestionsEnabled};
 use crate::util::bindings;
 
 const PAGE_TITLE: &str = "Knowledge";
@@ -50,10 +50,7 @@ impl KnowledgePageView {
             if FeatureFlag::SuggestedRules.is_enabled() {
                 widgets.push(Box::new(SuggestedRulesWidget::default()));
             }
-            widgets.extend([
-                Box::new(ManageRulesWidget::default()) as Box<dyn SettingsWidget<View = Self>>,
-                Box::new(WarpDriveContextWidget::default()),
-            ]);
+            widgets.push(Box::new(ManageRulesWidget::default()));
         }
         PageType::new_uncategorized(widgets, Some(PAGE_TITLE))
     }
@@ -81,7 +78,6 @@ pub enum KnowledgePageEvent {
 pub enum KnowledgePageAction {
     ToggleRules,
     ToggleRuleSuggestions,
-    ToggleWarpDriveContext,
     OpenAIFactCollection,
     HyperlinkClick(HyperlinkUrl),
 }
@@ -101,14 +97,6 @@ impl TypedActionView for KnowledgePageView {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     let _ = settings
                         .rule_suggestions_enabled_internal
-                        .toggle_and_save_value(ctx);
-                });
-                ctx.notify();
-            }
-            KnowledgePageAction::ToggleWarpDriveContext => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    let _ = settings
-                        .warp_drive_context_enabled
                         .toggle_and_save_value(ctx);
                 });
                 ctx.notify();
@@ -179,16 +167,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             .with_enabled(|| {
                 FeatureFlag::AIRules.is_enabled() && FeatureFlag::SuggestedRules.is_enabled()
             }),
-            ToggleSettingActionPair::new(
-                "Warp Drive as agent context",
-                builder(SettingsAction::Knowledge(
-                    KnowledgePageAction::ToggleWarpDriveContext,
-                )),
-                &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
-                flags::WARP_DRIVE_CONTEXT_FLAG,
-            )
-            .with_group(bindings::BindingGroup::WarpAi)
-            .with_enabled(|| FeatureFlag::AIRules.is_enabled()),
         ],
         app,
     );
@@ -324,47 +302,5 @@ impl SettingsWidget for ManageRulesWidget {
             KnowledgePageAction::OpenAIFactCollection,
             appearance,
         )
-    }
-}
-
-#[derive(Default)]
-struct WarpDriveContextWidget {
-    warp_drive_context_toggle: SwitchStateHandle,
-}
-
-impl SettingsWidget for WarpDriveContextWidget {
-    type View = KnowledgePageView;
-
-    fn search_terms(&self) -> &str {
-        "warp drive agent context contents personal team developer workflows environments notebooks environment variables"
-    }
-
-    fn render(
-        &self,
-        view: &Self::View,
-        _appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let ai_settings = AISettings::as_ref(app);
-        let toggle = render_ai_setting_toggle::<WarpDriveContextEnabled>(
-            "Warp Drive as agent context",
-            KnowledgePageAction::ToggleWarpDriveContext,
-            *ai_settings.warp_drive_context_enabled,
-            ai_settings.is_any_ai_enabled(app),
-            self.warp_drive_context_toggle.clone(),
-            &view.local_only_icon_tooltip_states,
-            app,
-        );
-
-        let description = render_ai_setting_description(
-            "The Warp Agent can leverage your Warp Drive Contents to tailor responses to your personal and team developer workflows and environments. This includes any Workflows, Notebooks, and Environment Variables.",
-            ai_settings.is_any_ai_enabled(app),
-            app,
-        );
-
-        Flex::column()
-            .with_child(toggle)
-            .with_child(description)
-            .finish()
     }
 }

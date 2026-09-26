@@ -796,6 +796,9 @@ pub trait CloudObjectMetadataExt {
 
     /// Returns semantic summary of countdown of days until permadeletion.
     /// Ex: "27 days until permanent deletion"
+    // Only the (retained-but-unreachable) drive item UI calls this since the
+    // Warp Drive panel fell; the drive index slice removes it with that UI.
+    #[allow(dead_code)]
     fn semantic_permadeletion_countdown(&self, app: &AppContext) -> Option<String>;
 }
 
@@ -857,6 +860,7 @@ impl CloudObjectMetadataExt for CloudObjectMetadata {
 }
 
 /// Helper function to retrieve trashed_ts of top level folder given a folder_id of an object.
+#[allow(dead_code)]
 fn get_top_folder_trashed_ts(
     folder_id: Option<SyncId>,
     app: &AppContext,

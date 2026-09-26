@@ -1,3 +1,6 @@
+// Retained until the drive index/browse slice removes this file; nothing
+// constructs it since the Warp Drive panel fell, hence the lint bridge.
+#![allow(dead_code)]
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
 use warpui::elements::{
@@ -27,7 +30,6 @@ use crate::drive::index::{
     DriveIndexAction, FOLDER_DEPTH_INDENT, INDEX_CONTENT_MARGIN_LEFT, ITEM_FONT_SIZE,
     ITEM_MARGIN_BOTTOM, ITEM_PADDING_HORIZONTAL, ITEM_PADDING_VERTICAL,
 };
-use crate::drive::panel::WARP_DRIVE_POSITION_ID;
 use crate::menu::Menu;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::{ICON_DIMENSIONS, Icon};
@@ -694,6 +696,8 @@ impl<'a> WarpDriveRow<'a> {
         }
     }
 }
+
+const WARP_DRIVE_POSITION_ID: &str = "warp_drive";
 
 /// Generate a callback for calculating the Drag bounds within Warp Drive
 fn drag_bounds_callback() -> impl Fn(&PositionCache, Vector2F) -> Option<RectF> {

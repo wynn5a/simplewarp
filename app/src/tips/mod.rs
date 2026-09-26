@@ -80,9 +80,6 @@ pub enum TipAction {
     AiCommandSearch,
     SaveNewLaunchConfig,
     WarpAI,
-    // This toggles Warp Drive rather than opening it. This enum can't directly be
-    // renamed because we serialize it into the welcome tips.
-    OpenWarpDrive,
     // Note that these items have been deprecated from the UI and are not in any section.
     // We are leaving them in this enum to ensure that we don't re-use their values. Since
     // old clients will have them in their user defaults, we want to prevent future usage
@@ -102,7 +99,6 @@ impl TipAction {
             TipAction::ThemePicker => "workspace:show_theme_chooser",
             TipAction::SaveNewLaunchConfig => "workspace:open_launch_config_save_modal",
             TipAction::WarpAI => "workspace:toggle_ai_assistant",
-            TipAction::OpenWarpDrive => "workspace:toggle_left_panel",
             // Deprecated variants. No binding is registered under these names, so the
             // lookup in `keyboard_shortcut` simply finds nothing.
             TipAction::Changelog => "/changelog",

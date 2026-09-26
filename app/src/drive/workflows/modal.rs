@@ -366,6 +366,9 @@ impl WorkflowModal {
     /// Opens the modal with no preexisting workflow.
     /// This represents the creation experience; saving this workflow will add
     /// a new one to the space specified.
+    // Its opener (the drive workflow-creation action) fell with the Warp Drive
+    // panel; the rest of the modal serves live local workflow runs.
+    #[allow(dead_code)]
     pub fn open_with_new(
         &mut self,
         owner: Owner,
