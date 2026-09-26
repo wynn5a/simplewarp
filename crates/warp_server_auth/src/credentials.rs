@@ -11,8 +11,8 @@ pub enum Credentials {
     Bearer(String),
     /// Authentication derived from an ambient browser session cookie.
     SessionCookie,
-    /// Test credentials used in unit tests, integration tests, and skip_login builds.
-    #[cfg(any(test, feature = "integration_tests", feature = "skip_login"))]
+    /// Test credentials used in unit tests and integration tests.
+    #[cfg(any(test, feature = "integration_tests"))]
     Test,
 }
 
@@ -23,7 +23,7 @@ impl Credentials {
         match self {
             Credentials::Bearer(token) => Some(token),
             Credentials::SessionCookie => None,
-            #[cfg(any(test, feature = "integration_tests", feature = "skip_login"))]
+            #[cfg(any(test, feature = "integration_tests"))]
             Credentials::Test => None,
         }
     }

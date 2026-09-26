@@ -469,7 +469,7 @@ use crate::workflows::workflow::Workflow;
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::{
     CommandSearchOptions, ForkAIConversationParams, ForkFromExchange,
-    ForkedConversationDestination, OneTimeModalModel, ToastStack, WorkspaceAction,
+    ForkedConversationDestination, ToastStack, WorkspaceAction,
 };
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::workspaces::workspace::CustomerType;
@@ -17827,10 +17827,6 @@ impl TerminalView {
             // calls on_blur and closes the context menu when it is supposed
             // to open after closing the command palette
             // TODO: refactor in the future
-            return;
-        }
-
-        if OneTimeModalModel::as_ref(ctx).is_any_modal_open() {
             return;
         }
 

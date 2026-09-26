@@ -20,7 +20,6 @@ use warpui::{
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::appearance::Appearance;
-use crate::auth::AuthStateProvider;
 use crate::code::buffer_location::LocalOrRemotePath;
 #[cfg(feature = "local_fs")]
 use crate::code::file_tree::FileTreeEvent;
@@ -29,7 +28,6 @@ use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::drive::panel::{
     DrivePanel, DrivePanelEvent, MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH,
 };
-use crate::drive::settings::WarpDriveSettings;
 use crate::pane_group::pane::view::header::PANE_HEADER_HEIGHT;
 use crate::pane_group::pane::view::header::components::HEADER_EDGE_PADDING;
 use crate::pane_group::working_directories::WorkingDirectory;
@@ -82,7 +80,6 @@ pub enum LeftPanelAction {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ToolPanelAvailability {
     Available,
-    RequiresAccount,
     RequiresAi,
 }
 
@@ -92,29 +89,12 @@ impl ToolPanelView {
             ToolPanelView::ProjectExplorer | ToolPanelView::GlobalSearch { .. } => {
                 ToolPanelAvailability::Available
             }
-            ToolPanelView::WarpDrive => {
-                if WarpDriveSettings::is_warp_drive_available(app) {
-                    ToolPanelAvailability::Available
-                } else {
-                    ToolPanelAvailability::RequiresAccount
-                }
-            }
+            // No build of this fork has an account to sign in to, so there is no
+            // sign-in wall in front of either panel: the drive renders its local
+            // store, and conversation availability is decided by AI state alone.
+            ToolPanelView::WarpDrive => ToolPanelAvailability::Available,
             ToolPanelView::ConversationListView => {
-                // The account check is about Warp's own cloud history, which an anonymous or
-                // logged-out user has none of. A build with no Warp account keeps every
-                // conversation in the local database instead, so the history works logged out —
-                // and asking for an account here would put a dead Sign in button in front of data
-                // that is already on the machine.
-                //
-                // This mirrors `AISettings::is_any_ai_enabled`, which drops the same check for
-                // the same reason.
-                if crate::features::warp_account_available()
-                    && AuthStateProvider::as_ref(app)
-                        .get()
-                        .is_anonymous_or_logged_out()
-                {
-                    ToolPanelAvailability::RequiresAccount
-                } else if AISettings::as_ref(app).is_conversation_history_available(app) {
+                if AISettings::as_ref(app).is_conversation_history_available(app) {
                     ToolPanelAvailability::Available
                 } else {
                     ToolPanelAvailability::RequiresAi
@@ -243,14 +223,6 @@ impl LeftPanelView {
         availability: ToolPanelAvailability,
     ) -> Box<dyn Element> {
         let (title, description) = match (view, availability) {
-            (ToolPanelView::WarpDrive, ToolPanelAvailability::RequiresAccount) => (
-                "Sign in to access Warp Drive",
-                "Create an account to save and share workflows, notebooks, prompts, and more.",
-            ),
-            (ToolPanelView::ConversationListView, ToolPanelAvailability::RequiresAccount) => (
-                "Sign in to access Agent conversations",
-                "Create an account and enable AI to access your conversation history.",
-            ),
             (ToolPanelView::ConversationListView, ToolPanelAvailability::RequiresAi) => (
                 "Turn on AI to access Agent conversations",
                 "Enable Warp AI to access your conversation history.",
@@ -260,10 +232,6 @@ impl LeftPanelView {
                 | ToolPanelView::GlobalSearch { .. }
                 | ToolPanelView::WarpDrive,
                 ToolPanelAvailability::RequiresAi,
-            )
-            | (
-                ToolPanelView::ProjectExplorer | ToolPanelView::GlobalSearch { .. },
-                ToolPanelAvailability::RequiresAccount,
             )
             | (_, ToolPanelAvailability::Available) => {
                 debug_assert!(false, "unexpected locked tool-panel state");

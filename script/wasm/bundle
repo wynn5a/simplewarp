@@ -164,7 +164,6 @@ fi
 # by warp-channel-config. Intercept them after merging --features additions so
 # that existing invocations keep working without dropping bundle defaults.
 for mapping in \
-    "with_local_server:WITH_LOCAL_SERVER" \
     "with_local_session_sharing_server:WITH_LOCAL_SESSION_SHARING_SERVER"; do
     feature="${mapping%%:*}"
     env_var="${mapping##*:}"

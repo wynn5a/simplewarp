@@ -84,13 +84,12 @@ use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::settings::{
     AIAutoDetectionEnabled, AICommandDenylist, AISettings, AISettingsChangedEvent,
     AgentModeQuerySuggestionsEnabled, AutoApproveBypassesCommandDenylist, AwsBedrockAutoLogin,
-    AwsBedrockCredentialsEnabled, CanUseWarpCreditsForFallback, GeminiEnterpriseCredentialsEnabled,
-    GitOperationsAutogenEnabled, IncludeAgentCommandsInHistory, InputSettings,
-    IntelligentAutosuggestionsEnabled, LongRunningCommandSubmissionMode, NLDInTerminalEnabled,
-    OrchestrationMessageDisplayMode, PromptSubmissionMode,
-    ShouldRenderUseAgentToolbarForUserCommands, ShowAgentTips, ShowConversationHistory,
-    ShowHintText, ThinkingDisplayMode, VOICE_INPUT_LANGUAGES, VoiceInputEnabled,
-    VoiceInputLanguage, VoiceInputToggleKey,
+    AwsBedrockCredentialsEnabled, GeminiEnterpriseCredentialsEnabled, GitOperationsAutogenEnabled,
+    IncludeAgentCommandsInHistory, InputSettings, IntelligentAutosuggestionsEnabled,
+    LongRunningCommandSubmissionMode, NLDInTerminalEnabled, OrchestrationMessageDisplayMode,
+    PromptSubmissionMode, ShouldRenderUseAgentToolbarForUserCommands, ShowAgentTips,
+    ShowConversationHistory, ShowHintText, ThinkingDisplayMode, VOICE_INPUT_LANGUAGES,
+    VoiceInputEnabled, VoiceInputLanguage, VoiceInputToggleKey,
 };
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -473,25 +472,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                     && FeatureFlag::FileBasedMcp.is_enabled()
                     && ContextFlag::ShowMCPServers.is_enabled()
             }),
-        ],
-        app,
-    );
-    ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
-        vec![
-            ToggleSettingActionPair::new(
-                "Warp credit fallback",
-                builder(SettingsAction::WarpAgent(
-                    WarpAgentPageAction::ToggleCanUseWarpCreditsForFallback,
-                )),
-                &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
-                flags::WARP_CREDIT_FALLBACK_FLAG,
-            )
-            .with_group(bindings::BindingGroup::WarpAi)
-            .is_supported_on_current_platform(
-                crate::features::warp_account_available()
-                    && (UserWorkspaces::as_ref(app).is_byo_api_key_enabled(app)
-                        || UserWorkspaces::as_ref(app).is_custom_inference_enabled(app)),
-            ),
         ],
         app,
     );
@@ -1668,7 +1648,6 @@ pub enum WarpAgentPageAction {
     ToggleNLDInTerminal,
     ToggleUseAgentToolbar,
     ToggleVoiceInput,
-    ToggleCanUseWarpCreditsForFallback,
     HyperlinkClick(HyperlinkUrl),
     ToggleShowInputHintText,
     ToggleShowAgentTips,
@@ -1855,16 +1834,6 @@ impl TypedActionView for WarpAgentPageView {
                         log::warn!("Failed to set value for Voice Input: {e:?}");
                     }
                 }
-                ctx.notify();
-            }
-            WarpAgentPageAction::ToggleCanUseWarpCreditsForFallback => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .can_use_warp_credits_for_fallback
-                            .toggle_and_save_value(ctx)
-                    );
-                });
                 ctx.notify();
             }
             WarpAgentPageAction::HyperlinkClick(hyperlink) => {
@@ -3253,7 +3222,6 @@ struct ProviderApiKeyEditor {
 struct ApiKeysWidget {
     view_handle: WeakViewHandle<WarpAgentPageView>,
     provider_api_key_editors: Vec<ProviderApiKeyEditor>,
-    can_use_warp_credits_for_fallback: SwitchStateHandle,
     upgrade_highlight_index: HighlightedHyperlink,
 
     custom_inference_info_tooltip: MouseStateHandle,
@@ -3396,7 +3364,6 @@ impl ApiKeysWidget {
             view_handle: ctx.handle(),
             provider_api_key_editors,
 
-            can_use_warp_credits_for_fallback: Default::default(),
             upgrade_highlight_index: Default::default(),
 
             custom_inference_info_tooltip: Default::default(),
@@ -3770,35 +3737,6 @@ impl ApiKeysWidget {
         }
         list.finish()
     }
-
-    fn render_warp_credit_fallback_toggle(
-        &self,
-        view: &WarpAgentPageView,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let ai_settings = AISettings::as_ref(app);
-
-        let toggle = render_ai_setting_toggle::<CanUseWarpCreditsForFallback>(
-            "Warp credit fallback",
-            WarpAgentPageAction::ToggleCanUseWarpCreditsForFallback,
-            *ai_settings.can_use_warp_credits_for_fallback,
-            ai_settings.is_any_ai_enabled(app),
-            self.can_use_warp_credits_for_fallback.clone(),
-            &view.local_only_icon_tooltip_states,
-            app,
-        );
-
-        let description = render_ai_setting_description(
-            "When enabled, agent requests may be routed to one of Warp's provided models in the event of an error. Warp will prioritize using your API keys over your Warp credits.",
-            ai_settings.is_any_ai_enabled(app),
-            app,
-        );
-
-        Flex::column()
-            .with_child(toggle)
-            .with_child(description)
-            .finish()
-    }
 }
 
 /// Visibility and enabled-state rules for the member-facing Custom Inference
@@ -3998,20 +3936,6 @@ impl SettingsWidget for ApiKeysWidget {
                 };
                 column.add_child(endpoints_list);
             }
-        }
-
-        // Warp credit fallback applies to member-provided API keys, not custom endpoints.
-        //
-        // It also needs Warp credits, which belong to an account. In a build with no account the
-        // toggle would save a value that nothing can ever read, so it is not offered. Note that
-        // `is_byo_enabled` is true in such a build — a user key is the only path to a model there
-        // — so it cannot stand in for this check.
-        if is_byo_enabled && show_provider_keys && crate::features::warp_account_available() {
-            column.add_child(
-                Container::new(self.render_warp_credit_fallback_toggle(view, app))
-                    .with_margin_top(16.)
-                    .finish(),
-            );
         }
 
         // Upgrade CTA if BYOK not enabled

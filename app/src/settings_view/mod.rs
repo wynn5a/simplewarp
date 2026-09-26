@@ -9,7 +9,6 @@ use features_page::{FeaturesPageView, FeaturesSettingsPageEvent};
 use itertools::Itertools as _;
 use keybindings::KeybindingsView;
 use knowledge_page::{KnowledgePageAction, KnowledgePageEvent, KnowledgePageView};
-use main_page::{MainPageAction, MainSettingsPageView};
 use mcp_servers_page::MCPServersSettingsPageView;
 use nav::{SettingsNavItem, SettingsUmbrella};
 use pathfinder_geometry::vector::Vector2F;
@@ -61,7 +60,6 @@ use crate::ui_components::icons;
 use crate::util::bindings::{BindingGroup, CustomAction, keybinding_name_to_display_string};
 use crate::view_components::ToastFlavor;
 use crate::workspace::WorkspaceAction;
-use crate::workspaces::workspace::{BillingMetadata, CustomerType};
 
 mod about_page;
 mod agent_profiles_page;
@@ -77,7 +75,6 @@ mod features;
 mod features_page;
 pub mod keybindings;
 mod knowledge_page;
-mod main_page;
 pub mod mcp_servers;
 pub mod mcp_servers_page;
 mod nav;
@@ -129,32 +126,6 @@ fn sidebar_width() -> f32 {
 const SECTION_BORDER_WIDTH: f32 = 1.;
 
 const POSITION_ID: &str = "settings_pane";
-
-struct PlanHeaderPresentation {
-    badge_label: Option<String>,
-    show_personal_upgrade: bool,
-}
-
-fn plan_header_presentation(
-    billing_metadata: Option<&BillingMetadata>,
-    has_team: bool,
-    is_anonymous: bool,
-) -> PlanHeaderPresentation {
-    let badge_label = if is_anonymous || billing_metadata.is_none() {
-        Some("Free".to_string())
-    } else {
-        billing_metadata
-            .filter(|billing_metadata| billing_metadata.customer_type != CustomerType::Unknown)
-            .map(|billing_metadata| billing_metadata.customer_type.to_display_string())
-    };
-
-    PlanHeaderPresentation {
-        badge_label,
-        show_personal_upgrade: is_anonymous
-            || (!has_team
-                && billing_metadata.is_none_or(BillingMetadata::can_upgrade_to_build_plan)),
-    }
-}
 
 /// Saved-position id for the settings search input.
 pub const SEARCH_EDITOR_POSITION_ID: &str = "settings_search_editor";
@@ -261,14 +232,13 @@ pub enum SettingsViewEvent {
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SettingsSection {
     About,
-    #[default]
-    Account,
     Appearance,
     Features,
     Keybindings,
     Privacy,
     Warpify,
     // ── Agents umbrella subpages ──
+    #[default]
     WarpAgent,
     AgentProfiles,
     AgentMCPServers,
@@ -277,8 +247,6 @@ pub enum SettingsSection {
     // ── Code umbrella subpages ──
     CodeIndexing,
     EditorAndCodeReview,
-    // ── Cloud platform umbrella subpages ──
-    OzCloudAPIKeys,
 }
 
 use std::fmt::{self, Display};
@@ -296,36 +264,12 @@ impl Display for SettingsSection {
             SettingsSection::ThirdPartyCLIAgents => write!(f, "Third party CLI agents"),
             SettingsSection::CodeIndexing => write!(f, "Indexing and projects"),
             SettingsSection::EditorAndCodeReview => write!(f, "Editor and Code Review"),
-            SettingsSection::OzCloudAPIKeys => write!(f, "Oz Cloud API Keys"),
             _ => write!(f, "{self:?}"),
         }
     }
 }
 
 impl SettingsSection {
-    /// Whether this page only has anything to show when a Warp account is behind the build.
-    ///
-    /// Everything here is an account, a bill, a team, or a cloud object. Local settings —
-    /// appearance, keybindings, the agent, the editor — are not on this list, so they survive in
-    /// a `local_only` build.
-    pub fn needs_warp_account(self) -> bool {
-        matches!(self, Self::Account | Self::OzCloudAPIKeys)
-    }
-
-    /// Maps a section this build cannot show onto one it can.
-    ///
-    /// Call this wherever a section arrives from outside the sidebar — a restored session, the
-    /// enum default, a deeplink, or the command palette — because any of those can name a page
-    /// that [`Self::needs_warp_account`] rules out. The enum default is `Account`, so without
-    /// this the settings view opens on a page that is not even in the sidebar.
-    pub fn available(self) -> Self {
-        if self.needs_warp_account() && !crate::features::warp_account_available() {
-            Self::WarpAgent
-        } else {
-            self
-        }
-    }
-
     /// Stable identifier for this section, used everywhere the section leaves
     /// the process: the SQLite session-restore key.
     ///
@@ -341,7 +285,6 @@ impl SettingsSection {
     pub fn slug(self) -> &'static str {
         match self {
             Self::About => "About",
-            Self::Account => "Account",
             Self::Appearance => "Appearance",
             Self::Features => "Features",
             Self::Keybindings => "Keyboard shortcuts",
@@ -354,21 +297,23 @@ impl SettingsSection {
             Self::ThirdPartyCLIAgents => "Third party CLI agents",
             Self::CodeIndexing => "Indexing and projects",
             Self::EditorAndCodeReview => "Editor and Code Review",
-            Self::OzCloudAPIKeys => "Oz Cloud API Keys",
         }
     }
 
     /// Parses a [`Self::slug`], also accepting the legacy spellings that
     /// persisted sessions may still be using.
     ///
-    /// Legacy names for pages that no longer exist under that name resolve
-    /// here, at the boundary, rather than becoming sections of their own. That
-    /// keeps every `SettingsSection` value a real nav target, so no caller has
-    /// to remember to normalize one before navigating.
+    /// Legacy names for pages that no longer exist resolve here, at the
+    /// boundary, rather than becoming sections of their own. That keeps every
+    /// `SettingsSection` value a real nav target, so no caller has to remember
+    /// to normalize one before navigating.
     pub fn from_slug(slug: &str) -> Option<Self> {
         let section = match slug {
             "About" => Self::About,
-            "Account" => Self::Account,
+            // "Account" named the account page, deleted along with the login
+            // that justified it. Old sessions still store the slug, so it is
+            // kept parseable as a tombstone landing on the default page.
+            "Account" => Self::WarpAgent,
             "Appearance" => Self::Appearance,
             "Features" => Self::Features,
             "Keyboard shortcuts" => Self::Keybindings,
@@ -385,7 +330,9 @@ impl SettingsSection {
             // "Code" named the combined page before it split in two.
             "Indexing and projects" | "CodeIndexing" | "Code" => Self::CodeIndexing,
             "Editor and Code Review" | "EditorAndCodeReview" => Self::EditorAndCodeReview,
-            "Oz Cloud API Keys" | "OzCloudAPIKeys" => Self::OzCloudAPIKeys,
+            // "Oz Cloud API Keys" named a cloud-platform page; like "Account",
+            // it fell with the account and is kept as a tombstone.
+            "Oz Cloud API Keys" | "OzCloudAPIKeys" => Self::WarpAgent,
             _ => return None,
         };
         Some(section)
@@ -472,7 +419,6 @@ pub mod flags {
     pub const SYNTAX_HIGHLIGHTING_FLAG: &str = "syntax_highlighting";
     pub const SAME_LINE_PROMPT: &str = "Same_Line_Prompt_Enabled";
     pub const TELEMETRY_FLAG: &str = "telemetry";
-    pub const SETTINGS_SYNC_FLAG: &str = "settings_sync";
     pub const SAFE_MODE_FLAG: &str = "safe_mode";
     pub const CRASH_REPORTING_FLAG: &str = "crash_reporting";
     pub const DIM_INACTIVE_PANES_FLAG: &str = "Dim_Inactive_Panes";
@@ -558,7 +504,6 @@ pub mod flags {
     pub const SUGGESTED_RULES_FLAG: &str = "Suggested_Rules";
     pub const WARP_DRIVE_CONTEXT_FLAG: &str = "Warp_Drive_Context";
     pub const FILE_BASED_MCP_FLAG: &str = "File_Based_MCP";
-    pub const WARP_CREDIT_FALLBACK_FLAG: &str = "Warp_Credit_Fallback";
     pub const SHOW_BASE_MODEL_PICKER_IN_PROMPT_FLAG: &str = "Show_Base_Model_Picker_In_Prompt";
     pub const DEBUG_SHOW_MEMORY_STATS_FLAG: &str = "Debug_Memory_Statistics";
     pub const ALLOW_NATIVE_WAYLAND: &str = "Allow_Native_Wayland";
@@ -607,7 +552,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     context: &ContextPredicate,
     builder: fn(SettingsAction) -> T,
 ) {
-    main_page::init_actions_from_parent_view(app, context, builder);
     appearance_page::init_actions_from_parent_view(app, context, builder);
     features_page::init_actions_from_parent_view(app, context, builder);
     warpify_page::init_actions_from_parent_view(app, context, builder);
@@ -913,7 +857,6 @@ pub enum DebugSettingsAction {
 pub enum SettingsAction {
     SelectAndRefresh(SettingsSection),
     ToggleUmbrella(usize),
-    MainPageToggle(MainPageAction),
     AppearancePageToggle(AppearancePageAction),
     FeaturesPageToggle(FeaturesPageAction),
     PrivacyPageToggle(PrivacyPageAction),
@@ -1062,7 +1005,6 @@ fn next_stop_index(current: usize, len: usize, direction: CycleDirection) -> usi
 macro_rules! update_page {
     ($handle:expr_2021, $update:expr_2021, $ctx:expr_2021) => {
         match $handle {
-            SettingsPageViewHandle::Main(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Appearance(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Features(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Keybindings(handle) => $ctx.update_view(handle, $update),
@@ -1112,8 +1054,6 @@ impl SettingsView {
         let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("Settings"));
 
         let global_resource_handles = GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
-        // Main settings page with accounts info
-        let main_page_handle = ctx.add_typed_action_view(MainSettingsPageView::new);
 
         // Appearance & themes page
         let appearance_page_handle = ctx.add_typed_action_view(AppearanceSettingsPageView::new);
@@ -1209,7 +1149,6 @@ impl SettingsView {
         });
 
         let mut settings_pages = vec![
-            SettingsPage::new(main_page_handle),
             SettingsPage::new(warp_agent_page_handle),
             SettingsPage::new(agent_profiles_page_handle),
             SettingsPage::new(knowledge_page_handle),
@@ -1230,7 +1169,6 @@ impl SettingsView {
         // Build sidebar nav items. Umbrellas group their subpages here and
         // nowhere else, so this list is the only place membership is declared.
         let mut nav_items = vec![
-            SettingsNavItem::Page(SettingsSection::Account),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
                 "Agents",
                 vec![
@@ -1253,26 +1191,7 @@ impl SettingsView {
             SettingsNavItem::Page(SettingsSection::About),
         ];
 
-        // A build with no Warp account behind it has nothing to put on these pages. Leaving them
-        // in the sidebar would offer the user a sign-up prompt or an empty page instead of a
-        // setting, so they are dropped here, at the one place membership is declared.
-        if !crate::features::warp_account_available() {
-            nav_items.retain_mut(|item| match item {
-                SettingsNavItem::Page(section) => !section.needs_warp_account(),
-                SettingsNavItem::Umbrella(umbrella) => {
-                    umbrella
-                        .subpages
-                        .retain(|section| !section.needs_warp_account());
-                    umbrella
-                        .subpage_button_states
-                        .truncate(umbrella.subpages.len());
-                    // An umbrella whose subpages have all gone is an empty group header.
-                    !umbrella.subpages.is_empty()
-                }
-            });
-        }
-
-        let initial_page = page.unwrap_or_default().available();
+        let initial_page = page.unwrap_or_default();
 
         // Auto-expand the umbrella if the initial page is one of its subpages.
         for item in &mut nav_items {
@@ -1715,11 +1634,6 @@ impl SettingsView {
         allow_steal_focus: bool,
         ctx: &mut ViewContext<Self>,
     ) {
-        // Every page change funnels through here, including a pane restored from a saved
-        // session, so this is where a page that this build dropped from the sidebar is mapped
-        // onto one it still has.
-        let section = section.available();
-
         // Every nav target owns its backing page. Check it exists.
         if self.settings_page(section).is_none() {
             return;
@@ -1785,7 +1699,6 @@ impl SettingsView {
 
     fn should_render_page(&self, settings_page: &SettingsPage, app: &AppContext) -> bool {
         match &settings_page.view_handle {
-            SettingsPageViewHandle::Main(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Keybindings(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Features(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Appearance(v) => v.as_ref(app).should_render(app),
@@ -2330,15 +2243,6 @@ impl TypedActionView for SettingsView {
                 {
                     umbrella.toggle();
                     ctx.notify();
-                }
-            }
-            SettingsAction::MainPageToggle(main_page_action) => {
-                if let Some(main_page) = self.settings_page(SettingsSection::Account)
-                    && let SettingsPageViewHandle::Main(view) = &main_page.view_handle
-                {
-                    view.update(ctx, |view, ctx| {
-                        view.handle_action(main_page_action, ctx);
-                    })
                 }
             }
             SettingsAction::AppearancePageToggle(appearance_action) => {

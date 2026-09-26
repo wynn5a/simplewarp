@@ -76,13 +76,7 @@ impl RepoOutlines {
             }
         });
 
-        if indexing_enabled
-            && !cfg!(any(
-                test,
-                feature = "fast_dev",
-                feature = "integration_tests"
-            ))
-        {
+        if indexing_enabled && !cfg!(any(test, feature = "integration_tests")) {
             ctx.subscribe_to_model(&DetectedRepositories::handle(ctx), |me, _, event, ctx| {
                 let DetectedRepositoriesEvent::DetectedGitRepo {
                     repository,

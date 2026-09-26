@@ -356,15 +356,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
     flags
 }
 
-/// Whether this build has a Warp account behind it at all.
-///
-/// The `local_only` build has none: there is nothing to log in to and nothing to sign up for.
-/// Account UI is gated on this rather than on the logged-out state, because "logged out" in a
-/// normal build means "you could sign in", while here it means "there is no such thing".
-pub const fn warp_account_available() -> bool {
-    !cfg!(feature = "local_only")
-}
-
 #[cfg(test)]
 mod tests {
     // SimpleWarp keeps Jupyter notebook rendering on: it is purely local

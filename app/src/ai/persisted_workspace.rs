@@ -251,11 +251,7 @@ impl PersistedWorkspace {
         // skills) discovery, which must work in modes that keep codebase
         // indexing off (e.g. the TUI front-end).
         #[cfg(feature = "local_fs")]
-        if !cfg!(any(
-            test,
-            feature = "fast_dev",
-            feature = "integration_tests"
-        )) {
+        if !cfg!(any(test, feature = "integration_tests")) {
             ctx.subscribe_to_model(&DetectedRepositories::handle(ctx), |me, _, event, ctx| {
                 let DetectedRepositoriesEvent::DetectedGitRepo { repository, .. } = event;
                 let repo_path = repository.as_ref(ctx).root_dir().to_local_path_lossy();
@@ -281,12 +277,7 @@ impl PersistedWorkspace {
         // We pass skip_cached=true so workspaces with persisted entries are still
         // re-scanned to discover newly relevant server types.
         #[cfg(feature = "local_fs")]
-        if !cfg!(any(
-            test,
-            feature = "fast_dev",
-            feature = "integration_tests"
-        )) && !startup_workspace_paths.is_empty()
-        {
+        if !cfg!(any(test, feature = "integration_tests")) && !startup_workspace_paths.is_empty() {
             result.detect_available_servers_for_workspaces(startup_workspace_paths, true, ctx);
         }
 

@@ -14599,3 +14599,161 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       GraphQL section pending slice 5). Acceptance: default features ==
       simplewarp behavior on account surfaces; all bins build; hand-check
       agent_mode_evals remainder.
+
+- [x] **login slice 4 — account UI + flags deleted (4ge) — DONE 2026-09-26.**
+      Executed 4fz SLICE 4. 32 files, +111/−2,090, 2 files deleted
+      (app/src/settings_view/main_page.rs 707 lines, app/src/workspace/view/
+      free_ai_removal_modal.rs 310). warp_account_available() deleted; every
+      remaining gate site collapsed to its `local_only` semantics — the
+      collapse rule everywhere is "a build with no Warp account", since login
+      died in 4gd and the dev bins must converge on the shipped simplewarp
+      behavior.
+
+      DELETIONS with evidence: warp_account_available (app/src/features.rs);
+      SettingsSection::{Account, OzCloudAPIKeys} + needs_warp_account +
+      available() + the sidebar retain block + the settings-sync flag
+      plumbing; MainSettingsPageView/main_page.rs whole (AccountWidget plan
+      badge/"Compare plans", SettingsSyncWidget — never rendered logged-out —
+      VersionInfoWidget — unreachable in simplewarp since the page was
+      sidebar-dropped), SettingsAction::MainPageToggle,
+      SettingsPageViewHandle::Main, CustomAction::ShowAccount + the
+      "Open Settings: Account" palette binding, plan_header_presentation +
+      render_customer_type_badge (+ GREY_TEXT_OPACITY); the two tools-panel
+      sign-in walls (left_panel render_unavailable_panel) +
+      ToolPanelAvailability::RequiresAccount (zero producers left) + the
+      ConversationListView anonymous account-check arm (local db history
+      works — its own comment said so); the WarpDrive toolbelt entry
+      (compute_left_panel_views block; is_warp_drive_available always false
+      here so the entry only ever showed a wall) — WarpDrive arm now renders
+      the panel's local store, availability() collapses; free-AI-removal
+      modal in toto (both variants dead: the 4gc-felled Notice trigger and
+      the never-dispatched OpenPromptSuggestionsUnavailableModal — the file
+      was mixed but the PromptSuggestions variant had no sender either) +
+      OneTimeModalModel free-AI machinery + is_any_modal_open (constant after
+      the field died; terminal-view focus guard removed) +
+      WorkspaceAction::{OpenFreeAiRemovalModal, ResetFreeAiRemovalModalState,
+      OpenPromptSuggestionsUnavailableModal} + debug bindings +
+      util.rs is_prompt_suggestions_unavailable_modal_open +
+      AISettings did_check_to_trigger_free_ai_removal_modal setting; warp
+      credit fallback in toto (account-gated toggle row + palette binding +
+      WARP_CREDIT_FALLBACK_FLAG + CanUseWarpCreditsForFallback setting;
+      api.rs pins allow_use_of_warp_credits:false — the request field stays,
+      it is AI-API surface); the is_any_ai_enabled account guard
+      (warp_account_available && anonymous → deleted whole; the conjunct was
+      SimpleWarp's own c1a6c3136 addition and keeping the anonymous half
+      would have pinned BYOK AI off forever); llms.rs
+      warp_routed_model_disable_reason → inlined
+      Some(DisableReason::NeedsWarpAccount) at the 4 sites (warp-routed
+      models stay, permanently disabled with the honest label);
+      refresh_provider_llms early return (BYOK key probing runs in every
+      build); cloud_preferences_syncer sync_enabled → false (no account = no
+      cloud; the syncer stays constructed for its local-file paths).
+
+      SECTION_ID TOMBSTONE DECISION (landmine 10): from_slug keeps
+      "Account" and "Oz Cloud API Keys"/"OzCloudAPIKeys" parseable as
+      tombstones mapping to WarpAgent — exactly what available() used to
+      remap them to — so old sqlite session panes restore onto a real page
+      (sqlite.rs unwrap_or_default() unchanged apart from dropping the
+      .available() call). The enum Default moved from Account to WarpAgent
+      (the same effective default). No surviving section's slug changed;
+      mod_tests from_slug_maps_superseded_page_names pins the tombstones.
+
+      LANDMINE-13 VERDICTS (per-caller): main_page's attempt_login_gated_
+      feature caller fell with its page; drive/index.rs:4178
+      (DriveIndexAction::blocked_for_anonymous_user) KEPT — the drive index
+      is a live local surface, so AuthManager keeps both toast emitters and
+      the AttemptedLoginGatedFeature event; update_manager ×3 +
+      drive_helpers has_feature_gated_anonymous_user_reached_*_limit KEPT
+      untouched (personal_object_limits gates: callers alive, limits always
+      None logged-out — inert, per plan "delete only if their caller
+      features die").
+
+      FLAG REMOVAL: skip_login/local_only/fast_dev gone from app/Cargo.toml
+      (simplewarp list comment fixed, :784 fast_dev, :889-890 forwardings)
+      and warp_server_auth/Cargo.toml; auth_state.rs test_credentials +
+      credentials.rs::Test cfgs collapse to
+      any(test, integration_tests[, test-util]) — cfg(test)/integration_
+      tests/test-util lattice otherwise untouched (landmine 3);
+      fast_dev's outline/native.rs + persisted_workspace.rs cfg! arms
+      collapse to any(test, integration_tests) (fast_dev was never enabled
+      in either config); the now-consumerless WITH_LOCAL_SERVER wiring
+      subtracted verbatim from script/run + script/wasm/bundle mapping loops
+      and the build.rs rerun marker (purely-local server-connection
+      overrides — SERVER_ROOT_URL/WS_SERVER_URL/WARP_* — kept); the
+      "with_local_server:fast_dev" mentions in
+      next_command_model_tests.rs are parse-test data strings, not cfg.
+      AGENTS.md: WITH_LOCAL_SERVER section → no-login statement; GraphQL
+      section → login-core crate, pending slice 5; docker/linux-dev/README
+      cargo run line de-flagged.
+
+      DEVIATIONS (each verified): (1) deleted VersionInfoWidget and the
+      "settings sync" toggle with the Account page — both unreachable in
+      every build of this fork (page was sidebar-dropped + available()-
+      remapped in simplewarp since before 4ga; the toggle's should_render
+      required a non-anonymous user, impossible since 4gd); (2) deleted the
+      PromptSuggestions half of free_ai_removal_modal.rs — the file is
+      mixed, but its only opener had zero dispatchers at HEAD (pre-existing
+      dead vertical), so the whole file went; (3) removed the orphaned
+      SETTINGS_SYNC_FLAG insert + const — the deleted main_page binding was
+      its only consumer (the setting itself stays; features_page/keybindings
+      page still read it for sync icons); (4) the historical nextest offset
+      flipped (default was +1 over simplewarp, now −1): the two deleted
+      view_tests tools-panel tests were cfg(not(feature = "local_only")),
+      i.e. default-only.
+
+      Residue deliberately LEFT (compiler-invisible, owned by later slices):
+      crates/warp_graphql whole (slice 5; ServerTimestamp +
+      AgentTaskState/AgentHarness move first); 4gd residue (AuthState::
+      needs_reauth/set_needs_reauth, UserUid::Default, remote_server
+      rotate_auth_token/authenticate); drive round candidates:
+      is_warp_drive_available/is_warp_drive_enabled (always false here —
+      OpenWarpDrive/ToggleWarpDrive arms + ENABLE_WARP_DRIVE flag insert are
+      inert), DrivePanel/warp_drive_view + LeftPanelAction::WarpDrive +
+      ToolPanelView::WarpDrive remnants (reachable now only via stale
+      snapshots; availability Available renders the local store), drive
+      "Sign in to edit" tooltips (notebook details_bar, workflow_view), the
+      warp_agent_page "Upgrade CTA" branch (dead: is_byo_enabled is always
+      true), ShowUpgrade action (pricing URL, ungated). None trips a lint.
+
+      TEST CHANGES: warp-lib −9 default / −7 simplewarp, all documented:
+      mod_tests −7 each (5 plan_header_presentation tests — helper deleted —
+      + account_pages_map_onto_a_page_this_build_has +
+      local_pages_are_never_redirected — needs_warp_account/available
+      deleted); view_tests −2 default-only (the cfg(not(local_only))
+      tools-panel tests, both premised on the deleted WarpDrive toolbelt
+      entry). mod_tests rewritten in place: realistic_nav_items now mirrors
+      the real post-deletion sidebar; tombstone asserts added to
+      from_slug_maps_superseded_page_names. No coverage weakened: deleted
+      tests asserted deleted code only.
+
+      Acceptance: (1) ./script/format twice, idempotent (diff shasum stable
+      631f742e…). (2) HEAD clippy baselines captured FIRST (tree was clean);
+      post-edit pair sets IDENTICAL in both configs — 14 workspace / 12
+      -p warp (11 needless-return input.rs + 1 single-element-loop
+      mod_tests.rs:272 + 2 integration_testing unused imports), machine-
+      diffed, zero new, zero gone; re-diffed again after the last edits.
+      (3) cargo check --no-default-features --features simplewarp --bin
+      simplewarp green with zero warnings; cargo check -p warp --lib
+      --features test-util green (74-file gate); cargo check -p warp --lib
+      green. (4) nextest -p warp --lib --no-fail-fast on the FINAL tree:
+      default 4,559 run / 4,559 passed / 3 skipped / 0 failed (4gd baseline
+      4,568, −9); simplewarp 4,560 / 4,560 / 3 / 0 (baseline 4,567, −7) —
+      deltas exactly the documented deletions, zero flakes. (5) SLICE
+      ACCEPTANCE: flag sweep clean — no skip_login/fast_dev/local_only cargo
+      feature or cfg reference remains in any .rs or Cargo.toml (surviving
+      `local_only` identifiers are unrelated verticals: channel-config
+      constructors, LocalOnlyIcon UI, context-chip field, test names);
+      default-features behavior now equals simplewarp on every account
+      surface; all bins compile with default features via the workspace
+      clippy run. (6) cargo check -p warp --lib --features agent_mode_evals
+      green, warnings byte-identical to the HEAD baseline in that config
+      (2 unused imports + new_for_evals/computer_use_override dead-code) —
+      landmine 11 hand-compile proof. (7) DEVELOPER_DIR unset; no GUI
+      launch, no integration suite.
+
+      NEXT: slice 5 (4ff→4fz final) — crates/warp_graphql falls: move
+      ServerTimestamp (7 importers) to cloud_objects and
+      AgentTaskState/AgentHarness to crates/ai, delete the crate + SDL +
+      build.rs + cynic from the workspace, final AGENTS.md GraphQL line;
+      then the accumulated compiler-invisible residue rounds (drive
+      vertical, remote_server token remnants) per the lists above.

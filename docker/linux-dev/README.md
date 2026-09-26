@@ -52,7 +52,7 @@ You should be able to SSH into the container and build and run warp without any 
 ```
 ssh dev@localhost
 cd /src
-cargo run --features fast_dev
+cargo run
 ```
 
 It's possible you'll run into some odd errors while trying to compile Warp; if so, just keep rerunning the cargo command and it should work eventually.

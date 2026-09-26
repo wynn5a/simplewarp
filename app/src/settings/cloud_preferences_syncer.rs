@@ -93,15 +93,10 @@ pub fn initialize_cloud_preferences_syncer(
     let force_local_wins_on_startup =
         file_has_unsynced_changes && startup_toml_parse_error.is_none();
 
-    // The settings surface decides whether this process participates in cloud
-    // sync at all (e.g. the TUI keeps its config local).
-    //
-    // A build with no Warp account has no cloud to sync with. Without this the syncer starts,
-    // finds no personal drive, and warns about it on every launch. The check is here rather than
-    // in `SettingsMode::should_sync_to_cloud`, because that is a question about the surface —
-    // GUI or TUI — and the `settings` crate knows nothing about accounts.
-    let sync_enabled = settings::settings_mode().should_sync_to_cloud()
-        && crate::features::warp_account_available();
+    // No build of this fork has a Warp account, so there is no cloud to sync
+    // with and no process ever participates in sync. The syncer is still
+    // constructed for its local-file reconciliation paths.
+    let sync_enabled = false;
     CloudPreferencesSyncer::new(
         force_local_wins_on_startup,
         toml_file_path,

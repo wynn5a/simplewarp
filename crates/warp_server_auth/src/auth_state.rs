@@ -38,21 +38,13 @@ impl AuthState {
             credentials: RwLock::new(None),
         }
     }
-    #[cfg(any(
-        test,
-        feature = "integration_tests",
-        feature = "skip_login",
-        feature = "test-util"
-    ))]
+    #[cfg(any(test, feature = "integration_tests", feature = "test-util"))]
     fn test_credentials() -> Credentials {
-        #[cfg(any(test, feature = "integration_tests", feature = "skip_login"))]
+        #[cfg(any(test, feature = "integration_tests"))]
         {
             Credentials::Test
         }
-        #[cfg(all(
-            feature = "test-util",
-            not(any(test, feature = "integration_tests", feature = "skip_login"))
-        ))]
+        #[cfg(all(feature = "test-util", not(any(test, feature = "integration_tests"))))]
         {
             Credentials::SessionCookie
         }

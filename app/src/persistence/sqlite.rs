@@ -2217,11 +2217,8 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                         .select(model::SettingsPane::as_select())
                         .first(conn)?;
 
-                    // A restored session can name a page this build no longer has, either from
-                    // an earlier run or from the enum default.
-                    let current_page = SettingsSection::from_slug(&settings_pane.current_page)
-                        .unwrap_or_default()
-                        .available();
+                    let current_page =
+                        SettingsSection::from_slug(&settings_pane.current_page).unwrap_or_default();
                     LeafContents::Settings(SettingsPaneSnapshot::Local {
                         current_page,
                         search_query: None,

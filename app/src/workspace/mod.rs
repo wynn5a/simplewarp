@@ -84,7 +84,6 @@ pub fn init(app: &mut AppContext) {
     tab_configs::session_config_modal::init(app);
     view::feature_intro_modal::init(app);
     view::codex_modal::init(app);
-    view::free_ai_removal_modal::init(app);
     view::global_search::view::GlobalSearchView::init(app);
     view::right_panel::RightPanelView::init(app);
     header_toolbar_editor::init(app);
@@ -177,18 +176,6 @@ pub fn init(app: &mut AppContext) {
                     "workspace:reset_feature_intro_modal_state",
                     "[Debug] Reset Feature Intro Modal State",
                     WorkspaceAction::ResetFeatureIntroModalState,
-                )
-                .with_context_predicate(id!("Workspace")),
-                EditableBinding::new(
-                    "workspace:open_free_ai_removal_modal",
-                    "[Debug] Open Free AI Removal Modal",
-                    WorkspaceAction::OpenFreeAiRemovalModal,
-                )
-                .with_context_predicate(id!("Workspace")),
-                EditableBinding::new(
-                    "workspace:reset_free_ai_removal_modal_state",
-                    "[Debug] Reset Free AI Removal Modal State",
-                    WorkspaceAction::ResetFreeAiRemovalModalState,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
@@ -1306,12 +1293,6 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
     use warpui::keymap::macros::*;
 
     // Add the ability to open setting modals to the command palette.
-    //
-    // Every page that `SettingsSection::needs_warp_account` names is gated on
-    // `features::warp_account_available`. A disabled binding is hidden completely, so in a
-    // build with no Warp account these never reach the palette. Without the gate they still
-    // appear, and choosing one lands on Warp Agent through `SettingsSection::available`,
-    // which works but reads as a broken command.
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:show_settings",
@@ -1322,15 +1303,6 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace"))
         .with_group(bindings::BindingGroup::Settings.as_str())
         .with_custom_action(CustomAction::ShowSettings),
-        EditableBinding::new(
-            "workspace:show_settings_account_page",
-            "Open Settings: Account",
-            WorkspaceAction::ShowSettingsPage(SettingsSection::Account),
-        )
-        .with_enabled(crate::features::warp_account_available)
-        .with_context_predicate(id!("Workspace"))
-        .with_group(bindings::BindingGroup::Settings.as_str())
-        .with_custom_action(CustomAction::ShowAccount),
         EditableBinding::new(
             "workspace:show_settings_appearance_page",
             BindingDescription::new("Open Settings: Appearance")

@@ -174,7 +174,6 @@ fn generate_channel_config_if_needed(target_family: &str, target_os: &str) {
 
     // Only track these for bundled builds, where they affect the embedded config.
     // For non-bundled builds these are runtime variables and should not trigger recompilation.
-    println!("cargo:rerun-if-env-changed=WITH_LOCAL_SERVER");
     println!("cargo:rerun-if-env-changed=WITH_LOCAL_SESSION_SHARING_SERVER");
     println!("cargo:rerun-if-env-changed=SERVER_ROOT_URL");
     println!("cargo:rerun-if-env-changed=WS_SERVER_URL");

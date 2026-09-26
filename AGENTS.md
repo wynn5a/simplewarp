@@ -8,20 +8,10 @@ This file provides guidance when working with code in this repository.
 - `cargo run` / `./script/run` - Build and run the GUI desktop app locally
 - `cargo bundle --bin warp` - Bundle the main (GUI) app
 
-### Running with local warp-server
-To connect Warp client to a local warp-server instance:
-
-```bash
-# Connect to server on default port 8080
-WITH_LOCAL_SERVER=1 ./script/run
-
-# Connect to server on custom port (e.g., 8082)
-WITH_LOCAL_SERVER=1 SERVER_ROOT_URL=http://localhost:8082 WS_SERVER_URL=ws://localhost:8082/graphql/v2 ./script/run
-```
-
-Environment variables:
-- `SERVER_ROOT_URL` - HTTP endpoint (default: `http://localhost:8080`)
-- `WS_SERVER_URL` - WebSocket endpoint (default: `ws://localhost:8080/graphql/v2`)
+### Running locally
+There is no login: every build runs entirely locally against the anonymous default user, and no
+build can sign in to (or sign up for) a Warp account. The old `WITH_LOCAL_SERVER` dev-login flow
+that pointed the client at a local warp-server instance is gone, along with its env vars.
 
 ### Testing
 - `cargo nextest run --no-fail-fast --workspace --exclude command-signatures-v2` - Run tests with nextest
@@ -207,7 +197,7 @@ for itself.
 
 **GraphQL**:
 - Schema SDL at `crates/graphql/api/schema.graphql`, registered for the cynic derives by the crate's build.rs
-- Hand-maintained client around the login flow (GetUser is the only operation sent)
+- Login-core crate: with the login flow deleted, nothing outside it references the crate; it is pending deletion in a final slice (its two locally-used types move out first)
 
 ### Feature Flags
 

@@ -479,8 +479,6 @@ pub enum WorkspaceAction {
         /// The type of zero state prompt suggestion to start with (optional).
         zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
     },
-    /// Open the modal explaining Prompt Suggestions aren't available on the Free plan.
-    OpenPromptSuggestionsUnavailableModal,
     /// Dismisses the Wayland crash recovery banner and opens a link to our docs page with more
     /// information.
     #[cfg(target_os = "linux")]
@@ -649,12 +647,6 @@ pub enum WorkspaceAction {
     /// Reset the feature intro seen state (for debugging)
     #[cfg(debug_assertions)]
     ResetFeatureIntroModalState,
-    /// Open the Free AI Removal Modal (for debugging)
-    #[cfg(debug_assertions)]
-    OpenFreeAiRemovalModal,
-    /// Reset the free AI removal modal seen state (for debugging)
-    #[cfg(debug_assertions)]
-    ResetFreeAiRemovalModalState,
     /// Install the opencode-warp plugin from GitHub into the global opencode config.
     #[cfg(debug_assertions)]
     InstallOpenCodeWarpPlugin,
@@ -897,7 +889,6 @@ impl WorkspaceAction {
             | ToggleUserMenu
             | ClickedAIAssistantIcon
             | ToggleAIAssistant
-            | OpenPromptSuggestionsUnavailableModal
             | ToggleKeybindingsPage
             | ShowCommandSearch(_)
             | ToggleMouseReporting
@@ -1034,8 +1025,6 @@ impl WorkspaceAction {
             DebugResetAwsBedrockLoginBannerDismissed
             | OpenFeatureIntroModal
             | ResetFeatureIntroModalState
-            | OpenFreeAiRemovalModal
-            | ResetFreeAiRemovalModalState
             | InstallOpenCodeWarpPlugin
             | UseLocalOpenCodeWarpPlugin => false,
             #[cfg(not(target_family = "wasm"))]

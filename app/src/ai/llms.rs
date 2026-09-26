@@ -577,13 +577,6 @@ impl ModelsByFeature {
     }
 }
 
-/// The disable reason for a model that only Warp's servers can route.
-///
-/// `None` in a normal build, so the entry behaves exactly as before.
-fn warp_routed_model_disable_reason() -> Option<DisableReason> {
-    (!crate::features::warp_account_available()).then_some(DisableReason::NeedsWarpAccount)
-}
-
 /// Returns the default AvailableLLMs for computer use.
 /// Used both in `ModelsByFeature::default()` and as a fallback in `get_computer_use_available()`.
 fn default_computer_use_llms() -> AvailableLLMs {
@@ -604,7 +597,7 @@ fn default_computer_use_llms() -> AvailableLLMs {
             // entry is disabled there rather than offered and then failing at request time.
             // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
             // user's own custom endpoint instead.
-            disable_reason: warp_routed_model_disable_reason(),
+            disable_reason: Some(DisableReason::NeedsWarpAccount),
             vision_supported: true,
             spec: None,
             provider: LLMProvider::Unknown,
@@ -636,7 +629,7 @@ impl Default for ModelsByFeature {
                     // entry is disabled there rather than offered and then failing at request time.
                     // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
                     // user's own custom endpoint instead.
-                    disable_reason: warp_routed_model_disable_reason(),
+                    disable_reason: Some(DisableReason::NeedsWarpAccount),
                     vision_supported: true,
                     spec: None,
                     provider: LLMProvider::Unknown,
@@ -663,7 +656,7 @@ impl Default for ModelsByFeature {
                     // entry is disabled there rather than offered and then failing at request time.
                     // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
                     // user's own custom endpoint instead.
-                    disable_reason: warp_routed_model_disable_reason(),
+                    disable_reason: Some(DisableReason::NeedsWarpAccount),
                     vision_supported: true,
                     spec: None,
                     provider: LLMProvider::Unknown,
@@ -690,7 +683,7 @@ impl Default for ModelsByFeature {
                     // entry is disabled there rather than offered and then failing at request time.
                     // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
                     // user's own custom endpoint instead.
-                    disable_reason: warp_routed_model_disable_reason(),
+                    disable_reason: Some(DisableReason::NeedsWarpAccount),
                     vision_supported: false,
                     spec: None,
                     provider: LLMProvider::Unknown,
@@ -1276,15 +1269,10 @@ impl LLMPreferences {
     /// Asks each provider the user holds a key for which models that key can reach, and replaces
     /// [`Self::provider_llms`] with the answer.
     ///
-    /// Does nothing in a build with a Warp account, where the server already supplies a catalog.
     /// A provider that fails — a bad key, no network — contributes nothing and is logged rather
     /// than reported: with several providers configured, one being unreachable is ordinary, and
     /// the user finds out either way when the model is missing from the picker.
     fn refresh_provider_llms(&mut self, ctx: &mut ModelContext<Self>) {
-        if crate::features::warp_account_available() {
-            return;
-        }
-
         let keys = ApiKeyManager::as_ref(ctx).keys().clone();
         let requests: Vec<(local_inference::Provider, String)> = [
             (local_inference::Provider::Anthropic, keys.anthropic),
