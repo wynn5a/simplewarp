@@ -1009,7 +1009,7 @@ impl AIDocumentView {
     fn export(&self, ctx: &mut ViewContext<Self>) {
         use warpui::platform::SaveFilePickerConfiguration;
 
-        use crate::drive::export::safe_filename;
+        use crate::cloud_object::export::safe_filename;
         let markdown = self.editor.as_ref(ctx).markdown_unescaped(ctx);
 
         // Get the document title from the model

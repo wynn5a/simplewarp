@@ -6,12 +6,10 @@ use cloud_objects::cloud_object::{CloudObjectUpsertParams, SerializedModel};
 pub use cloud_objects::cloud_object::{GenericStringModel, Serializer};
 pub use cloud_objects::ids::GenericStringObjectId;
 
-use crate::appearance::Appearance;
 use crate::cloud_object::{
-    CloudModelType, CloudObject, GenericCloudObject, GenericStringObjectFormat,
-    GenericStringObjectUniqueKey, ObjectType, WarpDriveItem,
+    CloudModelType, CloudObject, CloudObjectTypeAndId, GenericCloudObject,
+    GenericStringObjectFormat, GenericStringObjectUniqueKey, ObjectType,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::persistence::ModelEvent;
 use crate::server::ids::SyncId;
 
@@ -64,7 +62,7 @@ pub trait StringModel: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// Returns the display name for this model.
     fn display_name(&self) -> String;
 
-    /// Returns whether to render this model as a WarpDriveItem.
+    /// Returns whether this model type surfaces in the object UI (e.g. errored-object toasts).
     fn renders_in_warp_drive(&self) -> bool {
         false
     }
@@ -81,17 +79,6 @@ pub trait StringModel: Clone + Debug + PartialEq + Send + Sync + 'static {
 
     /// Sets the display name for this model
     fn set_display_name(&mut self, _name: &str) {}
-
-    /// Creates a new warp drive item for this model type. Returns None
-    /// if this object does not render in Warp Drive.
-    fn to_warp_drive_item(
-        &self,
-        _id: SyncId,
-        _appearance: &Appearance,
-        _object: &Self::CloudObjectType,
-    ) -> Option<Box<dyn WarpDriveItem>> {
-        None
-    }
 
     /// Returns whether this model type should clear on a unique key conflict.
     fn should_clear_on_unique_key_conflict(&self) -> bool {
@@ -205,14 +192,5 @@ where
     }
     fn renders_in_warp_drive(&self) -> bool {
         self.string_model.renders_in_warp_drive()
-    }
-
-    fn to_warp_drive_item(
-        &self,
-        id: SyncId,
-        appearance: &Appearance,
-        object: &GenericCloudObject<GenericStringObjectId, Self>,
-    ) -> Option<Box<dyn WarpDriveItem>> {
-        self.string_model.to_warp_drive_item(id, appearance, object)
     }
 }

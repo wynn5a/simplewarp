@@ -11,7 +11,6 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::AgentManagementFilters;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::{InputConfig, SerializedBlockListItem};
-use crate::cloud_object::OpenWarpDriveObjectSettings;
 use crate::code::editor_management::CodeSource;
 use crate::root_view::quake_mode_window_id;
 use crate::server::ids::{ServerId, SyncId};
@@ -51,7 +50,6 @@ pub struct WindowSnapshot {
     pub universal_search_width: Option<f32>,
     pub warp_ai_width: Option<f32>,
     pub voltron_width: Option<f32>,
-    pub warp_drive_index_width: Option<f32>,
     pub left_panel_open: bool,
     pub vertical_tabs_panel_open: bool,
     pub left_panel_width: Option<f32>,
@@ -224,8 +222,6 @@ pub enum NotebookPaneSnapshot {
         /// 3. The pane contains a notebook that's known to the server, so this will contain the
         ///    server ID.
         notebook_id: Option<SyncId>,
-        // Settings for the notebook pane when it's opened (such as a folder to focus upon opening)
-        settings: OpenWarpDriveObjectSettings,
     },
     LocalFileNotebook {
         /// The path to the local file that was open in this pane. This may be `None` if
@@ -261,11 +257,7 @@ pub enum CodePaneSnapShot {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum WorkflowPaneSnapshot {
-    CloudWorkflow {
-        workflow_id: Option<SyncId>,
-        // Settings for the workflow pane when it's opened (such as a folder to focus upon opening)
-        settings: OpenWarpDriveObjectSettings,
-    },
+    CloudWorkflow { workflow_id: Option<SyncId> },
 }
 
 #[derive(Clone, Debug, PartialEq)]

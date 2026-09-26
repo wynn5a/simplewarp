@@ -1,14 +1,10 @@
 pub use cloud_object_models::{AIFact, AIMemory, CloudAIFact, CloudAIFactModel};
-use warp_core::ui::appearance::Appearance;
 
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
-    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, WarpDriveItem,
+    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
 };
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::items::ai_fact::WarpDriveAIFact;
-use crate::server::ids::SyncId;
 
 pub mod manager;
 pub mod view;
@@ -50,21 +46,6 @@ impl StringModel for AIFact {
 
     fn renders_in_warp_drive(&self) -> bool {
         false
-    }
-
-    fn to_warp_drive_item(
-        &self,
-        id: SyncId,
-        _appearance: &Appearance,
-        ai_fact: &CloudAIFact,
-    ) -> Option<Box<dyn WarpDriveItem>> {
-        Some(Box::new(WarpDriveAIFact::new(
-            CloudObjectTypeAndId::GenericStringObject {
-                object_type: GenericStringObjectFormat::Json(JsonObjectType::AIFact),
-                id,
-            },
-            ai_fact.clone(),
-        )))
     }
 }
 

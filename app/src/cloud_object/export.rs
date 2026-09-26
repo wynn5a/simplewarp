@@ -29,7 +29,7 @@ use crate::{
     workspace::WorkspaceAction,
 };
 
-/// Singleton model for exporting from Warp Drive.
+/// Singleton model for exporting cloud objects to local files.
 pub struct ExportManager {
     exports: HashMap<ExportId, Export>,
 }
@@ -52,7 +52,7 @@ pub enum ExportEvent {
     Completed { id: ExportId, path: PathBuf },
 }
 
-/// A single Warp Drive export.
+/// A single object export.
 struct Export {
     /// The ID of the window that started this export, for showing toasts.
     window_id: WindowId,
@@ -252,7 +252,7 @@ impl ExportManager {
         }
     }
 
-    /// Drive export of a single object.
+    /// Export a single object.
     #[cfg(feature = "local_fs")]
     fn export_one(
         id: ExportId,

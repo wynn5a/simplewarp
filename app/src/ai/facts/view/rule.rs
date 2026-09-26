@@ -674,8 +674,7 @@ impl RuleView {
             return None;
         }
 
-        let item = ai_row.fact.to_warp_drive_item(appearance)?;
-        let icon = item.sync_status_icon(
+        let icon = ai_row.fact.metadata.pending_changes_statuses.render_icon(
             false,
             ai_row.mouse_states.sync_status_icon.clone(),
             appearance,

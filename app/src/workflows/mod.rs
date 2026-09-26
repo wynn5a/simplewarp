@@ -20,10 +20,9 @@ use async_trait::async_trait;
 pub use categories::{CategoriesView, CategoriesViewEvent, WorkflowsViewAction};
 use cloud_objects::cloud_object::SerializedModel;
 
-use crate::appearance::Appearance;
-use crate::cloud_object::{CloudModelType, CloudObjectUpsertParams, ObjectType, WarpDriveItem};
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::items::workflow::WarpDriveWorkflow;
+use crate::cloud_object::{
+    CloudModelType, CloudObjectTypeAndId, CloudObjectUpsertParams, ObjectType,
+};
 use crate::notebooks::{NotebookId, NotebookLocation};
 use crate::persistence::ModelEvent;
 use crate::server::ids::{ServerId, SyncId};
@@ -224,18 +223,6 @@ impl CloudModelType for CloudWorkflowModel {
     }
     fn renders_in_warp_drive(&self) -> bool {
         true
-    }
-
-    fn to_warp_drive_item(
-        &self,
-        id: SyncId,
-        _appearance: &Appearance,
-        workflow: &CloudWorkflow,
-    ) -> Option<Box<dyn WarpDriveItem>> {
-        Some(Box::new(WarpDriveWorkflow::new(
-            self.cloud_object_type_and_id(id),
-            workflow.clone(),
-        )))
     }
 
     fn can_export(&self) -> bool {

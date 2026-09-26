@@ -16,15 +16,6 @@ pub enum ActionEntrypoint {
     Menu,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(tag = "object_type")]
-pub enum EmbeddedObjectInfo {
-    Workflow {
-        workflow_id: Option<WorkflowId>,
-        team_uid: Option<ServerId>,
-    },
-}
-
 /// Information about a block in the notebook.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "block_type")]

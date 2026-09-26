@@ -13,10 +13,10 @@ use warpui::{
 use super::{NotebookEvent, NotebookView};
 use crate::auth::auth_manager::AuthManager;
 use crate::auth::{AuthStateProvider, UserUid};
+use crate::cloud_object::Owner;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::{CloudViewModel, Editor, EditorState};
-use crate::cloud_object::{OpenWarpDriveObjectSettings, Owner};
 use crate::editor::{DisplayPoint, EditorAction, SelectAction};
 use crate::network::NetworkStatus;
 use crate::notebooks::active_notebook_data::Mode;
@@ -113,7 +113,7 @@ fn create_notebook(app: &mut App) -> (WindowId, ViewHandle<NotebookView>, ViewHa
 /// Opens a notebook in the given view.
 async fn open_notebook(app: &mut App, handle: &ViewHandle<NotebookView>, notebook: CloudNotebook) {
     handle.update(app, |view, ctx| {
-        view.load(notebook, &OpenWarpDriveObjectSettings::default(), ctx);
+        view.load(notebook, ctx);
     });
     // Pump the executor once so render effects settle: command block models are
     // built on LayoutUpdated, which is what the old baton-future await did.

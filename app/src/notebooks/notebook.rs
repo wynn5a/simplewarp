@@ -43,13 +43,12 @@ use super::{CloudNotebookModel, NotebookId, NotebookLocation, styles};
 use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::appearance::Appearance;
+use crate::cloud_object::export::ExportManager;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
 use crate::cloud_object::model::view::{Editor, EditorState};
-use crate::cloud_object::{CloudObject, ObjectType, OpenWarpDriveObjectSettings, Owner, Space};
+use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_notebook_limit;
+use crate::cloud_object::{CloudObject, CloudObjectTypeAndId, ObjectType, Owner, Space};
 use crate::cmd_or_ctrl_shift;
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_notebook_limit;
-use crate::drive::export::ExportManager;
 use crate::editor::{
     EditOrigin, EditorView, Event as EditorEvent, InteractionState, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions, TextColors, TextOptions,
@@ -507,10 +506,6 @@ impl NotebookView {
                 log::info!("Edit mode stolen");
                 self.switch_to_view(ctx);
             }
-            ActiveNotebookDataEvent::EditRejected => {
-                log::info!("Edit rejected, switching to view mode");
-                self.switch_to_view(ctx);
-            }
             ActiveNotebookDataEvent::BreadcrumbsChanged => {
                 self.update_breadcrumbs(ctx);
             }
@@ -651,14 +646,7 @@ impl NotebookView {
                     ctx.notify();
                 }
             }
-            CloudModelEvent::ObjectMoved { type_and_id, .. } => {
-                if self.as_active_notebook_id(type_and_id, ctx).is_some()
-                    && let Some(space) = self.active_notebook_data.as_ref(ctx).space(ctx)
-                {
-                    self.input
-                        .update(ctx, |editor, ctx| editor.set_space(space, ctx));
-                }
-            }
+            CloudModelEvent::ObjectMoved { .. } => {}
             CloudModelEvent::ObjectCreated { type_and_id, .. } => {
                 if self.as_active_notebook_id(type_and_id, ctx).is_some() {
                     // Re-render to update the status bar.
@@ -807,9 +795,7 @@ impl NotebookView {
                 ctx.emit(NotebookEvent::EditWorkflow(*workflow_id))
             }
             EditorViewEvent::OpenedBlockInsertionMenu => (),
-            EditorViewEvent::OpenedEmbeddedObjectSearch => (),
             EditorViewEvent::OpenedFindBar => (),
-            EditorViewEvent::InsertedEmbeddedObject(_) => (),
             EditorViewEvent::CopiedBlock { .. } => (),
             EditorViewEvent::NavigatedCommands => (),
             EditorViewEvent::ChangedSelectionMode(_) => (),
@@ -1183,13 +1169,12 @@ impl NotebookView {
     pub fn wait_for_initial_load_then_load(
         &mut self,
         notebook_id: SyncId,
-        settings: &OpenWarpDriveObjectSettings,
         window_id: WindowId,
         ctx: &mut ViewContext<Self>,
     ) {
         match CloudModel::as_ref(ctx).get_notebook(&notebook_id).cloned() {
             Some(notebook) => {
-                self.load(notebook, settings, ctx);
+                self.load(notebook, ctx);
             }
             None => {
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
@@ -1208,24 +1193,13 @@ impl NotebookView {
     ///
     /// Namely, we reset the title and body's undo stack and we set the buffer to be
     /// that of the cloud notebook's content.
-    pub fn load(
-        &mut self,
-        notebook: CloudNotebook,
-        _settings: &OpenWarpDriveObjectSettings,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    pub fn load(&mut self, notebook: CloudNotebook, ctx: &mut ViewContext<Self>) {
         self.set_title(&notebook.model().title, ctx);
         self.set_content(&notebook, ctx);
 
         self.active_notebook_data.update(ctx, |data, ctx| {
             data.open_existing(notebook.id, ctx);
         });
-        self.input.update(ctx, |editor, ctx| {
-            // TODO(ben): This is used for filtering in the embed UI, and should also probably be
-            // owner-based.
-            editor.set_space(notebook.space(ctx), ctx);
-        });
-
         self.update_breadcrumbs(ctx);
 
         ctx.notify();
@@ -1243,9 +1217,7 @@ impl NotebookView {
             data.open_new(owner, initial_folder_id, ctx);
         });
         self.input.update(ctx, |input_editor, ctx| {
-            input_editor.system_clear_buffer(ctx);
-            let space = UserWorkspaces::as_ref(ctx).owner_to_space(owner, ctx);
-            input_editor.set_space(space, ctx);
+            input_editor.system_clear_buffer(ctx)
         });
 
         if let Some(title) = title {

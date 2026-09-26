@@ -1,6 +1,6 @@
 use warpui::AppContext;
 
-use super::{CloudObject, GenericStringObjectFormat, JsonObjectType, ObjectType};
+use super::{CloudObject, ObjectType};
 use crate::server::cloud_objects::update_manager::{
     InitiatedBy, ObjectOperation, OperationSuccessType,
 };
@@ -19,15 +19,12 @@ impl CloudObjectToastMessage {
         match (object.object_type(), operation, success_type) {
             // notebooks intentionally do not have an update message, as they are updated
             // as the user types and so toasts would be VERY noisy
-            (
-                ObjectType::Notebook,
-                ObjectOperation::Update,
-                OperationSuccessType::Success,
-            ) => None,
+            (ObjectType::Notebook, ObjectOperation::Update, OperationSuccessType::Success) => None,
             (_, ObjectOperation::Update, OperationSuccessType::Success) => {
                 Some(format!("{object_name} updated"))
             }
-            (_, ObjectOperation::MoveToFolder, OperationSuccessType::Success) | (_, ObjectOperation::MoveToDrive, OperationSuccessType::Success) => {
+            (_, ObjectOperation::MoveToFolder, OperationSuccessType::Success)
+            | (_, ObjectOperation::MoveToDrive, OperationSuccessType::Success) => {
                 let containing_object_name = object.containing_object_name(app);
                 Some(format!("{object_name} moved to {containing_object_name}"))
             }
@@ -36,27 +33,6 @@ impl CloudObjectToastMessage {
             }
             (_, ObjectOperation::Untrash, OperationSuccessType::Success) => {
                 Some(format!("{object_name} restored"))
-            }
-            (
-                ObjectType::Workflow,
-                ObjectOperation::Update,
-                OperationSuccessType::Rejection,
-            ) => {
-                Some("This workflow could not be saved because changes were made while you were editing.".to_string())
-            }
-            (
-                ObjectType::GenericStringObject(GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection)),
-                ObjectOperation::Update,
-                OperationSuccessType::Rejection,
-            ) => {
-                Some("Environment variables could not be saved because changes were made while you were editing.".to_string())
-            }
-            (
-                ObjectType::GenericStringObject(GenericStringObjectFormat::Json(JsonObjectType::AIFact)),
-                ObjectOperation::Update,
-                OperationSuccessType::Rejection,
-            ) => {
-                Some("Rule could not be saved because changes were made while you were editing.".to_string())
             }
             _ => None,
         }
@@ -81,12 +57,6 @@ impl CloudObjectToastMessage {
                 },
                 OperationSuccessType::Success,
             ) => Some(format!("{count_objects_message} deleted forever")),
-            (ObjectOperation::EmptyTrash, OperationSuccessType::Success) => Some(format!(
-                "Trash emptied: {count_objects_message} deleted forever"
-            )),
-            (ObjectOperation::EmptyTrash, OperationSuccessType::Rejection) => {
-                Some("No objects in trash to empty".to_string())
-            }
             _ => None,
         }
     }

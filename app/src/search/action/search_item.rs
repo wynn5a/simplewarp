@@ -13,7 +13,7 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
 use crate::cloud_object::DriveObjectType;
-use crate::drive::cloud_object_styling::warp_drive_icon_color;
+use crate::cloud_object::cloud_object_styling::warp_drive_icon_color;
 use crate::features::FeatureFlag;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::{

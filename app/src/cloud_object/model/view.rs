@@ -8,7 +8,7 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 use super::persistence::{CloudModel, CloudModelEvent};
 use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::folders::CloudFolder;
-use crate::cloud_object::{CloudObject, CloudObjectLocation, Space};
+use crate::cloud_object::{CloudObject, Space};
 use crate::safe_info;
 use crate::server::ids::{ObjectUid, SyncId};
 use crate::sharing::{ContentEditability, SharingAccessLevel};
@@ -228,73 +228,6 @@ impl CloudViewModel {
         }
     }
 
-    /// Get the timestamp to sort `object` according to `timestamp_kind`.
-    pub fn object_sorting_timestamp(
-        &self,
-        object: &dyn CloudObject,
-        timestamp_kind: UpdateTimestamp,
-        app: &AppContext,
-    ) -> Option<ServerTimestamp> {
-        match timestamp_kind {
-            // When sorting in the trash, we only ever consider the object's own trashed timestamp.
-            // For trashed folders, their indirectly-trashed children will not have a trashed_ts,
-            // so there's no need to recurse.
-            UpdateTimestamp::Trashed => object.metadata().trashed_ts,
-            // When sorting in the main index, we consider all of the children of a folder. This
-            // can be expensive, so it's cached.
-            UpdateTimestamp::Revision => {
-                self.sorting_timestamp_rec(object, CloudModel::as_ref(app), app)
-            }
-        }
-    }
-
-    /// Calculate the sorting timestamp for `object`:
-    /// * For a folder, this is the max of the folder's timestamp and all of its children's timestamps
-    ///   (recursively, for sub-folders).
-    /// * For other objects, this is the object's own timestamp.
-    fn sorting_timestamp_rec(
-        &self,
-        object: &dyn CloudObject,
-        cloud_model: &CloudModel,
-        app: &AppContext,
-    ) -> Option<ServerTimestamp> {
-        let folder: Option<&CloudFolder> = object.into();
-        match folder {
-            // For non-folder objects, always use the object's own timestamp.
-            None => object.metadata().revision.map(Into::into),
-            Some(folder) => self
-                .folder_timestamp_cache
-                // Skip the cache if it's already mutably borrowed. This should not happen in practice,
-                // because the UI framework is single-threaded.
-                .try_borrow()
-                .ok()
-                .and_then(|cache| cache.get(&folder.id).cloned())
-                .or_else(|| {
-                    let max_child_timestamp = cloud_model
-                        .active_cloud_objects_in_location_without_descendents(
-                            CloudObjectLocation::Folder(folder.id),
-                            app,
-                        )
-                        // TODO(ben): This check won't be needed soon.
-                        .filter(|child| child.permissions().owner == folder.permissions().owner)
-                        .filter_map(|child| self.sorting_timestamp_rec(child, cloud_model, app))
-                        .max();
-                    // The `Ord` implementation of `Option` always considers `None` less than
-                    // `Some`.
-                    let folder_timestamp = folder.metadata().revision.map(Into::into);
-                    let timestamp = max_child_timestamp.max(folder_timestamp);
-
-                    if let Some(timestamp) = timestamp
-                        && let Ok(mut cache) = self.folder_timestamp_cache.try_borrow_mut()
-                    {
-                        cache.insert(folder.id, timestamp);
-                    }
-
-                    timestamp
-                }),
-        }
-    }
-
     fn handle_cloud_model_event(
         &mut self,
         _: ModelHandle<CloudModel>,
@@ -401,13 +334,3 @@ impl Entity for CloudViewModel {
 
 /// Mark CloudViewModel as global application state.
 impl SingletonEntity for CloudViewModel {}
-
-/// The timestamp to use when sorting objects by their last updated time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum UpdateTimestamp {
-    /// Sort objects by their revision timestamp, when they were last edited.
-    #[default]
-    Revision,
-    /// Sort objects by their trashed timestamp.
-    Trashed,
-}

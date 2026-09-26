@@ -25,14 +25,12 @@ use warpui::{
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::app_state::{AppState, PaneUuid, WindowSnapshot};
 use crate::appearance::Appearance;
-use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{ObjectType, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
 use crate::interval_timer::IntervalTimer;
 use crate::launch_configs::launch_config;
 use crate::linear::LinearIssueWork;
 use crate::pane_group::{NewTerminalOptions, PanesLayout};
 use crate::persistence::ModelEvent;
-use crate::server::ids::{ServerId, SyncId};
+use crate::server::ids::ServerId;
 use crate::settings::QuakeModeSettings;
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::settings_view::{SettingsSection, flags};
@@ -44,7 +42,6 @@ use crate::terminal::view::cell_size_and_padding;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::uri::{OpenMCPSettingsArgs, OpenSettingsArgs};
 use crate::util::bindings::{self, is_binding_pty_compliant};
-use crate::view_components::DismissibleToast;
 use crate::window_settings::WindowSettings;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceAction, WorkspaceRegistry};
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -210,15 +207,6 @@ pub fn init(app: &mut AppContext) {
         RootView::toggle_maximize_window,
     );
     app.add_action("root_view:toggle_fullscreen", RootView::toggle_fullscreen);
-
-    app.add_global_action(
-        "root_view:open_drive_object_new_window",
-        open_warp_drive_object,
-    );
-    app.add_action(
-        "root_view:open_drive_object_existing_window",
-        RootView::open_warp_drive_object_in_existing_window,
-    );
 
     app.add_global_action(
         "root_view:open_settings_page_in_new_window",
@@ -550,7 +538,7 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
                             let mut view = RootView::new(
                                 global_resource_handles.clone(),
                                 NewWorkspaceSource::Restored {
-                                    window_snapshot: window.clone(),
+                                    window_snapshot: Box::new(window.clone()),
                                     block_lists: app_state.block_lists.clone(),
                                 },
                                 ctx,
@@ -590,7 +578,7 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
                                 let mut view = RootView::new(
                                     global_resource_handles.clone(),
                                     NewWorkspaceSource::Restored {
-                                        window_snapshot: window.clone(),
+                                        window_snapshot: Box::new(window.clone()),
                                         block_lists: app_state.block_lists.clone(),
                                     },
                                     ctx,
@@ -642,7 +630,7 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
                         let mut view = RootView::new(
                             global_resource_handles,
                             NewWorkspaceSource::Restored {
-                                window_snapshot: window.clone(),
+                                window_snapshot: Box::new(window.clone()),
                                 block_lists: app_state.block_lists.clone(),
                             },
                             ctx,
@@ -765,72 +753,6 @@ fn open_linear_issue_work_in_new_window(args: &LinearIssueWork, ctx: &mut AppCon
             workspace.open_linear_issue_work(&args, ctx);
         });
     });
-}
-
-fn open_warp_drive_object(arg: &OpenWarpDriveObjectArgs, ctx: &mut AppContext) {
-    // See the matching guard in `open_warp_drive_object_in_existing_window`: a `ServerId`-keyed
-    // object can never resolve in this build, so don't open a brand-new window that can only ever
-    // stay blank.
-    if CloudModel::as_ref(ctx)
-        .get_by_uid(&arg.server_id.uid())
-        .is_none()
-    {
-        log::info!(
-            "Ignoring warp://drive link for {:?} {:?}: object not available locally",
-            arg.object_type,
-            arg.server_id
-        );
-        return;
-    }
-
-    match arg.object_type {
-        ObjectType::Notebook => open_new_workspace_with_notebook_open(
-            SyncId::ServerId(arg.server_id),
-            arg.settings.clone(),
-            ctx,
-        ),
-        ObjectType::Workflow => open_new_workspace_with_workflow_open(
-            SyncId::ServerId(arg.server_id),
-            arg.settings.clone(),
-            ctx,
-        ),
-        _ => log::info!("Open object type {:?} not yet supported", arg.object_type),
-    }
-}
-
-fn display_object_missing_error_in_window(window_id: WindowId, ctx: &mut AppContext) {
-    crate::workspace::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-        let toast = DismissibleToast::error(String::from("Resource not found or access denied"));
-        toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-    });
-}
-
-fn open_new_workspace_with_notebook_open(
-    notebook_id: SyncId,
-    settings: OpenWarpDriveObjectSettings,
-    ctx: &mut AppContext,
-) {
-    open_new_with_workspace_source(
-        NewWorkspaceSource::NotebookById {
-            id: notebook_id,
-            settings,
-        },
-        ctx,
-    );
-}
-
-fn open_new_workspace_with_workflow_open(
-    workflow_id: SyncId,
-    settings: OpenWarpDriveObjectSettings,
-    ctx: &mut AppContext,
-) {
-    open_new_with_workspace_source(
-        NewWorkspaceSource::WorkflowById {
-            id: workflow_id,
-            settings,
-        },
-        ctx,
-    );
 }
 
 /// Opens a new window with a file-based notebook open.
@@ -1207,7 +1129,7 @@ pub enum NewWorkspaceSource {
         window_template: launch_config::WindowTemplate,
     },
     Restored {
-        window_snapshot: WindowSnapshot,
+        window_snapshot: Box<WindowSnapshot>,
         block_lists: Arc<HashMap<PaneUuid, Vec<SerializedBlockListItem>>>,
     },
     Session {
@@ -1215,14 +1137,6 @@ pub enum NewWorkspaceSource {
     },
     NotebookFromFilePath {
         file_path: Option<PathBuf>,
-    },
-    NotebookById {
-        id: SyncId,
-        settings: OpenWarpDriveObjectSettings,
-    },
-    WorkflowById {
-        id: SyncId,
-        settings: OpenWarpDriveObjectSettings,
     },
     AgentSession {
         options: Box<NewTerminalOptions>,
@@ -1288,8 +1202,6 @@ impl NewWorkspaceSource {
             Self::FromTemplate { .. }
             | Self::Session { .. }
             | Self::NotebookFromFilePath { .. }
-            | Self::NotebookById { .. }
-            | Self::WorkflowById { .. }
             | Self::AgentSession { .. } => None,
             Self::TeamSwitched { team_uid } => return Some(*team_uid),
             Self::Restored {
@@ -1437,40 +1349,6 @@ impl RootView {
             ctx.windows().show_window_and_focus_app(window_id);
             ctx.notify();
         });
-        true
-    }
-
-    pub fn open_warp_drive_object_in_existing_window(
-        &mut self,
-        arg: &OpenWarpDriveObjectArgs,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        let cloud_model = CloudModel::as_ref(ctx);
-
-        // No warp-server connection exists in this build (see `LOCAL_ONLY_MESSAGE` in
-        // `server/server_api.rs`), so an object identified by `ServerId` can never be synced
-        // into `CloudModel` here — every `warp://drive/...` link is a dead end. Fail fast and
-        // legibly for every object type instead of routing Notebook/Workflow into a pane that
-        // silently never loads (Folder/EnvVarCollection already guarded against this below;
-        // this hoists the same guard above the match so it applies uniformly).
-        if cloud_model.get_by_uid(&arg.server_id.uid()).is_none() {
-            display_object_missing_error_in_window(ctx.window_id(), ctx);
-            return false;
-        }
-
-        // Every arm below used to route into the Warp Drive left-panel tab, which no longer
-        // exists (see `simplify-specs/plan.md`, Phase 4 Track A). The guard above already
-        // makes this function unreachable in practice, since a `ServerId`-keyed object can
-        // never resolve with no warp-server connection — so there is nothing left to route to
-        // for any object type.
-        log::info!(
-            "Object type {:?} not supported for opening via link",
-            arg.object_type
-        );
-
-        let window_id = ctx.window_id();
-        ctx.windows().show_window_and_focus_app(window_id);
-        ctx.notify();
         true
     }
 

@@ -1,15 +1,12 @@
 use std::any::Any;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use chrono::{Duration, Utc};
 use cloud_objects::cloud_object::SerializedModel;
-use cloud_objects::time::ServerTimestamp;
 use derivative::Derivative;
 use lazy_static::lazy_static;
 use regex::Regex;
-use url::Url;
 use warp_core::channel::Channel;
 use warpui::{AppContext, SingletonEntity};
 
@@ -18,10 +15,8 @@ use self::model::generic_string_model::{
     GenericStringModel, GenericStringObjectId, Serializer, StringModel,
 };
 use self::model::persistence::CloudModel;
-use crate::appearance::Appearance;
 use crate::auth::UserUid;
 use crate::channel::ChannelState;
-use crate::drive::CloudObjectTypeAndId;
 use crate::persistence::ModelEvent;
 use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, ServerId, SyncId, ToServerId};
 use crate::util::time_format::format_approx_duration_from_now_utc;
@@ -30,18 +25,17 @@ use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub mod breadcrumbs;
+pub mod cloud_object_styling;
 pub mod drive_object_type;
+pub mod export;
 pub mod folders;
 pub mod model;
+pub mod object_limits;
 pub mod toast_message;
-pub mod warp_drive_item;
 
 pub use cloud_objects::cloud_object::*;
-pub use drive_object_type::{
-    DriveObjectType, DriveSortOrder, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings,
-};
-pub use folders::CloudFolder;
-pub use warp_drive_item::{WarpDriveItem, WarpDriveItemId};
+pub use cloud_objects::drive::CloudObjectTypeAndId;
+pub use drive_object_type::DriveObjectType;
 
 /// A CloudObject represents
 /// therefore shareable and editable (i.e. Notebooks and Workflows). In order
@@ -136,10 +130,6 @@ pub trait CloudObject: Debug {
     fn should_show_activity_toasts(&self) -> bool {
         true
     }
-
-    /// Creates a new Warp Drive item for this object.  Returns None if this
-    /// object is not rendered in Warp Drive.
-    fn to_warp_drive_item(&self, appearance: &Appearance) -> Option<Box<dyn WarpDriveItem>>;
 
     /// Returns the web link of this object. Will return none if we do not support web links
     /// for this particular object (i.e. if it's not yet sync'd to the server, or if we don't
@@ -415,15 +405,6 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
         true
     }
 
-    /// Creates a new warp drive item for this model type. Returns None
-    /// if this object does not render in Warp Drive.
-    fn to_warp_drive_item(
-        &self,
-        id: SyncId,
-        appearance: &Appearance,
-        object: &Self::CloudObjectType,
-    ) -> Option<Box<dyn WarpDriveItem>>;
-
     /// Returns the display name for this model (e.g. to show in the Warp Drive index)
     fn display_name(&self) -> String;
 
@@ -674,10 +655,6 @@ where
         self.model().renders_in_warp_drive()
     }
 
-    fn to_warp_drive_item(&self, appearance: &Appearance) -> Option<Box<dyn WarpDriveItem>> {
-        self.model().to_warp_drive_item(self.id, appearance, self)
-    }
-
     fn can_export(&self) -> bool {
         self.model().can_export()
     }
@@ -693,47 +670,6 @@ where
     fn clone_box(&self) -> Box<dyn CloudObject> {
         Box::new(self.clone())
     }
-}
-
-/// Extracts the server id and object type from a (caller validated) Drive link.
-/// Intended use is deriving metadata from links such that Warp objects
-/// can be opened natively in Warp with no web interaction.
-pub fn extract_server_id_and_object_type_from_warp_drive_link(
-    url: &Url,
-) -> Option<OpenWarpDriveObjectArgs> {
-    let server_id = url
-        .path_segments()
-        .and_then(|mut segments| segments.next_back())
-        .and_then(|last_segment| last_segment.split('-').next_back())
-        .map(|id| id.to_string());
-
-    let object_type = url.path_segments().and_then(|mut segments| segments.nth(1));
-
-    // Parse the object portion of the path segment (warp.dev/drive/{object})
-    // into an object type
-    let object_type = match object_type {
-        Some("notebook") => ObjectType::Notebook,
-        Some("workflow") => ObjectType::Workflow,
-        _ => return None,
-    };
-    let query_string: HashMap<_, _> = url.query_pairs().collect();
-    let focused_folder_id: Option<ServerId> = query_string
-        .get("focused_folder_id")
-        .and_then(|s| s.to_string().try_into().ok());
-
-    let invitee_email: Option<String> = query_string.get("invitee_email").map(|s| s.to_string());
-
-    Some(OpenWarpDriveObjectArgs {
-        object_type,
-        server_id: match server_id {
-            Some(server_id) => server_id.try_into().ok()?,
-            _ => return None,
-        },
-        settings: OpenWarpDriveObjectSettings {
-            focused_folder_id,
-            invitee_email,
-        },
-    })
 }
 
 impl<'a, K, M> From<&'a dyn CloudObject> for Option<&'a GenericCloudObject<K, M>>
@@ -793,13 +729,6 @@ pub trait CloudObjectMetadataExt {
     /// Returns a semantic summary of the object's creator. For example, "Alice" or "joan@warp.dev".
     #[cfg_attr(target_family = "wasm", expect(dead_code))]
     fn semantic_creator(&self, app: &AppContext) -> Option<String>;
-
-    /// Returns semantic summary of countdown of days until permadeletion.
-    /// Ex: "27 days until permanent deletion"
-    // Only the (retained-but-unreachable) drive item UI calls this since the
-    // Warp Drive panel fell; the drive index slice removes it with that UI.
-    #[allow(dead_code)]
-    fn semantic_permadeletion_countdown(&self, app: &AppContext) -> Option<String>;
 }
 
 impl CloudObjectMetadataExt for CloudObjectMetadata {
@@ -835,49 +764,6 @@ impl CloudObjectMetadataExt for CloudObjectMetadata {
             .as_ref()
             .and_then(|uid| user_profiles.displayable_identifier_for_uid(UserUid::new(uid)))
     }
-
-    fn semantic_permadeletion_countdown(&self, app: &AppContext) -> Option<String> {
-        // 2 cases:
-        // 1) Either the object is a root level object.
-        // 2) Or the object is inside folder(s), call recursive function to get trashed_ts of top level folder.
-        if let Some(trashed_ts) = self
-            .trashed_ts
-            .or_else(|| get_top_folder_trashed_ts(self.folder_id, app))
-        {
-            let deletion_time = trashed_ts.utc() + Duration::days(31);
-            let current_time = Utc::now();
-            let days_left = deletion_time.signed_duration_since(current_time).num_days();
-
-            let full_string = match days_left {
-                0 | 1 => "1 day until permanent deletion".to_string(),
-                _ => format!("{days_left} days until permanent deletion"),
-            };
-            Some(full_string)
-        } else {
-            None
-        }
-    }
-}
-
-/// Helper function to retrieve trashed_ts of top level folder given a folder_id of an object.
-#[allow(dead_code)]
-fn get_top_folder_trashed_ts(
-    folder_id: Option<SyncId>,
-    app: &AppContext,
-) -> Option<ServerTimestamp> {
-    let mut folder_id = folder_id;
-    let cloud_model = CloudModel::as_ref(app);
-    while let Some(current_folder_id) = folder_id {
-        // If the parent folder isn't in CloudModel, short-circuit so we don't loop forever.
-        let folder = cloud_model.get_folder_by_uid(&current_folder_id.uid())?;
-
-        if let Some(_parent_folder_id) = folder.metadata.folder_id {
-            folder_id = folder.metadata.folder_id
-        } else {
-            return folder.metadata.trashed_ts;
-        }
-    }
-    None
 }
 
 use warp_errors::report_error;

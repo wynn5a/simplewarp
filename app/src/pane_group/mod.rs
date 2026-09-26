@@ -61,7 +61,6 @@ use crate::app_state::{
 use crate::appearance::Appearance;
 use crate::banner::{Banner, BannerEvent, BannerState, BannerTextContent, DismissalType};
 use crate::channel::{Channel, ChannelState};
-use crate::cloud_object::OpenWarpDriveObjectArgs;
 use crate::cmd_or_ctrl_shift;
 use crate::code::active_file::ActiveFileModel;
 use crate::code::buffer_location::LocalOrRemotePath;
@@ -479,9 +478,6 @@ pub enum Event {
         path: LocalOrRemotePath,
         /// The session that the path was opened from.
         session: Arc<Session>,
-    },
-    OpenWarpDriveLink {
-        open_warp_drive_args: OpenWarpDriveObjectArgs,
     },
     #[cfg(feature = "local_fs")]
     OpenCodeInWarp {
@@ -1592,10 +1588,9 @@ impl PaneGroup {
             }
             LeafContents::Notebook(snapshot) => {
                 let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    NotebookPaneSnapshot::CloudNotebook {
-                        notebook_id,
-                        settings,
-                    } => Box::new(NotebookPane::restore(notebook_id, &settings, ctx)?),
+                    NotebookPaneSnapshot::CloudNotebook { notebook_id } => {
+                        Box::new(NotebookPane::restore(notebook_id, ctx)?)
+                    }
                     NotebookPaneSnapshot::LocalFileNotebook { path } => Box::new(FilePane::new(
                         path.map(LocalOrRemotePath::Local),
                         None,
@@ -1662,10 +1657,9 @@ impl PaneGroup {
             }
             LeafContents::Workflow(snapshot) => {
                 let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    WorkflowPaneSnapshot::CloudWorkflow {
-                        workflow_id,
-                        settings,
-                    } => Box::new(WorkflowPane::restore(workflow_id, settings, ctx)?),
+                    WorkflowPaneSnapshot::CloudWorkflow { workflow_id } => {
+                        Box::new(WorkflowPane::restore(workflow_id, ctx)?)
+                    }
                 };
 
                 let pane_id = pane.as_pane().id();

@@ -220,6 +220,7 @@ use crate::ai::skills::SkillManager;
 #[cfg(not(target_family = "wasm"))]
 use crate::antivirus::AntivirusInfo;
 use crate::app_state::AppState;
+use crate::cloud_object::export::ExportManager;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::CloudViewModel;
@@ -228,7 +229,6 @@ use crate::code::global_buffer_model::GlobalBufferModel;
 use crate::code::language_server_shutdown_manager::LanguageServerShutdownManager;
 use crate::context_chips::prompt::Prompt;
 use crate::default_terminal::DefaultTerminal;
-use crate::drive::export::ExportManager;
 use crate::env_vars::manager::EnvVarCollectionManager;
 use crate::experiments::ImprovedPaletteSearch;
 pub use crate::global_resource_handles::{GlobalResourceHandles, GlobalResourceHandlesProvider};
@@ -1506,7 +1506,6 @@ pub(crate) fn initialize_app(
     tab_configs::params_modal::init(ctx);
     ai::blocklist::init(ctx);
     ai::blocklist::block::status_bar::init(ctx);
-    drive::index::init(ctx);
     ai_assistant::panel::init(ctx);
     env_vars::env_var_collection_block::init(ctx);
     context_chips::display_menu::init(ctx);

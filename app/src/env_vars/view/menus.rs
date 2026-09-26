@@ -4,10 +4,9 @@ use warpui::keymap::Trigger;
 use warpui::{SingletonEntity, ViewContext, ViewHandle};
 
 use super::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView, VariableRowIndex};
-use crate::cloud_object::{CloudObject, GenericStringObjectFormat, Space};
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_env_var_limit;
-use crate::drive::export::ExportManager;
+use crate::cloud_object::export::ExportManager;
+use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_env_var_limit;
+use crate::cloud_object::{CloudObject, CloudObjectTypeAndId, GenericStringObjectFormat, Space};
 use crate::env_vars::active_env_var_collection_data::TrashStatus;
 use crate::external_secrets::SecretManager;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};

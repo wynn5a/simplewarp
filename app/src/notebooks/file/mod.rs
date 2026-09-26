@@ -732,9 +732,7 @@ impl FileNotebookView {
                 });
             }
             EditorViewEvent::OpenedBlockInsertionMenu => (),
-            EditorViewEvent::OpenedEmbeddedObjectSearch => (),
             EditorViewEvent::OpenedFindBar => (),
-            EditorViewEvent::InsertedEmbeddedObject(_) => (),
             EditorViewEvent::CopiedBlock { .. } => (),
             EditorViewEvent::NavigatedCommands => (),
             EditorViewEvent::ChangedSelectionMode(_) => (),

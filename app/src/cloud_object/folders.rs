@@ -4,10 +4,7 @@ use cloud_objects::cloud_object::SerializedModel;
 pub use cloud_objects::ids::FolderId;
 
 use super::{CloudModelType, CloudObjectUpsertParams, ObjectType, Space};
-use crate::appearance::Appearance;
-use crate::cloud_object::WarpDriveItem;
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::items::folder::WarpDriveFolder;
+use crate::cloud_object::CloudObjectTypeAndId;
 use crate::persistence::ModelEvent;
 use crate::server::ids::SyncId;
 
@@ -53,17 +50,5 @@ impl CloudModelType for CloudFolderModel {
     }
     fn renders_in_warp_drive(&self) -> bool {
         true
-    }
-
-    fn to_warp_drive_item(
-        &self,
-        id: SyncId,
-        _appearance: &Appearance,
-        folder: &CloudFolder,
-    ) -> Option<Box<dyn WarpDriveItem>> {
-        Some(Box::new(WarpDriveFolder::new(
-            self.cloud_object_type_and_id(id),
-            folder.clone(),
-        )))
     }
 }

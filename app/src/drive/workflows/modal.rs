@@ -31,10 +31,9 @@ use super::workflow_arg_selector::{
 };
 use super::workflow_arg_type_helpers::{self, ArgumentEditorRowIndex};
 use crate::appearance::Appearance;
+use crate::cloud_object::cloud_object_styling::warp_drive_icon_color;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{DriveObjectType, ObjectType, Owner, Revision};
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::cloud_object_styling::warp_drive_icon_color;
+use crate::cloud_object::{CloudObjectTypeAndId, DriveObjectType, ObjectType, Owner, Revision};
 use crate::editor::{
     EditorOptions, EditorView, EnterAction, EnterSettings, Event as EditorEvent, InteractionState,
     PlainTextEditorViewAction as EditorAction, PropagateAndNoOpNavigationKeys, TextOptions,

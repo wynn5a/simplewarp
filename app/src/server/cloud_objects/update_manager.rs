@@ -22,15 +22,14 @@ use crate::cloud_object::model::generic_string_model::{
     GenericStringModel, GenericStringObjectId, Serializer, StringModel,
 };
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
-use crate::cloud_object::{
-    CloudModelType, CloudObject, CloudObjectLocation, GenericCloudObject,
-    GenericStringObjectFormat, JsonObjectType, ObjectIdType, Owner, Space,
-};
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::drive_helpers::{
+use crate::cloud_object::object_limits::{
     is_feature_gated_anonymous_user_past_env_var_limit,
     is_feature_gated_anonymous_user_past_notebook_limit,
     is_feature_gated_anonymous_user_past_workflow_limit,
+};
+use crate::cloud_object::{
+    CloudModelType, CloudObject, CloudObjectLocation, CloudObjectTypeAndId, GenericCloudObject,
+    GenericStringObjectFormat, JsonObjectType, ObjectIdType, Owner, Space,
 };
 use crate::env_vars::{CloudEnvVarCollectionModel, EnvVarCollection};
 use crate::notebooks::{CloudNotebookModel, NotebookId};
@@ -40,7 +39,6 @@ use crate::workflows::workflow::Workflow;
 use crate::workflows::workflow_enum::{CloudWorkflowEnumModel, WorkflowEnum};
 use crate::workflows::{CloudWorkflowModel, WorkflowId};
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::workspaces::workspace::WorkspaceUid;
 
 lazy_static! {
     /// For online-only operations, we want to quickly determine if the operation can succeed,
@@ -56,10 +54,6 @@ lazy_static! {
 #[derive(Debug, PartialEq)]
 pub enum OperationSuccessType {
     Success,
-    // Only constructed by the trash/rename flows that died with the Warp Drive
-    // panel; matching code still exists across the object substrate.
-    #[allow(dead_code)]
-    Rejection,
 }
 
 #[derive(Debug, PartialEq)]
@@ -69,13 +63,7 @@ pub enum ObjectOperation {
     MoveToDrive,
     Trash,
     Untrash,
-    Delete {
-        initiated_by: InitiatedBy,
-    },
-    // Only constructed by the trash flows that died with the Warp Drive panel;
-    // matching code still exists across the object substrate.
-    #[allow(dead_code)]
-    EmptyTrash,
+    Delete { initiated_by: InitiatedBy },
 }
 
 #[derive(Debug)]
@@ -139,15 +127,6 @@ impl UpdateManager {
                 }
             }
         }
-    }
-
-    /// Persists the user's current-workspace selection to SQLite.
-    ///
-    /// Only the retained-but-unreachable drive index calls this since the Warp
-    /// Drive panel fell; the drive index slice removes both sides.
-    #[allow(dead_code)]
-    pub fn persist_current_workspace(&self, workspace_uid: WorkspaceUid) {
-        self.save_to_db([ModelEvent::SetCurrentWorkspace { workspace_uid }]);
     }
 
     fn save_in_memory_object_to_sqlite(&mut self, cloud_model: &CloudModel, uid: &ObjectUid) {
@@ -929,55 +908,6 @@ impl UpdateManager {
         ctx.notify();
     }
 
-    // Only the retained-but-unreachable drive index calls this since the Warp
-    // Drive panel fell; the drive index slice removes both sides.
-    #[allow(dead_code)]
-    pub fn empty_trash(&mut self, space: Space, ctx: &mut ModelContext<Self>) {
-        let Some(owner) = UserWorkspaces::as_ref(ctx).space_to_owner(space, ctx) else {
-            // TODO: For the Shared space, this should delete every object that's shared with the user
-            // and trashed.
-            log::warn!("Tried to empty trash in unsupported space {space:?}");
-            return;
-        };
-
-        let trashed_ids: Vec<SyncId> = CloudModel::handle(ctx).read(ctx, |model, _| {
-            model
-                .get_all_exportable_object_ids()
-                .into_iter()
-                .filter_map(|type_and_id| {
-                    let object = model.get_by_uid(&type_and_id.uid())?;
-                    let _is_trashed_in_space = object.metadata().trashed_ts.is_some()
-                        && object.permissions().owner == owner;
-                    type_and_id
-                        .server_id()
-                        .filter(|_| {
-                            object.metadata().trashed_ts.is_some()
-                                && object.permissions().owner == owner
-                        })
-                        .map(SyncId::ServerId)
-                })
-                .collect()
-        });
-
-        let num_deleted_objects = self.on_object_delete_success(trashed_ids, ctx);
-        let (success_type, num_objects) = if num_deleted_objects == 0 {
-            // Rejection toast: there are no objects in the Trash.
-            (OperationSuccessType::Rejection, Some(0))
-        } else {
-            (OperationSuccessType::Success, Some(num_deleted_objects))
-        };
-        ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
-            result: ObjectOperationResult {
-                success_type,
-                operation: ObjectOperation::EmptyTrash,
-                client_id: None,
-                server_id: None,
-                num_objects,
-            },
-        });
-        ctx.notify();
-    }
-
     pub fn on_object_delete_success(
         &mut self,
         deleted_ids: Vec<SyncId>,
@@ -1013,28 +943,6 @@ impl UpdateManager {
         }]);
 
         num_deleted_objects
-    }
-
-    // Only the retained-but-unreachable drive index calls this since the Warp
-    // Drive panel fell; the drive index slice removes both sides.
-    #[allow(dead_code)]
-    pub fn rename_folder(
-        &mut self,
-        folder_id: SyncId,
-        new_name: String,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let cloud_model = CloudModel::as_ref(ctx);
-        if let Some(folder) = cloud_model.get_folder(&folder_id) {
-            let new_folder = CloudFolderModel {
-                name: new_name,
-                is_open: folder.model().is_open,
-                is_warp_pack: folder.model().is_warp_pack,
-            };
-            self.update_object(new_folder, folder_id, ctx);
-        } else {
-            log::warn!("Attempted to rename folder that doesn't exist with id: {folder_id:?}");
-        }
     }
 }
 

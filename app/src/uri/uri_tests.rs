@@ -1,4 +1,3 @@
-use self::parse_url_paths::{WarpWebLink, get_item_data_from_warp_link};
 use super::*;
 use crate::ChannelState;
 use crate::launch_configs::launch_config::make_mock_single_window_launch_config;
@@ -198,60 +197,6 @@ fn test_remove_extension() {
     assert_eq!(remove_extension("..yaml"), Some("."));
     assert_eq!(remove_extension("config"), None);
     assert_eq!(remove_extension("🍞.yaml"), Some("🍞"));
-}
-
-#[test]
-fn test_warp_web_link_notebook() {
-    assert_eq!(
-        get_item_data_from_warp_link(
-            &Url::parse(&format!(
-                "{}/drive/notebook/Performance-Analysis-LkDlnAe34vfYD2JXsAkssc?focused_folder_id=test_uid00000000000123&invitee_email=test@example.com",
-                ChannelState::server_root_url()
-            ))
-            .unwrap()
-        ),
-        Some(WarpWebLink::DriveObject(Box::new(OpenWarpDriveObjectArgs {
-            object_type: ObjectType::Notebook,
-server_id: ServerId::from_string_lossy("LkDlnAe34vfYD2JXsAkssc"),
-            settings: OpenWarpDriveObjectSettings {
-                focused_folder_id: Some(ServerId::from(123)),
-                invitee_email: Some(String::from("test@example.com")),
-            },
-        })))
-    );
-}
-
-#[test]
-fn test_warp_web_link_session() {
-    assert_eq!(
-        get_item_data_from_warp_link(
-            &Url::parse(&format!(
-                "{}/session/317d0686-7a0b-4b67-806b-aaa3e9df501b?
-                pwd=6f727249-af9f-4025-a240-59df40a4c64b",
-                ChannelState::server_root_url()
-            ))
-            .unwrap()
-        ),
-        Some(WarpWebLink::Session)
-    );
-}
-
-#[test]
-fn test_warp_web_link_workflow() {
-    assert_eq!(
-        get_item_data_from_warp_link(
-            &Url::parse(&format!(
-                "{}/drive/workflow/Remove-all-stopped-docker-container-image-and-volumes-ZCJSkai2gpwTqpBFs5HOfZ",
-                ChannelState::server_root_url()
-            ))
-            .unwrap()
-        ),
-        Some(WarpWebLink::DriveObject(Box::new(OpenWarpDriveObjectArgs {
-            object_type: ObjectType::Workflow,
-server_id: ServerId::from_string_lossy("ZCJSkai2gpwTqpBFs5HOfZ"),
-            settings: OpenWarpDriveObjectSettings::default(),
-        })))
-    );
 }
 
 fn open_file_editor_test_path(file_name: &str) -> (String, PathBuf) {

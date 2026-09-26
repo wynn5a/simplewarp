@@ -21,10 +21,9 @@ use super::command_dialog::EnvVarCommandDialog;
 use super::menus::Menus;
 use crate::Appearance;
 use crate::ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels;
-use crate::cloud_object::Owner;
 use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::drive::CloudObjectTypeAndId;
+use crate::cloud_object::{CloudObjectTypeAndId, Owner};
 use crate::editor::EditorView;
 use crate::env_vars::active_env_var_collection_data::{
     ActiveEnvVarCollection, ActiveEnvVarCollectionData, ActiveEnvVarCollectionDataEvent,

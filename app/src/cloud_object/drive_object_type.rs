@@ -1,32 +1,11 @@
-use std::cmp::Ordering;
 use std::fmt;
 
-use serde::{Deserialize, Serialize};
-use warpui::AppContext;
+use cloud_objects::cloud_object::{GenericStringObjectFormat, JsonObjectType};
 
-use crate::cloud_object::model::view::{CloudViewModel, UpdateTimestamp};
 use crate::cloud_object::{CloudObject, ObjectType};
-use crate::drive::DriveIndexVariant;
-use crate::server::ids::ServerId;
+use crate::notebooks::CloudNotebook;
 use crate::ui_components::icons::Icon;
 use crate::workflows::CloudWorkflow;
-
-type SortByComparator<'a> = dyn FnMut(&&dyn CloudObject, &&dyn CloudObject) -> Ordering + 'a;
-
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
-pub struct OpenWarpDriveObjectSettings {
-    /// The folder that should be focused in the Warp Drive when the object is opened.
-    pub focused_folder_id: Option<ServerId>,
-    /// The email of the user to invite to the object, if the object is being opened via the request access flow.
-    pub invitee_email: Option<String>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct OpenWarpDriveObjectArgs {
-    pub object_type: ObjectType,
-    pub server_id: ServerId,
-    pub settings: OpenWarpDriveObjectSettings,
-}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum DriveObjectType {
@@ -42,6 +21,44 @@ pub enum DriveObjectType {
     EnvVarCollection,
     MCPServer,
     MCPServerCollection,
+}
+
+impl DriveObjectType {
+    /// Returns the display type of a cloud object, or None for object kinds
+    /// that have no display type (e.g. preferences or workflow enums).
+    pub fn for_cloud_object(object: &dyn CloudObject) -> Option<Self> {
+        match object.object_type() {
+            ObjectType::Notebook => Some(Self::Notebook {
+                is_ai_document: object
+                    .as_any()
+                    .downcast_ref::<CloudNotebook>()
+                    .is_some_and(|notebook| notebook.model().ai_document_id.is_some()),
+            }),
+            ObjectType::Workflow => Some(
+                object
+                    .as_any()
+                    .downcast_ref::<CloudWorkflow>()
+                    .filter(|workflow| workflow.model().data.is_agent_mode_workflow())
+                    .map(|_| Self::AgentModeWorkflow)
+                    .unwrap_or(Self::Workflow),
+            ),
+            ObjectType::Folder => Some(Self::Folder),
+            ObjectType::GenericStringObject(GenericStringObjectFormat::Json(object_type)) => {
+                match object_type {
+                    JsonObjectType::EnvVarCollection => Some(Self::EnvVarCollection),
+                    JsonObjectType::AIFact => Some(Self::AIFact),
+                    JsonObjectType::MCPServer => Some(Self::MCPServer),
+                    JsonObjectType::Preference
+                    | JsonObjectType::WorkflowEnum
+                    | JsonObjectType::AIExecutionProfile
+                    | JsonObjectType::TemplatableMCPServer
+                    | JsonObjectType::CloudEnvironment
+                    | JsonObjectType::ScheduledAmbientAgent
+                    | JsonObjectType::CloudAgentConfig => None,
+                }
+            }
+        }
+    }
 }
 
 impl From<DriveObjectType> for Icon {
@@ -78,115 +95,6 @@ impl fmt::Display for DriveObjectType {
             DriveObjectType::AIFactCollection => write!(f, "ai fact collection"),
             DriveObjectType::MCPServer => write!(f, "mcp server"),
             DriveObjectType::MCPServerCollection => write!(f, "mcp server collection"),
-        }
-    }
-}
-
-/// Enum used for sorting elements in the Warp Drive Index (and potentially other places).
-/// In the future it can be used to add other options (like, by name or by author), and exposed to
-/// users in the index.
-#[derive(
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    Clone,
-    Copy,
-    Debug,
-    Serialize,
-    Deserialize,
-    schemars::JsonSchema,
-    settings_value::SettingsValue,
-)]
-#[schemars(
-    description = "Sort order for Warp Drive items.",
-    rename_all = "snake_case"
-)]
-pub enum DriveSortOrder {
-    /// Sort by newest revision first in main index, most recently trashed in trash index
-    #[default]
-    ByTimestamp,
-    /// A => Z
-    AlphabeticalDescending,
-    /// Z => A
-    AlphabeticalAscending,
-    /// Sort by object type, with folders first
-    ByObjectType,
-}
-
-impl DriveSortOrder {
-    /// Returns the comparator that can be used for sorting items returned by
-    /// CloudModel::cloud_objects_in_space, for example (so more specifically, on the iterator of
-    /// type Iterator<Item = &'_ dyn CloudObject>)
-    pub fn sort_by<'a>(
-        &self,
-        cloud_model: &'a CloudViewModel,
-        update_timestamp: UpdateTimestamp,
-        app: &'a AppContext,
-    ) -> Box<SortByComparator<'a>> {
-        match self {
-            // Sorts newly-created objects to be at the top of the list
-            Self::ByTimestamp => Box::new(
-                move |a: &&dyn CloudObject, b: &&dyn CloudObject| -> Ordering {
-                    cloud_model
-                        .object_sorting_timestamp(*a, update_timestamp, app)
-                        .cmp(&cloud_model.object_sorting_timestamp(*b, update_timestamp, app))
-                        .reverse()
-                },
-            ),
-            Self::AlphabeticalDescending => Box::new(
-                move |a: &&dyn CloudObject, b: &&dyn CloudObject| -> Ordering {
-                    a.display_name()
-                        .to_lowercase()
-                        .cmp(&b.display_name().to_lowercase())
-                },
-            ),
-            Self::AlphabeticalAscending => Box::new(
-                move |a: &&dyn CloudObject, b: &&dyn CloudObject| -> Ordering {
-                    b.display_name()
-                        .to_lowercase()
-                        .cmp(&a.display_name().to_lowercase())
-                },
-            ),
-            Self::ByObjectType => Box::new(
-                move |a: &&dyn CloudObject, b: &&dyn CloudObject| -> Ordering {
-                    let order = |obj: &&dyn CloudObject| match obj.object_type() {
-                        ObjectType::Folder => 0,
-                        ObjectType::GenericStringObject(_) => 1,
-                        ObjectType::Notebook => 2,
-                        ObjectType::Workflow => {
-                            let Some(workflow) = obj.as_any().downcast_ref::<CloudWorkflow>()
-                            else {
-                                return 3;
-                            };
-
-                            if workflow.model().data.is_agent_mode_workflow() {
-                                4
-                            } else {
-                                3
-                            }
-                        }
-                    };
-
-                    // First compare by object type ordering, then by display name alphabetically if equal
-                    order(a).cmp(&order(b)).then_with(|| {
-                        a.display_name()
-                            .to_lowercase()
-                            .cmp(&b.display_name().to_lowercase())
-                    })
-                },
-            ),
-        }
-    }
-
-    /// Returns the text that is used to display the sorting option in the KnowledgeIndex's sorting menu
-    pub fn menu_text(&self, index_variant: DriveIndexVariant) -> &str {
-        match (self, index_variant) {
-            (DriveSortOrder::ByTimestamp, DriveIndexVariant::MainIndex) => "Last updated",
-            (DriveSortOrder::ByTimestamp, DriveIndexVariant::Trash) => "Last trashed",
-            (DriveSortOrder::AlphabeticalDescending, _) => "A to Z",
-            (DriveSortOrder::AlphabeticalAscending, _) => "Z to A",
-            (DriveSortOrder::ByObjectType, _) => "Type",
         }
     }
 }

@@ -541,7 +541,6 @@ where
             links,
             RichTextEditorConfig {
                 gutter_width: Some(0.0),
-                embedded_objects_enabled: Some(false),
                 vertical_expansion_behavior: Some(VerticalExpansionBehavior::GrowToMaxHeight),
                 max_width,
                 can_execute_shell_commands: Some(false),

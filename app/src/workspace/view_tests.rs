@@ -271,7 +271,7 @@ fn restored_workspace(
         Workspace::new(
             global_resource_handles,
             NewWorkspaceSource::Restored {
-                window_snapshot,
+                window_snapshot: Box::new(window_snapshot),
                 block_lists: Arc::new(HashMap::new()),
             },
             ctx,
@@ -1618,7 +1618,6 @@ fn test_notebook_pane_tracking() {
                     owner: Owner::mock_current_user(),
                     initial_folder_id: None,
                 },
-                &OpenWarpDriveObjectSettings::default(),
                 ctx,
                 true,
             );
@@ -1656,12 +1655,7 @@ fn test_notebook_pane_tracking() {
             );
 
             // Re-opening the notebook should not create a new view.
-            workspace.open_notebook(
-                &NotebookSource::Existing(notebook_id),
-                &OpenWarpDriveObjectSettings::default(),
-                ctx,
-                true,
-            );
+            workspace.open_notebook(&NotebookSource::Existing(notebook_id), ctx, true);
             assert_eq!(
                 ctx.views_of_type::<NotebookView>(ctx.window_id()),
                 Some(vec![notebook_view])

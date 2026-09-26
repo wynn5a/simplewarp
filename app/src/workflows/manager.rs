@@ -6,7 +6,7 @@ use warpui::{Entity, EntityId, ModelContext, SingletonEntity};
 use super::CloudWorkflowModel;
 use super::workflow::Workflow;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{GenericCloudObject, OpenWarpDriveObjectSettings, Owner};
+use crate::cloud_object::{GenericCloudObject, Owner};
 use crate::pane_group::{PaneContent, WorkflowPane};
 use crate::server::ids::{ClientId, SyncId};
 use crate::workflows::WorkflowViewMode;
@@ -59,7 +59,6 @@ impl WorkflowManager {
     pub fn create_pane(
         &mut self,
         source: &WorkflowOpenSource,
-        settings: &OpenWarpDriveObjectSettings,
         mode: WorkflowViewMode,
         window_id: WindowId,
         ctx: &mut ModelContext<Self>,
@@ -70,17 +69,11 @@ impl WorkflowManager {
             WorkflowOpenSource::Existing(workflow_id) => {
                 let workflow = CloudModel::as_ref(ctx).get_workflow(workflow_id).cloned();
                 if let Some(workflow) = workflow {
-                    view.update(ctx, |view, ctx| view.load(workflow, settings, mode, ctx));
+                    view.update(ctx, |view, ctx| view.load(workflow, mode, ctx));
                 } else {
                     // If the workflow doesn't exist, try waiting for initial load and trying again
                     view.update(ctx, |view, ctx| {
-                        view.wait_for_initial_load_then_load(
-                            *workflow_id,
-                            settings,
-                            mode,
-                            window_id,
-                            ctx,
-                        )
+                        view.wait_for_initial_load_then_load(*workflow_id, mode, window_id, ctx)
                     });
                 }
             }
@@ -114,7 +107,6 @@ impl WorkflowManager {
                             *initial_folder_id,
                             ClientId::default(),
                         ),
-                        &OpenWarpDriveObjectSettings::default(),
                         mode,
                         ctx,
                     );

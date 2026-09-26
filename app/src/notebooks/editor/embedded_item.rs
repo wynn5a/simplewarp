@@ -27,9 +27,9 @@ use warpui::text_layout::TextFrame;
 use warpui::units::{IntoPixels, Pixels};
 use warpui::{AppContext, Element, LayoutContext, SingletonEntity, SizeConstraint};
 
+use crate::cloud_object::cloud_object_styling::warp_drive_icon_color;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObject, DriveObjectType};
-use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::server::ids::{HashableId, ToServerId};
 use crate::ui_components::icons::Icon;
 use crate::workflows::workflow::Workflow;

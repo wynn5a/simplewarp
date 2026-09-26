@@ -522,15 +522,11 @@ fn snapshot_2x2_grid() {
 #[test]
 fn snapshot_non_terminal_leaf_replaced_with_terminal() {
     use crate::app_state::NotebookPaneSnapshot;
-    use crate::cloud_object::OpenWarpDriveObjectSettings;
 
     let notebook_leaf = PaneNodeSnapshot::Leaf(LeafSnapshot {
         is_focused: false,
         custom_vertical_tabs_title: None,
-        contents: LeafContents::Notebook(NotebookPaneSnapshot::CloudNotebook {
-            notebook_id: None,
-            settings: OpenWarpDriveObjectSettings::default(),
-        }),
+        contents: LeafContents::Notebook(NotebookPaneSnapshot::CloudNotebook { notebook_id: None }),
     });
     let snapshot = PaneNodeSnapshot::Branch(BranchSnapshot {
         direction: crate::app_state::SplitDirection::Horizontal,

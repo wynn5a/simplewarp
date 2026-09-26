@@ -40,11 +40,11 @@ use crate::ai::agent::conversation::{ConversationStatus, StatusColorStyle};
 use crate::ai::conversation_status_ui::render_status_element;
 use crate::appearance::Appearance;
 use crate::cloud_object::DriveObjectType;
+use crate::cloud_object::cloud_object_styling::warp_drive_icon_color;
 use crate::code::editor::{add_color, remove_color};
 use crate::code::icon_from_file_path;
 use crate::context_chips::display_chip::GitLineChanges;
 use crate::context_chips::github_pr_display_text_from_url;
-use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::editor::EditorView;
 use crate::pane_group::pane::IPaneType;
 use crate::pane_group::{

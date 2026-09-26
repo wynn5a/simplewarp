@@ -11,10 +11,9 @@ use super::generic_string_model::GenericStringObjectId;
 use crate::ai::execution_profiles::CloudAIExecutionProfile;
 use crate::cloud_object::folders::{CloudFolder, CloudFolderModel};
 use crate::cloud_object::{
-    CloudModelType, CloudObject, CloudObjectLocation, GenericCloudObject,
+    CloudModelType, CloudObject, CloudObjectLocation, CloudObjectTypeAndId, GenericCloudObject,
     GenericStringObjectFormat, JsonObjectType, ObjectIdType, ObjectType, Owner, Revision, Space,
 };
-use crate::drive::{CloudObjectTypeAndId, DriveIndexVariant};
 use crate::env_vars::{CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVarCollection};
 use crate::notebooks::CloudNotebook;
 use crate::persistence::ModelEvent;
@@ -507,85 +506,6 @@ impl CloudModel {
 
     pub fn toggle_folder_open(&mut self, folder_id: SyncId, ctx: &mut ModelContext<Self>) {
         self.set_folder_open_state(folder_id, FolderOpenState::Reversed, ctx)
-    }
-
-    /// Collapses all folders for a given location, including the folder provided
-    /// (if location is a CloudObjectLocation::Folder).
-    pub fn collapse_all_in_location(
-        &mut self,
-        location: CloudObjectLocation,
-        index_variant: DriveIndexVariant,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let mut folder_ids: Vec<SyncId> = Vec::new();
-        self.collapse_all_in_location_helper(location, index_variant, &mut folder_ids, ctx);
-
-        folder_ids.iter().for_each(|folder_id| {
-            self.set_folder_open_state(*folder_id, FolderOpenState::Closed, ctx)
-        });
-
-        ctx.notify();
-    }
-
-    /// Helper function for collapse_all_in_location. Recursively traverses through descendents,
-    /// adding IDs of any folders found to the folder_ids mutable vector reference.
-    fn collapse_all_in_location_helper(
-        &self,
-        location: CloudObjectLocation,
-        index_variant: DriveIndexVariant,
-        folder_ids: &mut Vec<SyncId>,
-        app: &AppContext,
-    ) {
-        if let CloudObjectLocation::Folder(folder_id) = location {
-            folder_ids.push(folder_id);
-        }
-
-        match index_variant {
-            DriveIndexVariant::MainIndex => self
-                .active_cloud_objects_in_location_without_descendents(location, app)
-                .for_each(|object| {
-                    let folder: Option<&CloudFolder> = object.into();
-                    if let Some(folder) = folder {
-                        self.collapse_all_in_location_helper(
-                            CloudObjectLocation::Folder(folder.id),
-                            index_variant,
-                            folder_ids,
-                            app,
-                        );
-                    }
-                }),
-            DriveIndexVariant::Trash => {
-                if let CloudObjectLocation::Space(space) = location {
-                    self.directly_trashed_cloud_objects_in_space(space, app)
-                        .for_each(|object| {
-                            let folder: Option<&CloudFolder> = object.into();
-                            if let Some(folder) = folder {
-                                self.collapse_all_in_location_helper(
-                                    CloudObjectLocation::Folder(folder.id),
-                                    index_variant,
-                                    folder_ids,
-                                    app,
-                                );
-                            }
-                        })
-                } else {
-                    self.indirectly_trashed_cloud_objects_in_location_without_descendents(
-                        location, app,
-                    )
-                    .for_each(|object| {
-                        let folder: Option<&CloudFolder> = object.into();
-                        if let Some(folder) = folder {
-                            self.collapse_all_in_location_helper(
-                                CloudObjectLocation::Folder(folder.id),
-                                index_variant,
-                                folder_ids,
-                                app,
-                            );
-                        }
-                    })
-                }
-            }
-        }
     }
 
     /// Force expands the object identified by `hash_id` and any of its ancestors. If an object is

@@ -12,9 +12,9 @@ use warpui::{AddSingletonModel, App, SingletonEntity, WindowId};
 use super::{ExportEvent, ExportId, ExportManager, safe_filename};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{
-    CloudObjectMetadata, CloudObjectPermissions, ObjectIdType, ObjectType, Space,
+    CloudObjectMetadata, CloudObjectPermissions, CloudObjectTypeAndId, ObjectIdType, ObjectType,
+    Space,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::notebooks::{CloudNotebook, CloudNotebookModel, NotebookId};
 use crate::server::ids::SyncId;
 use crate::workflows::workflow::Workflow;

@@ -14,12 +14,9 @@ use cloud_objects::cloud_object::SerializedModel;
 use serde::{Deserialize, Serialize};
 use warpui::AppContext;
 
-use crate::appearance::Appearance;
 use crate::cloud_object::{
-    CloudModelType, CloudObjectUpsertParams, ObjectType, Owner, WarpDriveItem,
+    CloudModelType, CloudObjectTypeAndId, CloudObjectUpsertParams, ObjectType, Owner,
 };
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::items::notebook::WarpDriveNotebook;
 use crate::persistence::ModelEvent;
 use crate::server::ids::SyncId;
 
@@ -78,19 +75,6 @@ impl CloudModelType for CloudNotebookModel {
 
     fn can_export(&self) -> bool {
         true
-    }
-
-    fn to_warp_drive_item(
-        &self,
-        id: SyncId,
-        _appearance: &Appearance,
-        notebook: &CloudNotebook,
-    ) -> Option<Box<dyn WarpDriveItem>> {
-        Some(Box::new(WarpDriveNotebook::new(
-            self.cloud_object_type_and_id(id),
-            notebook.clone(),
-            notebook.model().ai_document_id.is_some(),
-        )))
     }
 }
 

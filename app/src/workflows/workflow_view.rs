@@ -39,14 +39,13 @@ use crate::FeatureFlag;
 use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::appearance::Appearance;
 use crate::cloud_object::breadcrumbs::ContainingObject;
+use crate::cloud_object::cloud_object_styling::warp_drive_icon_color;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::CloudViewModel;
+use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_workflow_limit;
 use crate::cloud_object::{
-    CloudObject, DriveObjectType, ObjectType, OpenWarpDriveObjectSettings, Owner, Revision, Space,
+    CloudObject, CloudObjectTypeAndId, DriveObjectType, ObjectType, Owner, Revision, Space,
 };
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::cloud_object_styling::warp_drive_icon_color;
-use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_workflow_limit;
 use crate::drive::workflows::arguments::ArgumentsState;
 use crate::drive::workflows::enum_creation_dialog::{
     EnumCreationDialog, EnumCreationDialogEvent, WorkflowEnumData,
@@ -520,12 +519,7 @@ impl WorkflowView {
             if self.workflow_id.into_client() == result.client_id
                 || self.workflow_id.uid() == result.server_id.unwrap_or_default().uid()
             {
-                self.load(
-                    workflow,
-                    &OpenWarpDriveObjectSettings::default(),
-                    self.workflow_view_mode,
-                    ctx,
-                );
+                self.load(workflow, self.workflow_view_mode, ctx);
             }
         }
     }
@@ -537,19 +531,13 @@ impl WorkflowView {
     fn reset(&mut self, ctx: &mut ViewContext<Self>) {
         let cloud_workflow = self.get_cloud_workflow(ctx);
         if let Some(workflow) = cloud_workflow {
-            self.load(
-                workflow,
-                &OpenWarpDriveObjectSettings::default(),
-                self.workflow_view_mode,
-                ctx,
-            );
+            self.load(workflow, self.workflow_view_mode, ctx);
         }
     }
 
     pub fn wait_for_initial_load_then_load(
         &mut self,
         workflow_id: SyncId,
-        settings: &OpenWarpDriveObjectSettings,
         mode: WorkflowViewMode,
         window_id: WindowId,
         ctx: &mut ViewContext<Self>,
@@ -558,7 +546,7 @@ impl WorkflowView {
         // in memory (load it) or it doesn't exist (not-found toast; there is no server
         // to fetch it from).
         match CloudModel::as_ref(ctx).get_workflow(&workflow_id).cloned() {
-            Some(workflow) => self.load(workflow, settings, mode, ctx),
+            Some(workflow) => self.load(workflow, mode, ctx),
             None => {
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast_by_type(
@@ -575,7 +563,6 @@ impl WorkflowView {
     pub fn load(
         &mut self,
         workflow: CloudWorkflow,
-        _settings: &OpenWarpDriveObjectSettings,
         mode: WorkflowViewMode,
         ctx: &mut ViewContext<Self>,
     ) {

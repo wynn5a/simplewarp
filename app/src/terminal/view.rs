@@ -258,7 +258,9 @@ use crate::banner::{
 };
 use crate::cloud_object::model::actions::ObjectActionType;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{CloudObject, GenericStringObjectFormat, JsonObjectType};
+use crate::cloud_object::{
+    CloudObject, CloudObjectTypeAndId, GenericStringObjectFormat, JsonObjectType,
+};
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 #[cfg(feature = "local_fs")]
@@ -280,7 +282,6 @@ use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::context_chips::ContextChipKind;
 use crate::context_chips::prompt::{Prompt, PromptSelection};
 use crate::context_chips::prompt_type::PromptType;
-use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{AutosuggestionType, EditorAction};
 use crate::env_vars::env_var_collection_block::{
     EnvVarCollectionBlock, EnvVarCollectionBlockEvent,

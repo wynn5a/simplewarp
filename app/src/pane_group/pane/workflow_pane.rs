@@ -10,7 +10,6 @@ use super::{
     ShareableLinkError,
 };
 use crate::app_state::{LeafContents, WorkflowPaneSnapshot};
-use crate::cloud_object::OpenWarpDriveObjectSettings;
 use crate::server::ids::SyncId;
 use crate::workflows::manager::{WorkflowManager, WorkflowOpenSource};
 use crate::workflows::workflow_view::{WorkflowView, WorkflowViewEvent};
@@ -38,7 +37,6 @@ impl WorkflowPane {
 
     pub fn restore(
         workflow_id: Option<SyncId>,
-        settings: OpenWarpDriveObjectSettings,
         ctx: &mut ViewContext<PaneGroup>,
     ) -> anyhow::Result<Self> {
         let window_id = ctx.window_id();
@@ -59,7 +57,6 @@ impl WorkflowPane {
         Ok(WorkflowManager::handle(ctx).update(ctx, |manager, ctx| {
             manager.create_pane(
                 &source,
-                &settings,
                 WorkflowViewMode::supported_view_mode(workflow_id, ctx),
                 window_id,
                 ctx,
@@ -131,7 +128,6 @@ impl PaneContent for WorkflowPane {
         let workflow_id = self.get_view(app).as_ref(app).workflow_id();
         LeafContents::Workflow(WorkflowPaneSnapshot::CloudWorkflow {
             workflow_id: Some(workflow_id),
-            settings: OpenWarpDriveObjectSettings::default(),
         })
     }
 

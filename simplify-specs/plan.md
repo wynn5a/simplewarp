@@ -15204,3 +15204,119 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       zero_state remnant + the bridge list above + the
       OpenAIFactCollection/OpenMCPServerCollection binding ruling (settings
       mcp_servers pages supersede?).
+- [x] **drive slice 2 — the drive index + browse/import/export surface
+      (4gj) — DONE 2026-09-26.** 108 files, +227/−12,499, 36 deleted,
+      4 moved. Executed by one subagent; parent independently re-verified
+      every gate and spot-reviewed the critical seams.
+
+      GOAL STATE MET: app/src/drive/ contains ONLY mod.rs (pub mod
+      workflows;) + workflows/ (the run-workflow-with-args UI that serves
+      LOCAL workflows — stays at its path to avoid churn).
+
+      WHAT FELL. drive/index.rs + index_tests (4,559+), drive/items/ whole
+      (11 files), drive/import/ whole (6), drive/settings.rs (sorting_choice
+      had zero readers once the index fell — the 4gi partial keep resolved),
+      cloud_object_naming_dialog + empty_trash_confirmation_dialog,
+      cloud_object/warp_drive_item.rs (WarpDriveItem trait, WarpDriveItemId),
+      to_warp_drive_item removed from the CloudObject/CloudModelType/
+      StringModel traits + all 8 impls, DriveSortOrder,
+      extract_server_id_and_object_type_from_warp_drive_link,
+      semantic_permadeletion_countdown + get_top_folder_trashed_ts (4gi
+      bridges), SharedObjectLimitBannerSettings, the whole
+      search/notebook_embedding/ module (both data sources filtered
+      into_server().is_some() — ServerId-only, zero results locally) + the
+      notebook block-insert Embed entry point (EmbeddingSearchMenu,
+      OpenEmbeddedObjectSearch, OpenedEmbeddedObjectSearch/
+      InsertedEmbeddedObject events, embedded_objects_enabled config,
+      EmbeddedObjectInfo telemetry; RENDERING of existing embeds stays),
+      warp:// object links (UriHost::Drive arm, parse_url_paths.rs whole —
+      its Session arm had no production consumer,
+      LinkEvent::OpenWarpDriveLink chain notebooks/link.rs → notebook_pane →
+      pane_group → workspace, root_view open_warp_drive_object ×2 + both
+      actions, NewWorkspaceSource::{NotebookById, WorkflowById},
+      open_workflow_from_intent, add_tab_for_cloud_workflow, ImportModal
+      machinery + is_import_modal_open), UpdateManager::{empty_trash,
+      rename_folder, persist_current_workspace} + OperationSuccessType::
+      Rejection + ObjectOperation::EmptyTrash + Rejection toast arms +
+      ActiveNotebookDataEvent::EditRejected, modal_sizes
+      .warp_drive_index_width chain (DB column stays, unmapped),
+      menu_button drive-button helpers, user_workspaces tier-limit cluster
+      (is_at_tier_limit_for_object_type + capacity helpers — only caller
+      was the index), terminal view/input/history CloudObject arms +
+      resizable_data WarpDriveIndexWidth chain.
+
+      RE-HOMED (live helpers forced out of drive/ by the goal state;
+      documented deviation — deleting would have broken LOCALLY-RUNNABLE
+      features): drive/export.rs → cloud_object/export.rs (ExportManager
+      reachable from EnvVarCollectionAction::Export + notebook export menu;
+      safe_filename → ai_document_view; singleton registration stays at
+      lib.rs:1671; export_tests moved intact); drive/drive_helpers.rs →
+      cloud_object/object_limits.rs (anonymous limit gates used by live
+      env-var/notebook/workflow menus); drive/cloud_object_styling.rs →
+      cloud_object/cloud_object_styling.rs (warp_drive_icon_color live
+      consumers remain). New: DriveObjectType::for_cloud_object; the two
+      live WarpDriveItem consumers reworked onto it (citation chip
+      ai/blocklist/block/view_impl.rs, Rules sync-status icon
+      ai/facts/view/rule.rs).
+
+      RULINGS. OpenWarpDriveObjectSettings: struct DELETED — focused_
+      folder_id only produced by deleted link parsers; invitee_email read
+      only in open_workflow_from_intent's request-access branch (no live
+      producer); every remaining constructor was ::default(); pane
+      snapshots never serialized it (ids live in SQLite columns) → no
+      serde tombstone needed; all settings: params removed through
+      managers/panes/sqlite/wasm_view/tests. OpenAIFactCollection KEPT —
+      the pane renders ai::facts::AIFactView (the live AI Rules pane,
+      AIFactPane/AIFactManager), NOT drive items; menu + binding +
+      knowledge-page event + OpenAddRulePane stay. OpenMCPServerCollection
+      KEPT — handler is show_settings_with_section(AgentMCPServers), a
+      live local settings page. OpenAddPromptPane KEPT as live-but-local
+      (SavePromptAsAgentModeWorkflow emitter is a local AI-block
+      affordance) — its workspace arm is a pre-existing no-op at this
+      HEAD; rewiring to the local workflow modal recorded as follow-up
+      residue, NOT silently kept dead forever.
+
+      SANCTIONED PRE-EXISTING REPAIR (grew beyond the 4gi note — the real
+      count was 9, not 3): crates/integration test steps re-pointed off
+      the deleted SettingsSection::Account (8 sites → About/Warpify, one
+      comment updated) and session_restoration.rs:564
+      SettingsSection::default().available() → default() (available() was
+      removed in 4ge). crates/integration now COMPILES in config A again.
+
+      TEST DELTAS (exactly −10 per config, all asserting deleted
+      behavior): index_tests (2), import_tests (1), uri_tests
+      test_warp_web_link_{notebook,session,workflow} (3), cloud_object
+      model_tests test_collapse_all_in_{location,trash} (2),
+      workflows_data_source_tests test_embed_in_{personal,team}_object (2).
+      Transient self-inflicted warnings fixed during the slice
+      (redundant closure; large_enum_variant → Restored.window_snapshot is
+      now Box<WindowSnapshot>).
+
+      ACCEPTANCE (parent re-ran). (1) Three cargo checks green ZERO
+      warnings. (2) format twice idempotent. (3) Clippy green configs:
+      A = workspace --all-targets --tests: work-tree 2 pairs = exactly the
+      2 pre-existing integration_testing unused imports, ZERO errors (vs
+      HEAD's 9 pre-existing integration errors + 2 warnings — all 9
+      repaired this slice); B = -p warp --no-default-features --features
+      simplewarp --all-targets --tests: 0 pairs both sides. Subagent's own
+      same-command HEAD-vs-worktree diff confirmed identical pre-existing
+      warning sets. (4) nextest -p warp --lib --no-fail-fast: default
+      4,545/4,545/3/0 (4gi 4,555, −10); simplewarp 4,546/4,546/3/0 (4,556,
+      −10). One transient B flake (test_command_block_dispatches_event)
+      passed isolated + rerun. (5) No GUI, no integration suite.
+
+      NEXT: 4gk slice 3 — breadcrumbs + editor seams + naming fallout:
+      cloud_object/breadcrumbs.rs (incl. vestigial drive_viewable/
+      disable_drive_link) + its 3 live callers (notebook details_bar,
+      env_var fixed_view_components, workflow_view); live names still
+      saying WarpDrive (OpenWarpDriveObjectInPane plumbing,
+      AIAgentCitation::WarpDriveObject, SimplifiedWasmTabBarContent::
+      WarpDriveObject, WarpDrivePrivacySettings — persisted-key sensitive,
+      do NOT rename casually, integration_testing/warp_drive/ module whose
+      contents are generic); unreferenced CloudModel open_folder/
+      close_folder/toggle_folder_open/force_expand_*/space-query methods;
+      Icon::EmbedBlock; SavePromptAsAgentModeWorkflow no-op rewire;
+      NotebookLocation unreachable PersonalCloud/Team variants (serde
+      care); then 4gl: dead cargo features
+      (cloud_object_initial_load/enforce_revisions_to_cloud_objects/
+      personal_cloud_objects), AGENTS.md drive mentions, remaining docs.

@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use regex::Regex;
 use warp_core::features::FeatureFlag;
-use warp_core::settings::{ChangeEventReason, Setting};
+#[cfg(any(test, feature = "integration_tests"))]
+use warp_core::settings::ChangeEventReason;
+use warp_core::settings::Setting as _;
 use warpui::{
     AppContext, Entity, ModelContext, SingletonEntity, Tracked, ViewContext, WeakViewHandle,
     WindowId,
@@ -20,12 +22,11 @@ use super::workspace::{
 use crate::ai::llms::LLMModelHost;
 use crate::auth::AuthStateProvider;
 use crate::channel::ChannelState;
-use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{ObjectType, Owner, Space};
+use crate::cloud_object::{Owner, Space};
 use crate::server::ids::ServerId;
-use crate::settings::{
-    AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
-};
+#[cfg(any(test, feature = "integration_tests"))]
+use crate::settings::PrivacySettings;
+use crate::settings::{AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent};
 #[cfg(test)]
 use crate::workspaces::workspace::BillingMetadata;
 use crate::workspaces::workspace::{AiAutonomySettings, SandboxedAgentSettings};
@@ -177,6 +178,7 @@ impl UserWorkspaces {
 
     /// Returns the windows whose team assignment changed.
     #[must_use]
+    #[cfg(any(test, feature = "integration_tests"))]
     fn reconcile_window_team_assignments(&mut self) -> Vec<WindowId> {
         let team_uids = self
             .current_workspace()
@@ -202,6 +204,7 @@ impl UserWorkspaces {
         reassigned_windows
     }
 
+    #[cfg(any(test, feature = "integration_tests"))]
     fn emit_window_team_changed(windows: Vec<WindowId>, ctx: &mut ModelContext<Self>) {
         for _ in windows {
             ctx.emit(UserWorkspacesEvent::WindowTeamChanged);
@@ -210,97 +213,6 @@ impl UserWorkspaces {
 
     pub fn workspace_from_uid(&self, workspace_uid: WorkspaceUid) -> Option<&Workspace> {
         self.workspaces.iter().find(|w| w.uid == workspace_uid)
-    }
-
-    pub fn is_at_tier_limit_for_object_type(
-        team_uid: ServerId,
-        object_type: ObjectType,
-        ctx: &AppContext,
-    ) -> bool {
-        match object_type {
-            ObjectType::Notebook => {
-                !UserWorkspaces::has_capacity_for_shared_notebooks(team_uid, ctx, 1)
-            }
-            ObjectType::Workflow => {
-                !UserWorkspaces::has_capacity_for_shared_workflows(team_uid, ctx, 1)
-            }
-            ObjectType::Folder => false,
-            ObjectType::GenericStringObject(_) => false,
-        }
-    }
-
-    // Checks if the team has capacity for another shared notebook for their current
-    // billing tier, given their current notebook count and delinquency status.
-    pub fn has_capacity_for_shared_notebooks(
-        team_uid: ServerId,
-        ctx: &AppContext,
-        new_shared_notebooks: usize,
-    ) -> bool {
-        let current_shared_notebooks = CloudModel::as_ref(ctx)
-            .active_notebooks_in_space(Space::Team { team_uid }, ctx)
-            .count();
-
-        let team = UserWorkspaces::as_ref(ctx).team_from_uid(team_uid);
-        if let Some(team) = team {
-            // If the team is past due or unpaid, then don't allow new notebooks.
-            if team.billing_metadata.is_delinquent_due_to_payment_issue() {
-                return false;
-            }
-
-            if let Some(policy) = team.billing_metadata.tier.shared_notebooks_policy {
-                // Allow new notebooks if policy is unlimited or if the number of notebooks
-                // is less than the limit.
-                policy.is_unlimited
-                    || current_shared_notebooks + new_shared_notebooks
-                        <= policy
-                            .limit
-                            .try_into()
-                            .expect("shared notebooks limit should be within max i64 range")
-            } else {
-                // If no policy is set, then allow it to go through by default (should still be enforced server-side)
-                true
-            }
-        } else {
-            // If the team is not found, then allow it to go through by default (should still be enforced server-side)
-            true
-        }
-    }
-
-    // Checks if the team has capacity for another shared workflow for their current
-    // billing tier, given their current workflow count and delinquency status.
-    pub fn has_capacity_for_shared_workflows(
-        team_uid: ServerId,
-        ctx: &AppContext,
-        new_shared_workflows: usize,
-    ) -> bool {
-        let current_shared_workflows = CloudModel::as_ref(ctx)
-            .active_workflows_in_space(Space::Team { team_uid }, ctx)
-            .count();
-
-        let team = UserWorkspaces::as_ref(ctx).team_from_uid(team_uid);
-        if let Some(team) = team {
-            // If the team is past due or unpaid, then don't allow new workflows.
-            if team.billing_metadata.is_delinquent_due_to_payment_issue() {
-                return false;
-            }
-
-            if let Some(policy) = team.billing_metadata.tier.shared_workflows_policy {
-                // Allow new workflows if policy is unlimited or if the number of workflows
-                // is less than the limit.
-                policy.is_unlimited
-                    || current_shared_workflows + new_shared_workflows
-                        <= policy
-                            .limit
-                            .try_into()
-                            .expect("shared workflows limit should be within max i64 range")
-            } else {
-                // If no policy is set, then allow it to go through by default (should still be enforced server-side)
-                true
-            }
-        } else {
-            // If the team is not found, then allow it to go through by default (should still be enforced server-side)
-            true
-        }
     }
 
     pub fn sole_team(&self) -> Option<&Team> {
@@ -327,6 +239,7 @@ impl UserWorkspaces {
         &self.workspaces
     }
 
+    #[cfg(any(test, feature = "integration_tests"))]
     pub fn set_current_workspace_uid(
         &mut self,
         workspace_uid: WorkspaceUid,
@@ -677,6 +590,7 @@ impl UserWorkspaces {
         Self::emit_window_team_changed(reassigned_windows, ctx);
     }
 
+    #[cfg(any(test, feature = "integration_tests"))]
     fn notify_and_emit_teams_changed(&self, ctx: &mut ModelContext<Self>) {
         // Update session-sharing enablement since it depends on what teams the user
         // is part of.
@@ -698,6 +612,7 @@ impl UserWorkspaces {
         ctx.notify();
     }
 
+    #[cfg(any(test, feature = "integration_tests"))]
     pub fn is_telemetry_force_enabled(&self) -> bool {
         self.current_workspace()
             .map(|workspace| workspace.settings.telemetry_settings.force_enabled)

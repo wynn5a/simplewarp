@@ -561,7 +561,7 @@ pub fn test_restore_snapshot_with_settings_page() -> Builder {
                     settings_view.read(app, |view, _| {
                         async_assert_eq!(
                             view.current_settings_section(),
-                            SettingsSection::default().available()
+                            SettingsSection::default()
                         )
                     })
                 }),

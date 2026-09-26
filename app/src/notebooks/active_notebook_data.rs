@@ -118,19 +118,6 @@ impl ActiveNotebookData {
                     }
                 }
             }
-            (ObjectOperation::Update, OperationSuccessType::Rejection) => {
-                let current_id = self.id();
-                if let Some(id) = current_id {
-                    let server_id = result
-                        .server_id
-                        .expect("Expect server id on update rejection");
-                    if id.into_server() == Some(server_id) {
-                        self.feature_not_available = false;
-                        ctx.emit(ActiveNotebookDataEvent::EditRejected);
-                        ctx.notify();
-                    }
-                }
-            }
             (ObjectOperation::Trash, OperationSuccessType::Success)
             | (ObjectOperation::Untrash, OperationSuccessType::Success) => {
                 let current_id = self.id();
@@ -318,7 +305,6 @@ pub enum ActiveNotebookDataEvent {
     /// Another user stole the baton for the current object.
     ModeChangedFromServer,
     /// An edit to the current object was rejected.
-    EditRejected,
     /// The notebook's breadcrumbs were updated.
     BreadcrumbsChanged,
     /// This notebook was trashed or untrashed (used for refreshing pane overflow items)
