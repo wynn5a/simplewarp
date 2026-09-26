@@ -99,7 +99,7 @@ pub enum AIDocumentAction {
     Export,
     CopyAsMarkdown,
     OpenVersionMenu,
-    CreateWarpDriveNotebook,
+    SaveToNotebook,
     RevertToDocumentVersion,
     SendUpdatedPlan,
     CopyLink(String),
@@ -396,7 +396,7 @@ impl AIDocumentView {
             pane_config.refresh_pane_header_overflow_menu_items(ctx)
         });
 
-        // Create sync button mouse state (for Warp Drive syncing)
+        // Create sync button mouse state (for notebook syncing)
         let sync_button_mouse_state = MouseStateHandle::default();
 
         // Create Update Agent button
@@ -662,7 +662,7 @@ impl AIDocumentView {
                 let appearance = Appearance::as_ref(app);
                 let ui_builder = appearance.ui_builder().clone();
                 let tooltip = ui_builder
-                    .tool_tip("Save and auto-sync this plan to your Warp Drive".to_string())
+                    .tool_tip("Save this plan as a notebook".to_string())
                     .build()
                     .finish();
                 let sync_button_mouse_state = self.sync_button_mouse_state.clone();
@@ -678,7 +678,7 @@ impl AIDocumentView {
                 .on_click(|ctx, _, _| {
                     ctx.dispatch_typed_action(
                         PaneHeaderAction::<AIDocumentAction, AIDocumentAction>::CustomAction(
-                            AIDocumentAction::CreateWarpDriveNotebook,
+                            AIDocumentAction::SaveToNotebook,
                         ),
                     )
                 })
@@ -715,7 +715,7 @@ impl AIDocumentView {
                 let color = theme.nonactive_ui_detail().into_solid();
                 let ui_builder = appearance.ui_builder().clone();
                 let tooltip_text =
-                    "This plan is synced to your Warp Drive and will auto save any edits you make."
+                    "This plan is saved as a notebook and will auto save any edits you make."
                         .to_string();
                 let synced_status_mouse_state = self.synced_status_mouse_state.clone();
                 Container::new(
@@ -995,12 +995,12 @@ impl AIDocumentView {
         });
     }
 
-    fn create_warp_drive_notebook(&self, ctx: &mut ViewContext<Self>) {
+    fn save_to_notebook(&self, ctx: &mut ViewContext<Self>) {
         let success = AIDocumentModel::handle(ctx).update(ctx, |model, ctx| {
-            model.sync_to_warp_drive(self.document_id, ctx)
+            model.save_to_notebook(self.document_id, ctx)
         });
         if !success {
-            report_error!("Failed to create Warp Drive notebook");
+            report_error!("Failed to save plan as a notebook");
         }
     }
 
@@ -1144,7 +1144,7 @@ impl TypedActionView for AIDocumentView {
                     );
                 });
             }
-            AIDocumentAction::CreateWarpDriveNotebook => self.create_warp_drive_notebook(ctx),
+            AIDocumentAction::SaveToNotebook => self.save_to_notebook(ctx),
             AIDocumentAction::CopyLink(link) => {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(link.to_owned()));
@@ -1298,9 +1298,9 @@ impl BackingView for AIDocumentView {
     ) -> Vec<MenuItem<Self::PaneHeaderOverflowMenuAction>> {
         let mut menu_items = vec![];
 
-        // Only show shareable link when the document is synced to Warp Drive
+        // Only show shareable link when the document is saved as a notebook
         if let Some(link) =
-            AIDocumentModel::as_ref(ctx).get_document_warp_drive_object_link(&self.document_id, ctx)
+            AIDocumentModel::as_ref(ctx).get_document_object_link(&self.document_id, ctx)
         {
             menu_items.push(
                 MenuItemFields::new("Copy link")

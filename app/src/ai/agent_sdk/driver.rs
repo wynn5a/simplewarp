@@ -3020,7 +3020,7 @@ impl AgentDriver {
             }
         });
 
-        // Subscribe to document model events to emit artifact_created when plans sync to Warp Drive.
+        // Subscribe to document model events to emit artifact_created when plans are saved as notebooks.
         ctx.subscribe_to_model(&AIDocumentModel::handle(ctx), move |me, _, event, ctx| {
             let AIDocumentModelEvent::DocumentSaveStatusUpdated(document_id) = event else {
                 return;
@@ -3039,9 +3039,7 @@ impl AgentDriver {
             };
 
             // Get the notebook link from the document model
-            let Some(notebook_link) =
-                doc_model.get_document_warp_drive_object_link(document_id, ctx)
-            else {
+            let Some(notebook_link) = doc_model.get_document_object_link(document_id, ctx) else {
                 return;
             };
 

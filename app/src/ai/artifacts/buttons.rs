@@ -124,7 +124,7 @@ fn collect_buttons(
                 notebook_uid,
                 document_uid: _,
             } => {
-                // Only show plan button if synced to Warp Drive (has notebook_uid)
+                // Only show plan button if the plan has a notebook (has notebook_uid)
                 if let Some(notebook_uid) = notebook_uid {
                     let button_text = title.clone().unwrap_or("Untitled Plan".to_string());
                     let theme = theme.clone();

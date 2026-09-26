@@ -196,7 +196,6 @@ use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::context_chips::ChipRuntimeCapabilities;
 use crate::default_terminal::DefaultTerminal;
 use crate::drive::workflows::arguments::ArgumentsState;
-use crate::drive::workflows::modal::{WorkflowModal, WorkflowModalEvent};
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
@@ -855,7 +854,6 @@ pub struct Workspace {
     ai_assistant_panel: ViewHandle<AIAssistantPanelView>,
     should_show_ai_assistant_warm_welcome: bool,
     ai_assistant_close_warm_welcome_mouse_state_handle: MouseStateHandle,
-    workflow_modal: ViewHandle<WorkflowModal>,
     prompt_editor_modal: ViewHandle<PromptEditorModal>,
     agent_toolbar_editor_modal: ViewHandle<AgentToolbarEditorModal>,
     header_toolbar_editor_modal: ViewHandle<HeaderToolbarEditorModal>,
@@ -1398,16 +1396,6 @@ impl Workspace {
         });
 
         (settings_pane, theme_chooser_view)
-    }
-
-    fn build_workflow_modal(ctx: &mut ViewContext<Self>) -> ViewHandle<WorkflowModal> {
-        let workflow_modal = ctx.add_typed_action_view(WorkflowModal::new);
-
-        ctx.subscribe_to_view(&workflow_modal, |me, _, event, ctx| {
-            me.handle_workflow_modal_event(event, ctx);
-        });
-
-        workflow_modal
     }
 
     fn build_theme_creator_modal(ctx: &mut ViewContext<Self>) -> ViewHandle<ThemeCreatorModal> {
@@ -2332,8 +2320,6 @@ impl Workspace {
             me.handle_codex_modal_event(event, ctx);
         });
 
-        let workflow_modal = Self::build_workflow_modal(ctx);
-
         let theme_creator_modal = Self::build_theme_creator_modal(ctx);
 
         let theme_deletion_modal = Self::build_theme_deletion_modal(ctx);
@@ -2616,7 +2602,6 @@ impl Workspace {
             ai_assistant_close_warm_welcome_mouse_state_handle: Default::default(),
             suggested_agent_mode_workflow_modal,
             suggested_rule_modal,
-            workflow_modal,
             theme_creator_modal,
             theme_deletion_modal,
             window_id: ctx.window_id(),
@@ -3721,7 +3706,7 @@ impl Workspace {
     }
 
     /// This function shifts focus to the panel on the left.
-    /// The current focusable panels are: Warp Drive, theme chooser, and AI
+    /// The current focusable panels are: theme chooser and AI assistant
     fn focus_left_panel(&mut self, ctx: &mut ViewContext<Self>) {
         // Starts from terminal
         if self.active_tab_pane_group().is_self_or_child_focused(ctx) {
@@ -8988,23 +8973,6 @@ impl Workspace {
         }
     }
 
-    fn handle_workflow_modal_event(
-        &mut self,
-        event: &WorkflowModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            WorkflowModalEvent::Close => {
-                self.current_workspace_state.is_workflow_modal_open = false;
-                ctx.notify();
-            }
-            WorkflowModalEvent::UpdatedWorkflow(workflow_id) => {
-                // If saved workflow id matches the one that is currently displayed, then refresh workflow info box + input
-                self.maybe_refresh_workflow_info_box_and_input(workflow_id, ctx);
-            }
-        }
-    }
-
     fn is_input_box_visible(&self, app: &AppContext) -> bool {
         match (
             self.get_active_session_terminal_model(app),
@@ -12085,10 +12053,6 @@ impl Workspace {
     pub fn is_palette_open(&self) -> bool {
         self.current_workspace_state.is_palette_open
             || self.current_workspace_state.is_ctrl_tab_palette_open
-    }
-
-    pub fn is_workflow_modal_open(&self) -> bool {
-        self.current_workspace_state.is_workflow_modal_open
     }
 
     pub fn is_left_panel_open(&self, ctx: &AppContext) -> bool {
@@ -20886,10 +20850,6 @@ impl View for Workspace {
 
         if self.new_worktree_modal.is_open() {
             stack.add_child(self.new_worktree_modal.render());
-        }
-
-        if self.workflow_modal.as_ref(app).is_open() {
-            stack.add_child(ChildView::new(&self.workflow_modal).finish());
         }
 
         if self.current_workspace_state.is_prompt_editor_open {

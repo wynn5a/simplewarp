@@ -15409,3 +15409,96 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       warp_drive/ path — rename ONLY if zero serialization risk),
       drive/workflows/modal.rs creation-mode ruling, then a final
       lint-invisible residue pass over cloud_object/.
+- [x] **drive slice 4 — dead features, docs, residue sweep (4gl) — DONE
+      2026-09-26. CAMPAIGN COMPLETE.** 30 files, +58/−2,448 (2,449 of it
+      this slice). Executed by one subagent; parent independently
+      re-verified. Drive-vertical total 4gi–4gl: 210 files, ≈−17,900
+      lines net across the four slices.
+
+      WHAT FELL. (1) Dead cargo features
+      cloud_object_initial_load / enforce_revisions_to_cloud_objects /
+      personal_cloud_objects (grep-proved zero cfg readers anywhere; the
+      agent_mode_evals set references cloud_object_models' own feature —
+      unaffected). (2) AGENTS.md: the Main-app "Cloud synchronization and
+      Drive features (drive/)" line → workflow-editor components +
+      cloud-object store; the "Cloud Sync: Objects can be synchronized
+      across devices via Warp Drive" bullet → "Local object store …
+      SQLite-backed store shaped like the cloud object model". Nothing
+      else touched. (3) drive/workflows/modal.rs + modal_tests.rs DELETED
+      WHOLE (1,708 + 560) — ruling beyond the brief, well-evidenced:
+      open_with_new had zero callers repo-wide AND was the only setter of
+      is_open (the modal could never render since DrivePanel, its opener,
+      fell in 4gi); the live run-workflow-with-args UX is the WorkflowView
+      pane flow (app/src/workflows/, inline argument_editor), which shares
+      only the four KEPT helper modules (arguments, workflow_arg_selector,
+      workflow_arg_type_helpers, enum_creation_dialog). Workspace wiring
+      + is_workflow_modal_open chain + userless assert_workflow_modal_
+      is_open/_closed + the modal ArgumentTypeEditor impl fell with it
+      (trait stays; workflow_view is the sole implementor).
+      maybe_refresh_workflow_info_box_and_input KEPT (other live caller).
+      Legacy-NAMED-but-live events OpenWorkflowModalWithCommand/
+      WithTemporary remain (they route to open_workflow_with_command/
+      temporary/existing — the live pane flow); rename left for a
+      cosmetic round. (4) RENAMES (verified purely internal, no
+      serde/wire/settings keys): sync_to_warp_drive → save_to_notebook,
+      CreateWarpDriveNotebook → SaveToNotebook, create_warp_drive_notebook
+      → save_to_notebook, hydrate_saved_plan_from_warp_drive →
+      hydrate_saved_plan, get_document_warp_drive_object_link →
+      get_document_object_link. KEPT as substrate (persisted or
+      wire-shaped): autosync_plans_to_warp_drive (serde field on
+      AIExecutionProfile — schemars description + doc updated only),
+      WarpDrivePrivacySettings, ObjectOperation::MoveToDrive,
+      WorkflowSource::PersonalCloud, AIAgentCitation::WarpDriveObject,
+      Icon::Warp/warp-drive.svg, integration_testing/warp_drive/ path,
+      app_state LeftPanelDisplayedTab WarpDrive tombstone + test
+      (intentional parse-compat fixtures). USER-VISIBLE SYNC STRINGS FIXED
+      to local reality: "Save and auto-sync this plan to your Warp Drive"
+      → "Save this plan as a notebook"; "This plan is synced to your Warp
+      Drive…" → "This plan is saved as a notebook…"; profile-editor
+      "synced to Warp Drive" → "saved as notebooks"; "Auto-sync plans to
+      Warp Drive:" → "Auto-sync plans:"; plus plan-publication log/report
+      strings. Stale comments fixed (cloud_object/mod.rs index docs,
+      notebooks/manager.rs, ToggleLeftPanel/focus_left_panel docs). (5)
+      Bridges resolved: object_actions_by_id allow removed (live readers),
+      update_ai_execution_profile allow removed (live caller), json_model
+      allow removed → app-local JsonSerializer proven never-constructed →
+      deleted struct+impl. (6) Telemetry: nothing left to delete.
+
+      TEST DELTAS: exactly −6 both configs, all modal_tests (asserted the
+      deleted modal only).
+
+      ACCEPTANCE (parent re-ran). (1) Three cargo checks green ZERO
+      warnings. (2) format twice idempotent. (3) Clippy full-uncached pair
+      sets: pre A=16/B=14 (the known pre-existing set: 11 needless_return
+      terminal/input.rs + collapsible_if view.rs + unnecessary_filter_map
+      search/action/data_source.rs + single_element_loop
+      lifecycle/mod_tests.rs:272 + 2 integration imports) — post
+      IDENTICAL modulo the collapsible_if line shift (view.rs:6700→6685);
+      zero new in either config. (4) nextest -p warp --lib: default
+      4,539/4,539/3/0 (4gk 4,545, −6); simplewarp 4,540/4,540/3/0 (4,546,
+      −6); the recurring test_command_block_dispatches_event flake did
+      NOT appear this round. (5) No GUI, no integration suite.
+
+      LEFT FOR FUTURE ROUNDS (recorded, all substrate or naming):
+      crates/onboarding WARP_DRIVE_FEATURES + login-slide strings;
+      integration stub join_a_workspace label + workspace/home.rs "Warp on
+      Web" text; legacy event names OpenWorkflowModal*; substrate
+      identifiers (MoveToDrive, PersonalCloud, WarpDrivePrivacySettings,
+      WarpDriveObject, settings sync_to_cloud comments);
+      test_command_block_dispatches_event flake (3 transient failures
+      across 4gi/4gj/4gk, always self-healing).
+
+      DRIVE CAMPAIGN VERDICT: SimpleWarp has no Warp Drive feature. The
+      tools-panel tab, menus, palette mode, keybinding-gated creations,
+      drive settings, drive-as-agent-context, index/browse/import/export/
+      trash, breadcrumbs, warp:// object links, embedding search, and the
+      dead workflow modal are gone. What REMAINS is local-only and live:
+      the workflow feature (browser/view/run/save with inline arg
+      editor), local-file notebooks + the notebook editor, env-var
+      collection blocks + editors, MCP servers (file-based + settings
+      pages), AI rules/facts/execution-profiles/preferences — all backed
+      by the SQLite cloud-object-shaped local store
+      (cloud_objects/cloud_object_persistence/cloud_object_models +
+      app/src/cloud_object + update_manager), which survives under its
+      cloud-shaped names per the standing no-churn-on-persisted-shapes
+      policy.

@@ -17,16 +17,9 @@ use crate::workflows::workflow_enum::{CloudWorkflowEnumModel, WorkflowEnum};
 pub struct ArgumentEditorRowIndex(pub usize);
 
 /// Trait for getting a `WorkflowArgSelector` from a component.
-/// Used to make helper functions generic, working for both the
-/// `WorkflowView` and `WorkflowModal` components.
+/// Used to make helper functions generic over the argument-row type.
 pub trait ArgumentTypeEditor {
     fn arg_type_editor(&self) -> &ViewHandle<WorkflowArgSelector>;
-}
-
-impl ArgumentTypeEditor for super::modal::ArgumentEditorRow {
-    fn arg_type_editor(&self) -> &ViewHandle<WorkflowArgSelector> {
-        &self.typed_default_value_editor
-    }
 }
 
 /// Get all workflow enums in the space, filtering to only show the shared ones
@@ -56,7 +49,6 @@ where
 }
 
 /// Helper function used to load an argument into the ArgSelector component on initialization
-/// Used by both `WorkflowModal` and `WorkflowView`
 pub fn load_argument_into_selector(
     selector: &mut WorkflowArgSelector,
     argument: &Argument,
@@ -112,7 +104,6 @@ pub fn load_argument_into_selector(
 }
 
 /// Helper function used to create an argument given the workflow argument selector and text editor
-/// Used by both `WorkflowModal` and `WorkflowView`
 pub fn extract_typed_argument_from_selector(
     argument: &Argument,
     description: Option<String>,

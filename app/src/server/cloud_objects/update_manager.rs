@@ -422,7 +422,6 @@ impl UpdateManager {
         );
     }
 
-    #[allow(dead_code)]
     pub fn update_ai_execution_profile(
         &mut self,
         ai_execution_profile: AIExecutionProfile,

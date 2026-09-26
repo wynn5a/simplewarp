@@ -1603,7 +1603,7 @@ impl AIConversation {
         });
     }
 
-    /// Updates the notebook_uid for a plan artifact when it's synced to Warp Drive.
+    /// Updates the notebook_uid for a plan artifact once its notebook is created.
     pub fn update_plan_notebook_uid(
         &mut self,
         document_uid: AIDocumentId,

@@ -105,14 +105,14 @@ impl CreateDocumentsExecutor {
 
                 if should_autosync {
                     model.update(ctx, |model, model_ctx| {
-                        model.sync_to_warp_drive(id, model_ctx);
+                        model.save_to_notebook(id, model_ctx);
                     });
                 }
 
                 // Add plan artifact to the conversation.
                 let artifact = Artifact::Plan {
                     document_uid: id.to_string(),
-                    notebook_uid: None, // Will be updated when synced to Warp Drive
+                    notebook_uid: None, // Will be updated when the notebook is created
                     title: Some(document.title.clone()),
                 };
                 let terminal_view_id = self.terminal_view_id;

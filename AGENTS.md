@@ -76,7 +76,7 @@ call-out are surface-agnostic.
 **Main app** (`app/`) — the GUI desktop app:
 - Terminal emulation and shell management (`terminal/`)
 - AI integration including Agent Mode (`ai/`)
-- Cloud synchronization and Drive features (`drive/`)
+- Workflow editor components (`drive/workflows/`) and the cloud-object store they persist through (`cloud_object/`)
 - Authentication and user management (`auth/`)
 - Settings and preferences (`settings/`)
 - Workspace and session management (`workspace/`)
@@ -93,7 +93,7 @@ call-out are surface-agnostic.
 2. **Modular Structure**: Workspace contains multiple workspace configurations, each with terminals, notebooks, etc.
 3. **Cross-Platform**: Native implementations for macOS, Windows, Linux, plus WASM target
 4. **AI Integration**: Built-in AI assistant with context awareness and codebase indexing
-5. **Cloud Sync**: Objects can be synchronized across devices via Warp Drive
+5. **Local object store**: Notebooks, workflows, environments and similar objects persist locally in a SQLite-backed store shaped like the cloud object model (`crates/cloud_objects`, `app/src/cloud_object/`)
 
 ### Development Guidelines
 

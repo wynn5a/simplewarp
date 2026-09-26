@@ -387,10 +387,10 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
         true
     }
 
-    /// Returns the display name for this model (e.g. to show in the Warp Drive index)
+    /// Returns the display name for this model.
     fn display_name(&self) -> String;
 
-    /// Sets the display name to show in the Warp Drive Index.  Setting the name
+    /// Sets the display name.  Setting the name
     /// is not currently supported by all object types, hence the default empty
     /// implementation.
     fn set_display_name(&mut self, _name: &str) {}

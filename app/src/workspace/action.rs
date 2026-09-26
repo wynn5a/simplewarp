@@ -346,9 +346,7 @@ pub enum WorkspaceAction {
         cursor_position: Vector2F,
     },
     DropGroup,
-    /// Toggles the left panel. In Code Mode V1 this toggles Warp Drive.
-    /// In Code Mode V2 this toggles the left panel which contains both the project explorer and
-    /// Warp Drive. This happens as explicit action from the user.
+    /// Toggles the left panel. This happens as explicit action from the user.
     ToggleLeftPanel,
     /// Toggles the right panel. This happens as an explicit action from the user.
     ToggleRightPanel,

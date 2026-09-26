@@ -905,8 +905,7 @@ pub fn render_plan_auto_sync_toggle(
     .finish();
 
     let desc_elem = Text::new(
-        "The plans this agent creates will be automatically added and synced to Warp Drive."
-            .to_string(),
+        "The plans this agent creates will be automatically saved as notebooks.".to_string(),
         appearance.ui_font_family(),
         11.,
     )

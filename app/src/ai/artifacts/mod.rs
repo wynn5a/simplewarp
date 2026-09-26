@@ -18,7 +18,7 @@ pub enum Artifact {
     #[serde(rename = "PLAN")]
     Plan {
         document_uid: String,
-        /// None until the plan is synced to Warp Drive.
+        /// None until the plan's notebook is created.
         notebook_uid: Option<NotebookId>,
         title: Option<String>,
     },
