@@ -1120,16 +1120,13 @@ pub(crate) fn initialize_app(
     // captured by the HTTP client hooks.
     ctx.add_singleton_model(|_ctx| NetworkLogModel::default());
 
-    let server_api_provider = ctx.add_singleton_model({
+    ctx.add_singleton_model({
         let auth_state = auth_state.clone();
         move |ctx| ServerApiProvider::new(auth_state, ctx)
     });
-
     ctx.add_singleton_model(|_ctx| AuthStateProvider::new(auth_state.clone()));
 
-    ctx.add_singleton_model(|ctx| {
-        AuthManager::new(server_api_provider.as_ref(ctx).get_auth_client(), ctx)
-    });
+    ctx.add_singleton_model(AuthManager::new);
 
     ctx.add_singleton_model(|_ctx| GPUState::new());
 
@@ -1365,9 +1362,7 @@ pub(crate) fn initialize_app(
         });
     });
 
-    let user_is_logged_in = auth_state.is_logged_in();
-
-    if user_is_logged_in {
+    if auth_state.is_logged_in() {
         // Set the first frame callback to record the app's startup time.
         // This is only sent for logged-in users so that new users don't skew performance metrics.
         ctx.on_first_frame_drawn(move |ctx| {
@@ -1689,12 +1684,6 @@ pub(crate) fn initialize_app(
     {
         ctx.add_singleton_model(LocalShellState::new);
         ctx.add_singleton_model(system::SystemInfo::new);
-    }
-
-    // CLI commands refresh auth in their dispatch path so they can surface failures
-    // synchronously; other interactive clients authenticate here.
-    if !matches!(launch_mode, LaunchMode::CommandLine { .. }) && user_is_logged_in {
-        AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| auth_manager.refresh_user(ctx));
     }
 
     // Add a singleton model that holds the current prompt configuration.

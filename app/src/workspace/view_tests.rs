@@ -437,8 +437,8 @@ fn test_tools_panel_preferences_activate_after_signup_and_ai_enablement() {
             assert!(!AISettings::as_ref(ctx).is_conversation_history_enabled(ctx));
         });
 
-        // Signing up makes account-backed features available. AuthComplete
-        // must refresh the existing workspace even though no setting changed.
+        // A remote-server auth context makes account-backed features
+        // available even though no setting changed.
         app.update(|ctx| {
             AuthStateProvider::as_ref(ctx)
                 .get()
@@ -449,11 +449,6 @@ fn test_tools_panel_preferences_activate_after_signup_and_ai_enablement() {
                 );
         });
         workspace.update(&mut app, |workspace, ctx| {
-            workspace.handle_auth_manager_event(
-                AuthManager::handle(ctx),
-                &AuthManagerEvent::AuthComplete,
-                ctx,
-            );
             assert!(
                 workspace
                     .left_panel_views

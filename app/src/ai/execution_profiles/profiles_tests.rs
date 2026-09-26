@@ -11,8 +11,6 @@ use crate::ai::execution_profiles::{
 use crate::ai::llms::LLMId;
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
-use crate::auth::user::User;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{
@@ -22,7 +20,6 @@ use crate::cloud_object::{
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
-use crate::server::server_api::ServerApiProvider;
 use crate::settings::cloud_preferences::{
     CloudPreference, CloudPreferenceModel, CloudPreferencesSettings,
 };
@@ -238,124 +235,6 @@ fn explicit_local_collection_is_preserved_from_onboarding() {
                     .value()
                     .profile(&ExecutionProfileId::parse("pre-login").unwrap())
                     .is_some()
-            );
-        });
-    });
-}
-
-#[test]
-fn migration_retries_after_auth_completes() {
-    let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        install_singletons(&mut app, AuthStateProvider::new_logged_out_for_test());
-        app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(AuthManager::new_for_test);
-
-        let server_id = ServerId::from(504);
-        let legacy_profile = owned_legacy_profile(
-            SyncId::ServerId(server_id),
-            AIExecutionProfile {
-                name: "Migrated after auth".to_string(),
-                read_files: ActionPermission::AlwaysAllow,
-                ..Default::default()
-            },
-        );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(legacy_profile.id, legacy_profile);
-        });
-
-        let _profile_model = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        complete_cloud_initial_load(&mut app);
-        app.read(|ctx| {
-            assert!(
-                !AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .is_value_explicitly_set()
-            );
-        });
-
-        AuthManager::handle(&app).update(&mut app, |_auth_manager, ctx| {
-            AuthStateProvider::as_ref(ctx)
-                .get()
-                .set_user(Some(User::test()));
-            ctx.emit(AuthManagerEvent::AuthComplete);
-        });
-
-        let migrated_key = ExecutionProfileId::from_legacy_server_id(server_id);
-        app.read(|ctx| {
-            assert_eq!(
-                AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .value()
-                    .profile(&migrated_key)
-                    .map(|profile| profile.read_files),
-                Some(ActionPermission::AlwaysAllow)
-            );
-        });
-    });
-}
-
-#[test]
-fn auth_completion_waits_for_cloud_initial_load_before_migrating() {
-    let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        install_singletons(&mut app, AuthStateProvider::new_logged_out_for_test());
-        app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(AuthManager::new_for_test);
-
-        let profile_model = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        AuthManager::handle(&app).update(&mut app, |_auth_manager, ctx| {
-            AuthStateProvider::as_ref(ctx)
-                .get()
-                .set_user(Some(User::test()));
-            ctx.emit(AuthManagerEvent::AuthComplete);
-        });
-
-        app.read(|ctx| {
-            assert!(
-                !AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .is_value_explicitly_set()
-            );
-        });
-
-        let server_id = ServerId::from(516);
-        let legacy_profile = owned_legacy_profile(
-            SyncId::ServerId(server_id),
-            AIExecutionProfile {
-                name: "Loaded after auth".to_string(),
-                read_files: ActionPermission::AlwaysAllow,
-                ..Default::default()
-            },
-        );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(legacy_profile.id, legacy_profile);
-        });
-        complete_cloud_initial_load(&mut app);
-
-        let migrated_key = ExecutionProfileId::from_legacy_server_id(server_id);
-        app.read(|ctx| {
-            assert_eq!(
-                AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .value()
-                    .profile(&migrated_key)
-                    .map(|profile| profile.read_files),
-                Some(ActionPermission::AlwaysAllow)
-            );
-        });
-        profile_model.read(&app, |model, ctx| {
-            assert_eq!(
-                model
-                    .get_profile_by_id(&migrated_key, ctx)
-                    .map(|profile| profile.data().name.clone()),
-                Some("Loaded after auth".to_string())
             );
         });
     });

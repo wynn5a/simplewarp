@@ -31,7 +31,7 @@ use super::{
     SettingsAction, SettingsSection, ToggleSettingActionPair, flags, plan_header_presentation,
 };
 use crate::appearance::Appearance;
-use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
+use crate::auth::auth_manager::AuthManager;
 use crate::auth::auth_state::AuthState;
 use crate::auth::{AuthStateProvider, UserUid};
 use crate::server::ids::ServerId;
@@ -106,17 +106,6 @@ impl MainPageAction {
     }
 }
 
-impl From<&MainPageAction> for LoginGatedFeature {
-    fn from(val: &MainPageAction) -> LoginGatedFeature {
-        use MainPageAction::*;
-        match val {
-            Upgrade { .. } => "Upgrade Plan",
-            ToggleSettingsSync => "Toggle Settings Sync",
-            _ => "Unknown reason",
-        }
-    }
-}
-
 pub struct MainSettingsPageView {
     self_handle: WeakViewHandle<Self>,
     page: PageType<Self>,
@@ -138,7 +127,7 @@ impl TypedActionView for MainSettingsPageView {
             && action.blocked_for_anonymous_user()
         {
             AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.attempt_login_gated_feature(action.into(), ctx)
+                auth_manager.attempt_login_gated_feature(ctx)
             });
             return;
         }

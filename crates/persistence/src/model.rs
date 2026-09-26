@@ -11,11 +11,11 @@ use warp_multi_agent_api::{self as api};
 use super::schema::{
     active_mcp_servers, agent_conversations, agent_tasks, ai_document_panes, ai_memory_panes,
     ambient_agent_panes, app, blocks, code_pane_tabs, code_panes, code_review_panes, commands,
-    current_user_information, env_var_collection_panes, folders, generic_string_objects,
-    ignored_suggestions, mcp_environment_variables, mcp_server_installations, mcp_server_panes,
-    notebook_panes, notebooks, object_actions, object_metadata, object_permissions, pane_branches,
-    pane_leaves, pane_nodes, panels, project_rules, projects, server_experiments, settings_panes,
-    tab_groups, tabs, team_members, team_settings, teams, terminal_panes, user_profiles, windows,
+    env_var_collection_panes, folders, generic_string_objects, ignored_suggestions,
+    mcp_environment_variables, mcp_server_installations, mcp_server_panes, notebook_panes,
+    notebooks, object_actions, object_metadata, object_permissions, pane_branches, pane_leaves,
+    pane_nodes, panels, project_rules, projects, server_experiments, settings_panes, tab_groups,
+    tabs, team_members, team_settings, teams, terminal_panes, user_profiles, windows,
     workflow_panes, workflows, workspace_language_server, workspace_metadata, workspace_teams,
     workspaces,
 };
@@ -858,12 +858,6 @@ pub struct ServerExperiment {
 #[diesel(table_name = server_experiments)]
 pub struct NewServerExperiment {
     pub experiment: String,
-}
-
-#[derive(Debug, Insertable)]
-#[diesel(table_name = current_user_information)]
-pub struct CurrentUserInformation {
-    pub email: String,
 }
 
 #[derive(Debug, Insertable, Queryable, AsChangeset)]

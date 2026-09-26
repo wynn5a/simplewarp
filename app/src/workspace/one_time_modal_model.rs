@@ -1,21 +1,12 @@
-use settings::Setting as _;
-use warpui::{AppContext, Entity, ModelContext, SingletonEntity, WindowId};
+use warpui::{Entity, ModelContext, SingletonEntity, WindowId};
 
-use super::view::feature_intro_modal::{FEATURE_INTROS, FeatureIntroId};
-use crate::auth::AuthManager;
-use crate::auth::auth_manager::AuthManagerEvent;
-use crate::channel::{Channel, ChannelState};
-use crate::settings::cloud_preferences_syncer::{
-    CloudPreferencesSyncer, CloudPreferencesSyncerEvent,
-};
-use crate::settings::{AISettings, CodeSettings};
+use super::view::feature_intro_modal::FeatureIntroId;
 
 /// A generic model for managing one-time modals that should be shown to users only once.
 ///
 /// Initially implemented for the ADE launch modal, but designed to be extensible to support
 /// other types of one-time modals in the future. The model holds the canonical state of whether
-/// a modal is currently being shown and automatically triggers the modal when appropriate
-/// conditions are met (e.g., user becomes onboarded).
+/// a modal is currently being shown.
 pub struct OneTimeModalModel {
     /// Whether the free-AI-removal notice modal is currently being shown.
     is_free_ai_removal_modal_open: bool,
@@ -24,56 +15,16 @@ pub struct OneTimeModalModel {
     /// intentionally excluded from `is_any_modal_open` (which suppresses terminal
     /// focus stealing) to keep the terminal usable while it is visible.
     active_feature_intro: Option<FeatureIntroId>,
-    /// Whether the initial one-time modal checks have run. The seen markers are
-    /// cloud-synced settings, so event-driven re-checks must wait for the initial
-    /// cloud preferences load to avoid acting on stale values.
-    has_completed_initial_modal_checks: bool,
     /// The window ID where the currently open one-time modal should be displayed.
     /// This is captured when a modal is first opened and ensures the modal stays on that window.
     target_window_id: Option<WindowId>,
 }
 
 impl OneTimeModalModel {
-    pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        // Subscribe to auth manager events to automatically trigger modal when user becomes onboarded
-        ctx.subscribe_to_model(&AuthManager::handle(ctx), |_, _, event, ctx| {
-            let AuthManagerEvent::AuthComplete = event else {
-                return;
-            };
-
-            let auth_state = crate::auth::AuthStateProvider::as_ref(ctx).get().clone();
-            let is_existing_user = auth_state.is_onboarded().unwrap_or_default();
-            if is_existing_user {
-                // Settings modals settings are synced to the cloud, not respecting the user's sync setting, so they
-                // must all await initial load to be triggered, else we risk reading a stale triggered value.
-                ctx.subscribe_to_model(
-                    &CloudPreferencesSyncer::handle(ctx),
-                    move |me, _, event, ctx| {
-                        if let CloudPreferencesSyncerEvent::InitialLoadCompleted = event {
-                            ctx.unsubscribe_from_model(&CloudPreferencesSyncer::handle(ctx));
-                            me.has_completed_initial_modal_checks = true;
-                            me.check_and_trigger_all_modals(ctx);
-                        }
-                    },
-                );
-            } else {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    // New signups shouldn't see feature-intro popovers on their second
-                    // startup, so pre-mark every registered feature intro as seen.
-                    for intro in FEATURE_INTROS {
-                        settings.mark_feature_intro_seen(intro.id.as_key(), ctx);
-                    }
-                });
-                // Accounts created after the removal of free AI go through the new
-                // onboarding and are treated as already-noticed (no modal).
-                mark_free_ai_removal_notice_seen(ctx);
-            }
-        });
-
+    pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
         Self {
             is_free_ai_removal_modal_open: false,
             active_feature_intro: None,
-            has_completed_initial_modal_checks: false,
             target_window_id: None,
         }
     }
@@ -108,10 +59,10 @@ impl OneTimeModalModel {
     ) -> bool {
         if self.active_feature_intro != intro {
             self.active_feature_intro = intro;
-            // Bind the popover to the focused window as soon as it opens. The
-            // workspace only renders / populates the view when
-            // `target_window_id` matches, and `on_active_window_changed` may not
-            // have run yet when the startup modal queue fires.
+            // Bind the popover to the focused window as soon as it opens, since
+            // the workspace only renders / populates the view when
+            // `target_window_id` matches and `on_active_window_changed` may not
+            // have run yet.
             if intro.is_some()
                 && self.target_window_id.is_none()
                 && let Some(window_id) = ctx.windows().active_window()
@@ -134,8 +85,8 @@ impl OneTimeModalModel {
     pub fn update_target_window_id(&mut self, window_id: WindowId, ctx: &mut ModelContext<Self>) {
         let was_any_modal_visible = self.is_any_modal_open();
         // Feature intro is intentionally excluded from `is_any_modal_open`, so
-        // track it separately. Without this, activating a window after the
-        // startup queue already selected an intro never re-emits, and the
+        // track it separately. Without this, activating a window after an intro
+        // was selected but before it was bound to one never re-emits, and the
         // workspace never calls `show_feature_intro_modal`.
         let was_feature_intro_visible = self.active_feature_intro().is_some();
         let previous_target = self.target_window_id;
@@ -150,25 +101,6 @@ impl OneTimeModalModel {
                 is_open: is_any_modal_visible || is_feature_intro_visible,
             });
         }
-    }
-
-    fn check_and_trigger_all_modals(&mut self, ctx: &mut ModelContext<Self>) {
-        // Never show one-time modals on WASM.
-        if cfg!(target_family = "wasm") {
-            return;
-        }
-
-        // Existing users should never see the code toolbelt new feature popup.
-        CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
-            if let Err(e) = settings
-                .dismissed_code_toolbelt_new_feature_popup
-                .set_value(true, ctx)
-            {
-                log::warn!("Failed to mark code toolbelt new feature popup as dismissed: {e}");
-            }
-        });
-
-        self.check_and_trigger_feature_intro_modal(ctx);
     }
 
     /// Returns whether the free-AI-removal notice modal is currently open.
@@ -197,44 +129,6 @@ impl OneTimeModalModel {
         }
         false
     }
-
-    fn check_and_trigger_feature_intro_modal(&mut self, ctx: &mut ModelContext<Self>) -> bool {
-        if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-            return false;
-        }
-        // Show the first registered feature intro that the user hasn't seen yet
-        // (see `FEATURE_INTROS`).
-        let next_id = FEATURE_INTROS
-            .iter()
-            .find(|intro| !AISettings::as_ref(ctx).is_feature_intro_seen(intro.id.as_key()))
-            .map(|intro| intro.id);
-        let Some(id) = next_id else {
-            return false;
-        };
-
-        // Mark it seen up front so it shows at most once, even if suppressed below.
-        AISettings::handle(ctx).update(ctx, |settings, ctx| {
-            settings.mark_feature_intro_seen(id.as_key(), ctx);
-        });
-
-        let should_show = !matches!(ChannelState::channel(), Channel::Integration);
-        if should_show {
-            self.set_active_feature_intro(Some(id), ctx);
-        }
-        should_show
-    }
-}
-
-/// Marks the free-AI-removal notice as seen without showing it.
-pub fn mark_free_ai_removal_notice_seen(app: &mut AppContext) {
-    AISettings::handle(app).update(app, |settings, ctx| {
-        if let Err(e) = settings
-            .did_check_to_trigger_free_ai_removal_modal
-            .set_value(true, ctx)
-        {
-            log::warn!("Failed to mark free AI removal notice as seen: {e}");
-        }
-    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

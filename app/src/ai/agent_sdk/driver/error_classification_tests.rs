@@ -35,11 +35,6 @@ fn terminal_unavailable_is_error() {
 }
 
 #[test]
-fn not_logged_in_is_error() {
-    assert_state(AgentDriverError::NotLoggedIn, AgentTaskState::Error);
-}
-
-#[test]
 fn share_session_failures_are_error() {
     assert_state(
         AgentDriverError::ShareSessionFailed {

@@ -14,7 +14,6 @@ pub mod font;
 mod gpu;
 pub mod import;
 mod init;
-pub mod initializer;
 mod input;
 mod input_mode;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]

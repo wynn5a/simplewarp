@@ -15,7 +15,6 @@ pub fn classify_driver_error(error: &AgentDriverError) -> AgentTaskState {
         }
         AgentDriverError::BootstrapFailed { .. } => AgentTaskState::Error,
         AgentDriverError::ShareSessionFailed { .. } => AgentTaskState::Error,
-        AgentDriverError::NotLoggedIn => AgentTaskState::Error,
         // --- User-side errors (task → FAILED) ---
         AgentDriverError::MCPServerNotFound(_)
         | AgentDriverError::ManagedMcpResolutionFailed { .. }

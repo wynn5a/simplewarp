@@ -4,7 +4,7 @@ use warpui_extras::user_preferences;
 
 use super::*;
 use crate::ai::llms::LLMModelHost;
-use crate::auth::AuthManager;
+use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::features::FeatureFlag;
 use crate::network::NetworkStatus;

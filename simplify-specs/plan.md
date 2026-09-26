@@ -14345,3 +14345,137 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       user_fetched, UpsertCurrentUserInformation, did_non_anonymous_
       user_log_in write). Note: set_and_persist/persist survive 4ga
       only until 3a; user_properties.rs falls with on_user_fetched.
+
+- [x] **login slice 3a — AuthManager slims to the toast emitters
+      (4gc) — DONE 2026-09-26.** RESUME round: the previous agent died
+      before verification and left the deletions uncommitted (33 files,
+      +54/−1,469 at handoff). Every hunk was independently re-verified
+      against the 4fz slice-3a map before being kept; zero hunks
+      reverted. Completed this round: the predecessor missed the
+      root_view `use warp_errors::report_error;` cleanup — its only
+      compiled user in either clippy config was the deleted AuthFailed
+      arm (the remaining call site sits in `#[cfg(feature =
+      "voice_input")] maybe_stop_active_voice_input`, not compiled by
+      presubmit), so the import moved to the cfg-gated call site as a
+      qualified one-off (`warp_errors::report_error!`, precedent
+      code_review/diff_state/error.rs:155). Final: 33 files, +57/−1,471.
+
+      DELETIONS with evidence (all symbols zero-referenced post-delete,
+      PCRE lookbehind sweeps): auth_manager.rs — auth_client field +
+      ctor param + new_for_test body, refresh_user, on_user_fetched
+      (incl. crash_reporting::set_user_id call, SettingsInitializer/
+      CloudPreferencesSyncer handle_user_fetched calls, did_non_
+      anonymous_user_log_in write, persistence::reconstruct call,
+      UpsertCurrentUserInformation emission, warp_isolation_platform
+      spawn), complete_authentication/set_and_persist/persist,
+      PersistedCurrentUserInformation, LoginGatedFeature type alias,
+      attempt_login_gated_feature's feature param, set_user_onboarded's
+      ctx+persist (LOCAL getter stays; get-started callers in
+      workspace view stay per landmine 14); AuthManagerEvent slims to
+      {NeedsReauth, AttemptedLoginGatedFeature} (NeedsReauth still
+      emitted via server_api pump :252 set_needs_reauth — 3b's); 
+      user_properties.rs (54 lines); auth_manager_tests.rs (86 lines —
+      all 3 remaining tests exercised complete_authentication/persist);
+      auth/mod.rs user_properties decl + the AuthManager re-export
+      (single surviving `crate::auth::AuthManager` user re-pathed).
+      Subscribers: one_time_modal_model (AuthComplete arm + the
+      auth-gated trigger chain it exclusively reached:
+      check_and_trigger_all_modals, check_and_trigger_feature_intro_
+      modal, has_completed_initial_modal_checks, mark_free_ai_removal_
+      notice_seen — feature-intro dismiss/show/debug APIs stay),
+      profiles.rs (eval-cfg AuthComplete→migrate arm; syncer arm
+      STAYS), mcp native.rs (AuthManager subscription + stale detach-
+      on-logout comment; ServerApiProvider subscription STAYS for 3b),
+      root_view (AuthManager subscription + handle_auth_manager_event
+      + sync_local_onboarding_to_server), agent_sdk (launch_command,
+      command_requires_auth, authenticate_and_dispatch, AgentDriver
+      NotLoggedIn gate + variant + classification arm), lib.rs
+      (refresh_user call + auth_client registration arg + user_is_
+      logged_in local inlined), settings init.rs (SettingsInitializer
+      registration), initializer.rs deleted whole (the struct was only
+      a vehicle for handle_user_fetched; both dated migrations ran
+      solely on user fetch — unreachable without login), cloud_
+      preferences_syncer handle_user_fetched (fields have init-path
+      users, kept), GeneralSettings did_non_anonymous_user_log_in
+      (zero refs remain), stale SettingsInitializer comments in
+      input_mode.rs/theme.rs. drive/index + workspace action + main_
+      page: the 3 From<&Action> for LoginGatedFeature impls fell with
+      the param; attempt_login_gated_feature 3 call sites re-pinned;
+      anonymous_user_hit_drive_object_limit + its 4 callers untouched
+      (landmine 13). workspace view: check_and_trigger_telemetry_
+      banner_for_existing_users (AuthComplete arm's only caller;
+      terminal-view insert path + onboarding-flow trigger stay).
+
+      ONE-HOP CONSEQUENCES beyond the map's letter, each verified:
+      persistence Logout-v0 reconstruction protocol collapsed —
+      persistence::reconstruct + sqlite::reconstruct/reconstruct_
+      database + ModelEvent::{PauseAndRemoveDatabase,ReconstructAnd-
+      Resume} + writer paused flag (4gb deferred these to this round:
+      auth_manager:140 was the last sender) — and UpsertCurrentUser-
+      Information variant + sqlite handler + CurrentUserInformation
+      Insertable (auth_manager:143 was the only sender; no readers).
+      crates/persistence schema.rs table + migration left in place.
+      root_view HAS_COMPLETED_ONBOARDING_KEY + has_completed_local_
+      onboarding fell with sync_local_onboarding_to_server (landmine
+      14's letter says local, but the key had no production writer at
+      HEAD and the helper's sole reader was the deleted sync — an
+      unused pub(crate) item would trip dead_code; onboarding.rs slide
+      flow untouched).
+
+      TEST CHANGES: 11 deletions, all tied to deleted machinery: 3
+      auth_manager_tests (above), 3 root_view_tests (each called
+      sync_local_onboarding_to_server directly), 2 profiles_tests
+      (migration_retries_after_auth_completes,
+      auth_completion_waits_for_cloud_initial_load_before_migrating —
+      emitted AuthComplete), 2 one_time_modal_model_tests
+      (feature_intro_triggers_for_unseen_feature,
+      feature_intro_skipped_when_all_seen — called the deleted
+      check_and_trigger_feature_intro_modal), 1 error_classification_
+      tests (not_logged_in_is_error). view_tests
+      test_tools_panel_preferences_activate_after_signup re-pinned:
+      drops the handle_auth_manager_event call, still validates
+      live-Arc auth-context unlocking (test counts honest, no
+      weakening of coverage claims).
+
+      Residue deliberately LEFT (compiler-invisible, owned by later
+      slices): warp_server_auth untouched per round scope —
+      AuthClient::{fetch_user, fetch_user_properties} now have no app
+      callers (3b); AuthState read API orphans (persist_action/
+      PersistAction, User type) are pub in warp_server_auth, no lint
+      (3b); server_api/auth.rs shim keeps AuthClient re-export
+      (remote_server auth_context + remote_server_controller still
+      consume it — 3b/landmine 7); AISettings mark_feature_intro_seen/
+      is_feature_intro_seen caller-less pub methods + the
+      current_user_information schema.rs table + migration (slice 4
+      intro-UI vertical / slice 5 persistence deep-clean respectively).
+
+      Acceptance: (1) ./script/format twice, idempotent. (2) HEAD
+      clippy baseline captured via git stash/pop, error message +
+      location pairs machine-diffed: baseline 14 pairs (workspace) /
+      12 pairs (-p warp); after the import fix the work-tree sets are
+      IDENTICAL to baseline in both configs (11 needless_return
+      input.rs + 1 single_element_loop lifecycle/mod_tests.rs:272 +
+      2 integration_testing unused imports workspace-only; zero new,
+      zero gone, plain-warning lines identical). One intermediate
+      round caught the root_view unused-import (fixed, see above).
+      (3) cargo check --no-default-features --features simplewarp
+      --bin simplewarp green. (4) cargo check -p warp --lib
+      --features test-util green (74-file gate). (5) nextest -p warp
+      --lib --no-fail-fast: default 4,573 run / 4,573 passed /
+      3 skipped / 0 failed (4gb baseline 4,584, −11 = the documented
+      deletions, zero flakes, no reruns); simplewarp 4,572 / 4,572 /
+      3 / 0 (baseline 4,583, −11). Slice acceptance: agent_sdk CLI
+      commands dispatch without auth (run() → dispatch_command
+      directly; requires_auth/refresh chain gone), test-util green.
+      (6) DEVELOPER_DIR unset; no GUI launch, no integration suite.
+
+      NEXT: slice 3b (4gd) — the wire dies (~20 files, ≈−1,500)
+      exactly as 4fz scoped: delete warp_server_auth {auth_client,
+      session, session_tests, firebase, user/persistence + tests,
+      user_tests}; shrink auth_state/credentials/user per the
+      inventory; server_api.rs {pump, auth_client, get_auth_client,
+      auth.rs shim, auth_tests.rs, Event=()}; AuthEvent enum + its 3
+      subscribers; remote_server auth_context collapse + wire_auth_
+      token_rotation; whoami CLI; agent_mode_evals auth half
+      (hand-compile). Acceptance: warp_server_auth compiles with no
+      warp_graphql dep; skip_login still forwards (feature dies in 4).

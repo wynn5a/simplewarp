@@ -40,7 +40,6 @@ use crate::ai::mcp::{
     TemplatableMCPServer, TemplatableMCPServerInstallation, TransportType, builtin, logs,
 };
 use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{
     CloudObject, CloudObjectLocation, CloudObjectLookup as _, CloudObjectMetadataExt,
@@ -336,22 +335,7 @@ impl TemplatableMCPServerManager {
             _ => {}
         });
 
-        // Built-in Warp-hosted MCP servers follow the user's auth lifecycle:
-        // attach after login, re-attach with fresh credentials when the
-        // access token rotates, and detach on logout. Skipped in tests, which
-        // construct the manager without the auth singletons.
         if !cfg!(test) {
-            let auth_manager = AuthManager::handle(ctx);
-            ctx.subscribe_to_model(&auth_manager, |me, _, event, ctx| match event {
-                // Fires on login and on user refresh; the credentials may
-                // have rotated either way, so respawn with the current token.
-                AuthManagerEvent::AuthComplete => me.sync_builtin_servers(true, ctx),
-                AuthManagerEvent::AuthFailed(_) | AuthManagerEvent::NeedsReauth => {
-                    me.sync_builtin_servers(false, ctx)
-                }
-                AuthManagerEvent::AttemptedLoginGatedFeature => {}
-            });
-
             let server_api_provider = ServerApiProvider::handle(ctx);
             ctx.subscribe_to_model(&server_api_provider, |me, _, event, ctx| match event {
                 // The transport captured the token it was spawned with, so a
@@ -416,8 +400,7 @@ impl TemplatableMCPServerManager {
             }
         }
 
-        // Attach built-in Warp-hosted servers for already-logged-in users
-        // (fresh logins are handled by the AuthManager subscription above).
+        // Attach built-in Warp-hosted servers for already-authenticated users.
         if !cfg!(test) {
             me.sync_builtin_servers(false, ctx);
         }

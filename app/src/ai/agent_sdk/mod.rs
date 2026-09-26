@@ -9,11 +9,7 @@ pub use driver::AgentDriver;
 use driver::AgentDriverError;
 pub(crate) use driver::harness::{task_env_vars, validate_cli_installed};
 use tracing::Instrument as _;
-use warp_cli::agent::{
-    AgentCommand, AgentProfileCommand, Harness, OutputFormat, Prompt, RunAgentArgs,
-};
-use warp_cli::mcp::MCPCommand;
-use warp_cli::model::ModelCommand;
+use warp_cli::agent::{AgentCommand, Harness, OutputFormat, Prompt, RunAgentArgs};
 use warp_cli::share::ShareRequest;
 use warp_cli::{CliCommand, GlobalOptions};
 use warp_core::features::FeatureFlag;
@@ -34,8 +30,6 @@ use crate::ai::llms::LLMId;
 use crate::ai::skills::{
     ResolveSkillError, ResolvedSkill, clone_repo_for_skill, resolve_skill_spec,
 };
-use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::cloud_object::CloudObjectLookup as _;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::server::ids::{ServerId, SyncId};
@@ -62,7 +56,7 @@ pub fn run(
     command: CliCommand,
     global_options: GlobalOptions,
 ) -> anyhow::Result<()> {
-    launch_command(ctx, command, global_options)
+    dispatch_command(ctx, command, global_options)
 }
 
 /// Dispatch a CLI command to its handler.
@@ -551,100 +545,6 @@ impl AgentDriverRunner {
             });
         });
     }
-}
-
-/// Returns `true` if the given CLI command requires authentication.
-fn command_requires_auth(command: &CliCommand) -> bool {
-    match command {
-        CliCommand::Agent(agent_cmd) => match agent_cmd {
-            AgentCommand::Run { .. } => true,
-            AgentCommand::Profile(sub) => match sub {
-                AgentProfileCommand::List => true,
-            },
-        },
-        CliCommand::MCP(mcp_cmd) => match mcp_cmd {
-            MCPCommand::List => true,
-        },
-        CliCommand::Model(model_cmd) => match model_cmd {
-            ModelCommand::List => true,
-        },
-        CliCommand::Whoami => true,
-        CliCommand::Provider(_) => true,
-    }
-}
-
-/// Launch a CLI command, checking authentication first if needed.
-///
-/// If auth is not required, dispatches the command immediately.
-/// If auth is required, refreshes persisted credentials before launching the
-/// command.
-fn launch_command(
-    ctx: &mut AppContext,
-    command: CliCommand,
-    global_options: GlobalOptions,
-) -> anyhow::Result<()> {
-    let parent_span = tracing::Span::current();
-    let requires_auth = command_requires_auth(&command);
-
-    if !requires_auth {
-        return dispatch_command(ctx, command, global_options);
-    }
-
-    let cli_name = warp_cli::binary_name().unwrap_or_else(|| "warp".to_string());
-
-    let auth_state = AuthStateProvider::handle(ctx).as_ref(ctx).get();
-    if !auth_state.is_logged_in() {
-        return Err(anyhow::anyhow!(
-            "You are not logged in - please log in with `{cli_name} login` to continue."
-        ));
-    }
-
-    authenticate_and_dispatch(ctx, command, global_options, parent_span);
-
-    Ok(())
-}
-
-/// Subscribes to auth events, refreshes credentials, and dispatches the
-/// command once auth completes.
-fn authenticate_and_dispatch(
-    ctx: &mut AppContext,
-    command: CliCommand,
-    global_options: GlobalOptions,
-    parent_span: tracing::Span,
-) {
-    let cli_name = warp_cli::binary_name().unwrap_or_else(|| "warp".to_string());
-
-    // Subscribe to auth events and wait for validation before running the command.
-    let mut dispatched = false;
-    ctx.subscribe_to_model(&AuthManager::handle(ctx), move |_, event, ctx| {
-        let _guard = parent_span.enter();
-        if dispatched {
-            return;
-        }
-        match event {
-            AuthManagerEvent::AuthComplete => {
-                dispatched = true;
-                if let Err(err) = dispatch_command(ctx, command.clone(), global_options.clone()) {
-                    report_fatal_error(err, ctx);
-                }
-            }
-            AuthManagerEvent::NeedsReauth => {
-                dispatched = true;
-                let message = format!(
-                    "Your credentials are invalid. Please log in again with `{cli_name} login`."
-                );
-                report_fatal_error(anyhow::anyhow!(message), ctx);
-            }
-            AuthManagerEvent::AuthFailed(err) => {
-                dispatched = true;
-                report_fatal_error(anyhow::anyhow!("Authentication failed: {err:#}"), ctx);
-            }
-            _ => {}
-        }
-    });
-
-    // Trigger authentication - the subscription above will handle the result.
-    AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| auth_manager.refresh_user(ctx));
 }
 
 /// Report a fatal error and terminate the app.

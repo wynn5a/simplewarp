@@ -11,7 +11,6 @@ use warp_core::r#async::debounce;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::settings::ChangeEventReason;
 use warp_core::user_preferences::GetUserPreferences;
-use warp_errors::report_if_error;
 use warpui::{Entity, ModelContext, SingletonEntity};
 use warpui_extras::user_preferences::toml_backed::TomlBackedUserPreferences;
 
@@ -19,7 +18,6 @@ use super::PrivacySettings;
 use super::ai::ExecutionProfiles;
 use super::cloud_preferences::{CloudPreferencesSettings, CloudPreferencesSettingsChangedEvent};
 use super::manager::SettingsEvent;
-use crate::auth::auth_state::AuthState;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType};
@@ -325,48 +323,6 @@ impl CloudPreferencesSyncer {
     fn handle_local_preference_updated(&mut self, storage_key: &str, ctx: &mut ModelContext<Self>) {
         // Don't debounce in tests - they have enough async stuff going
         self.maybe_sync_local_prefs_to_cloud(vec![storage_key.to_string()], ctx);
-    }
-
-    /// Handler for when the user has been fetched. Potentially kicks off a sync.
-    pub fn handle_user_fetched(
-        &mut self,
-        auth_state: Arc<AuthState>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // Inert when cloud sync is disabled for this surface (e.g. the TUI).
-        if !self.sync_enabled {
-            return;
-        }
-
-        let is_onboarded = auth_state.is_onboarded();
-
-        // Reset the initial load flag so that we re-evaluate sync direction
-        // based on the new user's fresh cloud data rather than stale data from
-        // a previous session (e.g. anonymous user's cloud prefs).
-        self.has_completed_initial_load = false;
-
-        // The startup hash-based override was computed for the app launch
-        // and consumed on the first initial load. Clear it so it doesn't
-        // re-trigger for the new user session.
-        self.force_local_wins_on_startup = false;
-
-        if is_onboarded == Some(false) {
-            log::info!("Opting first-time user into cloud preferences");
-            CloudPreferencesSettings::handle(ctx).update(ctx, |settings, ctx| {
-                report_if_error!(settings.settings_sync_enabled.set_value(true, ctx));
-            });
-        } else {
-            log::info!("Not opting existing user into cloud preferences");
-        }
-
-        // Always trigger a sync explicitly. For not-yet-onboarded users the
-        // set_value call above may be a no-op if settings_sync_enabled was
-        // already true (e.g. from a prior anonymous session), so no change
-        // event would fire. We need the sync to happen regardless so that
-        // handle_initial_load can examine the *new* user's cloud state and
-        // decide whether to preserve local settings (brand-new user, no cloud
-        // prefs) or apply cloud settings (existing user with cloud prefs).
-        self.sync(ForceCloudToMatchLocal::No, ctx);
     }
 
     /// Performs a settings sync. Checks internally to confirm that the correct settings are

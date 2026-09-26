@@ -132,14 +132,6 @@ define_settings_group!(GeneralSettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
-    did_non_anonymous_user_log_in: DidNonAnonymousUserLogIn {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    },
     build_plan_migration_modal_dismissed: BuildPlanMigrationModalDismissed {
         type: bool,
         default: false,
