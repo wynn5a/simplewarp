@@ -67,7 +67,6 @@ use warp_core::ui::theme::{AnsiColors, Fill};
 use warp_core::user_preferences::GetUserPreferences as _;
 use warp_editor::editor::NavigationKey;
 use warp_errors::{report_error, report_if_error};
-use warp_server_auth::session::AuthEvent;
 use warp_util::path::{LineAndColumnArg, user_friendly_path};
 use warpui::accessibility::{
     AccessibilityContent, AccessibilityVerbosity, ActionAccessibilityContent, WarpA11yRole,
@@ -258,7 +257,6 @@ use crate::server::cloud_objects::update_manager::{
 };
 use crate::server::ids::{ObjectUid, ServerId, SyncId};
 use crate::server::network_log_pane_manager::NetworkLogPaneManager;
-use crate::server::server_api::ServerApiProvider;
 use crate::session_management::{SessionNavigationData, SessionSource, TabNavigationData};
 use crate::settings::cloud_preferences::CloudPreferencesSettings;
 use crate::settings::{
@@ -911,7 +909,6 @@ pub struct Workspace {
     tab_bar_pinned_by_popup: bool,
     user_menu: ViewHandle<Menu<WorkspaceAction>>,
     native_modal: ViewHandle<NativeModal>,
-    shown_staging_banner_count: u32,
 
     // When user's open WEB for the first time, we ask them to select a preference of
     // always opening in web or opening in native app.
@@ -2140,25 +2137,6 @@ impl Workspace {
             appearance,
         )
     }
-    /// Subscribe to the [`ServerApiProvider`] model to report status changes.
-    fn observe_server_api(ctx: &mut ViewContext<Self>) {
-        let server_api_events = ServerApiProvider::handle(ctx);
-        ctx.subscribe_to_model(&server_api_events, |me, _, event, ctx| {
-            if let AuthEvent::StagingAccessBlocked = event
-                && ChannelState::uses_staging_server()
-                && me.shown_staging_banner_count < 5
-            {
-                me.shown_staging_banner_count += 1;
-                me.toast_stack.update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::error(
-                        "Staging API call failed. Did your IP address change?".to_string(),
-                    )
-                    .with_object_id("staging_access_blocked_toast".to_string());
-                    toast_stack.add_ephemeral_toast(toast, ctx);
-                });
-            }
-        });
-    }
 
     fn subscribe_to_workspace_toast_stack(
         toast_stack: ViewHandle<DismissibleToastStack<WorkspaceAction>>,
@@ -2665,8 +2643,6 @@ impl Workspace {
 
         let import_modal = Self::build_import_modal(ctx);
 
-        Self::observe_server_api(ctx);
-
         Self::subscribe_to_workspace_toast_stack(toast_stack.clone(), ctx);
         Self::subscribe_to_tab_config_errors(toast_stack.clone(), ctx);
         Self::subscribe_to_settings_errors(ctx);
@@ -2799,7 +2775,6 @@ impl Workspace {
             left_panel_views,
             right_panel_view,
             working_directories_model,
-            shown_staging_banner_count: 0,
 
             #[cfg(target_family = "wasm")]
             show_wasm_nux_dialog: WasmNUXDialog::should_display(ctx),
@@ -9670,9 +9645,6 @@ impl Workspace {
     ) {
         match event {
             AuthManagerEvent::AttemptedLoginGatedFeature => self.open_require_login_modal(ctx),
-            AuthManagerEvent::NeedsReauth => {
-                ctx.notify();
-            }
         }
     }
 

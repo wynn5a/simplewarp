@@ -14812,27 +14812,13 @@ dependencies = [
 name = "warp_server_auth"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "async-channel",
- "async-trait",
- "chrono",
- "cynic",
- "futures",
- "http_client",
- "instant",
  "lasso",
  "log",
  "parking_lot",
- "rand 0.8.6",
  "serde",
- "serde_json",
- "thiserror 2.0.17",
  "uuid",
  "warp_core",
- "warp_errors",
- "warp_graphql",
  "warpui_core",
- "warpui_extras",
 ]
 
 [[package]]

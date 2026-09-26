@@ -1,13 +1,7 @@
-use anyhow::{Result, anyhow};
-use chrono::{DateTime, FixedOffset, Local};
 use serde::{Deserialize, Serialize};
-use warp_graphql::queries::get_user::FirebaseProfile;
-use warp_graphql::scalars::time::ServerTimestamp;
 
 use super::UserUid;
 pub use super::user_uid::{TEST_USER_EMAIL, TEST_USER_UID};
-
-pub mod persistence;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AnonymousUserType {
@@ -27,54 +21,11 @@ pub enum PrincipalType {
     ServiceAccount,
 }
 
-impl From<warp_graphql::queries::get_user::PrincipalType> for PrincipalType {
-    fn from(value: warp_graphql::queries::get_user::PrincipalType) -> Self {
-        use warp_graphql::queries::get_user::PrincipalType as GqlPrincipalType;
-        match value {
-            GqlPrincipalType::User => PrincipalType::User,
-            GqlPrincipalType::ServiceAccount => PrincipalType::ServiceAccount,
-        }
-    }
-}
-
-impl TryFrom<warp_graphql::mutations::create_anonymous_user::AnonymousUserType>
-    for AnonymousUserType
-{
-    type Error = anyhow::Error;
-    fn try_from(
-        value: warp_graphql::mutations::create_anonymous_user::AnonymousUserType,
-    ) -> Result<Self, Self::Error> {
-        match value {
-            warp_graphql::mutations::create_anonymous_user::AnonymousUserType::NativeClientAnonymousUser => Ok(AnonymousUserType::NativeClientAnonymousUser),
-            warp_graphql::mutations::create_anonymous_user::AnonymousUserType::NativeClientAnonymousUserFeatureGated => Ok(AnonymousUserType::NativeClientAnonymousUserFeatureGated),
-            warp_graphql::mutations::create_anonymous_user::AnonymousUserType::WebClientAnonymousUser => Ok(AnonymousUserType::WebClientAnonymousUser),
-            warp_graphql::mutations::create_anonymous_user::AnonymousUserType::Other(_) => {
-                Err(anyhow!("could not convert unknown anonymous user type"))
-            },
-        }
-    }
-}
-
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct PersonalObjectLimits {
     pub env_var_limit: usize,
     pub notebook_limit: usize,
     pub workflow_limit: usize,
-}
-
-impl TryFrom<warp_graphql::queries::get_user::AnonymousUserPersonalObjectLimits>
-    for PersonalObjectLimits
-{
-    type Error = anyhow::Error;
-    fn try_from(
-        value: warp_graphql::queries::get_user::AnonymousUserPersonalObjectLimits,
-    ) -> Result<Self, Self::Error> {
-        Ok(Self {
-            env_var_limit: value.env_var_limit as usize,
-            notebook_limit: value.notebook_limit as usize,
-            workflow_limit: value.workflow_limit as usize,
-        })
-    }
 }
 
 /// The in-memory representation of a logged-in User.
@@ -96,7 +47,6 @@ pub struct User {
     /// from a general email provider (e.g. gmail.com, hotmail.com, proton.me, etc.).
     /// Calculated on warp-server.
     pub is_on_work_domain: bool,
-    pub linked_at: Option<ServerTimestamp>,
     pub personal_object_limits: Option<PersonalObjectLimits>,
     /// Type of principal (user or service account). Fetched fresh from the server
     /// on each login/refresh.
@@ -117,41 +67,6 @@ pub struct UserMetadata {
     pub display_name: Option<String>,
     /// A URL for their profile picture.
     pub photo_url: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FirebaseAuthTokens {
-    /// ID tokens are Firebase tokens, which are short-lived tokens that are used to authenticate
-    /// requests to the server. These are obtained by exchanging long-lived refresh tokens.
-    pub id_token: String,
-    /// Refresh tokens are long-lived tokens that can be exchanged for short-lived access tokens
-    /// (stored in the id_token field). We use the refresh token to get a new ID token when the
-    /// current one expires.
-    /// Note that there are two types of refresh tokens we store in this field:
-    /// "Refresh tokens": these are used for logged-in users.
-    /// "Custom tokens": these are used for anonymous firebase users.
-    pub refresh_token: String,
-    /// When the ID token expires. If the token has expired, or will expire soon, we should
-    /// fetch a new ID token using the user's refresh token.
-    pub expiration_time: DateTime<FixedOffset>,
-}
-
-impl FirebaseAuthTokens {
-    pub fn from_response(
-        id_token: String,
-        refresh_token: String,
-        expires_in: String,
-    ) -> Result<Self, anyhow::Error> {
-        let local_time = Local::now();
-        Ok(Self {
-            id_token,
-            expiration_time: local_time.with_timezone(local_time.offset())
-                + chrono::Duration::seconds(
-                    expires_in.parse::<i64>().map_err(anyhow::Error::from)?,
-                ),
-            refresh_token,
-        })
-    }
 }
 
 impl User {
@@ -182,7 +97,6 @@ impl User {
             needs_sso_link: false,
             anonymous_user_type: None,
             is_on_work_domain: false,
-            linked_at: None,
             personal_object_limits: None,
             principal_type: PrincipalType::User,
             global_skills: Vec::new(),
@@ -190,7 +104,7 @@ impl User {
     }
 
     pub fn is_user_anonymous(&self) -> bool {
-        self.anonymous_user_type().is_some() && self.linked_at().is_none()
+        self.anonymous_user_type().is_some()
     }
 
     pub fn anonymous_user_type(&self) -> Option<AnonymousUserType> {
@@ -199,20 +113,6 @@ impl User {
 
     pub fn personal_object_limits(&self) -> Option<PersonalObjectLimits> {
         self.personal_object_limits
-    }
-
-    pub fn linked_at(&self) -> Option<ServerTimestamp> {
-        self.linked_at
-    }
-}
-
-impl From<FirebaseProfile> for UserMetadata {
-    fn from(value: FirebaseProfile) -> Self {
-        Self {
-            email: value.email.unwrap_or_default(),
-            display_name: value.display_name,
-            photo_url: value.photo_url,
-        }
     }
 }
 

@@ -20,7 +20,6 @@ use warp_core::features::FeatureFlag;
 use warp_core::safe_error;
 use warp_core::settings::Setting as _;
 use warp_errors::report_error;
-use warp_server_auth::session::AuthEvent;
 use warpui::windowing::WindowManager;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
@@ -50,7 +49,6 @@ use crate::persistence::{
 };
 use crate::server::cloud_objects::update_manager::{InitiatedBy, UpdateManager};
 use crate::server::ids::{ClientId, ServerId, SyncId};
-use crate::server::server_api::ServerApiProvider;
 use crate::settings::AISettings;
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
@@ -334,18 +332,6 @@ impl TemplatableMCPServerManager {
             },
             _ => {}
         });
-
-        if !cfg!(test) {
-            let server_api_provider = ServerApiProvider::handle(ctx);
-            ctx.subscribe_to_model(&server_api_provider, |me, _, event, ctx| match event {
-                // The transport captured the token it was spawned with, so a
-                // rotated token requires a respawn.
-                AuthEvent::AccessTokenRefreshed { .. } => me.sync_builtin_servers(true, ctx),
-                AuthEvent::StagingAccessBlocked
-                | AuthEvent::NeedsReauth
-                | AuthEvent::UserAccountDisabled => {}
-            });
-        }
 
         let database_connection =
             database_file_path_for_current_scope()
@@ -761,9 +747,6 @@ impl TemplatableMCPServerManager {
             return;
         }
 
-        // A missing token here means the current one is about to expire; the
-        // AccessTokenRefreshed subscription calls back in with a fresh one
-        // once the app's request layer refreshes it.
         let Some(token) = auth_state
             .credentials()
             .and_then(|credentials| builtin::builtin_bearer_token(&credentials))
@@ -772,10 +755,9 @@ impl TemplatableMCPServerManager {
             return;
         };
 
-        // Auth events cluster at startup (login completion, user refresh,
-        // token refresh) and usually carry the same credential. Respawning
-        // for each would open a redundant server-side MCP session per event,
-        // so only respawn when the effective bearer actually changed.
+        // Reconnects can re-run this with the same credential. Respawning for
+        // each would open a redundant server-side MCP session per event, so
+        // only respawn when the effective bearer actually changed.
         if is_active && self.builtin_server_token.as_deref() == Some(token.as_str()) {
             return;
         }

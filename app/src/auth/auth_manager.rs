@@ -7,8 +7,6 @@ use super::auth_state::AuthState;
 
 #[derive(Debug)]
 pub enum AuthManagerEvent {
-    /// The user's credentials have become invalid and they need to reauthenticate.
-    NeedsReauth,
     /// The user is anonymous and has attempted to access a login-gated feature or link.
     AttemptedLoginGatedFeature,
 }
@@ -31,16 +29,6 @@ impl AuthManager {
     #[cfg(test)]
     pub fn new_for_test(ctx: &mut ModelContext<Self>) -> Self {
         Self::new(ctx)
-    }
-
-    /// Sets whether or not the user needs to reauth. Emits [`AuthManagerEvent::NeedsReauth`]
-    /// on the transition to needing a reauth.
-    pub fn set_needs_reauth(&self, needs_reauth: bool, ctx: &mut ModelContext<Self>) {
-        let became_true = self.auth_state.set_needs_reauth(needs_reauth);
-
-        if became_true {
-            ctx.emit(AuthManagerEvent::NeedsReauth);
-        }
     }
 
     pub fn attempt_login_gated_feature(&self, ctx: &mut ModelContext<Self>) {

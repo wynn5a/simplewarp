@@ -847,7 +847,7 @@ fn profile_sources_preserve_state_across_migration_and_rollout() {
             app.add_model(|ctx| {
                 AIExecutionProfilesModel::new(
                     &LaunchMode::CommandLine {
-                        command: warp_cli::CliCommand::Whoami,
+                        command: warp_cli::CliCommand::Model(warp_cli::model::ModelCommand::List),
                         global_options: warp_cli::GlobalOptions::default(),
                         debug: false,
                         is_sandboxed: true,

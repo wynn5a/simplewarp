@@ -201,19 +201,16 @@ fn a_skipped_well_known_spec_does_not_drop_the_others() {
 
 // ── Built-in Factory MCP injection tests ────────────────────────────────────
 
-fn api_key_credentials() -> Credentials {
-    Credentials::ApiKey {
-        key: "wk-test-key".to_string(),
-        owner_type: None,
-    }
+fn bearer_credentials() -> Credentials {
+    Credentials::Bearer("wk-test-key".to_string())
 }
 
 #[test]
-fn builtin_factory_mcp_attaches_with_api_key_credentials() {
+fn builtin_factory_mcp_attaches_with_bearer_credentials() {
     let _flag = FeatureFlag::FactoryMcp.override_enabled(true);
 
     let installation =
-        AgentDriver::builtin_factory_mcp_for_run(Some(&api_key_credentials()), &HashSet::new())
+        AgentDriver::builtin_factory_mcp_for_run(Some(&bearer_credentials()), &HashSet::new())
             .expect("built-in Factory MCP should attach when eligible");
 
     assert_eq!(installation.uuid(), FACTORY_MCP_INSTALLATION_UUID);
@@ -228,7 +225,7 @@ fn builtin_factory_mcp_skipped_when_flag_disabled() {
     let _flag = FeatureFlag::FactoryMcp.override_enabled(false);
 
     assert!(
-        AgentDriver::builtin_factory_mcp_for_run(Some(&api_key_credentials()), &HashSet::new())
+        AgentDriver::builtin_factory_mcp_for_run(Some(&bearer_credentials()), &HashSet::new())
             .is_none()
     );
 }
@@ -247,7 +244,7 @@ fn builtin_factory_mcp_skipped_on_name_collision() {
     let taken_server_names = HashSet::from([FACTORY_MCP_SERVER_NAME.to_string()]);
 
     assert!(
-        AgentDriver::builtin_factory_mcp_for_run(Some(&api_key_credentials()), &taken_server_names)
+        AgentDriver::builtin_factory_mcp_for_run(Some(&bearer_credentials()), &taken_server_names)
             .is_none()
     );
 }

@@ -361,9 +361,6 @@ pub enum CliCommand {
     #[command(subcommand)]
     Model(crate::model::ModelCommand),
 
-    /// Print information about the logged-in user.
-    Whoami,
-
     /// Manage providers.
     #[command(subcommand)]
     Provider(crate::provider::ProviderCommand),
@@ -376,7 +373,6 @@ impl CliCommand {
             CliCommand::Agent(command) => command.as_str_for_tracing(),
             CliCommand::MCP(command) => command.as_str_for_tracing(),
             CliCommand::Model(command) => command.as_str_for_tracing(),
-            CliCommand::Whoami => "whoami",
             CliCommand::Provider(command) => command.as_str_for_tracing(),
         }
     }

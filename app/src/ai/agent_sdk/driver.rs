@@ -992,9 +992,8 @@ impl AgentDriver {
     /// `warp-factory` (an explicit configuration wins over the built-in).
     ///
     /// The token is pinned into the transport at spawn time and is not
-    /// refreshed mid-run: cloud runs authenticate with API keys, which do not
-    /// rotate, so only Firebase-authenticated local runs that outlive their
-    /// token would see factory tool calls start failing.
+    /// refreshed mid-run, so a run that outlives its credential would see
+    /// factory tool calls start failing.
     fn builtin_factory_mcp_for_run(
         credentials: Option<&Credentials>,
         taken_server_names: &HashSet<String>,

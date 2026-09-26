@@ -809,7 +809,6 @@ agent_mode_evals = [
     "cloud_object_models/agent_mode_evals",
     "rust-embed/debug-embed",
     "warp_logging/agent_mode_evals",
-    "warp_server_auth/agent_mode_evals",
 ]
 allow_ignoring_input_suggestions = []
 inline_slash_commands = ["agent_view"]

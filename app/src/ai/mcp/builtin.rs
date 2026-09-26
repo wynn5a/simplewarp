@@ -1,14 +1,12 @@
 //! Built-in Warp-hosted MCP servers.
 //!
-//! Built-in servers are attached automatically for logged-in users: their
-//! definitions are constructed in code and authenticated with the user's
-//! existing session credentials (warp-server accepts both session ID tokens
-//! and API keys as `Bearer` credentials), so they require no MCP
-//! configuration and no manually minted API key.
+//! Built-in servers are attached automatically whenever a usable bearer
+//! credential exists: their definitions are constructed in code and
+//! authenticated with that token as `Bearer` credentials, so they require no
+//! MCP configuration and no manually minted API key.
 //!
-//! Lifecycle is owned by [`TemplatableMCPServerManager::sync_builtin_servers`]
-//! (attach on login, re-attach on token rotation, detach on logout), gated by
-//! [`warp_core::features::FeatureFlag::FactoryMcp`].
+//! Lifecycle is owned by [`TemplatableMCPServerManager::sync_builtin_servers`],
+//! gated by [`warp_core::features::FeatureFlag::FactoryMcp`].
 //!
 //! CLI agent runs (`oz agent run`) bypass that manager path; the agent
 //! driver attaches the same installation per-run instead (see
@@ -41,21 +39,8 @@ pub const FACTORY_MCP_SERVER_NAME: &str = "warp-factory";
 
 /// Returns the bearer token built-in servers should authenticate with, or
 /// `None` when the current credentials cannot be used for one.
-///
-/// A Firebase token that expires within the next couple of minutes is treated
-/// as unusable: spawning with it would race expiry, and a 401 on the
-/// connection preflight would misroute the built-in server into the
-/// interactive MCP OAuth flow. The app's request layer refreshes tokens
-/// within a five-minute window (see `AuthSession::get_or_refresh_access_token`),
-/// and the manager respawns on the resulting `AccessTokenRefreshed` event.
 pub fn builtin_bearer_token(credentials: &Credentials) -> Option<String> {
-    if let Some(tokens) = credentials.as_firebase() {
-        let min_validity = chrono::Duration::minutes(2);
-        if chrono::Local::now().fixed_offset() + min_validity >= tokens.expiration_time {
-            return None;
-        }
-    }
-    credentials.bearer_token().bearer_token()
+    credentials.bearer_token().map(str::to_owned)
 }
 
 /// Builds the ephemeral installation for the built-in Factory MCP server: a

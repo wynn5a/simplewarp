@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use warp_core::ui::appearance::Appearance;
 use warp_editor::editor::EditorView;
+use warp_server_auth::user::{TEST_USER_EMAIL, TEST_USER_UID};
 use warpui::platform::WindowStyle;
 use warpui::presenter::ChildView;
 use warpui::{
@@ -11,7 +12,6 @@ use warpui::{
 
 use super::{NotebookEvent, NotebookView};
 use crate::auth::auth_manager::AuthManager;
-use crate::auth::user::{TEST_USER_EMAIL, TEST_USER_UID};
 use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;

@@ -68,27 +68,40 @@ fn model_list_parses() {
 fn debug_before_subcommand_parses() {
     // Regression test: `warp --debug <subcommand>` should work.
     // Global flags like --debug must not prevent subcommand detection.
-    let args = Args::try_parse_from(["warp", "--debug", "whoami"]).unwrap();
+    let args = Args::try_parse_from(["warp", "--debug", "model", "list"]).unwrap();
 
     assert!(args.debug());
     let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp whoami` command");
+        panic!("Expected `warp model list` command");
     };
-    assert!(matches!(boxed_cmd.as_ref(), CliCommand::Whoami));
+    assert!(matches!(
+        boxed_cmd.as_ref(),
+        CliCommand::Model(crate::model::ModelCommand::List)
+    ));
 }
 
 #[test]
 fn multiple_global_flags_before_subcommand_parse() {
     // Both --output-format and --debug before the subcommand should work.
-    let args =
-        Args::try_parse_from(["warp", "--output-format", "json", "--debug", "whoami"]).unwrap();
+    let args = Args::try_parse_from([
+        "warp",
+        "--output-format",
+        "json",
+        "--debug",
+        "model",
+        "list",
+    ])
+    .unwrap();
 
     assert_eq!(args.global_options.output_format, OutputFormat::Json);
     assert!(args.debug());
     let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp whoami` command");
+        panic!("Expected `warp model list` command");
     };
-    assert!(matches!(boxed_cmd.as_ref(), CliCommand::Whoami));
+    assert!(matches!(
+        boxed_cmd.as_ref(),
+        CliCommand::Model(crate::model::ModelCommand::List)
+    ));
 }
 
 #[test]
@@ -608,7 +621,7 @@ fn hidden_server_overrides_parse_from_env() {
         "ws://127.0.0.1:8081",
     );
 
-    let args = Args::try_parse_from(["warp", "whoami"]).unwrap();
+    let args = Args::try_parse_from(["warp", "model", "list"]).unwrap();
 
     restore_env_var(SERVER_ROOT_URL_OVERRIDE_ENV, previous_server_root);
     restore_env_var(WS_SERVER_URL_OVERRIDE_ENV, previous_ws);

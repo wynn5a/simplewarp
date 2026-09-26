@@ -1,43 +1,12 @@
-use chrono::Duration;
-
 use super::*;
 use crate::ai::mcp::parsing::resolve_json;
 use crate::ai::mcp::{MCPServer, MCPServerExt as _, TransportType};
-use crate::auth::user::FirebaseAuthTokens;
-
-fn firebase_credentials(expires_in: Duration) -> Credentials {
-    Credentials::Firebase(FirebaseAuthTokens {
-        id_token: "firebase-id-token".to_string(),
-        refresh_token: "refresh-token".to_string(),
-        expiration_time: chrono::Local::now().fixed_offset() + expires_in,
-    })
-}
 
 #[test]
-fn bearer_token_uses_a_valid_firebase_id_token() {
+fn bearer_token_uses_a_bearer_credential() {
     assert_eq!(
-        builtin_bearer_token(&firebase_credentials(Duration::hours(1))),
-        Some("firebase-id-token".to_string())
-    );
-}
-
-#[test]
-fn bearer_token_rejects_a_firebase_token_about_to_expire() {
-    assert_eq!(
-        builtin_bearer_token(&firebase_credentials(Duration::seconds(30))),
-        None
-    );
-}
-
-#[test]
-fn bearer_token_uses_api_keys() {
-    let credentials = Credentials::ApiKey {
-        key: "wk-test-key".to_string(),
-        owner_type: None,
-    };
-    assert_eq!(
-        builtin_bearer_token(&credentials),
-        Some("wk-test-key".to_string())
+        builtin_bearer_token(&Credentials::Bearer("daemon-token".to_string())),
+        Some("daemon-token".to_string())
     );
 }
 

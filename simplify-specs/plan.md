@@ -14479,3 +14479,123 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       token_rotation; whoami CLI; agent_mode_evals auth half
       (hand-compile). Acceptance: warp_server_auth compiles with no
       warp_graphql dep; skip_login still forwards (feature dies in 4).
+
+- [x] **login slice 3b — the wire dies (4gd) — DONE 2026-09-26.**
+      Executed 4fz SLICE 3b. 37 files, +75/−2,094, 10 files deleted.
+      Fresh round, but the tree did NOT start clean: it held an
+      uncommitted partial slice-3b attempt (35 files, staged + unstaged,
+      +85/−2,150) contradicting the round brief. Discarded via `git
+      reset --hard HEAD` (wayne5a-progress.md preserved — its +1 line was
+      the expected 4gc handoff state) and re-executed from HEAD; no hunk
+      of the discarded attempt was reused or audited.
+
+      DELETIONS with evidence (all symbols zero-referenced post-delete,
+      PCRE lookbehind sweeps): warp_server_auth auth_client.rs (AuthClient
+      trait + AuthClientImpl + FetchUserResult + UserAuthenticationError +
+      EXPERIMENT_ID_HEADER + GraphqlRoutingConfig + the agent_mode_evals
+      EVAL_USER_IDS/path_prefix block), session.rs + session_tests.rs
+      (AuthSession/AuthEvent/identitytoolkit exchange), firebase.rs,
+      user/persistence.rs + persistence_tests.rs (keychain PersistedUser —
+      existing "User" keychain entries abandoned in place per landmine 15,
+      no migration), API_KEY_PREFIX (zero repo users). server_api.rs:
+      `pub mod auth` + auth.rs shim + auth_tests.rs, the auth_client
+      field + get_auth_client() + new's event pump + new_for_test's
+      AuthClientImpl, Entity::Event = AuthEvent → (). AuthEvent's 3 app
+      subscribers: remote_server wire_auth_token_rotation's AuthEvent
+      forwarding half, mcp native.rs's ServerApiProvider subscription,
+      workspace observe_server_api (StagingAccessBlocked banner) +
+      shown_staging_banner_count field. AuthManagerEvent::NeedsReauth
+      producer trace: set_needs_reauth's ONLY caller was the pump →
+      AuthManager::set_needs_reauth + the variant + workspace's
+      NeedsReauth arm fall (AttemptedLoginGatedFeature + its two emitters
+      stay, landmine 13). whoami: agent_sdk/admin.rs + admin_tests.rs +
+      mod decl + dispatch arm + warp_cli CliCommand::Whoami +
+      as_str_for_tracing arm. auth_state.rs loses PersistAction +
+      persist_action + apply_persisted_user + update_firebase_tokens +
+      api_key + api_key_owner_type + the initialize ladder
+      (test-user/WARP_USER_SECRET/keychain; should_use_test_user falls;
+      initialize collapses to `Self::new(ctx)`); credentials.rs shrinks
+      to {Bearer, SessionCookie, Test (cfg)} + one bearer_token() helper;
+      user.rs loses the three gql conversions + FirebaseAuthTokens +
+      From<FirebaseProfile>; user_uid.rs loses From<UserUid> for
+      cynic::Id; Cargo.toml drops 14 deps incl. warp_graphql + cynic +
+      the agent_mode_evals feature (app forwarding line removed with it).
+
+      DEVIATIONS from the 4fz map (each verified): (1) User.linked_at
+      field + linked_at() getter DELETED (letter only dropped the gql
+      conversions): its type is warp_graphql ServerTimestamp, so keeping
+      it forfeits the slice acceptance (no warp_graphql dep); every
+      writer (session/firebase/persistence) fell in this same slice so it
+      could never be Some again, and its only readers were the
+      `.is_none()` conjuncts in is_user_anonymous/
+      is_user_web_anonymous_user — behavior-identical simplification.
+      Pulling slice 5's ServerTimestamp move forward was rejected as a
+      bigger blast radius. (2) wire_auth_token_rotation kept its
+      privacy-preference forwarding half (landmine 7: only the auth bits)
+      and was renamed wire_privacy_preference_forwarding; lib.rs call
+      re-pointed. (3) user_tests.rs kept with 1 of 2 tests:
+      test_user_global_skills_defaults_to_empty tests KEPT behavior
+      (User::test); only test_parse_user_profile (From<FirebaseProfile>)
+      fell — 4ga keep-tests-of-kept-behavior precedent. (4)
+      ServerApiProvider::new_for_test KEPT (35 test files construct it),
+      shrunk to http_client-only. (5) mcp builtin_bearer_token collapsed
+      (Firebase expiry pre-check + AuthToken died): Bearer → token, else
+      None; builtin_tests re-pinned (−3 firebase/api-key, +1 bearer,
+      session-cookie kept), driver_tests api_key_credentials →
+      bearer_credentials with the attach test renamed. (6) Cross-crate
+      cfg lesson: matching Credentials::Test outside warp_server_auth
+      breaks `-p warp` (dependency built without cfg(test)/features —
+      E0599 under feature unification differences); the variant matching
+      moved inside the crate as Credentials::bearer_token().
+
+      Residue deliberately LEFT (compiler-invisible, owned by later
+      slices): remote_server manager.rotate_auth_token +
+      RemoteServerClient::authenticate are now producer-less but stay per
+      the round letter ("everything else in remote_server survives" —
+      candidate for a slice 5+ remote_server pass); AuthState::
+      needs_reauth/set_needs_reauth + UserUid::Default impl are
+      caller-less but pub in warp_server_auth (read-API ruling, 4ga
+      precedent); crates/warp_graphql whole + get_user/experiment/
+      request_context/OwnerType/AnonymousUserType now unreferenced
+      outside it (slice 5); skip_login/local_only/fast_dev + account UI
+      untouched (slice 4) — skip_login verified still forwarding.
+
+      TEST CHANGES: warp-lib −5 per feature set, all documented:
+      auth_tests test_firebase_token_urls (file deleted; its second test
+      was skip_login-gated and unrun in both sets), admin_tests 2
+      (asserted the deleted whoami output formatting), builtin_tests net
+      −2 (firebase ×2 + api-key ×1 deleted, bearer ×1 added). warp_cli
+      lib_tests 3 whoami parses re-pinned to `model list` (counts
+      honest); profiles_tests LaunchMode re-pinned to CliCommand::Model.
+
+      Acceptance: (1) ./script/format twice, idempotent. (2) HEAD clippy
+      baselines captured BEFORE editing; after: error+location pair sets
+      IDENTICAL to baseline in both configs (14 workspace / 12 -p warp,
+      machine-diffed; zero new, zero gone). (3) cargo check
+      --no-default-features --features simplewarp --bin simplewarp green;
+      cargo check -p warp --lib --features test-util green. (4)
+      cargo check -p warp --lib --tests --features skip_login green
+      (feature still forwards). (5) nextest -p warp --lib --no-fail-fast:
+      default 4,568 run / 4,568 passed / 3 skipped / 0 failed (4gc
+      baseline 4,573, −5 = documented deletions); simplewarp 4,567 /
+      4,567 / 3 / 0 — one test_command_block_dispatches_event load flake
+      on first pass, PASS on clean rerun (mission's known HEAD flake);
+      the historical −1 default/simplewarp offset is preserved. (6)
+      cargo tree -p warp_server_auth -i warp_graphql errors ("did not
+      match any packages") — SLICE ACCEPTANCE MET. (7) cargo check -p
+      warp --lib --features agent_mode_evals green (hand-compile; the
+      config's 4 plain warnings — 2 baseline unused imports +
+      new_for_evals/computer_use_override dead-code — are pre-existing
+      at HEAD in that never-compiled cfg). (8) DEVELOPER_DIR unset; no
+      GUI launch, no integration suite.
+
+      NEXT: slice 4 (4ge) — account UI + flags (~15 files, ≈−800):
+      warp_account_available deleted with its gated surfaces (settings
+      Account/OzCloudAPIKeys pages + section_id tombstone decision, drive
+      sign-in walls, warp_agent_page account rows, free_ai_removal_modal,
+      WarpDrive toolbelt gate), remove skip_login + local_only + fast_dev
+      features and every cfg site, drop "local_only" from the simplewarp
+      list, AGENTS.md rewrite (WITH_LOCAL_SERVER → no-login statement;
+      GraphQL section pending slice 5). Acceptance: default features ==
+      simplewarp behavior on account surfaces; all bins build; hand-check
+      agent_mode_evals remainder.

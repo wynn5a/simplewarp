@@ -1120,10 +1120,7 @@ pub(crate) fn initialize_app(
     // captured by the HTTP client hooks.
     ctx.add_singleton_model(|_ctx| NetworkLogModel::default());
 
-    ctx.add_singleton_model({
-        let auth_state = auth_state.clone();
-        move |ctx| ServerApiProvider::new(auth_state, ctx)
-    });
+    ctx.add_singleton_model(ServerApiProvider::new);
     ctx.add_singleton_model(|_ctx| AuthStateProvider::new(auth_state.clone()));
 
     ctx.add_singleton_model(AuthManager::new);
@@ -1327,7 +1324,7 @@ pub(crate) fn initialize_app(
 
     ctx.add_singleton_model(remote_server::manager::RemoteServerManager::new);
     #[cfg(not(target_family = "wasm"))]
-    remote_server::wire_auth_token_rotation(ctx);
+    remote_server::wire_privacy_preference_forwarding(ctx);
 
     log::info!(
         "Starting warp with channel state {} and version {:?}",

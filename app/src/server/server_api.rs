@@ -1,17 +1,10 @@
-pub mod auth;
-
 use std::sync::Arc;
 
-use auth::AuthClient;
 use serde::Deserialize;
 use warp_core::context_flag::ContextFlag;
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
-use warp_server_auth::auth_client::{AuthClientImpl, GraphqlRoutingConfig};
-use warp_server_auth::session::AuthEvent;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
-use crate::auth::auth_manager::AuthManager;
-use crate::auth::auth_state::AuthState;
 use crate::server::network_logging::NetworkLogModel;
 
 /// We use a special error code header `X-Warp-Error-Code` to allow the server to send
@@ -207,84 +200,31 @@ impl ErrorExt for AIApiError {
 }
 register_error!(AIApiError);
 
-/// A singleton entity that provides access to the app's shared HTTP client and
-/// auth client.
+/// A singleton entity that provides access to the app's shared HTTP client.
 pub struct ServerApiProvider {
     http_client: Arc<http_client::Client>,
-    auth_client: Arc<dyn AuthClient>,
 }
 
 impl ServerApiProvider {
     /// Constructs a new ServerApiProvider.
-    pub fn new(auth_state: Arc<AuthState>, ctx: &mut ModelContext<Self>) -> Self {
-        let (event_sender, event_receiver) = async_channel::bounded(10);
-
+    pub fn new(ctx: &mut ModelContext<Self>) -> Self {
         let mut client = http_client::Client::new();
         if ContextFlag::NetworkLogConsole.is_enabled() {
             NetworkLogModel::handle(ctx).update(ctx, |model, model_ctx| {
                 model.install_on_clients([&mut client], model_ctx);
             });
         }
-        let http_client = Arc::new(client);
-        let graphql_routing = GraphqlRoutingConfig {
-            #[cfg(feature = "agent_mode_evals")]
-            path_prefix: Some("/agent-mode-evals".to_string()),
-            #[cfg(not(feature = "agent_mode_evals"))]
-            path_prefix: None,
-        };
-        let auth_client = Arc::new(AuthClientImpl::new(
-            http_client.clone(),
-            auth_state,
-            event_sender,
-            graphql_routing,
-        ));
-
-        ctx.spawn_stream_local(
-            event_receiver,
-            move |_, event, ctx| {
-                match event {
-                    AuthEvent::NeedsReauth => {
-                        // AuthManager depends on a reference to ServerApiProvider, so
-                        // ServerApiProvider can't easily hold a ref to AuthManager. To get around
-                        // this, the auth client emits an event and ServerApiProvider handles
-                        // calling the AuthManager here instead.
-                        AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                            auth_manager.set_needs_reauth(true, ctx);
-                        });
-                    }
-                    // Re-emit the event for subscribers.
-                    // TODO: we probably want a different type for the event emitted to subscribers
-                    // from the one that's used for the async channel.
-                    _ => ctx.emit(event),
-                }
-            },
-            |_, _| {},
-        );
         Self {
-            http_client,
-            auth_client,
+            http_client: Arc::new(client),
         }
     }
 
     /// Constructs a new SeverApiProvider for tests.
     #[cfg(test)]
     pub fn new_for_test() -> Self {
-        let (event_sender, _) = async_channel::unbounded();
-        let http_client = Arc::new(http_client::Client::new_for_test());
-        let auth_client = Arc::new(AuthClientImpl::new(
-            http_client.clone(),
-            Arc::new(AuthState::new_for_test()),
-            event_sender,
-            GraphqlRoutingConfig::default(),
-        ));
         Self {
-            http_client,
-            auth_client,
+            http_client: Arc::new(http_client::Client::new_for_test()),
         }
-    }
-
-    pub fn get_auth_client(&self) -> Arc<dyn AuthClient> {
-        self.auth_client.clone()
     }
 
     /// Returns the shared HTTP client. This client is wired into network logging
@@ -295,7 +235,7 @@ impl ServerApiProvider {
 }
 
 impl Entity for ServerApiProvider {
-    type Event = AuthEvent;
+    type Event = ();
 }
 
 impl SingletonEntity for ServerApiProvider {}

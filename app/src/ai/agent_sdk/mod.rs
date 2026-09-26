@@ -35,7 +35,6 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::server::ids::{ServerId, SyncId};
 use crate::workflows::workflow::Workflow;
 
-mod admin;
 mod common;
 mod config_file;
 pub(crate) mod driver;
@@ -69,7 +68,6 @@ fn dispatch_command(
         CliCommand::Agent(agent_cmd) => run_agent(ctx, global_options, agent_cmd),
         CliCommand::MCP(mcp_cmd) => mcp::run(ctx, global_options, mcp_cmd),
         CliCommand::Model(model_cmd) => model::run(ctx, global_options, model_cmd),
-        CliCommand::Whoami => admin::whoami(ctx, global_options.output_format),
         CliCommand::Provider(provider_cmd) => {
             if !FeatureFlag::ProviderCommand.is_enabled() {
                 return Err(anyhow::anyhow!("invalid value 'provider'"));
