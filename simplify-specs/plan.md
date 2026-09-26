@@ -14981,3 +14981,113 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       + the flag const once (a) lands; (c) DisableReason::RequiresUpgrade
       variant + inert consumers once its wire shape is ruled disposable.
 
+
+- [ ] **the drive-vertical scope survey + slice plan (4gh) — RECORDED
+      2026-09-26.** SCOPING round — no code deleted; this entry is the
+      deliverable. USER DECISION (explicit, 2026-09-26): this fork has
+      NO Warp Drive functionality — the 4gg KEEP verdict on
+      DrivePanel/ToolPanelView::WarpDrive ("live empty-views fallback +
+      snapshot serde shape") is REVERSED; the whole drive user surface
+      is now a DELETION TARGET. Standing policy unchanged for the rest
+      of the tree: locally-runnable features survive.
+
+      BOUNDARY RULE (the survey's central fact). The cloud-object
+      substrate is NOT drive: crates/cloud_objects, cloud_object_
+      persistence, cloud_object_models + app/src/cloud_object/model/*
+      (CloudModel/GenericStringModel/JsonModel) + update_manager (the
+      local SQLite write path for ALL object families) +
+      cloud_preferences_syncer are load-bearing for LIVE local
+      features — the AI personal-object stack (AI rules/facts, MCP
+      servers, execution profiles, cloud environments, saved prompts,
+      AI documents, preferences), crates/mcp's
+      cloud_object_models::{StaticEnvVar, TransportType} spawn types,
+      and the suggested-rules flow. THEY ALL STAY. What dies is the
+      drive BROWSE SURFACE: the tools-panel WarpDrive tab, the drive
+      index browsing UI, import/export-to-drive, drive menus/palette
+      mode, breadcrumbs, warp:// object links, drive-as-agent-context.
+
+      SURVEY FACTS (file:line in the 2026-09-26 Explore report).
+      (1) DrivePanel is dead-but-alive: compute_left_panel_views
+      (workspace/view.rs:19119) never pushes WarpDrive; entry is only
+      the empty-views fallback `unwrap_or(ToolPanelView::WarpDrive)`
+      (left_panel.rs:319, view.rs:16428/:16482 tooltips) + stale
+      LeftPanelDisplayedTab::WarpDrive snapshots (app_state.rs:301-325,
+      parsed sqlite.rs:2439 where an unknown variant silently fails
+      the WHOLE LeftPanelSnapshot parse — tombstone needed at the
+      parse boundary, 4ge from_slug precedent). (2) ENABLE_WARP_DRIVE
+      (settings_view/mod.rs:542) gates 13 keybinding registrations
+      (workspace/mod.rs:552-1214) and NOTHING ever inserts the flag
+      into a context set — all constant-false. (3) Two live bindings
+      are drive-NOMINALLY-named but functionally local:
+      CustomAction::ToggleWarpDrive (cmd-\) and TipAction::OpenWarpDrive
+      both trigger workspace:toggle_left_panel — re-point the bindings
+      at the real action, then delete the drive-named variants.
+      SearchDrive → workspace:search_drive → OpenPalette
+      PaletteMode::WarpDrive + QueryFilter::Drive is drive-only and
+      falls. (4) WarpDriveSettings (drive/settings.rs) holds
+      sorting_choice/sharing_onboarding/enable_warp_drive — panel-only
+      state; delete if zero non-drive consumers (verify
+      zero_state.rs:59 subscriber + init.rs + test_util). (5)
+      Knowledge page ToggleWarpDriveContext + WarpDriveContextEnabled
+      setting (settings/ai.rs:1331) + WARP_DRIVE_CONTEXT_FLAG + ai/
+      agent api.rs/impl.rs readers — drive-as-agent-context, falls.
+      (6) drive::panel.rs exports MAX_SIDEBAR_WIDTH_RATIO/
+      MIN_SIDEBAR_WIDTH (right_panel.rs:38) and warp_drive_icon_color
+      (vertical_tabs ×3, search filter_chip_renderer) — relocate the
+      width consts to a neutral home; icon color likely falls with its
+      consumers. (7) app/Cargo.toml features cloud_object_initial_load,
+      enforce_revisions_to_cloud_objects, personal_cloud_objects have
+      ZERO cfg readers — dead definitions, fold in the fallout slice.
+      (8) Diesel tables (object_metadata, generic_string_objects,
+      notebooks, workflows, cloud_objects_refreshes, panels.left_panel
+      JSON, tabs.cloud_workflow_id, warp_drive_index_width) STAY — the
+      substrate keeps using them; no migrations touched. (9) Local
+      features that SURVIVE with their seams reworked where the survey
+      shows drive-coupling: app/src/workflows (the 9,643-line workflow
+      feature incl. local_workflows), app/src/drive/workflows (the
+      run-workflow-with-args UI — used by LOCAL workflows too, STAYS
+      but maybe re-homed), notebooks local-file editing (notebooks/
+      file/), env_var_collection_block terminal blocks.
+
+      SLICE PLAN (one subagent per slice, sequential, acceptance per
+      slice: format ×2 idempotent, clippy pair-set diff identical in
+      both configs, cargo checks green, nextest -p warp --lib both
+      feature sets with documented deltas, NO GUI launch, NO
+      integration suite):
+      - 4gi slice 1 — the tools-panel + menu + settings + flag
+        surface: ToolPanelView::WarpDrive + DrivePanel + warp_drive_view
+        + LeftPanelAction/LeftPanelEvent::WarpDrive + fallback re-point
+        (empty views list → first-available; judge ProjectExplorer vs
+        hiding the panel by reading compute_left_panel_views' gates),
+        LeftPanelDisplayedTab::WarpDrive parse-boundary tombstone
+        (remap to the live default; never nuke the whole snapshot),
+        make_new_drive_menu + View-menu ToggleWarpDrive item,
+        SearchDrive chain (WorkspaceAction::SearchDrive +
+        PaletteMode::WarpDrive + QueryFilter::Drive + chip renderer
+        arm), ToggleWarpDrive/OpenWarpDrive re-point + variant
+        deletions + agent tip, ENABLE_WARP_DRIVE + 13 registrations
+        (each registration's action variant checked for other
+        dispatchers before falling), enable_warp_drive + WarpDriveSettings
+        ruling, knowledge-page drive-context chain, panel.rs width-const
+        relocation.
+      - 4gj slice 2 — the drive index + browse surface: drive/index.rs
+        (4,559) + items/ + import/ + export.rs + ExportManager +
+        naming dialog + empty-trash + root_view open_warp_drive_object
+        + warp:// object-link parsing + workspace ViewObjectInWarpDrive/
+        view_in_warp_drive + WarpDriveItemId (incl. AIFactCollection/
+        MCPServerCollection arms + their Open* workspace bindings —
+        verify the settings_view mcp_servers pages supersede first) +
+        terminal/view trash-ops arms + warp_drive_index_width
+        persistence chain + zero_state WarpDriveSettings remnant.
+      - 4gk slice 3 — breadcrumbs + editor seams + fallout:
+        cloud_object/breadcrumbs.rs + ContainingObject plumbing out of
+        notebook details_bar / env_var fixed_view_components /
+        workflow_view, notebook embedded-drive-items + unreachable
+        NotebookLocation::PersonalCloud/Team (serde care on pane
+        snapshots), cloud_object_styling, drive_object_type sort menus,
+        drive_helpers anonymous-limit toasts (4gg's 4 kept callers die
+        with their UI), user_workspaces personal_drive/space queries.
+      - 4gl slice 4 — fallout sweep: integration_testing/cloud_object +
+        test mocks (UpdateManager::mock stays if update_manager stays),
+        dead cargo features from (7), AGENTS.md drive mentions, stale
+        comments; then a residue check (lint-invisible leftovers).
