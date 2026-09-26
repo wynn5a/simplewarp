@@ -27,9 +27,9 @@ use warp_editor::editor::NavigationKey;
 use warp_errors::report_if_error;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    Empty, Expanded, Flex, FormattedTextElement, HighlightedHyperlink, Hoverable, HyperlinkLens,
-    HyperlinkUrl, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
-    ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack, Text,
+    Empty, Expanded, Flex, FormattedTextElement, HighlightedHyperlink, Hoverable, HyperlinkUrl,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::keymap::{ContextPredicate, Keystroke};
@@ -38,7 +38,7 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::{SwitchStateHandle, TooltipConfig};
 use warpui::{
     Action, AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle, WeakViewHandle, id,
+    ViewHandle, id,
 };
 
 use super::ai_shared::{
@@ -75,7 +75,6 @@ use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::geap_credentials::force_refresh_geap_credentials;
 use crate::ai::llms::{LLMId, LLMPreferences, LLMProvider, is_using_api_key_for_provider};
 use crate::appearance::{Appearance, AppearanceEvent};
-use crate::auth::AuthStateProvider;
 use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions, TextColors, TextOptions,
@@ -97,7 +96,7 @@ use crate::util::bindings;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
 use crate::view_components::{Dropdown, DropdownItem, FilterableDropdown};
 use crate::workspaces::user_workspaces::UserWorkspacesEvent;
-use crate::workspaces::workspace::{AdminEnablementSetting, CustomerType};
+use crate::workspaces::workspace::AdminEnablementSetting;
 
 const PRIMARY_HEADER_FONT_SIZE: f32 = 24.;
 
@@ -3220,9 +3219,7 @@ struct ProviderApiKeyEditor {
 }
 
 struct ApiKeysWidget {
-    view_handle: WeakViewHandle<WarpAgentPageView>,
     provider_api_key_editors: Vec<ProviderApiKeyEditor>,
-    upgrade_highlight_index: HighlightedHyperlink,
 
     custom_inference_info_tooltip: MouseStateHandle,
     custom_inference_terms_index: HighlightedHyperlink,
@@ -3234,7 +3231,6 @@ impl ApiKeysWidget {
         let ai_settings = AISettings::as_ref(ctx);
         let workspace_handle = UserWorkspaces::handle(ctx);
         let is_any_ai_enabled = ai_settings.is_any_ai_enabled(ctx);
-        let is_byo_enabled = workspace_handle.as_ref(ctx).is_byo_api_key_enabled(ctx);
         let member_byo_keys_allowed = workspace_handle.as_ref(ctx).are_member_byo_keys_allowed();
 
         let provider_api_key_editors = LLMProvider::API_KEY_PROVIDERS
@@ -3273,7 +3269,7 @@ impl ApiKeysWidget {
                 });
                 update_editor_interaction_state(
                     editor.clone(),
-                    is_any_ai_enabled && is_byo_enabled && member_byo_keys_allowed,
+                    is_any_ai_enabled && member_byo_keys_allowed,
                     ctx,
                 );
                 ctx.subscribe_to_view(&editor, move |_, editor, event, ctx| {
@@ -3290,22 +3286,11 @@ impl ApiKeysWidget {
                     if let UserWorkspacesEvent::TeamsChanged = event {
                         let is_any_ai_enabled =
                             AISettings::handle(ctx).as_ref(ctx).is_any_ai_enabled(ctx);
-                        let is_byo_enabled = workspace.as_ref(ctx).is_byo_api_key_enabled(ctx);
                         let member_byo_keys_allowed =
                             workspace.as_ref(ctx).are_member_byo_keys_allowed();
-                        let is_enabled = is_any_ai_enabled && is_byo_enabled;
-                        let has_key = !editor_clone.as_ref(ctx).is_empty(ctx);
-                        if !is_byo_enabled && has_key {
-                            editor_clone.update(ctx, |editor, ctx| {
-                                editor.set_buffer_text("", ctx);
-                            });
-                            ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
-                                manager.set_provider_key(provider, None, ctx);
-                            });
-                        }
                         update_editor_interaction_state(
                             editor_clone.clone(),
-                            is_enabled && member_byo_keys_allowed,
+                            is_any_ai_enabled && member_byo_keys_allowed,
                             ctx,
                         );
                         ctx.notify();
@@ -3361,10 +3346,7 @@ impl ApiKeysWidget {
         });
 
         Self {
-            view_handle: ctx.handle(),
             provider_api_key_editors,
-
-            upgrade_highlight_index: Default::default(),
 
             custom_inference_info_tooltip: Default::default(),
             custom_inference_terms_index: Default::default(),
@@ -3744,7 +3726,6 @@ impl ApiKeysWidget {
 #[derive(Clone, Copy)]
 struct CustomInferenceVisibility {
     is_any_ai_enabled: bool,
-    is_byo_enabled: bool,
     show_provider_keys: bool,
     provider_keys_enabled: bool,
     show_custom_inference: bool,
@@ -3756,14 +3737,12 @@ impl CustomInferenceVisibility {
     fn compute(app: &AppContext) -> Self {
         let workspaces = UserWorkspaces::as_ref(app);
         let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
-        let is_byo_enabled = workspaces.is_byo_api_key_enabled(app);
         let is_custom_inference_enabled = workspaces.is_custom_inference_enabled(app);
         let member_byo_keys_allowed = workspaces.are_member_byo_keys_allowed();
         let member_byo_endpoints_allowed = workspaces.are_member_byo_endpoints_allowed();
 
-        // BYOK: shown even when BYO is off so the upgrade CTA can render.
         let show_provider_keys = member_byo_keys_allowed;
-        let provider_keys_enabled = show_provider_keys && is_any_ai_enabled && is_byo_enabled;
+        let provider_keys_enabled = show_provider_keys && is_any_ai_enabled;
 
         // BYOE (custom endpoints).
         let show_custom_inference = is_custom_inference_enabled && member_byo_endpoints_allowed;
@@ -3771,7 +3750,6 @@ impl CustomInferenceVisibility {
 
         Self {
             is_any_ai_enabled,
-            is_byo_enabled,
             show_provider_keys,
             provider_keys_enabled,
             show_custom_inference,
@@ -3809,7 +3787,6 @@ impl SettingsWidget for ApiKeysWidget {
         let visibility = CustomInferenceVisibility::compute(app);
         let CustomInferenceVisibility {
             is_any_ai_enabled,
-            is_byo_enabled,
             show_provider_keys,
             provider_keys_enabled,
             show_custom_inference,
@@ -3936,73 +3913,6 @@ impl SettingsWidget for ApiKeysWidget {
                 };
                 column.add_child(endpoints_list);
             }
-        }
-
-        // Upgrade CTA if BYOK not enabled
-        if !is_byo_enabled && show_provider_keys {
-            let auth_state = AuthStateProvider::as_ref(app).get();
-            let upgrade_text_fragments = if let Some(team) =
-                UserWorkspaces::as_ref(app).team_for_view_handle(&self.view_handle, app)
-            {
-                if team.billing_metadata.customer_type == CustomerType::Enterprise {
-                    vec![
-                        FormattedTextFragment::hyperlink("Contact sales", "mailto:sales@warp.dev"),
-                        FormattedTextFragment::plain_text(
-                            " to enable bringing your own API keys on your Enterprise plan.",
-                        ),
-                    ]
-                } else {
-                    let current_user_email = auth_state.user_email().unwrap_or_default();
-                    let has_admin_permissions = team.has_admin_permissions(&current_user_email);
-                    let upgrade_url = UserWorkspaces::upgrade_link_for_team(team.uid);
-                    if has_admin_permissions {
-                        vec![
-                            FormattedTextFragment::hyperlink(
-                                "Upgrade to the Build plan",
-                                upgrade_url,
-                            ),
-                            FormattedTextFragment::plain_text(" to use your own API keys."),
-                        ]
-                    } else {
-                        vec![FormattedTextFragment::plain_text(
-                            "Ask your team's admin to upgrade to the Build plan to use your own API keys.",
-                        )]
-                    }
-                }
-            } else {
-                let user_id = auth_state.user_id().unwrap_or_default();
-                let upgrade_url = UserWorkspaces::upgrade_link(user_id);
-                vec![
-                    FormattedTextFragment::hyperlink("Upgrade to the Build plan", upgrade_url),
-                    FormattedTextFragment::plain_text(" to use your own API keys."),
-                ]
-            };
-
-            let upgrade_text_element = FormattedTextElement::new(
-                FormattedText::new([FormattedTextLine::Line(upgrade_text_fragments)]),
-                appearance.ui_font_size(),
-                appearance.ui_font_family(),
-                appearance.ui_font_family(),
-                blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
-                self.upgrade_highlight_index.clone(),
-            )
-            .with_hyperlink_font_color(appearance.theme().accent().into_solid())
-            .register_default_click_handlers_with_action_support(|hyperlink_lens, event, ctx| {
-                match hyperlink_lens {
-                    HyperlinkLens::Url(url) => {
-                        ctx.open_url(url);
-                    }
-                    HyperlinkLens::Action(action_ref) => {
-                        if let Some(action) =
-                            action_ref.as_any().downcast_ref::<WarpAgentPageAction>()
-                        {
-                            event.dispatch_typed_action(action.clone());
-                        }
-                    }
-                }
-            });
-
-            column.add_child(Container::new(upgrade_text_element.finish()).finish());
         }
 
         column.finish()

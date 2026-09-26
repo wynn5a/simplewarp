@@ -123,9 +123,7 @@ impl InlineModelSelectorView {
         positioner: &ModelHandle<InlineMenuPositioner>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let window_id = ctx.window_id();
-        let data_source =
-            ctx.add_model(move |_| ModelSelectorDataSource::new(terminal_view_id, window_id));
+        let data_source = ctx.add_model(move |_| ModelSelectorDataSource::new(terminal_view_id));
 
         let tab_configs = TAB_CONFIGS.clone();
         let initial_filters = tab_configs

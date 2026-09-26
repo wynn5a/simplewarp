@@ -22,8 +22,8 @@ use super::diff_state_tracker::{
     DiffModelKey, DiffStateUpdate, RemoteDiffStateManager, SubscribeOutcome,
 };
 use super::proto::{
-    Abort, Authenticate, BranchInfo, BufferEdit, BufferUpdatedPush, ClientMessage, CloseBuffer,
-    DeleteFile, DeleteFileResponse, DeleteFileSuccess, DiscardFilesError, DiscardFilesResponse,
+    Abort, BranchInfo, BufferEdit, BufferUpdatedPush, ClientMessage, CloseBuffer, DeleteFile,
+    DeleteFileResponse, DeleteFileSuccess, DiscardFilesError, DiscardFilesResponse,
     DiscardFilesSuccess, ErrorCode, ErrorResponse, FailedFileRead, FileContextProto,
     FileOperationError, GetBranchesError, GetBranchesResponse, GetBranchesSuccess,
     GetDiffStateResponse, GitCommitChainRequest, GitCommitChainResponse, GitCommitChainSuccess,
@@ -949,9 +949,6 @@ impl ServerModel {
                     Some(notification::Message::Abort(m)) => {
                         self.handle_abort(m, &request_id, ctx);
                     }
-                    Some(notification::Message::Authenticate(m)) => {
-                        self.handle_authenticate(m);
-                    }
                     Some(notification::Message::UpdatePreferences(m)) => {
                         self.handle_update_preferences(m, ctx);
                     }
@@ -1226,13 +1223,6 @@ impl ServerModel {
                 crate::crash_reporting::uninit_sentry();
             }
         }
-    }
-
-    /// Handles `Authenticate` by replacing the daemon-wide credential.
-    /// This is a notification — no response is sent.
-    fn handle_authenticate(&mut self, msg: Authenticate) {
-        self.auth_state
-            .set_remote_server_bearer_token(msg.auth_token);
     }
 
     pub fn auth_token(&self) -> Option<String> {

@@ -18,9 +18,9 @@ fn test_keybinding_name_to_display_string() {
                 )
                 .with_key_binding("cmd-,"),
                 EditableBinding::new(
-                    "workspace:toggle_warp_drive",
-                    "Toggle Warp Drive",
-                    WorkspaceAction::ToggleWarpDrive,
+                    "workspace:toggle_right_panel",
+                    "Toggle right panel",
+                    WorkspaceAction::ToggleRightPanel,
                 ),
             ]);
 
@@ -55,7 +55,7 @@ fn test_keybinding_name_to_display_string() {
             );
 
             ctx.set_custom_trigger(
-                "workspace:toggle_warp_drive".to_owned(),
+                "workspace:toggle_right_panel".to_owned(),
                 Trigger::Keystrokes(vec![Keystroke::parse("cmd-alt-/").unwrap()]),
             );
 
@@ -66,7 +66,7 @@ fn test_keybinding_name_to_display_string() {
             };
             assert_eq!(
                 Some(expected_keybinding),
-                keybinding_name_to_display_string("workspace:toggle_warp_drive", ctx).as_deref()
+                keybinding_name_to_display_string("workspace:toggle_right_panel", ctx).as_deref()
             );
         });
     });

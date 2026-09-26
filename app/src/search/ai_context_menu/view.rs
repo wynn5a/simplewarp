@@ -25,7 +25,6 @@ use warpui::{
 use super::styles;
 use crate::appearance::Appearance;
 use crate::debounce;
-use crate::drive::settings::WarpDriveSettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::blocks::data_source::BlockDataSource;
 #[cfg(not(target_family = "wasm"))]
@@ -360,8 +359,6 @@ impl AIContextMenu {
         is_cli_agent_input: bool,
         app: &AppContext,
     ) -> Vec<AIContextMenuCategory> {
-        let show_warp_drive = WarpDriveSettings::is_warp_drive_enabled(app);
-
         // Compute once — used by CLI agent, AI-mode, and terminal-mode branches.
         let is_active_dir_in_git_repo = {
             #[cfg(target_family = "wasm")]
@@ -408,11 +405,7 @@ impl AIContextMenu {
 
         // For ambient agent sessions, only show limited categories
         if is_in_ambient_agent {
-            let mut categories = vec![];
-            if show_warp_drive {
-                categories.push(AIContextMenuCategory::Rules);
-            }
-            return categories;
+            return vec![];
         }
 
         if is_ai_or_autodetect_mode {
@@ -448,9 +441,6 @@ impl AIContextMenu {
             }
             if FeatureFlag::ConversationsAsContext.is_enabled() {
                 categories.push(AIContextMenuCategory::Conversations);
-            }
-            if show_warp_drive {
-                categories.push(AIContextMenuCategory::Rules);
             }
             categories.push(AIContextMenuCategory::Skills);
             categories

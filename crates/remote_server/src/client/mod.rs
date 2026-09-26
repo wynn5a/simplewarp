@@ -10,7 +10,7 @@ use futures::io::{AsyncRead, AsyncWrite};
 use warpui_core::r#async::{FutureExt as _, executor};
 
 use crate::proto::{
-    Abort, Authenticate, BufferEdit, ClientMessage, CloseBuffer, DiffMode, DiffStateFileDelta,
+    Abort, BufferEdit, ClientMessage, CloseBuffer, DiffMode, DiffStateFileDelta,
     DiffStateMetadataUpdate, DiffStateSnapshot, ErrorCode, GitStatusMetadata, Initialize,
     InitializeResponse, LoadRepoMetadataDirectoryResponse, NavigatedToDirectoryResponse, PrInfo,
     RemoteAgentContextSnapshot, RepositoryInfo, RunCommandRequest, RunCommandResponse,
@@ -354,15 +354,6 @@ impl RemoteServerClient {
                 Err(ClientError::UnexpectedResponse)
             }
         }
-    }
-
-    /// Sends an `Authenticate` notification to rotate the daemon-wide
-    /// credential after initialization.
-    pub fn authenticate(&self, auth_token: &str) {
-        let msg = ClientMessage::notification(notification::Message::Authenticate(Authenticate {
-            auth_token: auth_token.to_owned(),
-        }));
-        self.send_notification(msg);
     }
 
     /// Sends an `UpdatePreferences` notification when the user's privacy

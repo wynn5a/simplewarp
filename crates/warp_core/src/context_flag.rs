@@ -112,20 +112,6 @@ impl ContextFlag {
         disable_flag(Self::WarpEssentials);
         disable_flag(Self::ShowMCPServers);
     }
-
-    pub fn set_conversation_only() {
-        disable_flag(Self::CreateSharedSession);
-        disable_flag(Self::CreateNewSession);
-        disable_flag(Self::CloseWindow);
-        disable_flag(Self::ForceSidePanelOpen);
-        disable_flag(Self::ShowRewardModal);
-        disable_flag(Self::HideOpenOnDesktopButton);
-        disable_flag(Self::NetworkLogConsole);
-        disable_flag(Self::LaunchConfigurations);
-        disable_flag(Self::WarpEssentials);
-        disable_flag(Self::ShowMCPServers);
-        disable_flag(Self::RunWorkflow);
-    }
 }
 
 impl FromStr for ContextFlag {

@@ -47,7 +47,6 @@ use crate::cloud_object::{
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_workflow_limit;
-use crate::drive::settings::WarpDriveSettings;
 use crate::drive::workflows::arguments::ArgumentsState;
 use crate::drive::workflows::enum_creation_dialog::{
     EnumCreationDialog, EnumCreationDialogEvent, WorkflowEnumData,
@@ -73,7 +72,6 @@ use crate::server::ids::{ClientId, SyncId};
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
-use crate::sharing::ContentEditability;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::ui_components::breadcrumb::{BreadcrumbState, render_breadcrumbs};
 use crate::ui_components::buttons::{accent_icon_button, icon_button};
@@ -1620,13 +1618,11 @@ impl WorkflowView {
 
         if let Some(the_workflow) = workflow {
             let mut breadcrumbs = the_workflow.containing_objects_path(ctx);
-            if !WarpDriveSettings::is_warp_drive_enabled(ctx) {
-                // Without an account, "view in Warp Drive" only lands on Drive's sign-in dead
-                // end, so don't make the breadcrumb segments look clickable.
-                breadcrumbs
-                    .iter_mut()
-                    .for_each(ContainingObject::disable_drive_link);
-            }
+            // Without an account, "view in Warp Drive" only lands on Drive's sign-in dead
+            // end, so don't make the breadcrumb segments look clickable.
+            breadcrumbs
+                .iter_mut()
+                .for_each(ContainingObject::disable_drive_link);
             self.breadcrumbs = breadcrumbs.into_iter().map(BreadcrumbState::new).collect();
         } else {
             log::warn!("Workflow not found from cloudmodel, could not update breadcrumb");
@@ -1721,11 +1717,7 @@ impl WorkflowView {
         });
     }
 
-    fn render_edit_toggle_button(
-        &self,
-        editability: ContentEditability,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
+    fn render_edit_toggle_button(&self, appearance: &Appearance) -> Box<dyn Element> {
         let base_text_styles = UiComponentStyles {
             ..Default::default()
         };
@@ -1764,16 +1756,7 @@ impl WorkflowView {
             _ => None,
         };
 
-        if let Some((mode_text, mut edit_button)) = text_and_button {
-            if matches!(editability, ContentEditability::RequiresLogin) {
-                let ui_builder = appearance.ui_builder().clone();
-                edit_button = edit_button.with_tooltip(move || {
-                    ui_builder
-                        .tool_tip("Sign in to edit".to_string())
-                        .build()
-                        .finish()
-                });
-            }
+        if let Some((mode_text, edit_button)) = text_and_button {
             let edit_button = edit_button.build();
 
             Flex::row()
@@ -2518,22 +2501,15 @@ impl View for WorkflowView {
             .finish(),
         );
 
-        let editability = ContentEditability::Editable;
-        let mode_toggleable = match (ContextFlag::RunWorkflow.is_enabled(), editability) {
-            // If logging in would allow editing, show the toggle for discoverability.
-            (_, ContentEditability::RequiresLogin) => true,
-            // If workflows aren't runnable (so view mode is enabled) AND the user can edit the
-            // workflow, both view and edit modes are allowed.
-            (false, ContentEditability::Editable) => true,
-            // Otherwise, only one of view and edit mode is allowed.
-            (_, _) => false,
-        };
+        // Workflows aren't runnable (so view mode is enabled) and the workflow is always
+        // editable, so both view and edit modes are allowed.
+        let mode_toggleable = !ContextFlag::RunWorkflow.is_enabled();
 
         if mode_toggleable {
             row.add_child(
                 Shrinkable::new(
                     1.,
-                    Container::new(self.render_edit_toggle_button(editability, appearance))
+                    Container::new(self.render_edit_toggle_button(appearance))
                         .with_margin_right(CORE_HORIZONATAL_MARGIN)
                         .finish(),
                 )

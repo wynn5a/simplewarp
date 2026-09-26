@@ -25,15 +25,10 @@ use warpui::{
 };
 
 use super::ai_queries::AIQueriesDataSource;
-use super::env_var_collections::EnvVarCollectionDataSource;
 use super::history::history_data_source_for_session;
-use super::notebooks::notebooks_data_source;
 use super::warp_ai::WarpAIDataSource;
-use super::workflows::{WorkflowsDataSource, cloud_workflows_data_source};
 use super::zero_state::{CommandSearchZeroStateEvent, CommandSearchZeroStateView};
 use crate::appearance::Appearance;
-use crate::completer::SessionContext;
-use crate::drive::settings::WarpDriveSettings;
 use crate::search::QueryFilter;
 use crate::search::command_search::searcher::{CommandSearchItemAction, CommandSearchMixer};
 use crate::search::mixer::AddAsyncSourceOptions;
@@ -195,13 +190,7 @@ impl CommandSearchView {
     }
 
     /// Resets the mixer with the relevant data sources for Command Search registered.
-    fn reset_command_search_mixer(
-        &mut self,
-        session_id: SessionId,
-        session_context: Option<SessionContext>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let window_id = ctx.window_id();
+    fn reset_command_search_mixer(&mut self, session_id: SessionId, ctx: &mut ViewContext<Self>) {
         self.mixer.update(ctx, |mixer, ctx| {
             mixer.reset(ctx);
 
@@ -212,49 +201,6 @@ impl CommandSearchView {
                 mixer.add_sync_source(
                     WarpAIDataSource::new(),
                     HashSet::from([QueryFilter::NaturalLanguage]),
-                );
-            }
-
-            if WarpDriveSettings::is_warp_drive_enabled(ctx) {
-                mixer.add_sync_source(
-                    WorkflowsDataSource::new(session_context.as_ref(), ctx),
-                    HashSet::from([QueryFilter::Workflows]),
-                );
-
-                let mut workflows_filters = HashSet::from([QueryFilter::Workflows]);
-                if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-                    workflows_filters.insert(QueryFilter::AgentModeWorkflows);
-                }
-
-                mixer.add_async_source(
-                    cloud_workflows_data_source(window_id),
-                    workflows_filters,
-                    AddAsyncSourceOptions {
-                        debounce_interval: Some(Duration::from_millis(50)),
-                        run_in_zero_state: true,
-                        run_when_unfiltered: true,
-                    },
-                    ctx,
-                );
-
-                mixer.add_async_source(
-                    notebooks_data_source(),
-                    HashSet::from([QueryFilter::Notebooks]),
-                    AddAsyncSourceOptions {
-                        debounce_interval: Some(Duration::from_millis(50)),
-                        run_in_zero_state: true,
-                        run_when_unfiltered: true,
-                    },
-                    ctx,
-                );
-
-                // EnvVarCollectionDataSource stays synchronous because each match target is
-                // structurally short (title, variable name, description). The per-item fuzzy
-                // match cost is negligible, so offloading to an async task would add complexity
-                // without meaningful performance benefit.
-                mixer.add_sync_source(
-                    EnvVarCollectionDataSource::new(),
-                    HashSet::from([QueryFilter::EnvironmentVariables]),
                 );
             }
 
@@ -318,13 +264,12 @@ impl CommandSearchView {
     pub fn reset_state(
         &mut self,
         session_id: SessionId,
-        session_context: Option<SessionContext>,
         initial_query: String,
         query_filter: Option<QueryFilter>,
         menu_positioning: MenuPositioning,
         ctx: &mut ViewContext<Self>,
     ) {
-        self.reset_command_search_mixer(session_id, session_context, ctx);
+        self.reset_command_search_mixer(session_id, ctx);
         let ordering = match menu_positioning {
             MenuPositioning::AboveInputBox => SearchResultOrdering::BottomUp,
             MenuPositioning::BelowInputBox => SearchResultOrdering::TopDown,
@@ -434,13 +379,7 @@ impl CommandSearchView {
             let was_immediately_executed = match &result_action {
                 ExecuteHistory(_) | RunAIQuery(_) => true,
 
-                AcceptHistory(_)
-                | AcceptWorkflow(_)
-                | AcceptNotebook(_)
-                | OpenWarpAI
-                | AcceptEnvVarCollection(_)
-                | TranslateUsingWarpAI
-                | AcceptAIQuery(_) => false,
+                AcceptHistory(_) | OpenWarpAI | TranslateUsingWarpAI | AcceptAIQuery(_) => false,
             };
 
             let (a11y_content, a11y_help_content) = if was_immediately_executed {

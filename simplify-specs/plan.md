@@ -14850,3 +14850,134 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       inert arms + ENABLE_WARP_DRIVE insert, DrivePanel/warp_drive_view
       + LeftPanelAction::WarpDrive remnants, "Sign in to edit"
       tooltips, warp_agent_page upgrade CTA, ShowUpgrade).
+- [x] **residue sweep — verify-then-delete (4gg) — DONE 2026-09-26.**
+      Executed the post-4gf residue list. 49 code files, +75/−2,348, 14
+      files deleted. Clippy baselines captured FIRST on the clean tree;
+      error+location pair sets IDENTICAL post-edit in both configs — 14
+      workspace / 12 -p warp, machine-diffed twice (after edits and again
+      after format + test fix), zero new, zero gone.
+
+      VERDICTS. 4gd leftovers: AuthState::needs_reauth/set_needs_reauth
+      DELETE (zero callers repo-wide; the AtomicBool field was
+      write-only-init) — field, 4 ctor inits, both methods, atomic import.
+      remote_server rotate_auth_token DELETE (zero callers);
+      client::authenticate DELETE (only caller rotate_auth_token + its own
+      test); the daemon-side handle_authenticate + dispatch arm + proto
+      `Authenticate` message and oneof field 2 (reserved 2; not allowed
+      inside a oneof — plain gap is the compat-correct form) fell with them:
+      no other in-repo sender exists and prost skips unknown oneof members,
+      so a foreign sender degrades gracefully. The whole rotation chain is
+      post-connect and outside the Initialize handshake (which carries the
+      auth_token and STAYS). manager identity_key plumbing deleted as
+      never-read fallout (Connected field, ReconnectParams, thread-throughs);
+      remote_server_identity_key() itself STAYS (live in ssh_transport daemon
+      dir). UserUid::Default: initially KEEP (2 live callers via
+      user_id().unwrap_or_default()), then both callers fell this round
+      (ShowUpgrade handler + the dead warp_agent_page !is_byo CTA), so the
+      impl fell as fallout — serde shape is a plain string, Default was never
+      persisted-reachable. wasm WebIntent::ConversationView UN-PARKED and
+      DELETED: parse arm, into_intent_url arm, open_url_on_desktop or-arm,
+      set_context_flags_from_url arm, browser_url_handler or-pattern,
+      ContextFlag::set_conversation_only (zero other callers) — all verbatim
+      match-arm removals, inspection-compilable; the native warp://conversation
+      consumer already fell in 4fw. KEEP verdicts: ToolPanelView::WarpDrive /
+      LeftPanelAction::WarpDrive / DrivePanel / warp_drive_view — the panel
+      has LIVE entry points: the `unwrap_or(ToolPanelView::WarpDrive)`
+      empty-views fallbacks (left_panel.rs construction + the two tools-panel
+      tooltips) and stale-snapshot restore via persisted serde
+      `LeftPanelDisplayedTab::WarpDrive`; it renders the local store, and
+      open_or_toggle_warp_drive has live callers (object-open flows). the
+      RequiresLogin variant of ContentEditability (live producer:
+      object_editability for non-Personal-space objects, anonymous-always) —
+      but both "Sign in to edit" tooltip BRANCHES deleted (both call sites
+      pass literal ContentEditability::Editable; workflow_view's dead
+      mode_toggleable RequiresLogin arm and unused editability param too).
+      CustomAction::ToggleWarpDrive (menu items + the live
+      workspace:toggle_left_panel binding's custom action — pre-existing
+      wiring) and TipAction::OpenWarpDrive (serialized into welcome tips per
+      its own comment; still marked-used by live open_or_toggle_warp_drive).
+
+      DRIVE GATES. is_warp_drive_available/enabled DELETE — always-false
+      PROVEN: the skip_firebase_anonymous_user cargo feature is in BOTH the
+      `default` and `simplewarp` sets, so FeatureFlag::SkipFirebaseAnonymousUser
+      is enabled, and the client AuthState has zero set_user/set_credentials
+      producers (the only apply path is daemon-side), so
+      is_anonymous_or_logged_out() ≡ true. 11 gate sites collapsed: the two
+      deleted OpenWarpDrive/ToggleWarpDrive arms; the ENABLE_WARP_DRIVE insert
+      (flag const + its ~15 keybinding context-predicate consumers in
+      workspace/mod.rs KEPT — inert but referenced, each registration needs
+      its own menu-label verification: recorded residue); terminal context
+      menu "Save as workflow" ×2 (one block took the save_as_workflow_button
+      field + mouse state + layout/paint/dispatch plumbing with it); AI
+      context-menu Rules-category pushes (ambient branch now returns empty);
+      command palette Workflows/Notebooks/EnvVars/Drive filters; command
+      search drive data-source block; command-search zero-state filters;
+      breadcrumb non-clickable gates in notebook details_bar, env-var
+      fixed_view_components, workflow_view (made unconditional — the live
+      path). WorkspaceAction::OpenWarpDrive/ToggleWarpDrive variants + handler
+      arms + the two keybinding registrations (both gated by the dead flag)
+      + the agent_tips Warp Drive tip card + display_text arm deleted.
+
+      UPGRADE SURFACES. warp_agent_page: is_byo_api_key_enabled() is a
+      literal true (UserWorkspaces), so the whole `!is_byo_enabled && show_
+      provider_keys` "Upgrade CTA if BYOK not enabled" branch (team/enterprise
+     /Build-plan text + its UserUid::default caller) is dead — deleted with
+      the CustomInferenceVisibility.is_byo_enabled field and the
+      TeamsChanged has_key clear-block; the ApiKeysWidget view_handle/
+      upgrade_highlight_index fields fell as never-read. execution_profiles:
+      render_upgrade_footer + its set_footer block + upgrade_footer_mouse_
+      state plumbing (8 call sites) deleted — gated on
+      DisableReason::RequiresUpgrade which has NO runtime producer (client
+      model lists only construct NeedsWarpAccount; LLMInfo's custom serde
+      impl is exercised by tests only). The terminal model-menu
+      RequiresUpgrade "not available for free users" branch fell too.
+      WorkspaceAction::ShowUpgrade variant/handler/list-entry deleted.
+      DisableReason::RequiresUpgrade itself KEPT (wire serde shape of LLMInfo;
+      remaining consumers inert-but-referenced); UserWorkspaces::upgrade_link
+      deleted as caller-less fallout; upgrade_link_for_team STAYS (live drive
+      index caller).
+
+      FALLOUT CASCADE (all verified producer-less after the gate deletions):
+      command_search workflow/notebook/env-var data-source modules whole (10
+      files, 1,034 lines — the deleted mixer block was their only
+      registration); search/notebooks + search/env_var_collections fuzzy_
+      match modules (4 files); AcceptedWorkflow::Cloud (with its
+      "no longer available" toast arm) then the whole AcceptedWorkflow enum
+      plus AcceptWorkflow/AcceptNotebook/AcceptEnvVarCollection variants and
+      their view.rs arms; NotebookManager's raw-text cache subsystem
+      (notebook_raw_text/notebook_raw_text_shared/NotebookRawTextStatus/
+      spawn+update_raw_text/handle_cloud_model_event subscription — the only
+      reader was the deleted fuzzy module); unused import/param sweep
+      throughout.
+
+      Acceptance: (1) cargo check --no-default-features --features
+      simplewarp --bin simplewarp green, zero warnings; (2) cargo check -p
+      warp --lib --features test-util green; cargo check -p warp --lib green.
+      (3) clippy pair sets identical to HEAD baselines in both configs (14/12),
+      re-diffed after format + test fix. (4) ./script/format twice, idempotent.
+      (5) nextest -p warp --lib --no-fail-fast: default 4,557 run / 4,557
+      passed / 3 skipped / 0 failed (post-4gf baseline 4,559, −2 = the two
+      deleted server_model authenticate unit tests); simplewarp 4,558 / 4,558
+      / 3 / 0 (baseline 4,560, −2, same; the historical −1 offset preserved).
+      One transient failure during the first default run
+      (test_keybinding_name_to_display_string — its second test binding used
+      the deleted WorkspaceAction::ToggleWarpDrive) fixed by re-pointing the
+      test data at WorkspaceAction::ToggleRightPanel; rerun clean. (6) No
+      settings page/section/panel deleted: session-restore untouched,
+      LeftPanelDisplayedTab serde shape and every surviving slug/id
+      unchanged; DrivePanel snapshot restore path intact by design.
+      (7) DEVELOPER_DIR unset; no GUI launch, no integration suite. Pre-
+      existing stash 4fl-interrupted-attempt left untouched.
+
+      REMAINING QUEUE (next round id 4gh; no verified-dead candidates left
+      from the 4gf list): (a) the drive vertical proper — ToolPanelView::
+      WarpDrive/DrivePanel/LeftPanelAction::WarpDrive/warp_drive_view and the
+      empty-views fallback defaults; needs a product decision on what an
+      empty tools panel shows + LeftPanelDisplayedTab::WarpDrive snapshot
+      tombstone (4ge SECTION_ID precedent); drive menus (View/Drive menu
+      items), knowledge-page ToggleWarpDriveContext and the enable_warp_drive
+      setting (+ its two no-op subscribers) belong to this round; (b)
+      ENABLE_WARP_DRIVE predicate web in workspace/mod.rs (~15 registrations)
+      + the flag const once (a) lands; (c) DisableReason::RequiresUpgrade
+      variant + inert consumers once its wire shape is ruled disposable.
+

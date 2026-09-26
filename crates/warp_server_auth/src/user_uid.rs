@@ -13,14 +13,6 @@ pub struct UserUid(lasso::Spur);
 static USER_UID_INTERNER: LazyLock<lasso::ThreadedRodeo<lasso::Spur>> =
     LazyLock::new(lasso::ThreadedRodeo::new);
 
-impl Default for UserUid {
-    fn default() -> Self {
-        // Intern an empty string so that `as_str()` on a default UserUid
-        // returns "" instead of panicking with "Key out of bounds".
-        Self::new("")
-    }
-}
-
 impl UserUid {
     pub fn new(uid: &str) -> Self {
         Self(USER_UID_INTERNER.get_or_intern(uid))

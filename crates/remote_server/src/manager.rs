@@ -68,7 +68,6 @@ struct ReconnectParams {
     transport: Arc<dyn RemoteTransport>,
     auth_context: Arc<RemoteServerAuthContext>,
     control_path: ControlPath,
-    identity_key: String,
 }
 #[cfg(not(target_family = "wasm"))]
 struct InitializeHandshake {
@@ -267,12 +266,6 @@ pub enum RemoteSessionState {
     Connected {
         client: Arc<RemoteServerClient>,
         host_id: HostId,
-        /// Identity key that was active when this session was established.
-        /// Used by `rotate_auth_token` to ensure token rotation notifications
-        /// are only delivered to sessions that belong to the current user
-        /// identity, preventing a stale session for a previous identity from
-        /// receiving a different user's bearer token.
-        identity_key: String,
         /// The transport's owning `Child`. See `Initializing::_child`.
         #[cfg(not(target_family = "wasm"))]
         _child: async_process::Child,
@@ -1908,9 +1901,6 @@ impl RemoteServerManager {
             // for reconnection after a spontaneous disconnect.
             let transport: Arc<dyn RemoteTransport> = Arc::new(transport);
             let auth_context_for_task = Arc::clone(&auth_context);
-            // Capture the identity key synchronously so it travels with the
-            // session and can be used to filter token-rotation notifications.
-            let identity_key = auth_context.remote_server_identity_key();
 
             ctx.background_executor()
                 .spawn(async move {
@@ -1927,11 +1917,7 @@ impl RemoteServerManager {
                             let _ = spawner
                                 .spawn(move |me, ctx| {
                                     me.mark_session_connected(
-                                        session_id,
-                                        handshake,
-                                        identity_key,
-                                        transport,
-                                        ctx,
+                                        session_id, handshake, transport, ctx,
                                     );
                                 })
                                 .await;
@@ -2277,42 +2263,6 @@ impl RemoteServerManager {
             RemoteSessionState::Connected { client, .. } => Some(client),
             _ => None,
         })
-    }
-
-    /// Rotates the daemon-wide auth credential on each connected remote host.
-    ///
-    /// Only sessions whose stored `identity_key` matches the current identity
-    /// (from `auth_context`) receive the notification. This prevents a stale
-    /// session established under a previous user identity from receiving a
-    /// newly-rotated bearer token that belongs to a different user.
-    ///
-    /// Within the matching identity, a daemon may have multiple client
-    /// connections. The credential is stored daemon-wide, so sending one
-    /// notification per connected host is sufficient.
-    pub fn rotate_auth_token(&self, token: String) {
-        let Some(ref auth_context) = self.auth_context else {
-            log::warn!("Remote server rotate_auth_token: no auth_context available, skipping");
-            return;
-        };
-        let current_identity_key = auth_context.remote_server_identity_key();
-        let mut authenticated_hosts = HashSet::new();
-        for state in self.sessions.values() {
-            let RemoteSessionState::Connected {
-                client,
-                host_id,
-                identity_key,
-                ..
-            } = state
-            else {
-                continue;
-            };
-            if identity_key != &current_identity_key {
-                continue;
-            }
-            if authenticated_hosts.insert(host_id.clone()) {
-                client.authenticate(&token);
-            }
-        }
     }
 
     /// Returns the connection state for this session.
@@ -3185,7 +3135,6 @@ impl RemoteServerManager {
         &mut self,
         session_id: SessionId,
         handshake: InitializeHandshake,
-        identity_key: String,
         transport: Arc<dyn RemoteTransport>,
         ctx: &mut ModelContext<Self>,
     ) {
@@ -3214,7 +3163,6 @@ impl RemoteServerManager {
             RemoteSessionState::Connected {
                 client: client.clone(),
                 host_id: host_id.clone(),
-                identity_key,
                 _child,
                 control_path,
                 transport,
@@ -3409,7 +3357,6 @@ impl RemoteServerManager {
         // with a transport available, and not being explicitly deregistered.
         if let RemoteSessionState::Connected {
             host_id,
-            identity_key,
             mut _child,
             control_path,
             transport,
@@ -3461,7 +3408,6 @@ impl RemoteServerManager {
                     transport,
                     auth_context,
                     control_path,
-                    identity_key,
                 },
                 ctx,
             );
@@ -3489,7 +3435,6 @@ impl RemoteServerManager {
             transport,
             auth_context,
             control_path,
-            identity_key,
         } = params;
 
         log::info!(
@@ -3549,7 +3494,6 @@ impl RemoteServerManager {
                                 me.mark_session_connected(
                                     session_id,
                                     handshake,
-                                    identity_key,
                                     transport,
                                     ctx,
                                 );
@@ -3587,7 +3531,6 @@ impl RemoteServerManager {
                                         transport,
                                         auth_context,
                                         control_path,
-                                        identity_key,
                                     },
                                     ctx,
                                 );

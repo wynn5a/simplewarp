@@ -7,8 +7,8 @@ use super::*;
 use crate::proto::{
     ClientMessage, ErrorCode, GetDiffStateResponse, InitializeResponse, OpenBufferResponse,
     RemoteAgentContextSnapshot, RemoteContextFileProto, RunCommandResponse, RunCommandSuccess,
-    ServerMessage, WriteFile, client_message, host_scoped_request, notification,
-    run_command_response, server_message, session_scoped_request,
+    ServerMessage, WriteFile, client_message, host_scoped_request, run_command_response,
+    server_message, session_scoped_request,
 };
 use crate::protocol;
 
@@ -74,14 +74,6 @@ fn unwrap_host_scoped(msg: &ClientMessage) -> &host_scoped_request::Message {
     match &msg.message {
         Some(client_message::Message::HostScoped(w)) => w.message.as_ref().unwrap(),
         other => panic!("Expected HostScoped, got {other:?}"),
-    }
-}
-
-/// Extract the notification inner message from a ClientMessage wrapper.
-fn unwrap_notification(msg: &ClientMessage) -> &notification::Message {
-    match &msg.message {
-        Some(client_message::Message::Notification(w)) => w.message.as_ref().unwrap(),
-        other => panic!("Expected Notification, got {other:?}"),
     }
 }
 
@@ -214,26 +206,6 @@ async fn initialize_sends_auth_token_when_provided() {
         )
         .await
         .unwrap();
-}
-
-#[tokio::test]
-async fn authenticate_sends_fire_and_forget_message() {
-    let (client_stream, server_stream) = tokio::io::duplex(4096);
-    let (server_read, _server_write) = tokio::io::split(server_stream);
-    let (client_read, client_write) = tokio::io::split(client_stream);
-    let executor = executor::Background::default();
-    let (client, _event_rx, _failure_rx, _host_rx) =
-        RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
-
-    client.authenticate("rotated-secret");
-
-    let msg = protocol::read_client_message(&mut server_read.compat())
-        .await
-        .unwrap();
-    let notification::Message::Authenticate(auth) = unwrap_notification(&msg) else {
-        panic!("Expected Authenticate");
-    };
-    assert_eq!(auth.auth_token, "rotated-secret");
 }
 
 #[tokio::test]

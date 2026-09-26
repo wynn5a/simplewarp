@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use parking_lot::RwLock;
 use uuid::Uuid;
@@ -21,10 +20,6 @@ pub struct AuthState {
     /// An anonymous UUID. Can be used to consistently identify an anonymous user who is not logged in.
     anonymous_id: Uuid,
 
-    /// State that indicates whether the current user's refresh token has been
-    /// invalidated, meaning a reauth is required.
-    needs_reauth: AtomicBool,
-
     /// The current authentication credentials.
     credentials: RwLock<Option<Credentials>>,
 }
@@ -34,7 +29,6 @@ impl AuthState {
         Self {
             user: RwLock::new(None),
             anonymous_id: get_or_create_anonymous_id(ctx),
-            needs_reauth: AtomicBool::new(false),
             credentials: RwLock::new(None),
         }
     }
@@ -55,7 +49,6 @@ impl AuthState {
         Self {
             user: RwLock::new(Some(User::test())),
             anonymous_id: Uuid::new_v4(),
-            needs_reauth: AtomicBool::new(false),
             credentials: RwLock::new(Some(Self::test_credentials())),
         }
     }
@@ -64,7 +57,6 @@ impl AuthState {
         Self {
             user: RwLock::new(None),
             anonymous_id: Uuid::new_v4(),
-            needs_reauth: AtomicBool::new(false),
             credentials: RwLock::new(None),
         }
     }
@@ -78,7 +70,6 @@ impl AuthState {
                 ..User::test()
             })),
             anonymous_id: Uuid::new_v4(),
-            needs_reauth: AtomicBool::new(false),
             credentials: RwLock::new(Some(Self::test_credentials())),
         }
     }
@@ -296,19 +287,6 @@ impl AuthState {
     /// The anonymous id will be consistent across the app's lifetime. It is a random UUID.
     pub fn anonymous_id(&self) -> String {
         self.anonymous_id.to_string()
-    }
-
-    /// Returns whether a reauth is required for the current user given the state
-    /// of their refresh token.
-    pub fn needs_reauth(&self) -> bool {
-        self.needs_reauth.load(Ordering::Relaxed)
-    }
-
-    /// Sets whether a reauth is required for the current user.
-    /// Returns whether or not the reauth state was changed from false to true.
-    pub fn set_needs_reauth(&self, new_needs_reauth: bool) -> bool {
-        let prev_needs_reauth = self.needs_reauth.swap(new_needs_reauth, Ordering::Relaxed);
-        !prev_needs_reauth && new_needs_reauth
     }
 
     /// Returns whether or not the user is on a work domain.

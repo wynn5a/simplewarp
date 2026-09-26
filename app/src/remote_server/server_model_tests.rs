@@ -6,7 +6,7 @@ use warpui::App;
 
 use super::super::diff_state_tracker::RemoteDiffStateManager;
 use super::super::proto::{
-    Authenticate, BundledSkillMetadata, HomeSkillMetadata, Initialize, RemoteAgentContextSnapshot,
+    BundledSkillMetadata, HomeSkillMetadata, Initialize, RemoteAgentContextSnapshot,
     RemoteContextFileProto, RemoteSkillProto, ServerMessage, WriteFileResponse, WriteFileSuccess,
     remote_skill_proto, server_message, write_file_response,
 };
@@ -184,44 +184,6 @@ fn empty_initialize_clears_auth_context() {
         assert_eq!(model.auth_token().as_deref(), None);
         assert_eq!(model.auth_state.user_id(), None);
         assert_eq!(model.auth_state.user_email(), None);
-    });
-}
-
-#[test]
-fn authenticate_with_auth_token_replaces_auth_token() {
-    App::test((), |mut app| async move {
-        let mut model = test_model(&mut app);
-        model.apply_initialize_auth(&Initialize {
-            auth_token: "initial-token".to_string(),
-            user_id: String::new(),
-            user_email: String::new(),
-            crash_reporting_enabled: true,
-        });
-
-        model.handle_authenticate(Authenticate {
-            auth_token: "rotated-token".to_string(),
-        });
-
-        assert_eq!(model.auth_token().as_deref(), Some("rotated-token"));
-    });
-}
-
-#[test]
-fn empty_authenticate_clears_auth_token() {
-    App::test((), |mut app| async move {
-        let mut model = test_model(&mut app);
-        model.apply_initialize_auth(&Initialize {
-            auth_token: "initial-token".to_string(),
-            user_id: String::new(),
-            user_email: String::new(),
-            crash_reporting_enabled: true,
-        });
-
-        model.handle_authenticate(Authenticate {
-            auth_token: String::new(),
-        });
-
-        assert_eq!(model.auth_token().as_deref(), None);
     });
 }
 

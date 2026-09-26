@@ -10,7 +10,6 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{Element, ViewContext};
 
 use crate::cloud_object::breadcrumbs::ContainingObject;
-use crate::drive::settings::WarpDriveSettings;
 use crate::env_vars::active_env_var_collection_data::TrashStatus;
 use crate::env_vars::view::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView};
 use crate::sharing::{ContentEditability, SharingAccessLevel};
@@ -33,17 +32,14 @@ impl EnvVarCollectionView {
         self.breadcrumbs = self
             .active_env_var_collection_data
             .update(ctx, |data, ctx| {
-                let drive_enabled = WarpDriveSettings::is_warp_drive_enabled(ctx);
                 data.breadcrumbs(ctx)
                     .map(|mut breadcrumbs| {
-                        if !drive_enabled {
-                            // Without an account, "view in Warp Drive" only lands on Drive's
-                            // sign-in dead end, so don't make the breadcrumb segments look
-                            // clickable.
-                            breadcrumbs
-                                .iter_mut()
-                                .for_each(ContainingObject::disable_drive_link);
-                        }
+                        // Without an account, "view in Warp Drive" only lands on Drive's
+                        // sign-in dead end, so don't make the breadcrumb segments look
+                        // clickable.
+                        breadcrumbs
+                            .iter_mut()
+                            .for_each(ContainingObject::disable_drive_link);
                         breadcrumbs.into_iter().map(BreadcrumbState::new).collect()
                     })
                     .unwrap_or_default()

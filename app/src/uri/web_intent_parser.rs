@@ -12,7 +12,6 @@ use crate::uri::browser_url_handler::parse_current_url;
 /// Represents an intent parsed from a web url
 pub enum WebIntent {
     SessionView(Url),
-    ConversationView(Url),
     DriveObject(Url),
     SettingsView(Url),
     Home(Url),
@@ -68,20 +67,6 @@ impl WebIntent {
                         }
 
                         return Ok(WebIntent::SessionView(session_intent));
-                    }
-                    // For conversations, we expect the URL to be in the format: {scheme}/conversation/{conversation_id}
-                    "conversation" => {
-                        if segments.len() != 2 {
-                            return Err(anyhow!("Attempting to parse invalid url: {}", url));
-                        }
-
-                        let conversation_id = segments[1];
-                        let conversation_intent = Url::parse(
-                            format!("{url_scheme}://conversation/{conversation_id}").as_str(),
-                        )
-                        .map_err(|_| anyhow!("Attempting to parse invalid url: {}", url))?;
-
-                        return Ok(WebIntent::ConversationView(conversation_intent));
                     }
                     // For drive objects, we expect the URL to be of the format: {scheme}/drive/{object-type}/{object-name}-{object-id}?focused_folder_id={focused_folder_id}
                     // The focused_folder_id is optional, and if it is not provided, we will not include it in the intent url.
@@ -145,7 +130,6 @@ impl WebIntent {
     pub fn into_intent_url(self) -> Url {
         match self {
             WebIntent::SessionView(url) => url,
-            WebIntent::ConversationView(url) => url,
             WebIntent::DriveObject(url) => url,
             WebIntent::SettingsView(url) => url,
             WebIntent::Home(url) => url,
@@ -166,8 +150,7 @@ pub fn maybe_rewrite_web_url_to_intent(url: &Url) -> Option<Url> {
 #[cfg(target_family = "wasm")]
 pub fn open_url_on_desktop(url: &Url) {
     match WebIntent::try_from_url(url) {
-        Ok(WebIntent::ConversationView(intent))
-        | Ok(WebIntent::DriveObject(intent))
+        Ok(WebIntent::DriveObject(intent))
         | Ok(WebIntent::SessionView(intent))
         | Ok(WebIntent::Action(intent)) => {
             crate::platform::wasm::emit_event(crate::platform::wasm::WarpEvent::OpenOnNative {
@@ -184,7 +167,6 @@ pub fn open_url_on_desktop(url: &Url) {
 fn set_context_flags_from_url(url: Url) {
     match WebIntent::try_from_url(&url) {
         Ok(WebIntent::SessionView(_)) => ContextFlag::set_shared_session_only(),
-        Ok(WebIntent::ConversationView(_)) => ContextFlag::set_conversation_only(),
         Ok(WebIntent::DriveObject(_)) => ContextFlag::set_warp_drive_link_only(),
         Ok(WebIntent::SettingsView(_)) => ContextFlag::set_settings_link_only(),
         Ok(WebIntent::Home(_)) => ContextFlag::set_warp_home_link_only(),
