@@ -717,10 +717,6 @@ impl WorkflowView {
         None
     }
 
-    pub fn is_team_workflow(&self) -> bool {
-        matches!(self.owner, Some(Owner::Team { .. }))
-    }
-
     pub fn pane_configuration(&self) -> &ModelHandle<PaneConfiguration> {
         match &self.container_configuration {
             ContainerConfiguration::Pane(pane_config) => pane_config,

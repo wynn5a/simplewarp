@@ -15502,3 +15502,36 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       app/src/cloud_object + update_manager), which survives under its
       cloud-shaped names per the standing no-churn-on-persisted-shapes
       policy.
+- [x] **residue round — remote-shaped leftovers (4gm) — DONE 2026-09-27.**
+      9 files, +13/−159. Executed by one subagent; parent re-verified.
+      (1) crates/onboarding STAYS (live: onboarding::init +
+      OnboardingCalloutView/OnboardingKeybindings/OnboardingIntention —
+      the local terminal/agent tutorial); deleted the zero-consumer
+      AI_FEATURES + WARP_DRIVE_FEATURES consts whose doc comments tied
+      them to the deleted login slide. (2) Team-workflow integration test
+      deleted WHOLE (test_create_team_workflow_pane_from_command_palette +
+      register_test!): provably unrunnable — its "Create a New Team
+      Workflow" string exists nowhere in the app; join_a_workspace stub +
+      assert_no_team_workflow_pane_open/assert_open_team_workflow_pane_
+      count_equals + WorkflowView::is_team_workflow (sole callers were
+      those helpers) fell; go_offline/go_online KEPT. Fallout: nine
+      #[cfg(any(test, feature = "integration_tests"))] UserWorkspaces
+      items re-gated to #[cfg(test)] (join_a_workspace was their only
+      non-test caller; unit tests unchanged, the integration_tests build
+      no longer compiles dead team plumbing). (3) home.rs Warp-on-Web
+      blob: removed only the "Create, View, and Edit Warp Drive Objects"
+      bullet; web-product bullets stay.
+
+      REPORTED, NOT DELETED (out of scope, good next-sweep candidate):
+      assertions::create_a_personal_workflow (app/src/integration_testing/
+      assertions.rs:100) — caller-less repo-wide and cloud-shaped
+      (UpdateManager.create_workflow + personal_drive), pre-existing.
+
+      TEST DELTAS: zero (the deleted test lives in the manual integration
+      registry, not the nextest -p warp --lib universe).
+
+      ACCEPTANCE (parent re-ran): three cargo checks green zero warnings;
+      format idempotent; clippy forced-recheck A 16→16 / B 14→14 pairs
+      (subagent) and parent stash-capture A 2=2 / B 0=0 with zero new;
+      nextest 4,539 default / 4,540 simplewarp, 3 skipped, 0 failed
+      (exact baseline parity). No GUI, no integration suite.

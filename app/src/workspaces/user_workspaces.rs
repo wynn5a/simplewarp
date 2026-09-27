@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use regex::Regex;
 use warp_core::features::FeatureFlag;
-#[cfg(any(test, feature = "integration_tests"))]
+#[cfg(test)]
 use warp_core::settings::ChangeEventReason;
 use warp_core::settings::Setting as _;
 use warpui::{
@@ -24,7 +24,7 @@ use crate::auth::AuthStateProvider;
 use crate::channel::ChannelState;
 use crate::cloud_object::{Owner, Space};
 use crate::server::ids::ServerId;
-#[cfg(any(test, feature = "integration_tests"))]
+#[cfg(test)]
 use crate::settings::PrivacySettings;
 use crate::settings::{AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent};
 #[cfg(test)]
@@ -178,7 +178,7 @@ impl UserWorkspaces {
 
     /// Returns the windows whose team assignment changed.
     #[must_use]
-    #[cfg(any(test, feature = "integration_tests"))]
+    #[cfg(test)]
     fn reconcile_window_team_assignments(&mut self) -> Vec<WindowId> {
         let team_uids = self
             .current_workspace()
@@ -204,7 +204,7 @@ impl UserWorkspaces {
         reassigned_windows
     }
 
-    #[cfg(any(test, feature = "integration_tests"))]
+    #[cfg(test)]
     fn emit_window_team_changed(windows: Vec<WindowId>, ctx: &mut ModelContext<Self>) {
         for _ in windows {
             ctx.emit(UserWorkspacesEvent::WindowTeamChanged);
@@ -239,7 +239,7 @@ impl UserWorkspaces {
         &self.workspaces
     }
 
-    #[cfg(any(test, feature = "integration_tests"))]
+    #[cfg(test)]
     pub fn set_current_workspace_uid(
         &mut self,
         workspace_uid: WorkspaceUid,
@@ -573,7 +573,7 @@ impl UserWorkspaces {
         }
     }
 
-    #[cfg(any(test, feature = "integration_tests"))]
+    #[cfg(test)]
     pub fn has_teams(&self) -> bool {
         if let Some(workspace) = self.current_workspace() {
             !workspace.teams.is_empty()
@@ -582,7 +582,7 @@ impl UserWorkspaces {
         }
     }
 
-    #[cfg(any(test, feature = "integration_tests"))]
+    #[cfg(test)]
     pub fn update_workspaces(&mut self, workspaces: Vec<Workspace>, ctx: &mut ModelContext<Self>) {
         *self.workspaces = workspaces;
         let reassigned_windows = self.reconcile_window_team_assignments();
@@ -590,7 +590,7 @@ impl UserWorkspaces {
         Self::emit_window_team_changed(reassigned_windows, ctx);
     }
 
-    #[cfg(any(test, feature = "integration_tests"))]
+    #[cfg(test)]
     fn notify_and_emit_teams_changed(&self, ctx: &mut ModelContext<Self>) {
         // Update session-sharing enablement since it depends on what teams the user
         // is part of.
@@ -612,7 +612,7 @@ impl UserWorkspaces {
         ctx.notify();
     }
 
-    #[cfg(any(test, feature = "integration_tests"))]
+    #[cfg(test)]
     pub fn is_telemetry_force_enabled(&self) -> bool {
         self.current_workspace()
             .map(|workspace| workspace.settings.telemetry_settings.force_enabled)
