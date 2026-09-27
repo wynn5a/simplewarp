@@ -134,12 +134,10 @@ pub struct CloudPreferencesSyncer {
     /// after every successful cloud sync reconciliation.
     toml_file_path: PathBuf,
 
-    /// Whether cloud sync is active for the current settings surface. Derived
-    /// from [`settings::SettingsMode::should_sync_to_cloud`]; when `false` (e.g.
-    /// the TUI surface) the syncer is inert — it never reads from or writes to
-    /// the cloud, so a surface with its own local settings file cannot clobber
-    /// shared cloud state. The singleton is still registered so callers that
-    /// reach for it (e.g. on login) don't panic.
+    /// Whether cloud sync is active for the current settings surface. No build of this
+    /// fork has a Warp account, so production constructs the syncer with this `false`
+    /// and the syncer is inert — it never reads from or writes to the cloud. The
+    /// singleton is still registered so callers that reach for it don't panic.
     sync_enabled: bool,
 }
 

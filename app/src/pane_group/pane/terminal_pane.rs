@@ -871,16 +871,14 @@ fn handle_terminal_view_event(
             Event::OnboardingTutorialCompleted => {
                 ctx.emit(pane_group::Event::OnboardingTutorialCompleted);
             }
-            Event::OpenWorkflowModalWithCommand(command) => {
-                ctx.emit(pane_group::Event::OpenWorkflowModalWithCommand(
-                    command.clone(),
-                ));
+            Event::OpenWorkflowWithCommand(command) => {
+                ctx.emit(pane_group::Event::OpenWorkflowWithCommand(command.clone()));
             }
             Event::OpenWorkflowModalWithCloudWorkflow(workflow_id) => {
                 ctx.emit(pane_group::Event::OpenCloudWorkflowForEdit(*workflow_id));
             }
-            Event::OpenWorkflowModalWithTemporary(workflow) => {
-                ctx.emit(pane_group::Event::OpenWorkflowModalWithTemporary(
+            Event::OpenWorkflowWithTemporary(workflow) => {
+                ctx.emit(pane_group::Event::OpenWorkflowWithTemporary(
                     workflow.clone(),
                 ));
             }

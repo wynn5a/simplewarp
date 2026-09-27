@@ -111,7 +111,7 @@ pub enum TranscriptEvent {
     FocusEditor,
     FocusTranscript,
     ClickedCodeBlock,
-    OpenWorkflowModalWithCommand(String),
+    OpenWorkflowWithCommand(String),
 }
 
 impl Entity for Transcript {
@@ -204,7 +204,7 @@ impl Transcript {
         ctx: &mut ViewContext<Self>,
     ) {
         if let Some(code) = self.code_for_index(code_block_index, ctx) {
-            ctx.emit(TranscriptEvent::OpenWorkflowModalWithCommand(code));
+            ctx.emit(TranscriptEvent::OpenWorkflowWithCommand(code));
         }
     }
 

@@ -154,10 +154,10 @@ pub enum SupportedPlatforms {
 /// An enum representing the different ways a setting can be synced to the cloud.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyncToCloud {
-    /// The setting is synced to the cloud as a single global value that applies to on all supported platforms.
+    /// The setting is treated as a single global value that applies to all supported platforms.
     Globally(RespectUserSyncSetting),
 
-    /// The setting is synced to the cloud as a value that is unique to each platform.
+    /// The setting is treated as a value that is unique to each platform.
     PerPlatform(RespectUserSyncSetting),
 
     /// The setting is not synced to the cloud.
@@ -187,7 +187,7 @@ pub enum SettingsMode {
 }
 
 impl SettingsMode {
-    /// Whether settings for this mode are synced to the cloud (Warp Drive).
+    /// Whether settings for this mode are eligible for cloud sync (Warp Drive).
     pub fn should_sync_to_cloud(self) -> bool {
         match self {
             SettingsMode::Gui => true,
@@ -358,7 +358,7 @@ pub trait Setting {
     /// Returns the platforms that this setting is supported on.
     fn supported_platforms() -> SupportedPlatforms;
 
-    /// Returns whether and how this setting is synced to the cloud via Warp Drive.
+    /// Returns whether and how this setting can be synced to the cloud via Warp Drive.
     fn sync_to_cloud() -> SyncToCloud;
 
     /// Returns whether this setting is private (not shown in the user-visible settings file).

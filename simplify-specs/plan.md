@@ -15535,3 +15535,64 @@ print("export LOCAL_INFERENCE_MODEL=" + shlex.quote(e["models"][0]["alias"]))
       (subagent) and parent stash-capture A 2=2 / B 0=0 with zero new;
       nextest 4,539 default / 4,540 simplewarp, 3 skipped, 0 failed
       (exact baseline parity). No GUI, no integration suite.
+- [x] **residue round — naming + test-stub + flake fix (4gn) — DONE
+      2026-09-27.** 16 files, +52/−95 across subagent + parent. Executed
+      by one subagent; parent re-verified and completed the rename family.
+      (1) Dead cloud-shaped stub create_a_personal_workflow deleted
+      (assertions.rs, −32; repo-wide grep re-proved caller-less — the
+      same-named item callers use is workflow/step.rs's); 6 orphaned
+      imports fell; remaining assertions file all live. (2) Legacy event
+      renames, all verified in-memory (no derives, zero quoted-string
+      spellings anywhere): pane_group::Event
+      OpenWorkflowModalWith{Command,Temporary} → OpenWorkflowWith{Command,
+      Temporary}; AIAssistantPanelEvent::OpenWorkflowModalWithCommand →
+      OpenWorkflowWithCommand (subagent); parent completed the family:
+      terminal::view::Event OpenWorkflowModalWith{Command,Temporary} and
+      TranscriptEvent::OpenWorkflowModalWithCommand → the same new names
+      (10 sites across terminal/view.rs, ai_assistant/{transcript,panel}
+      .rs, pane_group/pane/terminal_pane.rs). NOT renamed, with reason:
+      OpenWorkflowModalWithCloudWorkflow — it is ALSO a TerminalAction
+      whose Debug write_str serializes the name (action-name lookup
+      surface), i.e. a persisted-string shape; and the action.rs
+      OpenWorkflowModal* Debug-stringified actions (pre-existing, out of
+      scope). (3) FLAKE FIX: test_command_block_dispatches_event — root
+      cause: the shared open_notebook test helper settled with a single
+      yield_now, but command-block child models build on LayoutUpdated,
+      whose layout actions round-trip through a BACKGROUND thread
+      (RenderState layout stream spawned on Background, relayed to
+      foreground) — one pump loses the race under nextest parallel load.
+      Fix: await RenderState::layout_complete() (the repo's first-class
+      test primitive, used by notebooks/editor tests + code/editor tests).
+      ZERO assertion changes. POST-FIX WATCH: 7 of 8 full simplewarp runs
+      clean (4,540/4,540), default run clean, isolated PASS — one run
+      failed with details lost to output truncation (unattributable);
+      keep the test on watch next rounds. (4) 14 stale cloud-behavior
+      comments fixed (comments only): crates/settings SyncToCloud/
+      should_sync_to_cloud/sync_to_cloud docs no longer assert live
+      syncing; manager.rs clear_cloud_settings_local_state doc dropped
+      false logout/cloud claims; update_manager create_object doc no
+      longer claims a server api call; cloud_object StringModel/
+      uniqueness_key/CloudModelType/ObjectAction/CloudModel docs → local
+      persistence wording; cloud_preferences_syncer sync_enabled doc
+      rewritten to production truth (hardcoded false). Deliberately kept:
+      UpdateSource::Server doc, ServerId-guard comments,
+      object_link "not yet sync'd" (matches the real ClientId branch),
+      conflict/permission machinery docs.
+
+      TEST DELTAS: none (helper body changed only, per the flake fix).
+
+      ACCEPTANCE (parent re-ran): three cargo checks green zero warnings;
+      format idempotent; clippy forced-recheck A 16→16 / B 14→14
+      (subagent, byte-identical incl. no line shifts) and parent
+      stash-capture A 2=2 / B 0=0 zero new; nextest default 4,539 clean +
+      simplewarp runs as above. No GUI, no integration suite.
+
+      RESIDUE QUEUE NOW EMPTY. Remaining known non-targets (recorded,
+      do not queue without a new user decision): substrate persisted
+      shapes (MoveToDrive, PersonalCloud, WarpDrivePrivacySettings,
+      autosync_plans_to_warp_drive, AIAgentCitation::WarpDriveObject,
+      OpenWorkflowModalWithCloudWorkflow action name, Icon::Warp/
+      warp-drive.svg, integration_testing/warp_drive/ path, app_state
+      WarpDrive tombstone); crates/onboarding live-local remainder;
+      enable-candidate flags (EditableMarkdownMermaid, ImeMarkedText,
+      ITermImages) are separate product decisions.

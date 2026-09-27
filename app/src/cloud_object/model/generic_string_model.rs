@@ -36,7 +36,7 @@ pub trait CloudStringObject: CloudObject + Send + Sync {
 /// Any model that has a simple string representation (e.g. JSON, markdown, yaml) that can be atomically updated
 /// can implement this trait and get most cloud object functionality for free.
 ///
-/// Objects that implement this type all share common storage and server apis.
+/// Objects that implement this type all share common storage and persistence logic.
 pub trait StringModel: Clone + Debug + PartialEq + Send + Sync + 'static {
     type CloudObjectType: CloudObject + 'static;
 
@@ -82,7 +82,7 @@ pub trait StringModel: Clone + Debug + PartialEq + Send + Sync + 'static {
 
     /// Returns a unique key for this object, if one exists. Unique keys are used
     /// to enforce that only one object with a given key can exist in the generic string
-    /// object server database.
+    /// object database.
     fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey>;
 }
 
@@ -112,8 +112,8 @@ where
 
 /// Implements the CloudModelType trait for all generic string models.
 ///
-/// This has common logic for storing string models to SQLite, sending them to the server
-/// updating from the server -- basically for anything not specific to the contents
+/// This has common logic for storing string models to SQLite and keeping the in-memory
+/// model up to date -- basically for anything not specific to the contents
 /// of the string model.
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]

@@ -138,9 +138,7 @@ impl SettingsManager {
         );
     }
 
-    /// Clears all cloud synced settings from the user defaults. Does not affect their cloud state.
-    /// Typically called when a user logs out. Note that the caller is responsible for ensuring that
-    /// cloud preferences are enabled before calling this.
+    /// Clears all cloud synced settings from the user defaults.
     pub fn clear_cloud_settings_local_state(
         &mut self,
         ctx: &mut ModelContext<Self>,

@@ -12379,13 +12379,13 @@ impl Workspace {
                     self.handle_task_status_reset(pane_group.id(), ctx);
                 }
             }
-            pane_group::Event::OpenWorkflowModalWithCommand(command) => {
+            pane_group::Event::OpenWorkflowWithCommand(command) => {
                 self.open_workflow_with_command(command.clone(), ctx)
             }
             pane_group::Event::OpenCloudWorkflowForEdit(workflow_id) => {
                 self.open_workflow_with_existing(*workflow_id, ctx)
             }
-            pane_group::Event::OpenWorkflowModalWithTemporary(workflow) => {
+            pane_group::Event::OpenWorkflowWithTemporary(workflow) => {
                 self.open_workflow_with_temporary(*workflow.clone(), ctx)
             }
             pane_group::Event::OpenAIFactCollection { sync_id } => {
@@ -14493,7 +14493,7 @@ impl Workspace {
                 self.focus_active_tab(ctx);
                 ctx.notify();
             }
-            AIAssistantPanelEvent::OpenWorkflowModalWithCommand(command) => {
+            AIAssistantPanelEvent::OpenWorkflowWithCommand(command) => {
                 self.open_workflow_with_command(command.clone(), ctx);
             }
         }

@@ -606,12 +606,7 @@ impl UpdateManager {
         );
     }
 
-    /// Bulk creates a list of generic string objects, all in a single
-    /// sqllite write and server api call.  More efficient than calling
-    /// create_object for each object.
-    ///
-    /// Note that if the bulk creation request fails, the client will end up retrying
-    /// object creation one write and request at a time.
+    /// Creates a generic cloud object in the in-memory model and persists it to sqlite.
     pub fn create_object<K, M>(
         &mut self,
         model: M,
@@ -720,8 +715,8 @@ impl UpdateManager {
         let timestamp = ServerTimestamp::new(Utc::now());
         CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
             if let Some(object) = cloud_model.get_mut_by_uid(uid) {
-                // Here, we write a timestamp to the trashed_ts field. The client will eventually update to
-                // the canonical version of the timestamp once it receives an rtc message from the server.
+                // Here, we write a timestamp to the trashed_ts field. There is no server to
+                // confirm a canonical timestamp, so the local one is authoritative.
 
                 object.metadata_mut().trashed_ts = Some(timestamp);
                 object
@@ -915,8 +910,8 @@ impl UpdateManager {
         let cloud_model_handle = CloudModel::handle(ctx);
         let all_object_uids: Vec<ObjectUid> = deleted_ids.iter().map(|&id| id.uid()).collect();
 
-        // This variable counts the number of objects deleted client-side in each Empty Trash action,
-        // because the server returns everything in the db, including objects that have already been marked for deletion
+        // This counts the objects actually deleted from the model, which can be fewer
+        // than the ids requested for deletion.
         let mut num_deleted_objects = 0;
         let mut sync_ids_and_types: Vec<(SyncId, ObjectIdType)> = Vec::new();
         cloud_model_handle.update(ctx, |cloud_model, ctx| {

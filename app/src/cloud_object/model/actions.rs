@@ -40,10 +40,10 @@ impl ObjectActionType {
     }
 }
 
-/// We track object actions, both those that have been sent to the server and not, through this
-/// type. A single ObjectAction represents an object_id, action pair and a subtype that contains data
-/// about the action(s). Each ObjectAction either represents one action or a summary of identical actions
-/// that occurred at different times. We summarize old actions in order to save memory footprint on the client.
+/// We track object actions through this type. A single ObjectAction represents an object_id,
+/// action pair and a subtype that contains data about the action(s). Each ObjectAction either
+/// represents one action or a summary of identical actions that occurred at different times.
+/// We summarize old actions in order to save memory footprint on the client.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObjectAction {
     pub action_type: ObjectActionType,

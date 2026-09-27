@@ -1462,11 +1462,11 @@ pub enum Event {
     TerminalViewStateChanged,
     ShowCommandSearch(CommandSearchOptions),
     // Tell the pane group to open the workflow modal.
-    OpenWorkflowModalWithCommand(String),
+    OpenWorkflowWithCommand(String),
     // Tell the pane group to open the workflow modal with an existing cloud workflow.
     OpenWorkflowModalWithCloudWorkflow(SyncId),
     // Tell the pane group to open the workflow modal with an unsaved workflow.
-    OpenWorkflowModalWithTemporary(Box<Workflow>),
+    OpenWorkflowWithTemporary(Box<Workflow>),
     OpenWarpDriveObjectInPane(ObjectUid),
     OpenSuggestedAgentModeWorkflowModal {
         workflow_and_id: SuggestedAgentModeWorkflowAndId,
@@ -14659,9 +14659,7 @@ impl TerminalView {
 
         // Set the command in the modal to the command of the block.
         if let Some(block) = self.model.lock().block_list().block_at(block_index) {
-            ctx.emit(Event::OpenWorkflowModalWithCommand(
-                block.command_to_string(),
-            ))
+            ctx.emit(Event::OpenWorkflowWithCommand(block.command_to_string()))
         }
     }
 
@@ -14670,7 +14668,7 @@ impl TerminalView {
         workflow: Workflow,
         ctx: &mut ViewContext<Self>,
     ) {
-        ctx.emit(Event::OpenWorkflowModalWithTemporary(Box::new(workflow)));
+        ctx.emit(Event::OpenWorkflowWithTemporary(Box::new(workflow)));
     }
 
     pub fn open_workflow_modal_with_existing(
@@ -16167,7 +16165,7 @@ impl TerminalView {
     }
 
     fn open_workflow_modal_with_command(&mut self, command: String, ctx: &mut ViewContext<Self>) {
-        ctx.emit(Event::OpenWorkflowModalWithCommand(command));
+        ctx.emit(Event::OpenWorkflowWithCommand(command));
     }
 
     fn copy_prompt(

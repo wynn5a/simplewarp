@@ -115,9 +115,19 @@ async fn open_notebook(app: &mut App, handle: &ViewHandle<NotebookView>, noteboo
     handle.update(app, |view, ctx| {
         view.load(notebook, ctx);
     });
-    // Pump the executor once so render effects settle: command block models are
-    // built on LayoutUpdated, which is what the old baton-future await did.
-    futures_lite::future::yield_now().await;
+    // Command block models are built on LayoutUpdated, which is emitted by the render
+    // model after its layout actions round-trip through a background thread, so wait
+    // for layout completion instead of pumping the executor a fixed number of times.
+    let render_state = handle.read(app, |view, ctx| {
+        view.input
+            .as_ref(ctx)
+            .model()
+            .as_ref(ctx)
+            .render_state()
+            .clone()
+    });
+    app.read(|ctx| render_state.as_ref(ctx).layout_complete())
+        .await;
 }
 
 fn cloud_notebook(title: impl Into<String>, data: impl Into<String>) -> CloudNotebook {

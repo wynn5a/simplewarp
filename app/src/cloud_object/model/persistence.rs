@@ -72,7 +72,7 @@ pub enum CloudModelEvent {
 }
 
 /// Persistence model for [CloudObject] information. In an ideal world, this singleton model
-/// is a 1:1 mapping for what we persisting in sqlite, and on the server. Any logic beyond a basic update
+/// is a 1:1 mapping for what we persist in sqlite. Any logic beyond a basic update
 /// or query to data in [CloudModel] should instead be stored in [CloudViewModel] and tested in
 /// model_test.rs.
 pub struct CloudModel {
