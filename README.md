@@ -1,3 +1,10 @@
+> **This is SimpleWarp**, a fork of [warpdotdev/warp](https://github.com/warpdotdev/warp): an
+> offline terminal with bring-your-own-key AI. It has no login, Warp Drive, cloud agents, session
+> sharing, telemetry, or crash reporting; the only network traffic goes to the AI provider you
+> configure. Run it with `cargo run --no-default-features --features simplewarp --bin simplewarp`,
+> or build a `.app` with `script/bundle_simplewarp`. The rest of this README is upstream Warp's
+> and describes Warp's hosted product and contribution process, not this fork.
+
 <a href="https://www.warp.dev">
     <img width="1024" alt="Warp Agentic Development Environment product preview" src="https://github.com/user-attachments/assets/9976b2da-2edd-4604-a36c-8fd53719c6d4" />
 </a>

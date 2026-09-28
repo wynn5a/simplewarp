@@ -36,7 +36,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | Nearly done — see below |
+| 4 — Delete the dead cloud code and the TUI | Rounds done through 4hp; the remaining remote-only residue (R1–R7, from the 4hp survey) is queued under Next |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
@@ -75,6 +75,52 @@ Workspace is down to 63 packages (`cargo metadata`). Gone, in rough order:
 - **Residue** (4gm–4gn): remote-shaped leftovers, naming, test stubs, notebook flake fix.
 
 ## Next
+
+**Remaining queue (4hp survey, 2026-09-29).** No Warp server URL, GraphQL/websocket client or
+`.invalid` host is left in Rust. What still assumes a Warp service, in rough order:
+
+- **R1 — cloud-agent OTLP tracing export** (~890 lines + the 5 `opentelemetry*` /
+  `tracing-opentelemetry` deps): `app/src/tracing/{native,cloud_agent_auth}.rs`, armed only by the
+  server-dispatch env vars `WARP_CLOUD_AGENT_OTLP_ENDPOINT` / `_TOKEN(_EXPIRES_AT)`. Only live
+  dependent: `lib.rs`'s `.then(tracing::init)` (swap for the no-subscriber path); the ~15
+  `tags.cloud_agent = true` span fields become inert.
+- **R2 — local-to-cloud handoff stubs** (~150 lines): `AUTO_CLOUD_HANDOFF_PROMPT`,
+  `LocalToCloudHandoffIntent`, the no-op `start_local_to_cloud_handoff*` /
+  `record_automatic_handoff_failed`, the never-dispatched `OpenLocalToCloudHandoffPane` /
+  `AutoHandoffActiveAgentToCloud` + `AutoCloudHandoffTrigger`, `ai/blocklist/handoff`,
+  `InputLockReason::CloudHandoffEnter/Exit`. Keep the serde `AgentToolbarItemKind::HandoffToCloud`,
+  `CancellationReason::AutomaticCloudHandoff` and the `DidAddHandoffChipToToolbar` key.
+- **R3 — dead cloud-agent context in the agent view** (~100 lines):
+  `AgentViewEntryOrigin::ThirdPartyCloudAgent` (never constructed) and the always-false `is_cloud`
+  on `ActiveConversationContext`; `Availability::NOT_CLOUD_AGENT` (always OR'd in, ~14 uses);
+  `ROOT_CLOUD_MODE_PANE_KEY` (never set); `app/src/ai/cloud_agent_config` (no importer);
+  `CloudAgentComputerUseWidget` / `ToggleCloudAgentComputerUse` (key kept).
+- **R4 — always-logged-out `AuthState` walls** (`crates/warp_server_auth`, 511 lines, ~25 readers):
+  `set_user` / `set_credentials` / `set_is_onboarded` have no production callers, so
+  `is_anonymous_or_logged_out()` is always true, avatars/display names always `None`, `is_logged_in`
+  always false; `app/src/auth` (`attempt_login_gated_feature`, drive-object limit),
+  `blocked_for_anonymous_user`, `cloud_object/object_limits.rs`, `DisableReason::NeedsWarpAccount`.
+  Keep what `anonymous_id()` / `user_id()` feed (MCP `is_author`, conversation owner filter).
+- **R5 — `channel_versions` crate** (799 lines, 2 bins): Warp's release/autoupdate manifest; only
+  `overrides::TargetOS` is used (4 importers) — move it, delete the rest.
+- **R6 — Warp server error shapes**: `server_api.rs`'s `X-Warp-Error-Code` / `OUT_OF_CREDITS` and
+  `AIApiError::QuotaLimit` / `ServerOverloaded` 429 mapping (check the local path first);
+  `warp_errors/src/reqwest.rs`'s `staging.warp.dev` 403 special case.
+- **R7 — scripts / test infra**: `script/linux/bundle_rpm`'s rpmsign + `releases.warp.dev` key
+  import; `/opt/warpdotdev` / `REPO_NAME=warpdotdev` package paths (branding); the
+  `setup_gcloud_sdk` integration steps (Warp's GCP) in `crates/integration/src/test/{ssh,subshell}.rs`.
+
+Product decisions, not deletions: the Oz branding of the local CLI install and ~23 user-visible
+"Oz" strings (rebrand); the Help menu / `JoinSlack` / feedback / ~69 `docs.warp.dev` links (repoint
+or drop; the preview-program Slack, the typeform feedback link and the cloud-agents tip are the
+ones actually wrong for this fork). **Bug found:** `local_harness_launch.rs` tells local
+Claude/Codex children to run `"$OZ_CLI" run message send|list|…`, but `warp_cli` no longer has a
+`run` command, so child-to-lead messaging under `LocalClaudeCodexChildHarnesses` cannot work
+(rewrite the prompt or drop the messaging; `OZ_MESSAGE_LISTENER_*` is the same residue).
+Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
+sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
+`CloudAgent` / `ScheduledAmbientAgent` shapes, `crates/isolation_platform` (local detection) and
+`crates/http_server` (local profiling).
 
 **4go done (2026-09-28): the Warp/Oz server-URL readers in desktop code.** In simplewarp every
 server URL is a `.invalid` host (`aa4c271c0`), so each reader was a dead end. Removed:
@@ -904,6 +950,38 @@ Queue, in order:
    constructed (only `Loading` is set); `IconWithStatusVariant`'s `is_ambient` still has
    `vertical_tabs` `true` producers (summary CLI rows) worth checking; `Channel::cli_command_name()`
    says `warp-oss` for the simplewarp bin too; the `app_services/linux` D-Bus default.
+
+27. ~~Stale text, small follow-ups, final survey~~ — **4hp done (2026-09-29).** Code −0.9k net lines in
+   101 files; −18.2k lines of upstream specs. **Follow-ups:** the transcript-viewer status was
+   live (it is the read-only placeholder while a local conversation loads), so only the
+   never-built `ViewingLocalConversation` went and the single-variant enum became a bool
+   (`set_loading_conversation_transcript`). `IconWithStatusVariant` / `SummaryPaneKind` lost
+   `is_ambient` (every producer passed `false`; the vertical-tabs `true` arm matched nothing, so
+   no bug, just a dead cloud-lobe path) together with the cloud-lobe renderer,
+   `OZ_AMBIENT_BACKGROUND_COLOR`, the collage shift and `StatusColorStyle`. CLI name: the
+   simplewarp bin installs/symlinks as `simplewarp` (was `warp-oss`): `ChannelConfig::cli_command_name`
+   is set per bin like `url_scheme`, read via `ChannelState::cli_command_name()` by the CLI install,
+   completions (`warp_cli` + completer registration) and help text. The `safe_*` log macros are gone:
+   every call site is now the `log::*` of its old `safe:` message (behavior unchanged; the `full:`
+   args never logged), variables that fed only `full:` are `_`-ignored, `InlineDiffViewEvent::FailedToSave`
+   and `Export::handle_failure` lost the error they only logged; `safe_anyhow!` / `safe_eprintln!`
+   had no callers. DockTilePlugin: only `warp_2` fallback (dev/local/preview icons deleted);
+   `windows-installer.iss`: oss/integration only, `IsNotStable` (unused) gone; `app_services/linux`
+   D-Bus proxy default is now `dev.warp.WarpOss` (still overridden by the only proxy build).
+   **Stale text:** Sentry-era comments in 15 files reworded; the privacy-policy settings widget,
+   app-menu item, `ViewPrivacyPolicy` action/binding and `PRIVACY_POLICY_URL` removed (no README
+   privacy section to point at); the `logging-and-error-reporting` skill (and `review-pr-local`'s
+   log bullet) rewritten for local-only logging; AGENTS.md "both front-ends" and the feature-flag
+   how-to (`DOGFOOD_FLAGS` / `PREVIEW_FLAGS` are enabled by no bin); a SimpleWarp note atop README and
+   FAQ (upstream text kept); 100 upstream specs for fully removed features deleted (TUI, cloud mode,
+   local-to-cloud handoff, session sharing / remote control, Sentry bridge, server-only `oz run` /
+   named agents / factory files, credits, orchestration host picker / create-API-key, server
+   forking); the empty `server::graphql` module. **Survey:** see "Remaining queue" at the top of
+   Next. Not compile-checked here: the Windows/Linux-only edits (installer, D-Bus default, Windows
+   env / msys2 / wsl log sites), DockTilePlugin (`clang -fsyntax-only` clean). Tests 4,103 default /
+   4,104 simplewarp (−2: the ambient circle-colour and ambient-Claude summary tests), warp_core +
+   completer + warp_cli + editor + ai + repo_metadata + vim + warp_errors + watcher 1,152,
+   completer v2 123, 0 failed.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

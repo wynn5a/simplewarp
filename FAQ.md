@@ -1,5 +1,9 @@
 # Frequently Asked Questions
 
+> **SimpleWarp note:** this FAQ is upstream Warp's and is about contributing to
+> [warpdotdev/warp](https://github.com/warpdotdev/warp). SimpleWarp (this fork) runs entirely
+> locally; see the note at the top of [README.md](README.md).
+
 This FAQ covers the questions we hear most often about contributing to the Warp client, working with agents in this repository, and how this repo fits into Warp the product. For the full contribution flow, see [CONTRIBUTING.md](CONTRIBUTING.md). For engineering details — build setup, code style, testing — see [AGENTS.md](AGENTS.md).
 
 ## Contributing
