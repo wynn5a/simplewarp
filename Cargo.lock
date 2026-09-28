@@ -2172,6 +2172,7 @@ dependencies = [
  "chrono",
  "derivative",
  "itertools 0.14.0",
+ "lasso",
  "pathfinder_geometry",
  "schemars 1.0.4",
  "serde",
@@ -2179,7 +2180,6 @@ dependencies = [
  "thiserror 2.0.17",
  "uuid",
  "warp_core",
- "warp_server_auth",
  "warpui_core",
 ]
 
@@ -12238,7 +12238,6 @@ dependencies = [
  "jsonschema",
  "kmeans_colors",
  "languages",
- "lasso",
  "lazy_static",
  "libc",
  "libsqlite3-sys",
@@ -12373,7 +12372,6 @@ dependencies = [
  "warp_multi_agent_api",
  "warp_ripgrep",
  "warp_search_core",
- "warp_server_auth",
  "warp_terminal",
  "warp_util",
  "warpui",
@@ -12752,19 +12750,6 @@ dependencies = [
  "tantivy",
  "warp_core",
  "warp_errors",
- "warpui_core",
-]
-
-[[package]]
-name = "warp_server_auth"
-version = "0.1.0"
-dependencies = [
- "lasso",
- "log",
- "parking_lot",
- "serde",
- "uuid",
- "warp_core",
  "warpui_core",
 ]
 

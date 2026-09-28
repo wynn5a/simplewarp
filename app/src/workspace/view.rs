@@ -42,7 +42,6 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
 use repo_metadata::repositories::DetectedRepositories;
 use serde_json;
-use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_core::ui::Icon;
@@ -150,9 +149,6 @@ use crate::app_state::{
     TabSnapshot, TerminalPaneSnapshot, WindowSnapshot,
 };
 use crate::appearance::{Appearance, AppearanceManager};
-use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
-use crate::auth::auth_state::AuthState;
 use crate::banner::BannerState;
 use crate::channel::{Channel, ChannelState};
 use crate::cloud_object::model::persistence::CloudModel;
@@ -276,9 +272,8 @@ use crate::terminal::view::load_ai_conversation::{
 };
 use crate::terminal::view::ssh_file_upload::FileUploadId;
 use crate::terminal::view::{
-    AgentOnboardingVersion, ConversationRestorationInNewPaneType, LeftPanelTargetView,
-    NOTIFICATIONS_TROUBLESHOOT_URL, OnboardingIntention, OnboardingVersion, SyncEvent,
-    SyncInputType, TerminalAction,
+    ConversationRestorationInNewPaneType, LeftPanelTargetView, NOTIFICATIONS_TROUBLESHOOT_URL,
+    OnboardingIntention, SyncEvent, SyncInputType, TerminalAction,
 };
 use crate::terminal::warpify::settings::WarpifySettings;
 use crate::terminal::{self, BlockListSettings, SizeInfo, TerminalModel, TerminalView};
@@ -469,9 +464,6 @@ const MAX_FORK_TOAST_TITLE_LENGTH: usize = 100;
 
 // The max length of the window title (matching conversation title truncation).
 const MAX_WINDOW_TITLE_LENGTH: usize = 80;
-
-/// The default display name used for the user if they have no associated display name.
-pub const DEFAULT_USER_DISPLAY_NAME: &str = "User";
 
 lazy_static! {
     static ref OPENING_WARP_DRIVE_ON_START_UP: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
@@ -713,7 +705,6 @@ pub struct Workspace {
     vertical_tabs_search_input: ViewHandle<EditorView>,
     tips_completed: ModelHandle<TipsCompleted>,
     user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
-    auth_state: Arc<AuthState>,
     tab_right_click_menu: ViewHandle<Menu<WorkspaceAction>>,
     show_tab_right_click_menu: Option<(usize, TabContextMenuAnchor)>,
     /// Open tab group more-options menu; reuses the `tab_right_click_menu` view.
@@ -2160,9 +2151,6 @@ impl Workspace {
             me.handle_palette_event(event, ctx);
         });
 
-        let auth_manager = AuthManager::handle(ctx);
-        ctx.subscribe_to_model(&auth_manager, Self::handle_auth_manager_event);
-
         // Handle theme updates when there is a cloud update to themes while the picker is open.
         ctx.subscribe_to_model(&ThemeSettings::handle(ctx), |me, _, _, ctx| {
             if me.is_theme_chooser_open() {
@@ -2408,7 +2396,6 @@ impl Workspace {
             vertical_tabs_search_input: Self::vertical_tabs_search_input(ctx),
             tips_completed,
             user_default_shell_unsupported_banner_model_handle,
-            auth_state: AuthStateProvider::as_ref(ctx).get().clone(),
             tab_right_click_menu,
             show_tab_right_click_menu: None,
             show_tab_group_right_click_menu: None,
@@ -2900,10 +2887,6 @@ impl Workspace {
                     });
 
                 if self.tab_count() == 0 {
-                    if self.should_trigger_get_started_onboarding(ctx) {
-                        self.trigger_get_started_onboarding(ctx);
-                        return;
-                    }
                     // If we still haven't created any tabs after attempting to restore, create a new tab
                     // with sensible defaults.
                     self.add_new_session_tab_with_default_mode(
@@ -2919,11 +2902,9 @@ impl Workspace {
                 }
 
                 self.activate_tab_internal(active_tab_index, ctx);
-                self.check_and_trigger_onboarding(ctx);
             }
             NewWorkspaceSource::FromTemplate { window_template } => {
                 self.open_launch_config_window(window_template, ctx);
-                self.check_and_trigger_onboarding(ctx);
             }
             NewWorkspaceSource::Session { options } => {
                 self.add_tab_with_pane_layout(
@@ -2932,7 +2913,6 @@ impl Workspace {
                     None,
                     ctx,
                 );
-                self.check_and_trigger_onboarding(ctx);
             }
             NewWorkspaceSource::AgentSession {
                 options,
@@ -2948,7 +2928,6 @@ impl Workspace {
                 self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
                     pane_group.start_agent_mode_in_new_pane(initial_query.as_deref(), None, ctx);
                 });
-                self.check_and_trigger_onboarding(ctx);
             }
             NewWorkspaceSource::NotebookFromFilePath { file_path } => {
                 self.add_tab_for_file_notebook(file_path, ctx);
@@ -3099,19 +3078,14 @@ impl Workspace {
         shell: Option<AvailableShell>,
         ctx: &mut ViewContext<Self>,
     ) {
-        if self.should_trigger_get_started_onboarding(ctx) {
-            self.trigger_get_started_onboarding(ctx);
-        } else {
-            self.add_new_session_tab_with_default_mode(
-                NewSessionSource::Window,
-                previous_active_window,
-                shell,
-                None,  /* ai_conversation */
-                false, /* hide_homepage */
-                ctx,
-            );
-            self.check_and_trigger_onboarding(ctx);
-        }
+        self.add_new_session_tab_with_default_mode(
+            NewSessionSource::Window,
+            previous_active_window,
+            shell,
+            None,  /* ai_conversation */
+            false, /* hide_homepage */
+            ctx,
+        );
     }
 
     pub fn is_conversation_transcript_viewer_focused(&self, app: &AppContext) -> bool {
@@ -5907,90 +5881,6 @@ impl Workspace {
             })
     }
 
-    fn should_trigger_get_started_onboarding(&self, ctx: &mut ViewContext<Self>) -> bool {
-        // Onboarding requires a real user to interact with it; suppress when
-        // running in a headless mode like the SDK/CLI.
-        if !AppExecutionMode::as_ref(ctx).can_show_onboarding() {
-            return false;
-        }
-
-        if !FeatureFlag::GetStartedTab.is_enabled() {
-            return false;
-        }
-
-        if self.auth_state.is_onboarded().unwrap_or_default() {
-            return false;
-        }
-
-        if self.auth_state.is_anonymous_or_logged_out() {
-            return false;
-        }
-
-        // If AgentOnboarding is enabled and the user is NOT in the control group for the
-        // AgentOnboarding experiment, don't show Get Started onboarding.
-        if self.should_show_agent_onboarding(ctx) {
-            return false;
-        }
-
-        true
-    }
-
-    fn trigger_get_started_onboarding(&mut self, ctx: &mut ViewContext<Self>) {
-        self.add_get_started_tab(ctx);
-        // After onboarding is triggered, mark the user as onboarded
-        AuthManager::handle(ctx).update(ctx, |auth_manager, _| {
-            auth_manager.set_user_onboarded();
-        });
-    }
-
-    /// If the user is new and therefore has not seen the in app onboarding,
-    /// triggers the welcome block to be shown after bootstrapping is completed.
-    fn check_and_trigger_onboarding(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        // Onboarding requires a real user to interact with it; suppress when
-        // running in a headless mode like the SDK/CLI.
-        if !AppExecutionMode::as_ref(ctx).can_show_onboarding() {
-            return false;
-        }
-
-        if !self.auth_state.is_onboarded().unwrap_or_default() {
-            if self.should_show_agent_onboarding(ctx) {
-                // If the user is anonymous, we shouldn't trigger agent onboarding.
-                // It will not display anyway, and we don't want to mark the user as onboarded.
-                if self.auth_state.is_anonymous_or_logged_out() {
-                    return false;
-                }
-                self.trigger_agent_onboarding(ctx);
-            }
-
-            // After onboarding is triggered, mark the user as onboarded
-            AuthManager::handle(ctx).update(ctx, |auth_manager, _| {
-                auth_manager.set_user_onboarded();
-            });
-
-            return true;
-        }
-
-        false
-    }
-
-    fn trigger_agent_onboarding(&self, ctx: &mut ViewContext<Self>) {
-        report_error!(
-            "Triggering agent onboarding callout flow but not during initial login. This should not normally happen."
-        );
-        let version = if FeatureFlag::AgentView.is_enabled() {
-            AgentOnboardingVersion::AgentModality {
-                has_project: false,
-                intention: OnboardingIntention::AgentDrivenDevelopment,
-            }
-        } else {
-            AgentOnboardingVersion::UniversalInput { has_project: false }
-        };
-        self.dispatch_onboarding(
-            TerminalAction::OnboardingFlow(OnboardingVersion::Agent(version)),
-            ctx,
-        );
-    }
-
     fn dispatch_onboarding(&self, action: TerminalAction, ctx: &mut ViewContext<Self>) {
         if let Some(pane_group_handle) = self.get_pane_group_view(self.active_tab_index) {
             pane_group_handle.update(ctx, |pane_group, ctx| {
@@ -8524,17 +8414,6 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         ctx.notify();
-    }
-
-    fn handle_auth_manager_event(
-        &mut self,
-        _handle: ModelHandle<AuthManager>,
-        event: &AuthManagerEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            AuthManagerEvent::AttemptedLoginGatedFeature => self.open_require_login_modal(ctx),
-        }
     }
 
     pub fn toggle_block_snackbar(&mut self, ctx: &mut ViewContext<Self>) {
@@ -11156,21 +11035,6 @@ impl Workspace {
                 );
             });
         }
-    }
-
-    /// SimpleWarp is local-only: signing in can never succeed, so this shows a toast explaining
-    /// that instead of the sign-up modal a cloud build would show for a login-gated feature.
-    fn open_require_login_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        self.toast_stack.update(ctx, |toast_stack, ctx| {
-            toast_stack.add_ephemeral_toast(
-                DismissibleToast::error(
-                    "SimpleWarp is a local-only build; sign-in and team features aren't available"
-                        .to_string(),
-                )
-                .with_object_id("login_gated_feature_toast".to_string()),
-                ctx,
-            );
-        });
     }
 
     fn open_palette(
@@ -14951,10 +14815,6 @@ impl Workspace {
         ctx: &AppContext,
     ) -> Box<dyn Element> {
         let mut tab_bar = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
-        let is_web_anonymous_user = self
-            .auth_state
-            .is_user_web_anonymous_user()
-            .unwrap_or_default();
 
         // Check if vertical tabs mode is active
         let vertical_tabs_active =
@@ -14990,7 +14850,6 @@ impl Workspace {
             self.add_configurable_right_side_tab_bar_controls(
                 &mut right_controls,
                 &config,
-                is_web_anonymous_user,
                 appearance,
                 ctx,
             );
@@ -15157,13 +15016,7 @@ impl Workspace {
         // the freed flex is distributed accross the remaining flex items in the tab bar.
         tab_bar.add_child(Shrinkable::new(0.5, Empty::new().finish()).finish());
 
-        self.add_configurable_right_side_tab_bar_controls(
-            &mut tab_bar,
-            &config,
-            is_web_anonymous_user,
-            appearance,
-            ctx,
-        );
+        self.add_configurable_right_side_tab_bar_controls(&mut tab_bar, &config, appearance, ctx);
 
         let left_padding = self.compute_tab_bar_left_padding(ctx);
 
@@ -15237,7 +15090,6 @@ impl Workspace {
         &self,
         target: &mut Flex,
         config: &crate::workspace::tab_settings::HeaderToolbarChipSelection,
-        is_web_anonymous_user: bool,
         appearance: &Appearance,
         ctx: &AppContext,
     ) {
@@ -15260,7 +15112,6 @@ impl Workspace {
         // Legacy AI assistant button (non-agent-mode only)
         if is_online
             && !FeatureFlag::AgentMode.is_enabled()
-            && !is_web_anonymous_user
             && !self.current_workspace_state.is_ai_assistant_panel_open
         {
             target.add_child(
@@ -15548,23 +15399,7 @@ impl Workspace {
     }
 
     fn render_avatar_button(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let is_anonymous = self.auth_state.is_anonymous_or_logged_out();
-        let display_name = self
-            .auth_state
-            .username_for_display()
-            .unwrap_or(DEFAULT_USER_DISPLAY_NAME.to_owned());
-
-        let avatar_content = if self.auth_state.is_anonymous_or_logged_out() {
-            AvatarContent::Icon(icons::Icon::Gear)
-        } else {
-            self.auth_state
-                .user_photo_url()
-                .map(|url| AvatarContent::Image {
-                    url,
-                    display_name: display_name.clone(),
-                })
-                .unwrap_or(AvatarContent::DisplayName(display_name.clone()))
-        };
+        let avatar_content = AvatarContent::Icon(icons::Icon::Gear);
 
         let avatar = Avatar::new(
             avatar_content,
@@ -15587,31 +15422,8 @@ impl Workspace {
                 .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
                 .with_uniform_padding(2.);
 
-            if state.is_mouse_over_element() {
-                if !state.is_clicked() {
-                    container = container.with_background(appearance.theme().surface_2());
-                }
-                // On hover, show tooltip of user's display name (if it exists)
-                if !self.is_user_menu_open && !is_anonymous {
-                    stack.add_positioned_overlay_child(
-                        appearance
-                            .ui_builder()
-                            .tool_tip(display_name.clone())
-                            .with_style(UiComponentStyles {
-                                background: Some(appearance.theme().tooltip_background().into()),
-                                font_color: Some(appearance.theme().background().into_solid()),
-                                ..Default::default()
-                            })
-                            .build()
-                            .finish(),
-                        OffsetPositioning::offset_from_parent(
-                            vec2f(0., 4.),
-                            ParentOffsetBounds::WindowByPosition,
-                            ParentAnchor::BottomMiddle,
-                            ChildAnchor::TopMiddle,
-                        ),
-                    );
-                }
+            if state.is_mouse_over_element() && !state.is_clicked() {
+                container = container.with_background(appearance.theme().surface_2());
             }
             stack.add_child(container.finish());
             stack.finish()
@@ -17212,13 +17024,6 @@ impl TypedActionView for Workspace {
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         use WorkspaceAction::*;
         let window_id = ctx.window_id();
-
-        if self.auth_state.is_anonymous_or_logged_out() && action.blocked_for_anonymous_user() {
-            AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.attempt_login_gated_feature(ctx)
-            });
-            return;
-        }
 
         match action {
             ActivateTab(index) => self.activate_tab(*index, ctx),
@@ -18828,10 +18633,6 @@ impl View for Workspace {
         }
         if *CodeSettings::as_ref(app).show_hidden_files {
             context.set.insert(flags::SHOW_HIDDEN_FILES);
-        }
-
-        if self.auth_state.is_anonymous_or_logged_out() {
-            context.set.insert("IsAnonymousUser");
         }
 
         self.add_toggle_setting_context_flags(app, &mut context);

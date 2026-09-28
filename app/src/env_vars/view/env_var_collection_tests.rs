@@ -2,7 +2,6 @@ use warp_core::ui::appearance::Appearance;
 use warpui::platform::WindowStyle;
 use warpui::{App, SingletonEntity, ViewHandle};
 
-use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::personal_drive;
@@ -30,7 +29,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| ObjectActions::new(Vec::new()));
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
 
     #[cfg(feature = "voice_input")]
     app.add_singleton_model(voice_input::VoiceInput::new);

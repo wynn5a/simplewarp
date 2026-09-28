@@ -3310,23 +3310,16 @@ pub struct FindContext<'a> {
     pub state: &'a FindState,
 }
 
-/// Renders a user avatar with profile image or display name.
-pub fn render_user_avatar(
-    user_display_name: &str,
-    profile_image_path: Option<&String>,
-    avatar_color: Option<ColorU>,
-    app: &AppContext,
-) -> Box<dyn Element> {
+/// Name shown in the local user's avatar; there is no account to take a name or photo from.
+const USER_DISPLAY_NAME: &str = "User";
+
+/// Renders the local user's avatar.
+pub fn render_user_avatar(avatar_color: Option<ColorU>, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
     let background = avatar_color.unwrap_or_else(|| blended_colors::accent(theme).into());
     let avatar = Avatar::new(
-        profile_image_path
-            .map(|url| AvatarContent::Image {
-                url: url.to_owned(),
-                display_name: user_display_name.to_owned(),
-            })
-            .unwrap_or(AvatarContent::DisplayName(user_display_name.to_owned())),
+        AvatarContent::DisplayName(USER_DISPLAY_NAME.to_owned()),
         UiComponentStyles {
             width: Some(icon_size(app)),
             height: Some(icon_size(app)),

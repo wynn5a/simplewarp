@@ -3,11 +3,9 @@ use chrono::Duration;
 use warpui::{App, ModelHandle};
 
 use super::*;
-use crate::auth::AuthStateProvider;
 use crate::server::server_api::ServerApiProvider;
 
 fn add_request_usage_model(app: &mut App) -> ModelHandle<AIRequestUsageModel> {
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     add_request_usage_model_without_auth(app)
 }
 

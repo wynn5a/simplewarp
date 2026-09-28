@@ -306,9 +306,7 @@ impl MCPServersListPageView {
         let is_update_available = TemplatableMCPServerManager::as_ref(ctx)
             .is_update_available_for_installation(installation_uuid, ctx);
         let is_author =
-            TemplatableMCPServerManager::handle(ctx).read(ctx, |templatable_manager, ctx| {
-                templatable_manager.is_author(installation.template_uuid(), ctx)
-            });
+            TemplatableMCPServerManager::as_ref(ctx).is_author(installation.template_uuid());
         let should_show_update_symbol = is_author && is_update_available;
 
         let title_chip_text = Self::get_title_chip_text(item_id);

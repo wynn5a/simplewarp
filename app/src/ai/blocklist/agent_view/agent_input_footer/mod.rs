@@ -927,9 +927,6 @@ impl AgentInputFooter {
         });
     }
 
-    /// Disable the start-remote-control chip and swap its tooltip when the
-    /// user is anonymous or logged out, since session sharing requires a
-    /// real account.
     fn update_context_window_button(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(conversation) =
             BlocklistAIHistoryModel::as_ref(ctx).active_conversation(self.terminal_view_id)

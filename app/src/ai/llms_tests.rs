@@ -11,8 +11,6 @@ use crate::ai::execution_profiles::{
     AIExecutionProfile, ExecutionProfileId, ExecutionProfilesConfig,
 };
 use crate::ai::mcp::TemplatableMCPServerManager;
-use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -474,7 +472,6 @@ fn deserialized_available_llms_with_missing_default_does_not_panic() {
 /// the app singletons consulted by model eligibility logic.
 fn with_model_picker_query_test_context(f: impl FnOnce(&LLMPreferences, &AppContext) + 'static) {
     App::test((), |app| async move {
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
         app.read(|app_ctx| {
             let agent_mode = AvailableLLMs::new(
                 "auto".into(),
@@ -506,8 +503,6 @@ fn reconcile_preserves_custom_models_saved_on_execution_profile() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
@@ -577,8 +572,6 @@ fn reconcile_preserves_custom_endpoint_models_not_configured_locally() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
@@ -673,8 +666,6 @@ fn reconcile_preserves_custom_router_models_not_configured_locally() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
@@ -804,8 +795,6 @@ fn updating_active_profile_base_model_persists_and_updates_resolution() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
@@ -872,8 +861,6 @@ fn selecting_a_custom_profile_default_clears_the_session_override() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
@@ -927,8 +914,6 @@ fn explicit_child_model_pin_preserves_gui_behavior_and_only_emits_for_effective_
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());

@@ -6,7 +6,6 @@ mod alloc;
 mod app_menus;
 mod app_services;
 mod app_state;
-mod auth;
 mod banner;
 mod chip_configurator;
 mod cloud_object;
@@ -113,8 +112,6 @@ use ai::execution_profiles::editor::ExecutionProfileEditorManager;
 use ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use ai::metadata_project_rules::read_project_rule_contents;
 use ai::persisted_workspace::PersistedWorkspace;
-use auth::auth_manager::AuthManager;
-use auth::auth_state::{AuthState, AuthStateProvider};
 use code::editor_management::CodeManager;
 use code::opened_files::OpenedFilesModel;
 use code_review::GlobalCodeReviewModel;
@@ -142,7 +139,6 @@ pub mod workspace;
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::ops::Deref;
-use std::sync::Arc;
 
 use ::settings::{Setting, ToggleableSetting};
 use anyhow::{Context, Result, anyhow};
@@ -877,19 +873,12 @@ pub(crate) fn initialize_app(
         ctx.set_zoom_factor(WindowSettings::as_ref(ctx).zoom_level.as_zoom_factor());
     }
 
-    let auth_state = Arc::new(AuthState::initialize(ctx));
-    timer.mark_interval_end("AUTH_MANAGER_SET_USER");
-
     // NetworkLogModel must be registered before ServerApiProvider so that
     // `NetworkLogModel::install_on_clients` can reach it when forwarding items
     // captured by the HTTP client hooks.
     ctx.add_singleton_model(|_ctx| NetworkLogModel::default());
 
     ctx.add_singleton_model(ServerApiProvider::new);
-    ctx.add_singleton_model(|_ctx| AuthStateProvider::new(auth_state.clone()));
-
-    ctx.add_singleton_model(AuthManager::new);
-
     ctx.add_singleton_model(|_ctx| GPUState::new());
 
     PrivacySettings::register_singleton(ctx);
@@ -899,7 +888,7 @@ pub(crate) fn initialize_app(
 
     // If any part of sqlite initialization fails, we just don't do session restoration (i.e.
     // feature degradation).
-    let (sqlite_data, writer_handles) = persistence::initialize(ctx);
+    let (sqlite_data, writer_handles) = persistence::initialize();
     timer.mark_interval_end("SQLITE_INITIALIZED");
 
     let persistence_writer = PersistenceWriter::new(writer_handles);
@@ -1033,33 +1022,28 @@ pub(crate) fn initialize_app(
         });
     });
 
-    if auth_state.is_logged_in() {
-        // Set the first frame callback to record the app's startup time.
-        // This is only sent for logged-in users so that new users don't skew performance metrics.
-        ctx.on_first_frame_drawn(move |ctx| {
-            IntervalTimer::handle(ctx).update(ctx, |timer, _| {
-                timer.mark_interval_end("FIRST_FRAME_DRAWN");
-            });
-
-            GPUState::handle(ctx).update(ctx, |gpu_state, ctx| {
-                gpu_state
-                    .set_has_lower_power_gpu(warpui::rendering::is_low_power_gpu_available(), ctx);
-            });
-
-            for window_id in ctx.window_ids().collect_vec() {
-                SettingsPaneManager::handle(ctx)
-                    .read(ctx, |model, _| model.settings_view(window_id))
-                    .update(ctx, |settings, ctx| {
-                        settings.refresh_preferred_graphics_backend_dropdown(ctx);
-                    })
-            }
+    ctx.on_first_frame_drawn(move |ctx| {
+        IntervalTimer::handle(ctx).update(ctx, |timer, _| {
+            timer.mark_interval_end("FIRST_FRAME_DRAWN");
         });
 
-        #[cfg(enable_crash_recovery)]
-        ctx.on_frame_drawn(|ctx, window_id| {
-            crash_recovery::CrashRecovery::as_ref(ctx).on_frame_drawn(window_id);
-        })
-    }
+        GPUState::handle(ctx).update(ctx, |gpu_state, ctx| {
+            gpu_state.set_has_lower_power_gpu(warpui::rendering::is_low_power_gpu_available(), ctx);
+        });
+
+        for window_id in ctx.window_ids().collect_vec() {
+            SettingsPaneManager::handle(ctx)
+                .read(ctx, |model, _| model.settings_view(window_id))
+                .update(ctx, |settings, ctx| {
+                    settings.refresh_preferred_graphics_backend_dropdown(ctx);
+                })
+        }
+    });
+
+    #[cfg(enable_crash_recovery)]
+    ctx.on_frame_drawn(|ctx, window_id| {
+        crash_recovery::CrashRecovery::as_ref(ctx).on_frame_drawn(window_id);
+    });
 
     ctx.add_singleton_model(DirectoryWatcher::new);
     // Register the skill provider directories as force-included paths so

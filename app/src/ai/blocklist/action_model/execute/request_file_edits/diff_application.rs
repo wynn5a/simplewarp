@@ -18,7 +18,6 @@ use warpui::r#async::executor::Background;
 use crate::ai::agent::{AIIdentifiers, FileEdit};
 use crate::ai::blocklist::SessionContext;
 use crate::ai::paths::host_native_absolute_path;
-use crate::auth::auth_state::AuthState;
 
 /// Result of reading a file from disk.
 pub(crate) enum FileReadResult {
@@ -176,7 +175,6 @@ pub(crate) async fn apply_edits<F, Fut>(
     session_context: &SessionContext,
     _ai_identifiers: &AIIdentifiers,
     _background_executor: Arc<Background>,
-    _auth_state: Arc<AuthState>,
     _passive_diff: bool,
     read_file: F,
 ) -> Result<Vec<AIRequestedCodeDiff>, Vec1<DiffApplicationError>>

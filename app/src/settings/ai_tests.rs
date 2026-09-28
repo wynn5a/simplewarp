@@ -3,7 +3,6 @@ use settings::{Setting, SettingSurfaces, SettingsMode};
 use warpui::{App, SingletonEntity};
 
 use super::*;
-use crate::auth::AuthStateProvider;
 use crate::test_util::settings::initialize_settings_for_tests;
 
 #[test]
@@ -24,10 +23,6 @@ fn auto_approve_denylist_bypass_defaults_on_and_is_available_in_gui_settings() {
         .expect("expected auto-approve denylist bypass schema entry");
     let surfaces: SettingSurfaces = (entry.surfaces_fn)();
     assert!(surfaces.includes(SettingsMode::Gui));
-}
-
-fn add_ai_enablement_dependencies_for_test(app: &mut App) {
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
 }
 
 // ToolbarCommandMap Tests
@@ -150,7 +145,6 @@ fn test_toolbar_command_map_matched_agent() {
 fn orchestration_is_enabled_when_ai_is_enabled() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
-        add_ai_enablement_dependencies_for_test(&mut app);
 
         AISettings::handle(&app).read(&app, |settings, _| {
             assert!(settings.is_orchestration_enabled());
@@ -232,7 +226,6 @@ fn test_voice_input_languages_includes_common_languages() {
 fn ai_autodetection_defaults_to_opt_in() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
-        add_ai_enablement_dependencies_for_test(&mut app);
 
         AISettings::handle(&app).read(&app, |settings, _| {
             // NLD is opt-in: a fresh user who never touched the setting has it off.
@@ -250,7 +243,6 @@ fn ai_autodetection_defaults_to_opt_in() {
 fn ai_autodetection_setting_can_be_toggled_on_and_off() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
-        add_ai_enablement_dependencies_for_test(&mut app);
 
         // Mirrors what `/enable-natural-language-detection` does in the TUI.
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
@@ -287,7 +279,6 @@ fn persisted_cloud_agent_default_session_mode_loads_and_falls_back_to_terminal()
 
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
-        add_ai_enablement_dependencies_for_test(&mut app);
 
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
             settings

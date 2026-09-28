@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use cloud_objects::UserUid;
 use cloud_objects::cloud_object::SerializedModel;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -12,7 +13,6 @@ use self::model::generic_string_model::{
     GenericStringModel, GenericStringObjectId, Serializer, StringModel,
 };
 use self::model::persistence::CloudModel;
-use crate::auth::UserUid;
 use crate::persistence::ModelEvent;
 use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, SyncId, ToServerId};
 use crate::util::time_format::format_approx_duration_from_now_utc;
@@ -22,7 +22,6 @@ pub mod drive_object_type;
 pub mod export;
 pub mod folders;
 pub mod model;
-pub mod object_limits;
 pub mod toast_message;
 
 pub use cloud_objects::cloud_object::*;
@@ -613,8 +612,7 @@ use warp_errors::report_error;
 /// subdirectory name.
 pub const PERSONAL_SPACE_NAME: &str = "Personal";
 
-/// The uid that owns every object the local user creates. There is no account, so it is fixed
-/// rather than taken from `AuthState` (whose user is never set outside tests).
+/// The uid that owns every object the local user creates. There is no account, so it is fixed.
 pub const LOCAL_USER_UID: &str = "local_user";
 
 /// The [`Owner`] for the user's personal drive.

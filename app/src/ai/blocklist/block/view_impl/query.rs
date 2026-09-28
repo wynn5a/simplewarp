@@ -37,8 +37,6 @@ const NAVIGATION_HALO_OPACITY: Opacity = 60;
 /// Data required to render the AI block query component.
 #[derive(Copy, Clone, Debug)]
 pub(super) struct Props<'a> {
-    pub(super) user_display_name: &'a String,
-    pub(super) profile_image_path: Option<&'a String>,
     pub(super) avatar_color: Option<ColorU>,
     pub(super) query_and_index: Option<(&'a str, usize)>,
     pub(super) query_prefix_highlight_len: Option<usize>,
@@ -55,8 +53,6 @@ pub(super) fn maybe_render(props: Props, app: &AppContext) -> Option<Box<dyn Ele
     props.query_and_index.map(|(query, input_index)| {
         render_query(
             query,
-            props.user_display_name,
-            props.profile_image_path,
             props.avatar_color,
             props.detected_links_state,
             props.secret_redaction_state,
@@ -75,8 +71,6 @@ pub(super) fn maybe_render(props: Props, app: &AppContext) -> Option<Box<dyn Ele
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn render_query(
     query: &str,
-    user_display_name: &str,
-    profile_image_path: Option<&String>,
     avatar_color: Option<ColorU>,
     detected_links_state: &DetectedLinksState,
     secret_redaction_state: &SecretRedactionState,
@@ -89,13 +83,8 @@ pub(crate) fn render_query(
     is_agent_transcript_navigation_target: bool,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    let mut avatar_container = Container::new(render_user_avatar(
-        user_display_name,
-        profile_image_path,
-        avatar_color,
-        app,
-    ))
-    .with_margin_right(16.);
+    let mut avatar_container =
+        Container::new(render_user_avatar(avatar_color, app)).with_margin_right(16.);
     if is_agent_transcript_navigation_target {
         // Cmd-Up/Cmd-Down transcript navigation is stopped on this query: ring the avatar
         // with the theme accent plus a soft accent halo so the stop is unmistakable even

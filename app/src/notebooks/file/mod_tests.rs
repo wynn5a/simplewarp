@@ -14,8 +14,6 @@ use warpui::platform::WindowStyle;
 use warpui::{App, SingletonEntity, View};
 
 use super::{FileNotebookAction, FileNotebookView, FileState, MarkdownDisplayMode, SourceFile};
-use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::notebooks::context_menu::MenuSource;
 use crate::notebooks::editor::keys::NotebookKeybindings;
@@ -46,8 +44,6 @@ fn init_app(app: &mut App) {
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    app.add_singleton_model(AuthManager::new_for_test);
     #[cfg(feature = "voice_input")]
     app.add_singleton_model(voice_input::VoiceInput::new);
 }

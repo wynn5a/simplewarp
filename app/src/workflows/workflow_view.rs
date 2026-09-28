@@ -37,7 +37,6 @@ use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::appearance::Appearance;
 use crate::cloud_object::cloud_object_styling::warp_drive_icon_color;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_workflow_limit;
 use crate::cloud_object::{
     CloudObject, CloudObjectTypeAndId, DriveObjectType, ObjectType, Owner, Revision,
 };
@@ -1672,10 +1671,6 @@ impl WorkflowView {
     }
 
     fn untrash_object(&self, ctx: &mut ViewContext<Self>) {
-        if has_feature_gated_anonymous_user_reached_workflow_limit(ctx) {
-            return;
-        }
-
         UpdateManager::handle(ctx).update(ctx, move |update_manager, ctx| {
             update_manager.untrash_object(
                 CloudObjectTypeAndId::from_id_and_type(self.workflow_id, ObjectType::Workflow),

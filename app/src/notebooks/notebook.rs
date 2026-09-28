@@ -42,7 +42,6 @@ use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::appearance::Appearance;
 use crate::cloud_object::export::ExportManager;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_notebook_limit;
 use crate::cloud_object::{CloudObjectTypeAndId, ObjectType, Owner, personal_drive};
 use crate::cmd_or_ctrl_shift;
 use crate::editor::{
@@ -865,10 +864,6 @@ impl NotebookView {
 
     fn untrash_notebook(&self, ctx: &mut ViewContext<Self>) {
         if let Some(notebook_id) = self.notebook_id(ctx) {
-            if has_feature_gated_anonymous_user_reached_notebook_limit(ctx) {
-                return;
-            }
-
             UpdateManager::handle(ctx).update(ctx, move |update_manager, ctx| {
                 update_manager.untrash_object(
                     CloudObjectTypeAndId::from_id_and_type(notebook_id, ObjectType::Notebook),

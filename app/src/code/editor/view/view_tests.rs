@@ -7,7 +7,6 @@ use warpui::platform::WindowStyle;
 use warpui::{App, TypedActionView, ViewHandle, WindowId};
 
 use super::{CodeEditorRenderOptions, CodeEditorView, CodeEditorViewAction};
-use crate::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::editor::InteractionState;
 use crate::notebooks::editor::keys::NotebookKeybindings;
@@ -25,7 +24,6 @@ fn initialize_editor(app: &mut App) -> (WindowId, ViewHandle<CodeEditorView>) {
     app.add_singleton_model(|_| SyncedInputState::mock());
     app.add_singleton_model(|_| VimRegisters::new());
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
 
     // Add mocks required by rich text editor (used in CommentEditor)
     app.add_singleton_model(CloudModel::mock);

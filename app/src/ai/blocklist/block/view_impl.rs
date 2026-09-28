@@ -962,15 +962,9 @@ impl View for AIBlock {
                 contents.add_child(header.with_content_item_spacing().finish());
                 did_render_header = true;
             }
-            let (avatar_display_name, profile_image_path, avatar_color) = (
-                self.user_display_name.clone(),
-                self.profile_image_path.clone(),
-                None,
-            );
+            let avatar_color = None;
             if let Some(rendered_query) = query::maybe_render(
                 query::Props {
-                    user_display_name: &avatar_display_name,
-                    profile_image_path: profile_image_path.as_ref(),
                     avatar_color,
                     query_and_index: Some((&query_for_display, input_index)),
                     query_prefix_highlight_len,

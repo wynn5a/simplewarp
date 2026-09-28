@@ -36,7 +36,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | Rounds done through 4hr; the remaining remote-only residue (R4–R7, from the 4hp survey) is queued under Next |
+| 4 — Delete the dead cloud code and the TUI | Rounds done through 4hs; the remaining remote-only residue (R5–R7, from the 4hp survey) is queued under Next |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
@@ -82,12 +82,7 @@ Workspace is down to 63 packages (`cargo metadata`). Gone, in rough order:
 - ~~**R1 — cloud-agent OTLP tracing export**~~ — **4hq done (2026-09-29).**
 - ~~**R2 — local-to-cloud handoff stubs**~~ — **4hr done (2026-09-29).**
 - ~~**R3 — dead cloud-agent context in the agent view**~~ — **4hr done (2026-09-29).**
-- **R4 — always-logged-out `AuthState` walls** (`crates/warp_server_auth`, 511 lines, ~25 readers):
-  `set_user` / `set_credentials` / `set_is_onboarded` have no production callers, so
-  `is_anonymous_or_logged_out()` is always true, avatars/display names always `None`, `is_logged_in`
-  always false; `app/src/auth` (`attempt_login_gated_feature`, drive-object limit),
-  `blocked_for_anonymous_user`, `cloud_object/object_limits.rs`, `DisableReason::NeedsWarpAccount`.
-  Keep what `anonymous_id()` / `user_id()` feed (MCP `is_author`, conversation owner filter).
+- ~~**R4 — always-logged-out `AuthState` walls**~~ — **4hs done (2026-09-29).**
 - **R5 — `channel_versions` crate** (799 lines, 2 bins): Warp's release/autoupdate manifest; only
   `overrides::TargetOS` is used (4 importers) — move it, delete the rest.
 - **R6 — Warp server error shapes**: `server_api.rs`'s `X-Warp-Error-Code` / `OUT_OF_CREDITS` and
@@ -1011,6 +1006,47 @@ Queue, in order:
    includes it; its NOT_CLOUD_AGENT test was deleted anyway); `slash_commands/cloud_mode_v2_view.rs`
    (1.2k lines, `CloudModeV2SlashCommandView`) has no importer outside its re-export — check next.
    Tests 4,100 default / 4,101 simplewarp (+1), cloud_object_models 10, 0 failed.
+
+30. ~~R4: always-logged-out `AuthState` walls~~ — **4hs done (2026-09-29).** −1.3k net lines in 96
+   files. `crates/warp_server_auth` and `app/src/auth` are gone (`AuthState`, `AuthStateProvider`,
+   `AuthManager` + its login-gated toast, `User` / `Credentials` / `AnonymousUserType` /
+   `PersonalObjectLimits` / `PrincipalType`), as are `cloud_object/object_limits.rs`,
+   `WorkspaceAction::blocked_for_anonymous_user`, the `IsAnonymousUser` context flag (no binding read
+   it) and the dead `SkipFirebaseAnonymousUser` flag + cargo feature. **Moved:** `UserUid` (persisted
+   owner shape) to `cloud_objects::user_uid`; the experiment-bucketing id to `experiments`
+   (same private pref key `ExperimentId`, now created on first bucket lookup, cached per process).
+   **Collapsed to the logged-out behavior (no change):** Get Started tab / agent-onboarding
+   auto-trigger on new windows (never fired: required a non-anonymous, not-onboarded user) —
+   `should_trigger_get_started_onboarding`, `check_and_trigger_onboarding`,
+   `trigger_agent_onboarding`, `should_show_agent_onboarding` deleted (the `AddGetStartedTab`
+   action stays); the tab-bar avatar is always the gear icon (no tooltip; `AvatarContent::Image` had
+   no other producer); AI-block and queued-prompt avatars are always "User" (the
+   `user_display_name` / `profile_image_path` plumbing is gone); custom-router name placeholder is
+   "My custom router"; header code-toolbelt tooltip and the zero-state block no longer consult
+   `is_onboarded`; the notebook / workflow / env-var object limits (only feature-gated anonymous
+   Warp users had limits) and their untrash checks; sqlite load passes no default owner (a `USER`
+   permissions row needs its `subject_id`, which the 2024-10 migration guarantees); unused
+   `_auth_state` params (diff application, PTY recorder, shell starter); `persistence::initialize`
+   lost its context. MCP `is_author` is now "the template has no `creator_uid`" (what
+   `creator_uid == user_id()` with no user always meant), no context. **Behavior changes (local
+   features that the logged-out wall blocked):** (1) the first-frame callback now always runs: it
+   records `FIRST_FRAME_DRAWN`, detects a low-power GPU (`GPUState`, which shows the
+   integrated-GPU preference in Settings) and refreshes the graphics-backend dropdown, and on
+   Linux/Windows feeds the crash-recovery watchdog `on_frame_drawn` — all were logged-in-only;
+   (2) `TerminalAction::OnboardingFlow` no longer returns early for an anonymous user, so the
+   debug-build "[Debug] Onboarding Callout" bindings open the local agent-onboarding callout (no
+   production dispatcher of `StartAgentOnboardingTutorial` / `pending_onboarding_intention` exists).
+   **Kept:** `DisableReason::NeedsWarpAccount` — not an auth reader but the client-side marker that
+   hides Warp's server-side `auto` router placeholders and makes `fallback_llm_info` pick the user's
+   endpoint; removing it means replacing the default model lists (Phase 3b). `LOCAL_USER_UID` /
+   `personal_drive()` unchanged. Tests unchanged: 4,100 default / 4,101 simplewarp, 0 failed (the 39
+   test files that installed `AuthStateProvider::new_for_test` / `AuthManager::new_for_test` now run
+   with no user, as production does; none needed re-pinning); cloud_objects +
+   cloud_object_persistence + cloud_object_models 10, 0 failed. **Follow-ups:** the local
+   agent-onboarding tutorial / session-config onboarding intention has no production entry point
+   (`StartAgentOnboardingTutorial` is never dispatched, `pending_onboarding_intention` is never set):
+   product decision to wire it up or delete it; `get_shell_starter_internal`'s unused
+   `_background_executor`; `avatar_color` in `render_user_avatar` is always `None`.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

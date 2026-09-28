@@ -10,8 +10,8 @@ use warp_core::channel::{Channel, ChannelConfig, ChannelState};
 //
 // This binary has no telemetry and no crash reporting. The `simplewarp`
 // cargo feature set leaves out login, Warp Drive, billing, shared sessions, cloud mode,
-// ambient agents, and the remote server. Startup goes straight to a terminal because
-// `skip_firebase_anonymous_user` is on and the pre-login onboarding features are off.
+// ambient agents, and the remote server. There is no login, so startup goes straight to a
+// terminal.
 //
 // The channel config carries no Warp server URL or Firebase API key, so there is nothing for a
 // request to Warp to be addressed to.

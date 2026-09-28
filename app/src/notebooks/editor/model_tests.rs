@@ -30,7 +30,6 @@ use warpui::{
 use super::super::rich_text_styles;
 use super::NotebooksEditorModel;
 use crate::appearance::Appearance;
-use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObjectMetadata, CloudObjectPermissions};
 use crate::editor::InteractionState;
@@ -125,7 +124,6 @@ fn model_from_markdown(
 
 fn initialize_deps(app: &mut App) {
     app.add_singleton_model(|_| Appearance::mock());
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     #[cfg(feature = "voice_input")]
     app.add_singleton_model(voice_input::VoiceInput::new);
     initialize_settings_for_tests(app);

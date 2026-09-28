@@ -24,7 +24,7 @@ use uuid::Uuid;
 use warp_core::command::ExitCode;
 use warp_errors::report_error;
 use warp_multi_agent_api as api;
-use warpui::{AppContext, Entity, SingletonEntity};
+use warpui::{Entity, SingletonEntity};
 
 use self::model::{AgentConversation, AgentConversationData, Project};
 use crate::ai::blocklist::PersistedAIInput;
@@ -67,8 +67,8 @@ pub struct ConversationSummaryBackfill {
 /// writing updated data to persist, if the persistence subsystem is
 /// available.
 #[tracing::instrument(name = "persistence::initialize", skip_all)]
-pub fn initialize(ctx: &mut AppContext) -> (Option<Box<PersistedData>>, Option<WriterHandles>) {
-    sqlite::initialize(ctx)
+pub fn initialize() -> (Option<Box<PersistedData>>, Option<WriterHandles>) {
+    sqlite::initialize()
 }
 
 /// Holds interfaces to the writer thread.
@@ -133,12 +133,7 @@ impl Entity for PersistenceWriter {
 
 impl SingletonEntity for PersistenceWriter {}
 
-/// TODO: all of this data should eventually be indexed by user_id so that
-/// the logged in user sees the data for their user (and if another user logs in,
-/// they see their respective data). To do this, we can simply return a mapping
-/// of user ID->SqliteData and get the respective AppState after the user logs in.
-///
-/// For now, to address the global scoping here, we clear all persisted data on logout.
+/// Everything read back from the sqlite database at startup.
 pub struct PersistedData {
     /// Session restoration data.
     pub app_state: Option<AppState>,

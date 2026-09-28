@@ -6,10 +6,10 @@
 //! It should remain independent of model-specific payloads, SQLite persistence, app runtime state,
 //! and UI rendering concerns.
 
-pub mod auth;
 pub mod cloud_object;
 pub mod drive;
 pub mod ids;
 pub mod time;
+pub mod user_uid;
 
-pub use auth::UserUid;
+pub use user_uid::UserUid;

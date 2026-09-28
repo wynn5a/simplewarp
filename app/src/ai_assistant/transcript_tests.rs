@@ -10,7 +10,6 @@ use crate::ai_assistant::test_util::{
 };
 use crate::ai_assistant::utils::{CodeBlockIndex, TranscriptPart, TranscriptPartSubType};
 use crate::appearance;
-use crate::auth::AuthStateProvider;
 use crate::server::server_api::ServerApiProvider;
 use crate::test_util::settings::initialize_settings_for_tests;
 
@@ -46,7 +45,6 @@ lazy_static::lazy_static! {
 fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
     appearance::register(app);
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| AIRequestUsageModel::new());
 }

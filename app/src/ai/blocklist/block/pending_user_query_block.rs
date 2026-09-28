@@ -30,8 +30,6 @@ use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme
 /// Cloud Mode run waiting for its real shared-session transcript query to arrive.
 pub struct PendingUserQueryBlock {
     prompt: String,
-    user_display_name: String,
-    profile_image_path: Option<String>,
     view_id: EntityId,
     selection_handle: SelectionHandle,
     /// In an `RwLock` so the `SelectableArea` can update it synchronously when a selection ends,
@@ -44,8 +42,6 @@ pub struct PendingUserQueryBlock {
 impl PendingUserQueryBlock {
     pub fn new(
         prompt: String,
-        user_display_name: String,
-        profile_image_path: Option<String>,
         show_close_button: bool,
         show_send_now_button: bool,
         ctx: &mut ViewContext<Self>,
@@ -72,8 +68,6 @@ impl PendingUserQueryBlock {
         });
         Self {
             prompt,
-            user_display_name,
-            profile_image_path,
             view_id: ctx.view_id(),
             selection_handle: Default::default(),
             selected_text: Default::default(),
@@ -144,14 +138,9 @@ impl View for PendingUserQueryBlock {
         let theme = appearance.theme();
         let dimmed_color = blended_colors::text_sub(theme, theme.surface_1());
 
-        let avatar = Container::new(render_user_avatar(
-            &self.user_display_name,
-            self.profile_image_path.as_ref(),
-            None,
-            app,
-        ))
-        .with_margin_right(16.)
-        .finish();
+        let avatar = Container::new(render_user_avatar(None, app))
+            .with_margin_right(16.)
+            .finish();
 
         let properties = Properties {
             style: Style::Normal,

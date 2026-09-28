@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::auth::UserUid;
+use crate::UserUid;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum SharingAccessLevel {

@@ -228,8 +228,6 @@ use crate::ai::predict::prompt_suggestions::{
 };
 use crate::ai_assistant::{ASK_AI_ASSISTANT_TEXT, AskAIType};
 use crate::appearance::{Appearance, AppearanceEvent};
-use crate::auth::AuthStateProvider;
-use crate::auth::auth_state::AuthState;
 use crate::banner::{
     Banner, BannerAction, BannerEvent, BannerState, BannerTextButton, BannerTextContent,
     DismissalType,
@@ -2064,8 +2062,6 @@ pub struct TerminalView {
 
     mouse_states: TerminalViewMouseStates,
 
-    auth_state: Arc<AuthState>,
-
     /// A sender used to handle messages for whenever the entire terminal view
     /// changes size.  Note that this size contains not just the content element
     /// but also the input.
@@ -3549,7 +3545,6 @@ impl TerminalView {
             mouse_states: Default::default(),
             open_grid_link_tool_tip: None,
             open_rich_content_link_tool_tip: None,
-            auth_state: AuthStateProvider::as_ref(ctx).get().clone(),
             find_bar,
             resize_tx,
             pending_agent_scroll_target: None,
@@ -10101,16 +10096,9 @@ impl TerminalView {
 
         self.ignore_next_set_title_event = true;
 
-        let auth_state = AuthStateProvider::as_ref(ctx).get();
-        let is_onboarded = auth_state.is_onboarded().unwrap_or(true);
-        let is_anonymous_or_logged_out = auth_state.is_anonymous_or_logged_out();
-        let should_show_onboarding = FeatureFlag::AgentOnboarding.is_enabled()
-            && !is_onboarded
-            && !is_anonymous_or_logged_out;
         if FeatureFlag::AgentView.is_enabled()
             && TerminalSettings::as_ref(ctx).should_show_zero_state_block(ctx)
             && !self.model.lock().block_list().is_restored_session()
-            && !should_show_onboarding
             && self.onboarding_callout_view.is_none()
             && !is_subshell_or_ssh
         {
@@ -20216,7 +20204,7 @@ impl TerminalView {
             // TODO(CORE-2300): This appears to be used for invoking env vars.
             // Before we close out CORE-2300, we should evaluate if we need to add
             // shell info here.
-            let shell_starter = get_shell_starter(None, &self.auth_state, ctx)?;
+            let shell_starter = get_shell_starter(None, ctx)?;
             let shell_path = match &shell_starter {
                 ShellStarter::Direct(direct_shell_starter)
                 | ShellStarter::MSYS2(direct_shell_starter) => direct_shell_starter
@@ -21453,11 +21441,6 @@ impl TypedActionView for TerminalView {
             }
             VimModeBanner(action) => self.handle_vim_banner_action(*action, ctx),
             OnboardingFlow(version) => {
-                // Don't show onboarding if it's already active or if the user is anonymous
-                if self.auth_state.is_anonymous_or_logged_out() {
-                    return;
-                };
-
                 match version {
                     OnboardingVersion::Agent(agent_version) => {
                         // The first Agent Modality callout expects terminal mode. If the

@@ -499,11 +499,6 @@ pub enum FeatureFlag {
     /// CLIs (e.g. `claude`) to execute prompts instead of Warp's agent harness.
     AgentHarness,
 
-    /// When enabled, the "Skip for now" login flow does not create a Firebase
-    /// anonymous user. The user remains fully logged out (no credentials) and
-    /// login-gated features are disabled until they sign in.
-    SkipFirebaseAnonymousUser,
-
     /// Enables tab configs — user-definable TOML templates for launching custom tab layouts.
     TabConfigs,
 

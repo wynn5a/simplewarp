@@ -10,8 +10,6 @@ use warpui::{
 };
 
 use super::{NotebookEvent, NotebookView};
-use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::Owner;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
@@ -55,8 +53,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| ObjectActions::new(Vec::new()));
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    app.add_singleton_model(AuthManager::new_for_test);
     #[cfg(feature = "voice_input")]
     app.add_singleton_model(voice_input::VoiceInput::new);
 }

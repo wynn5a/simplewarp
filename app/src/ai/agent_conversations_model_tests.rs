@@ -23,7 +23,6 @@ use crate::ai::blocklist::history_model::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, ConversationStatusUpdate,
 };
 use crate::ai::conversation_navigation::ConversationNavigationData;
-use crate::auth::AuthStateProvider;
 use crate::test_util::ai_agent_tasks::{create_api_task, create_message};
 use crate::workspace::WorkspaceRegistry;
 
@@ -293,7 +292,6 @@ fn create_restored_conversation(
 }
 
 fn add_entry_projection_test_models(app: &mut App) {
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
     app.add_singleton_model(|_| WorkspaceRegistry::new());

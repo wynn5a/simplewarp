@@ -15,7 +15,6 @@ use crate::ai::execution_profiles::RunAgentsPermission;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManager;
 use crate::appearance::Appearance;
-use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -160,7 +159,6 @@ fn initialize_run_agents_test(app: &mut App, mode: ExecutionMode) -> RunAgentsTe
     app.add_singleton_model(AgentNotificationsModel::new);
     app.add_singleton_model(BlocklistAIPermissions::new);
     let terminal_view_id = EntityId::new();
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| UpdateManager::mock());
     app.add_singleton_model(CloudModel::mock);

@@ -6,7 +6,6 @@ use instant::{Duration, Instant};
 use parking_lot::FairMutex;
 use warpui::r#async::executor::Background;
 
-use crate::auth::auth_state::AuthState;
 use crate::terminal::TerminalModel;
 
 /// We want to measure throughput as bytes / sec.
@@ -20,7 +19,6 @@ const PTY_THROUGHPUT_METRIC_INTERVAL: Duration = Duration::from_secs(10);
 pub fn record_pty_throughput(
     mut pty_reads_rx: Receiver<Arc<Vec<u8>>>,
     model: Arc<FairMutex<TerminalModel>>,
-    _auth_state: Arc<AuthState>,
     executor: Arc<Background>,
 ) {
     let num_bytes_read_in_last_second = Arc::new(Mutex::new(0));

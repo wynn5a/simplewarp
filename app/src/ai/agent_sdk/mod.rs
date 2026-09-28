@@ -437,8 +437,8 @@ impl AgentDriverRunner {
         output_format: OutputFormat,
         task: driver::Task,
     ) {
-        // Initializing the driver will fail if not logged in. Since we check that above, panic here - it's difficult to
-        // fallibly instantiate a UI framework model.
+        // It's difficult to fallibly instantiate a UI framework model, so a driver that fails to
+        // initialize panics here.
         let driver = ctx.add_singleton_model(|ctx| {
             AgentDriver::new(driver_options, ctx).expect("Could not initialize driver")
         });

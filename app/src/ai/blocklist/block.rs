@@ -130,7 +130,6 @@ use crate::ai::get_relevant_files::controller::{
     GetRelevantFilesController, GetRelevantFilesControllerEvent,
 };
 use crate::ai::skills::SkillOpenOrigin;
-use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code::editor::comment_editor::create_readonly_comment_markdown_editor;
@@ -176,9 +175,6 @@ use crate::view_components::find::FindEvent;
 use crate::workspace::{ForkAIConversationParams, ForkedConversationDestination, WorkspaceAction};
 use crate::{AIAgentTodoList, Appearance, FileEdit, ToastStack};
 
-/// The default display name used for the user if they have no associated display name.
-const DEFAULT_USER_DISPLAY_NAME: &str = "User";
-
 const HAS_PENDING_ACTION: &str = "HasPendingAction";
 const DISPATCHED_REQUESTED_EDIT_KEYMAP_CONTEXT: &str = "PendingAIRequestedEdits";
 
@@ -194,22 +190,6 @@ pub const RICH_CONTENT_SECRET_FIRST_CHAR_POSITION_ID: &str =
 fn rich_content_link_tooltip_position_id(view_id: &EntityId) -> String {
     let base = RICH_CONTENT_LINK_FIRST_CHAR_POSITION_ID;
     format!("{base}_{view_id}")
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct UserAvatarInfo {
-    display_name: String,
-    profile_image_path: Option<String>,
-}
-
-fn current_user_avatar_info(app: &AppContext) -> UserAvatarInfo {
-    let auth_state = AuthStateProvider::as_ref(app).get().clone();
-    UserAvatarInfo {
-        display_name: auth_state
-            .username_for_display()
-            .unwrap_or_else(|| DEFAULT_USER_DISPLAY_NAME.to_owned()),
-        profile_image_path: auth_state.user_photo_url(),
-    }
 }
 
 pub fn init(app: &mut AppContext) {
@@ -812,8 +792,6 @@ pub struct AIBlock {
     is_passive: bool,
     terminal_model: Arc<FairMutex<TerminalModel>>,
     client_ids: ClientIdentifiers,
-    profile_image_path: Option<String>,
-    user_display_name: String,
 
     /// Only applies to text selections made at the `AIBlock` level. Child views of the `AIBlock`
     /// are responsible for managing their own text selection states. We need this in an RwLock so
@@ -1007,7 +985,6 @@ impl AIBlock {
         terminal_view_id: EntityId,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let user_avatar_info = current_user_avatar_info(ctx);
         let num_attached_context_blocks = num_attached_context_blocks(model.inputs_to_render(ctx));
         let has_attached_context_selected_text =
             has_attached_context_selected_text(model.inputs_to_render(ctx));
@@ -1306,8 +1283,6 @@ impl AIBlock {
             is_passive,
             terminal_model,
             client_ids,
-            profile_image_path: user_avatar_info.profile_image_path,
-            user_display_name: user_avatar_info.display_name,
             controller,
             action_model,
             context_model,
@@ -1636,9 +1611,6 @@ impl AIBlock {
         self.client_ids.conversation_id = new_conversation_id;
         self.model = new_model;
         self.is_passive = self.model.request_type(ctx).is_passive();
-        let user_avatar_info = current_user_avatar_info(ctx);
-        self.profile_image_path = user_avatar_info.profile_image_path;
-        self.user_display_name = user_avatar_info.display_name;
         self.run_secret_redaction_on_user_query(new_conversation_id, ctx);
 
         // Re-detect all links for the new conversation.

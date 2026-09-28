@@ -319,8 +319,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::SoloUserByok,
         #[cfg(feature = "gpt_configurable_context_window")]
         FeatureFlag::GPTConfigurableContextWindow,
-        #[cfg(feature = "skip_firebase_anonymous_user")]
-        FeatureFlag::SkipFirebaseAnonymousUser,
         #[cfg(feature = "git_operations_in_code_review")]
         FeatureFlag::GitOperationsInCodeReview,
         #[cfg(feature = "trim_trailing_blank_lines")]

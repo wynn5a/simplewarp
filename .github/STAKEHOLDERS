@@ -174,7 +174,6 @@
 /app/src/server/server_api/ @ianhodge
 /crates/http_client/ @ianhodge
 /crates/http_server/ @ianhodge
-/crates/warp_server_auth/ @ianhodge
 
 # Session sharing
 /app/src/terminal/shared_session/ @szgupta @bnavetta

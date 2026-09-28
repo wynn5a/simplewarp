@@ -246,26 +246,6 @@ impl CloudModel {
             .filter_map(|object| object.into())
     }
 
-    /// Returns all active (not trashed) and non-welcome workflows (ie. non starter workflows).
-    pub fn active_non_welcome_workflows(&self) -> impl Iterator<Item = &CloudWorkflow> {
-        self.active_non_welcome_cloud_objects()
-            .filter_map(|object| object.into())
-    }
-
-    /// Returns all active (not trashed) and non-welcome notebooks (ie. non starter notebooks).
-    pub fn active_non_welcome_notebooks(&self) -> impl Iterator<Item = &CloudNotebook> {
-        self.active_non_welcome_cloud_objects()
-            .filter_map(|object| object.into())
-    }
-
-    /// Returns all active (not trashed) and non-welcome env var collections.
-    pub fn active_non_welcome_env_var_collections(
-        &self,
-    ) -> impl Iterator<Item = &CloudEnvVarCollection> {
-        self.active_non_welcome_cloud_objects()
-            .filter_map(|object| object.into())
-    }
-
     /// Returns all workflow enums with a given owner.
     pub fn workflow_enums_with_owner(
         &self,

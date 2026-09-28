@@ -1,5 +1,4 @@
 use std::io::Write as _;
-use std::sync::Arc;
 
 use ai::diff_validation::{DiffDelta, ParsedDiff, V4AHunk};
 use async_io::block_on;
@@ -10,7 +9,6 @@ use warpui::App;
 use super::*;
 use crate::ai::agent::{AIIdentifiers, FileEdit};
 use crate::ai::blocklist::SessionContext;
-use crate::auth::auth_state::AuthState;
 
 fn update_deltas(diff: &AIRequestedCodeDiff) -> &[DiffDelta] {
     match &diff.diff_type {
@@ -35,14 +33,12 @@ fn test_apply_diffs_error_when_no_diffs_applied() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(invalid_diff)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -82,14 +78,12 @@ fn test_apply_diffs_succeeds_with_valid_diff() {
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
         let background_executor = app.background_executor();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(valid_diff)],
             &session_context,
             ai_identifiers,
             background_executor,
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -131,14 +125,12 @@ fn test_apply_diffs_with_partial_failures() {
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
         let background_executor = app.background_executor();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(valid_diff), FileEdit::Edit(invalid_diff)],
             &session_context,
             ai_identifiers,
             background_executor,
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -170,14 +162,12 @@ fn test_apply_diffs_with_new_file() {
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
         let background_executor = app.background_executor();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(create_file_diff)],
             &session_context,
             ai_identifiers,
             background_executor.clone(),
-            auth_state.clone(),
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -215,14 +205,12 @@ fn test_apply_diffs_with_missing_file() {
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
         let background_executor = app.background_executor();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = block_on(apply_edits(
             vec![FileEdit::Edit(invalid_non_existent_diff)],
             &session_context,
             ai_identifiers,
             background_executor,
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         ));
@@ -265,7 +253,6 @@ fn test_parse_diffs_with_mixed_empty_and_valid_diffs() {
         let session_context = SessionContext::new_for_test();
 
         let background_executor = app.background_executor();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         // Even though we could apply a diff to file1, no diffs could be applied to file2. Overall,
         // this is an error because there's at least one file with an empty diff.
@@ -274,7 +261,6 @@ fn test_parse_diffs_with_mixed_empty_and_valid_diffs() {
             &session_context,
             ai_identifiers,
             background_executor,
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -318,7 +304,6 @@ fn test_apply_diffs_noop_with_successful_change() {
             &SessionContext::new_for_test(),
             &AIIdentifiers::default(),
             app.background_executor(),
-            Arc::new(AuthState::new_for_test()),
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -359,14 +344,12 @@ fn test_apply_diffs_fails_with_only_noop() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(noop_diff)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -407,14 +390,12 @@ fn test_multiple_file_create_edits_for_same_path() {
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
         let background_executor = app.background_executor();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![create_edit1, create_edit2],
             &session_context,
             ai_identifiers,
             background_executor,
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -450,14 +431,12 @@ fn test_mixed_create_and_edit_for_same_path() {
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
         let background_executor = app.background_executor();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![create_edit, FileEdit::Edit(edit_diff)],
             &session_context,
             ai_identifiers,
             background_executor,
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -495,7 +474,6 @@ fn test_delete_and_create_same_path_replaces_existing_file() {
             &SessionContext::new_for_test(),
             &AIIdentifiers::default(),
             app.background_executor(),
-            Arc::new(AuthState::new_for_test()),
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -534,7 +512,6 @@ fn test_create_then_delete_same_path_replaces_existing_file() {
             &SessionContext::new_for_test(),
             &AIIdentifiers::default(),
             app.background_executor(),
-            Arc::new(AuthState::new_for_test()),
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -577,7 +554,6 @@ fn test_delete_create_and_edit_same_path_still_fails() {
             &SessionContext::new_for_test(),
             &AIIdentifiers::default(),
             app.background_executor(),
-            Arc::new(AuthState::new_for_test()),
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -610,14 +586,12 @@ fn test_create_edit_for_existing_file() {
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
         let background_executor = app.background_executor();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![create_edit],
             &session_context,
             ai_identifiers,
             background_executor,
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -788,14 +762,12 @@ fn test_apply_v4a_edits_simple_match() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(v4a_edit)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -839,14 +811,12 @@ fn test_apply_v4a_edits_with_jump_context() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(v4a_edit)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -884,14 +854,12 @@ fn test_apply_v4a_edits_no_match() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(v4a_edit)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -933,14 +901,12 @@ fn test_apply_v4a_edits_noop() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(v4a_edit)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -988,14 +954,12 @@ fn test_apply_v4a_edits_multiline_change() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(v4a_edit)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -1038,14 +1002,12 @@ fn test_apply_v4a_edits_nested_jump_context() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(v4a_edit)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -1080,14 +1042,12 @@ fn test_apply_v4a_edits_missing_file() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(v4a_edit)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -1125,14 +1085,12 @@ fn test_apply_v4a_edits_empty_context() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(v4a_edit)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -1175,14 +1133,12 @@ fn test_apply_v4a_rename_to_nonexistent_file() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(v4a_edit)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -1238,14 +1194,12 @@ fn test_apply_v4a_rename_to_existing_file() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(v4a_edit)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )
@@ -1318,14 +1272,12 @@ fn test_apply_v4a_rename_to_existing_file_no_deltas() {
 
         let ai_identifiers = &AIIdentifiers::default();
         let session_context = SessionContext::new_for_test();
-        let auth_state = Arc::new(AuthState::new_for_test());
 
         let result = apply_edits(
             vec![FileEdit::Edit(v4a_edit)],
             &session_context,
             ai_identifiers,
             app.background_executor(),
-            auth_state,
             false,
             |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
         )

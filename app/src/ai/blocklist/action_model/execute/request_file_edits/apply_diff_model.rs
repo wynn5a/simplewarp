@@ -8,12 +8,11 @@ use ai::diff_validation::AIRequestedCodeDiff;
 use futures::FutureExt;
 use vec1::Vec1;
 use warpui::r#async::BoxFuture;
-use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity as _};
+use warpui::{Entity, ModelContext, ModelHandle};
 
 use super::diff_application::{DiffApplicationError, FileReadResult, apply_edits};
 use crate::ai::agent::{AIIdentifiers, FileEdit};
 use crate::ai::blocklist::SessionContext;
-use crate::auth::AuthStateProvider;
 use crate::terminal::model::session::active_session::ActiveSession;
 
 /// Entity submodel that encapsulates filesystem access for diff application.
@@ -43,7 +42,6 @@ impl ApplyDiffModel {
     ) -> BoxFuture<'static, Result<Vec<AIRequestedCodeDiff>, Vec1<DiffApplicationError>>> {
         let session_context = SessionContext::from_session(self.active_session.as_ref(ctx), ctx);
         let background_executor = ctx.background_executor();
-        let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
         let ai_identifiers = ai_identifiers.clone();
 
         let is_remote = session_context.is_remote();
@@ -58,7 +56,6 @@ impl ApplyDiffModel {
                     &session_context,
                     &ai_identifiers,
                     background_executor,
-                    auth_state,
                     passive_diff,
                     |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
                 )

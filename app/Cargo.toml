@@ -212,7 +212,6 @@ warp_errors = { workspace = true, features = ["reqwest-errors", "tokio-errors"] 
 warp_editor.workspace = true
 warp_js = { workspace = true, optional = true }
 warp_search_core.workspace = true
-warp_server_auth.workspace = true
 warp_util.workspace = true
 warpui = { workspace = true, features = ["schema_gen", "settings_value"] }
 warpui_core.workspace = true
@@ -228,7 +227,6 @@ aho-corasick = "1.1.3"
 strum.workspace = true
 strum_macros.workspace = true
 reqwest-eventsource = { workspace = true }
-lasso.workspace = true
 counter = "0.6.0"
 typed-path.workspace = true
 urlencoding = "2.1.3"
@@ -359,7 +357,6 @@ virtual-fs.workspace = true
 warp_completer = { workspace = true, features = ["test-util"] }
 warp_core = { workspace = true, features = ["test-util"] }
 warp_editor = { workspace = true, features = ["test-util"] }
-warp_server_auth = { workspace = true, features = ["test-util"] }
 warp_terminal = { workspace = true, features = ["test-util"] }
 warpui = { workspace = true, features = ["test-util"] }
 warpui_core = { workspace = true, features = ["test-util"] }
@@ -519,7 +516,6 @@ default = [
     "pinned_tabs",
     "agent_harness",
     "trim_trailing_blank_lines",
-    "skip_firebase_anonymous_user",
     "settings_file",
     "directory_tab_colors",
     "pending_user_query_indicator",
@@ -652,7 +648,6 @@ simplewarp = [
     "grouped_tabs",
     "pinned_tabs",
     "trim_trailing_blank_lines",
-    "skip_firebase_anonymous_user",
     "settings_file",
     "directory_tab_colors",
     "pending_user_query_indicator",
@@ -764,7 +759,6 @@ system_theme = []
 tab_close_button_on_left = []
 team_features_override = []
 test-util = [
-    "warp_server_auth/test-util",
     "http_client/test-util",
     "warp_core/test-util",
     "ai/test-util",
@@ -779,7 +773,6 @@ integration_tests = [
     "warpui/integration_tests",
     "warpui/test-util",
     "warp_core/integration_tests",
-    "warp_server_auth/integration_tests",
 ]
 traces = []
 workflow_aliases = []
@@ -884,7 +877,6 @@ grouped_tabs = []
 pinned_tabs = []
 agent_harness = []
 transfer_control_tool = []
-skip_firebase_anonymous_user = []
 custom_model_routers = []
 solo_user_byok = []
 gpt_configurable_context_window = []

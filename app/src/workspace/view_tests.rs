@@ -70,8 +70,6 @@ pub(crate) fn initialize_app(app: &mut App) {
 
     // Add the necessary singleton models to the App
     app.add_singleton_model(|_ctx| ServerApiProvider::new_for_test());
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    app.add_singleton_model(AuthManager::new_for_test);
     app.add_singleton_model(|_ctx| PtySpawner::new_for_test());
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(|_| NetworkStatus::new());

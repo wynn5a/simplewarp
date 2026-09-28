@@ -30,7 +30,6 @@ use crate::ai::ambient_agents::{
 use crate::ai::blocklist::ResponseStreamId;
 use crate::ai::blocklist::controller::RequestInput;
 use crate::ai::llms::LLMId;
-use crate::auth::AuthStateProvider;
 use crate::input_suggestions::HistoryInputSuggestion;
 use crate::persistence::ModelEvent;
 use crate::persistence::model::{
@@ -3092,7 +3091,6 @@ fn statuses_after_stream_error(
         initialize_history_persistence_for_tests(&mut app);
         // Completing a request with an error emits telemetry, which requires
         // the telemetry context provider (and the auth state it reads).
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
         let terminal_view_id = EntityId::new();
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 

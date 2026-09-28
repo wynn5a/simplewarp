@@ -12,16 +12,9 @@ use warpui::{Entity, ModelContext, RetryOption, SingletonEntity};
 
 use crate::ai::facts::{AIFact, CloudAIFactModel};
 use crate::ai::mcp::templatable::{CloudTemplatableMCPServerModel, TemplatableMCPServer};
-use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::model::actions::{ObjectActionType, ObjectActions};
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::object_limits::{
-    is_feature_gated_anonymous_user_past_env_var_limit,
-    is_feature_gated_anonymous_user_past_notebook_limit,
-    is_feature_gated_anonymous_user_past_workflow_limit,
-};
 use crate::cloud_object::{
     CloudModelType, CloudObject, CloudObjectTypeAndId, GenericCloudObject,
     GenericStringObjectFormat, JsonObjectType, ObjectIdType, Owner,
@@ -335,20 +328,6 @@ impl UpdateManager {
         force_expand: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        let count = CloudModel::handle(ctx)
-            .read(ctx, |model, _| model.active_non_welcome_notebooks().count());
-        if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
-            is_feature_gated_anonymous_user_past_notebook_limit(
-                auth_state_provider.get(),
-                count + 1,
-            )
-        }) {
-            AuthManager::handle(ctx).update(ctx, |auth_manager: &mut AuthManager, ctx| {
-                auth_manager.anonymous_user_hit_drive_object_limit(ctx);
-            });
-            return;
-        };
-
         self.create_object(
             model,
             owner,
@@ -396,20 +375,6 @@ impl UpdateManager {
         force_expand: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        let count = CloudModel::handle(ctx)
-            .read(ctx, |model, _| model.active_non_welcome_workflows().count());
-        if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
-            is_feature_gated_anonymous_user_past_workflow_limit(
-                auth_state_provider.get(),
-                count + 1,
-            )
-        }) {
-            AuthManager::handle(ctx).update(ctx, |auth_manager: &mut AuthManager, ctx| {
-                auth_manager.anonymous_user_hit_drive_object_limit(ctx);
-            });
-            return;
-        };
-
         self.create_object(
             CloudWorkflowModel::new(workflow),
             owner,
@@ -429,18 +394,6 @@ impl UpdateManager {
         force_expand: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        let count = CloudModel::handle(ctx).read(ctx, |model, _| {
-            model.active_non_welcome_env_var_collections().count()
-        });
-        if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
-            is_feature_gated_anonymous_user_past_env_var_limit(auth_state_provider.get(), count + 1)
-        }) {
-            AuthManager::handle(ctx).update(ctx, |auth_manager: &mut AuthManager, ctx| {
-                auth_manager.anonymous_user_hit_drive_object_limit(ctx);
-            });
-            return;
-        };
-
         self.create_object(
             model,
             owner,

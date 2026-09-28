@@ -6,7 +6,6 @@ use warpui::App;
 use warpui::platform::WindowStyle;
 
 use super::MenuSource;
-use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::editor::InteractionState;
 use crate::network::NetworkStatus;
@@ -41,7 +40,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(FileSearchModel::new);
     app.add_singleton_model(NotebookKeybindings::new);
     app.add_singleton_model(TerminalKeybindings::new);
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     #[cfg(feature = "voice_input")]
     app.add_singleton_model(voice_input::VoiceInput::new);
 }

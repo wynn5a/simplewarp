@@ -3,10 +3,8 @@ use std::sync::LazyLock;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub const TEST_USER_EMAIL: &str = "test_user@warp.dev";
-pub const TEST_USER_UID: &str = "test_user_uid";
-
-/// UserUid represents the unique identifier for a user. Currently, this is a Firebase UID.
+/// The unique identifier of an object owner, persisted as the owner's uid (a Firebase UID in rows
+/// cached by upstream Warp).
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UserUid(lasso::Spur);
 

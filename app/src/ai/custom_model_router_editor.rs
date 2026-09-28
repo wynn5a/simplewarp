@@ -28,7 +28,6 @@ use crate::ai::custom_model_routers::{
 use crate::ai::execution_profiles::model_menu_items::available_model_menu_items;
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
-use crate::auth::AuthStateProvider;
 use crate::editor::{EditorView, SingleLineEditorOptions, TextOptions};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view;
@@ -174,16 +173,7 @@ impl CustomRouterEditorView {
             .as_ref()
             .map(|r| r.info.display_name.clone())
             .unwrap_or_default();
-        // Personalize the placeholder with the user's first name (derived from
-        // their display name), falling back to a generic placeholder when no
-        // name is available.
-        let name_placeholder = AuthStateProvider::as_ref(ctx)
-            .get()
-            .display_name()
-            .as_deref()
-            .and_then(|name| name.split_whitespace().next())
-            .map(|first_name| format!("{first_name}'s custom router"))
-            .unwrap_or_else(|| "My custom router".to_string());
+        let name_placeholder = "My custom router".to_string();
         let name_editor = ctx.add_view(move |ctx| {
             let font_size = Appearance::as_ref(ctx).ui_font_size();
             let mut editor = EditorView::single_line(

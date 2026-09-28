@@ -13,23 +13,56 @@ use std::hash::Hasher;
 use std::marker::Copy;
 use std::ops::Range;
 use std::str::FromStr;
+use std::sync::OnceLock;
 
 use anyhow::Result;
 pub use block_onboarding_layer::{BLOCK_ONBOARDING_LAYER, BlockOnboarding};
 use dashmap::DashMap;
 pub use improved_palette_search_layer::{IMPROVED_PALETTE_SEARCH_LAYER, ImprovedPaletteSearch};
 use lazy_static::lazy_static;
+use uuid::Uuid;
 use warp_core::user_preferences::GetUserPreferences as _;
 use warp_errors::report_error;
-use warpui::{AppContext, SingletonEntity};
-
-use crate::auth::auth_state::AuthStateProvider;
+use warpui::AppContext;
 
 /// Number of buckets we are using to partition user traffic. The largest valid
 /// bucket index is NUM_BUCKETS - 1.
 const NUM_BUCKETS: u16 = 1000;
 
 const EXPERIMENT_OVERRIDES_KEY: &str = "ExperimentOverrides";
+
+/// Private user-preferences key of the random id that buckets this installation into experiment
+/// groups.
+const ANONYMOUS_ID_KEY: &str = "ExperimentId";
+
+static ANONYMOUS_ID: OnceLock<String> = OnceLock::new();
+
+/// Returns the persisted random id that buckets this installation, creating and persisting one
+/// on first use.
+fn anonymous_id(ctx: &AppContext) -> &'static str {
+    ANONYMOUS_ID.get_or_init(|| {
+        let persisted = ctx
+            .private_user_preferences()
+            .read_value(ANONYMOUS_ID_KEY)
+            .unwrap_or_default()
+            .and_then(|id| match Uuid::parse_str(&id) {
+                Ok(uuid) => Some(uuid),
+                Err(e) => {
+                    log::warn!("Error parsing persisted anonymous id from user defaults: {e:?}");
+                    None
+                }
+            });
+        persisted
+            .unwrap_or_else(|| {
+                let uuid = Uuid::new_v4();
+                let _ = ctx
+                    .private_user_preferences()
+                    .write_value(ANONYMOUS_ID_KEY, uuid.to_string());
+                uuid
+            })
+            .to_string()
+    })
+}
 
 #[allow(dead_code)]
 const INVALID_GROUP_ASSIGNMENT_ERR: &str =
@@ -317,8 +350,7 @@ pub trait Experiment<T: Experiment<T>>: FromStr {
 
         // If there was no override, derive the assignment from the user's anonymous id.
         if assigned_group.is_none() {
-            let anonymous_id = AuthStateProvider::as_ref(ctx).get().anonymous_id();
-            assigned_group = Self::layer().get_assigned_group(&anonymous_id);
+            assigned_group = Self::layer().get_assigned_group(anonymous_id(ctx));
 
             if let Some(group) = assigned_group.as_ref() {
                 let _group_assignment = group.variant();

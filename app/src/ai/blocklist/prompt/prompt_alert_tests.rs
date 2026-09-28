@@ -1,12 +1,10 @@
 use warpui::App;
 
 use super::*;
-use crate::auth::AuthStateProvider;
 use crate::server::server_api::ServerApiProvider;
 
 fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| NetworkStatus::new());
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     if app
         .models_of_type::<settings::PrivatePreferences>()

@@ -56,7 +56,6 @@ pub struct GenericStringObjectRow {
 pub struct CloudObjectReadContext {
     metadata_by_id: HashMap<(CloudObjectId, String), ObjectMetadata>,
     permissions_by_id: HashMap<CloudObjectId, ObjectPermissions>,
-    current_user_id: Option<UserUid>,
 }
 
 impl CloudObjectReadContext {
@@ -74,13 +73,12 @@ impl CloudObjectReadContext {
         metadata: &ObjectMetadata,
     ) -> Option<CloudObjectPermissions> {
         let permissions = self.permissions_by_id.get(&metadata.id)?;
-        to_cloud_object_permissions(permissions, self.current_user_id)
+        to_cloud_object_permissions(permissions)
     }
 }
 
 pub fn load_cloud_object_read_context(
     conn: &mut SqliteConnection,
-    current_user_id: Option<UserUid>,
 ) -> Result<CloudObjectReadContext, Error> {
     let object_metadata =
         schema::object_metadata::dsl::object_metadata.load::<ObjectMetadata>(conn)?;
@@ -108,7 +106,6 @@ pub fn load_cloud_object_read_context(
     Ok(CloudObjectReadContext {
         metadata_by_id,
         permissions_by_id,
-        current_user_id,
     })
 }
 
@@ -498,9 +495,8 @@ pub fn to_cloud_object_metadata(metadata: &ObjectMetadata) -> CloudObjectMetadat
 
 pub fn to_cloud_object_permissions(
     permissions: &ObjectPermissions,
-    default_user_id: Option<UserUid>,
 ) -> Option<CloudObjectPermissions> {
-    let owner = owner_for_permissions(permissions, default_user_id)?;
+    let owner = owner_for_permissions(permissions)?;
     let permissions_last_updated_ts = permissions
         .permissions_last_updated_at
         .and_then(|ts| ServerTimestamp::from_unix_timestamp_micros(ts).ok());
@@ -513,17 +509,10 @@ pub fn to_cloud_object_permissions(
     })
 }
 
-fn owner_for_permissions(
-    permissions: &ObjectPermissions,
-    default_user_id: Option<UserUid>,
-) -> Option<Owner> {
+fn owner_for_permissions(permissions: &ObjectPermissions) -> Option<Owner> {
     match permissions.subject_type.as_str() {
         "USER" => {
-            let user_uid = permissions
-                .subject_id
-                .as_deref()
-                .map(UserUid::new)
-                .or(default_user_id)?;
+            let user_uid = UserUid::new(permissions.subject_id.as_deref()?);
             Some(Owner::User { user_uid })
         }
         "TEAM" => Some(Owner::Team {

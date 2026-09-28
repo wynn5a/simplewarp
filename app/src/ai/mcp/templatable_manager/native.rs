@@ -37,7 +37,6 @@ use crate::ai::mcp::{
     MCPServerExt, MCPServerUpdate, ParsedTemplatableMCPServerResult, StaticEnvVar,
     TemplatableMCPServer, TemplatableMCPServerInstallation, TransportType, logs,
 };
-use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{
     CloudObject, CloudObjectLookup as _, CloudObjectUuidLookup as _, GenericStringObjectFormat,
@@ -1200,11 +1199,7 @@ impl TemplatableMCPServerManager {
         ctx.notify();
     }
 
-    fn get_update_from_cloud_server(
-        &self,
-        installation_uuid: Uuid,
-        app: &AppContext,
-    ) -> Option<MCPServerUpdate> {
+    fn get_update_from_cloud_server(&self, installation_uuid: Uuid) -> Option<MCPServerUpdate> {
         let installation = self.get_installed_server(&installation_uuid)?;
         let templatable_mcp_server =
             self.get_templatable_mcp_server(installation.template_uuid())?;
@@ -1214,7 +1209,7 @@ impl TemplatableMCPServerManager {
             return None;
         }
 
-        let author = if self.is_author(templatable_mcp_server.uuid, app) {
+        let author = if self.is_author(templatable_mcp_server.uuid) {
             Author::CurrentUser
         } else {
             Author::Unknown
@@ -1348,7 +1343,7 @@ impl TemplatableMCPServerManager {
         app: &AppContext,
     ) -> Vec<MCPServerUpdate> {
         let options: Vec<MCPServerUpdate> = [
-            self.get_update_from_cloud_server(installation_uuid, app),
+            self.get_update_from_cloud_server(installation_uuid),
             self.get_update_from_gallery(installation_uuid, app),
         ]
         .iter()
@@ -1383,15 +1378,11 @@ impl TemplatableMCPServerManager {
         }
     }
 
-    pub fn is_author(&self, template_uuid: Uuid, ctx: &AppContext) -> bool {
-        let cloud_templatable_mcp_server = self.get_cloud_templatable_mcp_server(template_uuid);
-        if let Some(cloud_templatable_mcp_server) = cloud_templatable_mcp_server {
-            let auth_state = AuthStateProvider::as_ref(ctx).get();
-            cloud_templatable_mcp_server.metadata().creator_uid
-                == auth_state.user_id().map(|user_id| user_id.as_string())
-        } else {
-            false
-        }
+    /// Whether the local user authored the template: true for a locally created template, which
+    /// has no creator uid, and false for one cached from another (upstream Warp) account.
+    pub fn is_author(&self, template_uuid: Uuid) -> bool {
+        self.get_cloud_templatable_mcp_server(template_uuid)
+            .is_some_and(|server| server.metadata().creator_uid.is_none())
     }
 
     fn copy_oauth_from_legacy_to_templatable(
