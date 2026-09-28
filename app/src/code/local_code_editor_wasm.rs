@@ -99,7 +99,7 @@ impl LocalCodeEditorView {
     pub fn mark_next_save_as_auto_save(&mut self) {}
 
     /// Stub: the WASM editor has no backing file, so nothing can be auto-saved.
-    pub fn can_auto_save(&self, _app: &AppContext) -> bool {
+    pub fn can_auto_save(&self) -> bool {
         false
     }
 

@@ -275,7 +275,7 @@ pub(super) fn apply_generated_commit_message(
 }
 
 /// Kicks off AI commit-message autogen request.
-/// The model runs the generation (local in-process, remote on the daemon) and  
+/// The model runs the generation in-process and
 /// the result returns via `DiffStateModelEvent::CommitMessageGenerated`, applied by `apply_generated_commit_message`.
 pub(super) fn maybe_start_commit_message_autogen(me: &GitDialog, ctx: &mut ViewContext<GitDialog>) {
     if !should_send_git_ops_ai_request(ctx) {
@@ -288,9 +288,8 @@ pub(super) fn maybe_start_commit_message_autogen(me: &GitDialog, ctx: &mut ViewC
         GitDialogMode::Commit(state) => state.include_unstaged,
         _ => return,
     };
-    let branch_name = me.branch_name().to_string();
     me.diff_state_model().update(ctx, |m, ctx| {
-        m.generate_commit_message(include_unstaged, branch_name, ctx);
+        m.generate_commit_message(include_unstaged, ctx);
     });
 }
 
@@ -371,9 +370,6 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
     let include_unstaged = state.include_unstaged;
     let message_editor = state.message_editor.clone();
     let branch_name = me.branch_name().to_string();
-    // When the chain includes create-PR, AI-generate the PR title/body when the
-    // user has it enabled (ignored for commit-only / commit-and-push).
-    let autogenerate_pr_content = should_send_git_ops_ai_request(ctx);
 
     me.set_loading(LOADING_LABEL, ctx);
 
@@ -383,14 +379,7 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
     });
 
     me.diff_state_model().update(ctx, |m, ctx| {
-        m.git_commit_chain(
-            intent,
-            message,
-            include_unstaged,
-            branch_name,
-            autogenerate_pr_content,
-            ctx,
-        );
+        m.git_commit_chain(intent, message, include_unstaged, branch_name, ctx);
     });
 }
 

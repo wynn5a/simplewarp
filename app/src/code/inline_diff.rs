@@ -21,7 +21,6 @@ use super::editor::scroll::{ScrollPosition, ScrollTrigger};
 use super::editor::view::{CodeEditorEvent, CodeEditorView};
 use crate::ai::blocklist::diff_storage::SaveFuture;
 #[cfg(not(target_family = "wasm"))]
-use crate::ai::blocklist::diff_types::DiffSessionType;
 use crate::editor::InteractionState;
 
 pub enum InlineDiffViewEvent {
@@ -107,48 +106,29 @@ impl InlineDiffView {
 
     /// Register a file with `FileModel` for save support.
     ///
-    /// The `session_type` determines whether the file is local or remote.
-    /// For `Local`, the file is registered by path on the local filesystem.
-    /// For `Remote`, the file is registered against the remote backend so
-    /// that `save()` / `delete()` dispatch over the wire via
-    /// `RemoteServerClient`.
-    ///
     /// This must be called after construction for non-WASM environments.
     #[cfg(not(target_family = "wasm"))]
-    pub fn register_file(&mut self, session_type: &DiffSessionType, ctx: &mut ViewContext<Self>) {
+    pub fn register_file(&mut self, ctx: &mut ViewContext<Self>) {
         let Some(file_path) = &self.file_path else {
             return;
         };
-
-        let file_model = FileModel::handle(ctx);
-        let file_id = match session_type {
-            DiffSessionType::Local => {
-                let Some(local_path) = file_path.to_local_path() else {
-                    crate::safe_error!(
-                        safe: (
-                            "Failed to convert StandardizedPath to local path; diff will be \
-                            read-only"
-                        ),
-                        full: (
-                            "Failed to convert StandardizedPath to local path: {file_path}; diff \
-                            will be read-only"
-                        )
-                    );
-                    return;
-                };
-                file_model.update(ctx, |file_model, ctx| {
-                    file_model.register_file_path(&local_path, false, ctx)
-                })
-            }
-            DiffSessionType::Remote(host_id) => {
-                let host_id = host_id.clone();
-                let remote_path = file_path.clone();
-                file_model.update(ctx, |file_model, _ctx| {
-                    file_model.register_remote_file(host_id, remote_path)
-                })
-            }
+        let Some(local_path) = file_path.to_local_path() else {
+            crate::safe_error!(
+                safe: (
+                    "Failed to convert StandardizedPath to local path; diff will be \
+                    read-only"
+                ),
+                full: (
+                    "Failed to convert StandardizedPath to local path: {file_path}; diff \
+                    will be read-only"
+                )
+            );
+            return;
         };
 
+        let file_id = FileModel::handle(ctx).update(ctx, |file_model, ctx| {
+            file_model.register_file_path(&local_path, false, ctx)
+        });
         self.finish_file_registration(file_id, ctx);
     }
 

@@ -145,9 +145,7 @@ async fn dump_jemalloc_heap_profile_inner() -> anyhow::Result<Vec<u8>> {
             // pprof (sample addresses + mappings + GNU build-id) that is
             // symbolized offline against the debug-info file by build-id.  Dump
             // it directly in-process -- no external `pprof`/Go binary, HTTP
-            // round-trip, or port dependency required (the latter matter for
-            // the headless remote server daemon, which has no bundled helpers
-            // next to it).
+            // round-trip, or port dependency required.
             dump_jemalloc_pprof_bytes().await
         } else {
             use anyhow::Context as _;

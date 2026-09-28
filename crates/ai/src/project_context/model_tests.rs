@@ -698,7 +698,6 @@ fn test_superseding_refresh_coalesces_without_overlapping_reads() {
     // confirm the latest (empty) result wins instead of leaving stale content behind.
     fn controlled_content_reader(
         _paths: Vec<LocalOrRemotePath>,
-        _ctx: &AppContext,
     ) -> BoxFuture<'static, anyhow::Result<ProjectRuleContents>> {
         Box::pin(async move {
             let coordinator = coordinator();

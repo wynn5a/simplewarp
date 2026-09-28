@@ -5,14 +5,10 @@ use warp_util::local_or_remote_path::LocalOrRemotePath;
 
 mod telemetry;
 pub use telemetry::SkillOpenOrigin;
-#[cfg(all(not(target_family = "wasm"), feature = "local_fs"))]
-mod remote;
-#[cfg(all(not(target_family = "wasm"), feature = "local_fs"))]
-pub(crate) use remote::bundled_skill_snapshot_protos;
 #[cfg(feature = "local_fs")]
 mod bundled;
-#[cfg(all(not(target_family = "wasm"), feature = "local_fs"))]
-pub(crate) use bundled::{BundledSkill, BundledSkillActivation};
+#[cfg(all(test, feature = "local_fs"))]
+pub(crate) use bundled::BundledSkillActivation;
 
 cfg_if::cfg_if! {
     if #[cfg(not(feature = "local_fs"))] {

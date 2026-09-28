@@ -18,8 +18,8 @@ pub mod testing;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::mpsc::SyncSender;
-use std::sync::{Arc, OnceLock};
 use std::thread::JoinHandle;
 
 use ai::project_context::model::ProjectRulePath;
@@ -28,12 +28,7 @@ use chrono::{DateTime, Local};
 use instant::Instant;
 use lsp::supported_servers::LSPServerType;
 #[cfg(any(feature = "local_fs", feature = "integration_tests"))]
-pub use sqlite::database_file_path_for_current_scope;
-// Only re-exported for integration tests (via `integration_testing::persistence`);
-// in-crate code should resolve paths through `database_file_path_for_current_scope`.
-#[cfg(any(feature = "local_fs", feature = "integration_tests"))]
-#[cfg_attr(not(feature = "integration_tests"), expect(unused_imports))]
-pub use sqlite::database_file_path_for_scope;
+pub use sqlite::database_file_path;
 #[cfg(any(feature = "local_fs", feature = "integration_tests"))]
 pub use sqlite::establish_ro_connection;
 use uuid::Uuid;
@@ -61,70 +56,6 @@ use crate::workflows::CloudWorkflow;
 use crate::workspaces::user_profiles::UserProfileWithUID;
 use crate::workspaces::workspace::{Workspace as WorkspaceMetadata, WorkspaceUid};
 
-#[derive(Clone)]
-pub enum PersistenceScope {
-    /// The GUI app (and other launch modes that share its database).
-    App,
-    RemoteServerDaemon {
-        identity_key: String,
-    },
-}
-
-/// The [`PersistenceScope`] this process's persistence was initialized with.
-///
-/// Set once by [`initialize`]. Code that opens ad-hoc read-only connections
-/// should resolve the database path through [`current_scope`] (or
-/// `database_file_path_for_current_scope`) rather than hardcoding a scope, so
-/// it reads the same database as the writer regardless of which front-end
-/// this process is running.
-static CURRENT_SCOPE: OnceLock<PersistenceScope> = OnceLock::new();
-
-/// Returns the scope [`initialize`] was called with, defaulting to
-/// [`PersistenceScope::App`] when persistence has not been initialized (e.g.
-/// tests that construct models directly).
-pub fn current_scope() -> PersistenceScope {
-    CURRENT_SCOPE
-        .get()
-        .cloned()
-        .unwrap_or(PersistenceScope::App)
-}
-
-/// Which subsets of [`PersistedData`] a launch mode actually consumes.
-///
-/// Loading everything unconditionally is expensive (GUI session-restore
-/// payloads dominate startup on large databases), so headless launch modes
-/// opt out of the data they never read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PersistedDataScope {
-    /// The GUI app: everything, including window/tab/block session
-    /// restoration and command history.
-    Full,
-    /// The remote server daemon: only codebase index metadata.
-    CodebaseIndicesOnly,
-}
-
-impl PersistedDataScope {
-    /// Window/tab/pane snapshots and restored blocks.
-    fn session_restoration(self) -> bool {
-        matches!(self, PersistedDataScope::Full)
-    }
-
-    /// Shell-command history consumed by the GUI front-end.
-    fn command_history(self) -> bool {
-        matches!(self, PersistedDataScope::Full)
-    }
-
-    /// User profiles used to identify cloud-object creators in both interactive frontends.
-    fn user_profiles(self) -> bool {
-        self != PersistedDataScope::CodebaseIndicesOnly
-    }
-
-    /// Pending object actions, which only the GUI consumes.
-    fn gui_only_data(self) -> bool {
-        matches!(self, PersistedDataScope::Full)
-    }
-}
-
 /// A conversation whose `summary` column had to be derived from its task
 /// snapshot at read time (rows written before the column existed, or rows
 /// whose stored summary failed to parse). Sent to the SQLite writer thread
@@ -150,17 +81,10 @@ pub struct ConversationSummaryBackfill {
 /// available.
 #[tracing::instrument(name = "persistence::initialize", skip_all, fields(tags.cloud_agent = true))]
 #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
-pub fn initialize(
-    ctx: &mut AppContext,
-    scope: PersistenceScope,
-    data_scope: PersistedDataScope,
-) -> (Option<Box<PersistedData>>, Option<WriterHandles>) {
-    // Record the scope for ad-hoc read-only connections; keep the first value
-    // if this is ever called more than once in a process (e.g. tests).
-    let _ = CURRENT_SCOPE.set(scope.clone());
+pub fn initialize(ctx: &mut AppContext) -> (Option<Box<PersistedData>>, Option<WriterHandles>) {
     cfg_if::cfg_if! {
         if #[cfg(feature = "local_fs")] {
-            sqlite::initialize(ctx, scope, data_scope)
+            sqlite::initialize(ctx)
         } else {
             (None, None)
         }
@@ -237,8 +161,7 @@ impl SingletonEntity for PersistenceWriter {}
 ///
 /// For now, to address the global scoping here, we clear all persisted data on logout.
 pub struct PersistedData {
-    /// Session restoration data. `None` when the launch mode's
-    /// [`PersistedDataScope`] excludes it entirely (the daemon).
+    /// Session restoration data.
     pub app_state: Option<AppState>,
 
     /// Shareable objects.

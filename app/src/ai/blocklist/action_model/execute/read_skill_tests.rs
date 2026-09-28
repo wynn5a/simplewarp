@@ -8,12 +8,9 @@ use repo_metadata::RepoMetadataModel;
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
 use tempfile::TempDir;
-use warp_core::HostId;
 use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
 use warp_core::features::FeatureFlag;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warp_util::remote_path::RemotePath;
-use warp_util::standardized_path::StandardizedPath;
 use warpui::{App, ModelHandle};
 use watcher::HomeDirectoryWatcher;
 
@@ -190,100 +187,6 @@ fn disconnected_remote_session_does_not_fall_back_to_client_global_bundled_skill
                     ReadSkillResult::Error(error)
                 )) if error == "Bundled skills are not available on this remote session"
             ));
-        });
-    });
-}
-
-#[test]
-fn remote_session_reads_remote_bundled_skill_catalog() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        let _bundled_skills = FeatureFlag::BundledSkills.override_enabled(true);
-        let host_id = HostId::new("remote-host".to_string());
-        let remote_skill = ParsedSkill {
-            name: "host-specific".to_string(),
-            description: "remote bundled skill".to_string(),
-            path: LocalOrRemotePath::Remote(RemotePath::new(
-                host_id.clone(),
-                StandardizedPath::try_new(
-                    "/opt/warp/resources/bundled/skills/host-specific/SKILL.md",
-                )
-                .unwrap(),
-            )),
-            content: "remote rendered content".to_string(),
-            line_range: None,
-            provider: SkillProvider::Warp,
-            scope: SkillScope::Bundled,
-        };
-        SkillManager::handle(&app).update(&mut app, |manager, _ctx| {
-            manager.add_bundled_skill_for_testing(
-                "host-specific",
-                bundled_skill("host-specific"),
-                BundledSkillActivation::Always,
-            );
-            manager.add_remote_bundled_skill_for_testing(
-                host_id.clone(),
-                "host-specific",
-                remote_skill,
-                BundledSkillActivation::Always,
-            );
-        });
-
-        let session_id = SessionId::from(42);
-        let sessions = app.add_model(|_| Sessions::new_for_test());
-        sessions.update(&mut app, |sessions, _ctx| {
-            sessions.register_session_for_test(
-                SessionInfo::new_for_test()
-                    .with_id(session_id)
-                    .with_session_type(BootstrapSessionType::WarpifiedRemote),
-            );
-        });
-        let session = sessions
-            .read(&app, |sessions, _ctx| sessions.get(session_id))
-            .unwrap();
-        session.set_remote_host_id(Some(host_id));
-
-        let (_model_events_tx, model_events_rx) = unbounded();
-        let model_event_dispatcher =
-            app.add_model(|ctx| ModelEventDispatcher::new(model_events_rx, sessions.clone(), ctx));
-        model_event_dispatcher.update(&mut app, |dispatcher, _ctx| {
-            dispatcher.set_active_session_id(session_id);
-        });
-        let active_session = app.add_model(|ctx| {
-            ActiveSession::new(sessions.clone(), model_event_dispatcher.clone(), ctx)
-        });
-        let executor_handle = app.add_model(|_| ReadSkillExecutor::new(active_session));
-
-        let action = AIAgentAction {
-            id: AIAgentActionId::from("test-action-id".to_string()),
-            action: AIAgentActionType::ReadSkill(ReadSkillRequest {
-                skill: SkillReference::BundledSkillId("host-specific".to_string()),
-            }),
-            task_id: TaskId::new("test-task-id".to_string()),
-            requires_result: false,
-        };
-        let input = ExecuteActionInput {
-            action: &action,
-            conversation_id: AIConversationId::new(),
-        };
-
-        executor_handle.update(&mut app, |executor, ctx| {
-            let result: AnyActionExecution = executor.execute(input, ctx).into();
-            match result {
-                AnyActionExecution::Sync(AIAgentActionResultType::ReadSkill(
-                    ReadSkillResult::Success { content },
-                )) => {
-                    assert_eq!(
-                        content.file_name,
-                        "/opt/warp/resources/bundled/skills/host-specific/SKILL.md"
-                    );
-                    assert_eq!(
-                        content.content,
-                        AnyFileContent::StringContent("remote rendered content".to_string())
-                    );
-                }
-                _ => panic!("Remote session should read its host-specific bundled skill"),
-            }
         });
     });
 }

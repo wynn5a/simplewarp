@@ -33,7 +33,6 @@ use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 use url::Url;
-use warp_util::remote_path::RemotePath;
 use warpui::elements::{DispatchEventResult, EventHandler, MouseInBehavior};
 use warpui::presenter::ChildView;
 use warpui::{
@@ -1053,10 +1052,6 @@ pub enum PaneEvent {
     AppStateChanged,
     /// Repo for this pane's terminal has changed
     RepoChanged,
-    /// A remote server resolved the repo root for a session in this pane.
-    RemoteRepoNavigated {
-        remote_path: RemotePath,
-    },
     /// Split the current pane into two. If `initial_query` is `Some` fill the new pane's input with
     /// its value.
     NewPaneInAIMode {

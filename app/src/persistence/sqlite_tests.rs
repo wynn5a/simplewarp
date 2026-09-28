@@ -8,7 +8,6 @@ use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
 
 use super::{
-    app_database_file_path, database_file_path_for_current_scope, database_file_path_for_scope,
     decode_path, deduplicate_events, encode_path, get_all_codebase_index_metadata,
     read_sqlite_data, save_app_state, save_codebase_index_metadata, setup_database, start_writer,
 };
@@ -19,85 +18,13 @@ use crate::app_state::{
 use crate::cloud_object::Owner;
 use crate::code::editor_management::CodeSource;
 use crate::notebooks::{CloudNotebook, CloudNotebookModel};
-use crate::persistence::{BlockCompleted, ModelEvent, PersistedDataScope, PersistenceScope};
+use crate::persistence::{BlockCompleted, ModelEvent};
 use crate::server::ids::{ClientId, ServerId};
 use crate::tab::SelectedTabColor;
 use crate::terminal::ShellLaunchData;
 use crate::terminal::model::block::SerializedBlock;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::workspace::tab_group::TabGroupId;
-
-#[test]
-fn app_scope_database_path_matches_app_database_path() {
-    assert_eq!(
-        database_file_path_for_scope(&PersistenceScope::App),
-        app_database_file_path()
-    );
-}
-
-#[test]
-fn database_path_for_current_scope_defaults_to_app_scope() {
-    // Unit tests never call `persistence::initialize`, so the process-wide
-    // scope defaults to `App` and ad-hoc read-only connections resolve to
-    // the GUI database. (nextest runs each test in its own process, so no
-    // other test can have set the scope.)
-    assert_eq!(
-        database_file_path_for_current_scope(),
-        app_database_file_path()
-    );
-}
-
-#[test]
-fn remote_server_daemon_scope_database_path_uses_identity_data_dir() {
-    let path = database_file_path_for_scope(&PersistenceScope::RemoteServerDaemon {
-        identity_key: "user@example.com/ssh host".to_string(),
-    });
-    let expected_data_dir =
-        remote_server::setup::remote_server_daemon_data_dir("user@example.com/ssh host");
-
-    assert!(path.is_absolute());
-    assert_eq!(
-        path,
-        PathBuf::from(shellexpand::tilde(&expected_data_dir).into_owned()).join("warp.sqlite")
-    );
-}
-
-#[test]
-fn remote_server_daemon_scope_database_path_handles_empty_identity_key() {
-    let path = database_file_path_for_scope(&PersistenceScope::RemoteServerDaemon {
-        identity_key: String::new(),
-    });
-    let expected_data_dir = remote_server::setup::remote_server_daemon_data_dir("");
-
-    assert_eq!(
-        path,
-        PathBuf::from(shellexpand::tilde(&expected_data_dir).into_owned()).join("warp.sqlite")
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn remote_server_daemon_database_permissions_are_owner_only() {
-    use std::fs::Permissions;
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
-
-    let tempdir = tempfile::tempdir().expect("tempdir should be created");
-    let daemon_dir = tempdir.path().join("daemon");
-    let database_path = daemon_dir.join("warp.sqlite");
-
-    std::fs::create_dir_all(&daemon_dir).expect("daemon dir should be created");
-    std::fs::set_permissions(&daemon_dir, Permissions::from_mode(0o755))
-        .expect("daemon dir permissions should be set");
-    std::fs::write(&database_path, b"").expect("database file should be created");
-    std::fs::set_permissions(&database_path, Permissions::from_mode(0o644))
-        .expect("database file permissions should be set");
-
-    super::ensure_owner_only_dir(&daemon_dir).expect("daemon dir should be owner-only");
-    super::ensure_owner_only_file(&database_path).expect("database file should be owner-only");
-
-    assert_eq!(daemon_dir.metadata().unwrap().mode() & 0o777, 0o700);
-    assert_eq!(database_path.metadata().unwrap().mode() & 0o777, 0o600);
-}
 
 fn test_codebase_metadata(path: &str) -> WorkspaceMetadata {
     WorkspaceMetadata {
@@ -125,8 +52,7 @@ fn sqlite_read_restores_app_state_and_codebase_metadata() {
     let metadata = test_codebase_metadata("/tmp/remote-repo");
     save_codebase_index_metadata(&mut conn, metadata.clone())
         .expect("codebase index metadata should save");
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
-        .expect("persisted data should load");
+    let restored = read_sqlite_data(&mut conn, None).expect("persisted data should load");
     let restored_app_state = restored
         .app_state
         .expect("app state should be present for the full scope");
@@ -332,7 +258,7 @@ fn test_sqlite_round_trips_vertical_tabs_panel_open() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, None)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -366,7 +292,7 @@ fn test_sqlite_round_trips_window_team_uid() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, None)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -433,7 +359,7 @@ fn test_sqlite_round_trips_custom_vertical_tabs_title() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, None)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -511,7 +437,7 @@ fn test_sqlite_round_trips_code_pane_with_multiple_tabs() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, None)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -635,7 +561,7 @@ fn test_sqlite_round_trips_tab_groups() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, None)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -795,7 +721,7 @@ fn test_sqlite_round_trips_pinned_state() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, None)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -936,7 +862,7 @@ fn test_sqlite_drops_too_small_bounds_on_read() {
     )
     .expect("corrupting update should succeed");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, None)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");

@@ -44,9 +44,7 @@ use crate::cloud_object::{
     CloudObject, CloudObjectLocation, CloudObjectLookup as _, CloudObjectMetadataExt,
     CloudObjectUuidLookup as _, GenericStringObjectFormat, JsonObjectType, Space,
 };
-use crate::persistence::{
-    ModelEvent, database_file_path_for_current_scope, establish_ro_connection,
-};
+use crate::persistence::{ModelEvent, database_file_path, establish_ro_connection};
 use crate::server::cloud_objects::update_manager::{InitiatedBy, UpdateManager};
 use crate::server::ids::{ClientId, ServerId, SyncId};
 use crate::settings::AISettings;
@@ -333,14 +331,11 @@ impl TemplatableMCPServerManager {
             _ => {}
         });
 
-        let database_connection =
-            database_file_path_for_current_scope()
-                .to_str()
-                .and_then(|db_url| {
-                    establish_ro_connection(db_url)
-                        .ok()
-                        .map(|conn| Arc::new(Mutex::new(conn)))
-                });
+        let database_connection = database_file_path().to_str().and_then(|db_url| {
+            establish_ro_connection(db_url)
+                .ok()
+                .map(|conn| Arc::new(Mutex::new(conn)))
+        });
 
         let mut me = Self {
             cloud_templatable_mcp_servers: Default::default(),

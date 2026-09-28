@@ -7,7 +7,6 @@
 use std::ops::Range;
 
 use ai::diff_validation::{DiffDelta, DiffType};
-use warp_core::HostId;
 
 /// The base content and file path for a diff.
 #[derive(Clone)]
@@ -42,13 +41,6 @@ impl FileDiff {
     pub fn file_path(&self) -> String {
         self.base.file_path.clone()
     }
-}
-
-/// Whether a code diff targets the local filesystem or a remote host.
-#[derive(Clone, Debug)]
-pub enum DiffSessionType {
-    Local,
-    Remote(HostId),
 }
 
 /// Derives the 1-indexed changed line ranges described by a diff's deltas.

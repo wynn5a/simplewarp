@@ -7,15 +7,7 @@ pub(crate) enum CodingPanelEnablementState {
     /// local tree.
     PendingRemoteSession,
     /// The active session is on a remote host.
-    ///
-    /// `has_remote_server` is `true` when the session is registered with
-    /// `RemoteServerManager` (i.e. Auto SSH Warpification / mode 1). When
-    /// `true`, remote repo metadata may arrive and the file tree should show
-    /// a loading state. When `false` (tmux or subshell SSH), no data will
-    /// arrive and the file tree should show a disabled message.
-    RemoteSession {
-        has_remote_server: bool,
-    },
+    RemoteSession,
     UnsupportedSession,
     Disabled,
 }
@@ -25,10 +17,9 @@ impl CodingPanelEnablementState {
         is_enabled: bool,
         is_remote: bool,
         is_unsupported_session: bool,
-        has_remote_server: bool,
     ) -> Self {
         if is_remote {
-            Self::RemoteSession { has_remote_server }
+            Self::RemoteSession
         } else if is_unsupported_session {
             Self::UnsupportedSession
         } else if is_enabled {

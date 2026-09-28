@@ -23,7 +23,6 @@ use num_traits::SaturatingSub;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
-use remote_server::manager::RemoteServerManager;
 #[cfg(feature = "local_fs")]
 use repo_metadata::repositories::DetectedRepositories;
 use string_offset::CharOffset;
@@ -279,9 +278,6 @@ pub struct LocalCodeEditorView {
     was_edited: bool,
     /// Content version of the base file state.
     base_content_version: Option<ContentVersion>,
-    /// Set to `true` when a `RemoteBufferConflict` event fires for this
-    /// editor's buffer. Cleared when the user discards or overwrites.
-    has_remote_conflict: bool,
     conflict_banner_mouse_states: ConflictResolutionBannerMouseStates,
     /// Default directory to use for save dialogs when creating new files
     default_directory: Option<PathBuf>,
@@ -518,7 +514,6 @@ impl LocalCodeEditorView {
             selection_as_context_tooltip: None,
             was_edited: false,
             base_content_version: None,
-            has_remote_conflict: false,
             conflict_banner_mouse_states: Default::default(),
             default_directory: None,
             lsp_server: None,
@@ -1194,7 +1189,7 @@ impl LocalCodeEditorView {
             return;
         }
 
-        if self.is_remote_disconnected(ctx) || !self.has_unsaved_changes(ctx) {
+        if self.is_remote_disconnected() || !self.has_unsaved_changes(ctx) {
             return;
         }
 
@@ -1645,10 +1640,8 @@ impl LocalCodeEditorView {
                 GlobalBufferModelEvent::BufferLoaded {
                     content_version, ..
                 } => {
-                    // For a reopen (discard), base_content_version is already
-                    // set from the initial load. Accept the new version and
-                    // clear any conflict flag.
-                    me.has_remote_conflict = false;
+                    // For a reload, base_content_version is already set from the initial load.
+                    // Accept the new version.
                     if me.base_content_version.is_some() {
                         me.base_content_version = Some(*content_version);
                         ctx.notify();
@@ -1685,7 +1678,6 @@ impl LocalCodeEditorView {
                     // auto-saves, show it for manual (cmd-s) saves.
                     let auto_saved = std::mem::take(&mut me.auto_save_in_flight);
                     me.base_content_version = Some(*content_version);
-                    me.has_remote_conflict = false;
                     ctx.emit(LocalCodeEditorEvent::FileSaved { auto_saved });
                 }
                 GlobalBufferModelEvent::FailedToSave { error, .. } => {
@@ -1695,13 +1687,6 @@ impl LocalCodeEditorView {
                         error: error.clone(),
                     });
                 }
-                GlobalBufferModelEvent::RemoteBufferConflict { .. } => {
-                    me.has_remote_conflict = true;
-                    ctx.notify();
-                }
-                GlobalBufferModelEvent::ServerLocalBufferUpdated { .. } => {
-                    // Not relevant for local code editors.
-                }
             }
 
             me.update_diff_hunk_gutter_buttons(ctx);
@@ -1709,10 +1694,8 @@ impl LocalCodeEditorView {
     }
 
     pub fn has_version_conflicts(&self, app: &AppContext) -> bool {
-        // Remote buffers use SyncClock for conflict detection.
-        // The flag is set by the RemoteBufferConflict event handler.
         if matches!(self.file_location(), Some(BufferFileLocation::Remote(_))) {
-            return self.has_remote_conflict;
+            return false;
         }
         let Some(file_id) = self.file_id() else {
             return false;
@@ -1721,31 +1704,23 @@ impl LocalCodeEditorView {
             && self.base_content_version != GlobalBufferModel::as_ref(app).base_version(file_id)
     }
 
-    /// Returns `true` when this editor is backed by a remote file whose
-    /// host no longer has any connected session. Derived on-the-fly from
-    /// `RemoteServerManager` so it is always in sync with actual
-    /// connection state.
-    pub fn is_remote_disconnected(&self, app: &AppContext) -> bool {
-        let Some(BufferFileLocation::Remote(remote_path)) = self.file_location() else {
-            return false;
-        };
-        RemoteServerManager::as_ref(app)
-            .client_for_host(&remote_path.host_id)
-            .is_none()
+    /// Returns `true` when this editor is backed by a remote file, which has no connected host
+    /// to read from or save to.
+    pub fn is_remote_disconnected(&self) -> bool {
+        matches!(self.file_location(), Some(BufferFileLocation::Remote(_)))
     }
 
-    /// Whether auto-save can actually persist this editor's changes: it needs
-    /// a backing file and, for remote files, a still-connected host. Untitled
-    /// buffers (no `file_id`) and disconnected remotes return `false`.
-    pub fn can_auto_save(&self, app: &AppContext) -> bool {
-        self.file_id().is_some() && !self.is_remote_disconnected(app)
+    /// Whether auto-save can actually persist this editor's changes: it needs a local backing
+    /// file. Untitled buffers (no `file_id`) and remote files return `false`.
+    pub fn can_auto_save(&self) -> bool {
+        self.file_id().is_some() && !self.is_remote_disconnected()
     }
 
-    /// Save the file to the local file system (or remotely via the remote server).
+    /// Save the file to the local file system.
     /// This will only return an error immediately if there is a failure in the sync part of the call.
     /// Other errors could be returned asynchronously via the FileModelEvent::FailedToSave event.
     pub fn save_local(&mut self, ctx: &mut ViewContext<Self>) -> Result<(), ImmediateSaveError> {
-        if self.is_remote_disconnected(ctx) {
+        if self.is_remote_disconnected() {
             return Err(ImmediateSaveError::RemoteDisconnected);
         }
 
@@ -2287,7 +2262,7 @@ impl View for LocalCodeEditorView {
         // Only show the disconnection banner if the file was successfully loaded;
         // if it never loaded, the error/loading state handles that.
         let base: Box<dyn Element> =
-            if self.base_content_version.is_some() && self.is_remote_disconnected(app) {
+            if self.base_content_version.is_some() && self.is_remote_disconnected() {
                 let appearance = Appearance::as_ref(app);
                 let banner = render_remote_disconnected_banner(appearance);
                 let mut col = Flex::column().with_child(banner);
@@ -2434,17 +2409,6 @@ impl TypedActionView for LocalCodeEditorView {
                 if let Some(path) = self.file_path().map(Path::to_path_buf) {
                     self.base_content_version = Some(self.editor().as_ref(ctx).version(ctx));
                     ctx.emit(LocalCodeEditorEvent::DiscardUnsavedChanges { path });
-                } else if self.has_remote_conflict {
-                    // Remote file: re-open the buffer from the server to get
-                    // the latest on-disk content. The BufferLoaded event will
-                    // clear has_remote_conflict and update base_content_version.
-                    // If the re-open fails, has_remote_conflict stays true and
-                    // the banner remains visible so the user can retry.
-                    if let Some(file_id) = self.file_id() {
-                        GlobalBufferModel::handle(ctx).update(ctx, |model, ctx| {
-                            model.reopen_remote_buffer(file_id, ctx);
-                        });
-                    }
                 }
             }
             LocalCodeEditorAction::NavigateToTarget(location) => {

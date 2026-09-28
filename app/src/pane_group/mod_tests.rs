@@ -158,7 +158,6 @@ fn initialize_app_with_history(app: &mut App, conversations: Vec<AgentConversati
     app.add_singleton_model(AIDocumentModel::new);
     app.add_singleton_model(|_| History::new(vec![]));
     app.add_singleton_model(AgentConversationsModel::new);
-    app.add_singleton_model(remote_server::manager::RemoteServerManager::new);
 }
 
 struct MockOptions {

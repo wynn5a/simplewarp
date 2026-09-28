@@ -1244,17 +1244,12 @@ impl LocalDiffStateModel {
 
     /// Runs a commit chain (commit, then optionally push, then optionally create-PR) on the local working tree.
     /// Applies the post-chain delta to metadata and emits `GitOpCompleted`.
-    #[allow(clippy::too_many_arguments)]
     pub fn git_commit_chain(
         &self,
         mode: CommitChainMode,
         message: String,
         include_unstaged: bool,
         branch: String,
-        // Ignored locally (AI generation is gone); kept for signature parity
-        // with the remote backend, which still forwards it over the daemon
-        // protocol.
-        _autogenerate_pr_content: bool,
         ctx: &mut ModelContext<Self>,
     ) {
         let Some(repo_path) = self.active_repository_path(ctx) else {
@@ -1264,7 +1259,7 @@ impl LocalDiffStateModel {
             return;
         };
         // AI title/body generation is gone; the chain always creates the PR
-        // with `gh pr create --fill` (mirrors the daemon's behavior).
+        // with `gh pr create --fill`.
         let path_future = Self::interactive_path_future(ctx);
         ctx.spawn(
             async move {
@@ -1330,16 +1325,7 @@ impl LocalDiffStateModel {
     /// Creates a PR for `branch` on the local working tree and emits
     /// `GitOpCompleted`. Local PR info is sourced from `GitRepoStatusModel`, so
     /// no metadata is written here.
-    pub fn create_pr(
-        &self,
-        // Ignored locally (only the remote backend needs the branch for the
-        // daemon request); kept for signature parity.
-        _branch: String,
-        // Ignored locally (PRs always use `--fill` now); kept for signature
-        // parity with the remote backend.
-        _autogenerate_content: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
+    pub fn create_pr(&self, ctx: &mut ModelContext<Self>) {
         let Some(repo_path) = self.active_repository_path(ctx) else {
             ctx.emit(DiffStateModelEvent::GitOpCompleted(GitOpResult::PrCreated(
                 Err("no active repository".to_string()),
@@ -1363,14 +1349,7 @@ impl LocalDiffStateModel {
     /// Reports commit-message unavailability for the working tree and emits
     /// `CommitMessageGenerated`. AI generation is gone, so the dialog keeps
     /// its manual placeholder.
-    pub fn generate_commit_message(
-        &self,
-        include_unstaged: bool,
-        // Ignored locally (AI generation is gone); kept for signature parity
-        // with the remote backend, which still forwards it to the daemon.
-        _branch_name: String,
-        ctx: &mut ModelContext<Self>,
-    ) {
+    pub fn generate_commit_message(&self, include_unstaged: bool, ctx: &mut ModelContext<Self>) {
         let Some(repo_path) = self.active_repository_path(ctx) else {
             ctx.emit(DiffStateModelEvent::CommitMessageGenerated(Err(
                 "no active repository".to_string(),
@@ -1389,7 +1368,7 @@ impl LocalDiffStateModel {
 
     /// Future resolving to the user's interactive-shell `PATH` (or `None`),
     /// forwarded to git/gh so hooks and tooling resolve like an interactive
-    /// shell. Mirrors the daemon's helper.
+    /// shell.
     fn interactive_path_future(
         ctx: &mut ModelContext<Self>,
     ) -> futures::future::BoxFuture<'static, Option<String>> {
@@ -1554,19 +1533,6 @@ impl LocalDiffStateModel {
     ) -> Option<GitDiffData> {
         let diffs = Self::load_diffs_for_repo(repo_path, mode, false).await;
         diffs.changes.ok().map(|diff| diff.into())
-    }
-
-    /// Load diff data with `content_at_head` for a given mode without
-    /// requiring an existing model instance. Used by the remote server to
-    /// serve late-joining subscribers that need `content_at_head` for editor
-    /// rendering, without disturbing the model's state.
-    #[cfg(feature = "local_fs")]
-    pub async fn load_diffs_with_content_for_mode(
-        mode: DiffMode,
-        repo_path: PathBuf,
-    ) -> Option<GitDiffWithBaseContent> {
-        let diffs = Self::load_diffs_for_repo(repo_path, mode, false).await;
-        diffs.changes.ok()
     }
 
     async fn load_diffs_for_repo(

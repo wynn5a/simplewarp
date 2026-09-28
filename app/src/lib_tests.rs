@@ -24,15 +24,4 @@ fn launch_modes_select_expected_logging_frontend() {
 
     assert_eq!(app.log_frontend(), LogFrontend::Gui);
     assert_eq!(test.log_frontend(), LogFrontend::Gui);
-    assert_eq!(
-        LaunchMode::RemoteServerProxy.log_frontend(),
-        LogFrontend::Cli
-    );
-    assert_eq!(
-        LaunchMode::RemoteServerDaemon {
-            identity_key: "test".to_owned(),
-        }
-        .log_frontend(),
-        LogFrontend::Cli
-    );
 }

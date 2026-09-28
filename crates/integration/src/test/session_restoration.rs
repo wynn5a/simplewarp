@@ -32,9 +32,7 @@ pub fn test_session_restoration() -> Builder {
                 TEST_ONLY_ASSETS,
                 // Three tabs is a snapshot with three tabs that have the cwd None.
                 "three_tabs.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
         })
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
@@ -88,9 +86,7 @@ pub fn test_restored_blocks_on_different_hosts() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "restored_blocks.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
 
             let local_user = get_local_user();
@@ -185,9 +181,7 @@ pub fn test_restore_snapshot_with_deleted_cwd() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "deleted_cwd.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
         })
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
@@ -227,9 +221,7 @@ pub fn test_session_restoration_with_multiple_shells() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "test_restoring_tabs_with_different_shells.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
         })
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
@@ -275,9 +267,7 @@ pub fn test_restore_snapshot_with_background_output() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "restored_background_blocks.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
         })
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
@@ -341,9 +331,7 @@ pub fn test_restore_snapshot_with_notebooks() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "restored_notebooks.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
         })
         .with_step(
@@ -375,9 +363,7 @@ pub fn test_restore_snapshot_with_workflows() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "restored_workflows.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             )
         })
         .with_step(
@@ -396,9 +382,7 @@ pub fn test_restore_snapshot_with_test_json_object() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "test_json_object.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
         })
         .with_step(
@@ -428,9 +412,7 @@ pub fn test_restore_snapshot_with_common_shareable_metadata_ids() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "test_duplicate_shareable_ids.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
         })
         .with_step(TestStep::new("Verify revision of workflow").add_assertion(
@@ -455,9 +437,7 @@ pub fn test_restore_snapshot_with_markdown_file() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "file_notebook.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
@@ -497,9 +477,7 @@ pub fn test_restore_snapshot_with_code_file() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "restored_code.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
@@ -540,9 +518,7 @@ pub fn test_restore_snapshot_with_settings_page() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "restored_settings.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
         })
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))

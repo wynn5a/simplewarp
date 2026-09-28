@@ -126,9 +126,7 @@ pub fn test_up_arrow_history_enters_shift_tab_for_workflow() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 FAKE_HISTORY_SQLITE_FILE,
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
 
             let local_user = get_local_user();
@@ -207,9 +205,7 @@ pub fn test_command_search_loads_history() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 FAKE_HISTORY_SQLITE_FILE,
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
 
             let local_user = get_local_user();
@@ -266,9 +262,7 @@ pub fn test_command_search_loads_history_from_nondefault_histfile_path() -> Buil
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 FAKE_HISTORY_SQLITE_FILE,
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
 
             let local_user = get_local_user();
@@ -328,9 +322,7 @@ pub fn test_histfile_left_joined_with_persisted_history() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 FAKE_HISTORY_SQLITE_FILE,
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
 
             let local_user = get_local_user();
@@ -386,9 +378,7 @@ pub fn test_history_command_is_linked_to_local_workflow() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 FAKE_HISTORY_SQLITE_FILE,
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
 
             let local_user = get_local_user();

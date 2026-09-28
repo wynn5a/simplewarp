@@ -28,7 +28,7 @@ use crate::ai::block_context::BlockContext;
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::completer::SessionContext;
 #[cfg(feature = "local_fs")]
-use crate::persistence::{database_file_path_for_current_scope, establish_ro_connection};
+use crate::persistence::{database_file_path, establish_ro_connection};
 use crate::settings::AISettings;
 use crate::terminal::event::UserBlockCompleted;
 use crate::terminal::input::{CompleterData, IntelligentAutosuggestionResult};
@@ -152,13 +152,11 @@ pub enum NextCommandModelEvent {
 impl NextCommandModel {
     pub fn new(sessions: ModelHandle<Sessions>, model: Arc<FairMutex<TerminalModel>>) -> Self {
         #[cfg(feature = "local_fs")]
-        let conn = database_file_path_for_current_scope()
-            .to_str()
-            .and_then(|db_url| {
-                establish_ro_connection(db_url)
-                    .ok()
-                    .map(|conn| Arc::new(Mutex::new(conn)))
-            });
+        let conn = database_file_path().to_str().and_then(|db_url| {
+            establish_ro_connection(db_url)
+                .ok()
+                .map(|conn| Arc::new(Mutex::new(conn)))
+        });
         Self {
             sessions,
             model,

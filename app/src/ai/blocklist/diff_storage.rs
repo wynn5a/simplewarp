@@ -31,7 +31,7 @@ use warpui::AppContext;
 use crate::ai::agent::{
     AnyFileContent, FileContext, FileLocations, RequestFileEditsResult, UpdatedFileContext,
 };
-use crate::ai::blocklist::diff_types::{DiffSessionType, FileDiff};
+use crate::ai::blocklist::diff_types::FileDiff;
 use crate::code::DiffResult;
 use crate::code::editor::compute_unified_diff;
 
@@ -123,12 +123,7 @@ impl<T: DiffStorage> DiffStorageHelper for T {
 /// [`DiffStorageHelper`] flow.
 pub trait RegisteredDiffStorage {
     /// Pushes resolved diffs into the surface (called when preprocess resolves).
-    fn set_candidate_diffs(
-        &self,
-        diffs: Vec<FileDiff>,
-        session_type: DiffSessionType,
-        app: &mut AppContext,
-    );
+    fn set_candidate_diffs(&self, diffs: Vec<FileDiff>, app: &mut AppContext);
 
     /// Persists all diffs, resolving with the result reported to the LLM.
     fn accept_and_save(&self, app: &mut AppContext) -> BoxFuture<'static, RequestFileEditsResult>;

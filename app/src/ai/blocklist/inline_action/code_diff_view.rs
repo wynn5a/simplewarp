@@ -27,7 +27,6 @@ use warp_editor::content::buffer::InitialBufferState;
 use warp_editor::render::element::VerticalExpansionBehavior;
 use warp_errors::report_error;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warp_util::remote_path::RemotePath;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::elements::new_scrollable::{ScrollableAppearance, SingleAxisConfig};
 use warpui::elements::{
@@ -58,7 +57,7 @@ use crate::ai::blocklist::diff_storage::{
     DiffStorage, DiffStorageHelper, FileSnapshot, RegisteredDiffStorage, SaveFuture,
     UpdatedFileState,
 };
-use crate::ai::blocklist::diff_types::{DiffSessionType, FileDiff, changed_lines_from_op};
+use crate::ai::blocklist::diff_types::{FileDiff, changed_lines_from_op};
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 use crate::ai::blocklist::inline_action::inline_action_header::INLINE_ACTION_HORIZONTAL_PADDING;
 use crate::ai::blocklist::inline_action::inline_action_icons::{
@@ -334,18 +333,12 @@ struct PendingDiff {
 /// keeps a dead review view alive; a dead view at execute time fails
 /// recoverably.
 impl RegisteredDiffStorage for WeakViewHandle<CodeDiffView> {
-    fn set_candidate_diffs(
-        &self,
-        diffs: Vec<FileDiff>,
-        session_type: DiffSessionType,
-        app: &mut AppContext,
-    ) {
+    fn set_candidate_diffs(&self, diffs: Vec<FileDiff>, app: &mut AppContext) {
         let Some(view) = self.upgrade(app) else {
             log::error!("RequestFileEdits review view vanished before diffs resolved");
             return;
         };
         view.update(app, |view, ctx| {
-            view.set_diff_session_type(session_type);
             view.set_candidate_diffs(diffs, ctx);
         });
     }
@@ -401,8 +394,6 @@ pub struct CodeDiffView {
     is_passive: bool,
     should_show_speedbump: bool,
     session_platform: Option<SessionPlatform>,
-    /// Whether diffs target local disk or a remote host.
-    diff_session_type: DiffSessionType,
     /// Number of dispatched saves still in flight; guards revert while saving.
     pending_saves: usize,
 }
@@ -800,17 +791,8 @@ impl CodeDiffView {
             is_passive,
             should_show_speedbump,
             session_platform,
-            diff_session_type: DiffSessionType::Local,
             pending_saves: 0,
         }
-    }
-
-    /// Set the session type for this diff view.
-    ///
-    /// When `Remote`, `set_candidate_diffs` registers files with the
-    /// remote backend instead of the local filesystem.
-    pub fn set_diff_session_type(&mut self, session_type: DiffSessionType) {
-        self.diff_session_type = session_type;
     }
 
     pub fn is_pending_diffs_empty(&self) -> bool {
@@ -870,10 +852,7 @@ impl CodeDiffView {
 
                 // On non-WASM, register the file with FileModel for save support.
                 #[cfg(not(target_family = "wasm"))]
-                {
-                    let session_type = &self.diff_session_type;
-                    diff_viewer.update(ctx, |view, ctx| view.register_file(session_type, ctx));
-                }
+                diff_viewer.update(ctx, |view, ctx| view.register_file(ctx));
 
                 self.setup_diff_view_subscriptions(&diff_viewer, file_path, ctx);
 
@@ -1427,7 +1406,11 @@ impl CodeDiffView {
             .pending_diffs
             .iter()
             .filter_map(|diff| {
-                self.location_for_standardized_path(diff.diff_view.as_ref(app).file_path()?)
+                diff.diff_view
+                    .as_ref(app)
+                    .file_path()?
+                    .to_local_path()
+                    .map(LocalOrRemotePath::Local)
             })
             .collect();
 
@@ -2220,25 +2203,14 @@ impl CodeDiffView {
         SavePosition::new(container.finish(), &self.position_id_for_inline_speedbump()).finish()
     }
 
-    /// Returns the primary file location as a `LocalOrRemotePath`,
-    /// using `diff_session_type` to correctly identify remote files.
+    /// Returns the primary file location as a `LocalOrRemotePath`.
     pub fn primary_file_location(&self, app: &AppContext) -> Option<LocalOrRemotePath> {
         self.pending_diffs
             .first()?
             .diff_view
             .as_ref(app)
             .file_path()
-            .and_then(|path| self.location_for_standardized_path(path))
-    }
-
-    fn location_for_standardized_path(&self, path: &StandardizedPath) -> Option<LocalOrRemotePath> {
-        match &self.diff_session_type {
-            DiffSessionType::Local => path.to_local_path().map(LocalOrRemotePath::Local),
-            DiffSessionType::Remote(host_id) => Some(LocalOrRemotePath::Remote(RemotePath {
-                host_id: host_id.clone(),
-                path: path.clone(),
-            })),
-        }
+            .and_then(|path| path.to_local_path().map(LocalOrRemotePath::Local))
     }
 }
 

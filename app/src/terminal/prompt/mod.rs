@@ -21,7 +21,7 @@ pub fn user_and_host_name_string(
 ) -> Option<String> {
     match session_type {
         SessionType::Local => None,
-        SessionType::WarpifiedRemote { .. } => Some(format!("{user}@{hostname}:")),
+        SessionType::WarpifiedRemote => Some(format!("{user}@{hostname}:")),
     }
 }
 

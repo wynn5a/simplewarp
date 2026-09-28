@@ -4202,15 +4202,13 @@ fn test_control_master_banner_suppressed_does_not_reopen() {
             MockTerminalManager::create_new_terminal_view_window_for_test(&mut app, None);
 
         terminal.update(&mut app, |view, _ctx| {
-            // With no remote server and no prior dismissal, the banner may open.
+            // With no prior dismissal, the banner may open.
             view.control_master_error_banner_suppressed = false;
-            assert!(view.should_open_control_master_banner(/* has_remote_server */ false));
-            // A remote server makes the CTA irrelevant, so it stays closed.
-            assert!(!view.should_open_control_master_banner(/* has_remote_server */ true));
+            assert!(view.should_open_control_master_banner());
 
-            // Once permanently dismissed it must never reopen, even without a remote server.
+            // Once permanently dismissed it must never reopen.
             view.control_master_error_banner_suppressed = true;
-            assert!(!view.should_open_control_master_banner(false));
+            assert!(!view.should_open_control_master_banner());
         });
     })
 }

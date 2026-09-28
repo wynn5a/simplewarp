@@ -1,9 +1,8 @@
 //! Helpers for constructing repo detection calls.
 //!
 //! The core detection logic lives on
-//! [`DetectedRepositories::detect_possible_git_repo`]. This module provides
-//! a thin convenience layer that constructs the appropriate remote detection
-//! future from [`RemoteServerManager`] before delegating.
+//! [`DetectedRepositories::detect_possible_git_repo`]. This module skips detection for remote
+//! sessions before delegating.
 
 use std::future::Future;
 
@@ -13,35 +12,29 @@ use futures::future::ready;
 #[cfg(not(target_family = "wasm"))]
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::repositories::RepoDetectionSource;
-use warp_core::SessionId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::AppContext;
 #[cfg(not(target_family = "wasm"))]
 use warpui::SingletonEntity;
 
-#[cfg(not(target_family = "wasm"))]
-use crate::remote_server::manager::RemoteServerManager;
-
 /// Describes whether the active session is local or remote.
 pub enum RepoDetectionSessionType {
     /// A local terminal session — repo detection runs on the local filesystem.
     Local,
-    /// A remote SSH session — repo detection is delegated to the remote server
-    /// via `navigate_to_directory`.
-    Remote { session_id: SessionId },
+    /// A remote SSH session — repo detection is unavailable.
+    Remote,
 }
 
 /// Detects the git repository root for the given working directory.
 ///
-/// Constructs the appropriate remote detection future (if needed) and delegates
-/// to [`DetectedRepositories::detect_possible_git_repo`].
+/// Remote sessions resolve to `None` rather than falling through to local detection, which
+/// would misclassify a remote CWD as a local repo if the same absolute path happens to exist
+/// locally.
 ///
-/// The caller is responsible for registering remote repo roots in
-/// `DetectedRepositories` and triggering downstream side effects (git status,
-/// code review, etc.) in the spawn callback. Callers that only need the
-/// `DetectedGitRepo` event side effect (e.g. the TUI front-end's project
-/// rules/skills indexing) may drop the returned future: detection runs on a
-/// task spawned inside [`DetectedRepositories`], so it completes regardless.
+/// The caller is responsible for triggering downstream side effects (git status, code review,
+/// etc.) in the spawn callback. Callers that only need the `DetectedGitRepo` event side effect
+/// may drop the returned future: detection runs on a task spawned inside
+/// [`DetectedRepositories`], so it completes regardless.
 #[cfg(not(target_family = "wasm"))]
 pub fn detect_possible_git_repo(
     session_type: RepoDetectionSessionType,
@@ -49,31 +42,14 @@ pub fn detect_possible_git_repo(
     source: RepoDetectionSource,
     ctx: &mut AppContext,
 ) -> impl Future<Output = Option<LocalOrRemotePath>> + use<> {
-    // Build the remote detection future if this is a remote session.
-    // For local sessions, pass None so DetectedRepositories uses the local path.
-    // For remote sessions without a connected server, pass a future that
-    // resolves to None immediately — this avoids falling through to local
-    // detection, which would misclassify a remote CWD as a local repo if
-    // the same absolute path happens to exist locally.
-    let remote_detect = match session_type {
-        RepoDetectionSessionType::Local => None,
-        RepoDetectionSessionType::Remote { session_id } => {
-            if RemoteServerManager::as_ref(ctx).is_session_potentially_active(session_id) {
-                Some(Either::Left(RemoteServerManager::handle(ctx).update(
-                    ctx,
-                    |mgr, ctx| {
-                        mgr.navigate_to_directory(session_id, active_directory.to_string(), ctx)
-                    },
-                )))
-            } else {
-                Some(Either::Right(ready(None)))
-            }
+    match session_type {
+        RepoDetectionSessionType::Local => {
+            Either::Left(DetectedRepositories::handle(ctx).update(ctx, |repos, ctx| {
+                repos.detect_possible_git_repo(active_directory, source, ctx)
+            }))
         }
-    };
-
-    DetectedRepositories::handle(ctx).update(ctx, |repos, ctx| {
-        repos.detect_possible_git_repo(active_directory, source, remote_detect, ctx)
-    })
+        RepoDetectionSessionType::Remote => Either::Right(ready(None)),
+    }
 }
 
 /// Repository detection is not available in WASM builds because

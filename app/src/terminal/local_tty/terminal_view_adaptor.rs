@@ -12,7 +12,6 @@ use crate::context_chips::prompt_type::PromptType;
 use crate::pane_group::TerminalViewResources;
 use crate::persistence::ModelEvent;
 use crate::terminal::view::ConversationRestorationInNewPaneType;
-use crate::terminal::writeable_pty::terminal_manager_util::wire_up_remote_server_controller_with_view;
 use crate::terminal::{TerminalManager as TerminalManagerTrait, TerminalModel, TerminalView};
 
 /// Configuration for constructing the GUI terminal surface.
@@ -108,8 +107,8 @@ pub(crate) fn create_terminal_view_surface(
     TerminalSurfaceResult {
         surface: view,
         post_wire: move |terminal_manager: &mut TerminalManager<TerminalView>,
-                         view: &ViewHandle<TerminalView>,
-                         ctx: &mut AppContext| {
+                         _: &ViewHandle<TerminalView>,
+                         _: &mut AppContext| {
             // Append the session restoration separator to the block list if there are any
             // restored blocks (command blocks or AI conversations) to show.
             let should_show_restoration_separator = (has_conversation_restoration
@@ -123,12 +122,6 @@ pub(crate) fn create_terminal_view_surface(
                     .block_list_mut()
                     .append_session_restoration_separator_to_block_list(is_historical);
             }
-
-            wire_up_remote_server_controller_with_view(
-                &terminal_manager.remote_server_controller(),
-                view,
-                ctx,
-            );
         },
     }
 }

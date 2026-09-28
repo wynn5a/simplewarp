@@ -776,11 +776,7 @@ pub struct ClearValue {
 }
 
 /// Received from the pty right before the remote shell exits (via `exit`,
-/// `logout`, Ctrl-D on an empty prompt, etc.). Lets the Warp client drop
-/// per-session resources — in particular the `ssh … remote-server-proxy`
-/// child process that holds a multiplexed channel on the foreground ssh
-/// ControlMaster — before the user's outer ssh tunnel tries to close, so
-/// the master can exit cleanly instead of hanging on orphaned slaves.
+/// `logout`, Ctrl-D on an empty prompt, etc.).
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct ExitShellValue {
     pub session_id: SessionId,

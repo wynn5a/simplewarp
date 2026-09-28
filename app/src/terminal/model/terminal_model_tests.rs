@@ -11,7 +11,7 @@ use warpui::text::{SelectionType, str_to_byte_vec};
 use super::*;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::terminal::event_listener::ChannelEventListener;
-use crate::terminal::model::ansi::{CompletionMetadata, Handler};
+use crate::terminal::model::ansi::{CompletionMetadata, ExitShellValue, Handler};
 use crate::terminal::model::block::{BlockId, SerializedBlock};
 use crate::terminal::model::bootstrap::BootstrapStage;
 use crate::terminal::model::grid::Dimensions as _;

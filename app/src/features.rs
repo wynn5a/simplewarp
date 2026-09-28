@@ -335,8 +335,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::GitOperationsInCodeReview,
         #[cfg(feature = "trim_trailing_blank_lines")]
         FeatureFlag::TrimTrailingBlankLines,
-        #[cfg(feature = "remote_code_review")]
-        FeatureFlag::RemoteCodeReview,
         #[cfg(feature = "custom_model_routers")]
         FeatureFlag::CustomModelRouters,
         #[cfg(feature = "gemini_enterprise")]

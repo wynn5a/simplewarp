@@ -12,8 +12,6 @@ pub enum ExecutionMode {
     App,
     /// Warp is running as a CLI.
     Sdk,
-    /// Warp is running as the remote server daemon.
-    RemoteServerDaemon,
 }
 
 impl ExecutionMode {
@@ -23,7 +21,6 @@ impl ExecutionMode {
         match self {
             ExecutionMode::App => "warp-app",
             ExecutionMode::Sdk => "warp-cli",
-            ExecutionMode::RemoteServerDaemon => "warp-remote-server-daemon",
         }
     }
 }
@@ -89,10 +86,7 @@ impl AppExecutionMode {
     /// Wherever possible, prefer more targeted capability checks like
     /// [`Self::can_autostart_mcp_servers`].
     pub fn is_autonomous(&self) -> bool {
-        matches!(
-            self.mode,
-            ExecutionMode::Sdk | ExecutionMode::RemoteServerDaemon
-        )
+        matches!(self.mode, ExecutionMode::Sdk)
     }
 
     /// Returns the client ID to report to the server.

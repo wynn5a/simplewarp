@@ -547,20 +547,12 @@ pub enum FeatureFlag {
     /// space is not rendered while the agent is running.
     TrimTrailingBlankLines,
 
-    /// Gates the new SSH remote server flow that installs and connects to a
-    /// persistent binary on the remote machine instead of using ControlMaster
-    /// for command execution.
-    SshRemoteServer,
-
     /// Enables summary mode in vertical tabs, showing condensed tab summaries
     /// instead of individual pane rows.
     VerticalTabsSummaryMode,
 
     /// Enables configurable expanded context windows for eligible GPT models.
     GPTConfigurableContextWindow,
-
-    /// Enables the code review view for remote sessions.
-    RemoteCodeReview,
 
     /// Gates the Grouped Tabs feature.
     GroupedTabs,
@@ -667,8 +659,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::CodeReviewScrollPreservation,
     FeatureFlag::RememberFastForwardState,
     FeatureFlag::LocalDockerSandbox,
-    #[cfg(not(windows))]
-    FeatureFlag::SshRemoteServer,
     FeatureFlag::GPTConfigurableContextWindow,
     FeatureFlag::RestorePromptOnInlineModelSelectorSearch,
     FeatureFlag::TerminalLifecycleRecovery,
@@ -694,9 +684,6 @@ pub const RELEASE_FLAGS: &[FeatureFlag] = &[
     // Marked text is currently only supported on MacOS.
     #[cfg(target_os = "macos")]
     FeatureFlag::ImeMarkedText,
-    // Remote server binary is not yet supported on Windows.
-    #[cfg(not(windows))]
-    FeatureFlag::SshRemoteServer,
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     FeatureFlag::DragTabsToWindows,
 ];

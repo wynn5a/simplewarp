@@ -195,9 +195,6 @@
 /app/src/ai/mcp/manager/oauth.rs @Legoben @jefflloyd @vorporeal @bnavetta
 /app/src/ai/mcp/templatable_manager/oauth.rs @Legoben @jefflloyd @vorporeal @bnavetta
 
-# Self-hosted agents
-/crates/remote_server/ @kevinyang372 @alokedesai
-
 # Orchestration (multi-agent parent/child runs, orchestration UI)
 /app/src/ai/blocklist/orchestration_event_streamer.rs @Advait-M @cephalonaut
 /app/src/ai/blocklist/orchestration_events.rs @Advait-M @cephalonaut

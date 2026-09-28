@@ -21,7 +21,6 @@ mod osc8_hyperlinks;
 mod pane_restoration;
 #[cfg(target_os = "macos")]
 mod preview_config_migration;
-mod remote_server;
 mod rules;
 mod secrets;
 mod session_restoration;
@@ -69,7 +68,6 @@ use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
 #[cfg(target_os = "macos")]
 pub use preview_config_migration::*;
-pub use remote_server::*;
 pub use rules::*;
 use rust_embed::RustEmbed;
 pub use secrets::*;
@@ -3081,9 +3079,7 @@ pub fn test_block_based_snackbar_small_window() -> Builder {
             integration_testing::create_file_from_assets(
                 TEST_ONLY_ASSETS,
                 "small_window.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
+                &integration_testing::persistence::database_file_path(),
             );
         })
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))

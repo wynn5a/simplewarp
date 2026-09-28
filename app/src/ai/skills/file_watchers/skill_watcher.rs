@@ -26,9 +26,6 @@ use super::utils::{
     is_home_provider_path, is_home_skill_directory, is_skill_file, read_skills_from_directories,
     read_skills_from_files,
 };
-use crate::ai::remote_context_files::{
-    REMOTE_CONTEXT_MAX_BATCH_BYTES, REMOTE_CONTEXT_MAX_FILE_BYTES, read_remote_text_file_contents,
-};
 use crate::warp_managed_paths_watcher::{
     WarpManagedPathsWatcher, WarpManagedPathsWatcherEvent, filter_repository_update_by_prefix,
     warp_managed_skill_dirs,
@@ -365,7 +362,7 @@ impl SkillWatcher {
         if skill_paths.is_empty() {
             return;
         }
-        let Some(read_skill_contents) = read_project_skill_contents(skill_paths, ctx) else {
+        let Some(read_skill_contents) = read_project_skill_contents(skill_paths) else {
             return;
         };
 
@@ -410,7 +407,7 @@ impl SkillWatcher {
         if skill_paths.is_empty() {
             return;
         }
-        let Some(read_skill_contents) = read_project_skill_contents(skill_paths, ctx) else {
+        let Some(read_skill_contents) = read_project_skill_contents(skill_paths) else {
             return;
         };
 
@@ -1051,18 +1048,12 @@ impl SkillWatcher {
 
 fn read_project_skill_contents(
     skill_paths: Vec<LocalOrRemotePath>,
-    ctx: &AppContext,
 ) -> Option<ProjectSkillContentsFuture> {
     match skill_paths.first()? {
         LocalOrRemotePath::Local(_) => Some(Box::pin(async move {
             Ok(read_local_project_skill_contents(skill_paths))
         })),
-        LocalOrRemotePath::Remote(_) => Some(read_remote_text_file_contents(
-            skill_paths,
-            Some(REMOTE_CONTEXT_MAX_FILE_BYTES),
-            Some(REMOTE_CONTEXT_MAX_BATCH_BYTES),
-            ctx,
-        )),
+        LocalOrRemotePath::Remote(_) => None,
     }
 }
 

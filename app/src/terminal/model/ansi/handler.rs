@@ -295,10 +295,7 @@ pub trait Handler {
     fn init_shell(&mut self, _data: InitShellValue) {}
 
     /// Callback for the Warp exit-shell hook — emitted by the remote shell right
-    /// before it exits. Gives the Warp client a chance to drop per-session
-    /// resources (e.g. the `ssh … remote-server-proxy` child) before the outer
-    /// ssh tunnel starts tearing down, so its ControlMaster can exit cleanly
-    /// rather than hanging on orphaned multiplexed channels.
+    /// before it exits.
     fn exit_shell(&mut self, _data: ExitShellValue) {}
 
     /// Callback for the terminal to when user executes `clear` command.

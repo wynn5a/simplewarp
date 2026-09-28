@@ -13,7 +13,7 @@ use crate::terminal::model_events::ModelEventDispatcher;
 
 /// Shared observable state for a [`TestStorage`].
 struct TestStorageState {
-    diffs: RefCell<Option<(Vec<FileDiff>, DiffSessionType)>>,
+    diffs: RefCell<Option<Vec<FileDiff>>>,
     accepted: Cell<bool>,
 }
 
@@ -30,13 +30,8 @@ impl TestStorageState {
 struct TestStorage(Rc<TestStorageState>);
 
 impl RegisteredDiffStorage for TestStorage {
-    fn set_candidate_diffs(
-        &self,
-        diffs: Vec<FileDiff>,
-        session_type: DiffSessionType,
-        _app: &mut AppContext,
-    ) {
-        *self.0.diffs.borrow_mut() = Some((diffs, session_type));
+    fn set_candidate_diffs(&self, diffs: Vec<FileDiff>, _app: &mut AppContext) {
+        *self.0.diffs.borrow_mut() = Some(diffs);
     }
 
     fn accept_and_save(&self, _app: &mut AppContext) -> BoxFuture<'static, RequestFileEditsResult> {
@@ -134,10 +129,9 @@ fn on_diffs_applied_seeds_registered_storage() {
         });
 
         let seeded = storage.diffs.borrow_mut().take();
-        let (diffs, session_type) = seeded.expect("registered storage should be seeded");
+        let diffs = seeded.expect("registered storage should be seeded");
         assert_eq!(diffs.len(), 1);
         assert_eq!(diffs[0].file_path(), "/tmp/x.rs");
-        assert!(matches!(session_type, DiffSessionType::Local));
     });
 }
 

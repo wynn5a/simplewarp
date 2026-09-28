@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use instant::Instant;
-pub use remote_server::setup::RemoteServerSetupState;
 
 use super::history::HistoryEntry;
 use super::model::block::BlockId;
@@ -68,13 +67,6 @@ pub enum Event {
     /// An indication that a successful SSH connection was initiated via the
     /// SSH wrapper.  The argument is the name of the remote shell.
     SSH(String),
-    /// Emitted when the remote shell for a session is about to exit, so
-    /// per-session resources (e.g. the `ssh … remote-server-proxy` child that
-    /// holds a multiplexed channel on the ControlMaster) can be torn down
-    /// before the outer ssh tunnel starts closing.
-    ExitShell {
-        session_id: SessionId,
-    },
     /// Sent when the model detects an SSH ControlMaster error, which means that
     /// completions reliant on command execution will not work.
     SSHControlMasterError,
@@ -108,21 +100,6 @@ pub enum Event {
     Handler(HandlerEvent),
     /// Carries non-UGC lifecycle diagnostics to the model dispatcher for telemetry.
     LifecycleRecovery(LifecycleRecoveryRecord),
-    /// Emitted when the remote server binary has been successfully checked or
-    /// installed and is ready. The session is initialized independently on
-    /// `Bootstrapped`; when the remote server later connects, the client is
-    /// attached to the existing session's `RemoteServerCommandExecutor` via
-    /// the `RemoteServerManagerEvent::SessionConnected` subscription in
-    /// `Sessions::new`.
-    RemoteServerReady {
-        session_id: SessionId,
-    },
-    /// Emitted when the remote server setup failed. The session falls back to
-    /// the ControlMaster-based `RemoteCommandExecutor`.
-    RemoteServerFailed {
-        session_id: SessionId,
-        error: String,
-    },
     TextSelectionChanged,
     ShellSpawned(ShellType),
     SendCompletionsPrompt,
@@ -454,15 +431,6 @@ impl Debug for Event {
             }
             Event::Handler(handler_event) => write!(f, "Handler({handler_event:?}))"),
             Event::LifecycleRecovery(record) => write!(f, "LifecycleRecovery({record:?})"),
-            Event::RemoteServerReady { session_id } => {
-                write!(f, "RemoteServerReady(session: {session_id:?})")
-            }
-            Event::RemoteServerFailed { session_id, error } => {
-                write!(
-                    f,
-                    "RemoteServerFailed(session: {session_id:?}, error: {error})"
-                )
-            }
             Event::TextSelectionChanged => write!(f, "TextSelectionChanged"),
             Event::ShellSpawned(shell_type) => write!(f, "ShellSpawned({shell_type:?})"),
             Event::SendCompletionsPrompt => write!(f, "SendCompletionsPrompt"),
@@ -471,9 +439,6 @@ impl Debug for Event {
             }
             Event::BootstrapPrecmdDone => write!(f, "BootstrapPrecmdDone"),
             Event::PluggableNotification { .. } => write!(f, "PluggableNotification"),
-            Event::ExitShell { session_id } => {
-                write!(f, "ExitShell(session: {session_id:?})")
-            }
         }
     }
 }

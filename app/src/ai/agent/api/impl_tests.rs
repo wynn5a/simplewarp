@@ -1,4 +1,3 @@
-use warp_core::HostId;
 use warp_core::features::FeatureFlag;
 use warp_multi_agent_api as api;
 
@@ -49,12 +48,10 @@ fn request_params_with_ask_user_question_enabled(ask_user_question_enabled: bool
     }
 }
 
-fn request_params_for_remote(host_id: Option<HostId>) -> RequestParams {
+fn request_params_for_remote() -> RequestParams {
     let mut params = request_params_with_ask_user_question_enabled(false);
     params.session_context =
-        SessionContext::new_with_session_type_for_test(Some(SessionType::WarpifiedRemote {
-            host_id,
-        }));
+        SessionContext::new_with_session_type_for_test(Some(SessionType::WarpifiedRemote));
     params
 }
 
@@ -145,18 +142,8 @@ fn supported_tools_includes_ask_user_question_when_enabled_and_feature_flag_is_e
 }
 
 #[test]
-fn remote_supported_tools_omit_search_codebase_when_connected() {
-    let params = request_params_for_remote(Some(HostId::new("host".to_string())));
-    let supported_tools = get_supported_tools(&params);
-    let supported_cli_agent_tools = get_supported_cli_agent_tools(&params);
-
-    assert!(!supported_tools.contains(&api::ToolType::SearchCodebase));
-    assert!(!supported_cli_agent_tools.contains(&api::ToolType::SearchCodebase));
-}
-
-#[test]
-fn remote_supported_tools_omit_search_codebase_when_remote_is_not_connected() {
-    let params = request_params_for_remote(None);
+fn remote_supported_tools_omit_search_codebase() {
+    let params = request_params_for_remote();
     let supported_tools = get_supported_tools(&params);
     let supported_cli_agent_tools = get_supported_cli_agent_tools(&params);
 

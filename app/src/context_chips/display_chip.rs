@@ -1633,17 +1633,13 @@ impl DisplayChip {
             appearance,
         );
 
-        // Code review is only supported on local sessions and
-        // on remote sessions with a connected host ID.
+        // Code review is only supported on local sessions.
         let supports_code_review = self
             .session_context
             .as_ref()
             .map(|ctx| match ctx.session.session_type() {
                 SessionType::Local => true,
-                SessionType::WarpifiedRemote { host_id: Some(_) } => {
-                    FeatureFlag::RemoteCodeReview.is_enabled()
-                }
-                SessionType::WarpifiedRemote { host_id: None } => false,
+                SessionType::WarpifiedRemote => false,
             })
             .unwrap_or(false);
 

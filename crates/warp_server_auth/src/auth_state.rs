@@ -7,8 +7,6 @@ use warpui_core::{AppContext, Entity, SingletonEntity};
 use super::UserUid;
 use super::anonymous_id::get_or_create_anonymous_id;
 use super::credentials::Credentials;
-#[cfg(any(not(target_family = "wasm"), test, feature = "test-util"))]
-use super::user::UserMetadata;
 use super::user::{AnonymousUserType, PersonalObjectLimits, PrincipalType, User};
 
 /// AuthState holds information about the currently-logged in user.
@@ -97,64 +95,6 @@ impl AuthState {
         *self.credentials.write() = credentials;
     }
 
-    /// Applies auth data received by the remote server daemon handshake.
-    ///
-    /// Empty values are authoritative: an empty token clears bearer credentials, and an empty user
-    /// ID clears the daemon user identity.
-    #[cfg(any(not(target_family = "wasm"), test, feature = "test-util"))]
-    pub fn apply_remote_server_auth_context(
-        &self,
-        auth_token: String,
-        user_id: String,
-        user_email: String,
-    ) {
-        self.set_remote_server_bearer_token(auth_token);
-        self.set_remote_server_user(user_id, user_email);
-    }
-
-    /// Applies bearer-token credentials received from the remote server daemon.
-    #[cfg(any(not(target_family = "wasm"), test, feature = "test-util"))]
-    pub fn set_remote_server_bearer_token(&self, auth_token: String) {
-        if auth_token.is_empty() {
-            self.set_credentials(None);
-            return;
-        }
-        self.set_credentials(Some(Credentials::Bearer(auth_token)));
-    }
-
-    #[cfg(any(not(target_family = "wasm"), test, feature = "test-util"))]
-    fn set_remote_server_user(&self, user_id: String, user_email: String) {
-        let mut user = self.user.write();
-        if user_id.is_empty() {
-            *user = None;
-            return;
-        }
-
-        match user.as_mut() {
-            Some(user) => {
-                user.local_id = UserUid::new(&user_id);
-                user.metadata.email = user_email;
-            }
-            None => {
-                *user = Some(User {
-                    local_id: UserUid::new(&user_id),
-                    metadata: UserMetadata {
-                        email: user_email,
-                        display_name: None,
-                        photo_url: None,
-                    },
-                    is_onboarded: false,
-                    needs_sso_link: false,
-                    anonymous_user_type: None,
-                    is_on_work_domain: false,
-                    personal_object_limits: None,
-                    principal_type: PrincipalType::default(),
-                    global_skills: Vec::new(),
-                });
-            }
-        }
-    }
-
     /// Determines whether the user should be considered as logged in.
     pub fn is_logged_in(&self) -> bool {
         self.credentials.read().is_some()
@@ -168,12 +108,6 @@ impl AuthState {
     /// yet, the user is conservatively treated as lacking a full account.
     pub fn is_anonymous_or_logged_out(&self) -> bool {
         !self.is_logged_in() || self.is_user_anonymous().unwrap_or(true)
-    }
-
-    /// Returns the remote-server bearer token, if one exists.
-    pub fn get_access_token_ignoring_validity(&self) -> Option<String> {
-        let credentials = self.credentials.read();
-        credentials.as_ref()?.bearer_token().map(str::to_owned)
     }
 
     /// Returns the user's display name.

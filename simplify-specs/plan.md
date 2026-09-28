@@ -103,11 +103,21 @@ Queue, in order:
    cargo features (in neither set), ~1,200 lines in `app/src/crash_reporting/`, 46 cfg sites in
    17 files, the minidump server, the privacy-page crash-reports toggle, and `CrashReporting` /
    `CocoaSentry` flags.
-3. **Decision needed — SSH remote server** (`SshRemoteServer`, a release flag, ~16k lines in
-   `app/src/remote_server/` + `crates/remote_server/`). Its install downloads a Warp CLI binary
-   from `{server_root_url}/download/cli` (`crates/remote_server/src/setup.rs`), which is
-   `.invalid` here, so installing on a new host cannot work. Also carries the daemon bearer-token
-   plumbing (`Credentials::Bearer`, `apply_remote_server_auth_context`).
+3. ~~SSH remote server~~ — **4gr done (2026-09-28, user decision: delete).** Its install
+   downloaded a Warp binary from the `.invalid` server URL, so it could never work here. Gone
+   (−30.6k lines): `app/src/remote_server/`, `crates/remote_server/`, the `SshRemoteServer` and
+   `RemoteCodeReview` flags, the install prompt / failure banner / loading footer / "Install SSH
+   extension" setting, the daemon worker subcommands and `ExecutionMode::RemoteServerDaemon`,
+   persistence scopes (the app sqlite path is unchanged), the daemon bearer-token plumbing
+   (`Credentials::Bearer`), and every remote buffer/diff/git/search/skill/context path fed only by
+   the daemon. Plain SSH is on its old path (ControlMaster `RemoteCommandExecutor`). The orphaned
+   setting key `warpify.ssh.ssh_extension_install_mode` still loads harmlessly. Tests 4,392 /
+   4,393 (−131, all deleted with their code); app launch verified. Follow-ups found: the
+   now-unfed remote half of `crates/repo_metadata` and file-tree remote roots,
+   `FileSaveError::RemoteError`, three single-variant enums (`DiffStateModel`,
+   `GitRepoStatusModel`, `GitHubRepoModel`) and `SessionType` ≡ `BootstrapSessionType` to
+   flatten, stale "SSH extension" text (tmux deprecation banner, migration comments, `specs/`,
+   `EXCLUDE_REMOTE_SERVER_TESTS_FILTER` in `ci.yml`).
 4. After 1–3: the channel config fields themselves (`server_root_url`, `rtc_server_url`,
    `oz_root_url`, `session_sharing_server_url`) and `crates/websocket` if nothing else uses it.
 

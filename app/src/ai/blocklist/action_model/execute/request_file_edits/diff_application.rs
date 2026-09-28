@@ -21,11 +21,7 @@ use crate::ai::paths::host_native_absolute_path;
 use crate::auth::auth_state::AuthState;
 use crate::{safe_debug, safe_warn};
 
-/// Result of reading a file from disk or a remote server.
-///
-/// This is the common currency between the local (`std::fs`) and remote
-/// (`RemoteServerClient`) file-reading paths so that all diff application
-/// logic can be shared.
+/// Result of reading a file from disk.
 pub(crate) enum FileReadResult {
     /// The file was found and its full content is available.
     Found(String),

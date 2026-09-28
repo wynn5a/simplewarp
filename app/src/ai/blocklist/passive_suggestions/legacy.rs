@@ -331,7 +331,7 @@ impl PassiveSuggestionsModel {
             .active_session
             .as_ref(ctx)
             .session_type(ctx)
-            .map(|session_type| matches!(session_type, SessionType::WarpifiedRemote { .. }))
+            .map(|session_type| matches!(session_type, SessionType::WarpifiedRemote))
             .unwrap_or(true);
         if !can_read_file || should_skip_for_remote {
             ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed);

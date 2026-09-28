@@ -64,15 +64,13 @@ impl AIExecutionProfileInfo {
 
 /// Enables file-backed profiles for flagged GUI builds.
 ///
-/// CLI and remote-server modes retain their dedicated in-memory behavior.
+/// CLI mode retains its dedicated in-memory behavior.
 fn file_backed_execution_profiles_enabled(launch_mode: &LaunchMode) -> bool {
     match launch_mode {
         LaunchMode::App { .. } | LaunchMode::Test { .. } => {
             FeatureFlag::FileBackedExecutionProfiles.is_enabled()
         }
-        LaunchMode::CommandLine { .. }
-        | LaunchMode::RemoteServerProxy
-        | LaunchMode::RemoteServerDaemon { .. } => false,
+        LaunchMode::CommandLine { .. } => false,
     }
 }
 
@@ -333,14 +331,6 @@ impl AIExecutionProfilesModel {
                                 id: ExecutionProfileId::new(),
                             }
                         }
-                        // RemoteServerProxy and RemoteServerDaemon don't use AI
-                        // execution profiles. They never reach this code path
-                        // since they don't go through initialize_app, but handle
-                        // exhaustively.
-                        LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon { .. } => DefaultProfileState::Unsynced {
-                            id: ExecutionProfileId::new(),
-                            profile: super::create_default_from_legacy_settings(ctx),
-                        },
                     };
                     (
                         default_profile_state,

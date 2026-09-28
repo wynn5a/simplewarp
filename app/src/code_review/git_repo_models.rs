@@ -5,12 +5,12 @@ use repo_metadata::repositories::DetectedRepositories;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity, WeakModelHandle};
 
+use super::git_repo_model::GitRepoStatusModel;
 #[cfg(feature = "local_fs")]
 use super::git_repo_model::new_local_git_repo_status_model;
-use super::git_repo_model::{GitRepoStatusModel, new_remote_git_repo_status_model};
+use super::github_repo_model::GitHubRepoModel;
 #[cfg(feature = "local_fs")]
 use super::github_repo_model::LocalGitHubRepoModel;
-use super::github_repo_model::{GitHubRepoModel, RemoteGitHubRepoModel};
 
 // ── GitRepoModels (singleton cache) ─────────────────────────────────────────
 
@@ -20,11 +20,8 @@ use super::github_repo_model::{GitHubRepoModel, RemoteGitHubRepoModel};
 /// Multiple terminals in the same repo share a single sub-model.  When the last
 /// strong handle to a sub-model is dropped, the models are torn down automatically.
 pub struct GitRepoModels {
-    // Per-repo status / GitHub-info models, keyed by `LocalOrRemotePath` so a
-    // single cache covers both local (watcher-backed) and remote (push
-    // receiver) repos. Each entry stores the unified-enum handle; callers in
-    // the same repo share it, and it is torn down when the last strong handle
-    // is dropped.
+    // Per-repo status / GitHub-info models. Callers in the same repo share an entry, and it is
+    // torn down when the last strong handle is dropped.
     git_status_models: HashMap<LocalOrRemotePath, WeakModelHandle<GitRepoStatusModel>>,
     github_repo_models: HashMap<LocalOrRemotePath, WeakModelHandle<GitHubRepoModel>>,
 }
@@ -36,9 +33,8 @@ impl GitRepoModels {
         }
     }
 
-    /// Get or create the per-repo status model for `repo`, returning a unified
-    /// [`GitRepoStatusModel`] handle that dispatches to a local watcher-backed
-    /// model or a remote push receiver based on the location.
+    /// Get or create the watcher-backed per-repo status model for `repo`. Remote repositories
+    /// have no status model.
     ///
     /// Multiple callers in the same repo share one model (cached by
     /// `LocalOrRemotePath`); it is torn down when the last strong handle is
@@ -81,7 +77,10 @@ impl GitRepoModels {
                 }
             }
             LocalOrRemotePath::Remote(remote_path) => {
-                new_remote_git_repo_status_model(remote_path.clone(), ctx)
+                anyhow::bail!(
+                    "Git status is unavailable for remote repository: {}",
+                    remote_path.path
+                );
             }
         };
 
@@ -90,9 +89,8 @@ impl GitRepoModels {
         Ok(handle)
     }
 
-    /// Get or create the per-repo GitHub-info model for `repo`, returning a
-    /// unified [`GitHubRepoModel`] handle that dispatches to a local
-    /// `gh`-driven model or a remote push receiver based on the location.
+    /// Get or create the `gh`-driven per-repo GitHub-info model for `repo`. Remote repositories
+    /// have no GitHub-info model.
     ///
     /// The local backend subscribes to the sibling git status model to track
     /// the current branch and fetches PR / repository info on creation, on
@@ -139,14 +137,10 @@ impl GitRepoModels {
                 }
             }
             LocalOrRemotePath::Remote(remote_path) => {
-                let inner =
-                    ctx.add_model(|ctx| RemoteGitHubRepoModel::new(remote_path.clone(), ctx));
-                ctx.add_model(|ctx| {
-                    ctx.subscribe_to_model(&inner, |me, _, event, ctx| {
-                        GitHubRepoModel::forward_event(me, event, ctx)
-                    });
-                    GitHubRepoModel::Remote(inner)
-                })
+                anyhow::bail!(
+                    "GitHub repo info is unavailable for remote repository: {}",
+                    remote_path.path
+                );
             }
         };
 

@@ -808,7 +808,7 @@ impl CodeView {
             .is_some_and(|t| t.editor_view.as_ref(ctx).is_new_file());
 
         let title = match &file_location {
-            Some(location) => display_path_with_host(location, false, ctx),
+            Some(location) => display_path_with_host(location, false),
             None => "Untitled".to_string(),
         };
 
@@ -991,7 +991,7 @@ impl CodeView {
         if !Self::has_unsaved_changes(tab, app) {
             return false;
         }
-        !*CodeSettings::as_ref(app).auto_save || !tab.editor_view.as_ref(app).can_auto_save(app)
+        !*CodeSettings::as_ref(app).auto_save || !tab.editor_view.as_ref(app).can_auto_save()
     }
 
     /// Flush-saves every unsaved tab that has a backing file, marking each save
@@ -1008,7 +1008,7 @@ impl CodeView {
             // the edits.
             let can_auto_save = self
                 .tab_at(index)
-                .is_some_and(|tab| tab.editor_view.as_ref(ctx).can_auto_save(ctx));
+                .is_some_and(|tab| tab.editor_view.as_ref(ctx).can_auto_save());
             if can_auto_save {
                 if let Some(tab) = self.tab_at(index) {
                     tab.editor_view
@@ -1144,7 +1144,7 @@ impl CodeView {
             let file_name = tab
                 .location
                 .as_ref()
-                .map(|loc| display_name_with_host(loc, ctx))
+                .map(display_name_with_host)
                 .filter(|n| !n.is_empty());
             let summary = UnsavedStateSummary::for_editor_tab(
                 file_name,
@@ -1528,7 +1528,6 @@ impl CodeView {
         is_hovered: bool,
         has_unsaved_changes: bool,
         appearance: &Appearance,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let text_color = if is_active {
@@ -1544,7 +1543,7 @@ impl CodeView {
         let file_name = tab_data
             .location
             .as_ref()
-            .map(|loc| display_name_with_host(loc, app))
+            .map(display_name_with_host)
             .filter(|n| !n.is_empty())
             .unwrap_or_else(|| "Untitled".to_string());
         let language_icon =
@@ -1761,7 +1760,6 @@ impl CodeView {
                             tab_handle.is_hovered(),
                             Self::show_unsaved_indicator(tab_data, app),
                             appearance,
-                            app,
                         ))
                         .with_horizontal_margin(TAB_HORIZONTAL_MARGIN)
                         .with_padding(Padding::uniform(TAB_PADDING))
@@ -1922,7 +1920,7 @@ impl CodeView {
             .and_then(|tab| {
                 tab.location
                     .as_ref()
-                    .map(|loc| display_name_with_host(loc, app))
+                    .map(display_name_with_host)
                     .filter(|n| !n.is_empty())
             })
             .unwrap_or_else(|| "Untitled".to_string());

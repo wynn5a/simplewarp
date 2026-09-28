@@ -3,8 +3,6 @@ use std::sync::Arc;
 
 use warp_core::SessionId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warp_util::remote_path::RemotePath;
-use warp_util::standardized_path::StandardizedPath;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle};
 
 use super::{Session, SessionType, Sessions};
@@ -98,16 +96,10 @@ impl ActiveSession {
     /// Returns a session-aware path for `path`.
     ///
     /// Local session paths are canonicalized to match git-detected repository paths on
-    /// case-insensitive filesystems. Remote session paths are standardized and tagged with
-    /// the connected host ID.
+    /// case-insensitive filesystems. Remote sessions have no addressable paths.
     pub fn location_for_path(&self, path: &str, app: &AppContext) -> Option<LocalOrRemotePath> {
         match self.session_type(app) {
-            Some(SessionType::WarpifiedRemote {
-                host_id: Some(host_id),
-            }) => StandardizedPath::try_new(path)
-                .ok()
-                .map(|path| LocalOrRemotePath::Remote(RemotePath::new(host_id, path))),
-            Some(SessionType::WarpifiedRemote { host_id: None }) => None,
+            Some(SessionType::WarpifiedRemote) => None,
             Some(SessionType::Local) | None => {
                 let path =
                     dunce::canonicalize(Path::new(path)).unwrap_or_else(|_| PathBuf::from(path));

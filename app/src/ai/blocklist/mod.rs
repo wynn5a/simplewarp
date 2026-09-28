@@ -33,6 +33,8 @@ pub(crate) mod view_util;
 
 #[allow(unused_imports)]
 pub use action_model::AIActionStatus;
+#[cfg_attr(target_family = "wasm", allow(unused_imports))]
+pub(crate) use action_model::read_local_file_context;
 pub(crate) use action_model::recording_controller::RecordingController;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) use action_model::recording_finalize::{
@@ -41,8 +43,6 @@ pub(crate) use action_model::recording_finalize::{
 pub use action_model::{
     BlocklistAIActionEvent, BlocklistAIActionModel, ShellCommandExecutor, ShellCommandExecutorEvent,
 };
-#[cfg_attr(target_family = "wasm", allow(unused_imports))]
-pub(crate) use action_model::{ReadFileContextResult, read_local_file_context};
 #[allow(unused_imports)]
 pub use action_model::{
     StartAgentExecutor, StartAgentExecutorEvent, StartAgentOutcome, StartAgentRequest,

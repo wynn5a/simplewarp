@@ -3,10 +3,8 @@
 //!
 //! These compose the single-command primitives in [`crate::util::git`]
 //! into the end-to-end actions a button triggers.
-//! They are intentionally backend-agnostic: the local code-review dialog and
-//! the remote-server daemon both call them, so local and remote behave
-//! identically. Git ops are host-scoped and not tied to a diff-state model, so
-//! this logic lives here rather than on a model.
+//! Git ops are host-scoped and not tied to a diff-state model, so this logic lives here rather
+//! than on a model.
 //!
 //! Callers own everything *around* the action: UI (toasts, telemetry, dialog
 //! lifecycle), transport/model (applying the returned delta to a

@@ -263,7 +263,6 @@ typed-path.workspace = true
 urlencoding = "2.1.3"
 mime_guess = "2.0"
 warp_multi_agent_api.workspace = true
-remote_server.workspace = true
 repo_metadata.workspace = true
 vim.workspace = true
 rmcp.workspace = true
@@ -621,7 +620,6 @@ default = [
     "solo_user_byok",
     "custom_model_routers",
     "gemini_enterprise",
-    "remote_code_review",
     "git_operations_in_code_review",
     "terminal_lifecycle_recovery",
     "cloud_runners",
@@ -948,7 +946,6 @@ allow_opening_file_links_using_editor_env = []
 undo_closed_panes = []
 revert_diff_hunk = []
 code_review_save_changes = []
-remote_code_review = []
 file_tree = []
 code_launch_modal = []
 diff_set_as_context = []

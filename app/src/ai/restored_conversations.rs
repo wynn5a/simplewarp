@@ -14,7 +14,7 @@ use crate::ai::blocklist::history_model::convert_persisted_conversation_to_ai_co
 #[cfg(test)]
 use crate::persistence::model::AgentConversation;
 #[cfg(feature = "local_fs")]
-use crate::persistence::{database_file_path_for_current_scope, establish_ro_connection};
+use crate::persistence::{database_file_path, establish_ro_connection};
 
 /// Singleton model that restores agent conversations on demand.
 ///
@@ -37,13 +37,11 @@ pub struct RestoredAgentConversations {
 impl RestoredAgentConversations {
     pub fn new() -> Self {
         #[cfg(feature = "local_fs")]
-        let db_connection = database_file_path_for_current_scope()
-            .to_str()
-            .and_then(|db_url| {
-                establish_ro_connection(db_url)
-                    .ok()
-                    .map(|conn| Arc::new(Mutex::new(conn)))
-            });
+        let db_connection = database_file_path().to_str().and_then(|db_url| {
+            establish_ro_connection(db_url)
+                .ok()
+                .map(|conn| Arc::new(Mutex::new(conn)))
+        });
 
         Self {
             conversations: HashMap::new(),

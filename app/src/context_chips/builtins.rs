@@ -91,7 +91,7 @@ pub fn ssh_session(ctx: &GeneratorContext) -> Option<ChipValue> {
     if session.is_ssh_wrapper_session()
         || matches!(
             session.session_type(),
-            crate::terminal::model::session::SessionType::WarpifiedRemote { .. }
+            crate::terminal::model::session::SessionType::WarpifiedRemote
         )
     {
         let user = session.user();

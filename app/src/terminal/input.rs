@@ -203,7 +203,7 @@ use crate::network::NetworkStatus;
 use crate::pane_group::PaneGroupAction;
 use crate::pane_group::focus_state::PaneFocusHandle;
 #[cfg(feature = "local_fs")]
-use crate::persistence::{database_file_path_for_current_scope, establish_ro_connection};
+use crate::persistence::{database_file_path, establish_ro_connection};
 use crate::prefix::longest_common_prefix;
 use crate::search::QueryFilter;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
@@ -2938,7 +2938,7 @@ impl Input {
         };
 
         #[cfg(feature = "local_fs")]
-        if let Some(db_url) = database_file_path_for_current_scope().to_str()
+        if let Some(db_url) = database_file_path().to_str()
             && let Ok(conn) = establish_ro_connection(db_url)
         {
             input.conn = Some(Arc::new(Mutex::new(conn)));
