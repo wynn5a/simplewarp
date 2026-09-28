@@ -11,7 +11,7 @@ use warpui::r#async::BoxFuture;
 use warpui::{Entity, ModelContext, ModelHandle};
 
 use super::diff_application::{DiffApplicationError, FileReadResult, apply_edits};
-use crate::ai::agent::{AIIdentifiers, FileEdit};
+use crate::ai::agent::FileEdit;
 use crate::ai::blocklist::SessionContext;
 use crate::terminal::model::session::active_session::ActiveSession;
 
@@ -36,13 +36,9 @@ impl ApplyDiffModel {
     pub fn apply_diffs(
         &self,
         edits: Vec<FileEdit>,
-        ai_identifiers: &AIIdentifiers,
-        passive_diff: bool,
         ctx: &mut ModelContext<Self>,
     ) -> BoxFuture<'static, Result<Vec<AIRequestedCodeDiff>, Vec1<DiffApplicationError>>> {
         let session_context = SessionContext::from_session(self.active_session.as_ref(ctx), ctx);
-        let background_executor = ctx.background_executor();
-        let ai_identifiers = ai_identifiers.clone();
 
         let is_remote = session_context.is_remote();
         let fut = async move {
@@ -51,14 +47,9 @@ impl ApplyDiffModel {
                     DiffApplicationError::RemoteFileOperationsUnsupported
                 ])
             } else {
-                apply_edits(
-                    edits,
-                    &session_context,
-                    &ai_identifiers,
-                    background_executor,
-                    passive_diff,
-                    |path| async move { FileReadResult::from(std::fs::read_to_string(path)) },
-                )
+                apply_edits(edits, &session_context, |path| async move {
+                    FileReadResult::from(std::fs::read_to_string(path))
+                })
                 .await
             }
         };

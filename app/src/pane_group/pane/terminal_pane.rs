@@ -1252,7 +1252,6 @@ fn launch_local_harness_child(
     let agent_name = normalize_orchestrator_agent_name(&request.name);
     let request_name = agent_name.unwrap_or_default();
     let parent_conversation_id = request.parent_conversation_id;
-    let parent_run_id = request.parent_run_id.clone();
     let prompt = request.prompt.clone();
     let orchestration_harness =
         Harness::parse_orchestration_harness(&harness_type).unwrap_or(Harness::Unknown);
@@ -1267,7 +1266,6 @@ fn launch_local_harness_child(
                 prompt,
                 harness_type,
                 model_id_for_harness_env,
-                parent_run_id,
                 shell_type,
                 startup_directory,
             )

@@ -36,7 +36,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | DONE through 4hu: the 4hp remote-only queue (R1–R7) is empty; what remains under Next is product decisions and small follow-ups |
+| 4 — Delete the dead cloud code and the TUI | DONE through 4hv: the 4hp remote-only queue (R1–R7) is empty; what remains under Next is product decisions and small follow-ups |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
@@ -93,10 +93,7 @@ The queue is empty.
 Product decisions, not deletions: the Oz branding of the local CLI install and ~23 user-visible
 "Oz" strings (rebrand); the Help menu / `JoinSlack` / feedback / ~69 `docs.warp.dev` links (repoint
 or drop; the preview-program Slack, the typeform feedback link and the cloud-agents tip are the
-ones actually wrong for this fork). **Bug found:** `local_harness_launch.rs` tells local
-Claude/Codex children to run `"$OZ_CLI" run message send|list|…`, but `warp_cli` no longer has a
-`run` command, so child-to-lead messaging under `LocalClaudeCodexChildHarnesses` cannot work
-(rewrite the prompt or drop the messaging; `OZ_MESSAGE_LISTENER_*` is the same residue).
+ones actually wrong for this fork). The local Claude/Codex child-harness `oz run message` bug is fixed (4hv).
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
 `CloudAgent` / `ScheduledAmbientAgent` shapes, `crates/isolation_platform` (local detection) and
@@ -1123,6 +1120,37 @@ Queue, in order:
    default / 4,104 simplewarp (+3), warp_completer 176 / 125 (v2) (+2 each), warp_cli + warp_core 104,
    0 failed. **Follow-ups:** `apply_edits`' unused `_ai_identifiers` / `_background_executor` /
    `_passive_diff`; rebrand the Linux package names/paths if the fork ever ships packages.
+
+33. ~~Local Claude/Codex child-harness messaging~~ — **4hv done (2026-09-29).** −0.5k net lines in 17
+   files. **History:** the child prompt told local Claude children to run
+   `"$OZ_CLI" run message send|list|read|mark-delivered`; those subcommands (`warp_cli::task::MessageCommand`)
+   went in 4cg (`0e2a88bd8`, conversation sync) because every one of them called Warp's public API
+   (`post_public_api("agent/messages")`, `list/read/mark_message_delivered`, `…_for_task`), already
+   `local_only_error()` stubs by then. `OZ_MESSAGE_LISTENER_*` (+ legacy `OZ_PARENT_*`) told the
+   `oz-harness-support` Claude plugin (the `warpdotdev/claude-code-warp` "parent-message delivery
+   bridge" + cloud skills) whether Warp or the plugin ran the listener that watched that same server
+   mailbox; the lead-side receive path (message hydrator, orchestration event streamer) went in 4cg
+   too. No local channel ever existed, so nothing to restore. **Removed:** the messaging block of the
+   child prompt (now: work alone, end with a summary; pinned by a test), the child's `OZ_RUN_ID` /
+   `OZ_PARENT_RUN_ID` / `OZ_CLI` / `OZ_HARNESS` / listener env (its env is now just the model var;
+   pinned), the `oz-harness-support` install for local children (the notification plugin stays),
+   `task_env_vars` + listener helpers/consts and their 5 tests, the `parent_run_id` threading
+   (`StartAgentRequest`, `StartAgentExecutor::dispatch`, run_agents, terminal pane, launch), and the
+   `OZ_RUN_ID_ENV` / `OZ_PARENT_RUN_ID_ENV` / `OZ_HARNESS_ENV` consts. The `agent run` driver still
+   exports `OZ_CLI` (`oz_cli_env_var`) because it still requires the platform plugin.
+   **Leftover:** `apply_edits` / `ApplyDiffModel::apply_diffs` lost the unused
+   `ai_identifiers` / `background_executor` / `passive_diff`, `RequestFileEditsExecutor` its
+   discard-only `generate_ai_identifiers`, `PreprocessActionInput` its never-read `conversation_id`.
+   **Findings:** `LocalClaudeCodexChildHarnesses` is enabled by no bin (only its cargo feature, in
+   neither `default` nor `simplewarp`; runtime-toggleable from the debug menu in dev builds) and
+   only gates Codex; local Claude children are product-enabled, but the whole child launch is fed only
+   by `RunAgents` tool calls, which the local adapter does not offer (`local_inference::tools::SUPPORTED`
+   has 7 tools), so it is unreachable in simplewarp today. `SendMessageToAgentExecutor` (lead to
+   child) always returns the local-only error. Tests 4,099 default / 4,100 simplewarp (−4), warp_cli
+   55, 0 failed. **Follow-ups:** product decision on orchestration (offer `run_agents` in the local
+   adapter, or delete the RunAgents / StartAgent / SendMessageToAgent vertical); the `agent run
+   --harness claude` driver still requires the `oz-harness-support` plugin whose skills call the
+   deleted `harness-support` CLI.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

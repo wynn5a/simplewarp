@@ -30,7 +30,7 @@ use crate::ai::agent::{
     FinishedAIAgentOutput, RenderableAIError, TransientNetworkErrorKind,
 };
 use crate::ai::agent_sdk::driver::harness::{
-    HarnessKind, HarnessRunner, ThirdPartyHarness, harness_model_env_vars, task_env_vars,
+    HarnessKind, HarnessRunner, ThirdPartyHarness, harness_model_env_vars, oz_cli_env_var,
 };
 use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
 use crate::ai::ambient_agents::task::HarnessModelConfig;
@@ -73,25 +73,6 @@ const PREFLIGHT_CHECK_TIMEOUT: Duration = Duration::from_secs(30);
 /// If no follow-up status arrives within this window, the driver terminates with the
 /// original error so the CLI does not hang indefinitely.
 const AUTO_RESUME_TIMEOUT: Duration = Duration::from_secs(120);
-/// Signals to Claude child-harness hooks that Warp already owns the background
-/// message-listener lifecycle, so the plugin should reuse the shared state
-/// files instead of spawning and cleaning up its own listener.
-///
-/// When this variable is absent, the Claude plugin falls back to its legacy
-/// self-managed listener path so older Warp builds and standalone plugin
-/// invocations keep working.
-pub(crate) const OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV: &str =
-    "OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY";
-/// Optional root directory for the per-session Claude message-listener state
-/// that Warp and the Claude hook scripts share.
-pub(crate) const OZ_MESSAGE_LISTENER_STATE_ROOT_ENV: &str = "OZ_MESSAGE_LISTENER_STATE_ROOT";
-// Keep exporting the legacy `OZ_PARENT_*` names to child hooks until the
-// external Claude plugin has fully migrated to the canonical
-// `OZ_MESSAGE_LISTENER_*` names.
-const LEGACY_OZ_PARENT_LISTENER_MANAGED_EXTERNALLY_ENV: &str =
-    "OZ_PARENT_LISTENER_MANAGED_EXTERNALLY";
-const LEGACY_OZ_PARENT_STATE_ROOT_ENV: &str = "OZ_PARENT_STATE_ROOT";
-
 /// IdleTimeoutSender is wrapper around a sender that signals when a run is done after
 /// an idle timeout. Used for both Oz runs and third-party harnesses.
 ///
@@ -437,9 +418,7 @@ impl AgentDriver {
 
         log::info!("Initializing agent driver: idle_on_complete={idle_on_complete:?}");
 
-        let mut env_vars = HashMap::new();
-
-        env_vars.extend(task_env_vars(None, None, selected_harness));
+        let mut env_vars = HashMap::from([oz_cli_env_var()]);
         env_vars.extend(harness_model_env_vars(
             selected_harness,
             third_party_harness_model_config.as_ref(),

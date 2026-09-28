@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::fmt;
 use std::io::Write;
 use std::path::Path;
@@ -7,18 +7,13 @@ use std::path::Path;
 use anyhow::Result;
 use async_trait::async_trait;
 use tempfile::NamedTempFile;
+use warp_cli::OZ_CLI_ENV;
 use warp_cli::agent::Harness;
-use warp_cli::{OZ_CLI_ENV, OZ_HARNESS_ENV, OZ_PARENT_RUN_ID_ENV, OZ_RUN_ID_ENV};
 use warp_core::channel::ChannelState;
 use warpui::{ModelHandle, ModelSpawner};
 
 use super::terminal::{CommandHandle, TerminalDriver};
-use super::{
-    AgentDriver, AgentDriverError, LEGACY_OZ_PARENT_LISTENER_MANAGED_EXTERNALLY_ENV,
-    LEGACY_OZ_PARENT_STATE_ROOT_ENV, OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV,
-    OZ_MESSAGE_LISTENER_STATE_ROOT_ENV,
-};
-use crate::ai::ambient_agents::AmbientAgentTaskId;
+use super::{AgentDriver, AgentDriverError};
 use crate::ai::ambient_agents::task::HarnessModelConfig;
 use crate::ai::mcp::JSONMCPServer;
 use crate::terminal::CLIAgent;
@@ -165,98 +160,14 @@ pub(crate) fn validate_cli_installed(
     Ok(())
 }
 
-fn insert_task_env_var_aliases(
-    env_vars: &mut HashMap<OsString, OsString>,
-    keys: &[&'static str],
-    value: &str,
-) {
-    for key in keys {
-        env_vars.insert(OsString::from(key), OsString::from(value));
-    }
-}
-
-fn message_listener_state_root() -> Option<String> {
-    [
-        OZ_MESSAGE_LISTENER_STATE_ROOT_ENV,
-        LEGACY_OZ_PARENT_STATE_ROOT_ENV,
-    ]
-    .into_iter()
-    .find_map(|key| std::env::var(key).ok().filter(|value| !value.is_empty()))
-}
-
-fn task_env_vars_for_harness_name(
-    task_id: Option<&AmbientAgentTaskId>,
-    parent_run_id: Option<&str>,
-    selected_harness: Harness,
-) -> HashMap<OsString, OsString> {
-    let mut env_vars = HashMap::with_capacity(7);
-
-    if let Some(id) = task_id {
-        env_vars.insert(
-            OsString::from(OZ_RUN_ID_ENV),
-            OsString::from(id.to_string()),
-        );
-    }
-
-    if let Some(parent_run_id) = parent_run_id.filter(|id| !id.is_empty()) {
-        env_vars.insert(
-            OsString::from(OZ_PARENT_RUN_ID_ENV),
-            OsString::from(parent_run_id),
-        );
-    }
-
-    env_vars.insert(
+/// Points a third-party harness's Warp platform plugin at this binary.
+pub(crate) fn oz_cli_env_var() -> (OsString, OsString) {
+    (
         OsString::from(OZ_CLI_ENV),
         OsString::from(
             std::env::current_exe().unwrap_or_else(|_| ChannelState::cli_command_name().into()),
         ),
-    );
-    // `OZ_HARNESS` is only consumed by child orchestration telemetry when the child
-    // CLI emits `run message *` events.
-    env_vars.insert(
-        OsString::from(OZ_HARNESS_ENV),
-        OsString::from(selected_harness.to_string()),
-    );
-    if selected_harness == Harness::Claude && task_id.is_some() {
-        insert_task_env_var_aliases(
-            &mut env_vars,
-            &[
-                OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV,
-                LEGACY_OZ_PARENT_LISTENER_MANAGED_EXTERNALLY_ENV,
-            ],
-            "1",
-        );
-        if let Some(state_root) = message_listener_state_root() {
-            insert_task_env_var_aliases(
-                &mut env_vars,
-                &[
-                    OZ_MESSAGE_LISTENER_STATE_ROOT_ENV,
-                    LEGACY_OZ_PARENT_STATE_ROOT_ENV,
-                ],
-                &state_root,
-            );
-        }
-    }
-    env_vars
-}
-
-pub(crate) fn remove_claude_externally_managed_listener_env_vars(
-    env_vars: &mut HashMap<OsString, OsString>,
-) {
-    for env_name in [
-        OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV,
-        LEGACY_OZ_PARENT_LISTENER_MANAGED_EXTERNALLY_ENV,
-    ] {
-        env_vars.remove(OsStr::new(env_name));
-    }
-}
-
-pub(crate) fn task_env_vars(
-    task_id: Option<&AmbientAgentTaskId>,
-    parent_run_id: Option<&str>,
-    selected_harness: Harness,
-) -> HashMap<OsString, OsString> {
-    task_env_vars_for_harness_name(task_id, parent_run_id, selected_harness)
+    )
 }
 
 /// Returns environment variables that configure the model for a third-party harness.

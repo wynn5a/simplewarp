@@ -7,6 +7,7 @@ use futures::FutureExt;
 use warpui::{App, AppContext, EntityId};
 
 use super::*;
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::task::TaskId;
 use crate::terminal::model::session::Sessions;
 use crate::terminal::model_events::ModelEventDispatcher;

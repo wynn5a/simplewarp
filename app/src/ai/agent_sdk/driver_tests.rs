@@ -7,15 +7,12 @@ use std::time::Duration;
 use futures::channel::oneshot;
 use futures::executor::block_on;
 use tempfile::TempDir;
-use warp_cli::agent::Harness;
+use warp_cli::OZ_CLI_ENV;
 use warp_cli::mcp::MCPSpec;
-use warp_cli::{OZ_CLI_ENV, OZ_HARNESS_ENV, OZ_PARENT_RUN_ID_ENV, OZ_RUN_ID_ENV};
 use warpui::{App, SingletonEntity as _};
 
 use super::{
     AgentDriver, AgentDriverError, CLIAgentSessionStatus, IdleTimeoutSender,
-    LEGACY_OZ_PARENT_LISTENER_MANAGED_EXTERNALLY_ENV, LEGACY_OZ_PARENT_STATE_ROOT_ENV,
-    OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV, OZ_MESSAGE_LISTENER_STATE_ROOT_ENV,
     SDKConversationOutputStatus, idle_window_for_cli_session_status,
     idle_window_for_terminal_status, terminal_status_log_outcome,
 };
@@ -23,8 +20,7 @@ use crate::ai::agent::{
     AIAgentOutput, AIAgentOutputMessage, ArtifactCreatedData, CancellationReason, MessageId,
     RenderableAIError,
 };
-use crate::ai::agent_sdk::task_env_vars;
-use crate::ai::ambient_agents::AmbientAgentTaskId;
+use crate::ai::agent_sdk::driver::harness::oz_cli_env_var;
 use crate::ai::mcp::parsing::normalize_mcp_json;
 use crate::ai::skills::SkillManager;
 use crate::test_util::terminal::{add_window_with_terminal, initialize_app_for_terminal_view};
@@ -380,109 +376,11 @@ fn terminal_status_log_outcome_labels_are_low_cardinality() {
 }
 
 #[test]
-fn task_env_vars_include_parent_run_id_when_present() {
-    let task_id: AmbientAgentTaskId = "550e8400-e29b-41d4-a716-446655440000".parse().unwrap();
-    let env_vars = task_env_vars(Some(&task_id), Some("parent-run-123"), Harness::Claude);
+fn oz_cli_env_var_points_at_a_binary() {
+    let (key, value) = oz_cli_env_var();
 
-    assert_eq!(
-        env_vars.get(&OsString::from(OZ_RUN_ID_ENV)),
-        Some(&OsString::from(task_id.to_string()))
-    );
-    assert_eq!(
-        env_vars.get(&OsString::from(OZ_PARENT_RUN_ID_ENV)),
-        Some(&OsString::from("parent-run-123"))
-    );
-    assert_eq!(
-        env_vars.get(&OsString::from(OZ_HARNESS_ENV)),
-        Some(&OsString::from("claude"))
-    );
-    assert_eq!(
-        env_vars.get(&OsString::from(OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV)),
-        Some(&OsString::from("1"))
-    );
-    assert_eq!(
-        env_vars.get(&OsString::from(
-            LEGACY_OZ_PARENT_LISTENER_MANAGED_EXTERNALLY_ENV
-        )),
-        Some(&OsString::from("1"))
-    );
-    assert!(
-        env_vars
-            .get(&OsString::from(OZ_CLI_ENV))
-            .is_some_and(|value| !value.is_empty())
-    );
-}
-
-#[test]
-fn task_env_vars_omit_parent_run_id_when_absent() {
-    let task_id: AmbientAgentTaskId = "550e8400-e29b-41d4-a716-446655440001".parse().unwrap();
-    let env_vars = task_env_vars(Some(&task_id), None, Harness::Oz);
-
-    assert_eq!(
-        env_vars.get(&OsString::from(OZ_RUN_ID_ENV)),
-        Some(&OsString::from(task_id.to_string()))
-    );
-    assert!(!env_vars.contains_key(&OsString::from(OZ_PARENT_RUN_ID_ENV)));
-    assert_eq!(
-        env_vars.get(&OsString::from(OZ_HARNESS_ENV)),
-        Some(&OsString::from("oz"))
-    );
-    assert!(!env_vars.contains_key(&OsString::from(OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV)));
-    assert!(!env_vars.contains_key(&OsString::from(
-        LEGACY_OZ_PARENT_LISTENER_MANAGED_EXTERNALLY_ENV
-    )));
-}
-
-#[test]
-fn task_env_vars_enable_external_parent_listener_for_claude_runs_without_parent_run_id() {
-    let task_id: AmbientAgentTaskId = "550e8400-e29b-41d4-a716-446655440002".parse().unwrap();
-    let env_vars = task_env_vars(Some(&task_id), None, Harness::Claude);
-    assert_eq!(
-        env_vars.get(&OsString::from(OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV)),
-        Some(&OsString::from("1"))
-    );
-    assert_eq!(
-        env_vars.get(&OsString::from(
-            LEGACY_OZ_PARENT_LISTENER_MANAGED_EXTERNALLY_ENV
-        )),
-        Some(&OsString::from("1"))
-    );
-}
-
-#[test]
-#[serial_test::serial]
-fn task_env_vars_propagate_message_listener_state_root_with_legacy_alias() {
-    let task_id: AmbientAgentTaskId = "550e8400-e29b-41d4-a716-446655440003".parse().unwrap();
-    // TODO: Audit that the environment access only happens in single-threaded code.
-    unsafe {
-        std::env::set_var(
-            OZ_MESSAGE_LISTENER_STATE_ROOT_ENV,
-            "/tmp/message-listener-root",
-        )
-    };
-    let env_vars = task_env_vars(Some(&task_id), None, Harness::Claude);
-    // TODO: Audit that the environment access only happens in single-threaded code.
-    unsafe { std::env::remove_var(OZ_MESSAGE_LISTENER_STATE_ROOT_ENV) };
-
-    assert_eq!(
-        env_vars.get(&OsString::from(OZ_MESSAGE_LISTENER_STATE_ROOT_ENV)),
-        Some(&OsString::from("/tmp/message-listener-root"))
-    );
-    assert_eq!(
-        env_vars.get(&OsString::from(LEGACY_OZ_PARENT_STATE_ROOT_ENV)),
-        Some(&OsString::from("/tmp/message-listener-root"))
-    );
-}
-
-#[test]
-fn task_env_vars_can_use_opencode_harness() {
-    let task_id: AmbientAgentTaskId = "550e8400-e29b-41d4-a716-446655440004".parse().unwrap();
-    let env_vars = task_env_vars(Some(&task_id), Some("parent-run-456"), Harness::OpenCode);
-
-    assert_eq!(
-        env_vars.get(&OsString::from(OZ_HARNESS_ENV)),
-        Some(&OsString::from("opencode"))
-    );
+    assert_eq!(key, OsString::from(OZ_CLI_ENV));
+    assert!(!value.is_empty());
 }
 
 #[test]

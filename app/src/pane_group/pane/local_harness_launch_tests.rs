@@ -10,7 +10,6 @@ use super::{
     build_local_opencode_child_command, local_claude_child_prompt, normalize_local_child_harness,
     prepare_local_harness_child_launch, validate_local_harness_shell,
 };
-use crate::ai::agent_sdk::driver::OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV;
 use crate::ai::ambient_agents::task::normalize_orchestrator_agent_name;
 use crate::ai::local_harness_setup::LOCAL_CODEX_HARNESS_DISABLED_MESSAGE;
 use crate::terminal::shell::ShellType;
@@ -20,19 +19,13 @@ struct EnvVarGuard {
     original: Option<OsString>,
 }
 #[test]
-fn local_claude_child_prompt_includes_oz_cli_messaging_instructions() {
+fn local_claude_child_prompt_has_no_lead_messaging_instructions() {
     let prompt = local_claude_child_prompt("List files");
 
-    assert!(prompt.contains("OZ_CLI"));
-    assert!(prompt.contains("OZ_RUN_ID"));
-    assert!(prompt.contains("OZ_PARENT_RUN_ID"));
-    assert!(prompt.contains("run message send --sender-run-id"));
-    assert!(prompt.contains("All four send arguments are required"));
-    assert!(prompt.contains("Do not pass \"$OZ_PARENT_RUN_ID\" as a positional argument to send"));
-    assert!(prompt.contains("run message list \"$OZ_RUN_ID\" --limit 25"));
-    assert!(prompt.contains("do not rely on --unread"));
-    assert!(!prompt.contains("--unread --limit"));
-    assert!(prompt.contains("Do not use Claude Code Agent or SendMessage tools"));
+    assert!(prompt.starts_with("You are a local Claude Code child agent"));
+    assert!(prompt.contains("no channel for messaging the lead agent"));
+    assert!(!prompt.contains("OZ_"));
+    assert!(!prompt.contains("run message"));
     assert!(prompt.ends_with("Task:\nList files"));
 }
 
@@ -198,7 +191,6 @@ async fn prepare_local_codex_child_launch_rejects_without_rewriting_global_codex
         "hello world".to_string(),
         "codex".to_string(),
         None,
-        Some("parent-run".to_string()),
         Some(ShellType::Zsh),
         Some(working_dir),
     )
@@ -228,7 +220,6 @@ async fn prepare_local_codex_child_launch_succeeds_when_testing_flag_is_enabled(
         "hello world".to_string(),
         "codex".to_string(),
         Some("ignored-model".to_string()),
-        Some("parent-run".to_string()),
         Some(ShellType::Zsh),
         Some(working_dir),
     )
@@ -268,7 +259,6 @@ async fn prepare_local_claude_child_merges_anthropic_model_env_var() {
         "hello world".to_string(),
         "claude".to_string(),
         Some("opus".to_string()),
-        Some("parent-run".to_string()),
         Some(ShellType::Zsh),
         Some(working_dir),
     )
@@ -279,22 +269,9 @@ async fn prepare_local_claude_child_merges_anthropic_model_env_var() {
         prepared.env_vars.get(&OsString::from("ANTHROPIC_MODEL")),
         Some(&OsString::from("opus"))
     );
-    assert!(
-        !prepared
-            .env_vars
-            .contains_key(&OsString::from(OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV))
-    );
-    assert!(
-        !prepared
-            .env_vars
-            .contains_key(&OsString::from("OZ_PARENT_LISTENER_MANAGED_EXTERNALLY"))
-    );
-    assert!(
-        prepared
-            .command
-            .contains("run message send --sender-run-id")
-    );
-    assert!(prepared.command.contains("OZ_PARENT_RUN_ID"));
+    assert_eq!(prepared.env_vars.len(), 1);
+    assert!(!prepared.command.contains("run message"));
+    assert!(!prepared.command.contains("OZ_"));
 }
 
 #[tokio::test]
@@ -317,7 +294,6 @@ async fn prepare_local_claude_child_no_anthropic_model_when_empty() {
         "hello world".to_string(),
         "claude".to_string(),
         None,
-        Some("parent-run".to_string()),
         Some(ShellType::Zsh),
         Some(working_dir),
     )
@@ -337,7 +313,6 @@ async fn prepare_local_harness_child_launch_rejects_disabled_codex_before_shell_
         "hello world".to_string(),
         "codex".to_string(),
         None,
-        Some("parent-run".to_string()),
         None,
         None,
     )

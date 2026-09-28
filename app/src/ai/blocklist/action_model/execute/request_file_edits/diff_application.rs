@@ -5,7 +5,6 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use std::future::Future;
-use std::sync::Arc;
 
 use ai::diff_validation::{
     AIRequestedCodeDiff, DiffDelta, DiffMatchFailure, DiffMatchFailures, DiffType, ParsedDiff,
@@ -13,9 +12,8 @@ use ai::diff_validation::{
 };
 use itertools::Itertools;
 use vec1::Vec1;
-use warpui::r#async::executor::Background;
 
-use crate::ai::agent::{AIIdentifiers, FileEdit};
+use crate::ai::agent::FileEdit;
 use crate::ai::blocklist::SessionContext;
 use crate::ai::paths::host_native_absolute_path;
 
@@ -173,9 +171,6 @@ fn append_fuzzy_match_failure(message: &mut String, failure: &DiffMatchFailure) 
 pub(crate) async fn apply_edits<F, Fut>(
     edits: Vec<FileEdit>,
     session_context: &SessionContext,
-    _ai_identifiers: &AIIdentifiers,
-    _background_executor: Arc<Background>,
-    _passive_diff: bool,
     read_file: F,
 ) -> Result<Vec<AIRequestedCodeDiff>, Vec1<DiffApplicationError>>
 where

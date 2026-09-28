@@ -848,12 +848,10 @@ impl BlocklistAIActionModel {
     fn preprocess_action(
         &mut self,
         action: &AIAgentAction,
-        conversation_id: AIConversationId,
         ctx: &mut ModelContext<Self>,
     ) -> BoxFuture<'static, ()> {
-        self.executor.update(ctx, |executor, ctx| {
-            executor.preprocess_action(action, conversation_id, ctx)
-        })
+        self.executor
+            .update(ctx, |executor, ctx| executor.preprocess_action(action, ctx))
     }
 
     /// Queues the `actions` in the given iterator for the given conversation,
@@ -877,7 +875,7 @@ impl BlocklistAIActionModel {
 
         for action in actions.iter() {
             action_ids.insert(action.id.clone());
-            preprocess_future.push(self.preprocess_action(action, conversation_id, ctx));
+            preprocess_future.push(self.preprocess_action(action, ctx));
         }
 
         let preprocess_id = self

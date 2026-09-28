@@ -37,7 +37,6 @@ pub struct StartAgentRequest {
     pub execution_mode: StartAgentExecutionMode,
     pub lifecycle_subscription: Option<Vec<LifecycleEventType>>,
     pub parent_conversation_id: AIConversationId,
-    pub parent_run_id: Option<String>,
 }
 
 struct PendingStartAgent {
@@ -244,7 +243,6 @@ impl StartAgentExecutor {
         execution_mode: StartAgentExecutionMode,
         lifecycle_subscription: Option<Vec<LifecycleEventType>>,
         parent_conversation_id: AIConversationId,
-        parent_run_id: Option<String>,
         ctx: &mut ModelContext<Self>,
     ) -> async_channel::Receiver<StartAgentOutcome> {
         let (sender, receiver) = async_channel::bounded(1);
@@ -264,7 +262,6 @@ impl StartAgentExecutor {
                 execution_mode,
                 lifecycle_subscription,
                 parent_conversation_id,
-                parent_run_id,
             },
         )));
         receiver

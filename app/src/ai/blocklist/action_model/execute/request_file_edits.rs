@@ -15,10 +15,9 @@ use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _};
 
 use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
 use crate::BlocklistAIHistoryModel;
-use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType,
-    AIAgentOutputMessage, AIAgentOutputMessageType, AIIdentifiers, RequestFileEditsResult,
+    RequestFileEditsResult,
 };
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::blocklist::diff_storage::RegisteredDiffStorage;
@@ -156,15 +155,6 @@ impl RequestFileEditsExecutor {
         };
         let result_future = storage.accept_and_save(ctx);
 
-        let _identifiers = self
-            .generate_ai_identifiers(&input.conversation_id, id, ctx)
-            .unwrap_or_else(|| AIIdentifiers {
-                client_conversation_id: Some(input.conversation_id),
-                ..Default::default()
-            });
-        let _passive_diff = BlocklistAIHistoryModel::as_ref(ctx)
-            .is_entirely_passive_conversation(&input.conversation_id);
-
         ActionExecution::new_async(result_future, move |result, _ctx| {
             AIAgentActionResultType::RequestFileEdits(result)
         })
@@ -184,23 +174,13 @@ impl RequestFileEditsExecutor {
             return futures::future::ready(()).boxed();
         };
 
-        let ai_identifiers = self
-            .generate_ai_identifiers(&input.conversation_id, id, ctx)
-            .unwrap_or_else(|| AIIdentifiers {
-                client_conversation_id: Some(input.conversation_id),
-                ..Default::default()
-            });
-
-        let passive_diff = BlocklistAIHistoryModel::as_ref(ctx)
-            .is_entirely_passive_conversation(&input.conversation_id);
-
         let (tx, rx) = oneshot::channel();
         let files = file_edits.clone();
         let id = id.clone();
 
-        let apply_future = self.apply_diff_model.update(ctx, |model, ctx| {
-            model.apply_diffs(files, &ai_identifiers, passive_diff, ctx)
-        });
+        let apply_future = self
+            .apply_diff_model
+            .update(ctx, |model, ctx| model.apply_diffs(files, ctx));
 
         ctx.spawn(
             async move {
@@ -271,39 +251,6 @@ impl RequestFileEditsExecutor {
         }
 
         storage.set_candidate_diffs(diffs, ctx);
-    }
-
-    fn generate_ai_identifiers(
-        &self,
-        conversation_id: &AIConversationId,
-        action_id: &AIAgentActionId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Option<AIIdentifiers> {
-        let history_model = BlocklistAIHistoryModel::as_ref(ctx);
-        let conversation = history_model.conversation(conversation_id)?;
-
-        // Find the `AIAgentExchange` and its corresponding `AIAgentOutput` for this given action.
-        let (exchange, output) = conversation.all_exchanges().into_iter().find_map(|exchange| {
-            let output = exchange.output_status.output()?;
-            let contains_action = output.get().messages.iter().any(|step| {
-                matches!(step, AIAgentOutputMessage{ message: AIAgentOutputMessageType::Action(AIAgentAction { id, .. }), .. } if id == action_id)
-            });
-
-            contains_action.then_some((exchange, output))
-        })?;
-
-        let server_output_id = output.get().server_output_id.clone();
-        let model_id = output.get().model_info.as_ref().map(|m| m.model_id.clone());
-        Some(AIIdentifiers {
-            client_conversation_id: Some(*conversation_id),
-            client_exchange_id: Some(exchange.id),
-            server_output_id,
-            server_conversation_id: conversation
-                .server_conversation_token()
-                .cloned()
-                .map(Into::into),
-            model_id,
-        })
     }
 }
 

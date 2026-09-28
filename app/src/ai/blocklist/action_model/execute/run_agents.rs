@@ -179,10 +179,6 @@ impl RunAgentsExecutor {
         sender: async_channel::Sender<RunAgentsResult>,
         ctx: &mut ModelContext<Self>,
     ) {
-        let parent_run_id = BlocklistAIHistoryModel::as_ref(ctx)
-            .conversation(&parent_conversation_id)
-            .and_then(|c| c.run_id());
-
         let RunAgentsRequest {
             harness_type,
             model_id,
@@ -208,7 +204,6 @@ impl RunAgentsExecutor {
                     mode,
                     None, /* lifecycle_subscription */
                     parent_conversation_id,
-                    parent_run_id.clone(),
                     exec_ctx,
                 )
             });
