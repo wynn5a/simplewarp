@@ -468,23 +468,6 @@ inherits = "release-cli"
 [profile.rclida]
 inherits = "release-cli-debug_assertions"
 
-# Release profile for the standalone TUI. Strip debug-map entries while
-# retaining function symbols so local backtraces and profiles remain readable.
-[profile.release-tui]
-inherits = "release-cli"
-strip = "debuginfo"
-
-# Packaged local/dev TUI builds retain the release profile's debug assertions.
-[profile.release-tui-debug-assertions]
-inherits = "release-tui"
-debug-assertions = true
-
-# A dev profile optimized for remote server deployment. Strips symbols to
-# reduce binary size and improve rsync delta transfer efficiency.
-[profile.dev-remote]
-inherits = "dev"
-strip = "symbols"
-
 [patch.crates-io]
 # Pinned to the merge commit of servo/core-foundation-rs#746, which fixes a
 # double-retain bug in `CTFontCollection::get_descriptors` that leaks the

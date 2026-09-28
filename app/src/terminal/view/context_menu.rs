@@ -2,11 +2,11 @@ use warpui::{SingletonEntity, UpdateView};
 
 use super::{
     AIAgentExchangeId, AIConversationId, AppContext, BlocklistAIHistoryModel, CONTEXT_MENU_WIDTH,
-    ChannelState, ClipboardContent, ContextMenuAction, ContextMenuState, ContextMenuType, EntityId,
-    FeatureFlag, ForkAIConversationParams, ForkFromExchange, ForkedConversationDestination,
-    MenuItem, MenuItemFields, RichContentLink, ServerConversationToken, ServerOutputId,
-    TerminalAction, TerminalModel, TerminalView, Tip, TipHint, Vector2F, ViewContext,
-    fork_label_for_query, mark_feature_used_and_write_to_user_defaults,
+    ClipboardContent, ContextMenuAction, ContextMenuState, ContextMenuType, EntityId, FeatureFlag,
+    ForkAIConversationParams, ForkFromExchange, ForkedConversationDestination, MenuItem,
+    MenuItemFields, RichContentLink, ServerConversationToken, ServerOutputId, TerminalAction,
+    TerminalModel, TerminalView, Tip, TipHint, Vector2F, ViewContext, fork_label_for_query,
+    mark_feature_used_and_write_to_user_defaults,
 };
 
 impl TerminalView {
@@ -222,31 +222,13 @@ impl TerminalView {
         conversation_token: ServerConversationToken,
         server_output_id: Option<ServerOutputId>,
     ) -> Vec<(String, ContextMenuAction)> {
-        if ChannelState::channel().is_dogfood() {
-            vec![
-                (
-                    "Copy debugging link".to_string(),
-                    ContextMenuAction::CopyAIDebuggingLink {
-                        conversation_token: conversation_token.clone(),
-                        request_id: server_output_id,
-                    },
-                ),
-                (
-                    "Copy conversation ID".to_string(),
-                    ContextMenuAction::CopyConversationId {
-                        conversation_id: conversation_token,
-                    },
-                ),
-            ]
-        } else {
-            vec![(
-                "Copy debugging ID".to_string(),
-                ContextMenuAction::CopyExternalDebuggingId {
-                    request_id: server_output_id,
-                    conversation_id: conversation_token,
-                },
-            )]
-        }
+        vec![(
+            "Copy debugging ID".to_string(),
+            ContextMenuAction::CopyExternalDebuggingId {
+                request_id: server_output_id,
+                conversation_id: conversation_token,
+            },
+        )]
     }
 
     pub(super) fn create_copy_debugging_menu_item(
@@ -370,20 +352,6 @@ impl TerminalView {
                 ))
                 .into_item(),
         );
-
-        if ChannelState::channel().is_dogfood() {
-            menu_items.push(
-                MenuItemFields::new("Fork from here")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::ForkAIConversationFromExactExchange {
-                            ai_block_view_id,
-                            exchange_id: ai_exchange_id,
-                            conversation_id: ai_conversation_id,
-                        },
-                    ))
-                    .into_item(),
-            );
-        }
 
         // We can't revert restored blocks since we don't restore the full diff
         if FeatureFlag::RevertToCheckpoints.is_enabled() && !is_restored {

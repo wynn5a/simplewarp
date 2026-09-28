@@ -69,10 +69,6 @@ impl HttpServer {
 
     pub fn port() -> u16 {
         match ChannelState::channel() {
-            Channel::Stable => PORT_BASE,
-            Channel::Preview => PORT_BASE + 1,
-            Channel::Dev => PORT_BASE + 2,
-            Channel::Local => PORT_BASE + 3,
             Channel::Integration => PORT_BASE + 4,
             Channel::Oss => PORT_BASE + 5,
         }

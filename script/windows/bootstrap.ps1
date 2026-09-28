@@ -46,7 +46,7 @@ function Show-BootstrapPreview {
     Write-Output 'It will:'
     Write-Output '  - Check for Git for Windows.'
     Write-Output '  - Install Rust if cargo is unavailable.'
-    Write-Output '  - Install Visual Studio Build Tools, jq, CMake, Protobuf, LLVM, InnoSetup, and gcloud as needed.'
+    Write-Output '  - Install Visual Studio Build Tools, jq, CMake, Protobuf, LLVM, and InnoSetup as needed.'
     Write-Output '  - Install Cargo test dependencies.'
 
     if (-not $InstallCommonSkills) {
@@ -244,26 +244,6 @@ Use-LibclangIfInstalled
 
 # We use InnoSetup to build our release bundle installer.
 winget install -e --id JRSoftware.InnoSetup
-
-# If we don't see gcloud command, try adding the install location to the PATH.
-if (-not (Get-Command -Name gcloud -Type Application -ErrorAction SilentlyContinue)) {
-    $env:PATH += ";$env:LOCALAPPDATA\Google\Cloud SDK\google-cloud-sdk\bin"
-}
-
-# If we still don't see it, install it.
-if (-not (Get-Command -Name gcloud -Type Application -ErrorAction SilentlyContinue)) {
-    (New-Object Net.WebClient).DownloadFile('https://dl.google.com/dl/cloudsdk/channels/rapid/GoogleCloudSDKInstaller.exe', "$env:Temp\GoogleCloudSDKInstaller.exe")
-    Start-Process "$env:Temp\GoogleCloudSDKInstaller.exe" -Wait
-}
-
-if ($env:WARP_SKIP_GCLOUD_AUTH -ne '1') {
-    [string]$identityToken = gcloud auth print-identity-token
-    if ($identityToken.Trim().Length -eq 0) {
-        Write-Output 'gcloud CLI authentication missing.  Press enter to continue...'
-        Read-Host
-        gcloud auth login
-    }
-}
 
 if ($InstallCommonSkills) {
     Install-CommonSkill

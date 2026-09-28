@@ -34,20 +34,15 @@ pub const WARP_LOGS_DIR: &str = "logs";
 
 fn base_warp_config_dir_name() -> String {
     match ChannelState::channel() {
-        // Preview shares the same directory as Stable for backward
-        // compatibility — existing users already have config in `.warp`.
-        Channel::Stable | Channel::Preview => WARP_CONFIG_DIR.to_owned(),
         Channel::Oss => format!("{WARP_CONFIG_DIR}-oss"),
-        Channel::Dev => format!("{WARP_CONFIG_DIR}-dev"),
         Channel::Integration => format!("{WARP_CONFIG_DIR}-integration"),
-        Channel::Local => format!("{WARP_CONFIG_DIR}-local"),
     }
 }
 
 /// Returns the home-relative Warp config directory name for the current channel and data profile.
 ///
-/// This preserves the historical `.warp*` directory shape while still isolating dev, local,
-/// integration, oss, and optional development profiles.
+/// This preserves the historical `.warp*` directory shape while still isolating integration, oss,
+/// and optional development profiles.
 pub fn warp_home_config_dir_name() -> String {
     let base_dir_name = base_warp_config_dir_name();
 
@@ -78,8 +73,7 @@ pub fn warp_home_mcp_config_file_path() -> Option<PathBuf> {
 /// Returns the macOS config directory name for the current channel and data
 /// profile.
 ///
-/// Stable uses `.warp`, while other channels include a channel suffix
-/// (e.g., `.warp-dev`, `.warp-local`).
+/// Each channel includes a channel suffix (`.warp-oss`, `.warp-integration`).
 ///
 /// Development data profiles append a further `-{profile}` suffix. Without it,
 /// every profile of a channel would share this directory — and with it the
@@ -99,12 +93,8 @@ fn macos_config_dir_name() -> String {
 #[cfg(target_os = "macos")]
 fn macos_config_dir_name_for(channel: Channel, data_profile: Option<&str>) -> String {
     let base_dir_name = match channel {
-        Channel::Stable => WARP_CONFIG_DIR.to_owned(),
-        Channel::Preview => format!("{WARP_CONFIG_DIR}-preview"),
         Channel::Oss => format!("{WARP_CONFIG_DIR}-oss"),
-        Channel::Dev => format!("{WARP_CONFIG_DIR}-dev"),
         Channel::Integration => format!("{WARP_CONFIG_DIR}-integration"),
-        Channel::Local => format!("{WARP_CONFIG_DIR}-local"),
     };
     match data_profile {
         Some(profile) => format!("{base_dir_name}-{profile}"),
@@ -130,18 +120,12 @@ pub fn data_dir() -> PathBuf {
 
 /// Returns the GUI application ID for the current channel.
 ///
-/// Most TUI channel binaries use the same application ID as the GUI. The OSS
-/// TUI is the exception: it uses `WarpTui`, while the corresponding GUI uses
-/// `WarpOss`.
+/// The OSS channel always uses `WarpOss`, whatever the running binary's own ID.
 #[cfg(any(not(target_os = "macos"), test))]
 fn gui_app_id_for_channel(channel: Channel, current_app_id: AppId) -> AppId {
     match channel {
         Channel::Oss => AppId::new("dev", "warp", "WarpOss"),
-        Channel::Stable
-        | Channel::Preview
-        | Channel::Dev
-        | Channel::Integration
-        | Channel::Local => current_app_id,
+        Channel::Integration => current_app_id,
     }
 }
 

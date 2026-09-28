@@ -1264,7 +1264,7 @@ define_settings_group!(AISettings, settings: [
     // This setting is only used when the AI autonomy setting is AlwaysAsk or not set.
     cloud_agent_computer_use_enabled: CloudAgentComputerUseEnabled {
         type: bool,
-        default: warp_core::channel::ChannelState::channel().is_dogfood(),
+        default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
         surface: settings::SettingSurfaces::GUI,
         private: false,

@@ -168,15 +168,6 @@ fn test_create_experiment_layer_mappings() {
 
 #[test]
 fn test_allow_user_overrides() {
-    // Case 1: Experiment and channel don't allow overrides.
-    assert!(!TestExperiment::can_use_user_override(Channel::Stable));
-
-    // Case 2: Experiment doesn't allow overrides, channel does.
-    assert!(TestExperiment::can_use_user_override(Channel::Dev));
-
-    // Case 3: Experiment and channel allow overrides.
-    assert!(FooExperiment::can_use_user_override(Channel::Dev));
-
-    // Case 4: Experiment allows overrides, channel doesn't.
-    assert!(FooExperiment::can_use_user_override(Channel::Stable));
+    assert!(!TestExperiment::allow_user_overrides_in_stable());
+    assert!(FooExperiment::allow_user_overrides_in_stable());
 }

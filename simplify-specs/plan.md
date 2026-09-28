@@ -831,6 +831,50 @@ Queue, in order:
    (emitted by the SSH bootstrap scripts to tear down the daemon's `remote-server-proxy`, a no-op
    in the client now); `SessionType`'s `Local` / `WarpifiedRemote` naming.
 
+25. ~~Collapse `Channel`; TUI / Warp-signing residue in bundle scripts (4hl follow-ups)~~ — **4hn done
+   (2026-09-28).** −2.5k lines in 78 files (most of it the dev/local/preview icon sets). `Channel` is
+   now `Oss` / `Integration` (the only two any bin constructs; not serde — `Display` only feeds a
+   tracing tag). Every match lost its `Stable` / `Preview` / `Dev` / `Local` arms; the Oss /
+   Integration values are unchanged (`.warp-oss` / `.warp-integration` dirs, `WarpOss` GUI app id,
+   `warposs` scheme, port 9282, `warp-oss` CLI name, `warp_2` default icon — `paths_tests` pins the
+   dirs). `is_dogfood()` (false for both) is gone and its readers folded to the false branch: the
+   `safe_*` log macros emit only `safe:` (the `full:` args are still type-checked by a hidden
+   `__discard_full_log_args!` so their captures stay used); the dev-only "Fork from here" menu items
+   + `ForkAIConversationFromExactExchange`; `CopyAIDebuggingLink` / `CopyConversationId` (the
+   non-dogfood "Copy debugging ID" stays); `load_agent_mode_conversation` (downloaded a Warp-server
+   `/debug/maa/` link) + `LoadAgentModeConversation` + its binding; the AI error card's Send
+   Feedback button is now unconditional; `should_suppress_during_recovery`; the sandboxed-CLI
+   computer-use default; `CloudAgentComputerUseEnabled` default `false` (key kept);
+   `Experiment::can_use_user_override` (→ `allow_user_overrides_in_stable`). `enable_debug_features`
+   is `cfg!(debug_assertions)`. Runtime flag set unchanged: `features::enabled_features()` never read
+   the channel, and `DOGFOOD_FLAGS` is only read by the schema/default-settings generators' string
+   `--channel` switch. `preview_config_migration` (Preview-only `~/.warp` → `~/.warp-preview`
+   symlinker; its unit tests, integration-testing helper, integration test and `specs/QUALITY-408`)
+   deleted. Local-channel checks (dock icon reset, appearance-page hint, default-terminal) always
+   pass now. The completer registers the `warp_cli` signature for `warp-oss` only (was `oz` /
+   `oz-preview` / `oz-dev`, Warp's installed CLI names). `app/channels/{dev,local,preview}` deleted
+   (`stable` kept for `bundle_simplewarp`, `oss` for the bundle scripts / Cargo bundle metadata).
+   Scripts: `--artifact tui` gone from `script/{macos,linux}/bundle` and `windows/bundle.ps1`
+   (+ `tui-installer.iss`, `test_tui_installer.ps1`, `REQUIRE_SIGNATURES`); `script/macos/bundle`'s
+   Warp Developer ID keychain / codesign / notarytool / staple path and `--read-passwords-from-env`
+   gone (`--selfsign` ad-hoc/Apple Development signing kept; default was already unsigned);
+   `windows/build_inno_sign_tool_command.ps1` (Azure Trusted Signing) and
+   `linux/sign_arch_packages` (orphans of the deleted release workflow); gcloud install/auth for the
+   SSH integration tests in the bootstraps + `install_test_deps` (and `--skip-gcloud-auth`); the
+   `release-tui*` / `dev-remote` cargo profiles. `bash -n` clean on every edited script. **Kept:**
+   `DockTilePlugin`'s own dev/preview/local icon fallback (ObjC, bundle-id keyed); the
+   `windows-installer.iss` channel switch; `prepare_bundled_resources` channel-gated skills; the
+   generators' `stable/preview/dev` strings; `ci.yml` (user decision: rewriting it to run on the fork
+   would start consuming Actions minutes). Tests 4,108 default / 4,109 simplewarp (−6, the deleted
+   migration tests), warp_core + http_server + cloud_object_models + warp_features 53,
+   warp_completer 174 / 123 (v2), 0 failed.
+   Follow-ups: `ForkFromExchange::fork_from_exact_exchange` is now always `false` from the menus
+   (check the rewind caller before folding); the `safe_*` macros' `full:` arms could be dropped at
+   the ~90 call sites; `ChannelState::url_scheme()` is `warposs` in simplewarp while its plist
+   registers `simplewarp` (pre-existing mismatch: deep links / MCP OAuth redirect use `warposs`);
+   `windows-installer.iss` / DockTilePlugin channel branches; `app_services/linux` D-Bus default
+   `dev.warp.WarpLocal`.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

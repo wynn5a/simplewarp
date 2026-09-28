@@ -45,8 +45,6 @@ mod platform;
 #[cfg(feature = "plugin_host")]
 mod plugin;
 mod prefix;
-#[cfg(target_os = "macos")]
-mod preview_config_migration;
 mod profiling;
 mod projects;
 mod prompt;
@@ -877,12 +875,6 @@ pub(crate) fn initialize_app(
             warpui_extras::secure_storage::register(&secure_storage_service_name, ctx);
         }
     }
-
-    // One-time migration: give Preview its own config directory by
-    // symlinking contents from the shared ~/.warp location. Must run
-    // before ensure_warp_watch_roots_exist() creates the new directory.
-    #[cfg(target_os = "macos")]
-    preview_config_migration::migrate_preview_config_dir_if_needed();
 
     ensure_warp_watch_roots_exist();
     ctx.add_singleton_model(WarpManagedPathsWatcher::new);

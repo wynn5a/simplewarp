@@ -68,7 +68,7 @@ impl ChannelState {
     }
 
     pub fn enable_debug_features() -> bool {
-        cfg!(debug_assertions) || matches!(Self::channel(), Channel::Local | Channel::Dev)
+        cfg!(debug_assertions)
     }
 
     /// Returns the canonical identifier for the application.
@@ -171,12 +171,8 @@ impl ChannelState {
 
     pub fn url_scheme() -> &'static str {
         match Self::channel() {
-            Channel::Stable => "warp",
-            Channel::Preview => "warppreview",
-            Channel::Dev => "warpdev",
             // Dummy value--integration tests shouldn't support URL schemes.
             Channel::Integration => "warpintegration",
-            Channel::Local => "warplocal",
             Channel::Oss => "warposs",
         }
     }

@@ -8,7 +8,6 @@ mod macos_app_icon {
     pub use objc2::{AnyThread, MainThreadMarker};
     pub use objc2_app_kit::{NSApplication, NSImage, NSWorkspace, NSWorkspaceIconCreationOptions};
     pub use objc2_foundation::{NSBundle, NSString, ns_string};
-    pub use warp_core::channel::{Channel, ChannelState};
 
     pub use crate::settings::app_icon::{AppIcon, AppIconSettings, AppIconSettingsChangedEvent};
 }
@@ -198,16 +197,12 @@ impl AppearanceManager {
             // in MacOS Tahoe). We implement custom icons by overriding this at runtime. Those
             // icons do not adapt to the preferred style.
             //
-            // Local channel is not bundled, so don't attempt this for that case. This method only
-            // works if the dock tile plugin hasn't overridden the default icon already, so skip
-            // this method if the app started up with a non-default icon, as setting to "nil" would
-            // revert to the icon we started up with. We therefore need to use an in-memory
+            // This method only works if the dock tile plugin hasn't overridden the default icon
+            // already, so skip this method if the app started up with a non-default icon, as
+            // setting to "nil" would revert to the icon we started up with. We therefore need to use an in-memory
             // override to display the default icon. This has the drawback of _not_ inheriting the
             // preferred icon style, but that icon style _will_ apply on next app restart.
-            if icon == AppIcon::Default
-                && ChannelState::channel() != Channel::Local
-                && self.app_icon_at_startup == AppIcon::Default
-            {
+            if icon == AppIcon::Default && self.app_icon_at_startup == AppIcon::Default {
                 log::debug!("User has default icon selected, resetting to bundle default");
                 // Reset to nil to use the bundle's default icon.
                 // SAFETY: `setApplicationIconImage:` accepts `nil` to restore the bundled icon.

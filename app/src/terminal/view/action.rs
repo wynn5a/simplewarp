@@ -304,8 +304,6 @@ pub enum TerminalAction {
     },
     ClearMarkedText,
     ShowInitializationBlock,
-    /// This is for debugging, dev only for now
-    LoadAgentModeConversation,
     ShowWarpifySettings,
     /// Removes a pending attachment (image or file) by index in the unified list.
     DeleteAttachment {
@@ -598,7 +596,6 @@ impl fmt::Debug for TerminalAction {
             } => write!(f, "SetMarkedText {{{marked_text:?}, {selected_range:?}}}"),
             ClearMarkedText => write!(f, "ClearMarkedText"),
             ShowInitializationBlock => write!(f, "ShowInitializationBlock"),
-            LoadAgentModeConversation => write!(f, "LoadAgentModeConversation"),
             ShowWarpifySettings => write!(f, "ShowWarpifySettings"),
             DeleteAttachment { index } => write!(f, "DeleteAttachment({index:?})"),
             OpenAttachmentLightbox { index } => {

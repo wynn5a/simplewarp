@@ -19,8 +19,6 @@ mod launch_configs;
 mod notebooks;
 mod osc8_hyperlinks;
 mod pane_restoration;
-#[cfg(target_os = "macos")]
-mod preview_config_migration;
 mod rules;
 mod secrets;
 mod session_restoration;
@@ -66,8 +64,6 @@ pub use pane_restoration::*;
 use parking_lot::Mutex;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
-#[cfg(target_os = "macos")]
-pub use preview_config_migration::*;
 pub use rules::*;
 use rust_embed::RustEmbed;
 pub use secrets::*;

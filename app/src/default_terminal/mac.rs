@@ -2,7 +2,6 @@ use std::ptr::NonNull;
 
 use objc2_core_foundation::{CFRetained, CFString};
 use objc2_foundation::NSBundle;
-use warp_core::channel::{Channel, ChannelState};
 
 // Launch Services constants
 type LSRolesMask = u32;
@@ -26,7 +25,7 @@ unsafe extern "C" {
 }
 
 pub fn can_become_default_terminal() -> bool {
-    NSBundle::mainBundle().bundleIdentifier().is_some() && ChannelState::channel() != Channel::Local
+    NSBundle::mainBundle().bundleIdentifier().is_some()
 }
 
 pub fn is_warp_default_terminal() -> bool {

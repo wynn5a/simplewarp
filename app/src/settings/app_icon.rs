@@ -1,6 +1,5 @@
 use enum_iterator::Sequence;
 use serde::{Deserialize, Serialize};
-use warp_core::channel::{Channel, ChannelState};
 use warp_core::settings::SupportedPlatforms;
 use warp_core::settings::macros::define_settings_group;
 
@@ -96,12 +95,7 @@ impl AppIconSettings {
     pub fn get_base_icon_file_name(icon: AppIcon) -> &'static str {
         match icon {
             AppIcon::Aurora => "aurora",
-            AppIcon::Default => match ChannelState::channel() {
-                Channel::Dev => "dev",
-                Channel::Preview => "preview",
-                Channel::Local => "local",
-                _ => "warp_2",
-            },
+            AppIcon::Default => "warp_2",
             AppIcon::Classic1 => "classic_1",
             AppIcon::Classic2 => "classic_2",
             AppIcon::Classic3 => "classic_3",

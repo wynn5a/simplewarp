@@ -84,8 +84,8 @@ while (( "$#" )); do
       ;;
     --artifact)
       if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
-        if [[ "$2" != "app" && "$2" != "cli" && "$2" != "tui" ]]; then
-          echo "Error: --artifact must be 'app', 'cli', or 'tui', got '$2'" >&2
+        if [[ "$2" != "app" && "$2" != "cli" ]]; then
+          echo "Error: --artifact must be 'app' or 'cli', got '$2'" >&2
           exit 1
         fi
         ARTIFACT="$2"
@@ -119,25 +119,6 @@ done
 # set positional arguments in their proper place
 eval set -- "$PARAMS"
 
-# TUI Linux bundles use the native GNU target because their clipboard backends
-# link against host Wayland/X11 libraries. Refuse to compile on a different
-# architecture so an x86 binary can never be published under an ARM filename
-# (or vice versa). Packaging-only runs may still stage a prebuilt native binary.
-if [[ "$ARTIFACT" == "tui" && "$BUILD" == "true" ]]; then
-  case "$(uname -m)" in
-    arm64|aarch64) HOST_ARCH="aarch64" ;;
-    x86_64|amd64) HOST_ARCH="x86_64" ;;
-    *)
-      echo "Error: Unsupported native TUI build architecture: $(uname -m)" >&2
-      exit 1
-      ;;
-  esac
-  if [[ "$BUILD_ARCH" != "$HOST_ARCH" ]]; then
-    echo "Error: TUI bundles must be built natively; requested '$BUILD_ARCH' on '$HOST_ARCH'." >&2
-    exit 1
-  fi
-fi
-
 # Statically compile the CLI artifact so it can run on older Linux distros.
 if [[ "$ARTIFACT" == "cli" ]]; then
   TARGET_TRIPLE="${BUILD_ARCH}-unknown-linux-musl"
@@ -159,7 +140,7 @@ DIST_DIR="$CARGO_TARGET_OUTPUT_ROOT/dist"
 if [[ $DEBUG = true ]]; then
   CARGO_PROFILE="dev"
 else
-  if [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "tui" ]]; then
+  if [[ "$ARTIFACT" == "cli" ]]; then
     CARGO_PROFILE="release-cli"
   else
     CARGO_PROFILE="release-lto"
@@ -190,36 +171,15 @@ else
   exit 1
 fi
 
-# Artifact-specific binary naming
-if [[ "$ARTIFACT" == "tui" ]]; then
-  case "$RELEASE_CHANNEL" in
-    local) WARP_BIN="warp-tui" ;;
-    oss) WARP_BIN="warp-tui-oss" ;;
-    *) WARP_BIN="warp-tui-$RELEASE_CHANNEL" ;;
-  esac
-  BINARY_NAME="$WARP_BIN"
-  PACKAGES=()
-fi
-
 # Artifact-specific configuration
 if [[ "$ARTIFACT" == "cli" ]]; then
   FEATURES="$FEATURES,standalone"
-elif [[ "$ARTIFACT" == "tui" ]]; then
-  # The TUI is a separate console crate with its own per-channel bins and a
-  # minimal feature set. It uses the native GNU target so the Linux clipboard
-  # backends can link against the host's Wayland/X11 libraries. Deliberately
-  # omit `voice_input` so portable bundles do not require the host ALSA runtime.
-  WARP_TUI_FEATURES="release_bundle,standalone"
 elif [[ "$ARTIFACT" == "app" ]]; then
   # All channels ship the v3 classifier and v2 heuristic.
   FEATURES="$FEATURES,gui,nld_classifier_v3,nld_heuristic_v2"
 fi
 if [[ -n "$EXTRA_FEATURES" ]]; then
-  if [[ "$ARTIFACT" == "tui" ]]; then
-    WARP_TUI_FEATURES="$WARP_TUI_FEATURES,$EXTRA_FEATURES"
-  else
-    FEATURES="$FEATURES,$EXTRA_FEATURES"
-  fi
+  FEATURES="$FEATURES,$EXTRA_FEATURES"
 fi
 
 BUNDLE_ID="dev.warp.$APP_NAME"
@@ -232,22 +192,14 @@ export APPIMAGE_NAME="$APP_NAME-$BUILD_ARCH.AppImage"
 # then exit.  We use this script to invoke `cargo check` to ensure that we are
 # using the same feature flags and profile that we would be using in production.
 if [[ "$CHECK_ONLY" == "true" ]]; then
-  if [[ "$ARTIFACT" == "tui" ]]; then
-    cargo check -p warp_tui --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --features "$WARP_TUI_FEATURES"
-  else
-    cargo check -p warp --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --features "$FEATURES" ${TARGET_TRIPLE:+--target $TARGET_TRIPLE}
-  fi
+  cargo check -p warp --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --features "$FEATURES" ${TARGET_TRIPLE:+--target $TARGET_TRIPLE}
   exit 0
 fi
 
 # Build the binary.
 if [[ "$BUILD" == "true" ]]; then
   echo "Building and bundling Warp for channel $RELEASE_CHANNEL and bundle id $BUNDLE_ID"
-  if [[ "$ARTIFACT" == "tui" ]]; then
-    cargo build -p warp_tui --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --features "$WARP_TUI_FEATURES"
-  else
-    cargo build -p warp --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --features "$FEATURES" ${TARGET_TRIPLE:+--target $TARGET_TRIPLE}
-  fi
+  cargo build -p warp --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --features "$FEATURES" ${TARGET_TRIPLE:+--target $TARGET_TRIPLE}
 
   echo "Making debug copy of '$EXECUTABLE_PATH' at '$DEBUG_EXECUTABLE_PATH'"
   cp "$EXECUTABLE_PATH" "$DEBUG_EXECUTABLE_PATH"
@@ -259,14 +211,9 @@ else
 fi
 
 BINARY_PATH="$EXECUTABLE_PATH"
-if [[ "$ARTIFACT" == "tui" ]]; then
-  echo "Copying TUI binary into $OUT_DIR/$WARP_BIN"
-  cp "$EXECUTABLE_PATH" "$OUT_DIR/$WARP_BIN"
-  BINARY_PATH="$OUT_DIR/$WARP_BIN"
-fi
 
 # Prepare bundled resources for standalone builds.
-if [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "tui" ]]; then
+if [[ "$ARTIFACT" == "cli" ]]; then
   echo "Preparing standalone resources directory"
   BUNDLED_RESOURCES_DIR="$OUT_DIR/resources"
   "$WORKSPACE_ROOT_DIR/script/prepare_bundled_resources" "$BUNDLED_RESOURCES_DIR" "$RELEASE_CHANNEL" "$CARGO_PROFILE"

@@ -13,7 +13,6 @@ use itertools::Itertools;
 use markdown_parser::{FormattedText, FormattedTextInline, TableAlignment};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
-use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::blend::Blend;
@@ -3172,9 +3171,7 @@ pub(crate) fn render_debug_footer<V: View>(
         .to_string()
     };
 
-    // Hide the submit button for dogfood users.
-    let is_dogfood = ChannelState::channel().is_dogfood();
-    let submit_button = if !is_dogfood {
+    let submit_button = {
         let submit_button_style = UiComponentStyles {
             font_color: Some(
                 appearance
@@ -3204,25 +3201,21 @@ pub(crate) fn render_debug_footer<V: View>(
             background: Some(blended_colors::neutral_4(appearance.theme()).into()),
             ..submit_button_style
         };
-        Some(
-            appearance
-                .ui_builder()
-                .button(
-                    warpui::ui_components::button::ButtonVariant::Text,
-                    props.submit_issue_button_handle,
-                )
-                .with_centered_text_label("Send Feedback".to_string())
-                .with_style(submit_button_style)
-                .with_hovered_styles(submit_button_hover_style)
-                .with_clicked_styles(submit_button_hover_style)
-                .build()
-                .on_click(move |ctx, _, _| {
-                    on_open_feedback(ctx);
-                })
-                .finish(),
-        )
-    } else {
-        None
+        appearance
+            .ui_builder()
+            .button(
+                warpui::ui_components::button::ButtonVariant::Text,
+                props.submit_issue_button_handle,
+            )
+            .with_centered_text_label("Send Feedback".to_string())
+            .with_style(submit_button_style)
+            .with_hovered_styles(submit_button_hover_style)
+            .with_clicked_styles(submit_button_hover_style)
+            .build()
+            .on_click(move |ctx, _, _| {
+                on_open_feedback(ctx);
+            })
+            .finish()
     };
 
     // render the conversation's debug id so screenshots automatically show the debug id
@@ -3286,11 +3279,9 @@ pub(crate) fn render_debug_footer<V: View>(
     // In narrow views, render the submit button in a separate row below.
     // Otherwise, place it inline in the debug row.
     let stacked_submit_button = if props.should_render_feedback_below {
-        submit_button
+        Some(submit_button)
     } else {
-        if let Some(submit_button) = submit_button {
-            debug_row.add_child(Container::new(submit_button).with_margin_right(8.).finish());
-        }
+        debug_row.add_child(Container::new(submit_button).with_margin_right(8.).finish());
         None
     };
 

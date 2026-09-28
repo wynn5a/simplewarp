@@ -1119,15 +1119,8 @@ pub enum ContextMenuAction {
     /// the AI assistant panel otherwise.
     AskAI(AskAISource),
     OpenWorkflowModal,
-    CopyAIDebuggingLink {
-        conversation_token: ServerConversationToken,
-        request_id: Option<ServerOutputId>,
-    },
     CopyExternalDebuggingId {
         request_id: Option<ServerOutputId>,
-        conversation_id: ServerConversationToken,
-    },
-    CopyConversationId {
         conversation_id: ServerConversationToken,
     },
     // Copy the text of a conversation in the blocklist.
@@ -1163,12 +1156,6 @@ pub enum ContextMenuAction {
     /// Fork the AI conversation from the block corresponding to this AI block.
     /// Forks at the query boundary (includes all exchanges up to the next user query).
     ForkAIConversationFromBlock {
-        ai_block_view_id: EntityId,
-        exchange_id: AIAgentExchangeId,
-        conversation_id: AIConversationId,
-    },
-    /// Fork the AI conversation from the exact exchange that was clicked on.
-    ForkAIConversationFromExactExchange {
         ai_block_view_id: EntityId,
         exchange_id: AIAgentExchangeId,
         conversation_id: AIConversationId,
@@ -1235,7 +1222,6 @@ impl fmt::Debug for ContextMenuAction {
             AskAI(_) => f.write_str("AskAIAssistant"),
             OpenWorkflowModal => f.write_str("OpenWorkflowModal"),
             CopyBlockFilteredOutputs => f.write_str("CopyBlockFilteredOutput"),
-            CopyAIDebuggingLink { .. } => f.write_str("CopyAIDebuggingLink"),
             CopyAIBlockQuery { .. } => f.write_str("CopyAIBlockPrompt"),
             CopyAIBlockOutput { .. } => f.write_str("CopyAIBlockOutput"),
             CopyAIBlock { .. } => f.write_str("CopyAIBlockBoth"),
@@ -1243,13 +1229,9 @@ impl fmt::Debug for ContextMenuAction {
             CopyAgentCommand { .. } => f.write_str("CopyAgentCommand"),
             CopyAgentGitBranch { .. } => f.write_str("CopyAgentGitBranch"),
             CopyExternalDebuggingId { .. } => f.write_str("CopyExternalDebuggingId"),
-            CopyConversationId { .. } => f.write_str("CopyConversationId"),
             CopyConversationText { .. } => f.write_str("CopyConversationText"),
             ForkAIConversation { .. } => f.write_str("ForkAIConversation"),
             ForkAIConversationFromBlock { .. } => f.write_str("ForkAIConversationFromBlock"),
-            ForkAIConversationFromExactExchange { .. } => {
-                f.write_str("ForkAIConversationFromExactExchange")
-            }
             SavePromptAsAgentModeWorkflow { .. } => f.write_str("SavePromptAsAgentModeWorkflow"),
         }
     }
@@ -9227,15 +9209,6 @@ impl TerminalView {
                         // Otherwise, grab the current value.
                         _ => *SessionSettings::as_ref(ctx).honor_ps1,
                     };
-                    if let BlockType::User(_user_block_completed) = block_type {
-                        let _is_universal_developer_input_enabled =
-                            InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
-                        let _is_in_agent_view = self.agent_view_controller.as_ref(ctx).is_active();
-
-                        // On dogfood only, we're interested in the block commands, durations,
-                        // and exit codes to trial Warp Analytics.
-                        if ChannelState::channel().is_dogfood() {}
-                    }
                 }
                 let active_session_id = self.active_block_session_id();
                 if let Some(block_id) = self
@@ -12738,20 +12711,6 @@ impl TerminalView {
                                 ))
                                 .into_item(),
                         );
-
-                        if ChannelState::channel().is_dogfood() {
-                            items.push(
-                                MenuItemFields::new("Fork from here (dev only)")
-                                    .with_on_select_action(TerminalAction::ContextMenu(
-                                        ContextMenuAction::ForkAIConversationFromExactExchange {
-                                            ai_block_view_id: *rich_content_view_id,
-                                            exchange_id: ai_metadata.exchange_id,
-                                            conversation_id: ai_metadata.conversation_id,
-                                        },
-                                    ))
-                                    .into_item(),
-                            );
-                        }
 
                         // We can't revert restored blocks since we don't restore the full diff
                         if FeatureFlag::RevertToCheckpoints.is_enabled()
@@ -19689,14 +19648,6 @@ impl TerminalView {
             }
             OpenWorkflowModal => self.open_workflow_modal(ctx),
             CopyBlockFilteredOutputs => self.context_menu_copy_filtered_block_outputs(ctx),
-            CopyAIDebuggingLink {
-                conversation_token,
-                request_id,
-            } => {
-                ctx.clipboard().write(ClipboardContent::plain_text(
-                    conversation_token.debugging_payload(request_id.as_ref()),
-                ));
-            }
             CopyAIBlockQuery { ai_block_view_id } => {
                 for rich_content in self.rich_content_views.iter() {
                     if let Some(ai_metadata) = rich_content.ai_block_metadata()
@@ -19753,11 +19704,6 @@ impl TerminalView {
                     conversation_id.debugging_payload(request_id.as_ref()),
                 ));
             }
-            CopyConversationId { conversation_id } => {
-                ctx.clipboard().write(ClipboardContent::plain_text(
-                    conversation_id.as_str().to_string(),
-                ));
-            }
             CopyConversationText { conversation_id } => {
                 self.copy_conversation_text(*conversation_id, ctx);
             }
@@ -19810,20 +19756,6 @@ impl TerminalView {
                     Some(ForkFromExchange {
                         exchange_id: *exchange_id,
                         fork_from_exact_exchange: false,
-                    }),
-                    ctx,
-                );
-            }
-            ForkAIConversationFromExactExchange {
-                ai_block_view_id: _,
-                exchange_id,
-                conversation_id,
-            } => {
-                self.fork_ai_conversation(
-                    *conversation_id,
-                    Some(ForkFromExchange {
-                        exchange_id: *exchange_id,
-                        fork_from_exact_exchange: true,
                     }),
                     ctx,
                 );
@@ -21168,7 +21100,6 @@ impl TypedActionView for TerminalView {
             | StartFileDropTarget
             | StopFileDropTarget
             | RunNativeShellCompletions { .. }
-            | LoadAgentModeConversation
             | DeleteAttachment { .. }
             | OpenAttachmentLightbox { .. }
             | ToggleAutoexecuteMode
@@ -21731,9 +21662,6 @@ impl TypedActionView for TerminalView {
             } => self.set_marked_text_on_terminal(marked_text, selected_range, ctx),
             ClearMarkedText => self.clear_marked_text_on_terminal(ctx),
             ShowInitializationBlock => self.show_initialization_block(),
-            LoadAgentModeConversation => {
-                self.load_agent_mode_conversation(ctx);
-            }
             ShowWarpifySettings => ctx.emit(Event::OpenSettings(SettingsSection::Warpify)),
             DeleteAttachment { index } => {
                 self.ai_context_model.update(ctx, |context_model, ctx| {

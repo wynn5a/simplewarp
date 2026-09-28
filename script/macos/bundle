@@ -4,41 +4,15 @@
 #
 # See the parameter parsing section below for available options.
 #
-# Note that there are several steps to complete before the app is ready to
-# be distributed, one of which is asynchronous and requires apple to process
-# our binary.
-#
 # The exact steps depend on which artifact we are building, the desktop app or the CLI. Overall,
 # the steps are:
 #
 # 1) Create the binary or mac bundle by running `cargo`.
-# 2) Create a keychain based on our distribution cert.
-# 3) Codesign the built artifact using the keychain.
-#
-# Additionally, for an app, we create a dmg:
-# 4) Create the dmg using `hdiutil create`.
-# 5) Codesign our dmg using the keychain.
-# 6) Upload the app to Apple for it to be notarized - this is async, and we
-#    poll until it is done.
-# 7) "Staple" the notarization to the dmg.
-#
-# Once the stapling is done, the app can be shared.
-#
-# Three passwords are read from GCP Secret Manager (or from env if --read-passwords-from-env is set) if you are codesigning.
-# 1) WARP_NOTARIZATION_PASSWORD:  This is an "app-specific password" that
-#    is tied to the zach@warp.dev account.  See https://support.apple.com/en-us/HT204397
-# 2) WARP_DEVELOPER_ID_CERT_PASSWORD: This is a password tied to the private key
-#    of our cert - it is needed to use the cert to sign our binary.
-# 3) WARP_CODESIGN_KEYCHAIN_PASSWORD: This is an arbitrary password only used
-#    in the lifetime of this app for creating the keychain used to sign.  Can
-#    be anything.
+# 2) Optionally self-sign the built artifact (`--selfsign`).
+# 3) For an app, create a dmg using `create-dmg`.
 #
 # See
 # https://github.com/burtonageo/cargo-bundle
-# https://wiki.lazarus.freepascal.org/Code_Signing_for_macOS
-# https://wiki.lazarus.freepascal.org/Notarization_for_macOS_10.14.5%2B
-# https://developer.apple.com/developer-id/
-# https://github.com/atom/atom/blob/976cb9ef3a611163052f9d31c6c3685dc1e6c5b4/script/lib/code-sign-on-mac.js
 
 set -e
 
@@ -76,135 +50,12 @@ cleanup_dmg_files() {
     done
 }
 
-# Clean up the temporary codesigning keychain.
-cleanup_codesign_keychain() {
-    if [[ "${CODESIGN:-false}" = true && -n "${CODESIGN_KEYCHAIN_NAME:-}" ]]; then
-        echo "Cleaning up by deleting $CODESIGN_KEYCHAIN_NAME keychain."
-        security delete-keychain "$CODESIGN_KEYCHAIN_NAME" || echo "No keychain to delete or already deleted."
-    fi
-}
-
 # Set up cleanup trap
-trap 'cleanup_dmg_files "$DMG_DIR"; cleanup_codesign_keychain' EXIT
+trap 'cleanup_dmg_files "$DMG_DIR"' EXIT
 
 # Define a helper function that uses Python to compute a relative path.
 function relpath() {
   python -c "import os,sys;print(os.path.relpath(*(sys.argv[1:])))" "$@";
-}
-
-# Retry timestamped signing because Apple's timestamp service can fail
-# transiently. All call sites use force signing so retries are idempotent.
-function codesign_with_retry() {
-  local max_attempts="${CODESIGN_MAX_ATTEMPTS:-4}"
-  local initial_retry_delay_seconds="${CODESIGN_INITIAL_RETRY_DELAY_SECONDS:-5}"
-  local retry_delay_seconds="$initial_retry_delay_seconds"
-  local attempt
-  local status
-
-  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
-    if codesign "$@"; then
-      return 0
-    else
-      status=$?
-    fi
-
-    if (( attempt == max_attempts )); then
-      echo "Codesigning failed after $attempt attempts."
-      return "$status"
-    fi
-
-    echo "Codesigning failed; retrying in $retry_delay_seconds seconds ($attempt/$max_attempts)."
-    sleep "$retry_delay_seconds"
-    retry_delay_seconds=$((retry_delay_seconds * 2))
-  done
-}
-
-# Submit once so a transient polling failure can resume the same notarization
-# instead of uploading a duplicate artifact.
-function notarize_artifact() {
-  local artifact="$1"
-  local auth_args=(
-    --apple-id "$WARP_NOTARIZATION_APPLE_ID"
-    --password "$WARP_NOTARIZATION_PASSWORD"
-    --team-id "$APPLE_TEAM_ID"
-  )
-
-  local submission_output
-  if ! submission_output="$(
-    xcrun notarytool submit "$artifact" "${auth_args[@]}" --no-wait --output-format json
-  )"; then
-    echo "Failed to submit $artifact for notarization."
-    return 1
-  fi
-
-  local submission_id
-  if ! submission_id="$(printf '%s' "$submission_output" | plutil -extract id raw -o - -)"; then
-    echo "Failed to read the notarization submission ID."
-    return 1
-  fi
-  if [[ -z "$submission_id" ]]; then
-    echo "Apple did not return a notarization submission ID."
-    return 1
-  fi
-
-  echo "Notarization submission ID: $submission_id"
-
-  local poll_interval_seconds="${NOTARIZATION_POLL_INTERVAL_SECONDS:-15}"
-  local max_poll_failures="${NOTARIZATION_MAX_POLL_FAILURES:-5}"
-  local initial_retry_delay_seconds="${NOTARIZATION_INITIAL_RETRY_DELAY_SECONDS:-5}"
-  local timeout_seconds="${NOTARIZATION_TIMEOUT_SECONDS:-900}"
-  local retry_delay_seconds="$initial_retry_delay_seconds"
-  local consecutive_poll_failures=0
-  local polling_started_at="$SECONDS"
-
-  while true; do
-    if (( SECONDS - polling_started_at >= timeout_seconds )); then
-      echo "Timed out waiting for notarization submission $submission_id after $timeout_seconds seconds."
-      return 1
-    fi
-    local info_output
-    if info_output="$(
-      xcrun notarytool info "$submission_id" "${auth_args[@]}" --output-format json
-    )"; then
-      consecutive_poll_failures=0
-      retry_delay_seconds="$initial_retry_delay_seconds"
-
-      local status
-      if ! status="$(printf '%s' "$info_output" | plutil -extract status raw -o - -)"; then
-        echo "Failed to read the status of notarization submission $submission_id."
-        return 1
-      fi
-
-      echo "Current notarization status: $status"
-      case "$status" in
-        Accepted)
-          return 0
-          ;;
-        Invalid|Rejected)
-          echo "Notarization submission $submission_id was rejected by Apple."
-          xcrun notarytool log "$submission_id" "${auth_args[@]}" || true
-          return 1
-          ;;
-        "In Progress")
-          sleep "$poll_interval_seconds"
-          ;;
-        *)
-          echo "Unexpected notarization status for submission $submission_id: $status"
-          return 1
-          ;;
-      esac
-    else
-      consecutive_poll_failures=$((consecutive_poll_failures + 1))
-      if (( consecutive_poll_failures >= max_poll_failures )); then
-        echo "Failed to poll notarization submission $submission_id after $consecutive_poll_failures consecutive attempts."
-        return 1
-      fi
-
-      echo "Failed to poll notarization submission $submission_id; retrying in $retry_delay_seconds seconds ($consecutive_poll_failures/$max_poll_failures)."
-      sleep "$retry_delay_seconds"
-      retry_delay_seconds=$((retry_delay_seconds * 2))
-    fi
-  done
 }
 
 # Defaults for command-line flags.
@@ -217,10 +68,8 @@ FEATURES="release_bundle,extern_plist"
 REGISTER_SERVICES=true
 DEBUG=false
 ARTIFACT="app"
-CODESIGN=true
 SELFSIGN=false
 OPEN_AFTER_BUNDLE=false
-READ_PASSWORDS_FROM_ENV=false
 
 PARAMS=""
 while (( "$#" )); do
@@ -243,19 +92,16 @@ while (( "$#" )); do
       BUILD_BINARY=false
       shift
       ;;
-    # Skip code signing process
+    # Skip code signing (the default).
     --nosign)
       echo "Skipping code signing."
-      CODESIGN=false
       SELFSIGN=false
       shift
       ;;
-    # Sign with a local Apple Development cert instead of the official Warp cert.
-    # Useful for local debug builds when you don't have access to the company signing key.
-    # Falls back to ad-hoc signing if no Apple Development cert is found.
+    # Sign with a local Apple Development cert. Falls back to ad-hoc signing if no Apple
+    # Development cert is found.
     --selfsign)
       echo "Self-signing enabled."
-      CODESIGN=false
       SELFSIGN=true
       shift
       ;;
@@ -319,12 +165,6 @@ while (( "$#" )); do
         exit 1
       fi
       ;;
-    # Read codesigning passwords from environment variables instead of GCP secret manager
-    --read-passwords-from-env)
-        echo "Reading codesigning passwords from env."
-        READ_PASSWORDS_FROM_ENV=true
-        shift
-        ;;
     --features)
       if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
         echo "Adding Cargo features: $2"
@@ -337,8 +177,8 @@ while (( "$#" )); do
       ;;
     --artifact)
       if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
-        if [[ "$2" != "app" && "$2" != "cli" && "$2" != "tui" ]]; then
-          echo "Error: --artifact must be 'app', 'cli', or 'tui', got '$2'" >&2
+        if [[ "$2" != "app" && "$2" != "cli" ]]; then
+          echo "Error: --artifact must be 'app' or 'cli', got '$2'" >&2
           exit 1
         fi
         ARTIFACT="$2"
@@ -361,9 +201,7 @@ eval set -- "$PARAMS"
 if [[ $DEBUG = true ]]; then
   CARGO_PROFILE="dev"
 else
-  if [[ "$ARTIFACT" == "tui" ]]; then
-    CARGO_PROFILE="release-tui"
-  elif [[ "$ARTIFACT" == "cli" ]]; then
+  if [[ "$ARTIFACT" == "cli" ]]; then
     CARGO_PROFILE="release-cli"
   else
     CARGO_PROFILE="release-lto"
@@ -420,21 +258,6 @@ if [[ "$ARTIFACT" == cli ]]; then
   UNIVERSAL_BINARY=false
   OPEN_AFTER_BUNDLE=false
   FEATURES="$FEATURES,standalone"
-elif [[ "$ARTIFACT" == tui ]]; then
-  # The TUI is a separate console crate (`warp_tui`) with its own per-channel
-  # bins and a minimal feature set, so it does NOT reuse the app's accumulated
-  # FEATURES. It is inherently headless (via `warp`'s `tui` feature). It needs
-  # `release_bundle` to embed the channel config, plus `standalone` so
-  # `bundled_resources_dir()` resolves the sibling `resources/` dir next to the
-  # binary (the TUI is not shipped inside a `.app` bundle).
-  UNIVERSAL_BINARY=false
-  OPEN_AFTER_BUNDLE=false
-  case "$RELEASE_CHANNEL" in
-    local) WARP_BIN="warp-tui" ;;
-    oss) WARP_BIN="warp-tui-oss" ;;
-    *) WARP_BIN="warp-tui-$RELEASE_CHANNEL" ;;
-  esac
-  WARP_TUI_FEATURES="release_bundle,standalone,voice_input"
 elif [[ "$ARTIFACT" == app ]]; then
   # All channels ship the v3 classifier and v2 heuristic.
   FEATURES="$FEATURES,gui,nld_classifier_v3,nld_heuristic_v2"
@@ -449,13 +272,9 @@ fi
 # then exit.  We use this script to invoke `cargo check` to ensure that we are
 # using the same feature flags and profile that we would be using in production.
 if [[ "$CHECK_ONLY" == "true" ]]; then
-  if [[ "$ARTIFACT" == "tui" ]]; then
-    cargo check -p warp_tui --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$WARP_TUI_FEATURES"
-  else
-    cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
-    if [[ $UNIVERSAL_BINARY = true && "$ARTIFACT" != "cli" ]]; then
-      cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$ADDITIONAL_TARGET" --features "$FEATURES"
-    fi
+  cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
+  if [[ $UNIVERSAL_BINARY = true && "$ARTIFACT" != "cli" ]]; then
+    cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$ADDITIONAL_TARGET" --features "$FEATURES"
   fi
   exit 0
 fi
@@ -677,84 +496,14 @@ elif [[ "$ARTIFACT" == "cli" ]]; then
 
   # Set the primary binary path to output.
   BINARY_PATH="$OUT_DIR/$WARP_BIN"
-elif [[ "$ARTIFACT" == "tui" ]]; then
-  if [[ $BUILD_BINARY == true ]]; then
-    echo "Building $WARP_BIN ($DEFAULT_TARGET) for channel $RELEASE_CHANNEL with profile $CARGO_PROFILE"
-    cargo build -p warp_tui --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$WARP_TUI_FEATURES"
-  else
-    echo "Skipping binary build due to --skip-build flag"
-  fi
-
-  echo "Copying binary into $OUT_DIR/$WARP_BIN"
-  cp "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" "$OUT_DIR/$WARP_BIN"
-
-  if [[ -n "$TARGET_ARCH" && -e "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" ]]; then
-    echo "Copying .dSYM into $OUT_DIR/$WARP_BIN.dSYM"
-    cp -HR "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" "$OUT_DIR/"
-  fi
-
-  # Ship bundled skills + settings schema next to the binary. The standalone TUI
-  # resolves this `resources/` dir relative to its own executable at runtime.
-  # Fonts are compiled into the binary, so they are intentionally absent here.
-  echo "Preparing TUI resources directory"
-  BUNDLED_RESOURCES_DIR="$OUT_DIR/resources"
-  "$WORKSPACE_ROOT_DIR/script/prepare_bundled_resources" "$BUNDLED_RESOURCES_DIR" "$RELEASE_CHANNEL" "$CARGO_PROFILE"
-
-  BINARY_PATH="$OUT_DIR/$WARP_BIN"
 else
   echo "Unsupported artifact: $ARTIFACT" >&2
   exit 1
 fi
 
-##########################################
-## Step 2: Create code-signing keychain ##
-##########################################
-
-if [[ $READ_PASSWORDS_FROM_ENV != true ]]; then
-  echo "Skipping code-signing because passwords are not available in environment."
-  CODESIGN=false
-fi
-
-if [[ $CODESIGN = true ]]; then
-  # TODO - does this need to change per user?  Seems like it's tied to the WARP_NOTARIZATION_PASSWORD password.
-  APPLE_TEAM_ID="2BBY89MBSN"
-  CODESIGN_KEYCHAIN_NAME="warp-codesign-keychain"
-
-  echo "Starting codesigning..."
-
-  if [[ $READ_PASSWORDS_FROM_ENV = true ]]; then
-    if [ -z "$WARP_NOTARIZATION_PASSWORD" ] ; then
-      echo "WARP_NOTARIZATION_PASSWORD must be set for code signing"
-      exit 1
-    fi
-
-    if [ -z "$WARP_DEVELOPER_ID_CERT_PASSWORD" ] ; then
-      echo "WARP_DEVELOPER_ID_CERT_PASSWORD must be set for code signing"
-      exit 1
-    fi
-
-    if [ -z "$WARP_CODESIGN_KEYCHAIN_PASSWORD" ] ; then
-      echo "WARP_CODESIGN_KEYCHAIN_PASSWORD must be set for code signing"
-      exit 1
-    fi
-  fi
-
-  security delete-keychain $CODESIGN_KEYCHAIN_NAME || echo "No existing keychain to clean up".
-
-  echo "Creating $CODESIGN_KEYCHAIN_NAME keychain."
-  security create-keychain -p "$WARP_CODESIGN_KEYCHAIN_PASSWORD" $CODESIGN_KEYCHAIN_NAME
-  security list-keychains -s $CODESIGN_KEYCHAIN_NAME
-  security set-keychain-settings -t 3600 -u $CODESIGN_KEYCHAIN_NAME
-
-  echo "Unlocking keychain and setting cert."
-  security unlock-keychain -p "$WARP_CODESIGN_KEYCHAIN_PASSWORD" $CODESIGN_KEYCHAIN_NAME
-  security import <(echo "$WARP_DEVELOPER_ID_CERT" | base64 -d) -f pkcs12 -P "$WARP_DEVELOPER_ID_CERT_PASSWORD" -k $CODESIGN_KEYCHAIN_NAME -T /usr/bin/codesign
-  security set-key-partition-list -S "apple-tool:,apple:" -s -k "$WARP_CODESIGN_KEYCHAIN_PASSWORD" $CODESIGN_KEYCHAIN_NAME
-fi
-
-##############################
-## Step 3: Codesign the app ##
-##############################
+####################################
+## Step 2: Self-sign the artifact ##
+####################################
 
 if [[ $SELFSIGN = true ]]; then
   SIGNING_CERT="$(security find-identity -p codesigning -v | grep "Apple Development" | awk '{print $2}' | head -1)"
@@ -767,38 +516,14 @@ if [[ $SELFSIGN = true ]]; then
   if [[ "$ARTIFACT" == app ]]; then
     echo "Self-signing $BUNDLE_DIR/$WARP_APP_NAME.app with ${SIGNING_CERT}..."
     codesign --force --deep --options runtime --sign "$SIGNING_CERT" "$BUNDLE_DIR/$WARP_APP_NAME.app" --entitlements script/Debug-Entitlements.plist
-  elif [[ "$ARTIFACT" == cli || "$ARTIFACT" == tui ]]; then
+  elif [[ "$ARTIFACT" == cli ]]; then
     echo "Self-signing $OUT_DIR/$WARP_BIN with ${SIGNING_CERT}..."
     codesign --force --options runtime --sign "$SIGNING_CERT" "$OUT_DIR/$WARP_BIN" --entitlements script/Debug-Entitlements.plist
-  fi
-elif [[ $CODESIGN = true ]]; then
-  if [[ "$ARTIFACT" == app ]]; then
-    echo "Codesigning $BUNDLE_DIR/$WARP_APP_NAME.app..."
-    # Use --deep so we sign bundled frameworks as well
-    codesign_with_retry --deep -f -o runtime --timestamp -s "$APPLE_TEAM_ID" "$BUNDLE_DIR/$WARP_APP_NAME.app" --entitlements script/Entitlements.plist
-  elif [[ "$ARTIFACT" == cli || "$ARTIFACT" == tui ]]; then
-    echo "Codesigning $OUT_DIR/$WARP_BIN..."
-    codesign_with_retry -f -o runtime --timestamp -s "$APPLE_TEAM_ID" "$OUT_DIR/$WARP_BIN" --entitlements script/Entitlements.plist
-
-    # Create the .zip for notarization in a separate location - otherwise, Apple's codesigning
-    # tools decide that it's a sealed resource that belongs to the binary and needs to also be signed.
-    NOTARIZATION_ARTIFACT="$BUNDLE_DIR/${WARP_BIN}_notarize.zip"
-    if [[ -e "$NOTARIZATION_ARTIFACT" ]]; then
-      echo "Removing old notarization artifact..."
-      rm "$NOTARIZATION_ARTIFACT"
-    fi
-
-    # Create a .zip archive to notarize.
-    ditto -c -k "$OUT_DIR/$WARP_BIN" "$NOTARIZATION_ARTIFACT"
-    
-    # It's not possible to staple notarization tickets to standalone binaries:
-    # https://developer.apple.com/documentation/security/customizing-the-notarization-workflow?language=objc#Staple-the-ticket-to-your-distribution
-    STAPLE_TICKET=false
   fi
 fi
 
 ########################
-## Step 4: Create DMG ##
+## Step 3: Create DMG ##
 ########################
 
 if [[ "$ARTIFACT" = app ]]; then
@@ -836,60 +561,17 @@ if [[ "$ARTIFACT" = app ]]; then
     create-dmg "${args[@]}"
   }
 
-  # If we're codesigning, stage the signed app and use that to create the DMG.
-  # Otherwise, create a DMG from the bundle dir directly.
-  if [[ $CODESIGN = true ]]; then
-    if test -d "$DMG_DIR"; then
-      echo "Clearing old dmg directory $DMG_DIR"
-      rm -r "$DMG_DIR"
-    fi
-    echo "Creating $DMG_DIR"
-    mkdir -p "$DMG_DIR"
-    cp -R "$BUNDLE_DIR/$WARP_APP_NAME.app" "$DMG_DIR"
+  echo "Creating $DMG_DIR"
+  mkdir -p "$DMG_DIR"
 
-    create_warp_dmg "$DMG_DIR"
+  echo "Cleaning up any existing DMG files before creating new ones..."
+  cleanup_dmg_files "$DMG_DIR"
 
-    echo "Codesigning $DMG_DIR/$DMG_NAME..."
-    codesign_with_retry -f -s "$APPLE_TEAM_ID" --timestamp "$DMG_DIR/$DMG_NAME"
-
-    NOTARIZATION_ARTIFACT="$DMG_DIR/$DMG_NAME"
-    STAPLE_TICKET=true
-  else
-    echo "Creating $DMG_DIR"
-    mkdir -p "$DMG_DIR"
-
-    echo "Cleaning up any existing DMG files before creating new ones..."
-    cleanup_dmg_files "$DMG_DIR"
-
-    create_warp_dmg "$BUNDLE_DIR"
-  fi
+  create_warp_dmg "$BUNDLE_DIR"
 fi
-
-##############################
-## Step 5: Notarize the app ##
-##############################
-
-if [[ $CODESIGN = true ]]; then
-  echo "Uploading $NOTARIZATION_ARTIFACT to Apple for notarization..."
-  notarize_artifact "$NOTARIZATION_ARTIFACT"
-
-  if [[ $STAPLE_TICKET = true ]]; then
-    echo "Attempting to staple the notarization ticket to $NOTARIZATION_ARTIFACT..."
-    xcrun stapler staple "$NOTARIZATION_ARTIFACT"
-  fi
-
-  # Verify the notarization results (this is format-dependent)
-  echo "Verifying notarization ticket..."
-  if [[ "$ARTIFACT" = app ]]; then
-    xcrun stapler validate "$DMG_DIR/$DMG_NAME"
-  elif [[ "$ARTIFACT" = cli || "$ARTIFACT" = tui ]]; then
-    spctl -a -t open --context context:primary-signature -vv "$OUT_DIR/$WARP_BIN"
-  fi
-fi
-
 
 #######################################
-## Step 6: Copy and output artifacts ##
+## Step 4: Copy and output artifacts ##
 #######################################
 
 if [[ "$ARTIFACT" = app ]]; then

@@ -33,7 +33,6 @@ use serde::{Deserialize, Serialize};
 use task::TaskId;
 pub use telemetry::AIIdentifiers;
 use uuid::Uuid;
-use warp_core::channel::ChannelState;
 use warp_editor::render::model::LineCount;
 use warp_multi_agent_api::{AgentEvent, AgentType, diff_hunk as diff_hunk_api};
 
@@ -769,11 +768,9 @@ impl RenderableAIError {
     }
 
     /// Whether the failed-output UI should be suppressed while an automatic resume is in
-    /// flight. Release builds stay quiet so transient blips that recover on their own
-    /// don't surface an alarming error; dogfood builds (Local/Dev) keep the old, more
-    /// aggressive behavior so developers still see every transport failure.
+    /// flight, so transient blips that recover on their own don't surface an alarming error.
     pub fn should_suppress_during_recovery(&self) -> bool {
-        self.will_attempt_resume() && !ChannelState::channel().is_dogfood()
+        self.will_attempt_resume()
     }
 
     /// Constructs a generic [`RenderableAIError::Other`] from a message.

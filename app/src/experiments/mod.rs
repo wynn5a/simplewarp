@@ -24,7 +24,6 @@ use warp_errors::report_error;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::auth::auth_state::AuthStateProvider;
-use crate::channel::{Channel, ChannelState};
 
 /// Number of buckets we are using to partition user traffic. The largest valid
 /// bucket index is NUM_BUCKETS - 1.
@@ -245,10 +244,6 @@ pub trait Experiment<T: Experiment<T>>: FromStr {
     /// test with a hypothesis (e.g. the experiment is used for an incremental
     /// rollout). Otherwise, the randomness of the data should be preserved and
     /// we should not allow overrides.
-    ///
-    /// This method should generally not be used in isolation. Instead, use
-    /// [`Self::can_use_user_override`], which calls this method _and_ checks
-    /// the current channel to see if overrides are allowed.
     fn allow_user_overrides_in_stable() -> bool;
 
     /// Returns the group id from the current experiment group.
@@ -306,9 +301,7 @@ pub trait Experiment<T: Experiment<T>>: FromStr {
 
         let mut assigned_group = None;
 
-        // Check for user override. Only used in local and dev builds or if the
-        // this experiment allows overrides.
-        if Self::can_use_user_override(ChannelState::channel())
+        if Self::allow_user_overrides_in_stable()
             && let Some(variant) = USER_OVERRIDES.get(Self::name())
         {
             match T::from_str(&variant) {
@@ -347,13 +340,6 @@ pub trait Experiment<T: Experiment<T>>: FromStr {
     #[allow(dead_code)]
     fn set_override<S: Experiment<T>>(override_group: S) {
         GROUP_ASSIGNMENTS.insert(Self::name(), override_group.variant());
-    }
-
-    /// Returns whether user overrides should be allowed based on the channel and
-    /// experiment setting. User overrides are always allowed in Local and Dev
-    /// channels, or if the specific experiment supports overrides.
-    fn can_use_user_override(channel: Channel) -> bool {
-        Self::allow_user_overrides_in_stable() || channel.is_dogfood()
     }
 }
 

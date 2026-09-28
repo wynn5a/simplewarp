@@ -40,14 +40,12 @@ fn test_all_known_signature_names_are_within_the_length_cap() {
         track_longest_name(&signature, &mut longest);
     }
 
-    for channel in [Channel::Stable, Channel::Preview, Channel::Dev] {
-        let mut clap_cmd = <warp_cli::Args as clap::CommandFactory>::command();
-        let signature = crate::signatures::clap::signature_from_clap_command(
-            &mut clap_cmd,
-            channel.cli_command_name(),
-        );
-        track_longest_name(&signature, &mut longest);
-    }
+    let mut clap_cmd = <warp_cli::Args as clap::CommandFactory>::command();
+    let signature = crate::signatures::clap::signature_from_clap_command(
+        &mut clap_cmd,
+        Channel::Oss.cli_command_name(),
+    );
+    track_longest_name(&signature, &mut longest);
 
     let (max_len, longest_name) = longest;
     assert!(
