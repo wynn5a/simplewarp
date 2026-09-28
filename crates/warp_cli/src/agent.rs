@@ -332,9 +332,8 @@ pub struct RunAgentArgs {
     #[arg(long = "environment", short = 'e', value_name = "ID")]
     pub environment: Option<String>,
 
-    /// Keep the agent's session open after the conversation completes.
-    ///
-    /// This is useful when you want to keep the session alive for follow-up interactions.
+    /// Keep the agent process running after the conversation completes, so a follow-up can
+    /// resume the conversation. The process exits once the window passes with no activity.
     ///
     /// You can optionally provide a duration (e.g. `--idle-on-complete 10m`).
     #[arg(
@@ -345,29 +344,6 @@ pub struct RunAgentArgs {
         hide = true
     )]
     pub idle_on_complete: Option<humantime::Duration>,
-
-    /// Keep the agent's session open after the conversation ends in a terminal error, so a human
-    /// can attach to the failed run and debug in it. The agent process is the shared-session
-    /// sharer, so without this the session dies with the process.
-    ///
-    /// An idle window, not a fixed one: a follow-up cancels the pending exit.
-    ///
-    /// Deliberately separate from `--idle-on-complete`, which covers the success/blocked/cancelled
-    /// lifecycle. Neither flag is a fallback for the other.
-    ///
-    /// Cloud workers set this through `OZ_IDLE_ON_FAIL` rather than the flag, so that a pinned
-    /// CLI predating this option ignores it instead of rejecting an unknown argument.
-    ///
-    /// You can optionally provide a duration (e.g. `--idle-on-fail 10m`).
-    #[arg(
-        long = "idle-on-fail",
-        value_name = "DURATION",
-        env = "OZ_IDLE_ON_FAIL",
-        num_args = 0..=1,
-        default_missing_value = "15m",
-        hide = true
-    )]
-    pub idle_on_fail: Option<humantime::Duration>,
 
     #[command(flatten)]
     pub snapshot: SnapshotArgs,

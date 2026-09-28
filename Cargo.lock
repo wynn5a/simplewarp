@@ -1701,30 +1701,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "build_cache"
-version = "0.1.0"
-dependencies = [
- "async-io",
- "command",
- "futures",
- "futures-lite 1.13.0",
- "hex",
- "instant",
- "is_executable",
- "itertools 0.14.0",
- "log",
- "nix 0.26.4",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror 2.0.17",
- "tracing",
- "warp_core",
- "warp_errors",
-]
-
-[[package]]
 name = "built"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12329,7 +12305,6 @@ dependencies = [
  "block",
  "blocking",
  "bounded-vec-deque",
- "build_cache",
  "byte-unit",
  "bytecount",
  "bytemuck",
@@ -12652,7 +12627,6 @@ dependencies = [
  "humantime",
  "serde",
  "serde_json",
- "serial_test",
  "url",
  "uuid",
  "warp_core",
@@ -12849,7 +12823,6 @@ name = "warp_isolation_platform"
 version = "0.1.0"
 dependencies = [
  "log",
- "serde",
  "warp_core",
 ]
 

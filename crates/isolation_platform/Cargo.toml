@@ -9,5 +9,4 @@ edition = "2024"
 
 [dependencies]
 log.workspace = true
-serde.workspace = true
 warp_core.workspace = true

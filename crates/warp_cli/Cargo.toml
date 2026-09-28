@@ -35,5 +35,4 @@ integration_tests = []
 
 
 [dev-dependencies]
-serial_test = "0.8.0"
 warp_core = { workspace = true, features = ["test-util"] }

@@ -9,8 +9,6 @@ use warp_core::{safe_info, safe_warn};
 use warpui::{ModelContext, ModelSpawner, SingletonEntity};
 
 use super::AgentDriverError;
-#[cfg(feature = "local_fs")]
-use super::cache_setup;
 use super::terminal::TerminalDriver;
 use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
 use crate::ai::cloud_environments::{CodeForge, SourceRepo};
@@ -77,18 +75,16 @@ pub(crate) fn prepare_environment(
     }
 }
 
-/// Merge environment repositories with task-level repositories, preserving
-/// environment order and de-duplicating by forge plus case-insensitive owner
-/// and repository names.
-pub(super) fn merge_repos_deduped(
-    environment_repos: Vec<SourceRepo>,
-    additional_repos: Vec<SourceRepo>,
+/// De-duplicate environment repositories by forge plus case-insensitive owner and repository
+/// names, preserving order.
+pub(super) fn dedupe_repos(
+    repos: Vec<SourceRepo>,
 ) -> Result<Vec<SourceRepo>, PrepareEnvironmentError> {
     let mut seen = HashSet::new();
     let mut names = HashMap::<String, (String, CodeForge)>::new();
-    let mut merged = Vec::with_capacity(environment_repos.len() + additional_repos.len());
+    let mut deduped = Vec::with_capacity(repos.len());
 
-    for repo in environment_repos.into_iter().chain(additional_repos) {
+    for repo in repos {
         let forge = repo.code_forge.unwrap_or_default();
         let key = (forge, repo.owner.to_lowercase(), repo.repo.to_lowercase());
         if !seen.insert(key) {
@@ -106,56 +102,10 @@ pub(super) fn merge_repos_deduped(
             });
         }
 
-        merged.push(repo);
+        deduped.push(repo);
     }
 
-    Ok(merged)
-}
-
-/// Environment variable carrying the authenticated remote URL of a Factory's
-/// definition repository. Dispatch attaches it only to runs that execute as a
-/// Factory agent whose Factory definition lives in a Warp-managed repository.
-const FACTORY_REPO_CLONE_URL_ENV_VAR: &str = "WARP_FACTORY_REPO_CLONE_URL";
-
-/// Environment variable carrying the directory, relative to the working
-/// directory, that the Factory definition repository is cloned into.
-const FACTORY_REPO_DIR_ENV_VAR: &str = "WARP_FACTORY_REPO_DIR";
-
-/// Prepends the setup command that clones a Factory's definition repository
-/// when the dispatch attached the clone variables to this run, so the checkout
-/// exists before user-declared setup commands run.
-pub(super) fn prepend_factory_definition_clone(setup_commands: &mut Vec<String>) {
-    let clone_url = std::env::var(FACTORY_REPO_CLONE_URL_ENV_VAR).unwrap_or_default();
-    let clone_dir = std::env::var(FACTORY_REPO_DIR_ENV_VAR).unwrap_or_default();
-    prepend_factory_definition_clone_for_values(&clone_url, &clone_dir, setup_commands);
-}
-
-fn prepend_factory_definition_clone_for_values(
-    clone_url: &str,
-    clone_dir: &str,
-    setup_commands: &mut Vec<String>,
-) {
-    if clone_url.trim().is_empty() || clone_dir.trim().is_empty() {
-        return;
-    }
-    // Environments provisioned before run-scoped cloning still persist their
-    // own copy of the clone command; leave that copy in charge rather than
-    // attempting the checkout twice.
-    if setup_commands
-        .iter()
-        .any(|command| command.contains(FACTORY_REPO_CLONE_URL_ENV_VAR))
-    {
-        return;
-    }
-    // The command expands the variables in the session shell instead of
-    // inlining their values so the credential-bearing URL never appears in
-    // command text. There is deliberately no existence guard: a bare clone
-    // into an already-present target directory fails, which is treated as a
-    // fatal setup-command error upstream.
-    setup_commands.insert(
-        0,
-        format!("git clone \"${FACTORY_REPO_CLONE_URL_ENV_VAR}\" \"${FACTORY_REPO_DIR_ENV_VAR}\""),
-    );
+    Ok(deduped)
 }
 
 async fn prepare_environment_impl(
@@ -188,22 +138,6 @@ async fn prepare_environment_impl(
                 Ok::<(), PrepareEnvironmentError>(())
             })
             .await?;
-    }
-
-    #[cfg(feature = "local_fs")]
-    if let Some(cache_root) = cache_setup::enabled_cache_root() {
-        log::info!("Configuring build cache");
-        let result = setup_events
-            .record_result(
-                SetupStep::CacheSetup,
-                cache_setup::setup_caches(cache_root, source_repos, working_dir, spawner),
-            )
-            .await;
-        if let Err(error) = result {
-            log::warn!("Build cache setup degraded; continuing environment preparation: {error}");
-        }
-    } else {
-        log::info!("Build cache not available");
     }
 
     let has_setup_commands = !setup_commands.is_empty();

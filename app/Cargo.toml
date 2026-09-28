@@ -266,7 +266,6 @@ warp_ripgrep.workspace = true
 local_inference.workspace = true
 async-io.workspace = true
 axum.workspace = true
-build_cache.workspace = true
 cloud_object_persistence.workspace = true
 comfy-table = "7.1.4"
 inquire = "0.9.1"

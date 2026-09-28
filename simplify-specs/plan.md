@@ -503,6 +503,30 @@ Queue, in order:
    methods (`delete_document`, `is_document_visible*`, `get_content`); `--idle-on-fail` /
    `--idle-on-complete` docs still describe the shared session.
 
+15. ~~Warp-hosted agent sandbox residue~~ — **4hd done (2026-09-28).** −3.4k lines in 22 files.
+   `agent_sdk/driver/cache_setup` + `crates/build_cache` (spacectl cache mounts; ran only when
+   `detect()` said Namespace *and* Warp's infra set `WARP_BUILD_CACHE_ROOT`) with
+   `SetupStep::CacheSetup`. `IsolationPlatformType::DockerSandbox` and the server-set
+   `WARP_ISOLATION_PLATFORM` override (and the enum's unused `Serialize` / `serde` dep).
+   `WARP_SANDBOX_DEADLINE` pre-kill timer (server-injected; the SIGTERM → finalize-then-exit path
+   stays, it is generic). The dispatch-set Factory definition clone (`WARP_FACTORY_REPO_CLONE_URL` /
+   `_DIR`) and `AgentDriverOptions::additional_source_repos` (server-supplied, always empty);
+   `merge_repos_deduped` → `dedupe_repos` over the environment's repos. `--idle-on-fail` /
+   `OZ_IDLE_ON_FAIL` (kept a failed run's shared session attachable; headless and unshared, it only
+   delayed exit): flag, `linger_after_failure`, `arm_debug_window`; a terminal error now always exits
+   at once, `--idle-on-fail` is an unknown argument. Kept, local: `detect()` for Docker /
+   Kubernetes / Namespace (all read as `is_some()`: Linux OOM-score bump, `IS_SANDBOX`, harness
+   skill-dir publishing), `prepare_environment` (repo clone + setup commands; also the local Docker
+   sandbox), `--idle-on-complete` (docs reworded; a follow-up can still resume a completed run).
+   Tests 4,279 default / 4,280 simplewarp (−8, deleted with their code: 3 cache-setup, 4 factory
+   clone, 1 idle-on-fail window; merge tests re-pinned to `dedupe_repos`), `warp_cli` 55 passed
+   (−6 idle-on-fail parser tests), 0 failed. Follow-ups: the driver's global-skill pipeline
+   (`AuthState::global_skills()` is always empty: no user is ever set; `resolve_global_skills`,
+   `clone_global_skill_repos`, `load_global_skills`, `ai/skills/global_skills.rs`);
+   `AgentDriverOptions::task_id` / `parent_run_id` (always `None` from the CLI); `--environment`
+   only resolves `ServerId`s, which no local environment has; `--snapshot-upload-timeout` and the
+   rest of the snapshot args (check where snapshots go); recording finalization/upload.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

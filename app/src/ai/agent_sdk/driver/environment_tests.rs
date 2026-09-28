@@ -8,7 +8,7 @@ use warp_core::command::ExitCode;
 
 use super::{
     PrepareEnvironmentError, build_parallel_clone_command, checkout_command_for, checkout_result,
-    merge_repos_deduped, single_repo_name,
+    dedupe_repos, single_repo_name,
 };
 use crate::ai::cloud_environments::SourceRepo;
 use crate::terminal::shell::ShellType;
@@ -29,15 +29,15 @@ fn repo(forge: CodeForge, owner: &str, name: &str) -> SourceRepo {
 }
 
 #[test]
-fn merge_repos_dedupes_case_insensitively_and_preserves_environment_order() {
-    let environment = vec![repo(CodeForge::GitHub, "WarpDotDev", "Warp")];
-    let additional = vec![
+fn dedupe_repos_is_case_insensitive_and_preserves_order() {
+    let repos = vec![
+        repo(CodeForge::GitHub, "WarpDotDev", "Warp"),
         repo(CodeForge::GitHub, "warpdotdev", "warp"),
         repo(CodeForge::GitHub, "warpdotdev", "warp-server"),
     ];
 
     assert_eq!(
-        merge_repos_deduped(environment, additional).unwrap(),
+        dedupe_repos(repos).unwrap(),
         vec![
             repo(CodeForge::GitHub, "WarpDotDev", "Warp"),
             repo(CodeForge::GitHub, "warpdotdev", "warp-server"),
@@ -46,24 +46,23 @@ fn merge_repos_dedupes_case_insensitively_and_preserves_environment_order() {
 }
 
 #[test]
-fn merge_repos_keeps_distinct_repositories() {
-    let merged = merge_repos_deduped(
-        vec![repo(CodeForge::GitHub, "a", "widget")],
-        vec![
-            repo(CodeForge::GitHub, "b", "widget-api"),
-            repo(CodeForge::GitLab, "a", "widget-web"),
-        ],
-    )
+fn dedupe_repos_keeps_distinct_repositories() {
+    let deduped = dedupe_repos(vec![
+        repo(CodeForge::GitHub, "a", "widget"),
+        repo(CodeForge::GitHub, "b", "widget-api"),
+        repo(CodeForge::GitLab, "a", "widget-web"),
+    ])
     .unwrap();
 
-    assert_eq!(merged.len(), 3);
+    assert_eq!(deduped.len(), 3);
 }
+
 #[test]
-fn merge_repos_rejects_clone_directory_collisions() {
-    let error = merge_repos_deduped(
-        vec![repo(CodeForge::GitHub, "a", "widget")],
-        vec![repo(CodeForge::GitLab, "b", "widget")],
-    )
+fn dedupe_repos_rejects_clone_directory_collisions() {
+    let error = dedupe_repos(vec![
+        repo(CodeForge::GitHub, "a", "widget"),
+        repo(CodeForge::GitLab, "b", "widget"),
+    ])
     .unwrap_err();
 
     assert!(matches!(
@@ -77,17 +76,8 @@ fn merge_repos_rejects_clone_directory_collisions() {
 }
 
 #[test]
-fn merge_repos_supports_additional_only_and_empty_inputs() {
-    let additional = vec![repo(CodeForge::GitHub, "warpdotdev", "warp")];
-    assert_eq!(
-        merge_repos_deduped(Vec::new(), additional.clone()).unwrap(),
-        additional
-    );
-    assert!(
-        merge_repos_deduped(Vec::new(), Vec::new())
-            .unwrap()
-            .is_empty()
-    );
+fn dedupe_repos_accepts_empty_input() {
+    assert!(dedupe_repos(Vec::new()).unwrap().is_empty());
 }
 
 #[test]
@@ -613,61 +603,4 @@ fn no_checkout_ref_leaves_clone_on_default_branch() {
         git_stdout(&["rev-parse", "HEAD"], &repo_dir),
         fixture.base_sha
     );
-}
-
-#[test]
-fn factory_clone_is_prepended_when_clone_values_are_present() {
-    let mut setup_commands = vec!["make setup".to_string()];
-    super::prepend_factory_definition_clone_for_values(
-        "https://t:token@definitions.example.com/team/factory.git",
-        "acme_factory_repo",
-        &mut setup_commands,
-    );
-    assert_eq!(
-        setup_commands,
-        vec![
-            "git clone \"$WARP_FACTORY_REPO_CLONE_URL\" \"$WARP_FACTORY_REPO_DIR\"".to_string(),
-            "make setup".to_string(),
-        ]
-    );
-}
-
-#[test]
-fn factory_clone_is_skipped_without_clone_values() {
-    let mut setup_commands = vec!["make setup".to_string()];
-    super::prepend_factory_definition_clone_for_values("", "", &mut setup_commands);
-    super::prepend_factory_definition_clone_for_values("url", "  ", &mut setup_commands);
-    super::prepend_factory_definition_clone_for_values("  ", "dir", &mut setup_commands);
-    assert_eq!(setup_commands, vec!["make setup".to_string()]);
-}
-
-#[test]
-fn factory_clone_defers_to_a_persisted_environment_copy() {
-    // Environments provisioned before run-scoped cloning persist their own
-    // copy of the clone command. Detection keys off the URL env var name,
-    // not the command's exact shape, so this must still be recognized and
-    // left alone rather than duplicated.
-    let persisted =
-        "git clone \"$WARP_FACTORY_REPO_CLONE_URL\" \"$WARP_FACTORY_REPO_DIR\"".to_string();
-    let mut setup_commands = vec![persisted.clone(), "make setup".to_string()];
-    super::prepend_factory_definition_clone_for_values(
-        "https://t:token@definitions.example.com/team/factory.git",
-        "acme_factory_repo",
-        &mut setup_commands,
-    );
-    assert_eq!(setup_commands, vec![persisted, "make setup".to_string()]);
-}
-
-#[test]
-fn factory_clone_defers_to_a_persisted_bare_clone_copy() {
-    // A persisted copy in the bare (no target dir) shape must also be
-    // recognized, since detection is shape-independent.
-    let persisted = "git clone \"$WARP_FACTORY_REPO_CLONE_URL\"".to_string();
-    let mut setup_commands = vec![persisted.clone(), "make setup".to_string()];
-    super::prepend_factory_definition_clone_for_values(
-        "https://t:token@definitions.example.com/team/factory.git",
-        "acme_factory_repo",
-        &mut setup_commands,
-    );
-    assert_eq!(setup_commands, vec![persisted, "make setup".to_string()]);
 }

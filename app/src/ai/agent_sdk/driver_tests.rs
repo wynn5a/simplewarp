@@ -316,29 +316,18 @@ fn error_status() -> SDKConversationOutputStatus {
 }
 
 #[test]
-fn terminal_error_defers_by_idle_on_fail() {
-    // The agent process is the shared-session sharer, so a failed run must be able to outlive
-    // its own failure for the session to stay attachable while the sandbox is retained.
+fn terminal_error_exits_immediately() {
     let window =
-        idle_window_for_terminal_status(&error_status(), None, Some(Duration::from_secs(15 * 60)));
-
-    assert_eq!(window, Some(Duration::from_secs(15 * 60)));
-}
-
-#[test]
-fn terminal_error_exits_immediately_without_idle_on_fail() {
-    let window =
-        idle_window_for_terminal_status(&error_status(), Some(Duration::from_secs(45 * 60)), None);
+        idle_window_for_terminal_status(&error_status(), Some(Duration::from_secs(45 * 60)));
 
     assert_eq!(
         window, None,
-        "--idle-on-complete must not act as a fallback for a terminal error"
+        "--idle-on-complete must not apply to a terminal error"
     );
 }
 
 #[test]
 fn non_error_completion_defers_by_idle_on_complete() {
-    // The failure window must not leak into the success/blocked/cancelled lifecycle.
     let cases = [
         ("success", SDKConversationOutputStatus::Success),
         (
@@ -356,11 +345,7 @@ fn non_error_completion_defers_by_idle_on_complete() {
     ];
 
     for (label, status) in cases {
-        let window = idle_window_for_terminal_status(
-            &status,
-            Some(Duration::from_secs(45 * 60)),
-            Some(Duration::from_secs(15 * 60)),
-        );
+        let window = idle_window_for_terminal_status(&status, Some(Duration::from_secs(45 * 60)));
 
         assert_eq!(
             window,
@@ -371,47 +356,28 @@ fn non_error_completion_defers_by_idle_on_complete() {
 }
 
 #[test]
-fn failed_cli_harness_session_defers_by_idle_on_fail() {
-    // The flag lives on `warp agent run`, so it has to behave the same whichever harness the run
-    // uses; a failed CLI session is the same "process is the session sharer" situation.
+fn cli_harness_session_idle_window_follows_idle_on_complete() {
     let idle_on_complete = Some(Duration::from_secs(45 * 60));
-    let idle_on_fail = Some(Duration::from_secs(15 * 60));
 
     let failed = CLIAgentSessionStatus::Failed {
         error_type: None,
         message: Some("boom".to_string()),
     };
     assert_eq!(
-        idle_window_for_cli_session_status(&failed, idle_on_complete, idle_on_fail),
-        idle_on_fail
-    );
-    assert_eq!(
-        idle_window_for_cli_session_status(&failed, idle_on_complete, None),
+        idle_window_for_cli_session_status(&failed, idle_on_complete),
         None,
-        "--idle-on-complete must not act as a fallback for a failed CLI session"
+        "--idle-on-complete must not apply to a failed CLI session"
     );
     assert_eq!(
-        idle_window_for_cli_session_status(
-            &CLIAgentSessionStatus::Success,
-            idle_on_complete,
-            idle_on_fail
-        ),
+        idle_window_for_cli_session_status(&CLIAgentSessionStatus::Success, idle_on_complete),
         idle_on_complete
     );
     assert_eq!(
-        idle_window_for_cli_session_status(
-            &CLIAgentSessionStatus::InProgress,
-            idle_on_complete,
-            idle_on_fail
-        ),
+        idle_window_for_cli_session_status(&CLIAgentSessionStatus::InProgress, idle_on_complete),
         None
     );
     assert_eq!(
-        idle_window_for_cli_session_status(
-            &CLIAgentSessionStatus::Cancelled,
-            idle_on_complete,
-            idle_on_fail
-        ),
+        idle_window_for_cli_session_status(&CLIAgentSessionStatus::Cancelled, idle_on_complete),
         idle_on_complete,
         "a Ctrl-C cancellation is a non-error completion, like Success or Blocked"
     );
