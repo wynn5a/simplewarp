@@ -23,7 +23,7 @@ use warpui::{
 };
 
 use super::model::NotebooksEditorModel;
-use super::view::{EditorViewEvent, RichTextEditorView};
+use super::view::RichTextEditorView;
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions};
 use crate::ui_components::icons::Icon;
@@ -618,7 +618,6 @@ impl FindBarState {
     pub fn show(&mut self, ctx: &mut ViewContext<RichTextEditorView>) {
         self.is_open = true;
         ctx.focus(&self.bar_view);
-        ctx.emit(EditorViewEvent::OpenedFindBar);
         ctx.notify();
     }
 

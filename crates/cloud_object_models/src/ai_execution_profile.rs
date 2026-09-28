@@ -378,7 +378,7 @@ pub struct AIExecutionProfile {
 
     pub context_window_limit: Option<u32>,
 
-    /// Whether plans created by the agent should be automatically saved as notebooks
+    /// Orphaned: kept so persisted profiles round-trip; nothing reads it.
     pub autosync_plans_to_warp_drive: bool,
 
     /// Whether the agent may use web search when helpful for completing tasks

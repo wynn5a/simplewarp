@@ -20,7 +20,6 @@ pub mod config_file;
 pub mod environment;
 pub mod mcp;
 pub mod model;
-pub mod share;
 pub const OZ_RUN_ID_ENV: &str = "OZ_RUN_ID";
 pub const OZ_PARENT_RUN_ID_ENV: &str = "OZ_PARENT_RUN_ID";
 pub const OZ_CLI_ENV: &str = "OZ_CLI";

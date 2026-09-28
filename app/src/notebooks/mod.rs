@@ -6,7 +6,6 @@ pub mod link;
 pub mod manager;
 pub mod notebook;
 mod styles;
-pub mod telemetry;
 
 use async_trait::async_trait;
 pub use cloud_object_models::{CloudNotebook, CloudNotebookModel, NotebookId, SerializedNotebook};

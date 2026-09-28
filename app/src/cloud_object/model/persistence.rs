@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::SyncSender;
 
 use warp_errors::report_error;
-use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
+use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::cloud_object::folders::{CloudFolder, CloudFolderModel};
 use crate::cloud_object::{
@@ -267,11 +267,10 @@ impl CloudModel {
     }
 
     /// Returns all workflow enums with a given owner.
-    pub fn workflow_enums_with_owner<'a>(
-        &'a self,
+    pub fn workflow_enums_with_owner(
+        &self,
         owner: Owner,
-        _: &'a AppContext,
-    ) -> impl Iterator<Item = &'a CloudWorkflowEnum> + 'a {
+    ) -> impl Iterator<Item = &CloudWorkflowEnum> {
         self.objects_by_id
             .values()
             .filter(move |object| !object.is_trashed(self) && object.permissions().owner == owner)

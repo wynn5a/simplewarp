@@ -16,7 +16,7 @@ use crate::ai::blocklist::{
     BlocklistAIHistoryModel, BlocklistAIPermissions, StartAgentExecutorEvent, StartAgentRequest,
 };
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
-use crate::ai::document::ai_document_model::{AIDocumentModel, AIDocumentSaveStatus};
+use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::execution_profiles::RunAgentsPermission;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManager;
@@ -26,7 +26,6 @@ use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::ids::SyncId;
 use crate::settings::PrivacySettings;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::test_util::settings::initialize_settings_for_tests_with_mode;
@@ -448,99 +447,21 @@ fn autonomous_mode_autoexecutes_and_does_not_deny_missing_api_key() {
     });
 }
 
+/// Plans are local documents, so launching children never waits on them.
 #[test]
-fn execute_leaves_plans_unsaved_since_local_notebooks_are_never_server_backed() {
+fn execute_dispatches_children_without_waiting_on_plans() {
     App::test((), |mut app| async move {
         let state = initialize_run_agents_test(&mut app, ExecutionMode::Sdk);
-        BlocklistAIHistoryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.assign_run_id_for_conversation(
-                state.conversation_id,
-                "00000000-0000-0000-0000-000000000001".to_string(),
-                None,
-                EntityId::new(),
-                ctx,
-            );
-        });
-        let unrelated_conversation_id = AIConversationId::new();
-        let (first_plan_id, second_plan_id, unrelated_plan_id) = AIDocumentModel::handle(&app)
-            .update(&mut app, |model, ctx| {
-                (
-                    model.create_document(
-                        "First plan",
-                        "# First",
-                        state.conversation_id,
-                        None,
-                        ctx,
-                    ),
-                    model.create_document(
-                        "Second plan",
-                        "# Second",
-                        state.conversation_id,
-                        None,
-                        ctx,
-                    ),
-                    model.create_document(
-                        "Unrelated plan",
-                        "# Unrelated",
-                        unrelated_conversation_id,
-                        None,
-                        ctx,
-                    ),
-                )
-            });
-        let captured = subscribe_to_start_agent_requests(&mut app, &state.start_agent_executor);
-        let action = remote_run_agents_action("oz");
-
-        let execution = state.executor.update(&mut app, |executor, ctx| {
-            executor
-                .execute(
-                    ExecuteActionInput {
-                        action: &action,
-                        conversation_id: state.conversation_id,
-                    },
-                    ctx,
-                )
-                .into()
-        });
-
-        assert!(matches!(execution, AnyActionExecution::Async { .. }));
-        captured.read(&app, |captured, _ctx| {
-            assert!(captured.0.is_empty());
-        });
-        AIDocumentModel::handle(&app).read(&app, |model, _ctx| {
-            for plan_id in [first_plan_id, second_plan_id, unrelated_plan_id] {
-                assert!(matches!(
-                    model.get_document_save_status(&plan_id),
-                    AIDocumentSaveStatus::NotSaved
-                ));
-            }
-        });
-    });
-}
-
-/// A run_agents call holds in the `Publishing` state while it waits for the parent's
-/// plans to become server-backed, then dispatches children. This verifies that
-/// cancelling mid-publication prevents fan-out: even when the plan finishes publishing
-/// afterwards (resolving the wait), the post-wait dispatch is skipped because
-/// `cancel_execution` cleared the pending marker that `is_pending` guards on.
-#[test]
-fn cancel_during_plan_publication_does_not_dispatch_children() {
-    App::test((), |mut app| async move {
-        let state = initialize_run_agents_test(&mut app, ExecutionMode::Sdk);
-        BlocklistAIHistoryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.assign_run_id_for_conversation(
-                state.conversation_id,
-                "00000000-0000-0000-0000-000000000001".to_string(),
-                None,
-                EntityId::new(),
-                ctx,
-            );
-        });
-        let plan_id = AIDocumentModel::handle(&app).update(&mut app, |model, ctx| {
-            model.create_document("Plan", "# Plan", state.conversation_id, None, ctx)
+        AIDocumentModel::handle(&app).update(&mut app, |model, ctx| {
+            model.create_document("First plan", "# First", state.conversation_id, None, ctx);
+            model.create_document("Second plan", "# Second", state.conversation_id, None, ctx);
         });
         let captured = subscribe_to_start_agent_requests(&mut app, &state.start_agent_executor);
-        let action = remote_run_agents_action("oz");
+        let mut action = remote_run_agents_action("oz");
+        let AIAgentActionType::RunAgents(request) = &mut action.action else {
+            panic!("expected run_agents action");
+        };
+        request.execution_mode = RunAgentsExecutionMode::Local;
         let action_id = action.id.clone();
 
         let execution = state.executor.update(&mut app, |executor, ctx| {
@@ -554,33 +475,17 @@ fn cancel_during_plan_publication_does_not_dispatch_children() {
                 )
                 .into()
         });
-        // The action is awaiting plan publication, so it's pending but no children dispatched yet.
+
         assert!(matches!(execution, AnyActionExecution::Async { .. }));
-        state.executor.update(&mut app, |executor, ctx| {
+        state.executor.read(&app, |executor, _ctx| {
             assert!(executor.is_pending(&action_id));
-            executor.cancel_execution(&action_id, ctx);
-            assert!(!executor.is_pending(&action_id));
         });
-
-        // Finish publishing the plan, which resolves the wait the dispatch was blocked on.
-        AIDocumentModel::handle(&app).update(&mut app, |model, ctx| {
-            model.create_document_from_notebook(
-                plan_id,
-                SyncId::ServerId(123.into()),
-                "Plan",
-                "# Plan",
-                state.conversation_id,
-                None,
-                ctx,
-            );
-        });
-        for _ in 0..3 {
-            futures_lite::future::yield_now().await;
-        }
-
-        // Cancellation won the race: the resolved wait does not fan out children.
         captured.read(&app, |captured, _ctx| {
-            assert!(captured.0.is_empty());
+            assert_eq!(captured.0.len(), 1);
+            assert!(matches!(
+                captured.0[0].execution_mode,
+                StartAgentExecutionMode::Local { .. }
+            ));
         });
     });
 }

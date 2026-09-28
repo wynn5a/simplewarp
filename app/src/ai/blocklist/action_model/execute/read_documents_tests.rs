@@ -11,11 +11,6 @@ use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel};
 use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{
-    CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus, Owner,
-};
-use crate::notebooks::{CloudNotebook, CloudNotebookModel};
-use crate::server::ids::SyncId;
 use crate::test_util::settings::initialize_settings_for_tests;
 
 fn initialize_app(app: &mut App) {
@@ -37,61 +32,24 @@ fn read_action(document_id: AIDocumentId) -> AIAgentAction {
     }
 }
 
-fn add_saved_plan_notebook(app: &mut App, document_id: AIDocumentId, content: &str) {
-    let sync_id = SyncId::ServerId(123.into());
-    let notebook = CloudNotebook::new(
-        sync_id,
-        CloudNotebookModel {
-            title: "Saved plan".to_string(),
-            data: content.to_string(),
-            ai_document_id: Some(document_id),
-            conversation_id: None,
-        },
-        CloudObjectMetadata {
-            pending_changes_statuses: CloudObjectStatuses {
-                content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
-                has_pending_metadata_change: false,
-                has_pending_permissions_change: false,
-                pending_untrash: false,
-                pending_delete: false,
-            },
-            folder_id: None,
-            revision: Default::default(),
-            metadata_last_updated_ts: Default::default(),
-            current_editor_uid: Default::default(),
-            trashed_ts: Default::default(),
-            is_welcome_object: false,
-            creator_uid: None,
-            last_editor_uid: None,
-        },
-        CloudObjectPermissions {
-            owner: Owner::mock_current_user(),
-            guests: Vec::new(),
-            permissions_last_updated_ts: None,
-            anyone_with_link: None,
-        },
-    );
-    CloudModel::handle(app).update(app, |cloud_model, _| {
-        cloud_model.add_object(sync_id, notebook);
-    });
-}
-
+/// Local child agents read their parent's plans straight from the shared document model.
 #[test]
-fn execute_lazily_hydrates_missing_plan_for_remote_child_without_local_parent() {
+fn execute_reads_plan_owned_by_another_conversation() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
         let executor = app.add_model(|_| ReadDocumentsExecutor::new());
-        let document_id = AIDocumentId::new();
-        add_saved_plan_notebook(&mut app, document_id, "# Remote child plan");
+        let document_id = AIDocumentModel::handle(&app).update(&mut app, |model, ctx| {
+            model.create_document(
+                "Parent plan",
+                "# Parent plan",
+                AIConversationId::new(),
+                None,
+                ctx,
+            )
+        });
         let child_conversation_id =
             BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
-                let child_conversation_id =
-                    history.start_new_conversation(EntityId::new(), false, false, false, ctx);
-                history
-                    .conversation_mut(&child_conversation_id)
-                    .expect("child conversation should exist")
-                    .set_parent_agent_id("non-local-parent-run-id".to_string());
-                child_conversation_id
+                history.start_new_conversation(EntityId::new(), false, false, false, ctx)
             });
         let action = read_action(document_id);
 
@@ -115,7 +73,7 @@ fn execute_lazily_hydrates_missing_plan_for_remote_child_without_local_parent() 
         };
         assert_eq!(documents.len(), 1);
         assert_eq!(documents[0].document_id, document_id);
-        assert_eq!(documents[0].content, "# Remote child plan\n");
+        assert_eq!(documents[0].content, "# Parent plan\n");
     });
 }
 

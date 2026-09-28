@@ -727,10 +727,6 @@ impl NotebookView {
             EditorViewEvent::EditWorkflow(workflow_id) => {
                 ctx.emit(NotebookEvent::EditWorkflow(*workflow_id))
             }
-            EditorViewEvent::OpenedBlockInsertionMenu => (),
-            EditorViewEvent::OpenedFindBar => (),
-            EditorViewEvent::NavigatedCommands => (),
-            EditorViewEvent::ChangedSelectionMode(_) => (),
             EditorViewEvent::OpenFile { .. } => {
                 // We don't support opening files from the notebook view.
                 // File paths rely on a Session to be present, and this is only set from the AI document view today.

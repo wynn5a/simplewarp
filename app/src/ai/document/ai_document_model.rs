@@ -1,8 +1,6 @@
 #![allow(warnings)]
 
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 use std::time::Duration;
 
 use ai::agent::orchestration_config::{OrchestrationConfig, OrchestrationConfigStatus};
@@ -10,26 +8,16 @@ use ai::diff_validation::DiffDelta;
 use ai::document::DEFAULT_PLANNING_DOCUMENT_TITLE;
 // TODO(vorporeal): Remove this re-export at some point.
 pub use ai::document::{AIDocumentId, AIDocumentVersion};
-use chrono::{DateTime, Local, Utc};
-use itertools::Itertools;
-use uuid::Uuid;
-use warp_editor::model::RichTextEditorModel;
-use warp_editor::render::model::RichTextStyles;
+use chrono::{DateTime, Local};
 use warp_errors::report_error;
 use warp_multi_agent_api as maa_api;
-use warpui::color::ColorU;
-use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity, WindowId};
+use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::ai::agent::AIAgentActionId;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
-use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::appearance::Appearance;
-use crate::cloud_object::folders::CloudFolder;
-use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{CloudObject, CloudObjectTypeAndId};
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
-use crate::notebooks::NotebookId;
 use crate::notebooks::editor::model::{
     FileLinkResolutionContext, NotebooksEditorModel, RichTextEditorModelEvent,
 };
@@ -39,33 +27,14 @@ use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::SyncId;
 use crate::settings::FontSettings;
-use crate::terminal::TerminalView;
-use crate::terminal::model::session::Session;
-use crate::terminal::model::session::active_session::ActiveSession;
 use crate::throttle::throttle;
 
-/// The frequency at which we check for modifications and save the AI document to the server.
+/// The frequency at which we check for modifications and persist the AI document.
 /// Uses the same 2-second period as notebooks for consistency.
 const SAVE_PERIOD: Duration = Duration::from_secs(2);
 
 struct AIDocumentSaveRequest {
     document_id: AIDocumentId,
-}
-
-/// The status of saving an AI Document as a notebook
-pub enum AIDocumentSaveStatus {
-    /// Not saved as a notebook at all
-    NotSaved,
-    /// Is being saved as a notebook, but has not finished yet
-    Saving,
-    /// Has been saved as a notebook
-    Saved,
-}
-
-impl AIDocumentSaveStatus {
-    pub fn is_saved(&self) -> bool {
-        matches!(self, AIDocumentSaveStatus::Saved)
-    }
 }
 
 /// Tracks whether user edits to a planning document are known by the agent.
@@ -84,14 +53,6 @@ impl AIDocumentUserEditStatus {
     }
 }
 
-/// Represents a document queued for creation as a notebook.
-#[derive(Debug, Clone)]
-struct PendingDocument {
-    id: AIDocumentId,
-    title: String,
-    content: String,
-}
-
 #[derive(Debug, Clone)]
 pub struct AIDocumentEarlierVersion {
     pub title: String,
@@ -103,8 +64,7 @@ pub struct AIDocumentEarlierVersion {
 
 #[derive(Debug, Clone)]
 pub struct AIDocument {
-    /// ID to sync with the local cloud-model store.
-    /// Set when a document is saved as a notebook.
+    /// The notebook this document mirrors edits into, when it was opened from a plan notebook.
     pub sync_id: Option<SyncId>,
     pub title: String,
     pub version: AIDocumentVersion,
@@ -171,9 +131,6 @@ pub struct AIDocumentModel {
     latest_document_id_by_conversation_id: HashMap<AIConversationId, AIDocumentId>,
     content_dirty_flags: HashMap<AIDocumentId, bool>,
     save_tx: async_channel::Sender<AIDocumentSaveRequest>,
-    /// Queue of documents wait to be saved.
-    /// Documents saves are buffered if the Plan folder is still being created.
-    pending_document_queue: Vec<PendingDocument>,
     /// Mapping from (conversation_id, action_id, document_index) for streaming CreateDocuments
     /// tool calls to the corresponding AI document ID.
     streaming_create_documents: HashMap<(AIConversationId, AIAgentActionId, usize), AIDocumentId>,
@@ -184,10 +141,6 @@ pub struct AIDocumentModel {
 
 impl AIDocumentModel {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        ctx.subscribe_to_model(&CloudModel::handle(ctx), |me, _, event, ctx| {
-            me.handle_cloud_model_event(event, ctx);
-        });
-
         // Subscribe to history events so we can hydrate the orchestration
         // config from OrchestrationConfigSnapshot messages that arrive
         // in the conversation's task message list.
@@ -212,7 +165,6 @@ impl AIDocumentModel {
             latest_document_id_by_conversation_id: HashMap::new(),
             content_dirty_flags: HashMap::new(),
             save_tx,
-            pending_document_queue: Vec::new(),
             streaming_create_documents: HashMap::new(),
             dirty_orchestration_events: HashMap::new(),
         }
@@ -227,203 +179,9 @@ impl AIDocumentModel {
             latest_document_id_by_conversation_id: HashMap::new(),
             content_dirty_flags: HashMap::new(),
             save_tx,
-            pending_document_queue: Vec::new(),
             streaming_create_documents: HashMap::new(),
             dirty_orchestration_events: HashMap::new(),
         }
-    }
-
-    /// Links the document to its existing notebook. Returns whether the document has a notebook.
-    pub fn save_to_notebook(&mut self, id: AIDocumentId, ctx: &mut ModelContext<Self>) -> bool {
-        if self.reconcile_document_server_backing(&id, ctx) {
-            return true;
-        }
-        let Some(document) = self.documents.get(&id) else {
-            return false;
-        };
-        if document.sync_id.is_some() {
-            // Already created. Return early.
-            return true;
-        }
-
-        // A plan counts as saved only once its notebook has a server id, which no local object
-        // ever gets: creating the notebook here would leave the plan "Saving" forever and stall
-        // child-agent launch on the publication wait.
-        log::warn!("Saving a plan as a notebook needs a server-backed notebook. Skipping");
-        false
-    }
-
-    pub fn get_document_save_status(&self, id: &AIDocumentId) -> AIDocumentSaveStatus {
-        let sync_id = self.documents.get(id).and_then(|doc| doc.sync_id);
-        if sync_id.and_then(|id| id.into_server()).is_some() {
-            AIDocumentSaveStatus::Saved
-        } else if sync_id.and_then(|id| id.into_client()).is_some() {
-            AIDocumentSaveStatus::Saving
-        } else {
-            AIDocumentSaveStatus::NotSaved
-        }
-    }
-
-    /// Publishes every document owned by a conversation before child-agent launch.
-    pub(in crate::ai) fn publish_documents_for_conversation(
-        &mut self,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Vec<AIDocumentId> {
-        self.reconcile_all_document_server_backing(ctx);
-        let document_ids = self
-            .documents
-            .iter()
-            .filter_map(|(document_id, document)| {
-                (document.conversation_id == conversation_id).then_some(*document_id)
-            })
-            .collect::<Vec<_>>();
-        let mut awaiting_server_backing = Vec::new();
-
-        for document_id in document_ids {
-            match self.get_document_save_status(&document_id) {
-                AIDocumentSaveStatus::Saved => {
-                    self.maybe_update_cloud_notebook_data(&document_id, ctx);
-                }
-                AIDocumentSaveStatus::Saving => {
-                    self.refresh_saving_document_content(&document_id, ctx);
-                    awaiting_server_backing.push(document_id);
-                }
-                AIDocumentSaveStatus::NotSaved => {
-                    if !self.save_to_notebook(document_id, ctx) {
-                        report_error!(
-                            "Failed to publish plan document as a notebook before child-agent launch.",
-                            extra: { "document_id" => %document_id }
-                        );
-                    } else if !self.get_document_save_status(&document_id).is_saved() {
-                        awaiting_server_backing.push(document_id);
-                    }
-                }
-            }
-        }
-
-        awaiting_server_backing
-    }
-
-    /// Reconciles a document with an existing server-backed notebook.
-    fn reconcile_document_server_backing(
-        &mut self,
-        document_id: &AIDocumentId,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        let server_sync_id = CloudModel::as_ref(ctx)
-            .get_all_active_notebooks()
-            .find(|notebook| {
-                notebook.id.into_server().is_some()
-                    && notebook.model().ai_document_id.as_ref() == Some(document_id)
-            })
-            .map(|notebook| notebook.id);
-        let Some(server_sync_id) = server_sync_id else {
-            return false;
-        };
-        self.set_document_server_backing(*document_id, server_sync_id, ctx);
-        true
-    }
-
-    /// Reconciles all loaded documents with server-backed notebooks.
-    fn reconcile_all_document_server_backing(&mut self, ctx: &mut ModelContext<Self>) {
-        let document_ids = self.documents.keys().copied().collect::<Vec<_>>();
-        for document_id in document_ids {
-            self.reconcile_document_server_backing(&document_id, ctx);
-        }
-    }
-
-    /// Refreshes the latest content for a plan whose notebook creation is in progress.
-    fn refresh_saving_document_content(
-        &mut self,
-        document_id: &AIDocumentId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let Some(document) = self.documents.get(document_id) else {
-            return;
-        };
-        let title = document.title.clone();
-        let content = document.editor.as_ref(ctx).markdown(ctx);
-        let sync_id = document.sync_id;
-
-        for pending in self
-            .pending_document_queue
-            .iter_mut()
-            .filter(|pending| pending.id == *document_id)
-        {
-            pending.title.clone_from(&title);
-            pending.content.clone_from(&content);
-        }
-
-        if sync_id.is_some_and(|sync_id| CloudModel::as_ref(ctx).get_notebook(&sync_id).is_some()) {
-            self.maybe_update_cloud_notebook_data(document_id, ctx);
-        }
-    }
-
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
-        match event {
-            CloudModelEvent::ObjectCreated {
-                type_and_id: CloudObjectTypeAndId::Notebook(sync_id),
-            }
-            | CloudModelEvent::ObjectUpdated {
-                type_and_id: CloudObjectTypeAndId::Notebook(sync_id),
-                ..
-            } => {
-                self.reconcile_server_backed_notebook(*sync_id, ctx);
-            }
-            CloudModelEvent::ObjectUpdated { .. }
-            | CloudModelEvent::ObjectTrashed { .. }
-            | CloudModelEvent::ObjectUntrashed { .. }
-            | CloudModelEvent::ObjectDeleted { .. }
-            | CloudModelEvent::ObjectForceExpanded { .. }
-            | CloudModelEvent::ObjectCreated { .. } => {}
-        }
-    }
-    /// Reconciles one server-backed notebook with its loaded AI document.
-    fn reconcile_server_backed_notebook(&mut self, sync_id: SyncId, ctx: &mut ModelContext<Self>) {
-        if sync_id.into_server().is_none() {
-            return;
-        }
-        let document_id = CloudModel::as_ref(ctx)
-            .get_notebook(&sync_id)
-            .and_then(|notebook| notebook.model().ai_document_id);
-        if let Some(document_id) = document_id {
-            self.set_document_server_backing(document_id, sync_id, ctx);
-        }
-    }
-
-    /// Updates a document and its conversation artifact with server backing.
-    fn set_document_server_backing(
-        &mut self,
-        document_id: AIDocumentId,
-        sync_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let Some(document) = self.documents.get_mut(&document_id) else {
-            return;
-        };
-        if document.sync_id == Some(sync_id) {
-            return;
-        }
-        document.sync_id = Some(sync_id);
-        let conversation_id = document.conversation_id;
-        ctx.emit(AIDocumentModelEvent::DocumentSaveStatusUpdated(document_id));
-
-        let Some(server_id) = sync_id.into_server() else {
-            return;
-        };
-        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-            let terminal_view_id =
-                history_model.terminal_surface_id_for_conversation(&conversation_id);
-            if let Some(conversation) = history_model.conversation_mut(&conversation_id) {
-                conversation.update_plan_notebook_uid(
-                    document_id,
-                    NotebookId::from(server_id),
-                    terminal_view_id,
-                    ctx,
-                );
-            }
-        });
     }
 
     /// Create a new document with default title/content and return its ID.
@@ -473,62 +231,7 @@ impl AIDocumentModel {
 
         if let Some(doc) = self.documents.get_mut(&ai_document_id) {
             doc.sync_id = Some(sync_id);
-            ctx.emit(AIDocumentModelEvent::DocumentSaveStatusUpdated(
-                ai_document_id,
-            ));
         }
-    }
-
-    /// Hydrates a saved plan notebook into the target conversation.
-    pub(in crate::ai) fn hydrate_saved_plan(
-        &mut self,
-        ai_document_id: AIDocumentId,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<(), String> {
-        let notebook = CloudModel::as_ref(ctx)
-            .get_all_active_notebooks()
-            .find(|notebook| notebook.model().ai_document_id.as_ref() == Some(&ai_document_id))
-            .map(|notebook| {
-                (
-                    notebook.id,
-                    notebook.model().title.clone(),
-                    notebook.model().data.clone(),
-                )
-            })
-            .ok_or_else(|| {
-                format!("Plan document {ai_document_id} was not found as a saved notebook.")
-            })?;
-        let (sync_id, title, content) = notebook;
-        if sync_id.into_server().is_none() {
-            return Err(format!(
-                "Plan document {ai_document_id} is not backed by a saved notebook."
-            ));
-        }
-
-        self.latest_document_id_by_conversation_id
-            .insert(conversation_id, ai_document_id);
-
-        if let Some(document) = self.documents.get_mut(&ai_document_id) {
-            if document.sync_id != Some(sync_id) {
-                document.sync_id = Some(sync_id);
-                ctx.emit(AIDocumentModelEvent::DocumentSaveStatusUpdated(
-                    ai_document_id,
-                ));
-            }
-            return Ok(());
-        }
-
-        self.create_document_from_notebook(
-            ai_document_id,
-            sync_id,
-            title,
-            content,
-            conversation_id,
-            None,
-            ctx,
-        );
-        Ok(())
     }
 
     fn create_document_internal(
@@ -1019,8 +722,6 @@ impl AIDocumentModel {
             created_at,
             ctx,
         );
-
-        self.reconcile_document_server_backing(&id, ctx);
     }
 
     /// This is used for restoring EditDocuments results where we already have the final content.
@@ -1368,8 +1069,6 @@ pub enum AIDocumentModelEvent {
         version: AIDocumentVersion,
         source: AIDocumentUpdateSource,
     },
-    /// When the AI Document has progressed from NotSaved -> Saving -> Saved
-    DocumentSaveStatusUpdated(AIDocumentId),
     /// When the user edit status of a document changes
     DocumentUserEditStatusUpdated {
         document_id: AIDocumentId,

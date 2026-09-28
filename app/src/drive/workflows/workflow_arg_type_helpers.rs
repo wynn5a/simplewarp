@@ -23,16 +23,12 @@ pub trait ArgumentTypeEditor {
 }
 
 /// Get all workflow enums in the space, filtering to only show the shared ones
-pub fn load_workflow_enums_with_owner<V>(
+pub fn load_workflow_enums_with_owner(
     owner: Owner,
-    ctx: &mut warpui::ViewContext<V>,
-) -> HashMap<SyncId, WorkflowEnumData>
-where
-    V: warpui::View,
-{
-    let cloud_model = CloudModel::as_ref(ctx);
-    cloud_model
-        .workflow_enums_with_owner(owner, ctx)
+    ctx: &AppContext,
+) -> HashMap<SyncId, WorkflowEnumData> {
+    CloudModel::as_ref(ctx)
+        .workflow_enums_with_owner(owner)
         .filter(|workflow_enum| workflow_enum.model().string_model.is_shared)
         .map(|workflow_enum| {
             let enum_id = workflow_enum.id;

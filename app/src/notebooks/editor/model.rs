@@ -41,7 +41,6 @@ use warpui::{
     AppContext, Entity, ModelAsRef, ModelContext, ModelHandle, SingletonEntity, WindowId,
 };
 
-use super::super::telemetry::SelectionMode as TelemetrySelectionMode;
 use super::NotebookWorkflow;
 use super::embedding_model::NotebookEmbed;
 use super::interaction_state_model::InteractionStateModel;
@@ -595,16 +594,15 @@ impl NotebooksEditorModel {
         self.active_text_style.exact_match_style(&style)
     }
 
-    /// Begin selecting at the given `offset`. Returns whether there was previously a command
-    /// selection.
+    /// Begin selecting at the given `offset`.
     pub fn select_at(
         &mut self,
         offset: CharOffset,
         multiselect: bool,
         ctx: &mut ModelContext<Self>,
-    ) -> bool {
+    ) {
         self.begin_selection(offset, SelectionMode::Character, !multiselect, ctx);
-        self.clear_command_selections(ctx)
+        self.clear_command_selections(ctx);
     }
 
     /// Begin semantic selection by word.
@@ -1392,7 +1390,7 @@ impl NotebooksEditorModel {
         // If the selection is on a valid block, we clear selections first so that if there
         // were any other selected commands, the end result is that _just_ the given command
         // is selected.
-        let had_command_selection = self.clear_command_selections(ctx);
+        self.clear_command_selections(ctx);
 
         self.cursor_at(block_start, ctx);
 
@@ -1429,12 +1427,6 @@ impl NotebooksEditorModel {
             .update(ctx, |interaction_state, ctx| {
                 interaction_state.set_is_block_selected(true, ctx);
             });
-
-        if !had_command_selection {
-            ctx.emit(RichTextEditorModelEvent::SwitchedSelectionMode {
-                new_mode: TelemetrySelectionMode::Command,
-            });
-        };
 
         ctx.notify();
     }
@@ -1524,11 +1516,7 @@ impl NotebooksEditorModel {
             .min_by_key(|(start, _)| *start)
             .and_then(|(_, command)| command.end_offset(ctx));
 
-        if self.clear_command_selections(ctx) {
-            ctx.emit(RichTextEditorModelEvent::SwitchedSelectionMode {
-                new_mode: TelemetrySelectionMode::Text,
-            });
-        }
+        self.clear_command_selections(ctx);
 
         if let Some(cursor_location) = new_cursor_location {
             self.cursor_at(cursor_location, ctx);
@@ -1537,21 +1525,16 @@ impl NotebooksEditorModel {
     }
 
     /// Marks all command blocks as not selected and resets the last active select block state.
-    ///
-    /// Returns whether or not any commands were previously selected.
-    pub fn clear_command_selections(&mut self, ctx: &mut ModelContext<Self>) -> bool {
-        let mut had_command_selection = false;
+    pub fn clear_command_selections(&mut self, ctx: &mut ModelContext<Self>) {
         for command in self.child_models.models.values() {
             if command.selectable(ctx) {
-                had_command_selection |= command.set_selected(false, ctx)
+                command.set_selected(false, ctx);
             }
         }
         self.interaction_state
             .update(ctx, |interaction_state, ctx| {
                 interaction_state.set_is_block_selected(false, ctx);
             });
-
-        had_command_selection
     }
 
     /// Returns true if any of the subviews store on any of the NotebookCommand models are focused
@@ -1862,10 +1845,6 @@ pub enum RichTextEditorModelEvent {
         block_type: BlockType,
     },
     ContentChanged(EditOrigin),
-    /// The user switched selection modes.
-    SwitchedSelectionMode {
-        new_mode: TelemetrySelectionMode,
-    },
 }
 
 impl Entity for NotebooksEditorModel {

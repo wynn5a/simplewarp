@@ -29,38 +29,18 @@ impl ReadDocumentsExecutor {
         input: ExecuteActionInput,
         ctx: &mut ModelContext<Self>,
     ) -> impl Into<AnyActionExecution> + use<> {
-        let ExecuteActionInput {
-            action,
-            conversation_id,
-        } = input;
         let AIAgentAction {
             action: AIAgentActionType::ReadDocuments(ReadDocumentsRequest { document_ids }),
             ..
-        } = action
+        } = input.action
         else {
             return ActionExecution::<ReadDocumentsResult>::InvalidAction;
         };
 
-        // A requested plan may exist as a saved notebook without being loaded into this conversation's
-        // document model (e.g. orchestration children reading parent plans, or plan IDs
-        // copy-pasted from another conversation), so fall back to hydrating it on a miss.
         let mut documents = Vec::with_capacity(document_ids.len());
         let mut missing_documents = Vec::new();
         for id in document_ids {
-            let mut document = try_read_document(id, ctx);
-            if document.is_none() {
-                AIDocumentModel::handle(ctx).update(ctx, |model, ctx| {
-                    if let Err(error) =
-                        model.hydrate_saved_plan(*id, conversation_id, ctx)
-                    {
-                        log::warn!(
-                            "Failed to hydrate requested plan document {id} from its saved notebook: {error}"
-                        );
-                    }
-                });
-                document = try_read_document(id, ctx);
-            }
-            match document {
+            match try_read_document(id, ctx) {
                 Some(document) => documents.push(document),
                 None => missing_documents.push(*id),
             }

@@ -472,6 +472,37 @@ Queue, in order:
    restores them); the plan-publication wait / pending queue / `autosync_plans_to_warp_drive`
    plumbing is now dead (server-backed only).
 
+14. ~~Plan publication, notebook telemetry residue, `share.rs`~~ — **4hc done (2026-09-28).** −1.5k
+   lines in 39 files. Plan publication (server-backed only: a plan counted as saved once its notebook
+   had a server id): `plan_publication.rs` (30 s wait), `publish_documents_for_conversation`, the
+   pending-document queue, the server-backing reconciliation and CloudModel subscription,
+   `AIDocumentSaveStatus` + `DocumentSaveStatusUpdated` and the plan header's save/"Saving"/"saved as a
+   notebook" icons and `SaveToNotebook` action, `save_to_notebook`, `hydrate_saved_plan` (read_documents
+   now reads the shared document model only), `update_plan_notebook_uid`. `run_agents` dispatches
+   children synchronously inside `execute` (`PendingRunAgents::Publishing` and its `cancel_execution`
+   gone; `pending` is a set). `autosync_plans_to_warp_drive`: setter, editor toggle, settings-page line,
+   create-time default and the create_documents autosync call gone; the key stays in
+   `AIExecutionProfile` / `ExecutionProfileFile` (orphaned, round-trips). Kept, local: the dirty-plan
+   `pending_document_id` context, opening a plan from an existing plan notebook
+   (`create_document_from_notebook`, edits mirrored via `UpdateManager`), the artifact "open plan"
+   button for persisted `notebook_uid`s. Notebook telemetry: `EditorViewEvent::OpenedBlockInsertionMenu`
+   / `OpenedFindBar` / `NavigatedCommands` / `ChangedSelectionMode`, `RichTextEditorModelEvent::
+   SwitchedSelectionMode`, the `notebooks::telemetry` module (its `SelectionMode` only fed that event);
+   `clear_command_selections` / `select_at` return `()`. `workflow_enums_with_owner` /
+   `load_workflow_enums_with_owner` lost the unused ctx / take `&AppContext`. `warp_cli::share` was
+   session-sharing residue (`--share` on `agent run`, always failed "not available"): deleted with
+   `should_share`, `ShareSessionError`, `AgentDriverError::ShareSessionFailed`,
+   `wait_for_session_shared`, `SetupStep::SharedSessionEstablishment`, `add_share_requests`; `--share`
+   is now an unknown argument. Tests 4,287 default / 4,288 simplewarp (−3, deleted with their code:
+   pending-queue refresh, cancel-during-publication, share-session error class; re-pinned: run_agents
+   dispatches a local child with no wait, read_documents reads a plan owned by another conversation),
+   `warp_cli` + `cloud_object_models` 91 passed (−13 share parser tests), 0 failed.
+   Follow-ups: plan-notebook residue now reachable only from stale rows (`AIDocument::sync_id`,
+   `create_document_from_notebook`, `Artifact::Plan.notebook_uid` open button, notebook
+   `AttachPlanAsContext`); `ai_document_model.rs`'s file-wide `#![allow(warnings)]` hides dead
+   methods (`delete_document`, `is_document_visible*`, `get_content`); `--idle-on-fail` /
+   `--idle-on-complete` docs still describe the shared session.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

@@ -2,7 +2,7 @@
 //!
 //! Fans out per-child via [`super::start_agent::StartAgentExecutor::dispatch`]
 //! and aggregates the outcomes into a single `RunAgentsResult`.
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use ai::agent::action::{RunAgentsAgentRunConfig, RunAgentsExecutionMode, RunAgentsRequest};
@@ -26,9 +26,6 @@ use crate::ai::agent::{
     StartAgentExecutionMode,
 };
 use crate::ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};
-use crate::ai::document::plan_publication::{
-    prepare_plan_publications, wait_for_plan_publications,
-};
 use crate::ai::local_harness_setup::local_harness_product_disabled_message;
 use crate::ai::orchestration::{
     OrchestrationConfigState, can_execute_with_auth_secret,
@@ -48,12 +45,6 @@ pub struct RunAgentsSpawningSnapshot {
     pub agent_count: usize,
 }
 
-/// In-flight tracking per `RunAgents` action (idempotency guard).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PendingRunAgents {
-    Publishing,
-    Spawning,
-}
 #[derive(Debug, Clone)]
 struct ExistingLaunchedAgent {
     name: String,
@@ -61,7 +52,8 @@ struct ExistingLaunchedAgent {
 }
 
 pub struct RunAgentsExecutor {
-    pending: HashMap<AIAgentActionId, PendingRunAgents>,
+    /// In-flight `RunAgents` actions (idempotency guard).
+    pending: HashSet<AIAgentActionId>,
     launched_agents: HashMap<AIConversationId, HashMap<String, ExistingLaunchedAgent>>,
     start_agent_executor: ModelHandle<StartAgentExecutor>,
     terminal_view_id: EntityId,
@@ -88,7 +80,7 @@ impl RunAgentsExecutor {
         terminal_view_id: EntityId,
     ) -> Self {
         Self {
-            pending: HashMap::new(),
+            pending: HashSet::new(),
             launched_agents: HashMap::new(),
             start_agent_executor,
             terminal_view_id,
@@ -96,24 +88,7 @@ impl RunAgentsExecutor {
     }
 
     pub fn is_pending(&self, action_id: &AIAgentActionId) -> bool {
-        self.pending.contains_key(action_id)
-    }
-
-    /// Cancels a pending run so publication completion cannot fan out children.
-    pub(super) fn cancel_execution(
-        &mut self,
-        action_id: &AIAgentActionId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if matches!(
-            self.pending.get(action_id),
-            Some(PendingRunAgents::Publishing)
-        ) {
-            self.pending.remove(action_id);
-            ctx.emit(RunAgentsExecutorEvent::SpawningFinished {
-                action_id: action_id.clone(),
-            });
-        }
+        self.pending.contains(action_id)
     }
 
     fn record_launched_agents(
@@ -155,7 +130,6 @@ impl RunAgentsExecutor {
         )
     }
 
-    /// Publishes parent plans and dispatches children after a bounded best-effort wait.
     fn dispatch_prepared_run_agents(
         &mut self,
         action_id: AIAgentActionId,
@@ -165,7 +139,7 @@ impl RunAgentsExecutor {
     ) -> async_channel::Receiver<RunAgentsResult> {
         let (sender, receiver) = async_channel::bounded(1);
 
-        if self.pending.contains_key(&action_id) {
+        if self.pending.contains(&action_id) {
             log::warn!("RunAgentsExecutor: dispatch reentered for {action_id:?}; rejecting");
             let _ = sender.try_send(RunAgentsResult::Cancelled);
             return receiver;
@@ -176,39 +150,21 @@ impl RunAgentsExecutor {
             let _ = sender.try_send(RunAgentsResult::Failure { error });
             return receiver;
         }
-        let pending_plan_publications = prepare_plan_publications(parent_conversation_id, ctx);
 
         let snapshot = RunAgentsSpawningSnapshot {
             agent_count: request.agent_run_configs.len(),
         };
-        self.pending
-            .insert(action_id.clone(), PendingRunAgents::Publishing);
+        self.pending.insert(action_id.clone());
         ctx.emit(RunAgentsExecutorEvent::SpawningStarted {
             action_id: action_id.clone(),
             snapshot,
         });
-
-        let action_id_for_wait = action_id.clone();
-        ctx.spawn(
-            async move {
-                // Wait briefly for each plan to become server-backed without blocking
-                // launch on a failed or slow publication. Resolves immediately when
-                // there is nothing to wait on.
-                wait_for_plan_publications(pending_plan_publications).await;
-                request
-            },
-            move |me, request, ctx| {
-                if !me.is_pending(&action_id_for_wait) {
-                    return;
-                }
-                me.dispatch_children_for_prepared_request(
-                    action_id_for_wait.clone(),
-                    request,
-                    parent_conversation_id,
-                    sender,
-                    ctx,
-                )
-            },
+        self.dispatch_children_for_prepared_request(
+            action_id,
+            request,
+            parent_conversation_id,
+            sender,
+            ctx,
         );
 
         receiver
@@ -222,8 +178,6 @@ impl RunAgentsExecutor {
         sender: async_channel::Sender<RunAgentsResult>,
         ctx: &mut ModelContext<Self>,
     ) {
-        self.pending
-            .insert(action_id.clone(), PendingRunAgents::Spawning);
         let parent_run_id = BlocklistAIHistoryModel::as_ref(ctx)
             .conversation(&parent_conversation_id)
             .and_then(|c| c.run_id());

@@ -62,7 +62,6 @@ use crate::notebooks::editor::find_bar::FindBarAction;
 use crate::notebooks::editor::model::word_unit;
 use crate::notebooks::file::MarkdownDisplayMode;
 use crate::notebooks::link::{LinkTarget, NotebookLinks, ResolveError};
-use crate::notebooks::telemetry::SelectionMode;
 use crate::server::ids::SyncId;
 use crate::settings::{AppEditorSettings, FontSettings, SelectionSettings};
 use crate::terminal::grid_renderer::URL_COLOR;
@@ -945,15 +944,6 @@ pub enum EditorViewEvent {
     /// for sending it to the active terminal.
     RunWorkflow(NotebookWorkflow),
     EditWorkflow(SyncId),
-    /// The block insertion menu was opened.
-    OpenedBlockInsertionMenu,
-    /// The find bar was opened.
-    OpenedFindBar,
-    /// One of the command-navigation keyboard shortcuts was used.
-    NavigatedCommands,
-    /// The editor switched between text selection and command selection. The event contains the
-    /// _new_ selection mode.
-    ChangedSelectionMode(SelectionMode),
     /// The text selection changed (cursor moved, selection extended, etc.).
     TextSelectionChanged,
     /// Escape was pressed (emitted when shell command execution is disabled,
@@ -1244,9 +1234,6 @@ impl RichTextEditorView {
             RichTextEditorModelEvent::ActiveStylesChanged { .. } => {
                 self.reset_for_editing_change(ctx);
                 ctx.emit(EditorViewEvent::TextSelectionChanged);
-            }
-            RichTextEditorModelEvent::SwitchedSelectionMode { new_mode } => {
-                ctx.emit(EditorViewEvent::ChangedSelectionMode(*new_mode))
             }
         }
     }
@@ -1750,14 +1737,12 @@ impl RichTextEditorView {
     fn command_up(&mut self, ctx: &mut ViewContext<Self>) {
         self.model
             .update(ctx, |model, ctx| model.select_command_up(ctx));
-        ctx.emit(EditorViewEvent::NavigatedCommands);
     }
 
     /// Select the command below the current selection.
     fn command_down(&mut self, ctx: &mut ViewContext<Self>) {
         self.model
             .update(ctx, |model, ctx| model.select_command_down(ctx));
-        ctx.emit(EditorViewEvent::NavigatedCommands);
     }
 
     pub fn move_up(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1833,12 +1818,8 @@ impl RichTextEditorView {
         self.focus(ctx);
 
         self.ongoing_mouse_state = OngoingMouseEvent::Selecting;
-        let had_command_selection = self
-            .model
+        self.model
             .update(ctx, |model, ctx| model.select_at(offset, multiselect, ctx));
-        if had_command_selection {
-            ctx.emit(EditorViewEvent::ChangedSelectionMode(SelectionMode::Text));
-        }
     }
 
     /// Updates the current selection that is being dragged.  This should be called after

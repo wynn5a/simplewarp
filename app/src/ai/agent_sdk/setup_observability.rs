@@ -50,7 +50,6 @@ pub(crate) enum SetupStep {
     McpServerStartup,
     AgentProfileConfiguration,
     ProfileMcpServerStartup,
-    SharedSessionEstablishment,
     GlobalSkillResolution,
     GlobalSkillRepoClone,
     EnvironmentRepoClone,
@@ -96,9 +95,6 @@ impl SetupStep {
             }
             Self::ProfileMcpServerStartup => {
                 span_and_name!("setup_profile_mcp_server_startup")
-            }
-            Self::SharedSessionEstablishment => {
-                span_and_name!("setup_shared_session_establishment")
             }
             Self::GlobalSkillResolution => {
                 span_and_name!("setup_global_skill_resolution")

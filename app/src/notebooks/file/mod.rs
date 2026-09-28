@@ -636,10 +636,6 @@ impl FileNotebookView {
                     source,
                 });
             }
-            EditorViewEvent::OpenedBlockInsertionMenu => (),
-            EditorViewEvent::OpenedFindBar => (),
-            EditorViewEvent::NavigatedCommands => (),
-            EditorViewEvent::ChangedSelectionMode(_) => (),
             EditorViewEvent::Navigate(_)
             | EditorViewEvent::Edited
             | EditorViewEvent::EditWorkflow(_)

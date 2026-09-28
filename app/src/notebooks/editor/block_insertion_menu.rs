@@ -11,7 +11,7 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, SingletonEntity, ViewContext, ViewHandle};
 
 use super::BlockType;
-use super::view::{EditorViewAction, EditorViewEvent, RichTextEditorView};
+use super::view::{EditorViewAction, RichTextEditorView};
 use crate::appearance::Appearance;
 use crate::menu::{self, Menu, MenuItemFields};
 use crate::themes::theme::Fill;
@@ -111,7 +111,6 @@ impl RichTextEditorView {
         }
         self.insertion_menu_state.open_at_source = Some(source);
         ctx.focus(&self.insertion_menu_state.menu);
-        ctx.emit(EditorViewEvent::OpenedBlockInsertionMenu);
     }
 
     /// Close the block insertion menu.

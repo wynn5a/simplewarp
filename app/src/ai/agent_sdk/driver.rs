@@ -26,7 +26,6 @@ use tracing::Instrument as _;
 use uuid::Uuid;
 use warp_cli::agent::{Harness, OutputFormat};
 use warp_cli::mcp::MCPSpec;
-use warp_cli::share::ShareRequest;
 use warp_cli::skill::SkillSpec;
 use warp_core::features::FeatureFlag;
 use warp_core::{safe_debug, safe_error, safe_info};
@@ -276,8 +275,6 @@ pub struct AgentDriverOptions {
     pub task_id: Option<AmbientAgentTaskId>,
     /// Parent run ID for child orchestration flows, if this task was spawned by another run.
     pub parent_run_id: Option<String>,
-    /// Whether the agent run should share its session.
-    pub should_share: bool,
     /// How long to keep the session alive after the agent run completes, if at all.
     pub idle_on_complete: Option<Duration>,
     /// How long to keep the session alive after the agent run ends in a terminal error, if at
@@ -430,11 +427,6 @@ pub enum AgentDriverError {
         #[source]
         error: terminal::BootstrapError,
     },
-    #[error("Unable to share agent session")]
-    ShareSessionFailed {
-        #[source]
-        error: terminal::ShareSessionError,
-    },
     #[error("Requested environment not found: {0}")]
     EnvironmentNotFound(String),
     #[error("Environment setup failed: {0}")]
@@ -534,7 +526,6 @@ impl AgentDriver {
             working_dir,
             task_id,
             parent_run_id,
-            should_share,
             idle_on_complete,
             idle_on_fail,
             environment,
@@ -546,9 +537,9 @@ impl AgentDriver {
         } = options;
 
         safe_info!(
-            safe: ("Initializing agent driver: share={should_share}, idle_on_complete={idle_on_complete:?}, idle_on_fail={idle_on_fail:?}"),
+            safe: ("Initializing agent driver: idle_on_complete={idle_on_complete:?}, idle_on_fail={idle_on_fail:?}"),
             full: (
-                "Initializing agent driver: share={should_share}, idle_on_complete={idle_on_complete:?}, idle_on_fail={idle_on_fail:?}, working_dir={}",
+                "Initializing agent driver: idle_on_complete={idle_on_complete:?}, idle_on_fail={idle_on_fail:?}, working_dir={}",
                 working_dir.display()
             )
         );
@@ -581,7 +572,6 @@ impl AgentDriver {
             terminal::TerminalDriverOptions {
                 working_dir: working_dir.clone(),
                 env_vars: HashMap::clone(&resolved_env_vars),
-                should_share,
                 task_id,
             },
             ctx,
@@ -650,16 +640,6 @@ impl AgentDriver {
 
     pub fn set_output_format(&mut self, output_format: OutputFormat) {
         self.output_format = output_format;
-    }
-
-    pub fn add_share_requests(
-        &self,
-        share_requests: impl IntoIterator<Item = ShareRequest>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.terminal_driver.update(ctx, |td, ctx| {
-            td.add_share_requests(share_requests, ctx);
-        });
     }
 
     pub fn run(
@@ -1911,18 +1891,7 @@ impl AgentDriver {
             Self::handle_mcp_startup_result(profile_mcp_startup_result, strict)?;
         }
 
-        // For all harnesses: wait for the shared session and prepare the environment.
-        setup_events
-            .record_result(SetupStep::SharedSessionEstablishment, async {
-                foreground
-                    .spawn(|me, ctx| {
-                        me.terminal_driver
-                            .update(ctx, |driver, _| driver.wait_for_session_shared())
-                    })
-                    .await?
-                    .await
-            })
-            .await?;
+        // For all harnesses: prepare the environment.
         let global_skill_resolution = setup_events
             .record_result(
                 SetupStep::GlobalSkillResolution,

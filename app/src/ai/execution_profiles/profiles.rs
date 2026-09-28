@@ -232,7 +232,6 @@ impl AIExecutionProfilesModel {
         let mut new_profile = self.default_profile(ctx).data().clone();
         new_profile.name = String::new();
         new_profile.is_default_profile = false;
-        new_profile.autosync_plans_to_warp_drive = true;
         profiles.insert(profile_id.clone(), new_profile);
         self.persist_profiles(profiles, ctx).then_some(profile_id)
     }
@@ -683,25 +682,6 @@ impl AIExecutionProfilesModel {
             |profile| {
                 if profile.web_search_enabled != enabled {
                     profile.web_search_enabled = enabled;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-    }
-
-    pub fn set_autosync_plans_to_warp_drive(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        enabled: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.autosync_plans_to_warp_drive != enabled {
-                    profile.autosync_plans_to_warp_drive = enabled;
                     return true;
                 }
                 false

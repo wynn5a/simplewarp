@@ -11,7 +11,6 @@ use crate::ai::agent::{
 use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::document::ai_document_model::{AIDocumentModel, AIDocumentVersion};
-use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::notebooks::editor::model::FileLinkResolutionContext;
 use crate::terminal::model::session::active_session::ActiveSession;
 
@@ -99,20 +98,10 @@ impl CreateDocumentsExecutor {
                     })
                 };
 
-                let profile = AIExecutionProfilesModel::as_ref(ctx)
-                    .active_profile(Some(self.terminal_view_id), ctx);
-                let should_autosync = profile.data().autosync_plans_to_warp_drive;
-
-                if should_autosync {
-                    model.update(ctx, |model, model_ctx| {
-                        model.save_to_notebook(id, model_ctx);
-                    });
-                }
-
                 // Add plan artifact to the conversation.
                 let artifact = Artifact::Plan {
                     document_uid: id.to_string(),
-                    notebook_uid: None, // Will be updated when the notebook is created
+                    notebook_uid: None,
                     title: Some(document.title.clone()),
                 };
                 let terminal_view_id = self.terminal_view_id;

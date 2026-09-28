@@ -10,7 +10,6 @@ use driver::AgentDriverError;
 pub(crate) use driver::harness::{task_env_vars, validate_cli_installed};
 use tracing::Instrument as _;
 use warp_cli::agent::{AgentCommand, Harness, OutputFormat, Prompt, RunAgentArgs};
-use warp_cli::share::ShareRequest;
 use warp_cli::{CliCommand, GlobalOptions};
 use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
@@ -301,9 +300,6 @@ impl AgentDriverRunner {
         output_format: OutputFormat,
     ) -> Result<(), AgentDriverError> {
         let setup_events = SetupClientEventReporter::new();
-        // Pull relevant variables out of args before moving it into the closure.
-        let share_requests = args.share.share.clone();
-
         // Build driver options and task.
         let (driver_options, task) =
             Self::build_driver_options_and_task(&foreground, args, &setup_events).await?;
@@ -328,13 +324,7 @@ impl AgentDriverRunner {
         // Run the driver
         foreground
             .spawn(move |_, ctx| {
-                Self::create_and_run_driver(
-                    ctx,
-                    driver_options,
-                    output_format,
-                    share_requests,
-                    task,
-                );
+                Self::create_and_run_driver(ctx, driver_options, output_format, task);
             })
             .await?;
 
@@ -428,7 +418,6 @@ impl AgentDriverRunner {
                     working_dir: working_dir.clone(),
                     task_id: None,
                     parent_run_id: None,
-                    should_share: args.share.is_shared(),
                     idle_on_complete: args.idle_on_complete.map(|d| d.into()),
                     idle_on_fail: args.idle_on_fail.map(|d| d.into()),
                     environment: None,
@@ -503,7 +492,6 @@ impl AgentDriverRunner {
         ctx: &mut AppContext,
         driver_options: driver::AgentDriverOptions,
         output_format: OutputFormat,
-        share_requests: Option<Vec<ShareRequest>>,
         task: driver::Task,
     ) {
         // Initializing the driver will fail if not logged in. Since we check that above, panic here - it's difficult to
@@ -514,9 +502,6 @@ impl AgentDriverRunner {
 
         driver.update(ctx, |driver, ctx| {
             driver.set_output_format(output_format);
-            if let Some(share_requests) = share_requests {
-                driver.add_share_requests(share_requests, ctx);
-            }
             let span =
                 tracing::info_span!("AgentDriver::run", tags.cloud_agent = true, ?task.model, ?task.harness);
             let agent_future = span

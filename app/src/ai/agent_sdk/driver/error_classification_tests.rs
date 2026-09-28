@@ -3,7 +3,7 @@ use ai::agent::AgentTaskState;
 use super::classify_driver_error;
 use crate::ai::agent::RenderableAIError;
 use crate::ai::agent_sdk::driver::AgentDriverError;
-use crate::ai::agent_sdk::driver::terminal::{BootstrapError, ShareSessionError};
+use crate::ai::agent_sdk::driver::terminal::BootstrapError;
 
 fn assert_state(error: AgentDriverError, expected_state: AgentTaskState) {
     assert_eq!(classify_driver_error(&error), expected_state);
@@ -32,22 +32,6 @@ fn bootstrap_failures_are_error() {
 #[test]
 fn terminal_unavailable_is_error() {
     assert_state(AgentDriverError::TerminalUnavailable, AgentTaskState::Error);
-}
-
-#[test]
-fn share_session_failures_are_error() {
-    assert_state(
-        AgentDriverError::ShareSessionFailed {
-            error: ShareSessionError::Disabled,
-        },
-        AgentTaskState::Error,
-    );
-    assert_state(
-        AgentDriverError::ShareSessionFailed {
-            error: ShareSessionError::Timeout,
-        },
-        AgentTaskState::Error,
-    );
 }
 
 // --- User-side errors → FAILED ---
