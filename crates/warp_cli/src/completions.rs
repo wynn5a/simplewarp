@@ -15,8 +15,7 @@ pub fn generate_to_stdout(shell: Option<Shell>) -> anyhow::Result<()> {
     };
 
     let mut cmd = Args::clap_command();
-    let bin_name =
-        binary_name().unwrap_or_else(|| ChannelState::channel().cli_command_name().to_string());
+    let bin_name = binary_name().unwrap_or_else(|| ChannelState::cli_command_name().to_string());
 
     generate(shell, &mut cmd, bin_name, &mut io::stdout());
     Ok(())

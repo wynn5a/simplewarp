@@ -288,8 +288,8 @@ impl VoiceInput {
         // Some audio backends (notably ALSA on Linux) fire this error callback
         // repeatedly in a tight loop when the input device wedges - e.g.
         // `alsa::poll()` returning POLLERR after a device disconnect. Logging at
-        // error level on every invocation floods Sentry with millions of
-        // identical events, so only report the first error per session at error
+        // error level on every invocation floods the log with millions of
+        // identical lines, so only report the first error per session at error
         // level and downgrade the rest to debug.
         let mut has_logged_stream_error = false;
         let stream = input_device

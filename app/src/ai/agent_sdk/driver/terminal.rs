@@ -117,8 +117,8 @@ pub(crate) struct TerminalDriver {
     /// (with exit code 0) before `Event::Exited` is delivered, so at exit
     /// time this — not any still-pending command — names the culprit.
     ///
-    /// Stored redacted because it flows into error reports (server task
-    /// status, Sentry) via [`AgentDriverError::SetupCommandExitedShell`].
+    /// Stored redacted because it flows into error reports and logs via
+    /// [`AgentDriverError::SetupCommandExitedShell`].
     last_command: Option<String>,
 }
 
@@ -331,7 +331,7 @@ impl TerminalDriver {
 
         let command_string = command.to_string();
         // Store a secret-redacted copy for shell-exit attribution: the text
-        // flows into error reports (server task status, Sentry) if the shell
+        // flows into error reports and logs if the shell
         // dies, so never retain the raw command here.
         let mut redacted_command = command_string.clone();
         redact_secrets(&mut redacted_command);

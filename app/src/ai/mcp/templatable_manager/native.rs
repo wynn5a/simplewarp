@@ -17,7 +17,6 @@ use uuid::Uuid;
 use warp_core::channel::ChannelState;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
-use warp_core::safe_error;
 use warp_core::settings::Setting as _;
 use warp_errors::report_error;
 use warpui::windowing::WindowManager;
@@ -807,10 +806,7 @@ impl TemplatableMCPServerManager {
         }) {
             Ok(logger) => logger,
             Err(e) => {
-                safe_error!(
-                    safe: ("Failed to register MCP log file: {}", e.safe_message()),
-                    full: ("Failed to register MCP log file for {template_uuid}: {e}")
-                );
+                log::error!("Failed to register MCP log file: {}", e.safe_message());
                 self.change_server_state(installation_uuid, MCPServerState::FailedToStart, ctx);
                 if mode.is_reconnect() {
                     self.notify_reconnect_waiters(

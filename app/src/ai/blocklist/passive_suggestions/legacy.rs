@@ -16,7 +16,6 @@ use crate::ai::blocklist::controller::{BlocklistAIController, BlocklistAIControl
 use crate::ai::blocklist::{BlocklistAIPermissions, read_local_file_context};
 use crate::ai::paths::host_native_absolute_path;
 use crate::network::NetworkStatus;
-use crate::safe_warn;
 use crate::settings::AISettings;
 use crate::terminal::event::{BlockType, UserBlockCompleted};
 use crate::terminal::model::block::BlockId;
@@ -344,16 +343,8 @@ impl PassiveSuggestionsModel {
                 let content = match content {
                     Ok(content) => {
                         if !content.failed_files.is_empty() {
-                            safe_warn!(
-                                safe: (
-                                    "Failed to read {} file(s) when retrieving content for suggested code diffs",
-                                    content.failed_files.len()
-                                ),
-                                full: (
-                                    "Failed to read files when retrieving content for suggested code diffs: {:?}",
-                                    content.failed_files
-                                )
-                            );
+                            log::warn!("Failed to read {} file(s) when retrieving content for suggested code diffs",
+                                    content.failed_files.len());
                             ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed);
                             return;
                         }

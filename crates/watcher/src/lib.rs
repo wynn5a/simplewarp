@@ -135,8 +135,7 @@ impl BulkFilesystemWatcherEvent {
 /// An empty path is not a location, and the platform backends handle it badly enough to be fatal:
 /// on macOS `notify` cannot build a CoreFoundation URL for it and then releases a null `CFError`,
 /// which traps and takes the whole process down. Rejecting it here keeps a caller's bad path from
-/// being a crash. See Sentry issue
-/// [WARP-CLIENT-DEV-XT3](https://warpdotdev.sentry.io/issues/WARP-CLIENT-DEV-XT3).
+/// being a crash.
 fn ensure_watchable_path(path: &Path) -> Result<PathBuf> {
     if path.as_os_str().is_empty() {
         anyhow::bail!("the filesystem watcher cannot watch an empty path");

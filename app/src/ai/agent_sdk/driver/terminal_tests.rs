@@ -29,8 +29,7 @@ fn shell_exit_fails_in_flight_and_subsequent_commands() {
 
         // A command containing a secret matching the configured pattern. The
         // attributed command in the shell-exit error must have the token
-        // redacted, since the error flows into server task status and Sentry
-        // reports.
+        // redacted, since the error flows into error reports and logs.
         let token = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij";
         let submitted = format!("echo {token}");
         let expected_redacted = format!("echo {}", "*".repeat(token.len()));

@@ -84,7 +84,6 @@ use crate::terminal::local_tty::{
     create_terminal_view_surface, terminal_view_restored_blocks,
 };
 use crate::terminal::model::session::Session;
-use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
 use crate::terminal::session_settings::{NewSessionSource, SessionSettings};
 use crate::terminal::view::inline_banner::{
     ZeroStatePromptSuggestionTriggeredFrom, ZeroStatePromptSuggestionType,
@@ -4449,14 +4448,11 @@ impl PaneGroup {
         let terminal_manager = terminal_init.manager;
         let terminal_view = terminal_init.view;
 
-        // Set the conversation transcript viewer status to Loading
         terminal_manager.update(ctx, |terminal_manager, _ctx| {
             terminal_manager
                 .model()
                 .lock()
-                .set_conversation_transcript_viewer_status(Some(
-                    ConversationTranscriptViewerStatus::Loading,
-                ));
+                .set_loading_conversation_transcript(true);
         });
 
         (terminal_view, terminal_manager)

@@ -6,7 +6,6 @@ use repo_metadata::repository::{RepositorySubscriber, SubscriberId};
 use repo_metadata::{DirectoryWatcher, Repository, RepositoryUpdate, RepositoryWatchMode};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use warp_core::safe_warn;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warp_util::standardized_path::StandardizedPath;
 use warpui_core::{ModelContext, ModelHandle, SingletonEntity};
@@ -213,22 +212,12 @@ impl GlobalRules {
             .update(ctx, |watcher, ctx| watcher.add_directory(std_path, ctx))
         {
             Ok(handle) => handle,
-            Err(err) => {
-                // `safe_warn!` because the path contains the user's home dir,
-                // which is PII; we only want the full path on dogfood builds.
-                // The error itself can also embed the canonicalized path
-                // (e.g. `RepoMetadataError::RepoNotFound(...)`), so we keep
-                // it out of the safe branch as well — only the source name
-                // is safe to send to Sentry.
-                safe_warn!(
-                    safe: (
-                        "Failed to register {} for global rules watching",
-                        source.name()
-                    ),
-                    full: (
-                        "Failed to register {} for global rules watching: {err}",
-                        subdir_path.display()
-                    )
+            Err(_) => {
+                // Neither the path nor the error is logged: the path contains the user's home dir
+                // (PII), and the error can embed the canonicalized path.
+                log::warn!(
+                    "Failed to register {} for global rules watching",
+                    source.name()
                 );
                 return;
             }
@@ -250,22 +239,13 @@ impl GlobalRules {
             },
         );
 
-        let cleanup_key = subdir_path_owned.clone();
-        let subdir_for_log = subdir_path_owned;
+        let cleanup_key = subdir_path_owned;
         ctx.spawn(start.registration_future, move |me, res, ctx| {
-            if let Err(err) = res {
-                // Same PII shape as the registration error above: the path
-                // and the error can both contain the user's home dir, so
-                // both stay in the `full` branch only.
-                safe_warn!(
-                    safe: (
-                        "Failed to start watching {} for global rules",
-                        source.name()
-                    ),
-                    full: (
-                        "Failed to start watching {} for global rules: {err}",
-                        subdir_for_log.display()
-                    )
+            if res.is_err() {
+                // Same PII shape as the registration error above.
+                log::warn!(
+                    "Failed to start watching {} for global rules",
+                    source.name()
                 );
                 // Remove the stored watcher since registration failed.
                 if let Some(state) = me.global_rules.source_watchers.remove(&cleanup_key) {

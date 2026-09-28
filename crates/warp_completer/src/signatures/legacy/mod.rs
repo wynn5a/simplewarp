@@ -1,6 +1,6 @@
 use std::sync::{Arc, OnceLock};
 
-use warp_core::channel::Channel;
+use warp_core::channel::ChannelState;
 
 mod miss_cache;
 pub mod registry;
@@ -54,7 +54,7 @@ impl CommandRegistry {
         // We use the current instance's signature. This is not entirely accurate (the user might
         // be SSHed into a host with a different version of the CLI), but it's close enough, and
         // it keeps the CLI completions up to date.
-        let bin_name = Channel::Oss.cli_command_name();
+        let bin_name = ChannelState::cli_command_name();
         let mut clap_cmd = warp_cli::Args::clap_command();
         let signature =
             crate::signatures::clap::signature_from_clap_command(&mut clap_cmd, bin_name);

@@ -38,6 +38,7 @@ impl ChannelState {
             config: ChannelConfig {
                 app_id,
                 url_scheme: "warposs",
+                cli_command_name: "warp-oss",
                 logfile_name: "".into(),
                 mcp_static_config: None,
             },
@@ -172,6 +173,10 @@ impl ChannelState {
 
     pub fn url_scheme() -> &'static str {
         CHANNEL_STATE.lock().config.url_scheme
+    }
+
+    pub fn cli_command_name() -> &'static str {
+        CHANNEL_STATE.lock().config.cli_command_name
     }
 }
 

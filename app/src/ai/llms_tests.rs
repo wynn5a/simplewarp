@@ -458,7 +458,7 @@ fn deserialized_available_llms_with_missing_default_does_not_panic() {
     // deserialization of a stale persisted snapshot bypasses `new()`. Build
     // such a struct, round-trip it through serde, and
     // confirm `default_llm_info()` falls back to the first choice instead of
-    // panicking (Sentry: "Default LLM ID must be present in choices").
+    // panicking ("Default LLM ID must be present in choices").
     let original = available(
         "missing-default",
         vec![server_llm("gpt-x", None), server_llm("gpt-y", None)],

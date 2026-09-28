@@ -47,7 +47,6 @@ use vim::{
     vim_inner_quote, vim_inner_word, vim_word_iterator_from_offset,
 };
 use warp_completer::completer::Description;
-use warp_core::safe_error;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_editor::editor::NavigationKey;
 use warp_util::path::ShellFamily;
@@ -5113,10 +5112,7 @@ impl EditorView {
                             });
                         }
                         Err(e) => {
-                            safe_error!(
-                                safe: ("Failed to read file: {e}"),
-                                full: ("Failed to read file {path_str}: {e}")
-                            );
+                            log::error!("Failed to read file: {e}");
                             num_read_errors += 1;
                         }
                     }

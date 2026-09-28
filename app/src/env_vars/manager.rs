@@ -8,7 +8,7 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::env_vars::view::env_var_collection::EnvVarCollectionView;
 use crate::pane_group::{EnvVarCollectionPane, PaneContent};
 use crate::server::ids::SyncId;
-use crate::{PaneViewLocator, WindowId, safe_warn};
+use crate::{PaneViewLocator, WindowId};
 
 pub struct EnvVarCollectionManager {
     panes_by_hashed_id: HashMap<String, EnvVarCollectionPaneData>,
@@ -110,10 +110,7 @@ impl EnvVarCollectionManager {
                 handle: pane.env_var_collection_view(ctx).downgrade(),
             });
         } else {
-            safe_warn!(
-                safe: ("Ignoring duplicate EnvVarCollection pane registration"),
-                full: ("Ignoring duplicate EnvVarCollection pane registration for {env_var_collection_id}")
-            );
+            log::warn!("Ignoring duplicate EnvVarCollection pane registration");
         }
     }
 

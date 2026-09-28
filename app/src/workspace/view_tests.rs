@@ -906,10 +906,7 @@ fn restore_conversation_in_active_pane_enters_existing_live_conversation_without
 
         terminal_view.read(&app, |view, ctx| {
             assert_eq!(view.active_conversation_id(ctx), Some(conversation_id));
-            assert_eq!(
-                view.model.lock().conversation_transcript_viewer_status(),
-                None
-            );
+            assert!(!view.model.lock().is_conversation_transcript_viewer());
         });
     });
 }

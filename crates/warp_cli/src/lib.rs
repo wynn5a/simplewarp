@@ -150,7 +150,7 @@ impl Args {
 
         // Substitute the actual binary name into help output. Ideally clap would do this for us.
         let bin_name =
-            binary_name().unwrap_or_else(|| ChannelState::channel().cli_command_name().to_string());
+            binary_name().unwrap_or_else(|| ChannelState::cli_command_name().to_string());
         command = command.after_help(color_print::cformat!(
             r#"<bold><underline>Examples:</underline></bold>
 

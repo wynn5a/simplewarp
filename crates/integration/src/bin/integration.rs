@@ -38,6 +38,7 @@ pub fn main() -> Result<()> {
             ),
             // Dummy value--integration tests shouldn't support URL schemes.
             url_scheme: "warpintegration",
+            cli_command_name: "oz-integration",
             logfile_name: "warp_integration.log".into(),
             mcp_static_config: None,
         },

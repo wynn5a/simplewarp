@@ -36,27 +36,20 @@ struct AgentIconFields {
     is_cli: bool,
     cli_agent: Option<CLIAgent>,
     status: Option<ConversationStatus>,
-    is_ambient: bool,
 }
 
 impl AgentIconFields {
     fn from_variant(variant: &IconWithStatusVariant) -> Option<Self> {
         match variant {
-            IconWithStatusVariant::OzAgent { status, is_ambient } => Some(Self {
+            IconWithStatusVariant::OzAgent { status } => Some(Self {
                 is_cli: false,
                 cli_agent: None,
                 status: status.clone(),
-                is_ambient: *is_ambient,
             }),
-            IconWithStatusVariant::CLIAgent {
-                agent,
-                status,
-                is_ambient,
-            } => Some(Self {
+            IconWithStatusVariant::CLIAgent { agent, status } => Some(Self {
                 is_cli: true,
                 cli_agent: Some(*agent),
                 status: status.clone(),
-                is_ambient: *is_ambient,
             }),
             IconWithStatusVariant::Neutral { .. }
             | IconWithStatusVariant::NeutralElement { .. }
@@ -103,13 +96,11 @@ impl CanonicalRunState {
                 is_cli: false,
                 cli_agent: None,
                 status: Some(ConversationStatus::InProgress),
-                is_ambient: false,
             }),
             LocalClaudePluginInProgress => Some(AgentIconFields {
                 is_cli: true,
                 cli_agent: Some(CLIAgent::Claude),
                 status: Some(ConversationStatus::InProgress),
-                is_ambient: false,
             }),
             LocalClaudePluginBlocked => Some(AgentIconFields {
                 is_cli: true,
@@ -117,13 +108,11 @@ impl CanonicalRunState {
                 status: Some(ConversationStatus::Blocked {
                     blocked_action: String::new(),
                 }),
-                is_ambient: false,
             }),
             LocalClaudeCommandDetected => Some(AgentIconFields {
                 is_cli: true,
                 cli_agent: Some(CLIAgent::Claude),
                 status: None,
-                is_ambient: false,
             }),
         }
     }
@@ -218,14 +207,12 @@ fn run_card_with_oz_or_unknown_harness_renders_as_oz() {
     let variant = agent_icon_variant_for_run(Harness::Oz, ConversationStatus::Success);
     let fields = AgentIconFields::from_variant(&variant).unwrap();
     assert!(!fields.is_cli);
-    assert!(!fields.is_ambient);
 
     // Unknown harness (e.g. server surfaced a future variant): also falls back to Oz so we
     // don't render an unbranded gray circle.
     let variant = agent_icon_variant_for_run(Harness::Unknown, ConversationStatus::Success);
     let fields = AgentIconFields::from_variant(&variant).unwrap();
     assert!(!fields.is_cli);
-    assert!(!fields.is_ambient);
 }
 
 #[test]
@@ -270,7 +257,6 @@ fn entry_icon_uses_harness() {
             is_cli: true,
             cli_agent: Some(CLIAgent::Codex),
             status: Some(ConversationStatus::Success),
-            is_ambient: false,
         }
     );
 }

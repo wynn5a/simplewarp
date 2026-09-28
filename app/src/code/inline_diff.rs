@@ -3,7 +3,7 @@ use std::sync::Arc;
 use ai::diff_validation::DiffType;
 use futures::FutureExt;
 use warp_files::{FileModel, FileModelEvent};
-use warp_util::file::{FileId, FileSaveError};
+use warp_util::file::FileId;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::elements::ChildView;
 use warpui::{
@@ -21,7 +21,7 @@ pub enum InlineDiffViewEvent {
     DiffStatusUpdated,
     FileLoaded,
     FileSaved,
-    FailedToSave { error: Arc<FileSaveError> },
+    FailedToSave,
     UserEdited,
 }
 
@@ -98,15 +98,9 @@ impl InlineDiffView {
             return;
         };
         let Some(local_path) = file_path.to_local_path() else {
-            crate::safe_error!(
-                safe: (
-                    "Failed to convert StandardizedPath to local path; diff will be \
+            log::error!(
+                "Failed to convert StandardizedPath to local path; diff will be \
                     read-only"
-                ),
-                full: (
-                    "Failed to convert StandardizedPath to local path: {file_path}; diff \
-                    will be read-only"
-                )
             );
             return;
         };
@@ -136,10 +130,8 @@ impl InlineDiffView {
                     FileModelEvent::FileSaved { .. } => {
                         ctx.emit(InlineDiffViewEvent::FileSaved);
                     }
-                    FileModelEvent::FailedToSave { error, .. } => {
-                        ctx.emit(InlineDiffViewEvent::FailedToSave {
-                            error: error.clone(),
-                        });
+                    FileModelEvent::FailedToSave { .. } => {
+                        ctx.emit(InlineDiffViewEvent::FailedToSave);
                     }
                     _ => {}
                 }
@@ -190,11 +182,8 @@ impl InlineDiffView {
         }) {
             Ok(save_future) => Some(save_future),
             Err(err) => {
-                let error = Arc::new(err);
-                ctx.emit(InlineDiffViewEvent::FailedToSave {
-                    error: error.clone(),
-                });
-                Some(futures::future::ready(Err(error)).boxed())
+                ctx.emit(InlineDiffViewEvent::FailedToSave);
+                Some(futures::future::ready(Err(Arc::new(err))).boxed())
             }
         }
     }

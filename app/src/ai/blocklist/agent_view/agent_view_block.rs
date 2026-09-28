@@ -273,7 +273,6 @@ impl View for AgentViewEntryBlock {
         let agent_icon = render_icon_with_status(
             IconWithStatusVariant::OzAgent {
                 status: Some(conversation.status().clone()),
-                is_ambient: false,
             },
             24.,
             0.,

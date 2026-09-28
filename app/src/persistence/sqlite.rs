@@ -91,7 +91,6 @@ use crate::persistence::block_list::{
 use crate::persistence::model::{
     CODE_REVIEW_PANE_KIND, GET_STARTED_PANE_KIND, NewPersistedObjectAction, ProjectRules,
 };
-use crate::safe_info;
 use crate::server::ids::{ClientId, HashableId, SyncId};
 use crate::settings_view::SettingsSection;
 use crate::suggestions::ignored_suggestions_model::SuggestionType;
@@ -307,10 +306,7 @@ fn migrate_old_sqlite_into_secure_container_if_needed(db_path: &Path) {
 
     match std::fs::rename(&old_db_path, db_path) {
         Ok(_) => {
-            safe_info!(
-                safe: ("Migrated SQLite database into application container"),
-                full: ("Migrated SQLite database from `{}` to `{}`", old_db_path.display(), db_path.display())
-            );
+            log::info!("Migrated SQLite database into application container");
 
             // Also migrate the associated WAL and SHM files.
             let old_wal = old_db_path.with_extension("sqlite-wal");
@@ -356,10 +352,7 @@ fn setup_database(database_path: &Path) -> Result<SqliteConnection> {
         .ok_or_else(|| anyhow!("Failed to convert db path to a string"))?;
     let mut conn = establish_connection(db_url, false)?;
 
-    safe_info!(
-        safe: ("Connecting to SQLite database"),
-        full: ("Connecting to SQLite database at {db_url}")
-    );
+    log::info!("Connecting to SQLite database");
     conn.run_pending_migrations(persistence::MIGRATIONS)
         .map_err(|e| anyhow!(e))
         .context("Failed to perform migrations")?;
@@ -577,7 +570,7 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
 
 /// Report a database error and additional context for debugging.
 fn report_db_error(err_kind: &str, err: anyhow::Error, database_path: &Path) {
-    // Sentry reports indicate that the database is sometimes missing/inaccessible, so check its
+    // Crash reports showed that the database is sometimes missing/inaccessible, so check its
     // permissions and whether or not it exists.
     fn log_access(prefix: &str, path: &Path) {
         match fs::metadata(path) {
@@ -588,25 +581,16 @@ fn report_db_error(err_kind: &str, err: anyhow::Error, database_path: &Path) {
                         // Windows does not have the same notion of permissions as Unix-based file systems.
                         // See more about what File Attributes contain [here](https://learn.microsoft.com/en-us/windows/win32/fileio/file-attribute-constants).
                         let attributes = metadata.file_attributes();
-                        safe_info!(
-                            safe: ("{prefix} attributes: {attributes}"),
-                            full: ("{prefix} {} attributes: {attributes}", path.display())
-                        );
+                        log::info!("{prefix} attributes: {attributes}");
                     } else {
                         use async_fs::unix::PermissionsExt;
                         let mode = metadata.permissions().mode();
-                        safe_info!(
-                            safe: ("{prefix} permissions: {mode:o}"),
-                            full: ("{prefix} {} permissions: {mode:o}", path.display())
-                        );
+                        log::info!("{prefix} permissions: {mode:o}");
                     }
                 }
             }
             Err(err) => {
-                safe_info!(
-                    safe: ("{prefix} is inaccessible: {err}"),
-                    full: ("{prefix} {} is inaccessible: {err}", path.display())
-                );
+                log::info!("{prefix} is inaccessible: {err}");
             }
         }
     }

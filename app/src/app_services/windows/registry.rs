@@ -13,9 +13,9 @@ pub(super) fn register_uri_handler() {
         return;
     };
 
-    // The Windows Registry entry for Warp (assuming the channel is WarpLocal):
-    // warplocal
-    //   (Default) = "WarpLocal"
+    // The Windows Registry entry for Warp (assuming the app is WarpOss):
+    // warposs
+    //   (Default) = "WarpOss"
     //   URL Protocol = ""
     //   DefaultIcon
     //      (Default) = "{path_to_channel_icon},0" TODO(CORE-2860): Add icon file path here.

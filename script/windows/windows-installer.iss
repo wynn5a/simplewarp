@@ -5,16 +5,16 @@
 #define MyAppPublisher "Denver Technologies, Inc."
 #define MyAppURL "https://www.warp.dev/"
 #ifndef MyAppName
-  #define MyAppName "WarpDev"
+  #define MyAppName "WarpOss"
 #endif
 #ifndef MyAppVersion
   #define MyAppVersion "0.1.0"
 #endif
 #ifndef MyAppExeName
-  #define MyAppExeName "dev.exe"
+  #define MyAppExeName "warp-oss.exe"
 #endif
 #ifndef ReleaseChannel
-  #define ReleaseChannel "dev"
+  #define ReleaseChannel "oss"
 #endif
 #ifndef TargetProfileDir
   #define TargetProfileDir "target\release-lto-debug_assertions"
@@ -23,13 +23,9 @@
 
 // The mutex name must match what the Rust app creates in single_instance_manager.rs:
 #define ChannelPascalCase \
-  (ReleaseChannel == "stable") ? "Stable" : \
-  ((ReleaseChannel == "dev") ? "Dev" : \
-  ((ReleaseChannel == "preview") ? "Preview" : \
-  ((ReleaseChannel == "local") ? "Local" : \
-  ((ReleaseChannel == "integration") ? "Integration" : \
+  (ReleaseChannel == "integration") ? "Integration" : \
   ((ReleaseChannel == "oss") ? "Oss" : \
-  "Unknown")))))
+  "Unknown")
 #define AppMutexName "Local\Warp" + ChannelPascalCase + "_SingleInstance"
 
 
@@ -147,15 +143,6 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: postinstall runhidden nowait
 
 [Code]
-function IsNotStable(): Boolean;
-begin
-#if ReleaseChannel == "stable"
-  Result := False;
-#else
-  Result := True;
-#endif
-end;
-
 { Returns true when the installer was launched by Warp's auto-update code.
   The auto-update path passes /update=1 on the command line and /NOCLOSEAPPLICATIONS
   so that the installer does not forcibly kill the running Warp process. Instead we
@@ -221,7 +208,7 @@ begin
   end;
 
   { After a successful install, write a helper script for running the Warp CLI. }
-  { We use this to add a "warp-" prefix (e.g. "warp-preview.cmd" vs. "preview.exe") }
+  { The script is named after the CLI command (e.g. "warp-oss.cmd"). }
   if CurStep = ssPostInstall then begin
     { Add Warp to PATH if requested }
     if IsTaskSelected('addToPath') then
@@ -232,10 +219,8 @@ begin
       CreateDir(BinDir);
 
     { Determine the channel-specific script name.  These values must match
-      `Channel::cli_command_name` in the Rust source. }
-#if ReleaseChannel == "stable"
-    CmdScriptName := 'oz.cmd'
-#elif ReleaseChannel == "oss"
+      `ChannelConfig::cli_command_name` in the Rust source. }
+#if ReleaseChannel == "oss"
     CmdScriptName := 'warp-oss.cmd';
 #else
     CmdScriptName := 'oz-{#ReleaseChannel}.cmd';

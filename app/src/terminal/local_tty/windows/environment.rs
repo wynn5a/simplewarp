@@ -11,7 +11,6 @@ use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RegType};
 use winreg::types::FromRegValue;
 use winreg::{RegKey, RegValue};
 
-use crate::safe_info;
 use crate::terminal::focus_env::{FOCUS_URL_ENV, TERMINAL_SESSION_UUID_ENV};
 use crate::terminal::local_tty::PtyOptions;
 use crate::terminal::local_tty::shell::{ShellStarter, extra_path_entries, ssh_socket_dir};
@@ -247,10 +246,7 @@ fn add_local_machine_env(env: &mut BTreeMap<OsString, EnvEntry>) {
         .filter(|(name, _)| !name.eq_ignore_ascii_case("username"))
     {
         let Ok(value) = reg_value_to_string(&value, &name) else {
-            safe_info!(
-                safe: ("Unable to convert value for key {name:?}"),
-                full: ("Unable to convert value for key {name:?}: {:?}", value.bytes)
-            );
+            log::info!("Unable to convert value for key {name:?}");
             continue;
         };
         log::trace!("adding SYS env: {name:?} = {value:?}");
@@ -272,10 +268,7 @@ fn add_user_env(env: &mut BTreeMap<OsString, EnvEntry>) {
 
     for (name, value) in sys_env.enum_values().filter_map(Result::ok) {
         let Ok(value) = reg_value_to_string(&value, &name) else {
-            safe_info!(
-                safe: ("Unable to convert value for key {name:?}"),
-                full: ("Unable to convert value for key {name:?}: {:?}", value.bytes)
-            );
+            log::info!("Unable to convert value for key {name:?}");
             continue;
         };
         // Merge the user path into system instead of overwriting it.

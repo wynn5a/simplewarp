@@ -521,14 +521,10 @@ impl CodeDiffView {
             InlineDiffViewEvent::FileSaved => {
                 me.pending_saves = me.pending_saves.saturating_sub(1);
             }
-            InlineDiffViewEvent::FailedToSave { error } => {
-                crate::safe_error!(
-                    safe: ("Failed to save file for accepted AgentMode diffs"),
-                    full: ("Failed to save file for accepted AgentMode diffs for {}: {}", file_path_clone, error)
-                );
-                let toast = DismissibleToast::error(format!(
-                    "Failed to save file {file_path_clone}"
-                ));
+            InlineDiffViewEvent::FailedToSave => {
+                log::error!("Failed to save file for accepted AgentMode diffs");
+                let toast =
+                    DismissibleToast::error(format!("Failed to save file {file_path_clone}"));
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -543,7 +539,6 @@ impl CodeDiffView {
                 let Some(_output_id) = me.server_output_id() else {
                     return;
                 };
-
             }
         });
     }

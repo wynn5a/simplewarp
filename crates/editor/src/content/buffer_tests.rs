@@ -14316,7 +14316,7 @@ fn test_insert_at_offsets() {
 /// `apply_core_edit_actions` without validating.  The invalid range reaches
 /// `Buffer::edit`, which panics on the `debug_assert!`.
 ///
-/// This test passes the exact Sentry crash values (`4042..3982`) to
+/// This test passes the exact values from a crash report (`4042..3982`) to
 /// `insert_at_offsets` to confirm the editor does not defend against bad
 /// input from the diff layer.
 #[test]
@@ -14341,7 +14341,7 @@ fn test_insert_at_offsets_overlapping_ranges_skipped() {
 
             let original_text = buffer.text().into_string();
 
-            // Pass a range with start > end (the exact Sentry crash values).
+            // Pass a range with start > end (the exact crash-report values).
             // After the fix in apply_core_edit_actions, the inverted range
             // should be skipped gracefully instead of panicking.
             let edits = Vec1::try_from_vec(vec![(

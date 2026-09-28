@@ -9,7 +9,7 @@ use warp_util::path::ShellFamily;
 
 /// Compute the target path where the Oz CLI symlink should be installed, based on channel
 fn oz_install_target_path() -> PathBuf {
-    PathBuf::from("/usr/local/bin").join(ChannelState::channel().cli_command_name())
+    PathBuf::from("/usr/local/bin").join(ChannelState::cli_command_name())
 }
 
 /// Create a symlink with elevated privileges using osascript

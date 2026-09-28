@@ -1,5 +1,5 @@
 use warp_command_signatures::{Priority, Signature};
-use warp_core::channel::Channel;
+use warp_core::channel::ChannelState;
 
 use crate::completer::testing::FakeCompletionContext;
 use crate::completer::{CompletionContext, TopLevelCommandCaseSensitivity};
@@ -43,7 +43,7 @@ fn test_all_known_signature_names_are_within_the_length_cap() {
     let mut clap_cmd = <warp_cli::Args as clap::CommandFactory>::command();
     let signature = crate::signatures::clap::signature_from_clap_command(
         &mut clap_cmd,
-        Channel::Oss.cli_command_name(),
+        ChannelState::cli_command_name(),
     );
     track_longest_name(&signature, &mut longest);
 

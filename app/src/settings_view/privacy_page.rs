@@ -41,7 +41,6 @@ use crate::terminal::safe_mode_settings::{
 };
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
-use crate::util::links::PRIVACY_POLICY_URL;
 use crate::view_components::{Dropdown, DropdownItem};
 
 const FONT_SIZE: f32 = 12.;
@@ -56,9 +55,6 @@ const USER_SECRET_REGEX_TITLE: &str = "Custom secret redaction";
 const USER_SECRET_REGEX_DESCRIPTION: &str = "Use regex to define additional secrets or data you'd like to redact. This will take effect \
     when the next command runs. You can use the inline (?i) flag as a prefix to your regex \
     to make it case-insensitive.";
-
-const PRIVACY_POLICY_TITLE: &str = "Privacy policy";
-const PRIVACY_POLICY_LINK_TEXT: &str = "Read Warp's privacy policy";
 
 pub struct PrivacyPageView {
     page: PageType<Self>,
@@ -178,7 +174,6 @@ impl PrivacyPageView {
         let mut widgets: Vec<Box<dyn SettingsWidget<View = Self>>> =
             vec![Box::new(SecretRedactionWidget::default())];
         widgets.push(Box::new(NetworkLogWidget::default()));
-        widgets.push(Box::new(PrivacyPolicyWidget::default()));
         PageType::new_uncategorized(widgets, Some("Privacy"))
     }
 
@@ -1026,55 +1021,6 @@ impl SettingsWidget for NetworkLogWidget {
                             Some(Box::new(|ctx| {
                                 ctx.dispatch_typed_action(PrivacyPageAction::LaunchNetworkLogging);
                             })),
-                            self.link_mouse_state.clone(),
-                        )
-                        .soft_wrap(false)
-                        .build()
-                        .with_margin_bottom(styles::DESCRIPTION_MARGIN_BOTTOM)
-                        .finish(),
-                )
-                .left()
-                .finish(),
-            )
-            .finish()
-    }
-}
-
-#[derive(Default)]
-struct PrivacyPolicyWidget {
-    link_mouse_state: MouseStateHandle,
-}
-
-impl SettingsWidget for PrivacyPolicyWidget {
-    type View = PrivacyPageView;
-
-    fn search_terms(&self) -> &str {
-        "privacy policy terms"
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        _app: &AppContext,
-    ) -> Box<dyn Element> {
-        Flex::column()
-            .with_child(render_body_item::<PrivacyPageAction>(
-                PRIVACY_POLICY_TITLE.into(),
-                None,
-                ToggleState::Enabled,
-                appearance,
-                Empty::new().finish(),
-                None,
-            ))
-            .with_child(
-                Align::new(
-                    appearance
-                        .ui_builder()
-                        .link(
-                            PRIVACY_POLICY_LINK_TEXT.into(),
-                            Some(PRIVACY_POLICY_URL.into()),
-                            None,
                             self.link_mouse_state.clone(),
                         )
                         .soft_wrap(false)

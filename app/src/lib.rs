@@ -164,8 +164,6 @@ use url::Url;
 pub use warp_core::r#async::debounce;
 use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
 // Re-export the send_telemetry_from_ctx macro at the crate root level
-// Re-export the safe logging macros at the crate root level for backwards compatibility
-pub use warp_core::{safe_debug, safe_error, safe_info, safe_warn};
 use warp_errors::{report_error, report_if_error};
 use warp_files::FileModel;
 use warp_logging::{LogDestination, LogFrontend};

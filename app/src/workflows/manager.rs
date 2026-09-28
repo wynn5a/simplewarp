@@ -11,7 +11,7 @@ use crate::pane_group::{PaneContent, WorkflowPane};
 use crate::server::ids::{ClientId, SyncId};
 use crate::workflows::WorkflowViewMode;
 use crate::workflows::workflow_view::WorkflowView;
-use crate::{PaneViewLocator, WindowId, safe_warn};
+use crate::{PaneViewLocator, WindowId};
 
 pub struct WorkflowManager {
     panes_by_hashed_id: HashMap<String, WorkflowPaneData>,
@@ -135,10 +135,7 @@ impl WorkflowManager {
                 },
             });
         } else {
-            safe_warn!(
-                safe: ("Ignoring duplicate Workflow pane registration"),
-                full: ("Ignoring duplicate Workflow pane registration for {workflow_id}")
-            );
+            log::warn!("Ignoring duplicate Workflow pane registration");
         }
     }
 

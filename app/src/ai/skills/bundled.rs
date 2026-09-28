@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use ai::skills::{ParsedSkill, SkillPathOrigin, SkillReference, parse_bundled_skill};
 use futures::TryStreamExt;
 use warp_core::channel::ChannelState;
-use warp_core::safe_warn;
 use warp_core::ui::icons::Icon;
 use warp_errors::report_error;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
@@ -263,10 +262,7 @@ pub(crate) async fn read_bundled_skills(
 
         // We use the directory name as the skill ID (guaranteed unique within bundled skills).
         let Some(skill_id) = entry_path.file_name().and_then(|s| s.to_str()) else {
-            safe_warn!(
-                safe: ("Could not resolve bundled skill ID, skipping skill"),
-                full: ("Could not resolve bundled skill ID from {}, skipping skill", skill.path.display_path())
-            );
+            log::warn!("Could not resolve bundled skill ID, skipping skill");
             continue;
         };
         let context = build_bundled_skill_context(resources_dir, &entry_path);
@@ -303,7 +299,7 @@ pub(crate) fn build_bundled_skill_context(
     [
         (
             "warp_cli_binary_name".to_owned(),
-            ChannelState::channel().cli_command_name().to_owned(),
+            ChannelState::cli_command_name().to_owned(),
         ),
         (
             "warp_url_scheme".to_owned(),

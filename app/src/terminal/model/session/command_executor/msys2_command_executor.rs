@@ -12,7 +12,6 @@ use warp_completer::completer::CommandOutput;
 use warp_util::path::{convert_msys2_to_windows_native_path, msys2_exe_to_root};
 
 use super::{CommandExecutor, ExecuteCommandOptions};
-use crate::safe_warn;
 use crate::terminal::shell::{Shell, ShellType};
 
 const BASH_CONFIG_FLAG: &str = "--norc";
@@ -78,10 +77,7 @@ impl MSYS2CommandExecutor {
             .await
             .map(|output| output.into())
             .map_err(|e| {
-                safe_warn!(
-                    safe: ("error executing local command"),
-                    full: ("error executing command {:?} with error {:?}", command, e)
-                );
+                log::warn!("error executing local command");
                 anyhow!(e)
             })
     }
@@ -132,10 +128,7 @@ impl MSYS2CommandExecutor {
             .await
             .map(|output| output.into())
             .map_err(|e| {
-                safe_warn!(
-                    safe: ("error executing local command"),
-                    full: ("error executing command {:?} with error {:?}", command, e)
-                );
+                log::warn!("error executing local command");
                 anyhow!(e)
             })
     }

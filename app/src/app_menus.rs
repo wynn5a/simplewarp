@@ -164,12 +164,6 @@ fn make_new_app_menu(ctx: &AppContext) -> Menu {
         menu_items.push(MenuItem::Services);
     }
 
-    menu_items.push(MenuItem::Separator);
-    menu_items.push(link_menu_item(
-        "Privacy Policy...",
-        links::PRIVACY_POLICY_URL.into(),
-    ));
-
     let debug_menu_items = debug_menu_items();
     if !debug_menu_items.is_empty() {
         menu_items.push(MenuItem::Custom(CustomMenuItem::new_with_submenu(

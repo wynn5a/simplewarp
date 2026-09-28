@@ -25,7 +25,7 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::ai::agent::conversation::{AIConversation, ConversationStatus, StatusColorStyle};
+use crate::ai::agent::conversation::{AIConversation, ConversationStatus};
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
@@ -280,7 +280,7 @@ impl ConversationDetailsPanel {
 
         let PanelMode::Conversation { status, .. } = &self.data.mode;
         let status = status.as_ref()?;
-        let (icon, color) = status.status_icon_and_color(theme, StatusColorStyle::Standard);
+        let (icon, color) = status.status_icon_and_color(theme);
         let display_text = status.to_string();
 
         let status_icon = ConstrainedBox::new(icon.to_warpui_icon(color.into()).finish())

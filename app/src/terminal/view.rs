@@ -425,10 +425,7 @@ use crate::workspace::{
     CommandSearchOptions, ForkAIConversationParams, ForkFromExchange,
     ForkedConversationDestination, ToastStack, WorkspaceAction,
 };
-use crate::{
-    AIAgentActionResultType, AIRequestUsageModel, ActiveSession as WindowActiveSession, safe_error,
-    safe_warn,
-};
+use crate::{AIAgentActionResultType, AIRequestUsageModel, ActiveSession as WindowActiveSession};
 
 lazy_static! {
     // A set of commands that perform minimal work that we use as a baseline to measure the latency of blocks.
@@ -5939,13 +5936,9 @@ impl TerminalView {
                     .conversation_id_for_action(action_id, ctx.view_id())
                     .and_then(|id| history_model.conversation(&id))
                 else {
-                    safe_error!(
-                        safe: ("No conversation ID found for command with ID: {:?}", action_id),
-                        full: (
-                            "No conversation ID found for requested command: ID: {:?}, command: \
-                            {command}",
-                            action_id
-                        )
+                    log::error!(
+                        "No conversation ID found for command with ID: {:?}",
+                        action_id
                     );
                     return;
                 };
@@ -6995,10 +6988,7 @@ impl TerminalView {
         if self.is_long_running() {
             self.write_user_bytes_to_pty(bytes.to_owned(), ctx);
         } else {
-            safe_warn!(
-                safe: ("command not long-running. ignoring control seq on terminal."),
-                full: ("command not long-running. ignoring control seq on terminal: {:?}", bytes)
-            )
+            log::warn!("command not long-running. ignoring control seq on terminal.")
         }
     }
 
@@ -10619,7 +10609,7 @@ impl TerminalView {
         block_completed: &UserBlockCompleted,
         ctx: &mut ViewContext<Self>,
     ) {
-        let cli_name = ChannelState::channel().cli_command_name();
+        let cli_name = ChannelState::cli_command_name();
         let cmd = &block_completed.command;
         let is_env_create =
             cmd.contains(cli_name) && cmd.contains("environment") && cmd.contains("create");
@@ -19997,7 +19987,7 @@ impl TerminalView {
                     {
                         *request_outcome = Some(outcome.clone());
                     }
-                    // Log to sentry if unknown error
+                    // Report unknown errors.
                     if let RequestPermissionsOutcome::OtherError { error_message } = &outcome {
                         report_error!(
                             anyhow::anyhow!("{error_message}")

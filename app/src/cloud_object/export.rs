@@ -16,7 +16,6 @@ use super::CloudObjectTypeAndId;
 use crate::cloud_object::PERSONAL_SPACE_NAME;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::notebooks::export_notebook;
-use crate::safe_warn;
 use crate::server::cloud_objects::update_manager::get_duplicate_object_name;
 use crate::view_components::{DismissibleToast, ToastLink};
 use crate::workflows::export_workflow::export_serialize;
@@ -177,7 +176,7 @@ impl ExportManager {
                         Ok(handle) => {
                             export.get_mut().state = State::Exporting(handle);
                         }
-                        Err(ref err) => Self::handle_failure(export, err, ctx),
+                        Err(_) => Self::handle_failure(export, ctx),
                     }
                 }
                 State::Exporting(_) => {
@@ -207,9 +206,9 @@ impl ExportManager {
                     Self::handle_completion(export, path.clone(), ctx);
                     (is_bulk, window_id)
                 }
-                Err(ref err) => {
+                Err(_) => {
                     let (is_bulk, window_id) = (export.get().is_bulk, export.get().window_id);
-                    Self::handle_failure(export, err, ctx);
+                    Self::handle_failure(export, ctx);
                     (is_bulk, window_id)
                 }
             },
@@ -332,20 +331,13 @@ impl ExportManager {
     }
 
     /// Handle an error exporting an object.
-    fn handle_failure(
-        export: OccupiedEntry<ExportId, Export>,
-        error: &anyhow::Error,
-        ctx: &mut ModelContext<Self>,
-    ) {
+    fn handle_failure(export: OccupiedEntry<ExportId, Export>, ctx: &mut ModelContext<Self>) {
         let id = *export.key();
-        // Don't send the error to Sentry, since it likely includes a user file path and their Warp
-        // Drive object name. Also don't report this as an error, since the most likely failure
-        // reason is an I/O issue on the user's machine (like being out of disk space, or exporting
-        // to a directory they can't write to).
-        safe_warn!(
-            safe: ("Exporting {id:?} failed"),
-            full: ("Exporting {id:?} failed: {error:#}")
-        );
+        // Don't log the error, since it likely includes a user file path and object name. Also
+        // don't report this as an error, since the most likely failure reason is an I/O issue on
+        // the user's machine (like being out of disk space, or exporting to a directory they can't
+        // write to).
+        log::warn!("Exporting {id:?} failed");
         ctx.emit(ExportEvent::Failed { id: *export.key() });
         let window_id = export.remove().window_id;
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {

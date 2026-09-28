@@ -21,7 +21,6 @@ use string_offset::{ByteOffset, CharOffset};
 use sum_tree::{SeekBias, SumTree};
 use vec1::{Vec1, vec1};
 use warp_core::platform::SessionPlatform;
-use warp_core::safe_error;
 use warp_util::content_version::ContentVersion;
 use warpui_core::elements::ListIndentLevel;
 use warpui_core::fonts::Weight;
@@ -854,11 +853,8 @@ impl Buffer {
         };
         let parsed_formatted_text = match parse_fn(markdown) {
             Ok(parsed) => parsed,
-            Err(e) => {
-                safe_error! {
-                    safe: ("Failed to parse markdown to start notebook"),
-                    full: ("Failed to parse markdown to start notebook: {e}")
-                }
+            Err(_) => {
+                log::error!("Failed to parse markdown to start notebook");
 
                 // Return a default formatted text instead of panicking.
                 FormattedText::new(vec![])
@@ -955,11 +951,8 @@ impl Buffer {
                 ctx,
             ) {
                 Ok(buffer) => buffer,
-                Err(e) => {
-                    safe_error! {
-                        safe: ("Failed to render Jupyter notebook; showing raw contents"),
-                        full: ("Failed to render Jupyter notebook: {e}")
-                    }
+                Err(_) => {
+                    log::error!("Failed to render Jupyter notebook; showing raw contents");
                     Buffer::from_formatted_text(
                         ipynb_parser::raw_fallback_formatted_text(state.text),
                         callback,

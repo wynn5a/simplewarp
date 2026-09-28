@@ -295,10 +295,7 @@ impl View for AgentViewZeroStateBlock {
         let header_props = HeaderProps {
             title: "New Warp Agent conversation".into(),
             description: vec![local_description.into()],
-            icon: IconWithStatusVariant::OzAgent {
-                status: None,
-                is_ambient: false,
-            },
+            icon: IconWithStatusVariant::OzAgent { status: None },
         };
 
         let mut content = Flex::column()

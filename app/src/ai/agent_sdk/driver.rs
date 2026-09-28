@@ -21,7 +21,6 @@ use uuid::Uuid;
 use warp_cli::agent::{Harness, OutputFormat};
 use warp_cli::mcp::MCPSpec;
 use warp_core::features::FeatureFlag;
-use warp_core::{safe_debug, safe_error, safe_info};
 use warp_errors::{ErrorExt, register_error, report_error, report_if_error};
 use warpui::r#async::{FutureExt, TimeoutError};
 use warpui::{Entity, ModelContext, ModelHandle, ModelSpawner, SingletonEntity};
@@ -437,13 +436,7 @@ impl AgentDriver {
             mcp_startup_timeout,
         } = options;
 
-        safe_info!(
-            safe: ("Initializing agent driver: idle_on_complete={idle_on_complete:?}"),
-            full: (
-                "Initializing agent driver: idle_on_complete={idle_on_complete:?}, working_dir={}",
-                working_dir.display()
-            )
-        );
+        log::info!("Initializing agent driver: idle_on_complete={idle_on_complete:?}");
 
         let mut env_vars = HashMap::new();
 
@@ -1057,10 +1050,7 @@ impl AgentDriver {
         task: Task,
         foreground: ModelSpawner<Self>,
     ) -> Result<(), AgentDriverError> {
-        safe_debug!(
-            safe: ("Running agent driver"),
-            full: ("Running agent driver for query `{:?}`", task.prompt)
-        );
+        log::debug!("Running agent driver");
 
         let setup_span = tracing::info_span!("agent_run_setup", tags.cloud_agent = true);
         let setup_events = async {
@@ -1300,12 +1290,9 @@ impl AgentDriver {
             } else {
                 format!("exit code {}: {}", exit_code.value(), output_text)
             };
-            safe_error!(
-                safe: (
-                    "Preflight auth check failed for {harness_name} (exit code {})",
-                    exit_code.value()
-                ),
-                full: ("Preflight auth check failed for {harness_name}. {detail}")
+            log::error!(
+                "Preflight auth check failed for {harness_name} (exit code {})",
+                exit_code.value()
             );
             return Err(AgentDriverError::HarnessAuthCheckFailed {
                 harness: harness_name.to_owned(),

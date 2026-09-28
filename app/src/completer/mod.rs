@@ -20,7 +20,6 @@ use warp_core::features::FeatureFlag;
 use warp_util::path::{EscapeChar, ShellFamily};
 use warpui::{AppContext, SingletonEntity};
 
-use crate::safe_warn;
 use crate::terminal::model::session::{ExecuteCommandOptions, Session, SessionType};
 use crate::util::AsciiDebug;
 use crate::workflows::aliases::WorkflowAliases;
@@ -173,9 +172,8 @@ impl SessionContext {
                             entries
                         }
                         CommandExitStatus::Failure => {
-                            safe_warn!(
-                                safe: ("Executing `ls` on remote box failed with non-zero status code."),
-                                full: ("Executing `ls` on remote box failed with error: {}", &String::from_utf8_lossy(command_output.output()))
+                            log::warn!(
+                                "Executing `ls` on remote box failed with non-zero status code."
                             );
                             vec![]
                         }

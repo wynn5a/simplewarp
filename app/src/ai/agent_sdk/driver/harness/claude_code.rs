@@ -10,7 +10,6 @@ use serde_json::{Map, Value};
 use tempfile::NamedTempFile;
 use uuid::Uuid;
 use warp_cli::agent::Harness;
-use warp_core::safe_info;
 use warpui::{ModelHandle, ModelSpawner};
 
 use super::super::terminal::{CommandHandle, TerminalDriver};
@@ -284,13 +283,7 @@ fn publish_warp_skill_dirs_for_claude(working_dir: &Path) {
     let published =
         super::skill_dirs_publish::publish_skill_dirs(&skill_root, &source_dirs, is_sandbox);
     if published > 0 {
-        safe_info!(
-            safe: ("Published {published} WARP_SKILL_DIRS skill(s) to the Claude Code skill root"),
-            full: (
-                "Published {published} WARP_SKILL_DIRS skill(s) to Claude Code skill root {}",
-                skill_root.display()
-            )
-        );
+        log::info!("Published {published} WARP_SKILL_DIRS skill(s) to the Claude Code skill root");
     }
 }
 

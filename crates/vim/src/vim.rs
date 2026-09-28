@@ -1,4 +1,3 @@
-use warp_core::safe_info;
 use warpui_core::keymap::Keystroke;
 use warpui_core::{Entity, ModelContext, ModelHandle, ViewContext};
 
@@ -1997,10 +1996,7 @@ where
         event: &VimEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        safe_info!(
-            safe: ("Handling vim event, count {:?}", event.count),
-            full: ("Handling vim event type {:?}, count {:?}", event.event_type, event.count)
-        );
+        log::info!("Handling vim event, count {:?}", event.count);
         match &event.event_type {
             VimEventType::InsertChar(c) => self.insert_char(*c, ctx),
             VimEventType::Navigate(motion) => match motion {

@@ -289,7 +289,7 @@ Run `{{warp_cli_binary_name}}` from {{warp_url_scheme}}.
     assert_eq!(skills.len(), 1);
     let skill = skills.get("test-skill").unwrap();
 
-    let expected_cli = ChannelState::channel().cli_command_name();
+    let expected_cli = ChannelState::cli_command_name();
     let expected_scheme = ChannelState::url_scheme();
     assert!(
         skill
@@ -364,7 +364,7 @@ Use {{other_var}}, {{warp_cli_binary_name}}, and {{skill_dir}} together.
     assert_eq!(skills.len(), 1);
     let skill = skills.get("test-skill").unwrap();
 
-    let expected_cli = ChannelState::channel().cli_command_name();
+    let expected_cli = ChannelState::cli_command_name();
     assert!(skill.content.contains(&format!(
         "Use {{{{other_var}}}}, {expected_cli}, and {} together.",
         skill_dir.display()
@@ -441,7 +441,7 @@ fn test_build_bundled_skill_context() {
 
     assert_eq!(
         context.get("warp_cli_binary_name").unwrap(),
-        ChannelState::channel().cli_command_name()
+        ChannelState::cli_command_name()
     );
     assert_eq!(
         context.get("warp_url_scheme").unwrap(),

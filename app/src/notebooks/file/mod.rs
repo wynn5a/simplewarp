@@ -31,6 +31,7 @@ use super::editor::view::{EditorViewEvent, RichTextEditorConfig, RichTextEditorV
 use super::link::{NotebookLinks, SessionSource};
 use super::{NotebookLocation, styles};
 use crate::appearance::Appearance;
+use crate::cmd_or_ctrl_shift;
 use crate::code::editor_management::CodeSource;
 use crate::editor::InteractionState;
 use crate::menu::{MenuItem, MenuItemFields};
@@ -53,7 +54,6 @@ pub use crate::util::openable_file_type::{
 use crate::view_components::{MarkdownToggleEvent, MarkdownToggleView};
 use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ActiveSession;
-use crate::{cmd_or_ctrl_shift, safe_warn};
 
 /// Display mode for markdown files shown via the header segmented control.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -423,11 +423,8 @@ impl FileNotebookView {
                             // Trigger to save the open file path for session restoration.
                             ctx.emit(FileNotebookEvent::FileLoaded);
                         }
-                        FileModelEvent::FailedToLoad { error, .. } => {
-                            safe_warn!(
-                                safe: ("Unable to read local notebook file"),
-                                full: ("Unable to read local notebook file: {error}")
-                            );
+                        FileModelEvent::FailedToLoad { .. } => {
+                            log::warn!("Unable to read local notebook file");
                             me.file_state =
                                 match mem::replace(&mut me.file_state, FileState::NoFile) {
                                     FileState::NoFile => FileState::NoFile,

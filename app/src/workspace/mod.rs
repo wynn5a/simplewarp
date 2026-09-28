@@ -1205,12 +1205,6 @@ fn add_overflow_menu_items_as_editable_binding(app: &mut AppContext) {
             WorkspaceAction::ViewLogs,
         )
         .with_context_predicate(id!("Workspace")),
-        EditableBinding::new(
-            "workspace:link_to_privacy_policy",
-            "View privacy policy (opens external link)",
-            WorkspaceAction::ViewPrivacyPolicy,
-        )
-        .with_context_predicate(id!("Workspace")),
     ]);
 }
 

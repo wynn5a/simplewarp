@@ -28,7 +28,7 @@ use crate::workspace::util::PaneViewLocator;
 use crate::workspace::{
     ToastStack, Workspace, WorkspaceAction, WorkspaceRegistry, active_terminal_in_window,
 };
-use crate::{ChannelState, OpenPath, quake_mode_window_id, quake_mode_window_is_open, safe_info};
+use crate::{ChannelState, OpenPath, quake_mode_window_id, quake_mode_window_is_open};
 
 const DESKTOP_REDIRECT_URI_PATH: &str = "/desktop_redirect";
 
@@ -784,10 +784,7 @@ impl Action {
 
 /// Handles all incoming urls: file urls and `warp://` intent urls.
 pub fn handle_incoming_uri(url: &Url, ctx: &mut AppContext) {
-    safe_info!(
-        safe: ("received url"),
-        full: ("received url {:?}", &url)
-    );
+    log::info!("received url");
 
     // Pick the window that should be handling the URI.  This has some
     // additional logic to handle the hotkey window and there being no

@@ -19,7 +19,6 @@ use crate::ai::agent::{AIIdentifiers, FileEdit};
 use crate::ai::blocklist::SessionContext;
 use crate::ai::paths::host_native_absolute_path;
 use crate::auth::auth_state::AuthState;
-use crate::{safe_debug, safe_warn};
 
 /// Result of reading a file from disk.
 pub(crate) enum FileReadResult {
@@ -396,10 +395,7 @@ async fn apply_replace_file<F, Fut>(
                 .push(DiffApplicationError::MissingFile { file: file_path });
         }
         FileReadResult::ReadError(err) => {
-            safe_warn!(
-                safe: ("Unable to read file for Agent Code: {err}"),
-                full: ("Unable to read file {absolute_path:?} for Agent Code: {err}")
-            );
+            log::warn!("Unable to read file for Agent Code: {err}");
             result.errors.push(DiffApplicationError::ReadFailed {
                 file: file_path,
                 message: err,
@@ -427,10 +423,7 @@ async fn apply_create_file<F, Fut>(
 
     match read_file(absolute_path.clone()).await {
         FileReadResult::Found(_) => {
-            safe_warn!(
-                safe: ("Agent Code tried to create a file that already exists"),
-                full: ("Agent Code tried to create a file that already exists: {absolute_path:?}")
-            );
+            log::warn!("Agent Code tried to create a file that already exists");
             result
                 .errors
                 .push(DiffApplicationError::AlreadyExists { file: file_path });
@@ -444,10 +437,7 @@ async fn apply_create_file<F, Fut>(
             });
         }
         FileReadResult::ReadError(err) => {
-            safe_warn!(
-                safe: ("Unable to check if file exists for Agent Code: {err}"),
-                full: ("Unable to check if file exists for Agent Code: {absolute_path:?} {err}")
-            );
+            log::warn!("Unable to check if file exists for Agent Code: {err}");
             result.errors.push(DiffApplicationError::ReadFailed {
                 file: file_path,
                 message: err,
@@ -487,10 +477,7 @@ async fn apply_delete_file<F, Fut>(
                 .push(DiffApplicationError::MissingFile { file: file_path });
         }
         FileReadResult::ReadError(err) => {
-            safe_warn!(
-                safe: ("Unable to read file for Agent Code: {err}"),
-                full: ("Unable to read file {absolute_path:?} for Agent Code: {err}")
-            );
+            log::warn!("Unable to read file for Agent Code: {err}");
             result.errors.push(DiffApplicationError::ReadFailed {
                 file: file_path,
                 message: err,
@@ -528,10 +515,7 @@ async fn apply_search_replace<F, Fut>(
                             original_content: String::new(),
                         })
                     } else {
-                        safe_warn!(
-                            safe: ("Suggested non-empty diff on non-existent file"),
-                            full: ("Suggested non-empty diff on non-existent file: {absolute_path:?}")
-                        );
+                        log::warn!("Suggested non-empty diff on non-existent file");
                         // A non-empty search block on a non-existent file indicates that the
                         // LLM likely got the path wrong, and is not trying to create a new file.
                         result
@@ -540,10 +524,7 @@ async fn apply_search_replace<F, Fut>(
                     }
                 }
                 Err(err) => {
-                    safe_warn!(
-                        safe: ("Suggested {} diffs on non-existent file", err.len()),
-                        full: ("Suggested {} diffs on non-existent file: {absolute_path:?}", err.len())
-                    );
+                    log::warn!("Suggested {} diffs on non-existent file", err.len());
                     // Multiple diffs on a non-existent file indicate that the LLM likely got
                     // the path wrong, and is not trying to create a new file.
                     result
@@ -553,33 +534,24 @@ async fn apply_search_replace<F, Fut>(
             }
         }
         FileReadResult::ReadError(err) => {
-            safe_warn!(
-                safe: ("Unable to read file for Agent Code: {err}"),
-                full: ("Unable to read file {absolute_path:?} for Agent Code: {err}")
-            );
+            log::warn!("Unable to read file for Agent Code: {err}");
             result.errors.push(DiffApplicationError::ReadFailed {
                 file: file_path,
                 message: err,
             });
         }
         FileReadResult::Found(file_content) => {
-            safe_debug!(
-                safe: ("Matching diffs"),
-                full: ("Matching diffs for: {file_path:?}")
-            );
+            log::debug!("Matching diffs");
             let fuzzy_match_diffs = fuzzy_match_diffs(&file_path, &deltas, file_content);
 
             if fuzzy_match_diffs.warrants_failure()
                 && let Some(failures) = fuzzy_match_diffs.failures.as_ref()
             {
-                safe_warn!(
-                    safe: (
-                        "Failure(s) applying diff: {} unmatched, {} noop, {} missing line numbers",
-                        failures.fuzzy_match_failures,
-                        failures.noop_deltas,
-                        failures.missing_line_numbers
-                    ),
-                    full: ("Failure(s) applying diff for {absolute_path:?}: {failures:?}")
+                log::warn!(
+                    "Failure(s) applying diff: {} unmatched, {} noop, {} missing line numbers",
+                    failures.fuzzy_match_failures,
+                    failures.noop_deltas,
+                    failures.missing_line_numbers
                 );
                 result.errors.push(DiffApplicationError::UnmatchedDiffs {
                     file: file_path.clone(),
@@ -610,20 +582,14 @@ async fn apply_v4a_update<F, Fut>(
 
     let file_content = match read_file(absolute_path.clone()).await {
         FileReadResult::NotFound => {
-            safe_warn!(
-                safe: ("V4A edits requested on non-existent file"),
-                full: ("V4A edits requested on non-existent file: {absolute_path:?}")
-            );
+            log::warn!("V4A edits requested on non-existent file");
             result
                 .errors
                 .push(DiffApplicationError::MissingFile { file: file_path });
             return;
         }
         FileReadResult::ReadError(err) => {
-            safe_warn!(
-                safe: ("Unable to read file for Agent Code: {err}"),
-                full: ("Unable to read file {absolute_path:?} for Agent Code: {err}")
-            );
+            log::warn!("Unable to read file for Agent Code: {err}");
             result.errors.push(DiffApplicationError::ReadFailed {
                 file: file_path,
                 message: err,
@@ -633,10 +599,7 @@ async fn apply_v4a_update<F, Fut>(
         FileReadResult::Found(content) => content,
     };
 
-    safe_debug!(
-        safe: ("Matching V4A diffs"),
-        full: ("Matching V4A diffs for: {file_path:?}")
-    );
+    log::debug!("Matching V4A diffs");
 
     // Check if we're renaming to an existing file.
     let rename_target_content = if let Some(target) = &rename_to {
@@ -649,10 +612,7 @@ async fn apply_v4a_update<F, Fut>(
             FileReadResult::Found(content) => Some(content),
             FileReadResult::NotFound => None,
             FileReadResult::ReadError(err) => {
-                safe_warn!(
-                    safe: ("Unable to read rename target file: {err}"),
-                    full: ("Unable to read rename target file {target_absolute:?}: {err}")
-                );
+                log::warn!("Unable to read rename target file: {err}");
                 result.errors.push(DiffApplicationError::ReadFailed {
                     file: target.clone(),
                     message: err,
@@ -675,14 +635,11 @@ async fn apply_v4a_update<F, Fut>(
         let source_diffs = fuzzy_match_v4a_diffs(&file_path, &deltas, None, file_content.clone());
         if source_diffs.warrants_failure() {
             if let Some(failures) = source_diffs.failures.as_ref() {
-                safe_warn!(
-                    safe: (
-                        "Failure(s) applying V4A diff: {} unmatched, {} noop, {} missing line numbers",
-                        failures.fuzzy_match_failures,
-                        failures.noop_deltas,
-                        failures.missing_line_numbers
-                    ),
-                    full: ("Failure(s) applying V4A diff for {absolute_path:?}: {failures:?}")
+                log::warn!(
+                    "Failure(s) applying V4A diff: {} unmatched, {} noop, {} missing line numbers",
+                    failures.fuzzy_match_failures,
+                    failures.noop_deltas,
+                    failures.missing_line_numbers
                 );
                 result.errors.push(DiffApplicationError::UnmatchedDiffs {
                     file: file_path.clone(),
@@ -742,14 +699,11 @@ async fn apply_v4a_update<F, Fut>(
         if diffs.warrants_failure()
             && let Some(failures) = diffs.failures.as_ref()
         {
-            safe_warn!(
-                safe: (
-                    "Failure(s) applying V4A diff: {} unmatched, {} noop, {} missing line numbers",
-                    failures.fuzzy_match_failures,
-                    failures.noop_deltas,
-                    failures.missing_line_numbers
-                ),
-                full: ("Failure(s) applying V4A diff for {absolute_path:?}: {failures:?}")
+            log::warn!(
+                "Failure(s) applying V4A diff: {} unmatched, {} noop, {} missing line numbers",
+                failures.fuzzy_match_failures,
+                failures.noop_deltas,
+                failures.missing_line_numbers
             );
             result.errors.push(DiffApplicationError::UnmatchedDiffs {
                 file: file_path.clone(),

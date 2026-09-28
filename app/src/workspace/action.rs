@@ -297,7 +297,6 @@ pub enum WorkspaceAction {
     },
     JoinSlack,
     ViewUserDocs,
-    ViewPrivacyPolicy,
     SendFeedback,
     /// Open the log directory in the system file explorer with the current log file selected.
     ViewLogs,
@@ -801,7 +800,6 @@ impl WorkspaceAction {
             | TogglePalette { mode: _, source: _ }
             | JoinSlack
             | ViewUserDocs
-            | ViewPrivacyPolicy
             | SendFeedback
             | ChangeCursor(_)
             | ToggleBlockSnackbar

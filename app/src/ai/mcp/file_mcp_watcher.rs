@@ -15,7 +15,6 @@ use repo_metadata::repositories::{
 use repo_metadata::repository::{Repository, RepositorySubscriber, SubscriberId};
 use repo_metadata::watcher::{DirectoryWatcher, RepositoryUpdate};
 use strum::IntoEnumIterator;
-use warp_core::safe_warn;
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 use watcher::HomeDirectoryWatcherEvent;
 
@@ -692,17 +691,7 @@ async fn parse_mcp_config_file(
         Ok(contents) => contents,
         Err(err) if err.kind() == ErrorKind::NotFound => return FileMCPConfigParseOutcome::Missing,
         Err(err) => {
-            safe_warn!(
-                safe: (
-                    "Failed to read MCP config file: {}",
-                    err
-                ),
-                full: (
-                    "Failed to read MCP config file {}: {}",
-                    file_path.display(),
-                    err
-                )
-            );
+            log::warn!("Failed to read MCP config file: {}", err);
             return FileMCPConfigParseOutcome::Error(FileMCPConfigDiagnostic {
                 config_path: file_path.to_path_buf(),
                 provider,
@@ -716,17 +705,7 @@ async fn parse_mcp_config_file(
         MCPProvider::Codex => match normalize_codex_toml_to_json(&file_contents) {
             Ok(json) => json,
             Err(err) => {
-                safe_warn!(
-                    safe: (
-                        "Failed to normalize Codex TOML: {:#}",
-                        err
-                    ),
-                    full: (
-                        "Failed to normalize Codex TOML {}: {:#}",
-                        file_path.display(),
-                        err
-                    )
-                );
+                log::warn!("Failed to normalize Codex TOML: {:#}", err);
                 return FileMCPConfigParseOutcome::Error(FileMCPConfigDiagnostic {
                     config_path: file_path.to_path_buf(),
                     provider,
@@ -741,16 +720,9 @@ async fn parse_mcp_config_file(
     let resolved_contents = match substitute_env_vars(&json) {
         Ok(resolved) => resolved,
         Err(err) => {
-            safe_warn!(
-                safe: (
-                    "Cannot start MCP servers - missing required environment variables: {}",
-                    err
-                ),
-                full: (
-                    "Cannot start MCP servers from {} - missing required environment variables: {}",
-                    file_path.display(),
-                    err
-                )
+            log::warn!(
+                "Cannot start MCP servers - missing required environment variables: {}",
+                err
             );
             return FileMCPConfigParseOutcome::Error(FileMCPConfigDiagnostic {
                 config_path: file_path.to_path_buf(),
@@ -764,17 +736,7 @@ async fn parse_mcp_config_file(
     match ParsedTemplatableMCPServerResult::from_config_file_json(&resolved_contents) {
         Ok(parsed_servers) => FileMCPConfigParseOutcome::Parsed(parsed_servers),
         Err(err) => {
-            safe_warn!(
-                safe: (
-                    "Failed to parse MCP servers: {:#}",
-                    err
-                ),
-                full: (
-                    "Failed to parse MCP servers from {}: {:#}",
-                    file_path.display(),
-                    err
-                )
-            );
+            log::warn!("Failed to parse MCP servers: {:#}", err);
             FileMCPConfigParseOutcome::Error(FileMCPConfigDiagnostic {
                 config_path: file_path.to_path_buf(),
                 provider,

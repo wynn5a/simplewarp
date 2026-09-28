@@ -260,7 +260,6 @@ use crate::terminal::ligature_settings::should_use_ligature_rendering;
 use crate::terminal::local_tty::docker_sandbox::resolve_sbx_path_from_user_shell;
 use crate::terminal::model::blockgrid::BlockGrid;
 use crate::terminal::model::session::{Session, SessionId};
-use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
 use crate::terminal::resizable_data::{
     DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_RIGHT_PANEL_WIDTH, ModalSizes, ModalType, ResizableData,
 };
@@ -4649,10 +4648,6 @@ impl Workspace {
         ctx.open_url(links::USER_DOCS_URL);
     }
 
-    fn view_privacy_policy(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.open_url(links::PRIVACY_POLICY_URL);
-    }
-
     fn send_feedback(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.open_url(&links::feedback_form_url());
     }
@@ -6743,7 +6738,7 @@ impl Workspace {
     #[cfg(target_os = "macos")]
     fn install_oz(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.spawn(async { cli_install::install_oz() }, |view, result, ctx| {
-            let command_name = ChannelState::channel().cli_command_name();
+            let command_name = ChannelState::cli_command_name();
             let message = format!("Installed the Oz CLI globally. You can now run '{command_name}' from any terminal outside of Warp.");
             let toast = DismissibleToast::success(message).with_link(
                 ToastLink::new("Learn more".to_string())
@@ -10078,9 +10073,7 @@ impl Workspace {
                 }
                 // Active pane does not have a long running command. We're going to restore in the active pane
                 // so set the loading status atomically.
-                model_lock.set_conversation_transcript_viewer_status(Some(
-                    ConversationTranscriptViewerStatus::Loading,
-                ));
+                model_lock.set_loading_conversation_transcript(true);
                 ctx.notify();
                 false
             });
@@ -10108,7 +10101,7 @@ impl Workspace {
                     terminal_view
                         .model
                         .lock()
-                        .set_conversation_transcript_viewer_status(None);
+                        .set_loading_conversation_transcript(false);
                     ctx.notify();
                 });
                 WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
@@ -10123,7 +10116,7 @@ impl Workspace {
                 terminal_view
                     .model
                     .lock()
-                    .set_conversation_transcript_viewer_status(None);
+                    .set_loading_conversation_transcript(false);
                 terminal_view.restore_conversation_and_directory_context(
                     conversation,
                     FeatureFlag::AgentView.is_enabled(),
@@ -11641,7 +11634,7 @@ impl Workspace {
                             play_sound,
                         ),
                         move |workspace, notification_error, ctx| {
-                            // Log to sentry if unknown error
+                            // Report unknown errors.
                             if let NotificationSendError::Other { error_message } =
                                 &notification_error
                             {
@@ -17788,7 +17781,6 @@ impl TypedActionView for Workspace {
             } => self.toggle_palette(*palette_mode, *source, ctx),
             JoinSlack => self.join_slack(ctx),
             ViewUserDocs => self.view_user_docs(ctx),
-            ViewPrivacyPolicy => self.view_privacy_policy(ctx),
             SendFeedback => self.send_feedback(ctx),
             ViewLogs => self.view_logs(ctx),
             ChangeCursor(cursor) => self.change_cursor(*cursor, ctx),
@@ -21375,25 +21367,10 @@ fn render_group_member_icon_collage(
             appearance,
         );
 
-        // Ambient icons place their brand circle at the top-left of a total_size
-        // element (leaving room for the cloud badge). Shift right-down by
-        // (1 - CIRCLE_RATIO)/2 * icon_diameter so the circle centers on the grid point.
-        let collage_pos = match &kind {
-            SummaryPaneKind::OzAgent { is_ambient: true }
-            | SummaryPaneKind::CLIAgent {
-                is_ambient: true, ..
-            } => {
-                let shift = icon_diameter
-                    * (1.0 - crate::ui_components::icon_with_status::CIRCLE_RATIO)
-                    / 2.0;
-                positions[idx] + vec2f(shift, shift)
-            }
-            _ => positions[idx],
-        };
         stack.add_positioned_child(
             mini,
             OffsetPositioning::offset_from_parent(
-                collage_pos,
+                positions[idx],
                 ParentOffsetBounds::Unbounded,
                 ParentAnchor::Center,
                 ChildAnchor::Center,

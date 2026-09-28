@@ -208,8 +208,7 @@ fn task_env_vars_for_harness_name(
     env_vars.insert(
         OsString::from(OZ_CLI_ENV),
         OsString::from(
-            std::env::current_exe()
-                .unwrap_or_else(|_| ChannelState::channel().cli_command_name().into()),
+            std::env::current_exe().unwrap_or_else(|_| ChannelState::cli_command_name().into()),
         ),
     );
     // `OZ_HARNESS` is only consumed by child orchestration telemetry when the child

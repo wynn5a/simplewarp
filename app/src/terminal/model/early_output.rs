@@ -14,7 +14,6 @@ use super::iterm_image::ITermImage;
 use super::kitty::{KittyAction, KittyResponse};
 use super::selection::ScrollDelta;
 use super::session::SessionInfo;
-use crate::safe_debug;
 use crate::terminal::event::Event as TerminalEvent;
 use crate::terminal::event_listener::ChannelEventListener;
 use crate::terminal::view::CONTROL_MASTER_ERROR_REGEX;
@@ -147,10 +146,7 @@ impl EarlyOutput {
 
         if is_typeahead {
             self.typeahead.push(ch);
-            safe_debug!(
-                safe: ("Matched PTY output as typeahead"),
-                full: ("Matched {ch:?} as typeahead")
-            );
+            log::debug!("Matched PTY output as typeahead");
 
             if warp_core::channel::ChannelState::channel()
                 == warp_core::channel::Channel::Integration
@@ -191,10 +187,7 @@ impl EarlyOutput {
     /// interface because it doesn't need precmd data.
     pub fn precmd(&mut self) {
         // On precmd, clear accumulated typeahead for the previous command.
-        safe_debug!(
-            safe: ("Clearing accumulated typeahead"),
-            full: ("Clearing accumulated typeahead: {:?}", self.typeahead)
-        );
+        log::debug!("Clearing accumulated typeahead");
         self.typeahead.clear();
         self.typeahead_chars_inserted = 0.into();
     }
@@ -356,10 +349,7 @@ impl ansi::Handler for EarlyOutputHandler<'_> {
                 );
             }
             me.event_proxy.send_terminal_event(TerminalEvent::Typeahead);
-            safe_debug!(
-                safe: ("Received shell input buffer for typeahead"),
-                full: ("Received shell input buffer for typeahead: {:?}", me.typeahead)
-            );
+            log::debug!("Received shell input buffer for typeahead");
         }
     }
 
@@ -377,10 +367,7 @@ impl ansi::Handler for EarlyOutputHandler<'_> {
             // grid here.
             if self.inner().mode == TypeaheadMode::InputMatching {
                 let command = mem::take(&mut self.inner().typeahead);
-                safe_debug!(
-                    safe: ("Initializing command grid from matched typeahead"),
-                    full: ("Initializing command grid from matched typeahead: {command:?}")
-                );
+                log::debug!("Initializing command grid from matched typeahead");
                 self.block_list.active_block_mut().init_command(command);
                 self.block_list.update_active_block_height();
             }

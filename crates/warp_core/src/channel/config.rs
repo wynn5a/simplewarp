@@ -13,6 +13,9 @@ pub struct ChannelConfig {
     /// and OAuth redirects use it, so it must match what the bundle registers.
     pub url_scheme: &'static str,
 
+    /// The name the app's CLI is invoked as, e.g. the `/usr/local/bin` symlink the app installs.
+    pub cli_command_name: &'static str,
+
     /// The name of the file to which logs should be written.
     pub logfile_name: Cow<'static, str>,
 

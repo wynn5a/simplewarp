@@ -10,7 +10,6 @@ use command::r#async::Command;
 use parking_lot::Mutex;
 
 use super::{CommandExecutor, CommandOutput, ExecuteCommandOptions};
-use crate::safe_warn;
 use crate::terminal::shell::{Shell, ShellType};
 
 #[cfg(unix)]
@@ -324,10 +323,7 @@ impl LocalCommandExecutor {
             .await
             .map(|output| output.into())
             .map_err(|e| {
-                safe_warn!(
-                    safe: ("error executing local command"),
-                    full: ("error executing command {:?} with error {:?}", command, e)
-                );
+                log::warn!("error executing local command");
                 anyhow!(e)
             });
         if output.is_ok() {

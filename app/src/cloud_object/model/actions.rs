@@ -12,7 +12,7 @@ pub enum ObjectActionType {
     Execute,
 }
 
-// In order to convert from a graphql type and from a SQLite read, the action type
+// In order to convert from a SQLite read, the action type
 // implements to_string().
 //
 // Temporarily suppress clippy warnings about the `ToString` impl until we

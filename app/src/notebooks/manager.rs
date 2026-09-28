@@ -10,7 +10,6 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::pane_group::{NotebookPane, PaneContent};
 use crate::server::ids::SyncId;
 use crate::workspace::PaneViewLocator;
-use crate::{safe_debug, safe_warn};
 
 #[cfg(test)]
 #[path = "manager_tests.rs"]
@@ -131,10 +130,7 @@ impl NotebookManager {
                 handle: pane.notebook_view(ctx).downgrade(),
             });
         } else {
-            safe_warn!(
-                safe: ("Ignoring duplicate notebook pane registration"),
-                full: ("Ignoring duplicate notebook pane registration for {notebook_id}")
-            );
+            log::warn!("Ignoring duplicate notebook pane registration");
         }
     }
 
@@ -181,10 +177,7 @@ impl NotebookManager {
     pub fn close_notebooks(&self, ctx: &mut ModelContext<Self>) {
         for pane in self.panes_by_hashed_id.values() {
             if let Some(notebook_view) = pane.handle.upgrade(ctx) {
-                safe_debug!(
-                    safe : ("Closing notebook on termination"),
-                    full: ("Closing notebook {} on termination", pane.notebook_id)
-                );
+                log::debug!("Closing notebook on termination");
                 notebook_view.update(ctx, |view, ctx| view.on_detach(ctx));
             }
         }

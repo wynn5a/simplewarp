@@ -66,7 +66,7 @@ call-out are surface-agnostic.
 
 ### Key Components
 
-**Shared UI core** (`crates/warpui`, `crates/warpui_core`) — used by **both** front-ends:
+**Shared UI core** (`crates/warpui`, `crates/warpui_core`):
 - Entity-Component-Handle pattern: a global `App` object owns all views/models (entities); views hold `ViewHandle<T>` references to other views; `AppContext` provides temporary access to handles during render/events.
 - Actions system for event handling.
 
@@ -202,10 +202,14 @@ for itself.
 Warp uses compile-time feature flags with a small runtime plumbing layer.
 
 How to add a feature flag:
-- Add a new variant to `warp_core/src/features.rs` in the `FeatureFlag` enum
-- (Optional) Enable it by default for dogfood builds by listing it in `DOGFOOD_FLAGS`
+- Add a new variant to the `FeatureFlag` enum in `crates/warp_features/src/lib.rs` (re-exported as
+  `warp_core::features`)
 - Gate code paths with `FeatureFlag::YourFlag.is_enabled()`
-- For preview or release rollout, add to `PREVIEW_FLAGS` or `RELEASE_FLAGS` respectively (as appropriate)
+- To turn it on in a build, add a cargo feature in `app/Cargo.toml` that `app/src/features.rs`
+  maps to the flag (and list it in the `simplewarp` feature set to ship it), or list it in
+  `RELEASE_FLAGS` (release bundles only). `DOGFOOD_FLAGS` / `PREVIEW_FLAGS` are Warp's channel
+  lists: no SimpleWarp bin enables them (only the settings schema / default-settings generators'
+  `--channel` switch reads them).
 
 Best practices:
 - **Prefer runtime checks over cfg directives**: Prefer `FeatureFlag::YourFlag.is_enabled()` over `#[cfg(...)]` compile-time directives so flags can be toggled without recompilation and are easier to clean up later. Use `#[cfg(...)]` only when the code cannot compile without them (for example, platform-specific code or dependencies that do not exist when the feature is disabled).
@@ -220,8 +224,8 @@ pub enum FeatureFlag {
     YourNewFeature,
 }
 
-// Default-on for dogfood builds
-pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
+// Default-on for release bundles
+pub const RELEASE_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::YourNewFeature,
 ];
 

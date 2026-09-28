@@ -17,7 +17,6 @@ use super::grid::grid_handler::GridHandler;
 use super::grid::{Dimensions as _, RespectDisplayedOutput};
 use super::terminal_model::RangeInModel;
 use crate::ai::blocklist::TextLocation;
-use crate::safe_warn;
 use crate::terminal::model::find::RegexDFAs;
 use crate::terminal::model::index::Point;
 
@@ -300,21 +299,15 @@ pub fn set_user_secret_regexes<'a>(user_secrets: impl IntoIterator<Item = &'a re
     // ones.
     let dfas = match RegexDFAs::new_many(&all_secrets, false, true) {
         Ok(dfas) => dfas,
-        Err(err) => {
-            safe_warn!(
-                safe: ("Failed to construct new RegexDFA with combined secrets"),
-                full: ("Failed to construct new RegexDFA with combined secrets: {err:#}")
-            );
+        Err(_) => {
+            log::warn!("Failed to construct new RegexDFA with combined secrets");
             return;
         }
     };
     let secrets_regex = match regex_automata::meta::Regex::new_many(&all_secrets) {
         Ok(regex) => SecretsRegex { regex, dfas },
-        Err(err) => {
-            safe_warn!(
-                safe: ("Failed to construct new Regex with combined secrets"),
-                full: ("Failed to construct new Regex with combined secrets: {err:#}")
-            );
+        Err(_) => {
+            log::warn!("Failed to construct new Regex with combined secrets");
             return;
         }
     };

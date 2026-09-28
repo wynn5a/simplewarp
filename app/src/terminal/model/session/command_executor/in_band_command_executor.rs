@@ -15,7 +15,6 @@ use warp_util::on_cancel::OnCancelFutureExt;
 use warpui::r#async::block_on;
 
 use super::ExecuteCommandOptions;
-use crate::safe_info;
 use crate::terminal::SizeInfo;
 use crate::terminal::event::ExecutedExecutorCommandEvent;
 use crate::terminal::model::session::command_executor::{
@@ -316,10 +315,7 @@ impl InBandCommandExecutor {
                 id, command, shell, ..
             }) = running_command.as_ref()
             {
-                safe_info!(
-                    safe: ("Running in-band command {id}"),
-                    full: ("Running in-band command {id}: {command}")
-                );
+                log::info!("Running in-band command {id}");
 
                 // Because we wrap the command in single quotes in the string sent to the pty,
                 // escape the single quotes in a valid way given the session's shell type.

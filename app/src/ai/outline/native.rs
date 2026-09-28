@@ -24,7 +24,6 @@ use crate::settings::{
     AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, InputSettings,
     InputSettingsChangedEvent, is_codebase_context_enabled,
 };
-use crate::{safe_info, safe_warn};
 
 /// State for a repository outline, containing both the repository handle and the outline status.
 #[derive(Debug)]
@@ -211,10 +210,7 @@ impl RepoOutlines {
         let scan_abort_handle = ctx
             .spawn(
                 async move {
-                    safe_info!(
-                        safe: ("Parsing symbols for repo outline."),
-                        full: ("Parsing symbols for repo at {}", repo_root.display())
-                    );
+                    log::info!("Parsing symbols for repo outline.");
                     let canonicalized_path = CanonicalizedPath::try_from(&repo_root)?;
                     build_outline(canonicalized_path.as_path(), Some(MAX_REPO_FILE_SIZE_LIMIT))
                         .await
@@ -226,13 +222,7 @@ impl RepoOutlines {
                     if me.should_build_outlines(ctx) {
                         match res {
                             Ok((canonicalized_path, outline, _parse_duration)) => {
-                                safe_info!(
-                                    safe: ("Successfully constructed symbols outline for repo."),
-                                    full: (
-                                        "Successfully constructed symbols outline for repo: {}",
-                                        canonicalized_path
-                                    )
-                                );
+                                log::info!("Successfully constructed symbols outline for repo.");
                                 // Ensure the repository is registered with DirectoryWatcher.
                                 let repository_handle = match DirectoryWatcher::handle(ctx)
                                     .update(ctx, |repo_watcher, ctx| {
@@ -265,14 +255,7 @@ impl RepoOutlines {
                                 ));
                             }
                             Err(e) => {
-                                safe_warn!(
-                                    safe: ("Failed to construct symbols outline for repo: {:?}", e),
-                                    full: (
-                                        "Failed to construct symbols outline for repo at {}: {:?}",
-                                        root_path_clone.display(),
-                                        e
-                                    )
-                                );
+                                log::warn!("Failed to construct symbols outline for repo: {:?}", e);
 
                                 if let Some(outline_state) = me.outlines.get_mut(&root_path_clone) {
                                     outline_state.status = OutlineStatus::Failed;

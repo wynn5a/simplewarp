@@ -14,6 +14,7 @@ use vec1::{Vec1, vec1};
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _};
 
 use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
+use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType,
@@ -24,7 +25,6 @@ use crate::ai::blocklist::diff_storage::RegisteredDiffStorage;
 use crate::ai::blocklist::diff_types::FileDiff;
 use crate::ai::paths::host_native_absolute_path;
 use crate::terminal::model::session::active_session::ActiveSession;
-use crate::{BlocklistAIHistoryModel, safe_warn};
 
 pub struct RequestFileEditsExecutor {
     active_session: ModelHandle<ActiveSession>,
@@ -245,10 +245,7 @@ impl RequestFileEditsExecutor {
                 return;
             }
             Err(err) => {
-                safe_warn!(
-                    safe: ("Failed to generate diffs"),
-                    full: ("Failed to generate diffs {err:?}")
-                );
+                log::warn!("Failed to generate diffs");
                 self.diff_application_failures.insert(id, err);
                 return;
             }

@@ -34,9 +34,7 @@ use warpui::{
     ViewHandle,
 };
 
-use crate::ai::agent::conversation::{
-    AIConversation, AIConversationId, ConversationStatus, StatusColorStyle,
-};
+use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
 use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::agent_view::orchestration_conversation_links::{
     is_conversation_open_in_other_visible_view, pane_group_id_containing_terminal_view,
@@ -1462,7 +1460,7 @@ fn render_status_badge(
     theme: &WarpTheme,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
-    let (icon, color) = status.status_icon_and_color(theme, StatusColorStyle::Standard);
+    let (icon, color) = status.status_icon_and_color(theme);
     let icon_el = ConstrainedBox::new(icon.to_warpui_icon(color.into()).finish())
         .with_width(12.)
         .with_height(12.)
@@ -1678,9 +1676,7 @@ fn render_subtree_rollup_badge(
     theme: &WarpTheme,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
-    let (_, color) = rollup
-        .status
-        .status_icon_and_color(theme, StatusColorStyle::Standard);
+    let (_, color) = rollup.status.status_icon_and_color(theme);
     let text = Text::new(
         rollup.descendant_count.to_string(),
         appearance.ui_font_family(),
@@ -2264,7 +2260,6 @@ fn render_avatar_with_status_overlay(
         IconWithStatusVariant::CustomAvatar {
             avatar,
             status: Some(status),
-            is_ambient: false,
         },
         AVATAR_WITH_STATUS_TOTAL_SIZE,
         PILL_BADGE_OVERHANG_RATIO,

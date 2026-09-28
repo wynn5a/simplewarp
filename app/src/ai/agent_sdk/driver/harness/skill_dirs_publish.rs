@@ -44,7 +44,6 @@ use std::path::{Path, PathBuf};
 
 use ai::skills::{parse_skills_dirs_env, resolve_skills_dirs};
 use anyhow::{Context, Result};
-use warp_core::safe_warn;
 
 /// Suffix appended to a real (non-symlink) file or directory this module
 /// moves aside, in a sandbox, so a published skill can take over its name.
@@ -92,25 +91,16 @@ pub(super) fn publish_skill_dirs(
     for source_dir in source_dirs {
         let entries = match fs::read_dir(source_dir) {
             Ok(entries) => entries,
-            Err(err) => {
-                safe_warn!(
-                    safe: ("WARP_SKILL_DIRS publish: skipping an unreadable source directory"),
-                    full: ("WARP_SKILL_DIRS publish: skipping '{}' — {err}", source_dir.display())
-                );
+            Err(_) => {
+                log::warn!("WARP_SKILL_DIRS publish: skipping an unreadable source directory");
                 continue;
             }
         };
         for entry in entries {
             let entry = match entry {
                 Ok(entry) => entry,
-                Err(err) => {
-                    safe_warn!(
-                        safe: ("WARP_SKILL_DIRS publish: failed to read a directory entry"),
-                        full: (
-                            "WARP_SKILL_DIRS publish: failed to read an entry in '{}': {err}",
-                            source_dir.display()
-                        )
-                    );
+                Err(_) => {
+                    log::warn!("WARP_SKILL_DIRS publish: failed to read a directory entry");
                     continue;
                 }
             };
@@ -132,11 +122,8 @@ pub(super) fn publish_skill_dirs(
                     // Deliberately skipped (a real conflict outside a sandbox whose
                     // alternate name also conflicts) — already logged by publish_skill.
                 }
-                Err(err) => {
-                    safe_warn!(
-                        safe: ("WARP_SKILL_DIRS publish: failed to publish a skill"),
-                        full: ("WARP_SKILL_DIRS publish: failed to publish '{name}': {err:#}")
-                    );
+                Err(_) => {
+                    log::warn!("WARP_SKILL_DIRS publish: failed to publish a skill");
                 }
             }
         }
@@ -227,7 +214,7 @@ fn create_symlink_at(source_dir: &Path, target: &Path) -> Result<Option<PathBuf>
 ///   occupied by something foreign, the skill is not published under either
 ///   name.
 ///
-/// Every conflict is logged via `safe_warn!` for later debugging — there is
+/// Every conflict is logged as a warning for later debugging — there is
 /// no user-facing channel for this today.
 pub(super) fn publish_skill(
     skill_root: &Path,
@@ -262,12 +249,8 @@ pub(super) fn publish_skill(
                 backup.display()
             )
         })?;
-        safe_warn!(
-            safe: ("WARP_SKILL_DIRS publish: replaced a conflicting skill entry in a sandbox, backing up the original"),
-            full: (
-                "WARP_SKILL_DIRS publish: replaced skill '{skill_name}' at {} with {}, backing up the original to {}",
-                target.display(), source_dir.display(), backup.display()
-            )
+        log::warn!(
+            "WARP_SKILL_DIRS publish: replaced a conflicting skill entry in a sandbox, backing up the original"
         );
         return create_symlink_at(source_dir, &target);
     }
@@ -278,12 +261,8 @@ pub(super) fn publish_skill(
     let alt_target = skill_root.join(&alt_name);
     match inspect_target(&alt_target, source_dir)? {
         TargetOutcome::Foreign => {
-            safe_warn!(
-                safe: ("WARP_SKILL_DIRS publish: a skill conflict outside a sandbox also collided under its alternate name; the skill was not published"),
-                full: (
-                    "WARP_SKILL_DIRS publish: skill '{skill_name}' conflicts with an existing entry at {} (left untouched); the alternate name {} is also occupied, so the skill from {} was not published under either name",
-                    target.display(), alt_target.display(), source_dir.display()
-                )
+            log::warn!(
+                "WARP_SKILL_DIRS publish: a skill conflict outside a sandbox also collided under its alternate name; the skill was not published"
             );
             Ok(None)
         }
@@ -293,12 +272,8 @@ pub(super) fn publish_skill(
             Ok(Some(alt_target))
         }
         TargetOutcome::Missing => {
-            safe_warn!(
-                safe: ("WARP_SKILL_DIRS publish: a skill conflicted outside a sandbox; the original was left as-is and the skill was published under an alternate name"),
-                full: (
-                    "WARP_SKILL_DIRS publish: skill '{skill_name}' conflicts with an existing entry at {} (left untouched); published {} as {} instead",
-                    target.display(), source_dir.display(), alt_target.display()
-                )
+            log::warn!(
+                "WARP_SKILL_DIRS publish: a skill conflicted outside a sandbox; the original was left as-is and the skill was published under an alternate name"
             );
             create_symlink_at(source_dir, &alt_target)
         }

@@ -93,7 +93,6 @@ fn agent_icon_variant_from_terminal_inputs(
         return Some(IconWithStatusVariant::CLIAgent {
             agent: session.agent,
             status,
-            is_ambient: false,
         });
     }
 
@@ -101,7 +100,6 @@ fn agent_icon_variant_from_terminal_inputs(
     if inputs.has_selected_conversation {
         return Some(IconWithStatusVariant::OzAgent {
             status: inputs.selected_conversation_status.clone(),
-            is_ambient: false,
         });
     }
 
@@ -121,11 +119,9 @@ pub(crate) fn agent_icon_variant_for_run(
         Some(agent) => IconWithStatusVariant::CLIAgent {
             agent,
             status: Some(status),
-            is_ambient: false,
         },
         None => IconWithStatusVariant::OzAgent {
             status: Some(status),
-            is_ambient: false,
         },
     }
 }
