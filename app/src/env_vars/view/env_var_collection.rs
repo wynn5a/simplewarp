@@ -685,7 +685,7 @@ impl EnvVarCollectionView {
         }
     }
 
-    fn save_env_var_collection(&self, ctx: &mut ViewContext<Self>) {
+    pub(super) fn save_env_var_collection(&self, ctx: &mut ViewContext<Self>) {
         if self.should_disable_save(ctx) {
             return;
         }

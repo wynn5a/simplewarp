@@ -456,18 +456,14 @@ impl TemplatableMCPServerManager {
         templatable_mcp_server: TemplatableMCPServer,
         ctx: &mut ModelContext<Self>,
     ) {
-        if let Some(owner) = personal_drive(ctx) {
-            let update_manager = UpdateManager::handle(ctx);
-            update_manager.update(ctx, |update_manager, ctx| {
-                let client_id = ClientId::default();
-                update_manager.create_templatable_mcp_server(
-                    templatable_mcp_server.clone(),
-                    client_id,
-                    owner,
-                    ctx,
-                );
-            });
-        }
+        UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
+            update_manager.create_templatable_mcp_server(
+                templatable_mcp_server,
+                ClientId::default(),
+                personal_drive(),
+                ctx,
+            );
+        });
     }
 
     pub fn get_all_templatable_mcp_servers(&self) -> Vec<&TemplatableMCPServer> {

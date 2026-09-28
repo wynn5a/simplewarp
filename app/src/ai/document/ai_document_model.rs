@@ -25,20 +25,19 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::appearance::Appearance;
-use crate::auth::auth_state::AuthStateProvider;
 use crate::cloud_object::folders::CloudFolder;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{CloudObject, CloudObjectTypeAndId, Owner, personal_drive};
+use crate::cloud_object::{CloudObject, CloudObjectTypeAndId};
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
+use crate::notebooks::NotebookId;
 use crate::notebooks::editor::model::{
     FileLinkResolutionContext, NotebooksEditorModel, RichTextEditorModelEvent,
 };
 use crate::notebooks::editor::rich_text_styles;
 use crate::notebooks::file::MarkdownDisplayMode;
-use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::ids::{ClientId, ServerId, SyncId};
+use crate::server::ids::SyncId;
 use crate::settings::FontSettings;
 use crate::terminal::TerminalView;
 use crate::terminal::model::session::Session;
@@ -84,8 +83,6 @@ impl AIDocumentUserEditStatus {
         matches!(self, AIDocumentUserEditStatus::Dirty)
     }
 }
-
-const PLAN_FOLDER_NAME: &str = "Plans";
 
 /// Represents a document queued for creation as a notebook.
 #[derive(Debug, Clone)]
@@ -236,9 +233,7 @@ impl AIDocumentModel {
         }
     }
 
-    /// Sends a request to create a new notebook with the document's contents.
-    /// Returns true if the create document request was sent successfully (or if there was already a notebook entry).
-    /// Actually creating the notebook is done asynchronously in the background.
+    /// Links the document to its existing notebook. Returns whether the document has a notebook.
     pub fn save_to_notebook(&mut self, id: AIDocumentId, ctx: &mut ModelContext<Self>) -> bool {
         if self.reconcile_document_server_backing(&id, ctx) {
             return true;
@@ -251,32 +246,11 @@ impl AIDocumentModel {
             return true;
         }
 
-        let title = document.title.clone();
-        let content = document.editor.as_ref(ctx).markdown(ctx);
-
-        let Some(owner) = Self::get_plan_owner(ctx) else {
-            log::warn!("Failed to get owner while saving AI Document as a notebook. Skipping");
-            return false;
-        };
-
-        let Some(plan_folder_id) = self.get_or_create_plan_folder(owner, ctx).into_server() else {
-            // Plan folder is still being created (has ClientId only).
-            // If we save using the ClientId as the parent folder, the document
-            // will end up in a broken state once the folder is saved.
-            // Queue the document for creation until the folder gets a ServerId.
-            self.pending_document_queue
-                .push(PendingDocument { id, title, content });
-
-            if let Some(document) = self.documents.get_mut(&id) {
-                let client_id = ClientId::new();
-                document.sync_id = Some(SyncId::ClientId(client_id));
-            }
-            return true;
-        };
-
-        self.create_notebook_in_plan_folder(id, &title, &content, owner, plan_folder_id, ctx);
-        ctx.emit(AIDocumentModelEvent::DocumentSaveStatusUpdated(id));
-        true
+        // A plan counts as saved only once its notebook has a server id, which no local object
+        // ever gets: creating the notebook here would leave the plan "Saving" forever and stall
+        // child-agent launch on the publication wait.
+        log::warn!("Saving a plan as a notebook needs a server-backed notebook. Skipping");
+        false
     }
 
     pub fn get_document_save_status(&self, id: &AIDocumentId) -> AIDocumentSaveStatus {
@@ -1193,98 +1167,6 @@ impl AIDocumentModel {
         id: &AIDocumentId,
     ) -> Option<&Vec<AIDocumentEarlierVersion>> {
         self.earlier_versions.get(id)
-    }
-
-    /// Get the appropriate owner for plan documents: the personal drive, or `None` for a service
-    /// account (which has no personal drive).
-    fn get_plan_owner(ctx: &AppContext) -> Option<Owner> {
-        if AuthStateProvider::as_ref(ctx).get().is_service_account() {
-            None
-        } else {
-            personal_drive(ctx)
-        }
-    }
-
-    /// Get or create the Plans folder in the appropriate drive.
-    /// Returns the SyncId of the folder (new ClientId if just created).
-    fn get_or_create_plan_folder(&mut self, owner: Owner, ctx: &mut ModelContext<Self>) -> SyncId {
-        let cloud_model = CloudModel::as_ref(ctx);
-
-        // Search for existing Plans folder at root level in the appropriate drive.
-        let existing_folder = cloud_model.get_all_active_folders().find(|folder| {
-            folder.model().name == PLAN_FOLDER_NAME
-                && folder.metadata.folder_id.is_none()
-                && folder.permissions.owner == owner
-        });
-
-        if let Some(folder) = existing_folder {
-            return folder.id;
-        }
-
-        // Folder doesn't exist, create it.
-        let client_id = ClientId::new();
-        let folder_id = SyncId::ClientId(client_id);
-
-        UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-            update_manager.create_folder(
-                PLAN_FOLDER_NAME.to_string(),
-                owner,
-                client_id,
-                None,
-                false,
-                ctx,
-            );
-        });
-
-        folder_id
-    }
-
-    /// Look up server_conversation_token for a document's conversation.
-    fn get_server_conversation_id(&self, id: &AIDocumentId, ctx: &AppContext) -> Option<String> {
-        self.documents.get(id).and_then(|doc| {
-            BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&doc.conversation_id)
-                .and_then(|conv| conv.server_conversation_token())
-                .map(|token| token.as_str().to_string())
-        })
-    }
-
-    /// Helper method to create a notebook in the Plan folder.
-    fn create_notebook_in_plan_folder(
-        &mut self,
-        id: AIDocumentId,
-        title: &str,
-        content: &str,
-        owner: Owner,
-        plan_folder_id: ServerId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let client_id = ClientId::new();
-        let server_conversation_id = self.get_server_conversation_id(&id, ctx);
-        if let Some(document) = self.documents.get_mut(&id) {
-            document.sync_id = Some(SyncId::ClientId(client_id));
-        } else {
-            log::warn!("Document {} not found when creating notebook", id);
-            return;
-        }
-
-        let notebook_model = CloudNotebookModel {
-            title: title.to_string(),
-            data: content.to_string(),
-            ai_document_id: Some(id),
-            conversation_id: server_conversation_id,
-        };
-
-        UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-            update_manager.create_notebook(
-                client_id,
-                owner,
-                Some(SyncId::ServerId(plan_folder_id)),
-                notebook_model,
-                true,
-                ctx,
-            );
-        });
     }
 
     // ── Orchestration config: history event → hydration ──────────

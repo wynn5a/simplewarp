@@ -925,15 +925,10 @@ impl NotebookView {
         let copy_client_id = ClientId::new();
         let copy_sync_id = SyncId::ClientId(copy_client_id);
 
-        let Some(personal_drive) = personal_drive(ctx) else {
-            log::warn!("User drive not available for copying notebook");
-            return;
-        };
-
         UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
             update_manager.create_notebook(
                 copy_client_id,
-                personal_drive,
+                personal_drive(),
                 None,
                 CloudNotebookModel {
                     title: title.clone(),

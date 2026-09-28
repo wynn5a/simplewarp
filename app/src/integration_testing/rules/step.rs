@@ -32,12 +32,7 @@ pub fn create_a_personal_rule(
                     content: content.as_ref().clone(),
                     suggested_logging_id: None,
                 });
-                update_manager.create_ai_fact(
-                    ai_fact,
-                    client_id,
-                    personal_drive(ctx).expect("User UID must be set in tests"),
-                    ctx,
-                );
+                update_manager.create_ai_fact(ai_fact, client_id, personal_drive(), ctx);
             });
 
             data.insert(key.clone(), sync_id);

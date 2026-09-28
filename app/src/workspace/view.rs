@@ -14346,13 +14346,9 @@ impl Workspace {
 
     /// Opens the workflow using a mocked [`Workflow`] object as the base
     fn open_workflow_with_temporary(&mut self, workflow: Workflow, ctx: &mut ViewContext<Self>) {
-        let Some(owner) = personal_drive(ctx) else {
-            log::warn!("Unable to open temporary workflow - unset personal drive");
-            return;
-        };
         let source = WorkflowOpenSource::NewFromWorkflow {
             workflow: workflow.into(),
-            owner,
+            owner: personal_drive(),
             initial_folder_id: None,
         };
         self.open_workflow_in_pane(&source, WorkflowViewMode::Create, ctx);
@@ -14360,14 +14356,10 @@ impl Workspace {
 
     /// Opens the workflow for create with a prepopulated command specified
     fn open_workflow_with_command(&mut self, command: String, ctx: &mut ViewContext<Self>) {
-        let Some(owner) = personal_drive(ctx) else {
-            log::warn!("Unable to open workflow with command - unset personal drive");
-            return;
-        };
         let source = WorkflowOpenSource::New {
             title: None,
             content: Some(command),
-            owner,
+            owner: personal_drive(),
             initial_folder_id: None,
             is_for_agent_mode: false,
         };
@@ -14382,14 +14374,10 @@ impl Workspace {
         prompt: Option<String>,
         ctx: &mut ViewContext<Self>,
     ) {
-        let Some(owner) = personal_drive(ctx) else {
-            log::warn!("Unable to open prompt as agent-mode workflow - unset personal drive");
-            return;
-        };
         let source = WorkflowOpenSource::New {
             title: None,
             content: prompt,
-            owner,
+            owner: personal_drive(),
             initial_folder_id: None,
             is_for_agent_mode: true,
         };
@@ -18937,17 +18925,15 @@ impl TypedActionView for Workspace {
                 });
             }
             CreatePersonalEnvVarCollection => {
-                if let Some(personal_drive) = personal_drive(ctx) {
-                    self.open_env_var_collection(
-                        &EnvVarCollectionSource::New {
-                            title: None,
-                            owner: personal_drive,
-                            initial_folder_id: None,
-                        },
-                        false,
-                        ctx,
-                    );
-                }
+                self.open_env_var_collection(
+                    &EnvVarCollectionSource::New {
+                        title: None,
+                        owner: personal_drive(),
+                        initial_folder_id: None,
+                    },
+                    false,
+                    ctx,
+                );
             }
             #[cfg(feature = "local_fs")]
             FileRenamed { old_path, new_path } => {

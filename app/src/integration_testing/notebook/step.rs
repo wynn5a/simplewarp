@@ -34,7 +34,7 @@ pub fn create_a_personal_notebook(key: impl Into<String>, title: impl Into<Strin
             UpdateManager::handle(app).update(app, |update_manager, ctx| {
                 update_manager.create_notebook(
                     client_id,
-                    personal_drive(ctx).expect("User UID must be set in tests"),
+                    personal_drive(),
                     None,
                     Default::default(),
                     true,

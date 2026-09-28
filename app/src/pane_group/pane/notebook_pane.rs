@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use anyhow::Context;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use super::super::{DefaultSessionModeBehavior, Direction};
@@ -34,23 +33,20 @@ impl NotebookPane {
     }
 
     /// Restore a notebook pane given its cloud notebook ID.
-    pub fn restore(
-        notebook_id: Option<SyncId>,
-        ctx: &mut ViewContext<PaneGroup>,
-    ) -> anyhow::Result<Self> {
+    pub fn restore(notebook_id: Option<SyncId>, ctx: &mut ViewContext<PaneGroup>) -> Self {
         let window_id = ctx.window_id();
         let source = match notebook_id {
             Some(id) => NotebookSource::Existing(id),
             None => NotebookSource::New {
                 title: None,
-                owner: personal_drive(ctx).context("personal drive unavailable")?,
+                owner: personal_drive(),
                 initial_folder_id: None,
             },
         };
 
-        Ok(NotebookManager::handle(ctx).update(ctx, |manager, ctx| {
+        NotebookManager::handle(ctx).update(ctx, |manager, ctx| {
             manager.create_pane(&source, window_id, ctx)
-        }))
+        })
     }
 
     pub fn notebook_view(&self, ctx: &AppContext) -> ViewHandle<NotebookView> {

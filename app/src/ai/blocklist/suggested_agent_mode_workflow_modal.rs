@@ -84,17 +84,15 @@ impl SuggestedAgentModeWorkflowModal {
     ) {
         let workflow_view = ctx.add_typed_action_view(|ctx| {
             let mut workflow_view = WorkflowView::new_in_suggestion_dialog(ctx);
-            if let Some(owner) = personal_drive(ctx) {
-                workflow_view.open_new_workflow(
-                    Some(workflow_and_id.workflow.name.clone()),
-                    Some(workflow_and_id.workflow.prompt.clone()),
-                    owner,
-                    None,
-                    true,
-                    workflow_and_id.sync_id,
-                    ctx,
-                );
-            }
+            workflow_view.open_new_workflow(
+                Some(workflow_and_id.workflow.name.clone()),
+                Some(workflow_and_id.workflow.prompt.clone()),
+                personal_drive(),
+                None,
+                true,
+                workflow_and_id.sync_id,
+                ctx,
+            );
             workflow_view
         });
 

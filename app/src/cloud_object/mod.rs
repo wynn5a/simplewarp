@@ -12,7 +12,7 @@ use self::model::generic_string_model::{
     GenericStringModel, GenericStringObjectId, Serializer, StringModel,
 };
 use self::model::persistence::CloudModel;
-use crate::auth::AuthStateProvider;
+use crate::auth::UserUid;
 use crate::persistence::ModelEvent;
 use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, SyncId, ToServerId};
 use crate::util::time_format::format_approx_duration_from_now_utc;
@@ -613,10 +613,13 @@ use warp_errors::report_error;
 /// subdirectory name.
 pub const PERSONAL_SPACE_NAME: &str = "Personal";
 
-/// The [`Owner`] for the user's personal drive, or `None` when there is no user.
-pub fn personal_drive(app: &AppContext) -> Option<Owner> {
-    AuthStateProvider::as_ref(app)
-        .get()
-        .user_id()
-        .map(|user_uid| Owner::User { user_uid })
+/// The uid that owns every object the local user creates. There is no account, so it is fixed
+/// rather than taken from `AuthState` (whose user is never set outside tests).
+pub const LOCAL_USER_UID: &str = "local_user";
+
+/// The [`Owner`] for the user's personal drive.
+pub fn personal_drive() -> Owner {
+    Owner::User {
+        user_uid: UserUid::new(LOCAL_USER_UID),
+    }
 }

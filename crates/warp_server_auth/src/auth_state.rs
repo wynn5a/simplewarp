@@ -51,15 +51,6 @@ impl AuthState {
         }
     }
     #[cfg(any(test, feature = "test-util"))]
-    pub fn new_logged_out_for_test() -> Self {
-        Self {
-            user: RwLock::new(None),
-            anonymous_id: Uuid::new_v4(),
-            credentials: RwLock::new(None),
-        }
-    }
-
-    #[cfg(any(test, feature = "test-util"))]
     pub fn new_anonymous_for_test() -> Self {
         use super::user::AnonymousUserType;
         Self {
@@ -262,17 +253,6 @@ impl AuthStateProvider {
     pub fn new_for_test() -> Self {
         Self {
             auth_state: Arc::new(AuthState::new_for_test()),
-        }
-    }
-
-    /// Constructs a provider backed by a fully logged-out `AuthState` (no user,
-    /// no credentials). Used by unit tests that need to exercise code paths
-    /// gated on `AuthState::user_id()` / `cloud_object::personal_drive()`
-    /// returning `None`.
-    #[cfg(any(test, feature = "test-util"))]
-    pub fn new_logged_out_for_test() -> Self {
-        Self {
-            auth_state: Arc::new(AuthState::new_logged_out_for_test()),
         }
     }
 

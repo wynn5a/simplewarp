@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::Context;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, PaneView};
@@ -31,31 +30,28 @@ impl WorkflowPane {
         }
     }
 
-    pub fn restore(
-        workflow_id: Option<SyncId>,
-        ctx: &mut ViewContext<PaneGroup>,
-    ) -> anyhow::Result<Self> {
+    pub fn restore(workflow_id: Option<SyncId>, ctx: &mut ViewContext<PaneGroup>) -> Self {
         let window_id = ctx.window_id();
         let source = match workflow_id {
             Some(id) => WorkflowOpenSource::Existing(id),
             None => WorkflowOpenSource::New {
                 title: None,
                 content: None,
-                owner: personal_drive(ctx).context("personal drive unavailable")?,
+                owner: personal_drive(),
                 initial_folder_id: None,
                 is_for_agent_mode: false,
             },
         };
 
         // default to view mode on restore -- feels safer
-        Ok(WorkflowManager::handle(ctx).update(ctx, |manager, ctx| {
+        WorkflowManager::handle(ctx).update(ctx, |manager, ctx| {
             manager.create_pane(
                 &source,
                 WorkflowViewMode::supported_view_mode(workflow_id, ctx),
                 window_id,
                 ctx,
             )
-        }))
+        })
     }
 
     pub fn get_view(&self, ctx: &AppContext) -> ViewHandle<WorkflowView> {

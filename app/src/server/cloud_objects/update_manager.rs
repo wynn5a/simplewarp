@@ -14,7 +14,6 @@ use crate::ai::facts::{AIFact, CloudAIFactModel};
 use crate::ai::mcp::templatable::{CloudTemplatableMCPServerModel, TemplatableMCPServer};
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::AuthManager;
-use crate::cloud_object::folders::CloudFolderModel;
 use crate::cloud_object::model::actions::{ObjectActionType, ObjectActions};
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
@@ -444,27 +443,6 @@ impl UpdateManager {
 
         self.create_object(
             model,
-            owner,
-            client_id,
-            force_expand,
-            initial_folder_id,
-            ctx,
-        );
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn create_folder(
-        &mut self,
-        name: String,
-        owner: Owner,
-        client_id: ClientId,
-        initial_folder_id: Option<SyncId>,
-        force_expand: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.create_object(
-            // TODO(INT-789): support creating folders as warp packs
-            CloudFolderModel::new(&name, false),
             owner,
             client_id,
             force_expand,

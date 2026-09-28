@@ -1,10 +1,11 @@
 use warp_core::ui::appearance::Appearance;
 use warpui::platform::WindowStyle;
-use warpui::{App, ViewHandle};
+use warpui::{App, SingletonEntity, ViewHandle};
 
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::personal_drive;
 use crate::env_vars::active_env_var_collection_data::SavingStatus;
 use crate::env_vars::view::env_var_collection::EnvVarCollectionView;
 use crate::network::NetworkStatus;
@@ -182,6 +183,32 @@ fn test_should_disable_save() {
 
         env_var_collection_view.read(&app, |view, ctx| {
             assert!(view.should_disable_save(ctx));
+        });
+    });
+}
+
+#[test]
+fn test_saving_new_collection_creates_it_in_the_personal_drive() {
+    App::test((), |mut app| async move {
+        let env_var_collection_view = create_env_var_collection_view(&mut app);
+
+        env_var_collection_view.update(&mut app, |view, ctx| {
+            view.open_new_env_var_collection(personal_drive(), None, ctx);
+            view.variable_rows[0]
+                .variable_name_editor
+                .update(ctx, |editor, ctx| editor.set_buffer_text("FOO", ctx));
+            view.variable_rows[0]
+                .variable_value_editor
+                .update(ctx, |editor, ctx| editor.set_buffer_text("bar", ctx));
+            view.save_env_var_collection(ctx);
+        });
+
+        CloudModel::handle(&app).read(&app, |cloud_model, _| {
+            let personal_collections = cloud_model
+                .get_all_active_env_var_collections()
+                .filter(|collection| collection.permissions.owner == personal_drive())
+                .count();
+            assert_eq!(personal_collections, 1);
         });
     });
 }

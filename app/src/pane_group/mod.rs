@@ -1545,7 +1545,7 @@ impl PaneGroup {
             LeafContents::Notebook(snapshot) => {
                 let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
                     NotebookPaneSnapshot::CloudNotebook { notebook_id } => {
-                        Box::new(NotebookPane::restore(notebook_id, ctx)?)
+                        Box::new(NotebookPane::restore(notebook_id, ctx))
                     }
                     NotebookPaneSnapshot::LocalFileNotebook { path } => Box::new(FilePane::new(
                         path.map(LocalOrRemotePath::Local),
@@ -1599,7 +1599,7 @@ impl PaneGroup {
                 let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
                     EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
                         env_var_collection_id,
-                    } => Box::new(EnvVarCollectionPane::restore(env_var_collection_id, ctx)?),
+                    } => Box::new(EnvVarCollectionPane::restore(env_var_collection_id, ctx)),
                 };
 
                 let pane_id = pane.as_pane().id();
@@ -1614,7 +1614,7 @@ impl PaneGroup {
             LeafContents::Workflow(snapshot) => {
                 let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
                     WorkflowPaneSnapshot::CloudWorkflow { workflow_id } => {
-                        Box::new(WorkflowPane::restore(workflow_id, ctx)?)
+                        Box::new(WorkflowPane::restore(workflow_id, ctx))
                     }
                 };
 

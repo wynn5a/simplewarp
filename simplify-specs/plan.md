@@ -447,6 +447,31 @@ Queue, in order:
    `NavigatedCommands`, `ChangedSelectionMode`) and the `notebooks::telemetry` module name;
    `workflow_enums_with_owner`'s unused `AppContext` param.
 
+13. ~~`personal_drive()` always `None`~~ — **4hb done (2026-09-28).** Regression confirmed: no
+   production path calls `AuthState::set_user`, so `user_id()` and with it `personal_drive()` were
+   always `None`. Broken since `c1a6c3136` in simplewarp (`local_only` returned before any user
+   was adopted) and since 4gd (`656f60ab0`, the persisted-user read went) in default builds; unit
+   tests hid it (`AuthStateProvider::new_for_test` sets a user). Silent no-ops: "save as workflow"
+   / temporary / prompt workflow panes, restoring new notebook / env-var / workflow panes (restore
+   errored), `CreatePersonalEnvVarCollection`, notebook "Copy to Personal", the suggested agent-mode
+   workflow dialog, **adding AI rules** (Rules page and suggested-rule dialog), and the MCP template
+   object. Fix: `personal_drive() -> Owner` is `Owner::User { LOCAL_USER_UID = "local_user" }`,
+   no context, decoupled from `AuthState` (unchanged, so nothing flips to "logged in"; audited
+   `user_id()` readers: MCP `is_author` compares `creator_uid` (always `None`) to `user_id()`, the
+   agent-conversation owner filter, the sqlite load's default owner). Every `None` branch and the
+   rules views' `owner` field are gone; the three pane `restore`s are infallible. Stale rows (other
+   uids, `TEAM`) load and read as personal as before. Plans-as-notebooks stays off, now explicitly:
+   a plan counts as saved only once its notebook has a server id, which no local object gets, so a
+   local owner would have left plans "Saving" forever and held child-agent launch for the 30 s
+   publication timeout; `save_to_notebook` only links an existing notebook (the Plans-folder
+   creation, `UpdateManager::create_folder`, `get_server_conversation_id` are deleted). Also gone:
+   unused `new_logged_out_for_test`. Tests 4,290 default / 4,291 simplewarp (+2: saving a new env-var
+   collection creates it in the personal drive, `CreatePersonalEnvVarCollection` opens a pane; the
+   plan-publication test re-pinned to "plans stay NotSaved"), `warp_server_auth` 1 passed, 0 failed.
+   Follow-ups: verify in the app (save-as-workflow, add a rule, new env-var collection, restart
+   restores them); the plan-publication wait / pending queue / `autosync_plans_to_warp_drive`
+   plumbing is now dead (server-backed only).
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

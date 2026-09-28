@@ -449,7 +449,7 @@ fn autonomous_mode_autoexecutes_and_does_not_deny_missing_api_key() {
 }
 
 #[test]
-fn execute_publishes_every_parent_owned_plan_before_dispatch() {
+fn execute_leaves_plans_unsaved_since_local_notebooks_are_never_server_backed() {
     App::test((), |mut app| async move {
         let state = initialize_run_agents_test(&mut app, ExecutionMode::Sdk);
         BlocklistAIHistoryModel::handle(&app).update(&mut app, |model, ctx| {
@@ -508,18 +508,12 @@ fn execute_publishes_every_parent_owned_plan_before_dispatch() {
             assert!(captured.0.is_empty());
         });
         AIDocumentModel::handle(&app).read(&app, |model, _ctx| {
-            assert!(matches!(
-                model.get_document_save_status(&first_plan_id),
-                AIDocumentSaveStatus::Saving
-            ));
-            assert!(matches!(
-                model.get_document_save_status(&second_plan_id),
-                AIDocumentSaveStatus::Saving
-            ));
-            assert!(matches!(
-                model.get_document_save_status(&unrelated_plan_id),
-                AIDocumentSaveStatus::NotSaved
-            ));
+            for plan_id in [first_plan_id, second_plan_id, unrelated_plan_id] {
+                assert!(matches!(
+                    model.get_document_save_status(&plan_id),
+                    AIDocumentSaveStatus::NotSaved
+                ));
+            }
         });
     });
 }

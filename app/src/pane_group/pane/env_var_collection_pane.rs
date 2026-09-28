@@ -1,4 +1,3 @@
-use anyhow::Context;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use super::view::PaneView;
@@ -45,22 +44,20 @@ impl EnvVarCollectionPane {
     pub fn restore(
         env_var_collection_id: Option<SyncId>,
         ctx: &mut ViewContext<PaneGroup>,
-    ) -> anyhow::Result<Self> {
+    ) -> Self {
         let window_id = ctx.window_id();
         let source = match env_var_collection_id {
             Some(id) => EnvVarCollectionSource::Existing(id),
             None => EnvVarCollectionSource::New {
                 title: None,
-                owner: personal_drive(ctx).context("personal drive unavailable")?,
+                owner: personal_drive(),
                 initial_folder_id: None,
             },
         };
 
-        Ok(
-            EnvVarCollectionManager::handle(ctx).update(ctx, |manager, ctx| {
-                manager.create_pane(&source, window_id, ctx)
-            }),
-        )
+        EnvVarCollectionManager::handle(ctx).update(ctx, |manager, ctx| {
+            manager.create_pane(&source, window_id, ctx)
+        })
     }
 
     pub fn env_var_collection_view(&self, ctx: &AppContext) -> ViewHandle<EnvVarCollectionView> {

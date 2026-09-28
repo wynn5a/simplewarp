@@ -42,6 +42,8 @@ use crate::cloud_object::Owner;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::context_chips::prompt::Prompt;
 use crate::editor::Event;
+use crate::env_vars::manager::EnvVarCollectionManager;
+use crate::env_vars::view::env_var_collection::EnvVarCollectionView;
 use crate::gpu_state::GPUState;
 use crate::network::NetworkStatus;
 use crate::notebooks::editor::keys::NotebookKeybindings;
@@ -1599,6 +1601,26 @@ fn test_notebook_pane_tracking() {
                     .as_ref(ctx)
                     .find_pane(&NotebookSource::Existing(notebook_id)),
                 None
+            );
+        });
+    });
+}
+
+#[test]
+fn test_create_personal_env_var_collection_opens_a_pane() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.add_singleton_model(EnvVarCollectionManager::new);
+        let workspace = mock_workspace(&mut app);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.handle_action(&WorkspaceAction::CreatePersonalEnvVarCollection, ctx);
+
+            let window_id = ctx.window_id();
+            assert_eq!(
+                ctx.views_of_type::<EnvVarCollectionView>(window_id)
+                    .map(|views| views.len()),
+                Some(1)
             );
         });
     });
