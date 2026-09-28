@@ -52,7 +52,6 @@ use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::ServerId;
 use crate::server::server_api::ServerApiProvider;
 use crate::settings::PrivacySettings;
-use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
 use crate::settings_view::DisplayCount;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::suggestions::ignored_suggestions_model::IgnoredSuggestionsModel;
@@ -108,14 +107,6 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(NotebookKeybindings::new);
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(NotebookManager::mock);
-    app.add_singleton_model(|ctx| {
-        CloudPreferencesSyncer::new(
-            false,                     // force_local_wins_on_startup
-            std::path::PathBuf::new(), // unused in tests that don't exercise the hash path
-            true,                      // sync_enabled: cloud sync active in tests
-            ctx,
-        )
-    });
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
     // QueuedQueryModel subscribes to history events; register after the
     // history model is in place.

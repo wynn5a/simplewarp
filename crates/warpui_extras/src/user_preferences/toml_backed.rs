@@ -5,7 +5,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use sha2::{Digest, Sha256};
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, Value, value};
 
 use super::Error;
@@ -108,41 +107,6 @@ impl TomlBackedUserPreferences {
         file_contents
             .parse::<DocumentMut>()
             .map_err(|err| Error::Unknown(anyhow::anyhow!(err)))
-    }
-
-    /// Hashes the settings file content on disk.
-    ///
-    /// Returns `None` if the file is missing, empty/whitespace-only, or
-    /// unreadable. These cases are all treated as "no local state" rather
-    /// than "local state that should win" — the caller's startup
-    /// comparison logic treats a `None` result as "no differing local
-    /// state" so that cloud can restore rather than wiping cloud with
-    /// local defaults.
-    ///
-    /// Uses SHA-256 so that persisted hashes are stable across Rust
-    /// toolchain upgrades and crate version bumps (unlike `SipHasher`
-    /// or `DefaultHasher`, whose output is not guaranteed to be stable).
-    pub fn file_content_hash(file_path: &Path) -> Option<String> {
-        let contents = match std::fs::read_to_string(file_path) {
-            Ok(c) => c,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return None,
-            Err(err) => {
-                log::warn!(
-                    "Failed to read settings file at {}: {err}",
-                    file_path.display()
-                );
-                return None;
-            }
-        };
-        // An empty/whitespace-only file is semantically equivalent to a
-        // missing file — no settings are defined. Treating them the
-        // same way avoids wiping cloud with defaults if the user
-        // empties the file to reset.
-        if contents.trim().is_empty() {
-            return None;
-        }
-        let digest = Sha256::digest(contents.as_bytes());
-        Some(format!("{digest:x}"))
     }
 
     /// Reloads the TOML document from disk, replacing the in-memory contents.

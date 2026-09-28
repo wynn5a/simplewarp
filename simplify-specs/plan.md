@@ -187,6 +187,48 @@ Queue, in order:
    hash path runs); the privacy-policy links point at warp.dev (settings page, app menu, workspace
    action); `WorkspaceSettings.telemetry_settings` / `cloud_conversation_storage_settings` are
    now-unread server team shapes.
+6. ~~CloudPreferencesSyncer and unread server team settings~~ — **4gu done (2026-09-28).** −2.9k
+   lines in 39 files. The syncer was inert in every build and so was its "local" settings-file hash
+   path: the hash was read at startup and only consulted, and only rewritten, inside the
+   never-reached cloud initial load. Gone: `cloud_preferences_syncer.rs` (whole file), its
+   `SettingsFileLastSyncedHash` private key (orphaned, harmless),
+   `TomlBackedUserPreferences::file_content_hash` + 5 tests and warpui_extras' `sha2` dep,
+   `CloudModel::get_all_cloud_preferences_by_storage_key`, `GenericStringObjectInput`,
+   `AppExecutionMode::can_sync_preferences`, the `CloudPreferencesSettings` group
+   (`IsSettingsSyncEnabled` / `account.is_settings_sync_enabled`, key orphaned), and the whole
+   settings-page "not synced to your other devices" icon (`LocalOnlyIconState`,
+   `render_local_only_icon`, `local_only_icon_with_tooltip`, `cloud-off.svg`, the icon param on
+   ten render helpers and the tooltip-state fields of eleven pages; the `Setting` type parameter of
+   `render_ai_setting_toggle` / `_label` existed only to feed it). Execution profiles: the
+   logged-in-only legacy import that waited on the syncer (`migrate_settings_profiles`, the
+   cloud-collection reconciliation gates, `sync_explicit_settings_collection`) is gone and
+   `SettingsMigrationState` is down to `PendingLegacyImport` / `Authoritative`; local edits still
+   materialize the settings collection. `WorkspaceSettings` loses `telemetry_settings`,
+   `cloud_conversation_storage_settings`, `link_sharing_settings`, `is_invite_link_enabled`,
+   `is_discoverable`, `addon_credits_settings` (never persisted: workspaces load with default
+   settings); the persisted `TeamSettings` JSON loses the unread `telemetry_settings`,
+   `cloud_conversation_storage`, `link_sharing`, `addon_credits_settings` (old cached rows still
+   load: serde ignores unknown keys). Kept, being persisted shapes: `Preference` /
+   `CloudPreference` objects still load from sqlite into CloudModel (session-restoration
+   integration test). **Regex fix:** startup now calls `initialize_default_regexes_once` right
+   after `PrivacySettings` registers — once per install via the private
+   `HasInitializedDefaultSecretRegexes` flag, so regexes the user removed never come back (new
+   `privacy_tests.rs`). Upstream nuance: upstream ran it after the Warp Drive initial load for
+   existing users and suppressed it for brand-new accounts (`disable_default_regex_trigger` on
+   `is_onboarded == false`, dead since 4gc and now deleted); with no account there is no new-user
+   signal, so every fresh install now gets the recommended list (inert until secret redaction is
+   turned on). Tests 4,383 default / 4,384 simplewarp (−9 legacy-import tests deleted with their
+   code, +1 regex test), 0 failed. Follow-ups: the `sync_to_cloud:` marker on every setting
+   (~350 declarations, the `define_setting!` / `implement_setting_for_enum!` arms,
+   `Setting::sync_to_cloud` / `current_value_is_syncable` / `is_setting_syncable_on_current_platform`,
+   `RespectUserSyncSetting`) and the SettingsManager half that only served the syncer
+   (`equals_fns`, `is_syncable_fns`, `sync_regardless_of_users_syncing_setting`,
+   `cloud_syncing_mode_for_storage_key`, `are_equal_settings`, `all_storage_keys`,
+   `SettingsEvent::LocalPreferencesUpdated`, `set_value_from_cloud_sync` / `ChangeEventReason::CloudSync`);
+   the rest of the logged-in-only legacy execution-profile backend (`LegacyCloudObjects`,
+   personal-drive ownership, `reconcile_with_cloud_state_after_initial_load`); the whole
+   workspace/team settings layer (every workspace loads with default settings; `TeamSettings` is
+   written only by the gone server fetch).
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

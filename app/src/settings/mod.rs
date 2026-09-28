@@ -4,7 +4,6 @@ mod alias_expansion;
 pub mod app_icon;
 mod block_visibility;
 pub mod cloud_preferences;
-pub mod cloud_preferences_syncer;
 mod code;
 mod debug;
 mod editor;

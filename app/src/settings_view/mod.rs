@@ -91,8 +91,8 @@ pub use cli_agents_page::cli_agent_settings_widget_id;
 pub use features_page::FeaturesPageAction;
 pub use privacy_page::PrivacyPageAction;
 pub use settings_page::{
-    AdditionalInfo, InputListItem, LocalOnlyIconState, ToggleState, render_body_item_label,
-    render_info_icon, render_input_list, render_separator,
+    AdditionalInfo, InputListItem, ToggleState, render_body_item_label, render_info_icon,
+    render_input_list, render_separator,
 };
 pub(crate) use warp_agent_page::custom_model_routers_widget_id;
 

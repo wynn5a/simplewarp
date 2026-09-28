@@ -20,10 +20,6 @@ use crate::cloud_object::{
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
-use crate::settings::cloud_preferences::{
-    CloudPreference, CloudPreferenceModel, CloudPreferencesSettings,
-};
-use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
 use crate::settings::{AISettings, PrivacySettings};
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::user_profiles::UserProfiles;
@@ -68,31 +64,11 @@ fn owned_legacy_profile(sync_id: SyncId, profile: AIExecutionProfile) -> CloudAI
     )
 }
 
-/// Creates the minimal cloud preference needed to model a previously migrated account.
-fn cloud_execution_profiles_preference(server_id: ServerId) -> CloudPreference {
-    CloudPreference::new(
-        SyncId::ServerId(server_id),
-        CloudPreferenceModel::deserialize_owned(
-            r#"{"storage_key":"ExecutionProfiles","value":{},"platform":"Global"}"#,
-        )
-        .expect("execution profiles preference should deserialize"),
-        mock_cloud_metadata(),
-        mock_cloud_permissions(),
-    )
-}
-
 /// Install the minimal singleton graph needed to construct an
 /// `AIExecutionProfilesModel` and exercise its CloudModel interactions.
 fn install_singletons(app: &mut App, auth_state: AuthStateProvider) {
     initialize_settings_for_tests(app);
     app.add_singleton_model(|_| auth_state);
-    // The syncer here is a readiness flag-holder, not a live sync driver: tests flip
-    // CloudPreferencesSettings directly and drive initial load by hand, so a live sync
-    // cascade would need the full app graph. Disabled sync keeps `sync()` inert while
-    // `complete_initial_load_for_test` still feeds the migration gates below.
-    app.add_singleton_model(|ctx| {
-        CloudPreferencesSyncer::new(false, std::path::PathBuf::new(), false, ctx)
-    });
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| UpdateManager::mock());
     app.add_singleton_model(CloudModel::mock);
@@ -101,34 +77,6 @@ fn install_singletons(app: &mut App, auth_state: AuthStateProvider) {
     app.add_singleton_model(PrivacySettings::mock);
     app.add_singleton_model(|_| UserProfiles::new(Vec::new()));
     app.add_singleton_model(UserWorkspaces::default_mock);
-}
-
-fn complete_cloud_initial_load(app: &mut App) {
-    CloudPreferencesSyncer::handle(app).update(app, |syncer: &mut CloudPreferencesSyncer, _| {
-        syncer.complete_initial_load_for_test();
-    });
-    // Production kicks the migration off the syncer's InitialLoadCompleted event; fire
-    // the migration directly since these tests drive the syncer flag by hand.
-    AIExecutionProfilesModel::handle(app).update(app, |model, ctx| {
-        model.migrate_settings_profiles(ctx);
-    });
-}
-
-fn collection_with_profile(
-    id: &str,
-    name: &str,
-    permission: ActionPermission,
-) -> crate::ai::execution_profiles::ExecutionProfilesConfig {
-    let mut profiles = crate::ai::execution_profiles::ExecutionProfilesConfig::default();
-    profiles.insert(
-        ExecutionProfileId::parse(id).expect("test profile key should be valid"),
-        AIExecutionProfile {
-            name: name.to_string(),
-            read_files: permission,
-            ..Default::default()
-        },
-    );
-    profiles
 }
 
 #[test]
@@ -201,45 +149,6 @@ fn edits_persist_on_unsynced_default_profile_when_logged_out() {
 }
 
 #[test]
-fn explicit_local_collection_is_preserved_from_onboarding() {
-    let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        install_singletons(&mut app, AuthStateProvider::new_for_test());
-        app.update(|ctx| {
-            AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings
-                    .execution_profiles
-                    .set_value(
-                        collection_with_profile(
-                            "pre-login",
-                            "Pre-login",
-                            ActionPermission::AlwaysAllow,
-                        ),
-                        ctx,
-                    )
-                    .unwrap();
-            });
-        });
-
-        app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        complete_cloud_initial_load(&mut app);
-
-        app.read(|ctx| {
-            assert!(
-                AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .value()
-                    .profile(&ExecutionProfileId::parse("pre-login").unwrap())
-                    .is_some()
-            );
-        });
-    });
-}
-
-#[test]
 fn feature_disabled_keeps_legacy_backend_behavior() {
     let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(false);
 
@@ -263,10 +172,6 @@ fn feature_disabled_keeps_legacy_backend_behavior() {
         let profile_model = app.add_singleton_model(|ctx| {
             AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
         });
-        profile_model.update(&mut app, |model, ctx| {
-            model.migrate_settings_profiles(ctx);
-        });
-
         profile_model.read(&app, |model, ctx| {
             let default_profile = model.default_profile(ctx);
             assert_ne!(default_profile.id(), &ExecutionProfileId::default_profile());
@@ -288,260 +193,6 @@ fn feature_disabled_keeps_legacy_backend_behavior() {
 }
 
 #[test]
-fn migration_imports_owned_legacy_profiles_with_deterministic_keys() {
-    let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        install_singletons(&mut app, AuthStateProvider::new_for_test());
-        let default_server_id = ServerId::from(501);
-        let custom_server_id = ServerId::from(502);
-        let default_profile = owned_legacy_profile(
-            SyncId::ServerId(default_server_id),
-            AIExecutionProfile {
-                name: "Default".to_string(),
-                is_default_profile: true,
-                execute_commands: ActionPermission::AlwaysAllow,
-                ..Default::default()
-            },
-        );
-        let custom_profile = owned_legacy_profile(
-            SyncId::ServerId(custom_server_id),
-            AIExecutionProfile {
-                name: "Review".to_string(),
-                is_default_profile: false,
-                read_files: ActionPermission::AlwaysAllow,
-                ..Default::default()
-            },
-        );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(default_profile.id, default_profile);
-            cloud_model.add_object(custom_profile.id, custom_profile);
-        });
-
-        app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        complete_cloud_initial_load(&mut app);
-
-        let custom_key = ExecutionProfileId::from_legacy_server_id(custom_server_id);
-        app.read(|ctx| {
-            let profiles = AISettings::as_ref(ctx).execution_profiles.value();
-            assert_eq!(
-                profiles
-                    .profile(&ExecutionProfileId::default_profile())
-                    .map(|profile| profile.execute_commands),
-                Some(ActionPermission::AlwaysAllow)
-            );
-            assert_eq!(
-                profiles
-                    .profile(&custom_key)
-                    .map(|profile| profile.read_files),
-                Some(ActionPermission::AlwaysAllow)
-            );
-            assert_eq!(
-                CloudModel::as_ref(ctx)
-                    .get_all_objects_of_type::<
-                        crate::cloud_object::model::generic_string_model::GenericStringObjectId,
-                        CloudAIExecutionProfileModel,
-                    >()
-                    .count(),
-                2
-            );
-        });
-    });
-}
-
-#[test]
-fn pending_migration_keeps_legacy_default_model_until_import_succeeds() {
-    let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        install_singletons(&mut app, AuthStateProvider::new_for_test());
-        let server_id = ServerId::from(507);
-        let legacy_model = LLMId::from("gpt-5-6-sol-high");
-        let legacy_default = owned_legacy_profile(
-            SyncId::ServerId(server_id),
-            AIExecutionProfile {
-                name: "Default".to_string(),
-                is_default_profile: true,
-                base_model: Some(legacy_model.clone()),
-                ..Default::default()
-            },
-        );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(legacy_default.id, legacy_default);
-        });
-
-        let profile_model = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-
-        profile_model.read(&app, |model, ctx| {
-            let default_profile = model.default_profile(ctx);
-            assert_eq!(
-                default_profile.data().base_model,
-                Some(legacy_model.clone())
-            );
-            assert_eq!(default_profile.sync_id(), Some(SyncId::ServerId(server_id)));
-            assert_eq!(default_profile.id(), &ExecutionProfileId::default_profile());
-        });
-        app.read(|ctx| {
-            assert!(
-                !AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .is_value_explicitly_set()
-            );
-        });
-        complete_cloud_initial_load(&mut app);
-
-        profile_model.read(&app, |model, ctx| {
-            let default_profile = model.default_profile(ctx);
-            assert_eq!(default_profile.data().base_model, Some(legacy_model));
-            assert_eq!(default_profile.sync_id(), None);
-        });
-        app.read(|ctx| {
-            assert!(
-                AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .is_value_explicitly_set()
-            );
-        });
-    });
-}
-
-#[test]
-fn malformed_cloud_collection_falls_back_to_legacy_import() {
-    let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        install_singletons(&mut app, AuthStateProvider::new_for_test());
-        app.update(|ctx| {
-            CloudPreferencesSettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings.settings_sync_enabled.set_value(true, ctx).unwrap();
-            });
-        });
-        let legacy_server_id = ServerId::from(512);
-        let preference_server_id = ServerId::from(513);
-        let legacy_default = owned_legacy_profile(
-            SyncId::ServerId(legacy_server_id),
-            AIExecutionProfile {
-                name: "Default".to_string(),
-                is_default_profile: true,
-                base_model: Some(LLMId::from("auto-genius")),
-                ..Default::default()
-            },
-        );
-        let cloud_preference = cloud_execution_profiles_preference(preference_server_id);
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(legacy_default.id, legacy_default);
-            cloud_model.add_object(cloud_preference.id, cloud_preference);
-        });
-
-        let profile_model = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        complete_cloud_initial_load(&mut app);
-
-        app.read(|ctx| {
-            assert!(
-                AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .is_value_explicitly_set()
-            );
-        });
-        profile_model.read(&app, |model, ctx| {
-            assert_eq!(
-                model.default_profile(ctx).data().base_model,
-                Some(LLMId::from("auto-genius"))
-            );
-            assert_eq!(model.default_profile(ctx).sync_id(), None);
-        });
-    });
-}
-
-#[test]
-fn malformed_cloud_collection_without_legacy_profiles_materializes_default() {
-    let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        install_singletons(&mut app, AuthStateProvider::new_for_test());
-        app.update(|ctx| {
-            CloudPreferencesSettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings.settings_sync_enabled.set_value(true, ctx).unwrap();
-            });
-        });
-        let cloud_preference = cloud_execution_profiles_preference(ServerId::from(519));
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(cloud_preference.id, cloud_preference);
-        });
-
-        let profile_model = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        complete_cloud_initial_load(&mut app);
-
-        app.read(|ctx| {
-            let profiles = &AISettings::as_ref(ctx).execution_profiles;
-            assert!(profiles.is_value_explicitly_set());
-            assert!(
-                profiles
-                    .value()
-                    .profile(&ExecutionProfileId::default_profile())
-                    .is_some()
-            );
-        });
-        profile_model.read(&app, |model, ctx| {
-            assert_eq!(model.default_profile(ctx).data().name, "Default");
-        });
-    });
-}
-
-#[test]
-fn settings_sync_disabled_imports_legacy_profiles() {
-    let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        install_singletons(&mut app, AuthStateProvider::new_for_test());
-        let legacy_server_id = ServerId::from(514);
-        let preference_server_id = ServerId::from(515);
-        let legacy_default = owned_legacy_profile(
-            SyncId::ServerId(legacy_server_id),
-            AIExecutionProfile {
-                name: "Default".to_string(),
-                is_default_profile: true,
-                base_model: Some(LLMId::from("gpt-5-6-sol-high")),
-                ..Default::default()
-            },
-        );
-        let cloud_preference = cloud_execution_profiles_preference(preference_server_id);
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(legacy_default.id, legacy_default);
-            cloud_model.add_object(cloud_preference.id, cloud_preference);
-        });
-
-        let profile_model = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        complete_cloud_initial_load(&mut app);
-
-        app.read(|ctx| {
-            assert!(
-                AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .is_value_explicitly_set()
-            );
-        });
-        profile_model.read(&app, |model, ctx| {
-            assert_eq!(
-                model.default_profile(ctx).data().base_model,
-                Some(LLMId::from("gpt-5-6-sol-high"))
-            );
-            assert_eq!(model.default_profile(ctx).sync_id(), None);
-        });
-    });
-}
-
-#[test]
 fn pre_login_edit_materializes_the_pending_collection() {
     let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
 
@@ -554,7 +205,6 @@ fn pre_login_edit_materializes_the_pending_collection() {
 
         profile_model.update(&mut app, |model, ctx| {
             model.set_apply_code_diffs(&default_profile_id, &ActionPermission::AlwaysAllow, ctx);
-            model.migrate_settings_profiles(ctx);
         });
 
         app.read(|ctx| {
@@ -575,180 +225,6 @@ fn pre_login_edit_materializes_the_pending_collection() {
             assert_eq!(
                 model.default_profile(ctx).data().apply_code_diffs,
                 ActionPermission::AlwaysAllow
-            );
-        });
-    });
-}
-
-#[test]
-fn cloud_initial_load_retries_pending_migration() {
-    let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        install_singletons(&mut app, AuthStateProvider::new_for_test());
-        let profile_model = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        let server_id = ServerId::from(508);
-        let legacy_model = LLMId::from("gpt-5-6-sol-high");
-        let legacy_default = owned_legacy_profile(
-            SyncId::ServerId(server_id),
-            AIExecutionProfile {
-                name: "Default".to_string(),
-                is_default_profile: true,
-                base_model: Some(legacy_model.clone()),
-                ..Default::default()
-            },
-        );
-
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(legacy_default.id, legacy_default);
-        });
-        complete_cloud_initial_load(&mut app);
-
-        profile_model.read(&app, |model, ctx| {
-            assert_eq!(
-                model.default_profile(ctx).data().base_model,
-                Some(legacy_model)
-            );
-            assert_eq!(model.default_profile(ctx).sync_id(), None);
-        });
-        app.read(|ctx| {
-            assert!(
-                AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .is_value_explicitly_set()
-            );
-        });
-    });
-}
-
-#[test]
-fn completed_migration_is_not_reapplied_and_legacy_ids_restore_after_restart() {
-    let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        install_singletons(&mut app, AuthStateProvider::new_for_test());
-        let default_server_id = ServerId::from(509);
-        let custom_server_id = ServerId::from(510);
-        let migrated_model = LLMId::from("gpt-5-6-sol-high");
-        let default_profile = owned_legacy_profile(
-            SyncId::ServerId(default_server_id),
-            AIExecutionProfile {
-                name: "Default".to_string(),
-                is_default_profile: true,
-                base_model: Some(migrated_model.clone()),
-                ..Default::default()
-            },
-        );
-        let custom_profile = owned_legacy_profile(
-            SyncId::ServerId(custom_server_id),
-            AIExecutionProfile {
-                name: "Review".to_string(),
-                ..Default::default()
-            },
-        );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(default_profile.id, default_profile);
-            cloud_model.add_object(custom_profile.id, custom_profile);
-        });
-
-        let profile_model = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        complete_cloud_initial_load(&mut app);
-
-        let changed_legacy_default = owned_legacy_profile(
-            SyncId::ServerId(default_server_id),
-            AIExecutionProfile {
-                name: "Default".to_string(),
-                is_default_profile: true,
-                base_model: Some(LLMId::from("auto-genius")),
-                ..Default::default()
-            },
-        );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(changed_legacy_default.id, changed_legacy_default);
-        });
-        profile_model.update(&mut app, |model, ctx| {
-            model.reconcile_with_cloud_state_after_initial_load(ctx);
-            model.migrate_settings_profiles(ctx);
-        });
-
-        profile_model.read(&app, |model, ctx| {
-            assert_eq!(
-                model.default_profile(ctx).data().base_model,
-                Some(migrated_model)
-            );
-        });
-
-        let restored_model = app
-            .add_model(|ctx| AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx));
-        restored_model.read(&app, |model, ctx| {
-            assert_eq!(
-                model.get_profile_id_by_sync_id(&SyncId::ServerId(default_server_id), ctx,),
-                Some(ExecutionProfileId::default_profile())
-            );
-            assert_eq!(
-                model.get_profile_id_by_sync_id(&SyncId::ServerId(custom_server_id), ctx),
-                Some(ExecutionProfileId::from_legacy_server_id(custom_server_id))
-            );
-        });
-    });
-}
-
-#[test]
-fn reset_without_explicit_collection_reimports_the_next_accounts_legacy_profile() {
-    let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        install_singletons(&mut app, AuthStateProvider::new_for_test());
-        let profile_model = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        profile_model.update(&mut app, |model, _| model.reset(false));
-
-        let default_profile_id = profile_model.read(&app, |model, _| model.default_profile_id());
-        profile_model.update(&mut app, |model, ctx| {
-            model.set_base_model(
-                &default_profile_id,
-                Some(LLMId::from("gpt-5-6-sol-high")),
-                ctx,
-            );
-        });
-        app.read(|ctx| {
-            assert!(
-                !AISettings::as_ref(ctx)
-                    .execution_profiles
-                    .is_value_explicitly_set()
-            );
-        });
-
-        let server_id = ServerId::from(518);
-        let legacy_default = owned_legacy_profile(
-            SyncId::ServerId(server_id),
-            AIExecutionProfile {
-                name: "Default".to_string(),
-                is_default_profile: true,
-                base_model: Some(LLMId::from("auto-genius")),
-                ..Default::default()
-            },
-        );
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(legacy_default.id, legacy_default);
-        });
-        // The old server upsert fired ObjectCreated to transition the model to
-        // Synced; the initial-load reconciliation drives the equivalent transition.
-        profile_model.update(&mut app, |model, ctx| {
-            model.reconcile_with_cloud_state_after_initial_load(ctx);
-            model.migrate_settings_profiles(ctx);
-        });
-        complete_cloud_initial_load(&mut app);
-
-        profile_model.read(&app, |model, ctx| {
-            assert_eq!(
-                model.default_profile(ctx).data().base_model,
-                Some(LLMId::from("auto-genius"))
             );
         });
     });
@@ -791,9 +267,6 @@ fn profile_sources_preserve_state_across_migration_and_rollout() {
                 AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
             })
         };
-        settings_model.update(&mut app, |model, ctx| {
-            model.migrate_settings_profiles(ctx);
-        });
         settings_model.read(&app, |model, ctx| {
             assert_eq!(model.default_profile(ctx).data().name, "Settings default");
         });

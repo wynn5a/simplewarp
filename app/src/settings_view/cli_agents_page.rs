@@ -4,9 +4,6 @@
 //! Codex, Gemini CLI) rather than Warp's own AI, so its settings are always
 //! interactive regardless of the global AI toggle.
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-
 use enum_iterator::all;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use regex::Regex;
@@ -37,7 +34,7 @@ use crate::ai::blocklist::agent_view::agent_input_footer::editor::{
 };
 use crate::appearance::Appearance;
 use crate::menu::{MenuItem, MenuItemFields};
-use crate::settings::{AISettings, AISettingsChangedEvent, ShouldRenderCLIAgentToolbar};
+use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::terminal::CLIAgent;
 use crate::util::bindings;
 use crate::view_components::dropdown::DropdownAction;
@@ -47,7 +44,6 @@ const PAGE_TITLE: &str = "Third party CLI agents";
 
 pub struct CLIAgentsPageView {
     page: PageType<Self>,
-    local_only_icon_tooltip_states: RefCell<HashMap<String, MouseStateHandle>>,
     cli_agent_footer_command_editor: ViewHandle<SubmittableTextInput>,
     cli_agent_footer_command_mouse_state_handles: Vec<MouseStateHandle>,
     cli_agent_footer_command_agent_dropdowns: Vec<ViewHandle<Dropdown<CLIAgentsPageAction>>>,
@@ -108,7 +104,6 @@ impl CLIAgentsPageView {
 
         Self {
             page: Self::build_page(),
-            local_only_icon_tooltip_states: Default::default(),
             cli_agent_footer_command_editor,
             cli_agent_footer_command_mouse_state_handles,
             cli_agent_footer_command_agent_dropdowns: Self::create_cli_agent_dropdowns(ctx),
@@ -331,19 +326,18 @@ impl SettingsWidget for CLIAgentWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _view: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
         let ai_settings = AISettings::as_ref(app);
 
-        let cli_agent_footer_toggle = render_ai_setting_toggle::<ShouldRenderCLIAgentToolbar>(
+        let cli_agent_footer_toggle = render_ai_setting_toggle(
             "Show coding agent toolbar",
             CLIAgentsPageAction::ToggleCLIAgentToolbar,
             *ai_settings.should_render_cli_agent_footer,
             true,
             self.cli_agent_footer_toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         );
 

@@ -21,7 +21,6 @@ log.workspace = true
 async-channel.workspace = true
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
-sha2.workspace = true
 toml_edit = { workspace = true, optional = true }
 thiserror.workspace = true
 warpui_core.workspace = true

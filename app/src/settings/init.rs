@@ -9,7 +9,6 @@ use warpui::{AppContext, SingletonEntity};
 use warpui_extras::user_preferences;
 
 use super::app_icon::AppIconSettings;
-use super::cloud_preferences::CloudPreferencesSettings;
 use super::native_preference::NativePreferenceSettings;
 use super::{
     AISettings, AccessibilitySettings, AliasExpansionSettings, AppEditorSettings,
@@ -75,7 +74,6 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     ThemeSettings::register(ctx);
     AccessibilitySettings::register(ctx);
     NativePreferenceSettings::register(ctx);
-    CloudPreferencesSettings::register(ctx);
     AppIconSettings::register(ctx);
     AppEditorSettings::register(ctx);
     InputSettings::register(ctx);

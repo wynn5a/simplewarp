@@ -518,68 +518,6 @@ fn test_clear_all_write_inhibitions() {
     );
 }
 
-#[test]
-fn test_file_content_hash_returns_none_for_missing_file() {
-    let dir = tempfile::tempdir().unwrap();
-    let file_path = dir.path().join("does_not_exist.toml");
-    assert_eq!(
-        None,
-        TomlBackedUserPreferences::file_content_hash(&file_path)
-    );
-}
-
-#[test]
-fn test_file_content_hash_returns_none_for_empty_file() {
-    let dir = tempfile::tempdir().unwrap();
-    let file_path = dir.path().join("empty.toml");
-    std::fs::write(&file_path, "").unwrap();
-    assert_eq!(
-        None,
-        TomlBackedUserPreferences::file_content_hash(&file_path)
-    );
-}
-
-#[test]
-fn test_file_content_hash_returns_none_for_whitespace_only_file() {
-    let dir = tempfile::tempdir().unwrap();
-    let file_path = dir.path().join("whitespace.toml");
-    std::fs::write(&file_path, "   \n\t  \n").unwrap();
-    assert_eq!(
-        None,
-        TomlBackedUserPreferences::file_content_hash(&file_path)
-    );
-}
-
-#[test]
-fn test_file_content_hash_is_deterministic_for_identical_content() {
-    let dir = tempfile::tempdir().unwrap();
-    let path_a = dir.path().join("a.toml");
-    let path_b = dir.path().join("b.toml");
-    let contents = "[font]\nfont_size = 14.0\n";
-    std::fs::write(&path_a, contents).unwrap();
-    std::fs::write(&path_b, contents).unwrap();
-
-    let hash_a = TomlBackedUserPreferences::file_content_hash(&path_a);
-    let hash_b = TomlBackedUserPreferences::file_content_hash(&path_b);
-    assert!(hash_a.is_some());
-    assert_eq!(hash_a, hash_b);
-}
-
-#[test]
-fn test_file_content_hash_differs_for_different_content() {
-    let dir = tempfile::tempdir().unwrap();
-    let path_a = dir.path().join("a.toml");
-    let path_b = dir.path().join("b.toml");
-    std::fs::write(&path_a, "[font]\nfont_size = 14.0\n").unwrap();
-    std::fs::write(&path_b, "[font]\nfont_size = 18.0\n").unwrap();
-
-    let hash_a = TomlBackedUserPreferences::file_content_hash(&path_a);
-    let hash_b = TomlBackedUserPreferences::file_content_hash(&path_b);
-    assert!(hash_a.is_some());
-    assert!(hash_b.is_some());
-    assert_ne!(hash_a, hash_b);
-}
-
 // Pretty-printing tests: verify that wide inline containers get broken
 // across lines and that short ones stay on a single line. These drive the
 // `prettify_item` pass in `toml_backed.rs`.

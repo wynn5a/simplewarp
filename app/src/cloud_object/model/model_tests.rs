@@ -10,7 +10,7 @@ use crate::cloud_object::{
 };
 use crate::notebooks::CloudNotebookModel;
 use crate::server::ids::{ClientId, ServerId};
-use crate::settings::Preference;
+use crate::settings::{CloudPreference, Preference};
 use crate::workspaces::team::Team;
 use crate::workspaces::workspace::{Workspace, WorkspaceUid};
 

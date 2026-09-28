@@ -4,8 +4,6 @@
 //! per-profile permission dropdowns, the allow/denylist editors, the model
 //! pickers and the context-window control.
 
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use ::ai::api_keys::ApiKeyManager;
@@ -35,11 +33,10 @@ use super::ai_shared::{
 };
 use super::execution_profile_view::{ExecutionProfileView, ExecutionProfileViewEvent};
 use super::settings_page::{
-    CONTENT_FONT_SIZE, HEADER_PADDING, InputListItem, LocalOnlyIconState, MatchData, PageType,
-    SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, ToggleState, build_sub_header,
-    render_body_item_label, render_body_item_label_with_icon, render_custom_size_header,
-    render_dropdown_item, render_dropdown_item_label, render_input_list, render_separator,
-    render_settings_info_banner,
+    CONTENT_FONT_SIZE, HEADER_PADDING, InputListItem, MatchData, PageType, SettingsPageMeta,
+    SettingsPageViewHandle, SettingsWidget, ToggleState, build_sub_header, render_body_item_label,
+    render_body_item_label_with_icon, render_custom_size_header, render_dropdown_item,
+    render_dropdown_item_label, render_input_list, render_separator, render_settings_info_banner,
 };
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
 use crate::UserWorkspaces;
@@ -63,8 +60,7 @@ use crate::cloud_object::{JsonObjectType, ObjectType};
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions};
 use crate::settings::{
     AISettings, AISettingsChangedEvent, AgentModeCodingPermissionsType,
-    AgentModeCommandExecutionDenylist, AgentModeCommandExecutionPredicate, CodeSettings,
-    CodebaseContextEnabled,
+    AgentModeCommandExecutionPredicate, CodeSettings,
 };
 use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use crate::ui_components::icons::Icon;
@@ -84,7 +80,6 @@ const CONTEXT_WINDOW_INPUT_BOX_WIDTH: f32 = 120.;
 
 pub struct AgentProfilesPageView {
     page: PageType<Self>,
-    local_only_icon_tooltip_states: RefCell<HashMap<String, MouseStateHandle>>,
 
     autonomy_dropdown_menu: ViewHandle<Dropdown<AgentProfilesPageAction>>,
     code_read_autonomy_dropdown_menu: ViewHandle<Dropdown<AgentProfilesPageAction>>,
@@ -846,7 +841,6 @@ impl AgentProfilesPageView {
 
         Self {
             page: Self::build_page(),
-            local_only_icon_tooltip_states: Default::default(),
             command_execution_allowlist_editor,
             command_execution_denylist_editor,
             command_execution_allowlist_mouse_state_handles,
@@ -1748,16 +1742,12 @@ fn render_ai_list(
     header: &str,
     description: &str,
     input_list: Box<dyn Element>,
-    view: &AgentProfilesPageView,
+    _view: &AgentProfilesPageView,
     ai_settings: &AISettings,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    let setting_header = render_ai_setting_label::<AgentModeCommandExecutionDenylist>(
-        header.to_string(),
-        ai_settings.is_any_ai_enabled(app),
-        &view.local_only_icon_tooltip_states,
-        app,
-    );
+    let setting_header =
+        render_ai_setting_label(header.to_string(), ai_settings.is_any_ai_enabled(app), app);
 
     let description = render_ai_setting_description(
         description.to_string(),
@@ -1964,7 +1954,6 @@ impl AgentsWidget {
             "Context window (tokens)".to_string(),
             None,
             None,
-            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
         ))
@@ -2243,7 +2232,6 @@ impl AgentsWidget {
                 app,
             )),
             None,
-            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
         ))
@@ -2473,7 +2461,6 @@ impl AgentsWidget {
                 "This model serves as the primary engine behind the Warp Agent. It powers most interactions and invokes other models for tasks like planning or code generation when necessary. Warp may automatically switch to alternate models based on model availability or for auxiliary tasks such as conversation summarization.",
             ),
             Some(show_in_prompt_checkbox),
-            LocalOnlyIconState::Hidden,
             (!ai_settings.is_any_ai_enabled(app))
                 .then(|| appearance.theme().disabled_ui_text_color()),
             &view.base_model_dropdown,
@@ -2483,19 +2470,18 @@ impl AgentsWidget {
     fn render_codebase_context_outline_generation_setting(
         codebase_context_toggle: SwitchStateHandle,
         codebase_context_link_index: HighlightedHyperlink,
-        view: &AgentProfilesPageView,
+        _view: &AgentProfilesPageView,
         ai_settings: &AISettings,
         appearance: &Appearance,
         app: &warpui::AppContext,
     ) -> Box<dyn Element> {
         let code_settings = CodeSettings::as_ref(app);
-        let toggle = render_ai_setting_toggle::<CodebaseContextEnabled>(
+        let toggle = render_ai_setting_toggle(
             "Codebase Context",
             AgentProfilesPageAction::ToggleCodebaseContext,
             *code_settings.codebase_context_enabled,
             ai_settings.is_any_ai_enabled(app),
             codebase_context_toggle,
-            &view.local_only_icon_tooltip_states,
             app,
         );
 
@@ -2564,7 +2550,6 @@ impl AgentsWidget {
                 app,
             )),
             None,
-            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
         ))
@@ -2711,7 +2696,6 @@ impl AgentsWidget {
                         Container::new(render_dropdown_item_label(
                             title.to_string(),
                             Some(description.to_string()),
-                            LocalOnlyIconState::Hidden,
                             (!ai_settings.is_any_ai_enabled(app))
                                 .then(|| appearance.theme().disabled_ui_text_color()),
                             appearance,

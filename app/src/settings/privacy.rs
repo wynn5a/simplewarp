@@ -257,17 +257,6 @@ impl PrivacySettings {
         ctx.notify();
     }
 
-    /// Disables the default regex trigger, so that it will not be executed.
-    pub fn disable_default_regex_trigger(&mut self, ctx: &mut ModelContext<Self>) {
-        if self
-            .has_initialized_default_secret_regexes
-            .set_value(true, ctx)
-            .is_err()
-        {
-            report_error!("Failed to disable default regex trigger");
-        }
-    }
-
     /// Initializes the custom secret regex list with the default regexes.
     /// This will only be executed once per user, and only if they haven't already initialized.
     pub fn initialize_default_regexes_once(&mut self, ctx: &mut ModelContext<Self>) {
@@ -303,3 +292,7 @@ impl Entity for PrivacySettings {
 }
 
 impl SingletonEntity for PrivacySettings {}
+
+#[cfg(test)]
+#[path = "privacy_tests.rs"]
+mod tests;

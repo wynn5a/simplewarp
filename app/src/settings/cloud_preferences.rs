@@ -1,26 +1,12 @@
 pub use cloud_object_models::{CloudPreference, CloudPreferenceModel, Platform, Preference};
-use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
     GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, UniquePer,
 };
-define_settings_group!(CloudPreferencesSettings, settings: [
-   settings_sync_enabled: IsSettingsSyncEnabled {
-       type: bool,
-       default: false,
-       supported_platforms: SupportedPlatforms::ALL,
-       sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
-       surface: settings::SettingSurfaces::GUI,
-       private: false,
-       toml_path: "account.is_settings_sync_enabled",
-       description: "Whether settings are synced across devices via the cloud.",
-   },
-]);
 
-/// Defines a based model for syncing cloud preferences.
+/// Keeps cloud preference objects persisted by older builds loadable into the cloud model.
 impl StringModel for Preference {
     type CloudObjectType = CloudPreference;
 

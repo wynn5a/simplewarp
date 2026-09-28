@@ -2,29 +2,20 @@
 //! the Agents umbrella.
 //!
 //! These are generic over the action type so each page can dispatch its own
-//! actions through them. The action parameters are `impl Action + Clone`
-//! rather than named type parameters: several call sites turbofish the
-//! `Setting` parameter, and an anonymous argument-position parameter keeps
-//! those call sites working untouched.
+//! actions through them.
 
 use std::borrow::Cow;
-use std::cell::RefCell;
-use std::collections::HashMap;
 
-use settings::Setting;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::color::internal_colors;
-use warpui::elements::{
-    ChildView, Container, Element, Fill, Flex, MouseStateHandle, ParentElement,
-};
+use warpui::elements::{ChildView, Container, Element, Fill, Flex, ParentElement};
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{Action, AppContext, SingletonEntity, View, ViewContext, ViewHandle};
 
 use super::SettingsAction;
 use super::settings_page::{
-    CONTENT_FONT_SIZE, HEADER_PADDING, LocalOnlyIconState, ToggleState, build_toggle_element,
-    render_body_item_label,
+    CONTENT_FONT_SIZE, HEADER_PADDING, ToggleState, build_toggle_element, render_body_item_label,
 };
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarInlineEditor;
 use crate::appearance::Appearance;
@@ -78,18 +69,17 @@ pub fn render_toolbar_layout_editor(
 }
 
 /// A settings row: label on the left, switch on the right.
-pub fn render_ai_setting_toggle<S: Setting>(
+pub fn render_ai_setting_toggle(
     label: impl Into<String>,
     action: impl Action + Clone,
     is_setting_enabled: bool,
     is_setting_toggleable: bool,
     switch_state: SwitchStateHandle,
-    tooltip_states: &RefCell<HashMap<String, MouseStateHandle>>,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     build_toggle_element(
-        setting_label_element::<S>(label, is_setting_toggleable, tooltip_states, app),
+        setting_label_element(label, is_setting_toggleable, app),
         render_ai_feature_switch(
             switch_state,
             is_setting_enabled,
@@ -103,41 +93,28 @@ pub fn render_ai_setting_toggle<S: Setting>(
 }
 
 /// A standalone settings label, for rows whose control is not a switch.
-pub fn render_ai_setting_label<S: Setting>(
+pub fn render_ai_setting_label(
     label: impl Into<String>,
     is_setting_toggleable: bool,
-    tooltip_states: &RefCell<HashMap<String, MouseStateHandle>>,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    Container::new(setting_label_element::<S>(
-        label,
-        is_setting_toggleable,
-        tooltip_states,
-        app,
-    ))
-    .with_margin_bottom(HEADER_PADDING)
-    .finish()
+    Container::new(setting_label_element(label, is_setting_toggleable, app))
+        .with_margin_bottom(HEADER_PADDING)
+        .finish()
 }
 
 /// `render_body_item_label` is generic over an action type only to type its
 /// optional click target. Settings labels never have one, so the parameter is
 /// pinned here instead of being threaded through every caller.
-fn setting_label_element<S: Setting>(
+fn setting_label_element(
     label: impl Into<String>,
     is_setting_toggleable: bool,
-    tooltip_states: &RefCell<HashMap<String, MouseStateHandle>>,
     app: &AppContext,
 ) -> Box<dyn Element> {
     render_body_item_label::<SettingsAction>(
         label.into(),
         Some(styles::header_font_color(is_setting_toggleable, app)),
         None,
-        LocalOnlyIconState::for_setting(
-            S::storage_key(),
-            S::sync_to_cloud(),
-            &mut tooltip_states.borrow_mut(),
-            app,
-        ),
         ToggleState::Enabled,
         Appearance::as_ref(app),
     )

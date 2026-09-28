@@ -755,11 +755,6 @@ pub struct LlmSettings {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct TelemetrySettings {
-    pub force_enabled: bool,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub enum UgcCollectionEnablementSetting {
     Disable,
     Enable,
@@ -778,11 +773,6 @@ pub enum AdminEnablementSetting {
     Enable,
     #[default]
     RespectUserSetting,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct CloudConversationStorageSettings {
-    pub setting: AdminEnablementSetting,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -849,12 +839,6 @@ impl AiAutonomySettings {
     }
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct LinkSharingSettings {
-    pub anyone_with_link_sharing_enabled: bool,
-    pub direct_link_sharing_enabled: bool,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct EnterpriseSecretRegex {
     pub pattern: String,
     #[serde(default)]
@@ -874,13 +858,6 @@ pub struct UsageBasedPricingSettings {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct AddonCreditsSettings {
-    pub auto_reload_enabled: bool,
-    pub max_monthly_spend_cents: Option<i32>,
-    pub selected_auto_reload_credit_denomination: Option<i32>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct CodebaseContextSettings {
     pub setting: AdminEnablementSetting,
 }
@@ -894,17 +871,11 @@ pub struct SandboxedAgentSettings {
 pub struct WorkspaceSettings {
     pub llm_settings: LlmSettings,
     pub team_byo: Option<TeamByoSettings>,
-    pub telemetry_settings: TelemetrySettings,
     pub ugc_collection_settings: UgcCollectionSettings,
-    pub cloud_conversation_storage_settings: CloudConversationStorageSettings,
-    pub link_sharing_settings: LinkSharingSettings,
     pub secret_redaction_settings: SecretRedactionSettings,
     pub ai_permissions_settings: AiPermissionsSettings,
     pub ai_autonomy_settings: AiAutonomySettings,
-    pub is_invite_link_enabled: bool,
-    pub is_discoverable: bool,
     pub usage_based_pricing_settings: UsageBasedPricingSettings,
-    pub addon_credits_settings: AddonCreditsSettings,
     pub codebase_context_settings: CodebaseContextSettings,
     pub sandboxed_agent_settings: Option<SandboxedAgentSettings>,
     /// The team-level agent attribution setting. When `Enable` or `Disable`, the
@@ -965,12 +936,6 @@ pub struct TeamAiAutonomySettings {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct TeamLinkSharingSettings {
-    pub anyone_with_link_sharing_enabled: EnforceableSetting<bool>,
-    pub direct_link_sharing_enabled: EnforceableSetting<bool>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct TeamSandboxedAgentSettings {
     pub execute_commands_denylist: SplitListSetting<String>,
 }
@@ -983,23 +948,18 @@ pub struct TeamSandboxedAgentSettings {
 /// workspace-governable group keeps both its effective value **and** the
 /// `is_enforced_by_workspace` / workspace-vs-team split metadata (via
 /// [`EnforceableSetting`] / [`SplitListSetting`]) so future admin UI can recover
-/// those details. Unlike `WorkspaceSettings`, it does not carry the
-/// workspace-scoped `is_invite_link_enabled` / `is_discoverable` flags (those
-/// remain on [`WorkspaceSettings`] and are read from the current workspace).
+/// those details. Rows cached by older builds may still carry retired server-only groups
+/// (telemetry, cloud conversation storage, link sharing, add-on credits); serde ignores them.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct TeamSettings {
     pub ugc_collection: EnforceableSetting<UgcCollectionEnablementSetting>,
-    pub cloud_conversation_storage: EnforceableSetting<AdminEnablementSetting>,
     pub codebase_context: EnforceableSetting<AdminEnablementSetting>,
     pub ai_permissions: TeamAiPermissionsSettings,
     pub secret_redaction: TeamSecretRedactionSettings,
     pub ai_autonomy: TeamAiAutonomySettings,
-    pub link_sharing: TeamLinkSharingSettings,
     pub sandboxed_agent: TeamSandboxedAgentSettings,
     pub llm_settings: LlmSettings,
-    pub telemetry_settings: TelemetrySettings,
     pub usage_based_pricing_settings: UsageBasedPricingSettings,
-    pub addon_credits_settings: AddonCreditsSettings,
     /// The team-level agent attribution setting. When `Enable` or `Disable`, the
     /// user toggle is locked. When `RespectUserSetting` (or absent), the user can choose.
     #[serde(default)]

@@ -12,7 +12,7 @@ use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewCon
 use super::settings_page::{
     MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, render_body_item,
 };
-use super::{LocalOnlyIconState, SettingsSection, ToggleState};
+use super::{SettingsSection, ToggleState};
 use crate::appearance::Appearance;
 use crate::settings::CodeSettings;
 use crate::terminal::general_settings::GeneralSettings;
@@ -218,7 +218,6 @@ impl SettingsWidget for AutoOpenCodeReviewPaneCodeWidget {
         render_body_item::<EditorAndCodeReviewPageAction>(
             "Auto open code review panel".into(),
             None,
-            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
             appearance
@@ -260,7 +259,6 @@ impl SettingsWidget for CodeReviewPanelToggleWidget {
         render_body_item::<EditorAndCodeReviewPageAction>(
             "Show code review button".into(),
             None,
-            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
             appearance
@@ -303,7 +301,6 @@ impl SettingsWidget for CodeReviewDiffStatsToggleWidget {
         render_body_item::<EditorAndCodeReviewPageAction>(
             "Show diff stats on code review button".into(),
             None,
-            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
             appearance
@@ -345,7 +342,6 @@ impl SettingsWidget for ProjectExplorerToggleWidget {
         render_body_item::<EditorAndCodeReviewPageAction>(
             "Project explorer".into(),
             None,
-            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
             appearance
@@ -388,7 +384,6 @@ impl SettingsWidget for GlobalSearchToggleWidget {
         render_body_item::<EditorAndCodeReviewPageAction>(
             "Global file search".into(),
             None,
-            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
             appearance
@@ -428,7 +423,6 @@ impl SettingsWidget for ShowHiddenFilesToggleWidget {
         render_body_item::<EditorAndCodeReviewPageAction>(
             "Show hidden files in project explorer".into(),
             None,
-            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
             appearance
@@ -470,7 +464,6 @@ impl SettingsWidget for FormatOnSaveToggleWidget {
         render_body_item::<EditorAndCodeReviewPageAction>(
             "Format on save (requires an active language server)".into(),
             None,
-            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
             appearance
@@ -513,7 +506,6 @@ impl SettingsWidget for AutoSaveToggleWidget {
         render_body_item::<EditorAndCodeReviewPageAction>(
             "Auto save".into(),
             None,
-            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
             appearance

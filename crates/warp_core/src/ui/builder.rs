@@ -46,7 +46,6 @@ const LEFT_CHEVRON_PATH: &str = "bundled/svg/chevron-left.svg";
 const HELP_SVG_PATH: &str = "bundled/svg/help-circle.svg";
 const ENTER_SVG_PATH: &str = "bundled/svg/enter.svg";
 const RETRY_SVG_PATH: &str = "bundled/svg/retry.svg";
-const LOCAL_ONLY_SVG_PATH: &str = "bundled/svg/cloud-off.svg";
 
 pub const MIN_FONT_SIZE: f32 = 5.;
 pub const DEFAULT_KEYBOARD_SHORTCUT_HEIGHT: f32 = 24.;
@@ -1033,21 +1032,6 @@ impl UiBuilder {
             tooltip_contents,
             mouse_state_handle,
             tooltip_styles,
-        )
-    }
-
-    pub fn local_only_icon_with_tooltip(
-        &self,
-        help_icon_size: f32,
-        tooltip_contents: impl Into<String>,
-        mouse_state_handle: MouseStateHandle,
-    ) -> Hoverable {
-        self.icon_with_tooltip(
-            help_icon_size,
-            LOCAL_ONLY_SVG_PATH,
-            tooltip_contents,
-            mouse_state_handle,
-            None,
         )
     }
 

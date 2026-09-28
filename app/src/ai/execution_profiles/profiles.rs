@@ -3,9 +3,6 @@ use std::path::PathBuf;
 
 use anyhow::Context as _;
 use cloud_objects::drive::CloudObjectTypeAndId;
-// Only the legacy import, which eval builds compile out, materializes an ordered collection.
-#[cfg(not(feature = "agent_mode_evals"))]
-use indexmap::IndexMap;
 use settings::Setting as _;
 use uuid::Uuid;
 use warp_core::channel::ChannelState;
@@ -21,20 +18,12 @@ use super::{
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManagerEvent;
-use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModelEvent, UpdateSource};
 use crate::cloud_object::{CloudObject as _, GenericStringObjectFormat, JsonObjectType};
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
-use crate::settings::cloud_preferences::CloudPreferencesSettings;
-use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
-// The syncer's initial-load trigger for the legacy import is compiled out for eval builds.
-#[cfg(not(feature = "agent_mode_evals"))]
-use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncerEvent;
-use crate::settings::{
-    AISettings, AISettingsChangedEvent, AgentModeCommandExecutionPredicate, ExecutionProfiles,
-};
+use crate::settings::{AISettings, AISettingsChangedEvent, AgentModeCommandExecutionPredicate};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{CloudModel, LaunchMode};
 
@@ -150,10 +139,8 @@ impl ProfileSource {
 enum SettingsMigrationState {
     /// No explicit collection is available, so reads continue using owned legacy cloud objects.
     PendingLegacyImport,
-    /// The settings collection is authoritative, but its initial cloud reconciliation is pending.
-    PendingExplicitSync,
-    /// The collection needs no further migration work during this process.
-    Complete,
+    /// The settings collection is authoritative.
+    Authoritative,
 }
 
 impl SettingsMigrationState {
@@ -163,9 +150,8 @@ impl SettingsMigrationState {
             source.imports_legacy_profiles(),
             settings_profiles_are_explicit,
         ) {
-            (true, true) => Self::PendingExplicitSync,
             (true, false) => Self::PendingLegacyImport,
-            (false, _) => Self::Complete,
+            (true, true) | (false, _) => Self::Authoritative,
         }
     }
 
@@ -356,19 +342,8 @@ impl AIExecutionProfilesModel {
                 }
             });
 
-            // Eval builds never import legacy cloud profiles into settings.
             #[cfg(not(feature = "agent_mode_evals"))]
             if imports_legacy_profiles {
-                if ctx.has_singleton_model::<CloudPreferencesSyncer>() {
-                    ctx.subscribe_to_model(
-                        &CloudPreferencesSyncer::handle(ctx),
-                        |me, _, event, ctx| {
-                            if matches!(event, CloudPreferencesSyncerEvent::InitialLoadCompleted) {
-                                me.migrate_settings_profiles(ctx);
-                            }
-                        },
-                    );
-                }
                 ctx.subscribe_to_model(&CloudModel::handle(ctx), |me, _, event, ctx| {
                     if !me.settings_are_authoritative() {
                         me.handle_cloud_model_event(event, ctx);
@@ -430,17 +405,6 @@ impl AIExecutionProfilesModel {
         if !uses_file_backed_profiles {
             model.maybe_inherit_from_legacy_settings(ctx);
         }
-        // The syncer may finish before this model is registered. In that case its one-shot event
-        // cannot reach this subscription, so run migration from the already-completed state.
-        // Eval builds never import legacy cloud profiles into settings.
-        #[cfg(not(feature = "agent_mode_evals"))]
-        if uses_file_backed_profiles
-            && imports_legacy_profiles
-            && ctx.has_singleton_model::<CloudPreferencesSyncer>()
-            && CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load()
-        {
-            model.migrate_settings_profiles(ctx);
-        }
         model
     }
 
@@ -474,49 +438,20 @@ impl AIExecutionProfilesModel {
         profiles
     }
 
-    fn cloud_collection_exists(ctx: &AppContext) -> bool {
-        CloudModel::as_ref(ctx)
-            .get_all_cloud_preferences_by_storage_key()
-            .contains_key(ExecutionProfiles::storage_key())
-    }
-
-    /// Returns whether settings sync must apply an existing cloud collection before local changes.
-    ///
-    /// Deferring in this state prevents stale legacy or local values from overwriting a newer
-    /// collection received from another client.
-    fn cloud_collection_awaiting_reconciliation(ctx: &AppContext) -> bool {
-        *CloudPreferencesSettings::as_ref(ctx)
-            .settings_sync_enabled
-            .value()
-            && Self::cloud_collection_exists(ctx)
-            && ctx.has_singleton_model::<CloudPreferencesSyncer>()
-            && !CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load()
-    }
-
     /// Makes a locally edited pending collection authoritative in [`AISettings`].
     ///
-    /// Returns `false` without changing authority when cloud reconciliation must run first or when
-    /// the collection cannot be persisted.
+    /// Returns `false` without changing authority when the collection cannot be persisted.
     fn activate_pending_settings_collection(
         &mut self,
         profiles: ExecutionProfilesConfig,
         ctx: &mut ModelContext<Self>,
     ) -> bool {
-        if AuthStateProvider::as_ref(ctx).get().user_id().is_some()
-            && ctx.has_singleton_model::<CloudPreferencesSyncer>()
-            && !CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load()
-        {
-            return false;
-        }
-        if Self::cloud_collection_awaiting_reconciliation(ctx) {
-            return false;
-        }
         let update_result = AISettings::handle(ctx).update(ctx, |settings, ctx| {
             settings.execution_profiles.set_value(profiles, ctx)
         });
         match update_result {
             Ok(()) => {
-                self.settings_migration_state = SettingsMigrationState::PendingExplicitSync;
+                self.settings_migration_state = SettingsMigrationState::Authoritative;
                 true
             }
             Err(error) => {
@@ -560,148 +495,8 @@ impl AIExecutionProfilesModel {
                 .execution_profiles
                 .is_value_explicitly_set()
         {
-            self.settings_migration_state = SettingsMigrationState::PendingExplicitSync;
+            self.settings_migration_state = SettingsMigrationState::Authoritative;
         }
-    }
-
-    /// Attempts to make the account's file-backed execution-profile collection authoritative.
-    ///
-    /// An explicit collection is reconciled with cloud preferences after their initial-load
-    /// direction is known. Otherwise, owned legacy cloud objects are imported once all have server
-    /// IDs. Missing prerequisites leave the migration pending so a later readiness event can retry.
-    ///
-    /// Eval builds never import legacy profiles, so this is compiled out for them.
-    #[cfg(not(feature = "agent_mode_evals"))]
-    pub(crate) fn migrate_settings_profiles(&mut self, ctx: &mut ModelContext<Self>) {
-        if !self.source.imports_legacy_profiles()
-            || self.settings_migration_state == SettingsMigrationState::Complete
-        {
-            return;
-        }
-        if AuthStateProvider::as_ref(ctx).get().user_id().is_none() {
-            return;
-        }
-        if ctx.has_singleton_model::<CloudPreferencesSyncer>()
-            && !CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load()
-        {
-            return;
-        }
-
-        if AISettings::as_ref(ctx)
-            .execution_profiles
-            .is_value_explicitly_set()
-        {
-            if ctx.has_singleton_model::<CloudPreferencesSyncer>()
-                && !CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load()
-            {
-                return;
-            }
-            Self::sync_explicit_settings_collection(ctx);
-            self.settings_migration_state = SettingsMigrationState::Complete;
-            return;
-        }
-        if Self::cloud_collection_awaiting_reconciliation(ctx) {
-            return;
-        }
-
-        if *CloudPreferencesSettings::as_ref(ctx)
-            .settings_sync_enabled
-            .value()
-            && Self::cloud_collection_exists(ctx)
-        {
-            log::error!(
-                "Failed to apply cloud execution profiles; recovering from legacy profiles"
-            );
-        }
-
-        let owned_legacy_profiles = CloudModel::as_ref(ctx)
-            .get_all_objects_of_type::<GenericStringObjectId, CloudAIExecutionProfileModel>()
-            .filter(|profile| Self::is_owned_by_current_user(profile, ctx))
-            .collect::<Vec<_>>();
-        if owned_legacy_profiles
-            .iter()
-            .any(|profile| profile.id.into_server().is_none())
-        {
-            log::info!(
-                "Waiting to migrate execution profiles until pending legacy profiles have server IDs"
-            );
-            return;
-        }
-
-        let mut legacy_profiles = owned_legacy_profiles
-            .into_iter()
-            .map(|profile| {
-                let id = if profile.model().string_model.is_default_profile {
-                    ExecutionProfileId::default_profile()
-                } else {
-                    ExecutionProfileId::from_legacy_server_id(
-                        profile
-                            .id
-                            .into_server()
-                            .expect("pending legacy profiles were filtered above"),
-                    )
-                };
-                (id, profile.model().string_model.clone())
-            })
-            .collect::<Vec<_>>();
-        legacy_profiles.sort_by(|(left, _), (right, _)| left.as_str().cmp(right.as_str()));
-
-        let profiles = if legacy_profiles.is_empty() {
-            let mut profile = super::create_default_from_legacy_settings(ctx);
-            if let Some(base_llm_id) = ctx
-                .private_user_preferences()
-                .read_value("PreferredAgentModeLLMId")
-                .ok()
-                .flatten()
-                .and_then(|value| serde_json::from_str::<Option<LLMId>>(&value).ok())
-                .flatten()
-            {
-                profile.base_model = Some(base_llm_id);
-            }
-            let mut profiles = ExecutionProfilesConfig::default();
-            profiles.insert(ExecutionProfileId::default_profile(), profile);
-            profiles
-        } else {
-            if !legacy_profiles.iter().any(|(id, _)| id.is_default()) {
-                legacy_profiles.insert(
-                    0,
-                    (
-                        ExecutionProfileId::default_profile(),
-                        super::create_default_from_legacy_settings(ctx),
-                    ),
-                );
-            }
-            ExecutionProfilesConfig::from_profiles(IndexMap::from_iter(legacy_profiles))
-                .expect("legacy migration inserts a default profile")
-        };
-
-        let update_result = AISettings::handle(ctx).update(ctx, |settings, ctx| {
-            settings.execution_profiles.set_value(profiles, ctx)
-        });
-        match update_result {
-            Ok(()) => {
-                self.settings_migration_state = SettingsMigrationState::Complete;
-                log::info!("Migrated legacy execution profiles to the settings collection");
-            }
-            Err(error) => {
-                report_error!(error.context("Failed to migrate execution profiles to settings"));
-            }
-        }
-    }
-    /// Uploads an explicit local collection after the deferred migration check.
-    ///
-    /// Only the legacy import calls this, so eval builds compile it out.
-    #[cfg(not(feature = "agent_mode_evals"))]
-    fn sync_explicit_settings_collection(ctx: &mut ModelContext<Self>) {
-        if !ctx.has_singleton_model::<CloudPreferencesSyncer>() {
-            return;
-        }
-        CloudPreferencesSyncer::handle(ctx).update(ctx, |syncer, ctx| {
-            syncer.maybe_sync_local_prefs_to_cloud(
-                vec![ExecutionProfiles::storage_key().to_string()],
-                ctx,
-            );
-        });
     }
 
     /// This function performs one-time migrations from legacy settings into the default profile.

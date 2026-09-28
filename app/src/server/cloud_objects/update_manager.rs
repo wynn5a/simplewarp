@@ -17,9 +17,7 @@ use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::folders::CloudFolderModel;
 use crate::cloud_object::model::actions::{ObjectActionType, ObjectActions};
-use crate::cloud_object::model::generic_string_model::{
-    GenericStringModel, GenericStringObjectId, Serializer, StringModel,
-};
+use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
 use crate::cloud_object::object_limits::{
     is_feature_gated_anonymous_user_past_env_var_limit,
@@ -84,19 +82,6 @@ pub enum UpdateManagerEvent {
 pub enum InitiatedBy {
     User,
     System,
-}
-
-#[derive(Debug)]
-pub struct GenericStringObjectInput<T, S>
-where
-    T: StringModel<
-            CloudObjectType = GenericCloudObject<GenericStringObjectId, GenericStringModel<T, S>>,
-        > + 'static,
-    S: Serializer<T> + 'static,
-{
-    pub id: ClientId,
-    pub model: GenericStringModel<T, S>,
-    pub initial_folder_id: Option<SyncId>,
 }
 
 /// The UpdateManager is responsible for delegating work when there is an

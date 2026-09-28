@@ -13882,7 +13882,6 @@ dependencies = [
  "security-framework 2.9.2",
  "serde",
  "serde_json",
- "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.17",
  "toml_edit 0.25.6+spec-1.1.0",

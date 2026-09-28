@@ -53,12 +53,6 @@ impl AppExecutionMode {
         self.is_app()
     }
 
-    /// Whether the app can sync user preferences to the cloud. This does not gate
-    /// modifying preferences locally.
-    pub fn can_sync_preferences(&self) -> bool {
-        self.is_app()
-    }
-
     /// Whether the app can save and restore sessions.
     pub fn can_save_session(&self) -> bool {
         self.is_app()

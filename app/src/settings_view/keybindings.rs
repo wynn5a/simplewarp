@@ -20,8 +20,8 @@ use warpui::{
 
 use super::SettingsSection;
 use super::settings_page::{
-    LocalOnlyIconState, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle,
-    SettingsWidget, render_sub_header,
+    MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
+    render_sub_header,
 };
 use crate::appearance::Appearance;
 use crate::editor::{
@@ -30,7 +30,6 @@ use crate::editor::{
 };
 use crate::keyboard::{UserDefinedKeybinding, write_custom_keybinding};
 use crate::search_bar::SearchBar;
-use crate::settings::CloudPreferencesSettings;
 use crate::themes;
 use crate::util::bindings::{
     CommandBinding, filter_bindings_including_keystroke, reset_keybinding_to_default,
@@ -939,9 +938,7 @@ fn trigger_keybinding_notifier(
 }
 
 #[derive(Default)]
-struct KeybindingsWidget {
-    local_only_icon_mouse_state: MouseStateHandle,
-}
+struct KeybindingsWidget {}
 
 impl KeybindingsWidget {
     fn render_description(
@@ -1080,23 +1077,9 @@ impl SettingsWidget for KeybindingsWidget {
         &self,
         view: &Self::View,
         appearance: &Appearance,
-        app: &AppContext,
+        _app: &AppContext,
     ) -> Box<dyn Element> {
-        let local_only_icon_state = if *CloudPreferencesSettings::as_ref(app).settings_sync_enabled
-        {
-            Some(LocalOnlyIconState::Visible {
-                mouse_state: self.local_only_icon_mouse_state.clone(),
-                custom_tooltip: Some("Keyboard shortcuts are not synced to the cloud".to_string()),
-            })
-        } else {
-            None
-        };
-
-        let subheader = render_sub_header(
-            appearance,
-            "Configure keyboard shortcuts",
-            local_only_icon_state,
-        );
+        let subheader = render_sub_header(appearance, "Configure keyboard shortcuts");
         let description = self.render_description(view.bindings.as_ref(), appearance);
 
         Flex::column()
