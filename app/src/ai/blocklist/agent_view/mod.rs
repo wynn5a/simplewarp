@@ -58,7 +58,6 @@ pub static ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE: LazyLock<Keystroke> = La
 pub fn is_in_cloud_context(terminal_model: &TerminalModel) -> bool {
     terminal_model.block_list().is_cloud_conversation_context()
         || terminal_model.is_conversation_transcript_viewer()
-        || terminal_model.is_dummy_cloud_mode_session()
 }
 
 pub struct AgentViewHeaderTheme;

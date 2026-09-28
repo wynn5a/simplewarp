@@ -1330,7 +1330,7 @@ fn queued_command_completion_preserves_draft() {
         let input = terminal.read(&app, |view, _| view.input().clone());
         input.update(&mut app, |input, ctx| {
             input.replace_buffer_content("draft in progress", ctx);
-            input.deferred_remote_operations.latest_block_id = BlockId::new();
+            input.buffer_block_id = BlockId::new();
             input.handle_block_completed_event(
                 BlockCompletedEvent {
                     block_type: BlockType::User(UserBlockCompleted {

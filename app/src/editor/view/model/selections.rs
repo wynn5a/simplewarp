@@ -9,12 +9,11 @@ use vec1::Vec1;
 use warpui::AppContext;
 use warpui::text::point::Point;
 
+use super::DisplayPoint;
 use super::buffer::{Anchor, Buffer, LamportValue, ToBufferOffset, ToCharOffset, ToPoint};
 use super::display_map::{DisplayMap, ToDisplayPoint};
-use super::{DisplayPoint, ReplicaId};
 use crate::editor::soft_wrap::{ClampDirection, DisplayPointAndClampDirection};
 use crate::editor::{CursorColors, RangeExt};
-use crate::ui_components::avatar::Avatar;
 
 /// This type encapsulates enough information about a selection to be able to
 /// draw it. Compared to the `Selection` type, the points are converted based on
@@ -22,7 +21,6 @@ use crate::ui_components::avatar::Avatar;
 pub struct DrawableSelection {
     pub range: Range<DisplayPoint>,
     pub clamp_direction: ClampDirection,
-    pub replica_id: ReplicaId,
 }
 
 /// This type holds additional information about how to draw a local peer's
@@ -30,14 +28,6 @@ pub struct DrawableSelection {
 pub struct LocalDrawableSelectionData {
     pub colors: CursorColors,
     pub should_draw_cursors: bool,
-}
-
-/// This type holds additional information about how to draw a remote peer's
-/// selections and cursors.
-pub struct RemoteDrawableSelectionData {
-    pub colors: CursorColors,
-    pub should_draw_cursors: bool,
-    pub avatar: Avatar,
 }
 
 /// The minimal set of data to identify a selection
@@ -418,7 +408,6 @@ impl LocalSelections {
     pub fn drawable_selections_intersecting_range<'a>(
         &'a self,
         range: Range<DisplayPoint>,
-        replica_id: ReplicaId,
         map: &'a DisplayMap,
         app: &'a AppContext,
     ) -> impl Iterator<Item = DrawableSelection> + 'a {
@@ -426,7 +415,6 @@ impl LocalSelections {
             move |(selection, selection_range)| DrawableSelection {
                 range: selection_range,
                 clamp_direction: selection.clamp_direction,
-                replica_id: replica_id.clone(),
             },
         )
     }
@@ -466,6 +454,7 @@ pub struct RemoteSelection {
 }
 
 impl RemoteSelection {
+    #[cfg(test)]
     pub fn observed(&self, buffer: &Buffer) -> bool {
         self.selection.start.observed(buffer) && self.selection.end.observed(buffer)
     }
@@ -488,24 +477,6 @@ pub struct RemoteSelections {
     /// The lamport timestamp of the update
     /// associated to this latest selection set.
     pub lamport: LamportValue,
-}
-
-impl RemoteSelections {
-    pub fn drawable_selections_intersecting_range<'a>(
-        &'a self,
-        range: Range<DisplayPoint>,
-        replica_id: ReplicaId,
-        map: &'a DisplayMap,
-        app: &'a AppContext,
-    ) -> impl Iterator<Item = DrawableSelection> + 'a {
-        selections_intersecting_range(&self.selections, range, map, app).map(
-            move |(_, selection_range)| DrawableSelection {
-                range: selection_range,
-                clamp_direction: ClampDirection::default(),
-                replica_id: replica_id.clone(),
-            },
-        )
-    }
 }
 
 #[derive(Debug)]

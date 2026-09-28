@@ -295,15 +295,13 @@ fn run_card_with_oz_or_unknown_harness_renders_as_oz() {
 }
 
 #[test]
-fn entry_icon_uses_harness_and_cloud_run_identity() {
+fn entry_icon_uses_harness() {
     let conversation_id = AIConversationId::new();
     let entry = AgentConversationEntry {
         id: AgentConversationEntryId::Conversation(conversation_id),
         identity: AgentConversationIdentity {
             local_conversation_id: Some(conversation_id),
-            ambient_agent_task_id: None,
             server_conversation_token: None,
-            session_id: None,
         },
         provenance: AgentConversationProvenance::CloudSyncedConversation,
         display: AgentConversationDisplayData {
@@ -312,10 +310,7 @@ fn entry_icon_uses_harness_and_cloud_run_identity() {
             created_at: Utc::now(),
             last_updated: Utc::now(),
             status: AgentRunDisplayStatus::Succeeded,
-            executor: None,
             request_usage: None,
-            run_time: None,
-            session_status: None,
             working_directory: None,
             harness: Some(Harness::Codex),
             artifacts: Vec::new(),
@@ -324,7 +319,6 @@ fn entry_icon_uses_harness_and_cloud_run_identity() {
             has_loaded_conversation: true,
             has_local_persisted_data: true,
             has_cloud_data: true,
-            has_ambient_run: false,
         },
         capabilities: AgentConversationCapabilities {
             can_open: true,
@@ -345,15 +339,4 @@ fn entry_icon_uses_harness_and_cloud_run_identity() {
             is_ambient: false,
         }
     );
-    assert!(!entry.is_cloud_agent_run());
-
-    let mut cloud_backed = entry.clone();
-    cloud_backed.backing.has_ambient_run = true;
-    cloud_backed.identity.ambient_agent_task_id =
-        Some("00000000-0000-0000-0000-000000000001".parse().unwrap());
-    assert!(cloud_backed.is_cloud_agent_run());
-
-    let variant = agent_conversation_entry_icon_variant(&cloud_backed);
-    assert!(AgentIconFields::from_variant(&variant).unwrap().is_ambient);
-    assert!(cloud_backed.is_cloud_agent_run());
 }

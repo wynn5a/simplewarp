@@ -470,10 +470,6 @@ pub struct TerminalModel {
     /// Whether or not to respect secrets that are obfuscated, respecting the Safe Mode/Secret Redaction setting.
     obfuscate_secrets: ObfuscateSecrets,
 
-    /// Whether this terminal model was created as a cloud mode dummy session
-    /// (no local shell process).
-    is_dummy_cloud_mode_session: bool,
-
     /// If Some, this terminal is displaying a read-only conversation transcript.
     /// Tracks both the loading state and the type of conversation being viewed.
     conversation_transcript_viewer_status: Option<ConversationTranscriptViewerStatus>,
@@ -984,8 +980,9 @@ impl TerminalModel {
         terminal_model
     }
 
+    /// Creates a terminal model for a local terminal session.
     #[allow(clippy::too_many_arguments)]
-    fn new_internal(
+    pub fn new(
         restored_blocks: Option<&[SerializedBlockListItem]>,
         sizes: BlockSize,
         colors: color::List,
@@ -1000,7 +997,6 @@ impl TerminalModel {
         is_ai_ugc_telemetry_enabled: bool,
         session_startup_path: Option<PathBuf>,
         shell_state: ShellLaunchState,
-        is_dummy_cloud_mode_session: bool,
     ) -> Self {
         let alt_screen = AltScreen::new(
             sizes.size,
@@ -1052,7 +1048,6 @@ impl TerminalModel {
             env_var_collection_name: None,
             shell_launch_state: shell_state,
             obfuscate_secrets,
-            is_dummy_cloud_mode_session,
             conversation_transcript_viewer_status: None,
             notify_on_end_of_ssh_login: None,
             is_receiving_hook: IsReceivingHook::No,
@@ -1061,52 +1056,6 @@ impl TerminalModel {
             next_kitty_image_id: 2147483647,
             registered_session_ids: HashSet::new(),
         }
-    }
-
-    /// Creates a terminal model for a local terminal session.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        restored_blocks: Option<&[SerializedBlockListItem]>,
-        sizes: BlockSize,
-        colors: color::List,
-        event_proxy: ChannelEventListener,
-        background_executor: Arc<Background>,
-        should_show_bootstrap_block: bool,
-        should_show_in_band_command_blocks: bool,
-        should_show_memory_stats: bool,
-        honor_ps1: bool,
-        is_inverted: bool,
-        obfuscate_secrets: ObfuscateSecrets,
-        is_ai_ugc_telemetry_enabled: bool,
-        session_startup_path: Option<PathBuf>,
-        shell_state: ShellLaunchState,
-    ) -> Self {
-        Self::new_internal(
-            restored_blocks,
-            sizes,
-            colors,
-            event_proxy,
-            background_executor,
-            should_show_bootstrap_block,
-            should_show_in_band_command_blocks,
-            should_show_memory_stats,
-            honor_ps1,
-            is_inverted,
-            obfuscate_secrets,
-            is_ai_ugc_telemetry_enabled,
-            session_startup_path,
-            shell_state,
-            false,
-        )
-    }
-
-    pub fn is_dummy_cloud_mode_session(&self) -> bool {
-        self.is_dummy_cloud_mode_session
-    }
-
-    #[cfg(test)]
-    pub fn set_is_dummy_cloud_mode_session(&mut self, value: bool) {
-        self.is_dummy_cloud_mode_session = value;
     }
 
     pub fn ambient_agent_task_id(&self) -> Option<AmbientAgentTaskId> {

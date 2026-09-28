@@ -42,7 +42,6 @@ workarounds = [
 #
 # Excluded crates (same as deny.toml exceptions):
 #   - command-corrections
-#   - session-sharing-protocol
 #   - warp-command-signatures
 #   - warp-completion-metadata
 #   - warp-workflows

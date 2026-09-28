@@ -26,13 +26,6 @@ use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::ui_components::icons::Icon;
 use crate::workspace::{RestoreConversationLayout, WorkspaceAction};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum SessionStatus {
-    Available,
-    Expired,
-    Unavailable,
-}
-
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub enum StatusFilter {
     #[default]

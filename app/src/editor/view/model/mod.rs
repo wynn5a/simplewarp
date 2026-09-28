@@ -6,12 +6,10 @@ use std::cmp::{self};
 use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::ops::Range;
-use std::rc::Rc;
 
 pub use buffer::{
-    Anchor, AnchorBias, Chars, EditOrigin, Operation as CrdtOperation, PeerSelectionData,
-    ReplicaId, SubwordBoundaries, TextRun, TextStyleOperation, ToBufferOffset, ToCharOffset,
-    ToPoint,
+    Anchor, AnchorBias, Chars, EditOrigin, ReplicaId, SubwordBoundaries, TextRun,
+    TextStyleOperation, ToBufferOffset, ToCharOffset, ToPoint,
 };
 use buffer::{Buffer, Text};
 pub use display_map::{Bias, DisplayMap, DisplayPoint, MovementResult, ToDisplayPoint};
@@ -21,8 +19,7 @@ use lazy_static::lazy_static;
 use num_traits::SaturatingSub;
 pub use selections::{
     DrawableSelection, LocalDrawableSelectionData, LocalPendingSelection, LocalSelection,
-    LocalSelections, MarkedTextState, RemoteDrawableSelectionData, SelectAction, Selection,
-    SelectionMode,
+    LocalSelections, MarkedTextState, SelectAction, Selection, SelectionMode,
 };
 use string_offset::{ByteOffset, CharOffset};
 use vec1::{Vec1, vec1};
@@ -43,7 +40,6 @@ use warpui::text::word_boundaries::WordBoundariesPolicy;
 use warpui::text_layout::TextStyle;
 use warpui::{AppContext, Entity, ModelAsRef, ModelContext, ModelHandle, SingletonEntity};
 
-use self::buffer::Peer;
 use super::{PlainTextEditorViewAction, SelectionInsertion, ValidInputType, movement};
 use crate::editor::RangeExt;
 use crate::vim_registers::VimRegisters;
@@ -348,14 +344,6 @@ struct BufferAndDisplayMaps {
     /// A buffer and display map dedicated for ephemeral edits (see [`UpdateBufferOption::IsEphemeral`]).
     /// If [`Some`], then the ephemeral buffer is active.
     ephemeral: Option<(ModelHandle<Buffer>, ModelHandle<DisplayMap>)>,
-
-    /// When `true`, the active ephemeral buffer is "display-only": it exists purely for
-    /// visual feedback and its content must NOT be applied to the regular buffer when the
-    /// ephemeral is exited (materialized). On materialization the ephemeral is simply
-    /// discarded and the edit proceeds directly on the regular buffer without any
-    /// content-restoration step. This avoids generating spurious CRDT delete operations
-    /// that would corrupt the shared collaborative state.
-    ephemeral_is_display_only: bool,
 }
 
 impl BufferAndDisplayMaps {
@@ -380,7 +368,6 @@ impl BufferAndDisplayMaps {
     /// Deactivates any ephemeral state.
     fn deactivate_ephemeral_state(&mut self) {
         self.ephemeral.take();
-        self.ephemeral_is_display_only = false;
     }
 
     /// Activates a new regular ephemeral state whose content will be applied
@@ -390,24 +377,12 @@ impl BufferAndDisplayMaps {
         let ephemeral_buffer = ctx.add_model(|_| Buffer::new(""));
         let ephemeral_display_map: ModelHandle<DisplayMap> =
             ctx.add_model(|ctx| DisplayMap::new(ephemeral_buffer.clone(), tab_size, ctx));
-        ctx.subscribe_to_model(
-            &ephemeral_buffer,
-            EditorModel::handle_buffer_event_for_non_collaborative_editor,
-        );
+        ctx.subscribe_to_model(&ephemeral_buffer, EditorModel::handle_buffer_event);
         ctx.subscribe_to_model(
             &ephemeral_display_map,
             EditorModel::handle_display_map_event,
         );
         self.ephemeral = Some((ephemeral_buffer, ephemeral_display_map));
-        self.ephemeral_is_display_only = false;
-    }
-
-    /// Activates a display-only ephemeral state. When this ephemeral is materialized
-    /// (exited by a non-ephemeral edit), its content is discarded rather than applied
-    /// to the regular buffer, preventing spurious CRDT operations.
-    fn activate_display_only_ephemeral_state(&mut self, ctx: &mut ModelContext<EditorModel>) {
-        self.activate_new_ephemeral_state(ctx);
-        self.ephemeral_is_display_only = true;
     }
 }
 
@@ -455,9 +430,6 @@ pub enum EditorModelEvent {
     DisplayMapUpdated,
     SelectionsChanged,
     ShellCut(String),
-    UpdatePeers {
-        operations: Rc<Vec<CrdtOperation>>,
-    },
     /// An edit action has replaced the entire buffer's content.
     BufferReplaced,
 }
@@ -558,7 +530,6 @@ impl EditorModel {
             buffer_and_display_map: BufferAndDisplayMaps {
                 regular,
                 ephemeral: None,
-                ephemeral_is_display_only: false,
             },
             vim_visual_tails: vec![],
             consecutive_autocomplete_insertion_edits_counter: 0,
@@ -570,44 +541,6 @@ impl EditorModel {
 
     pub fn replica_id<C: ModelAsRef>(&self, ctx: &C) -> ReplicaId {
         self.collaborative_buffer().as_ref(ctx).replica_id()
-    }
-
-    pub fn registered_peers<C: ModelAsRef>(&self, ctx: &C) -> HashMap<ReplicaId, Peer> {
-        self.buffer(ctx).registered_peers()
-    }
-
-    pub fn register_remote_peer(
-        &mut self,
-        replica_id: ReplicaId,
-        selection_data: PeerSelectionData,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.collaborative_buffer().update(ctx, |buffer, _ctx| {
-            buffer.register_peer(replica_id, selection_data);
-        });
-    }
-
-    pub fn unregister_all_remote_peers(&mut self, ctx: &mut ModelContext<Self>) {
-        self.collaborative_buffer().update(ctx, |buffer, _ctx| {
-            buffer.unregister_all_peers();
-        });
-    }
-
-    pub fn unregister_remote_peer(&mut self, replica_id: &ReplicaId, ctx: &mut ModelContext<Self>) {
-        self.collaborative_buffer().update(ctx, |buffer, _ctx| {
-            buffer.unregister_peer(replica_id);
-        });
-    }
-
-    pub fn set_remote_peer_selection_data(
-        &mut self,
-        replica_id: &ReplicaId,
-        selection_data: PeerSelectionData,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.collaborative_buffer().update(ctx, |buffer, _ctx| {
-            buffer.set_peer_selection_data(replica_id, selection_data);
-        });
     }
 
     pub fn recreate_buffer(&mut self, replica_id: Option<ReplicaId>, ctx: &mut ModelContext<Self>) {
@@ -622,31 +555,6 @@ impl EditorModel {
         });
 
         self.buffer_and_display_map.deactivate_ephemeral_state();
-    }
-
-    /// Exits an ephemeral loading state (created by `set_buffer_text_ignoring_undo`)
-    /// without touching the CRDT buffer or generating any `UpdatePeers` operations.
-    /// After this call the editor displays the regular collaborative buffer, allowing
-    /// any pending remote delete operations to become visible.
-    pub fn exit_ephemeral_loading_state(&mut self, ctx: &mut ModelContext<Self>) {
-        if self.is_ephemeral() {
-            self.buffer_and_display_map.deactivate_ephemeral_state();
-            ctx.notify();
-        }
-    }
-
-    /// Shows an empty buffer as a display-only ephemeral overlay for immediate visual
-    /// feedback, without touching the regular CRDT buffer or emitting `UpdatePeers` ops.
-    ///
-    /// When the viewer next makes an edit (materializing the ephemeral), the empty content
-    /// is **discarded** rather than applied to the regular buffer — so no spurious CRDT
-    /// delete ops are generated for whatever is currently in the regular buffer (e.g.
-    /// another viewer's concurrent edits). The edit instead proceeds directly on the
-    /// regular buffer as-is.
-    pub fn show_display_only_empty_buffer(&mut self, ctx: &mut ModelContext<Self>) {
-        self.buffer_and_display_map
-            .activate_display_only_ephemeral_state(ctx);
-        ctx.notify();
     }
 
     fn refresh_batch_version(&mut self, ctx: &mut ModelContext<Self>) {
@@ -729,21 +637,12 @@ impl EditorModel {
                 .activate_new_ephemeral_state(ctx);
             Some((snapshot, vim_visual_tail_offsets))
         } else if can_edit && self.is_ephemeral() && edit.update_buffer.is_some() {
-            if self.buffer_and_display_map.ephemeral_is_display_only {
-                // Display-only ephemeral: discard the ephemeral content entirely and
-                // proceed directly on the regular buffer. Do NOT snapshot-and-restore,
-                // which would generate spurious CRDT delete ops for whatever the regular
-                // buffer currently contains (e.g. another viewer's concurrent edits).
-                self.buffer_and_display_map.deactivate_ephemeral_state();
-                None
-            } else {
-                // Regular ephemeral (history picker, model selector, etc.): snapshot the
-                // ephemeral buffer so its content can be applied to the regular buffer.
-                let snapshot = self.as_snapshot(ctx);
-                let vim_visual_tail_offsets = self.vim_visual_tail_offsets(ctx);
-                self.buffer_and_display_map.deactivate_ephemeral_state();
-                Some((snapshot, vim_visual_tail_offsets))
-            }
+            // Snapshot the ephemeral buffer (history picker, model selector, etc.) so its
+            // content can be applied to the regular buffer.
+            let snapshot = self.as_snapshot(ctx);
+            let vim_visual_tail_offsets = self.vim_visual_tail_offsets(ctx);
+            self.buffer_and_display_map.deactivate_ephemeral_state();
+            Some((snapshot, vim_visual_tail_offsets))
         } else {
             None
         };
@@ -808,32 +707,6 @@ impl EditorModel {
         }
 
         self.end_batch(ctx);
-    }
-
-    pub fn apply_remote_operations(
-        &mut self,
-        operations: Vec<CrdtOperation>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // The ephemeral buffer isn't collaborative so these operations are meant for the main buffer.
-        self.buffer_and_display_map
-            .regular
-            .0
-            .update(ctx, |buffer, ctx| {
-                if let Err(e) = buffer.apply_ops(operations, ctx) {
-                    log::warn!("Failed to apply remote edits to buffer: {e}");
-                }
-            });
-
-        // If a display-only empty ephemeral is showing (optimistic clear after sending
-        // an agent prompt), exit it now that a real CRDT update has arrived. This makes
-        // the actual collaborative buffer state immediately visible to the viewer, whether
-        // that's an empty buffer from the sharer's delete ops or another participant's
-        // concurrent edits.
-        if self.buffer_and_display_map.ephemeral_is_display_only {
-            self.buffer_and_display_map.deactivate_ephemeral_state();
-            ctx.notify();
-        }
     }
 
     pub fn interaction_state(&self) -> InteractionState {
@@ -2734,8 +2607,7 @@ impl EditorModel {
             .selections_intersecting_range(range.clone(), map, app)
     }
 
-    /// Returns drawable local + remote selections that intersect
-    /// the provided range.
+    /// Returns drawable local selections that intersect the provided range.
     pub fn all_drawable_selections_intersecting_range<'a>(
         &'a self,
         range: Range<DisplayPoint>,
@@ -2744,17 +2616,7 @@ impl EditorModel {
         let map = self.display_map(app);
         self.buffer(app)
             .local_selections()
-            .drawable_selections_intersecting_range(range.clone(), self.replica_id(app), map, app)
-            .chain(self.buffer(app).remote_selections().flat_map(
-                move |(replica_id, selections)| {
-                    selections.drawable_selections_intersecting_range(
-                        range.clone(),
-                        replica_id.clone(),
-                        map,
-                        app,
-                    )
-                },
-            ))
+            .drawable_selections_intersecting_range(range, map, app)
     }
 
     pub fn pending_selection<'a, C: ModelAsRef>(
@@ -3016,21 +2878,7 @@ impl EditorModel {
             }),
             buffer::Event::SelectionsChanged => ctx.emit(EditorModelEvent::SelectionsChanged),
             buffer::Event::StylesUpdated => ctx.emit(EditorModelEvent::StylesUpdated),
-            buffer::Event::UpdatePeers { operations } => ctx.emit(EditorModelEvent::UpdatePeers {
-                operations: operations.clone(),
-            }),
-        }
-    }
-
-    fn handle_buffer_event_for_non_collaborative_editor(
-        &mut self,
-        handle: ModelHandle<Buffer>,
-        event: &buffer::Event,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // For non-collaborative editors, we don't care about fanning out updates to peers.
-        if !matches!(event, buffer::Event::UpdatePeers { .. }) {
-            self.handle_buffer_event(handle, event, ctx);
+            buffer::Event::UpdatePeers { .. } => {}
         }
     }
 

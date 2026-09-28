@@ -1,4 +1,5 @@
 mod anchor;
+#[cfg(test)]
 mod deferred_ops;
 mod subword_boundaries;
 #[cfg(test)]
@@ -36,7 +37,6 @@ use warpui::{Entity, ModelContext};
 /// not expose the internal details of the buffer.
 pub use {
     anchor::{Anchor, AnchorBias, AnchorRangeExt},
-    deferred_ops::DeferredOperations,
     subword_boundaries::SubwordBoundaries,
     text::{Text, TextSummary},
     time::{LamportValue, ReplicaId},
@@ -46,7 +46,7 @@ use super::selections::{
     AsSelection, LocalSelections, MarkedTextState, RemoteSelection, RemoteSelections, Selection,
 };
 use super::{EditorSnapshot, LocalSelection};
-use crate::editor::{CursorColors, PlainTextEditorViewAction};
+use crate::editor::PlainTextEditorViewAction;
 
 #[cfg_attr(test, derive(Clone))]
 pub struct Buffer {
@@ -75,7 +75,8 @@ pub struct Buffer {
     /// The set of operations that we've deferred for now.
     /// We defer an operation when it cannot yet be applied
     /// (i.e. it was based on edits we haven't observed yet).
-    deferred_ops: DeferredOperations,
+    #[cfg(test)]
+    deferred_ops: deferred_ops::DeferredOperations,
 
     /// The current batch of changes, if any.
     /// All CRDT-compliant buffer changes must be batched.
@@ -103,30 +104,6 @@ pub struct Buffer {
 
     /// The undo history for local and remote edits.
     undo_history: UndoHistory,
-
-    /// The remote replicas that have explicitly been registered
-    /// (via [`Self::register_replica`]).
-    ///
-    /// Only operations from known peers can be applied to the buffer.
-    registered_peers: HashMap<ReplicaId, Peer>,
-}
-
-#[derive(Clone)]
-/// Wrapper struct that holds fields needed to render
-/// a peer's cursors.
-pub struct PeerSelectionData {
-    /// The colors with which this replica's
-    /// cursors / selections should be rendered in.
-    pub colors: CursorColors,
-    /// Whether or not the peer's cursors are drawn.
-    pub display_name: String,
-    pub image_url: Option<String>,
-    pub should_draw_cursors: bool,
-}
-
-#[derive(Clone)]
-pub struct Peer {
-    pub selection_data: PeerSelectionData,
 }
 
 /// Whether changes to the buffer are being batched
@@ -847,14 +824,14 @@ impl Buffer {
             fragments,
             insertion_splits,
             versions: Global::new(),
-            deferred_ops: DeferredOperations::new(),
+            #[cfg(test)]
+            deferred_ops: deferred_ops::DeferredOperations::new(),
             lamport_clock: Lamport::new(replica_id),
             batch_state: BatchState::Inactive,
             local_selections: root_selections.clone(),
             remote_selections: HashMap::new(),
             local_undo_stack: LocalUndoStack::new(root_selections),
             undo_history: UndoHistory::new(),
-            registered_peers: HashMap::new(),
         }
     }
 
@@ -862,11 +839,8 @@ impl Buffer {
         Self::new_with_replica_id(ReplicaId::random(), base_text)
     }
 
-    /// Recreates the buffer, but leaving the registered peers in tact.
     pub fn recreate<T: Into<Text>>(&mut self, replica_id: ReplicaId, base_text: T) {
-        let peers = std::mem::take(&mut self.registered_peers);
         *self = Self::new_with_replica_id(replica_id, base_text);
-        self.registered_peers = peers;
     }
 
     pub fn replica_id(&self) -> ReplicaId {
@@ -875,17 +849,6 @@ impl Buffer {
 
     pub fn local_selections(&self) -> &LocalSelections {
         &self.local_selections
-    }
-
-    /// Returns an iterator over each remote replicas selection set and id.
-    pub fn remote_selections(&self) -> impl Iterator<Item = (&ReplicaId, &RemoteSelections)> {
-        self.remote_selections
-            .iter()
-            .filter_map(|(replica_id, remote_selections)| {
-                self.registered_peers
-                    .get(replica_id)
-                    .map(|_| (replica_id, remote_selections))
-            })
     }
 
     /// Initializes a batch for edits and selection changes;
@@ -1028,39 +991,6 @@ impl Buffer {
                 operations: Rc::new(operations),
             });
         }
-    }
-
-    pub(super) fn registered_peers(&self) -> HashMap<ReplicaId, Peer> {
-        self.registered_peers.clone()
-    }
-
-    pub(super) fn register_peer(
-        &mut self,
-        replica_id: ReplicaId,
-        selection_data: PeerSelectionData,
-    ) {
-        self.registered_peers
-            .insert(replica_id, Peer { selection_data });
-    }
-
-    pub(super) fn unregister_peer(&mut self, replica_id: &ReplicaId) {
-        self.registered_peers.remove(replica_id);
-    }
-
-    pub(super) fn unregister_all_peers(&mut self) {
-        self.registered_peers = HashMap::new();
-    }
-
-    pub(super) fn set_peer_selection_data(
-        &mut self,
-        replica_id: &ReplicaId,
-        selection_data: PeerSelectionData,
-    ) {
-        let Some(peer) = self.registered_peers.get_mut(replica_id) else {
-            log::warn!("Tried to update selection data of non-existent peer");
-            return;
-        };
-        peer.selection_data = selection_data;
     }
 
     pub fn snapshot(&self) -> EditorSnapshot {
@@ -1692,6 +1622,7 @@ impl Buffer {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(super) fn apply_ops<I: IntoIterator<Item = Operation>>(
         &mut self,
         ops: I,
@@ -1719,6 +1650,7 @@ impl Buffer {
         Ok(())
     }
 
+    #[cfg(test)]
     fn apply_op(&mut self, op: Operation) -> Result<()> {
         // Apply the operation based on its type.
         match op {
@@ -1800,6 +1732,7 @@ impl Buffer {
         Ok(())
     }
 
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     fn apply_edit(
         &mut self,
@@ -1922,6 +1855,7 @@ impl Buffer {
         Ok(())
     }
 
+    #[cfg(test)]
     fn flush_deferred_ops(&mut self) -> Result<()> {
         let mut deferred_ops = Vec::new();
         for op in self.deferred_ops.drain() {
@@ -1935,6 +1869,7 @@ impl Buffer {
         Ok(())
     }
 
+    #[cfg(test)]
     fn can_apply_op(&self, op: &Operation) -> bool {
         if self.deferred_ops.replica_deferred(op.replica_id()) {
             return false;
@@ -1958,6 +1893,7 @@ impl Buffer {
         }
     }
 
+    #[cfg(test)]
     fn resolve_fragment_id(
         &self,
         edit_id: Lamport,
@@ -2831,6 +2767,7 @@ impl Buffer {
         }
     }
 
+    #[cfg(test)]
     fn split_fragment(
         &mut self,
         prev_fragment: &Fragment,
@@ -3736,6 +3673,7 @@ impl sum_tree::Dimension<'_, InsertionSplitSummary> for CharOffset {
     }
 }
 
+#[cfg(test)]
 impl Operation {
     fn replica_id(&self) -> &ReplicaId {
         &self.lamport_timestamp().replica_id

@@ -321,7 +321,6 @@ fn test_get_entries_includes_local_only_entry() {
                 AgentConversationEntryId::Conversation(conversation_id)
             );
             assert_eq!(entry.identity.local_conversation_id, Some(conversation_id));
-            assert_eq!(entry.identity.ambient_agent_task_id, None);
             assert_eq!(
                 entry.provenance,
                 AgentConversationProvenance::LocalInteractive

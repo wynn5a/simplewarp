@@ -17088,12 +17088,6 @@ impl TerminalView {
                     self.show_emacs_bindings_banner(ctx);
                 }
             }
-            InputEvent::EditorUpdated {
-                block_id,
-                operations,
-            } => {
-                let _ = (block_id, operations);
-            }
             InputEvent::InputFocusedFromMiddleClick => {
                 self.focus_input_box(ctx);
             }

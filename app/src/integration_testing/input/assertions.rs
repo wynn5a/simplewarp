@@ -93,22 +93,6 @@ pub fn tab_completions_menu_is_open(tab_idx: usize, is_opened: bool) -> Assertio
     })
 }
 
-pub fn latest_buffer_operations_are_empty(
-    tab_idx: usize,
-    should_be_empty: bool,
-) -> AssertionCallback {
-    Box::new(move |app, window_id| {
-        let input = single_input_view_for_tab(app, window_id, tab_idx);
-        input.read(app, |view, _ctx| {
-            if should_be_empty {
-                async_assert!(view.latest_buffer_operations().count() == 0)
-            } else {
-                async_assert!(view.latest_buffer_operations().count() > 0)
-            }
-        })
-    })
-}
-
 #[derive(Clone)]
 pub enum AutosuggestionState {
     /// The autosuggestion is inactive.

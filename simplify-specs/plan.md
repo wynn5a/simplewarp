@@ -725,6 +725,38 @@ Queue, in order:
    `AIContextMenu::is_in_ambient_agent` (setter has no callers); the entry's other cloud-only
    fields (`executor`, `run_time`, `session_status`, `has_ambient_run`, `PrincipalType`).
 
+22. ~~Input CRDT peer sync, `session_sharing_protocol`, dummy cloud-mode session, entry cloud fields~~
+   — **4hk done (2026-09-28).** −1.0k lines in 35 files. Input peer sync: `Input::
+   latest_buffer_operations` (+ integration test `test_latest_buffer_operations` and its assertion),
+   `DeferredRemoteOperations` (its `latest_block_id` survives as `Input::buffer_block_id`, still
+   gating buffer reinit on user-command completion and re-keyed after bootstrap),
+   `process_remote_edits` / `refresh_deferred_remote_operations`, `input::Event::EditorUpdated`;
+   editor `Event::UpdatePeers` / `EditorModelEvent::UpdatePeers`, `apply_remote_operations` (view +
+   model), the collaborative/non-collaborative buffer-event split, the viewer "display-only
+   ephemeral" (`show_display_only_empty_buffer`, `exit_ephemeral_loading_state`, no callers), the
+   peer registry (`register/unregister_remote_peer`, `set_remote_peer_selection_data`,
+   `Buffer::registered_peers`, `Peer`, `PeerSelectionData`) and remote-cursor rendering (avatars,
+   `RemoteDrawableSelectionData`, `DrawableSelection::replica_id`, `CursorData::replica_id`, the
+   remote beam width, `cursor_avatar_*`); `Avatar::with_status_element`. **Kept:** the `Buffer` CRDT
+   itself (op generation, lamport/undo history, buffer-level `UpdatePeers` emission, now ignored by
+   `EditorModel`); the remote-op intake (`Buffer::apply_ops` + helpers, `DeferredOperations`,
+   `RemoteSelection::observed`) is `#[cfg(test)]` because 25 buffer tests (convergence, undo,
+   selection merging) drive it. `session_sharing_protocol` dependency gone (workspace, app,
+   `cloud_object_persistence` dev-dep, about.toml note): the entry's `SessionId` field and three
+   uncalled `From`/`TryFrom` impls (`InputMode`, `ServerConversationToken`) deleted.
+   `TerminalModel::is_dummy_cloud_mode_session` (always false; `new_internal` folded into `new`)
+   and its three readers; `AIContextMenu::is_in_ambient_agent` + setter + the
+   `get_categories_for_mode` param. `AgentConversationEntry`: `ambient_agent_task_id`,
+   `session_id`, `executor`, `run_time`, `session_status`, `has_ambient_run`, `is_cloud_agent_run`,
+   `PrincipalType`, `AgentConversationPrincipal`, `SessionStatus` (all always `None`/false for local
+   entries). `WITH_LOCAL_SESSION_SHARING_SERVER` / `SERVER_ROOT_URL` / `WS_SERVER_URL` rerun lines in
+   `app/build.rs` and the feature-to-env shim in `script/run`. Tests 4,127 default / 4,128
+   simplewarp (unchanged; the removed integration test is not in the lib suite).
+   Follow-ups: the `Buffer` CRDT exchange (buffer-level `UpdatePeers`, test-only `apply_ops`, remote
+   selections map) could go with its 25 tests; `ActiveAgentViewsModel` ambient sessions
+   (registered from transcript-viewer / details-panel task ids); `EditOrigin::RemoteEdit` (only
+   the test-only intake emits it).
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

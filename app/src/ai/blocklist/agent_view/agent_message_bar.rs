@@ -406,9 +406,7 @@ struct BootstrappingMessageProducer;
 
 impl MessageProvider<AgentMessageArgs<'_>> for BootstrappingMessageProducer {
     fn produce_message(&self, args: AgentMessageArgs<'_>) -> Option<Message> {
-        if args.terminal_model.block_list().is_bootstrapped()
-            || args.terminal_model.is_dummy_cloud_mode_session()
-        {
+        if args.terminal_model.block_list().is_bootstrapped() {
             None
         } else {
             Some(Message::from_text("Starting shell..."))

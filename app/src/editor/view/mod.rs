@@ -13,7 +13,6 @@ use std::collections::HashMap;
 use std::fmt;
 use std::ops::Range;
 use std::path::Path;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -32,7 +31,6 @@ use model::{
 };
 use num_traits::SaturatingSub;
 use parking_lot::Mutex;
-use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::Vector2F;
 use settings::Setting as _;
 use snapshot::{EditorHeightShrinkDelay, ViewSnapshot};
@@ -59,10 +57,10 @@ use warpui::actions::StandardAction;
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
-    ChildView, Container, CornerRadius, CrossAxisAlignment, DEFAULT_UI_LINE_HEIGHT_RATIO, Flex,
-    Hoverable, MainAxisSize, MouseStateHandle, ParentElement, Radius, Shrinkable,
+    ChildView, Container, CrossAxisAlignment, DEFAULT_UI_LINE_HEIGHT_RATIO, Flex, Hoverable,
+    MainAxisSize, MouseStateHandle, ParentElement, Shrinkable,
 };
-use warpui::fonts::{Cache as FontCache, FamilyId, Properties, Weight};
+use warpui::fonts::{Cache as FontCache, FamilyId, Properties};
 use warpui::keymap::{EditableBinding, FixedBinding, Keystroke, PerPlatformKeystroke};
 use warpui::platform::keyboard::KeyCode;
 use warpui::platform::{Cursor, FilePickerConfiguration, OperatingSystem};
@@ -83,9 +81,8 @@ use warpui::{
 pub use {
     element::{EditorDecoratorElements, EditorElement, TextColors},
     model::{
-        Chars, CrdtOperation, DisplayPoint, EditOrigin, EditorSnapshot, InteractionState,
-        LocalDrawableSelectionData, PeerSelectionData, RemoteDrawableSelectionData, ReplicaId,
-        SelectAction, TextRun, TextStyleOperation,
+        Chars, DisplayPoint, EditOrigin, EditorSnapshot, InteractionState,
+        LocalDrawableSelectionData, ReplicaId, SelectAction, TextRun, TextStyleOperation,
     },
 };
 
@@ -117,7 +114,6 @@ use crate::suggestions::ignored_suggestions_model::{IgnoredSuggestionsModel, Sug
 use crate::terminal::grid_size_util::grid_cell_dimensions;
 use crate::terminal::model::block::BlockId;
 use crate::themes::theme::Fill;
-use crate::ui_components::avatar::{Avatar, AvatarContent};
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons;
 use crate::util::bindings::{CustomAction, cmd_or_ctrl_shift, keybinding_name_to_keystroke};
@@ -3272,65 +3268,6 @@ impl EditorView {
         ctx.emit(Event::BufferReinitialized);
     }
 
-    /// Exits the ephemeral loading state created by `set_buffer_text_ignoring_undo`
-    /// without touching the CRDT buffer or emitting any `UpdatePeers` operations.
-    /// The editor switches back to displaying the regular collaborative buffer.
-    pub fn exit_ephemeral_loading_state(&mut self, ctx: &mut ViewContext<Self>) {
-        self.editor_model.update(ctx, |model, ctx| {
-            model.exit_ephemeral_loading_state(ctx);
-        });
-    }
-
-    /// Shows an empty display-only ephemeral overlay for immediate visual feedback.
-    /// See [`EditorModel::show_display_only_empty_buffer`] for the full contract.
-    pub fn show_display_only_empty_buffer(&mut self, ctx: &mut ViewContext<Self>) {
-        self.editor_model.update(ctx, |model, ctx| {
-            model.show_display_only_empty_buffer(ctx);
-        });
-    }
-
-    pub fn register_remote_peer(
-        &mut self,
-        replica_id: ReplicaId,
-        selection_data: PeerSelectionData,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.model().update(ctx, |model, ctx| {
-            model.register_remote_peer(replica_id, selection_data, ctx);
-        });
-
-        ctx.notify();
-    }
-
-    pub fn unregister_all_remote_peers(&mut self, ctx: &mut ViewContext<Self>) {
-        self.model().update(ctx, |model, ctx| {
-            model.unregister_all_remote_peers(ctx);
-        });
-
-        ctx.notify();
-    }
-
-    pub fn unregister_remote_peer(&mut self, replica_id: &ReplicaId, ctx: &mut ViewContext<Self>) {
-        self.model().update(ctx, |model, ctx| {
-            model.unregister_remote_peer(replica_id, ctx);
-        });
-
-        ctx.notify();
-    }
-
-    pub fn set_remote_peer_selection_data(
-        &mut self,
-        replica_id: &ReplicaId,
-        selection_data: PeerSelectionData,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.model().update(ctx, |model, ctx| {
-            model.set_remote_peer_selection_data(replica_id, selection_data, ctx);
-        });
-
-        ctx.notify();
-    }
-
     /// A helper function to make arbitrary edits more ergonomic.
     fn edit<C, F, U, B>(&mut self, ctx: &mut ViewContext<Self>, edits: Edits<C, F, U, B>)
     where
@@ -3349,17 +3286,6 @@ impl EditorView {
         C: FnOnce(&mut EditorModel, &mut ModelContext<EditorModel>),
     {
         self.edit(ctx, Edits::new().with_change_selections(change_selections))
-    }
-
-    /// Applies incoming edits from peers to the underlying buffer.
-    pub fn apply_remote_operations(
-        &mut self,
-        operations: Vec<CrdtOperation>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.editor_model.update(ctx, |model, ctx| {
-            model.apply_remote_operations(operations, ctx);
-        });
     }
 
     /// Sets the font family to use when rendering editor text to `font_family_id`.
@@ -7597,14 +7523,6 @@ impl EditorView {
                 self.internal_clipboard.clone_from(text);
                 self.internal_clipboard.shrink_to_fit();
             }
-            EditorModelEvent::UpdatePeers { operations } => {
-                ctx.emit(Event::UpdatePeers {
-                    operations: operations.clone(),
-                });
-                // This event is sent in conjunction with the main event reflecting
-                // the change (e.g. `Edited`) so no need to do anything else here.
-                return;
-            }
             // In these cases, we just need to re-render, which is handled
             // by the invalidation below.
             EditorModelEvent::DisplayMapUpdated | EditorModelEvent::StylesUpdated => {}
@@ -7936,71 +7854,11 @@ impl EditorView {
         self.editor_model.as_ref(ctx).is_single_cursor_only(ctx)
     }
 
-    /// Returns drawable selections data for local and remote peers.
-    pub fn all_drawable_selections_data(
-        &self,
-        font_size: f32,
-        avatar_size: f32,
-        ctx: &AppContext,
-    ) -> (
-        LocalDrawableSelectionData,
-        HashMap<ReplicaId, RemoteDrawableSelectionData>,
-    ) {
-        let local_selection_data = LocalDrawableSelectionData {
+    fn local_drawable_selection_data(&self, ctx: &AppContext) -> LocalDrawableSelectionData {
+        LocalDrawableSelectionData {
             colors: (self.get_cursor_colors_fn)(ctx),
             should_draw_cursors: self.should_draw_cursors(ctx),
-        };
-
-        // Convert a remote peer's selection data into an avatar component
-        let appearance = Appearance::as_ref(ctx);
-        let avatar_styles = UiComponentStyles {
-            width: Some(avatar_size),
-            height: Some(avatar_size),
-            border_radius: Some(CornerRadius::with_all(Radius::Percentage(50.))),
-            border_width: Some(1.),
-            font_color: Some(ColorU::black()),
-            font_family_id: Some(appearance.ui_font_family()),
-            font_weight: Some(Weight::Bold),
-            font_size: Some(font_size),
-            ..Default::default()
-        };
-
-        let remote_selections_data = self
-            .editor_model
-            .as_ref(ctx)
-            .registered_peers(ctx)
-            .iter()
-            .map(|(replica_id, peer)| {
-                let color = peer.selection_data.colors.cursor;
-                let avatar = Avatar::new(
-                    peer.selection_data
-                        .image_url
-                        .clone()
-                        .map(|url| AvatarContent::Image {
-                            url,
-                            display_name: peer.selection_data.display_name.clone(),
-                        })
-                        .unwrap_or(AvatarContent::DisplayName(
-                            peer.selection_data.display_name.clone(),
-                        )),
-                    UiComponentStyles {
-                        border_color: Some(color.into()),
-                        background: Some(color.into()),
-                        ..avatar_styles
-                    },
-                );
-
-                let drawable_selections_data = RemoteDrawableSelectionData {
-                    colors: peer.selection_data.colors,
-                    should_draw_cursors: peer.selection_data.should_draw_cursors,
-                    avatar,
-                };
-
-                (replica_id.clone(), drawable_selections_data)
-            })
-            .collect::<HashMap<_, _>>();
-
-        (local_selection_data, remote_selections_data)
+        }
     }
 
     fn drag_and_drop_files(&mut self, paths: &[UserInput<String>], ctx: &mut ViewContext<Self>) {
@@ -8442,9 +8300,6 @@ pub enum Event {
     DeleteAllLeft,
     /// Notify the user that they're using a MacOS-style binding that conflicts with a non-MacOS-style binding.
     EmacsBindingUsed,
-    UpdatePeers {
-        operations: Rc<Vec<CrdtOperation>>,
-    },
     SetAIContextMenuOpen(bool),
     AcceptAIContextMenuItem(AIContextMenuSearchableAction),
     SelectAIContextMenuCategory(AIContextMenuCategory),
@@ -8724,11 +8579,7 @@ impl View for EditorView {
         let view_snapshot = self.snapshot(ctx);
         let scroll_state = self.into();
 
-        let (local_selection_data, remote_selections_data) = self.all_drawable_selections_data(
-            view_snapshot.cursor_avatar_font_size(),
-            view_snapshot.cursor_avatar_size(),
-            ctx,
-        );
+        let local_selection_data = self.local_drawable_selection_data(ctx);
 
         let editor_element = EditorElement::new(
             view_snapshot,
@@ -8741,7 +8592,6 @@ impl View for EditorView {
             text_colors,
             editor_decorator_elements,
             local_selection_data,
-            remote_selections_data,
             self.cursor_display_override,
             self.voice_input_toggle_key_code(ctx),
         )

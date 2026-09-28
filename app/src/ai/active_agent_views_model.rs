@@ -462,12 +462,6 @@ impl ActiveAgentViewsModel {
         entry: &AgentConversationEntry,
         ctx: &AppContext,
     ) -> Option<EntityId> {
-        if let Some(task_id) = entry.identity.ambient_agent_task_id
-            && let Some(terminal_view_id) = self.get_terminal_view_id_for_ambient_task(task_id)
-        {
-            return Some(terminal_view_id);
-        }
-
         if let Some(conversation_id) = entry.identity.local_conversation_id {
             return self.get_terminal_view_id_for_conversation(conversation_id, ctx);
         }

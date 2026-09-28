@@ -122,21 +122,6 @@ if [[ "$INSTALL_COMMON_SKILLS" -eq 1 ]]; then
   fi
 fi
 
-# These cargo features were removed and replaced by environment variables read
-# by warp-channel-config. Intercept them here so that existing --features
-# invocations keep working.
-for mapping in \
-    "with_local_session_sharing_server:WITH_LOCAL_SESSION_SHARING_SERVER"; do
-    feature="${mapping%%:*}"
-    env_var="${mapping##*:}"
-    if [[ ",$FEATURES," =~ ,"$feature", ]]; then
-        export "$env_var"=1
-        FEATURES="$(echo "$FEATURES" | sed "s/,$feature,/,/; s/^$feature,//; s/,$feature$//; s/^$feature$//")"
-        FEATURES="$(echo "$FEATURES" | sed 's/,,*/,/g; s/^,//; s/,$//')"
-        echo "Note: '$feature' is no longer a cargo feature; setting $env_var=1 instead."
-    fi
-done
-
 export FEATURES
 export WARP_BIN_NAME
 export WARP_CHANNEL

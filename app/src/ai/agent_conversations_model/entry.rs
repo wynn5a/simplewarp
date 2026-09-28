@@ -1,12 +1,10 @@
 use chrono::{DateTime, Utc};
-use session_sharing_protocol::common::SessionId;
 use warp_cli::agent::Harness;
 use warpui::AppContext;
 
-use super::{AgentRunDisplayStatus, ConversationMetadata, SessionStatus};
+use super::{AgentRunDisplayStatus, ConversationMetadata};
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::history_model::{AIConversationMetadata, BlocklistAIHistoryModel};
 use crate::ai::blocklist::orchestration_topology::orchestration_aware_conversation_status;
@@ -53,9 +51,7 @@ pub struct AgentConversationEntry {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentConversationIdentity {
     pub local_conversation_id: Option<AIConversationId>,
-    pub ambient_agent_task_id: Option<AmbientAgentTaskId>,
     pub server_conversation_token: Option<ServerConversationToken>,
-    pub session_id: Option<SessionId>,
 }
 
 /// Display-only fields for rendering a conversation entry without consulting source models.
@@ -66,45 +62,10 @@ pub struct AgentConversationDisplayData {
     pub created_at: DateTime<Utc>,
     pub last_updated: DateTime<Utc>,
     pub status: AgentRunDisplayStatus,
-    pub executor: Option<AgentConversationPrincipal>,
     pub request_usage: Option<f32>,
-    pub run_time: Option<String>,
-    pub session_status: Option<SessionStatus>,
     pub working_directory: Option<String>,
     pub harness: Option<Harness>,
     pub artifacts: Vec<Artifact>,
-}
-
-/// Type of principal that created or executed a run.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PrincipalType {
-    User,
-    ServiceAccount,
-}
-
-impl PrincipalType {
-    /// Parse from the wire-format string sent by the server.
-    pub fn parse(s: &str) -> Option<Self> {
-        if s.eq_ignore_ascii_case("user") {
-            Some(PrincipalType::User)
-        } else if s.eq_ignore_ascii_case("service_account") || s.eq_ignore_ascii_case("agent") {
-            Some(PrincipalType::ServiceAccount)
-        } else {
-            None
-        }
-    }
-
-    pub fn is_service_account(self) -> bool {
-        self == PrincipalType::ServiceAccount
-    }
-}
-
-/// Principal information normalized across local conversations and ambient runs.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct AgentConversationPrincipal {
-    pub name: Option<String>,
-    pub uid: Option<String>,
-    pub principal_type: Option<PrincipalType>,
 }
 
 /// Source category that explains why an entry exists and which backing systems can refresh it.
@@ -120,7 +81,6 @@ pub struct AgentConversationBackingData {
     pub has_loaded_conversation: bool,
     pub has_local_persisted_data: bool,
     pub has_cloud_data: bool,
-    pub has_ambient_run: bool,
 }
 
 /// Actions that should be exposed for an entry after applying current navigation policy.
@@ -134,11 +94,6 @@ pub struct AgentConversationCapabilities {
 }
 
 impl AgentConversationEntry {
-    /// Returns whether this entry represents a cloud agent run.
-    pub fn is_cloud_agent_run(&self) -> bool {
-        self.backing.has_ambient_run || self.identity.ambient_agent_task_id.is_some()
-    }
-
     pub fn has_open_action(
         &self,
         restore_layout: Option<RestoreConversationLayout>,
@@ -257,13 +212,11 @@ fn entry_for_conversation_parts(
         id: AgentConversationEntryId::Conversation(conversation_id),
         identity: AgentConversationIdentity {
             local_conversation_id: Some(conversation_id),
-            ambient_agent_task_id: None,
             server_conversation_token: server_conversation_token_for_conversation(
                 conversation_id,
                 Some(&metadata.nav_data),
                 history_model,
             ),
-            session_id: None,
         },
         provenance,
         display: AgentConversationDisplayData {
@@ -272,10 +225,7 @@ fn entry_for_conversation_parts(
             created_at: metadata.nav_data.last_updated.into(),
             last_updated: metadata.nav_data.last_updated.into(),
             status: status.clone(),
-            executor: None,
             request_usage: conversation_request_usage(&metadata, history_model),
-            run_time: None,
-            session_status: None,
             working_directory: metadata
                 .nav_data
                 .latest_working_directory
@@ -288,7 +238,6 @@ fn entry_for_conversation_parts(
             has_loaded_conversation,
             has_local_persisted_data,
             has_cloud_data,
-            has_ambient_run: false,
         },
         capabilities: AgentConversationCapabilities {
             can_open: has_local_persisted_data || has_cloud_data,

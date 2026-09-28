@@ -3,9 +3,9 @@ use std::time::Duration;
 use warp::features::FeatureFlag;
 use warp::integration_testing::clipboard::write_to_clipboard;
 use warp::integration_testing::input::{
-    AutosuggestionState, assert_autosuggestion_state, input_contains_string, input_is_empty,
-    latest_buffer_operations_are_empty, open_inline_model_selector_from_chip,
-    tab_completions_menu_is_open, toggle_inline_model_selector_from_chip,
+    AutosuggestionState, assert_autosuggestion_state, input_contains_string,
+    open_inline_model_selector_from_chip, tab_completions_menu_is_open,
+    toggle_inline_model_selector_from_chip,
 };
 use warp::integration_testing::step::new_step_with_default_assertions;
 use warp::integration_testing::terminal::util::{
@@ -181,45 +181,6 @@ pub fn test_inline_model_selector_restores_prompt_on_chip_toggle_close() -> Buil
                 "Original prompt is restored after toggling closed",
                 input_contains_string(0, original_prompt.to_owned()),
             ),
-        )
-}
-
-pub fn test_latest_buffer_operations() -> Builder {
-    new_builder()
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        // Execute a command so that we can generate autosuggestions.
-        .with_step(execute_command_for_single_terminal_in_tab(
-            0,
-            "cd .".into(),
-            ExpectedExitStatus::Success,
-            (),
-        ))
-        .with_step(
-            new_step_with_default_assertions("Check initial state").add_named_assertion(
-                "Ensure the latest buffer operations start off empty",
-                latest_buffer_operations_are_empty(0, true),
-            ),
-        )
-        .with_step(
-            new_step_with_default_assertions("Write into the input")
-                .with_typed_characters(&["echo 'foo'"])
-                .add_named_assertion(
-                    "Ensure the input was written to",
-                    input_contains_string(0, String::from("echo 'foo'")),
-                )
-                .add_named_assertion(
-                    "Ensure the latest buffer operations are non-empty",
-                    latest_buffer_operations_are_empty(0, false),
-                ),
-        )
-        .with_step(
-            new_step_with_default_assertions("Run the command with the current buffer text")
-                .with_keystrokes(&["enter"])
-                .add_named_assertion("Ensure the input is empty", input_is_empty(0))
-                .add_named_assertion(
-                    "Ensure the latest buffer operations are empty",
-                    latest_buffer_operations_are_empty(0, true),
-                ),
         )
 }
 

@@ -164,12 +164,6 @@ fn generate_channel_config_if_needed(target_os: &str) {
         return;
     }
 
-    // Only track these for bundled builds, where they affect the embedded config.
-    // For non-bundled builds these are runtime variables and should not trigger recompilation.
-    println!("cargo:rerun-if-env-changed=WITH_LOCAL_SESSION_SHARING_SERVER");
-    println!("cargo:rerun-if-env-changed=SERVER_ROOT_URL");
-    println!("cargo:rerun-if-env-changed=WS_SERVER_URL");
-
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR must be set");
 
     // Generate config for all internal channels. The build script runs once per crate (not

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -29,7 +28,6 @@ use warpui::text_selection_utils::{
     NewlineTickParams, calculate_tick_width, create_newline_tick_rect,
     selection_crosses_newline_row_based,
 };
-use warpui::ui_components::components::UiComponent;
 use warpui::{AppContext, SingletonEntity, TaskId, ViewHandle};
 
 use super::super::soft_wrap::{
@@ -38,8 +36,8 @@ use super::super::soft_wrap::{
 use super::model::MarkedTextState;
 use super::snapshot::{VOICE_INPUT_ICON_CURSOR_GAP, ViewSnapshot};
 use super::{
-    CursorColors, DisplayPoint, DrawableSelection, EditorAction, LocalDrawableSelectionData,
-    ReplicaId, ScrollState, SelectAction, position_id_for_cached_point, position_id_for_cursor,
+    DisplayPoint, DrawableSelection, EditorAction, LocalDrawableSelectionData, ScrollState,
+    SelectAction, position_id_for_cached_point, position_id_for_cursor,
 };
 use crate::appearance::Appearance;
 use crate::editor::accept_autosuggestion_keybinding_view::{
@@ -60,7 +58,6 @@ use crate::ui_components::icons::Icon;
 const BEAM_CURSOR_WIDTH_PX: f32 = 3.;
 /// Width for remote cursor is smaller than regular beam cursor to differentiate
 /// between local and remote cursors.
-const REMOTE_BEAM_CURSOR_WIDTH_PX: f32 = 2.;
 /// Width for cursor analogous to CursorShape::Block.
 const DEFAULT_BLOCK_CURSOR_WIDTH_PX: f32 = 8.;
 
@@ -158,27 +155,6 @@ struct CursorData {
     /// the exact width of the glyph it's on, so it may vary per-cursor.
     block_cursor_width: f32,
     color: Fill,
-    /// Used to map the cursor data to its corresponding selections.
-    replica_id: ReplicaId,
-}
-
-/// This type holds additional information about how to draw a remote peer's
-/// selections and cursors, specifically within the editor element.
-pub struct RemoteDrawableSelectionData {
-    pub colors: CursorColors,
-    pub should_draw_cursors: bool,
-    // In contrast to [`super:: RemoteDrawableSelectionData`], the avatar is converted to an element to ensure it can be laid out.
-    pub avatar: Box<dyn Element>,
-}
-
-impl From<super::RemoteDrawableSelectionData> for RemoteDrawableSelectionData {
-    fn from(value: super::RemoteDrawableSelectionData) -> Self {
-        Self {
-            colors: value.colors,
-            should_draw_cursors: value.should_draw_cursors,
-            avatar: value.avatar.build().finish(),
-        }
-    }
 }
 
 /// Element that represents a text editor.
@@ -204,7 +180,6 @@ pub struct EditorElement {
     text_colors: TextColors,
     editor_decorator_elements: EditorDecoratorElements,
     local_selection_data: LocalDrawableSelectionData,
-    remote_selections_data: HashMap<ReplicaId, RemoteDrawableSelectionData>,
 
     voice_input_cursor_icon: Option<Box<dyn Element>>,
     #[cfg_attr(not(feature = "voice_input"), allow(unused))]
@@ -225,19 +200,9 @@ impl EditorElement {
         text_colors: TextColors,
         editor_decorator_elements: EditorDecoratorElements,
         local_selection_data: LocalDrawableSelectionData,
-        remote_selections_data: HashMap<ReplicaId, super::RemoteDrawableSelectionData>,
         cursor_display_type: Option<CursorDisplayType>,
         voice_input_toggle_key_code: Option<KeyCode>,
     ) -> Self {
-        let remote_selections_data = HashMap::from_iter(remote_selections_data.into_iter().map(
-            |(replica_id, drawable_selections_data)| {
-                (
-                    replica_id,
-                    RemoteDrawableSelectionData::from(drawable_selections_data),
-                )
-            },
-        ));
-
         Self {
             view_snapshot,
             scroll_state,
@@ -253,17 +218,11 @@ impl EditorElement {
             text_colors,
             editor_decorator_elements,
             local_selection_data,
-            remote_selections_data,
             preferred_cursor_type: cursor_display_type.unwrap_or_default(),
             cycle_next_command_hint: None,
             voice_input_cursor_icon: None,
             voice_input_toggle_key_code,
         }
-    }
-
-    /// Returns whether or not a given replica id is a local peer.
-    fn is_local_replica(&self, replica_id: &ReplicaId, app: &AppContext) -> bool {
-        replica_id == &self.view_snapshot.editor_model.as_ref(app).replica_id(app)
     }
 
     fn scroll_position(&self) -> Vector2F {
@@ -811,12 +770,11 @@ impl EditorElement {
         font_size * DEFAULT_UI_LINE_HEIGHT_RATIO.min(line_height_ratio)
     }
 
-    /// Draws cursors and avatars for local and remote peers.
+    /// Draws the cursors.
     fn draw_cursors(
         cursor_display_type: CursorDisplayType,
         cursors: SmallVec<[CursorData; 32]>,
         view_snapshot: &ViewSnapshot,
-        remote_selections_data: &mut HashMap<ReplicaId, RemoteDrawableSelectionData>,
         voice_input_icon: &mut Option<Box<dyn Element>>,
         ctx: &mut PaintContext,
         app: &AppContext,
@@ -828,13 +786,10 @@ impl EditorElement {
             _ => Radius::Percentage(50.),
         };
         for cursor in cursors {
-            let is_local =
-                cursor.replica_id == view_snapshot.editor_model.as_ref(app).replica_id(app);
             let cursor_width = match cursor_display_type {
                 CursorDisplayType::Block | CursorDisplayType::Underline => {
                     cursor.block_cursor_width
                 }
-                _ if !is_local => REMOTE_BEAM_CURSOR_WIDTH_PX,
                 _ => BEAM_CURSOR_WIDTH_PX,
             };
             let mut cursor_rect = RectF::new(cursor.origin, vec2f(cursor_width, cursor_height));
@@ -847,28 +802,6 @@ impl EditorElement {
                 .draw_rect_with_hit_recording(cursor_rect)
                 .with_background(cursor.color)
                 .with_corner_radius(CornerRadius::with_all(cursor_corner_radius));
-
-            // Draw cursor avatars for remote selections
-            if !is_local
-                && let Some(drawable_selections_data) =
-                    remote_selections_data.get_mut(&cursor.replica_id)
-            {
-                // Offset for avatar's x origin is calculated based on avatar's size, border and cursor width.
-                // We include half of the cursor's width to ensure the avatar is centered with the cursor's center
-                // and not just the cursor's x origin.
-                let avatar_size = view_snapshot.cursor_avatar_size() + 2.;
-                let avatar_offset = avatar_size / 2. - cursor_width / 2.;
-                let avatar_origin = vec2f(
-                    cursor.origin.x() - avatar_offset,
-                    cursor.origin.y() - cursor_height,
-                );
-                // New layer is started so avatars are rendered over text and prompt
-                ctx.scene.start_layer(warpui::ClipBounds::None);
-                drawable_selections_data
-                    .avatar
-                    .paint(avatar_origin, ctx, app);
-                ctx.scene.stop_layer();
-            }
 
             if let Some(element) = voice_input_icon {
                 let icon_size = view_snapshot.voice_input_icon_size();
@@ -944,7 +877,6 @@ impl EditorElement {
             DrawableSelection {
                 range,
                 clamp_direction,
-                replica_id,
             },
         ) in view_snapshot
             .all_drawable_selections_intersecting_range(
@@ -960,16 +892,10 @@ impl EditorElement {
                 .frame_layouts
                 .to_soft_wrap_point(range.end, clamp_direction);
 
-            let is_local_replica = self.is_local_replica(&replica_id, app);
-            let (should_draw_cursors, colors) = if is_local_replica {
-                let data = &self.local_selection_data;
-                (data.should_draw_cursors, data.colors)
-            } else if let Some(data) = self.remote_selections_data.get(&replica_id) {
-                (data.should_draw_cursors, data.colors)
-            } else {
-                log::warn!("Failed to access selections data with replica id");
-                continue;
-            };
+            let LocalDrawableSelectionData {
+                should_draw_cursors,
+                colors,
+            } = self.local_selection_data;
 
             // Only attempt to draw the selection if both the start and end points exist.
             // There shouldn't be a case where we don't, but it's better to be safe.
@@ -1041,32 +967,24 @@ impl EditorElement {
                         .filter(|value| *value > 0.)
                         .unwrap_or(fallback_block_cursor_width);
 
-                    // `should_draw_cursors` is set differently for local and remote cursors:
-                    // * remote cursors are drawn based on their block selections
-                    // * local cursors are drawn based on their blink setting,
-                    //   focus on active window, and interaction state
                     if should_draw_cursors {
                         cursors.push(CursorData {
                             origin: cursor_origin,
                             block_cursor_width,
                             color: colors.cursor,
-                            replica_id,
                         });
                     }
-                    // Ensure cursor position is always cached when local
-                    if is_local_replica {
-                        let cursor_size = vec2f(block_cursor_width, line_parameters.cursor_height);
+                    let cursor_size = vec2f(block_cursor_width, line_parameters.cursor_height);
+                    ctx.position_cache.cache_position_indefinitely(
+                        position_id_for_cursor(view_snapshot.view_id),
+                        RectF::new(cursor_origin, cursor_size),
+                    );
+
+                    if i == 0 {
                         ctx.position_cache.cache_position_indefinitely(
-                            position_id_for_cursor(view_snapshot.view_id),
+                            position_id_for_first_cursor(view_snapshot.view_id),
                             RectF::new(cursor_origin, cursor_size),
                         );
-
-                        if i == 0 {
-                            ctx.position_cache.cache_position_indefinitely(
-                                position_id_for_first_cursor(view_snapshot.view_id),
-                                RectF::new(cursor_origin, cursor_size),
-                            );
-                        }
                     }
                 }
 
@@ -1731,19 +1649,6 @@ impl Element for EditorElement {
             max_visible_line_width = max_visible_line_width.max(width_with_icons);
         }
 
-        // Layout all avatars
-        let avatar_size = view_snapshot.cursor_avatar_size() + 2.; // 2. to account for border on both sides
-        for drawable_selections_data in self.remote_selections_data.values_mut() {
-            drawable_selections_data.avatar.layout(
-                SizeConstraint::new(
-                    vec2f(avatar_size, avatar_size),
-                    vec2f(avatar_size, avatar_size),
-                ),
-                ctx,
-                app,
-            );
-        }
-
         if let Some(element) = self.voice_input_cursor_icon.as_mut() {
             let voice_input_icon_size = view_snapshot.voice_input_icon_size();
             element.layout(
@@ -1876,7 +1781,6 @@ impl Element for EditorElement {
                 self.get_cursor_type(),
                 cursors,
                 view_snapshot,
-                &mut self.remote_selections_data,
                 &mut self.voice_input_cursor_icon,
                 ctx,
                 app,

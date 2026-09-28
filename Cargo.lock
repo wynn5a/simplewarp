@@ -2161,7 +2161,6 @@ dependencies = [
  "log",
  "persistence",
  "serde",
- "session-sharing-protocol",
  "warp_core",
 ]
 
@@ -10128,17 +10127,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "session-sharing-protocol"
-version = "0.0.0"
-source = "git+https://github.com/warpdotdev/session-sharing-protocol.git?rev=b30fdd06379a3d073b398eabd106abed5b443aae#b30fdd06379a3d073b398eabd106abed5b443aae"
-dependencies = [
- "byte-unit",
- "serde",
- "serde_json",
- "uuid",
-]
-
-[[package]]
 name = "settings"
 version = "0.0.0"
 dependencies = [
@@ -12453,7 +12441,6 @@ dependencies = [
  "serde_with",
  "serde_yaml 0.8.26",
  "serial_test",
- "session-sharing-protocol",
  "settings",
  "settings_value",
  "sha2",

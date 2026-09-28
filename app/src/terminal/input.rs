@@ -28,7 +28,6 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -179,9 +178,9 @@ use crate::context_chips::prompt_type::PromptType;
 use crate::context_chips::spacing;
 use crate::editor::{
     AttachedImage as AttachedImageRawData, AutosuggestionLocation, AutosuggestionType,
-    BaselinePositionComputationMethod, CommandXRayAnchor, CommandXRayTrigger, CrdtOperation,
-    CursorColors, DisplayPoint, EditOrigin, EditorAction, EditorDecoratorElements, EditorOptions,
-    EditorSnapshot, EditorView, Event as EditorEvent, ImageContextOptions, InteractionState,
+    BaselinePositionComputationMethod, CommandXRayAnchor, CommandXRayTrigger, CursorColors,
+    DisplayPoint, EditOrigin, EditorAction, EditorDecoratorElements, EditorOptions, EditorSnapshot,
+    EditorView, Event as EditorEvent, ImageContextOptions, InteractionState,
     MAX_IMAGES_PER_CONVERSATION, PathTransformerFn, PlainTextEditorViewAction,
     Point as BufferPoint, PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys,
     PropagateHorizontalNavigationKeys, TextRun, default_cursor_colors,
@@ -841,16 +840,6 @@ pub enum Event {
     ExecuteCommand(Box<ExecuteCommandEvent>),
     ExecuteAIQuery,
     EmacsBindingUsed,
-    /// The input editor was locally edited and
-    /// peers should be notified, if applicable.
-    EditorUpdated {
-        /// The block ID associated to the buffer that
-        /// these operations were made in.
-        block_id: BlockId,
-
-        /// The CRDT-compliant operations.
-        operations: Rc<Vec<CrdtOperation>>,
-    },
     InputFocusedFromMiddleClick,
     EditorFocused,
     UnhandledCmdEnter,
@@ -1373,28 +1362,9 @@ pub struct Input {
     // a settings read on every typed character).
     enable_autosuggestions_setting: bool,
 
-    /// A cache of the local buffer operations for the latest instance
-    /// of the input buffer. Specifically, these only include operations
-    /// resulting from local changes to the buffer (not remote changes / operations).
-    /// Note that the input buffer is reinstantiated every time a command is executed,
-    /// while ultimately clears this set.
-    ///
-    /// Today, we only expect to use this with when starting
-    /// a shared session.
-    ///
-    /// TODO (suraj): technically, we don't need the full
-    /// history for _selections_; we just need the latest.
-    latest_buffer_operations: Vec<CrdtOperation>,
-
-    /// Incoming remote edits that are not yet applied
-    /// because the block ID they were meant for was
-    /// not active when these operations were received.
-    ///
-    /// When the buffer is reinstantiated, we check
-    /// if any of these pending remote edits can be flushed.
-    ///
-    /// Today, we only expect to use this for shared session viewers.
-    deferred_remote_operations: DeferredRemoteOperations,
+    /// The active block ID the current input buffer was created for. The buffer is reinitialized
+    /// when a user command completes and the active block ID has moved on.
+    buffer_block_id: BlockId,
 
     prompt_suggestions_banner_state: Option<PromptSuggestionBannerState>,
     /// Shared flag checked by the editor's keymap context modifier to determine whether
@@ -1507,39 +1477,6 @@ pub struct IntelligentAutosuggestionResult {
     #[serde(rename = "was_autosuggestion_from_ai")]
     pub is_from_ai: bool,
     pub predicted_command: String,
-}
-
-/// A map of remote buffer operations that were deferred because
-/// the corresponding block ID was not active when these operations
-/// were received.
-struct DeferredRemoteOperations {
-    /// The latest block ID that we flushed for.
-    latest_block_id: BlockId,
-
-    /// The deferred operations.
-    deferred_ops: HashMap<BlockId, Vec<CrdtOperation>>,
-}
-
-impl DeferredRemoteOperations {
-    fn new(latest_block_id: BlockId) -> Self {
-        Self {
-            latest_block_id,
-            deferred_ops: HashMap::new(),
-        }
-    }
-
-    /// Defers the `operations` corresponding to the `block_id`.
-    fn defer(&mut self, block_id: BlockId, operations: Vec<CrdtOperation>) {
-        self.deferred_ops
-            .entry(block_id)
-            .or_default()
-            .extend(operations);
-    }
-
-    /// Removes and returns the deferred operations for the latest block ID, if any.
-    fn flush(&mut self) -> Option<Vec<CrdtOperation>> {
-        self.deferred_ops.remove(&self.latest_block_id)
-    }
 }
 
 pub fn init(app: &mut AppContext) {
@@ -2818,8 +2755,7 @@ impl Input {
             panel
         });
 
-        let deferred_remote_operations =
-            DeferredRemoteOperations::new(model.lock().block_list().active_block_id().clone());
+        let buffer_block_id = model.lock().block_list().active_block_id().clone();
 
         // Use persisted menu sizes from settings, or fall back to defaults
         let input_settings = InputSettings::as_ref(ctx);
@@ -2865,8 +2801,7 @@ impl Input {
             enable_autosuggestions_setting: *editor_settings_handle
                 .as_ref(ctx)
                 .enable_autosuggestions,
-            latest_buffer_operations: Vec::new(),
-            deferred_remote_operations,
+            buffer_block_id,
             prompt_suggestions_banner_state: None,
             has_prompt_suggestion_banner,
             was_intelligent_autosuggestion_accepted: false,
@@ -8584,18 +8519,6 @@ impl Input {
             EditorEvent::EmacsBindingUsed => {
                 ctx.emit(Event::EmacsBindingUsed);
             }
-            EditorEvent::UpdatePeers { operations } => {
-                self.latest_buffer_operations.extend(operations.to_vec());
-
-                // TODO (suraj): we might want to push down the buffer ID to the buffer
-                // and have it returned as part of the event. That way, we aren't subject
-                // to any skew of the block ID from the time the event is emitted (when the edit
-                // is processed) to the time when we query the block ID (now).
-                ctx.emit(Event::EditorUpdated {
-                    block_id: self.model.lock().block_list().active_block_id().clone(),
-                    operations: operations.clone(),
-                })
-            }
             EditorEvent::MiddleClickPaste => {
                 ctx.emit(Event::InputFocusedFromMiddleClick);
             }
@@ -11441,55 +11364,6 @@ impl Input {
         true
     }
 
-    /// Returns the operations for any edits made to the latest buffer.
-    pub fn latest_buffer_operations(&self) -> impl Iterator<Item = &CrdtOperation> {
-        self.latest_buffer_operations.iter()
-    }
-
-    /// Applies the `operations` if the block ID of this buffer
-    /// is equal to `block_id`. Otherwise, queues up these operations
-    /// to be processed eventually when the block IDs are equal.
-    pub fn process_remote_edits(
-        &mut self,
-        block_id: &BlockId,
-        operations: Vec<CrdtOperation>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // We check the `block_id` against the cached latest block ID
-        // rather than the latest terminal model state because the terminal
-        // model can be updated off of the main thread. This can cause
-        // scenarios where the terminal model has a new active block ID but
-        // we haven't processed block completed events yet.
-        //
-        // Although we're checking against a potentially old block ID here,
-        // we'll flush the right ops when we handle the block completed events.
-        if block_id == &self.deferred_remote_operations.latest_block_id {
-            self.editor.update(ctx, |editor, ctx| {
-                editor.apply_remote_operations(operations, ctx);
-            });
-        } else {
-            self.deferred_remote_operations
-                .defer(block_id.clone(), operations);
-        }
-    }
-
-    /// Updates the latest block ID to be equal to the latest block ID known to the terminal model
-    /// and flushes any previously-deferred operations for this new block ID.
-    pub fn refresh_deferred_remote_operations(&mut self, ctx: &mut ViewContext<Self>) {
-        let latest_block_id = self.model.lock().block_list().active_block_id().clone();
-        self.deferred_remote_operations.latest_block_id = latest_block_id;
-        self.flush_deferred_remote_operations(ctx);
-    }
-
-    /// Flushes any deferred remote operations for the latest known block ID.
-    fn flush_deferred_remote_operations(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(operations) = self.deferred_remote_operations.flush() {
-            self.editor.update(ctx, |editor, ctx| {
-                editor.apply_remote_operations(operations, ctx);
-            });
-        }
-    }
-
     /// Resets state in the input box that depends on the block lifecycle.
     /// This is on a performance-sensitive path.
     ///
@@ -11515,11 +11389,10 @@ impl Input {
             if should_clear_buffer {
                 // We want to reinitialize the buffer whenever a command is completed so that
                 // state does not leak from buffer to buffer (e.g. edit history).
-                if self.deferred_remote_operations.latest_block_id != latest_block_id {
-                    self.deferred_remote_operations.latest_block_id = latest_block_id;
+                if self.buffer_block_id != latest_block_id {
+                    self.buffer_block_id = latest_block_id;
                     self.editor
                         .update(ctx, |editor, ctx| editor.reinitialize_buffer(None, ctx));
-                    self.latest_buffer_operations = Vec::new();
 
                     // If we have a pending input restore (from a prompt chip command like cd),
                     // restore the input contents instead of leaving the buffer empty.
@@ -11544,9 +11417,7 @@ impl Input {
                 }
             } else {
                 // For agent-executed commands, still update the latest block ID but don't clear the buffer
-                if self.deferred_remote_operations.latest_block_id != latest_block_id {
-                    self.deferred_remote_operations.latest_block_id = latest_block_id;
-                }
+                self.buffer_block_id = latest_block_id;
             }
 
             // Update the segmented control disabled state based on the new state.
@@ -11605,9 +11476,9 @@ impl Input {
         {
             // When a bootstrap block is completed and the session is now
             // post-bootstrap, post-precmd, we know that the active block ID
-            // is the block ID that we want to key input updates off of
+            // is the block ID that we want to key the input buffer off of
             // (the block IDs during bootstrap are meaningless).
-            self.refresh_deferred_remote_operations(ctx);
+            self.buffer_block_id = self.model.lock().block_list().active_block_id().clone();
 
             // If the user typed ahead during bootstrap, the autosuggestion and
             // completions-as-you-type requests were silently skipped (history

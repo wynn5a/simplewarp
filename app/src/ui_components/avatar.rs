@@ -175,17 +175,6 @@ impl Avatar {
         }
     }
 
-    pub fn with_status_element(
-        mut self,
-        status_element_type: StatusElementTypes,
-        status_styles: UiComponentStyles,
-    ) -> Self {
-        self.status_element_type = Some(status_element_type);
-        self.status_styles = Some(status_styles);
-        self.status_offset = None;
-        self
-    }
-
     pub fn with_status_element_with_offset(
         mut self,
         status_element_type: StatusElementTypes,
