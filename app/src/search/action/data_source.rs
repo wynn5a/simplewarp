@@ -212,10 +212,10 @@ mod full_text_searcher {
                 return Ok(self
                     .all_bindings
                     .values()
-                    .filter_map(|binding| {
+                    .map(|binding| {
                         let matched_binding =
                             MatchedBinding::new(FuzzyMatchResult::no_match(), binding.clone());
-                        Some(QueryResult::from(matched_binding))
+                        QueryResult::from(matched_binding)
                     })
                     .collect());
             }

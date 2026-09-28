@@ -6682,10 +6682,11 @@ impl Workspace {
             });
         }
 
-        if let NotebookSource::Existing(notebook_id) = source {
-            if !notebook_already_open && !default_to_new_pane {
-                self.add_tab_for_cloud_notebook(*notebook_id, ctx);
-            }
+        if let NotebookSource::Existing(notebook_id) = source
+            && !notebook_already_open
+            && !default_to_new_pane
+        {
+            self.add_tab_for_cloud_notebook(*notebook_id, ctx);
         }
     }
 

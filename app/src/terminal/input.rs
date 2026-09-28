@@ -10632,7 +10632,6 @@ impl Input {
                     });
                 }
             });
-            return;
         } else if self
             .suggestions_mode_model
             .as_ref(ctx)
@@ -10640,19 +10639,15 @@ impl Input {
         {
             self.inline_conversation_menu_view
                 .update(ctx, |view, ctx| view.accept_selected_item(ctx));
-            return;
         } else if self.suggestions_mode_model.as_ref(ctx).is_skill_menu() {
             self.inline_skill_selector_view
                 .update(ctx, |view, ctx| view.accept_selected_item(ctx));
-            return;
         } else if self.suggestions_mode_model.as_ref(ctx).is_user_query_menu() {
             self.user_query_menu_view
                 .update(ctx, |view, ctx| view.accept_selected_item(false, ctx));
-            return;
         } else if self.suggestions_mode_model.as_ref(ctx).is_rewind_menu() {
             self.rewind_menu_view
                 .update(ctx, |view, ctx| view.accept_selected_item(ctx));
-            return;
         } else if self
             .suggestions_mode_model
             .as_ref(ctx)
@@ -10667,20 +10662,16 @@ impl Input {
         {
             self.inline_history_menu_view
                 .update(ctx, |view, ctx| view.accept_selected_item(ctx));
-            return;
         } else if self.suggestions_mode_model.as_ref(ctx).is_repos_menu() {
             self.inline_repos_menu_view
                 .update(ctx, |view, ctx| view.accept_selected_item(false, ctx));
-            return;
         } else if self.suggestions_mode_model.as_ref(ctx).is_plan_menu() {
             self.inline_plan_menu_view
                 .update(ctx, |view, ctx| view.accept_selected_item(ctx));
-            return;
         } else if self.suggestions_mode_model.as_ref(ctx).is_slash_commands() {
             self.inline_slash_commands_view.update(ctx, |view, ctx| {
                 view.accept_selected_item(false, ctx);
             });
-            return;
         } else if self
             .queued_prompts_panel
             .as_ref()
@@ -10703,11 +10694,9 @@ impl Input {
             {
                 self.send_queued_row_immediately(conversation_id, query_id, text, is_command, ctx);
             }
-            return;
         } else if self.maybe_queue_input_for_in_progress_conversation(ctx)
             || self.maybe_handle_enter_for_slash_command(ctx)
         {
-            return;
         } else if matches!(
             self.suggestions_mode_model.as_ref(ctx).mode(),
             InputSuggestionsMode::CompletionSuggestions { .. }
