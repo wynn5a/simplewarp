@@ -3571,10 +3571,7 @@ impl AppContext {
             self.dispatch_self_or_child_interacted_with(window_id, &responder_chain);
         }
 
-        crate::windowing::EventDispatchResult {
-            handled,
-            soft_keyboard_requested: result.soft_keyboard_requested,
-        }
+        crate::windowing::EventDispatchResult { handled }
     }
 
     /// Schedules an asynchronous task for each delayed notify. Removes any existing notify jobs that've been cancelled.
@@ -3915,7 +3912,6 @@ impl AppContext {
 
         crate::windowing::EventDispatchResult {
             handled: dispatch_result.handled,
-            soft_keyboard_requested: dispatch_result.soft_keyboard_requested,
         }
     }
 

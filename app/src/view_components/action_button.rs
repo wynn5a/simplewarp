@@ -371,7 +371,6 @@ impl ActionButton {
         self
     }
 
-    // TODO: Remove when we have use cases for with_height outside find bar (not compiled for WASM)
     #[allow(dead_code)]
     // TODO(varoon): If the total width of child elements exceeds the button width, layout issues can occur. Fix this in a follow-on PR.
     // When using this API, ensure the width is large enough to accommodate all child elements with some buffer.
@@ -387,7 +386,6 @@ impl ActionButton {
         self
     }
 
-    // TODO: Remove when we have use cases for with_height outside find bar (not compiled for WASM)
     #[allow(dead_code)]
     pub fn with_height(mut self, height: f32) -> Self {
         self.custom_height = Some(height);

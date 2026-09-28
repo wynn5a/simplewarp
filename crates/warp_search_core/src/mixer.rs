@@ -506,8 +506,7 @@ pub trait SyncDataSource: 'static {
 }
 
 /// A trait representing a set of data that can be queried for search results asynchronously.
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[async_trait]
 pub trait AsyncDataSource: 'static + Send + Sync {
     /// The action that is dispatched when a result produced by this data source is
     /// accepted.

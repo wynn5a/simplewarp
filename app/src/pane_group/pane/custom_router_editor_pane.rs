@@ -1,10 +1,7 @@
 use warpui::{AppContext, ModelHandle, View, ViewContext, ViewHandle};
 
 use super::view::PaneView;
-use super::{
-    DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, ShareableLink,
-    ShareableLinkError,
-};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 use crate::ai::custom_model_router_editor::{CustomRouterEditorEvent, CustomRouterEditorView};
 use crate::ai::custom_model_routers::CustomModelRouter;
 use crate::app_state::LeafContents;
@@ -99,13 +96,6 @@ impl PaneContent for CustomRouterEditorPane {
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>) {
         self.custom_router_editor_view(ctx)
             .update(ctx, |view, ctx| view.focus(ctx));
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

@@ -9,8 +9,7 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity as _};
 use crate::ai::agent::{AIAgentActionId, SearchCodebaseResult};
 use crate::ai::blocklist::SessionContext;
 use crate::ai::outline::{OutlineStatus, RepoOutlines};
-#[cfg_attr(not(target_family = "wasm"), path = "remote_search/native.rs")]
-#[cfg_attr(target_family = "wasm", path = "remote_search/wasm.rs")]
+#[path = "remote_search/native.rs"]
 mod remote_search;
 
 #[derive(Debug)]

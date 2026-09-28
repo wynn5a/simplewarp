@@ -4,11 +4,8 @@ pub mod keyboard;
 pub mod menu;
 
 pub mod test;
-#[cfg(target_family = "wasm")]
-pub mod wasm;
 
 use std::any::Any;
-use std::collections::HashSet;
 use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
@@ -22,7 +19,6 @@ pub use file_picker::{
     FilePickerCallback, FilePickerConfiguration, FileType, SaveFilePickerCallback,
     SaveFilePickerConfiguration,
 };
-use lazy_static::lazy_static;
 use pathfinder_geometry::rect::{RectF, RectI};
 use pathfinder_geometry::vector::{Vector2F, Vector2I};
 use serde::{Deserialize, Serialize};
@@ -43,16 +39,6 @@ use crate::{
     AppContext, ApplicationBundleInfo, Clipboard, DisplayId, DisplayIdx, OptionalPlatformWindow,
     Scene, WindowId, geometry, rendering,
 };
-
-#[cfg(not(target_family = "wasm"))]
-lazy_static! {
-    pub static ref KEYS_TO_IGNORE: HashSet<Keystroke> = HashSet::new();
-}
-#[cfg(target_family = "wasm")]
-lazy_static! {
-    pub static ref KEYS_TO_IGNORE: HashSet<Keystroke> =
-        HashSet::from([Keystroke::parse("cmdorctrl-v").unwrap()]);
-}
 
 /// Type of the callback function that provides the result of requesting
 /// desktop notification permissions.
@@ -291,14 +277,7 @@ pub enum TerminationMode {
 }
 
 /// A trait for interacting with the main thread.
-#[cfg(not(target_family = "wasm"))]
 pub trait DispatchDelegate: 'static + Send + Sync {
-    fn is_main_thread(&self) -> bool;
-    fn run_on_main_thread(&self, task: Runnable);
-}
-
-#[cfg(target_family = "wasm")]
-pub trait DispatchDelegate: 'static {
     fn is_main_thread(&self) -> bool;
     fn run_on_main_thread(&self, task: Runnable);
 }
@@ -352,19 +331,16 @@ pub trait FontDB: 'static {
     fn load_from_bytes(&mut self, name: &str, bytes: Vec<Vec<u8>>) -> Result<FamilyId>;
 
     /// Loads a font from the system by family name.
-    #[cfg(not(target_family = "wasm"))]
     fn load_from_system(&mut self, font_family: &str) -> Result<FamilyId>;
 
     /// Returns a background task that produces the set of data the font DB
     /// needs to make all system fonts available to the application.
-    #[cfg(not(target_family = "wasm"))]
     fn load_all_system_fonts(
         &self,
     ) -> futures::future::BoxFuture<'static, Box<dyn LoadedSystemFonts>>;
 
     /// Processes the data produced by [`FontDB::load_all_system_fonts`],
     /// returning the list of system fonts that can be used by the application.
-    #[cfg(not(target_family = "wasm"))]
     fn process_loaded_system_fonts(
         &mut self,
         loaded_system_fonts: Box<dyn LoadedSystemFonts>,
@@ -654,9 +630,8 @@ pub enum Cursor {
     DragCopy,
 }
 
-/// The current operating system in which this library is running. If on the web, this reads the
-/// user agent to determine the backing OS, otherwise this is determined at compile time based on
-/// the value of `target_arch` (<https://doc.rust-lang.org/reference/conditional-compilation.html#target_arch>).
+/// The current operating system in which this library is running. This is determined at compile
+/// time based on the value of `target_arch` (<https://doc.rust-lang.org/reference/conditional-compilation.html#target_arch>).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum OperatingSystem {
     /// Any distribution of Linux.
@@ -673,9 +648,7 @@ pub enum OperatingSystem {
 impl OperatingSystem {
     pub fn get() -> Self {
         cfg_if::cfg_if! {
-            if #[cfg(target_family = "wasm")] {
-                wasm::current_platform()
-            } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
+            if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
                 OperatingSystem::Linux
             } else if #[cfg(target_os = "macos")] {
                 OperatingSystem::Mac

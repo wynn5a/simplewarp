@@ -1,24 +1,13 @@
-#[cfg(not(target_family = "wasm"))]
 use std::time::Duration;
 
 use tracing::subscriber;
 
-#[cfg(not(target_family = "wasm"))]
 mod cloud_agent_auth;
-#[cfg(not(target_family = "wasm"))]
 mod native;
 
-#[cfg(not(target_family = "wasm"))]
 const DEFAULT_EXPORT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub fn init() -> anyhow::Result<Initialization> {
-    #[cfg(target_family = "wasm")]
-    {
-        install_no_subscriber()?;
-        Ok(Initialization::default())
-    }
-
-    #[cfg(not(target_family = "wasm"))]
     native::init()
 }
 
@@ -32,18 +21,13 @@ fn install_no_subscriber() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg_attr(target_family = "wasm", derive(Default))]
 pub struct Initialization {
     initialization_warning: Option<anyhow::Error>,
-    #[cfg(not(target_family = "wasm"))]
     active_spans: Option<native::ActiveSpanRegistry>,
-    #[cfg(not(target_family = "wasm"))]
     provider: Option<opentelemetry_sdk::trace::SdkTracerProvider>,
-    #[cfg(not(target_family = "wasm"))]
     shutdown_timeout: std::time::Duration,
 }
 
-#[cfg(not(target_family = "wasm"))]
 impl Default for Initialization {
     fn default() -> Self {
         Self {
@@ -63,25 +47,18 @@ impl Initialization {
     }
 
     pub(crate) fn shutdown(&mut self) {
-        #[cfg(not(target_family = "wasm"))]
-        {
-            match (self.active_spans.take(), self.provider.take()) {
-                (Some(active_spans), Some(provider)) => {
-                    if let Err(err) = active_spans.shutdown(&provider, self.shutdown_timeout) {
-                        log::warn!(
-                            "Failed to shut down cloud-agent OpenTelemetry exporting: {err}"
-                        );
-                    }
+        match (self.active_spans.take(), self.provider.take()) {
+            (Some(active_spans), Some(provider)) => {
+                if let Err(err) = active_spans.shutdown(&provider, self.shutdown_timeout) {
+                    log::warn!("Failed to shut down cloud-agent OpenTelemetry exporting: {err}");
                 }
-                (None, Some(provider)) => {
-                    if let Err(err) = provider.shutdown_with_timeout(self.shutdown_timeout) {
-                        log::warn!(
-                            "Failed to shut down cloud-agent OpenTelemetry exporting: {err}"
-                        );
-                    }
-                }
-                (Some(_), None) | (None, None) => {}
             }
+            (None, Some(provider)) => {
+                if let Err(err) = provider.shutdown_with_timeout(self.shutdown_timeout) {
+                    log::warn!("Failed to shut down cloud-agent OpenTelemetry exporting: {err}");
+                }
+            }
+            (Some(_), None) | (None, None) => {}
         }
     }
 }

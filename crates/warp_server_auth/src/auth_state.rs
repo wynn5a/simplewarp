@@ -73,7 +73,6 @@ impl AuthState {
     }
 
     /// Creates and initializes auth state. There is no login: the state starts logged out.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn initialize(ctx: &AppContext) -> Self {
         Self::new(ctx)
     }

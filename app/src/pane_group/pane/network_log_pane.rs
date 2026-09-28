@@ -1,10 +1,7 @@
 use warpui::{AppContext, ModelHandle, SingletonEntity, View, ViewContext, ViewHandle};
 
 use super::view::PaneView;
-use super::{
-    DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, ShareableLink,
-    ShareableLinkError,
-};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 use crate::app_state::LeafContents;
 use crate::server::network_log_pane_manager::NetworkLogPaneManager;
 use crate::server::network_log_view::{NetworkLogView, NetworkLogViewEvent};
@@ -113,13 +110,6 @@ impl PaneContent for NetworkLogPane {
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>) {
         self.network_log_view(ctx)
             .update(ctx, |view, ctx| view.focus(ctx));
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

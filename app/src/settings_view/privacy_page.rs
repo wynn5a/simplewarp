@@ -7,7 +7,6 @@ use std::time::Duration;
 use pathfinder_geometry::vector::vec2f;
 use regex::Regex;
 use settings::Setting as _;
-use warp_core::context_flag::ContextFlag;
 use warp_core::ui::theme::WarpTheme;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::{report_error, report_if_error};
@@ -191,9 +190,7 @@ impl PrivacyPageView {
             Box::new(SecretRedactionWidget::default()),
             Box::new(CrashReportsWidget::default()),
         ];
-        if ContextFlag::NetworkLogConsole.is_enabled() {
-            widgets.push(Box::new(NetworkLogWidget::default()));
-        }
+        widgets.push(Box::new(NetworkLogWidget::default()));
         widgets.push(Box::new(PrivacyPolicyWidget::default()));
         PageType::new_uncategorized(widgets, Some("Privacy"))
     }

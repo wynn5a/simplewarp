@@ -1171,7 +1171,6 @@ version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "sha2 0.10.9",
  "syn 2.0.117",
  "warp_util",
 ]
@@ -1375,36 +1374,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "async-tungstenite"
-version = "0.28.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c348fb0b6d132c596eca3dcd941df48fb597aafcb07a738ec41c004b087dc99"
-dependencies = [
- "atomic-waker",
- "futures-core",
- "futures-io",
- "futures-task",
- "futures-util",
- "log",
- "pin-project-lite",
- "rustls-pki-types",
- "tokio",
- "tokio-rustls",
- "tungstenite",
-]
-
-[[package]]
-name = "async_io_stream"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6d7b9decdf35d8908a7e3ef02f64c5e9b1695e230154c0e8de3969142d9b94c"
-dependencies = [
- "futures",
- "pharos",
- "rustc_version",
 ]
 
 [[package]]
@@ -2082,15 +2051,6 @@ dependencies = [
 
 [[package]]
 name = "bit-set"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0700ddab506f33b20a03b13996eccd309a48e5ff77d0d95926aa0210fb4e95f1"
-dependencies = [
- "bit-vec 0.6.3",
-]
-
-[[package]]
-name = "bit-set"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08807e080ed7f9d5433fa9b275196cfc35414f66a0c79d864dc51a0d825231a3"
@@ -2106,12 +2066,6 @@ checksum = "09ec2f926cc3060f09db9ebc5b52823d85268d24bb917e472c0c4bea35780a7d"
 dependencies = [
  "bit-vec 0.9.1",
 ]
-
-[[package]]
-name = "bit-vec"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
 
 [[package]]
 name = "bit-vec"
@@ -3155,16 +3109,6 @@ dependencies = [
  "once_cell",
  "unicode-width 0.2.1",
  "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "console_error_panic_hook"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
-dependencies = [
- "cfg-if",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -4610,16 +4554,6 @@ dependencies = [
 
 [[package]]
 name = "fancy-regex"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b95f7c0680e4142284cf8b22c14a476e87d61b004a3a0861872b32ef7ead40a2"
-dependencies = [
- "bit-set 0.5.3",
- "regex",
-]
-
-[[package]]
-name = "fancy-regex"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72cf461f865c862bb7dc573f643dd6a2b6842f7c30b07882b56bd148cc2761b8"
@@ -5136,23 +5070,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f90f7dce0722e95104fcb095585910c0977252f286e354b5e3bd38902cd99988"
 
 [[package]]
-name = "futures-test-sink"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "445da5a2aa1d9f0e0df90f44d5a3b4701e95a9978b0ab4bea5d33d7fe1a0017a"
-dependencies = [
- "futures",
-]
-
-[[package]]
 name = "futures-timer"
 version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e64b03909df88034c26dc1547e8970b91f98bdb65165d6a4e9110d94263dbb2c"
-dependencies = [
- "gloo-timers 0.2.6",
- "send_wrapper 0.4.0",
-]
 
 [[package]]
 name = "futures-util"
@@ -5500,125 +5421,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gloo"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d15282ece24eaf4bd338d73ef580c6714c8615155c4190c781290ee3fa0fd372"
-dependencies = [
- "gloo-events",
- "gloo-file",
- "gloo-timers 0.3.0",
- "gloo-utils",
- "gloo-worker",
-]
-
-[[package]]
-name = "gloo-events"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27c26fb45f7c385ba980f5fa87ac677e363949e065a083722697ef1b2cc91e41"
-dependencies = [
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
-name = "gloo-file"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97563d71863fb2824b2e974e754a81d19c4a7ec47b09ced8a0e6656b6d54bd1f"
-dependencies = [
- "futures-channel",
- "gloo-events",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
-name = "gloo-storage"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbc8031e8c92758af912f9bc08fbbadd3c6f3cfcbf6b64cdf3d6a81f0139277a"
-dependencies = [
- "gloo-utils",
- "js-sys",
- "serde",
- "serde_json",
- "thiserror 1.0.63",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
-name = "gloo-timers"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b995a66bb87bebce9a0f4a95aed01daca4872c050bfcb21653361c03bc35e5c"
-dependencies = [
- "futures-channel",
- "futures-core",
- "js-sys",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "gloo-timers"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbb143cf96099802033e0d4f4963b19fd2e0b728bcf076cd9cf7f6634f092994"
-dependencies = [
- "futures-channel",
- "futures-core",
- "js-sys",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "gloo-utils"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b5555354113b18c547c1d3a98fbf7fb32a9ff4f6fa112ce823a21641a0ba3aa"
-dependencies = [
- "js-sys",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
-name = "gloo-worker"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "085f262d7604911c8150162529cefab3782e91adb20202e8658f7275d2aefe5d"
-dependencies = [
- "bincode",
- "futures",
- "gloo-utils",
- "gloo-worker-macros",
- "js-sys",
- "pinned",
- "serde",
- "thiserror 1.0.63",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "gloo-worker-macros"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "956caa58d4857bc9941749d55e4bd3000032d8212762586fa5705632967140e7"
-dependencies = [
- "proc-macro-crate 1.3.1",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "glow"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5671,25 +5473,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b47de2c5685b5bb3689d6b0977f38959f3d7d82d3556627cfebbfaa42eda05ea"
 dependencies = [
  "ordered_hashmap",
-]
-
-[[package]]
-name = "graphql-ws-client"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1aa2e818b9e62654f2039d524c92a19495fcc2b0139ffc0354956865b3c7e939"
-dependencies = [
- "async-channel",
- "futures-lite 2.6.1",
- "futures-sink",
- "futures-timer",
- "pharos",
- "pin-project",
- "serde",
- "serde_json",
- "thiserror 1.0.63",
- "tungstenite",
- "ws_stream_wasm",
 ]
 
 [[package]]
@@ -6052,12 +5835,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "http-range-header"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ce4ef31cda248bbdb6e6820603b82dfcd9e833db65a43e997a0ccec777d11fe"
-
-[[package]]
 name = "http_client"
 version = "0.0.0"
 dependencies = [
@@ -6068,7 +5845,6 @@ dependencies = [
  "bytes",
  "cfg-if",
  "futures",
- "gloo",
  "http 1.4.0",
  "log",
  "oauth2",
@@ -6085,7 +5861,6 @@ dependencies = [
  "tracing-subscriber",
  "warp_core",
  "warp_errors",
- "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -6574,9 +6349,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a5bbe824c507c5da5956355e86a746d82e0e1464f65d862cc5e71da70e94b2c"
 dependencies = [
  "cfg-if",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
@@ -6907,7 +6679,7 @@ dependencies = [
  "bytecount",
  "data-encoding",
  "email_address 0.2.9",
- "fancy-regex 0.17.0",
+ "fancy-regex",
  "fraction",
  "getrandom 0.3.4",
  "idna",
@@ -9327,16 +9099,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pharos"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9567389417feee6ce15dd6527a8a1ecac205ef62c2932bcf3d9f6fc5b78b414"
-dependencies = [
- "futures",
- "rustc_version",
-]
-
-[[package]]
 name = "phf"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9411,17 +9173,6 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
-
-[[package]]
-name = "pinned"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a829027bd95e54cfe13e3e258a1ae7b645960553fb82b75ff852c29688ee595b"
-dependencies = [
- "futures",
- "rustversion",
- "thiserror 1.0.63",
-]
 
 [[package]]
 name = "piper"
@@ -9668,16 +9419,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
 dependencies = [
  "elliptic-curve",
-]
-
-[[package]]
-name = "proc-macro-crate"
-version = "1.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
-dependencies = [
- "once_cell",
- "toml_edit 0.19.15",
 ]
 
 [[package]]
@@ -11282,18 +11023,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "836fa6a3e1e547f9a2c4040802ec865b5d85f4014efe00555d7090a3dcaa1090"
 
 [[package]]
-name = "send_wrapper"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f638d531eccd6e23b980caf34876660d38e265409d8e99b397ab71eb3612fad0"
-
-[[package]]
-name = "send_wrapper"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
-
-[[package]]
 name = "sentry"
 version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11463,17 +11192,6 @@ dependencies = [
  "base64 0.22.1",
  "hex",
  "serde",
-]
-
-[[package]]
-name = "serde-wasm-bindgen"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8302e169f0eddcc139c70f139d19d6467353af16f9fce27e8c30158036a1e16b"
-dependencies = [
- "js-sys",
- "serde",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -11672,20 +11390,6 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "serve-wasm"
-version = "0.1.0"
-dependencies = [
- "axum",
- "axum-extra",
- "clap",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -12377,7 +12081,6 @@ checksum = "874dcfa363995604333cf947ae9f751ca3af4522c60886774c4963943b4746b1"
 dependencies = [
  "bincode",
  "bitflags 1.3.2",
- "fancy-regex 0.11.0",
  "flate2",
  "fnv",
  "once_cell",
@@ -13099,17 +12802,6 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.19.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
-dependencies = [
- "indexmap 2.12.0",
- "toml_datetime 0.6.11",
- "winnow 0.5.17",
-]
-
-[[package]]
-name = "toml_edit"
 version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "396e4d48bbb2b7554c944bde63101b5ae446cff6ec4a24227428f15eb72ef338"
@@ -13197,12 +12889,7 @@ dependencies = [
  "http 1.4.0",
  "http-body 1.0.1",
  "http-body-util",
- "http-range-header",
- "httpdate",
  "iri-string",
- "mime",
- "mime_guess",
- "percent-encoding",
  "pin-project-lite",
  "tokio",
  "tokio-util",
@@ -13363,26 +13050,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 dependencies = [
  "core_maths",
-]
-
-[[package]]
-name = "tungstenite"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18e5b8366ee7a95b16d32197d0b2604b43a0be89dc5fac9f8e96ccafbaedda8a"
-dependencies = [
- "byteorder",
- "bytes",
- "data-encoding",
- "http 1.4.0",
- "httparse",
- "log",
- "rand 0.8.6",
- "rustls",
- "rustls-pki-types",
- "sha1 0.10.6",
- "thiserror 1.0.63",
- "utf-8",
 ]
 
 [[package]]
@@ -14015,7 +13682,6 @@ dependencies = [
  "command-signatures-v2",
  "computer_use",
  "concat-idents",
- "console_error_panic_hook",
  "content_inspector",
  "core-foundation 0.10.1",
  "counter",
@@ -14047,14 +13713,11 @@ dependencies = [
  "freedesktop-desktop-entry",
  "futures",
  "futures-lite 1.13.0",
- "futures-timer",
  "futures-util",
  "fuzzy_match",
  "gethostname",
- "getrandom 0.2.16",
  "getset",
  "git2",
- "gloo",
  "handlebars",
  "hex",
  "http 1.4.0",
@@ -14073,7 +13736,6 @@ dependencies = [
  "iso8601-duration",
  "itertools 0.14.0",
  "jemalloc_pprof",
- "js-sys",
  "jsonschema",
  "kmeans_colors",
  "languages",
@@ -14148,7 +13810,6 @@ dependencies = [
  "sentry-log",
  "serde",
  "serde-bytes-repr",
- "serde-wasm-bindgen",
  "serde_bytes",
  "serde_json",
  "serde_regex",
@@ -14229,14 +13890,10 @@ dependencies = [
  "warp_server_auth",
  "warp_terminal",
  "warp_util",
- "warp_web_event_bus",
  "warpui",
  "warpui_core",
  "warpui_extras",
- "wasm-bindgen",
  "watcher",
- "web-sys",
- "websocket",
  "wgpu",
  "windows 0.62.2",
  "windows-registry 0.2.0",
@@ -14430,7 +14087,6 @@ dependencies = [
  "warp_util",
  "warpui_core",
  "warpui_extras",
- "websocket",
 ]
 
 [[package]]
@@ -14499,7 +14155,6 @@ dependencies = [
  "reqwest",
  "sentry",
  "tokio",
- "websocket",
 ]
 
 [[package]]
@@ -14562,10 +14217,8 @@ dependencies = [
  "anyhow",
  "cfg-if",
  "chrono",
- "console_error_panic_hook",
  "dirs 6.0.0",
  "env_logger",
- "js-sys",
  "log",
  "log-panics",
  "sentry",
@@ -14573,9 +14226,6 @@ dependencies = [
  "tempfile",
  "warp_core",
  "warp_errors",
- "warp_web_event_bus",
- "wasm-bindgen",
- "web-sys",
  "zip 2.4.2",
 ]
 
@@ -14599,7 +14249,6 @@ dependencies = [
  "async-process",
  "command",
  "futures",
- "getrandom 0.2.16",
  "grep",
  "ignore",
  "instant",
@@ -14701,8 +14350,6 @@ dependencies = [
  "event-listener",
  "futures-lite 1.13.0",
  "futures-util",
- "gloo",
- "hex",
  "lazy_static",
  "log",
  "mime_guess",
@@ -14717,17 +14364,6 @@ dependencies = [
  "warp_errors",
  "warpui_core",
  "windows 0.62.2",
-]
-
-[[package]]
-name = "warp_web_event_bus"
-version = "0.0.0"
-dependencies = [
- "js-sys",
- "log",
- "serde",
- "serde-wasm-bindgen",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -14772,11 +14408,9 @@ dependencies = [
  "futures-timer",
  "futures-util",
  "global-hotkey",
- "gloo",
  "image",
  "instant",
  "itertools 0.14.0",
- "js-sys",
  "lazy_static",
  "libc",
  "libtest-mimic",
@@ -14818,9 +14452,6 @@ dependencies = [
  "warp_errors",
  "warpui",
  "warpui_core",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
  "wgpu",
  "windows 0.62.2",
  "windows-core 0.62.2",
@@ -14863,7 +14494,6 @@ dependencies = [
  "futures",
  "futures-lite 1.13.0",
  "futures-util",
- "gloo",
  "image",
  "infer",
  "instant",
@@ -14910,8 +14540,6 @@ dependencies = [
  "warp_errors",
  "warp_util",
  "warpui_core",
- "wasm-bindgen-futures",
- "woothee",
 ]
 
 [[package]]
@@ -14920,7 +14548,6 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "async-channel",
- "gloo-storage",
  "log",
  "objc2 0.6.3",
  "objc2-foundation 0.3.2",
@@ -15266,37 +14893,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "websocket"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-io",
- "async-net",
- "async-tungstenite",
- "base64 0.22.1",
- "cfg-if",
- "futures",
- "futures-test-sink",
- "futures-util",
- "graphql-ws-client",
- "http 1.4.0",
- "http-body-util",
- "hyper",
- "hyper-util",
- "itertools 0.14.0",
- "log",
- "percent-encoding",
- "pin-project",
- "rustls",
- "rustls-platform-verifier",
- "thiserror 2.0.17",
- "tokio",
- "tokio-rustls",
- "url",
- "ws_stream_wasm",
-]
-
-[[package]]
 name = "weezl"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -15369,7 +14965,6 @@ dependencies = [
  "thiserror 2.0.17",
  "wgpu-core-deps-apple",
  "wgpu-core-deps-emscripten",
- "wgpu-core-deps-wasm",
  "wgpu-core-deps-windows-linux-android",
  "wgpu-hal",
  "wgpu-naga-bridge",
@@ -15390,15 +14985,6 @@ name = "wgpu-core-deps-emscripten"
 version = "30.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85dcf2b2e5c2afb9eda64c570a87a4e570304bf39e52eddbaaf222d655b656ad"
-dependencies = [
- "wgpu-hal",
-]
-
-[[package]]
-name = "wgpu-core-deps-wasm"
-version = "30.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b6c13228950f36a56023976a6c4ee6714b27fb40e3d52a33f7d3bb6d109c0b1"
 dependencies = [
  "wgpu-hal",
 ]
@@ -16179,16 +15765,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "woothee"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "896174c6a4779d4d7d4523dd27aef7d46609eda2497e370f6c998325c6bf6971"
-dependencies = [
- "lazy_static",
- "regex",
-]
-
-[[package]]
 name = "write16"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16199,25 +15775,6 @@ name = "writeable"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
-
-[[package]]
-name = "ws_stream_wasm"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7999f5f4217fe3818726b66257a4475f71e74ffd190776ad053fa159e50737f5"
-dependencies = [
- "async_io_stream",
- "futures",
- "js-sys",
- "log",
- "pharos",
- "rustc_version",
- "send_wrapper 0.6.0",
- "thiserror 1.0.63",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
 
 [[package]]
 name = "wyz"

@@ -10,11 +10,7 @@ use crate::{WindowId, notification};
 
 #[cfg_attr(any(target_os = "linux", target_os = "freebsd"), path = "linux.rs")]
 #[cfg_attr(target_os = "windows", path = "windows.rs")]
-#[cfg_attr(target_family = "wasm", path = "wasm.rs")]
 mod imp;
-
-#[cfg(target_family = "wasm")]
-pub(super) use imp::request_notification_permissions;
 
 pub async fn send_notification(
     notification_info: NotificationInfo,

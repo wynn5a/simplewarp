@@ -19,9 +19,7 @@ use crate::ai::execution_profiles::{
     AIExecutionProfile, ActionPermission, AskUserQuestionPermission, ExecutionProfileId,
     WriteToPtyPermission,
 };
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::mcp::TemplatableMCPServerManager;
-use crate::ai::mcp::mcp_provider_from_file_path;
+use crate::ai::mcp::{TemplatableMCPServerManager, mcp_provider_from_file_path};
 use crate::settings::{
     AISettings, AgentModeCodingPermissionsType, AgentModeCommandExecutionPredicate,
 };
@@ -754,7 +752,6 @@ impl BlocklistAIPermissions {
         self.determine_write_permissions_from_active_profile(terminal_view_id, ctx)
     }
 
-    #[cfg(not(target_family = "wasm"))]
     pub fn can_call_mcp_tool(
         &self,
         server_id: Option<&uuid::Uuid>,
@@ -786,7 +783,6 @@ impl BlocklistAIPermissions {
     }
 
     /// Returns whether or not Agent Mode can automatically read the given MCP resource.
-    #[cfg(not(target_family = "wasm"))]
     pub fn can_read_mcp_resource(
         &self,
         server_id: Option<&uuid::Uuid>,
@@ -820,7 +816,6 @@ impl BlocklistAIPermissions {
 
     /// Checks whether the given MCP server (identified by its template UUID) is permitted
     /// to be used based on the current MCP permission setting and allowlist/denylist.
-    #[cfg(not(target_family = "wasm"))]
     fn can_use_mcp_server(
         &self,
         conversation_id: &AIConversationId,

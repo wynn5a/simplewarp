@@ -16,7 +16,6 @@ content_inspector = "0.2.4"
 pathdiff = "0.2.1"
 rand.workspace = true
 dirs.workspace = true
-hex.workspace = true
 lazy_static.workspace = true
 mime_guess.workspace = true
 regex.workspace = true
@@ -33,9 +32,6 @@ warp_errors.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true
-
-[target.'cfg(target_family = "wasm")'.dependencies]
-gloo.workspace = true
 
 [dev-dependencies]
 futures-lite.workspace = true

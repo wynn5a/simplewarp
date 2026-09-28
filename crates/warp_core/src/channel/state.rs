@@ -3,7 +3,6 @@ use std::collections::HashSet;
 
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
-use url::{Origin, Url};
 
 use super::Channel;
 use crate::AppId;
@@ -84,13 +83,6 @@ impl ChannelState {
         cfg!(debug_assertions) || matches!(Self::channel(), Channel::Local | Channel::Dev)
     }
 
-    pub fn uses_staging_server() -> bool {
-        let Ok(url) = Url::parse(Self::server_root_url().as_ref()) else {
-            return false;
-        };
-        url.host_str() == Some("staging.warp.dev")
-    }
-
     /// Returns the canonical identifier for the application.
     ///
     /// This should not be used for namespacing persisted data - such use cases
@@ -163,50 +155,6 @@ impl ChannelState {
             .clone()
     }
 
-    pub fn ws_server_url() -> Cow<'static, str> {
-        CHANNEL_STATE
-            .lock()
-            .config
-            .server_config
-            .rtc_server_url
-            .clone()
-    }
-
-    /// Returns the HTTP(S) root URL for the RTC server. Used for HTTP endpoints
-    /// served by warp-server-rtc (e.g. the agent event SSE stream).
-    ///
-    /// Derived from [`ws_server_url`] by rewriting the scheme (`wss`→`https`,
-    /// `ws`→`http`) and stripping the path. Falls back to [`server_root_url`]
-    /// when the WS URL cannot be parsed or uses an unexpected scheme — this
-    /// keeps override paths (e.g. `WARP_WS_SERVER_URL=...`) working without a
-    /// separate override for the HTTP variant.
-    pub fn rtc_http_url() -> Cow<'static, str> {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "test-util")] {
-                Cow::Owned(MOCK_SERVER_URL.clone())
-            } else {
-                match derive_http_origin_from_ws_url(&Self::ws_server_url()) {
-                    Some(origin) => Cow::Owned(origin),
-                    None => Self::server_root_url(),
-                }
-            }
-        }
-    }
-
-    pub fn session_sharing_server_url() -> Option<Cow<'static, str>> {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "test-util")] {
-                Some(Cow::Borrowed("fake_session_sharing_url"))
-            } else {
-                CHANNEL_STATE.lock().config.server_config.session_sharing_server_url.clone()
-            }
-        }
-    }
-
-    pub fn oz_root_url() -> Cow<'static, str> {
-        CHANNEL_STATE.lock().config.oz_config.oz_root_url.clone()
-    }
-
     pub fn server_root_url() -> Cow<'static, str> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "test-util")] {
@@ -226,13 +174,6 @@ impl ChannelState {
                 Self::server_root_url()
             }
         }
-    }
-
-    // Returns the origin url, with scheme, domain, and ports (if any)
-    pub fn server_root_domain() -> Origin {
-        Url::parse(&Self::server_root_url())
-            .expect("Server root URL should be valid")
-            .origin()
     }
 
     pub fn channel() -> Channel {
@@ -300,30 +241,6 @@ impl ChannelState {
         }
     }
 }
-
-/// Derives an HTTP(S) origin URL from a WebSocket URL by rewriting the scheme
-/// (`wss`→`https`, `ws`→`http`) and stripping the path, query, and fragment.
-/// Returns [`None`] when the input cannot be parsed as a URL or uses a scheme
-/// other than `ws` or `wss`.
-#[cfg(not(feature = "test-util"))]
-fn derive_http_origin_from_ws_url(ws_url: &str) -> Option<String> {
-    let url = Url::parse(ws_url).ok()?;
-    let http_scheme = match url.scheme() {
-        "wss" => "https",
-        "ws" => "http",
-        _ => return None,
-    };
-    let host = url.host_str()?;
-    let mut origin = format!("{http_scheme}://{host}");
-    if let Some(port) = url.port() {
-        origin.push_str(&format!(":{port}"));
-    }
-    Some(origin)
-}
-
-#[cfg(all(test, not(feature = "test-util")))]
-#[path = "state_tests.rs"]
-mod tests;
 
 fn app_id_from_bundle() -> Option<AppId> {
     // On macOS, attempt to determine the app ID from the containing bundle,

@@ -301,7 +301,6 @@ pub enum WorkspaceAction {
     ViewPrivacyPolicy,
     SendFeedback,
     /// Open the log directory in the system file explorer with the current log file selected.
-    #[cfg(not(target_family = "wasm"))]
     ViewLogs,
     ChangeCursor(Cursor),
     ToggleBlockSnackbar,
@@ -406,9 +405,6 @@ pub enum WorkspaceAction {
         position: Vector2F,
     },
     OpenLink(String),
-    /// On WASM, opens a given URL in the desktop Warp app (if installed) or redirects to download page.
-    #[cfg(target_family = "wasm")]
-    OpenLinkOnDesktop(url::Url),
     ReopenClosedSession,
     AddWindow,
     AddWindowWithShell {
@@ -548,9 +544,9 @@ pub enum WorkspaceAction {
     /// conversation isn't handoff-able (no synced server token, empty, or no
     /// active conversation at all).
     OpenLocalToCloudHandoffPane {
-        #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+        #[cfg(feature = "local_fs")]
         launch: Option<crate::ai::blocklist::handoff::PendingCloudLaunch>,
-        #[cfg(not(all(feature = "local_fs", not(target_family = "wasm"))))]
+        #[cfg(not(feature = "local_fs"))]
         launch: Option<()>,
         environment_id: Option<crate::server::ids::SyncId>,
     },
@@ -652,9 +648,6 @@ pub enum WorkspaceAction {
     OpenConversationTranscriptViewer {
         ambient_agent_task_id: Option<AmbientAgentTaskId>,
     },
-    /// Toggle the conversation transcript details panel (WASM-only).
-    #[cfg(target_family = "wasm")]
-    ToggleConversationTranscriptDetailsPanel,
     /// Open a full-window lightbox displaying the given images.
     OpenLightbox {
         images: Vec<lightbox::LightboxImage>,
@@ -712,7 +705,7 @@ pub enum WorkspaceAction {
         error_description: String,
     },
     /// Opens (or focuses) the in-app network log pane as a right-split of the
-    /// active pane group. Gated on `ContextFlag::NetworkLogConsole`.
+    /// active pane group.
     OpenNetworkLogPane,
     /// Opens or focuses a window scoped to the specified team.
     OpenNewWindowForTeam {
@@ -968,15 +961,12 @@ impl WorkspaceAction {
             | OpenNetworkLogPane
             | OpenNewWindowForTeam { .. }
             | ShowTeamSwitcherMenu => false,
-            #[cfg(target_family = "wasm")]
-            ToggleConversationTranscriptDetailsPanel => false,
             #[cfg(debug_assertions)]
             DebugResetAwsBedrockLoginBannerDismissed
             | OpenFeatureIntroModal
             | ResetFeatureIntroModalState
             | InstallOpenCodeWarpPlugin
             | UseLocalOpenCodeWarpPlugin => false,
-            #[cfg(not(target_family = "wasm"))]
             ViewLogs => false,
             #[cfg(target_os = "macos")]
             SampleProcess => false,
@@ -988,8 +978,6 @@ impl WorkspaceAction {
             FileDeleted { .. } => false, // File deletion doesn't change workspace state
             #[cfg(target_os = "linux")]
             DismissWaylandCrashRecoveryBannerAndOpenLink => false,
-            #[cfg(target_family = "wasm")]
-            OpenLinkOnDesktop(_) => false,
             // actions that are related to updating user settings or
             // managing some ui elements (like closing/opening modals)
             // that don't reflect on actual workspace and don't need to

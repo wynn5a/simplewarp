@@ -224,7 +224,6 @@ impl CommandOutput {
     }
 }
 
-#[cfg(not(target_family = "wasm"))]
 impl From<command::Output> for CommandOutput {
     fn from(other: command::Output) -> CommandOutput {
         let status = if other.status.success() {

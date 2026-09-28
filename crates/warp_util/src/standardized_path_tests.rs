@@ -69,11 +69,7 @@ fn from_local_canonicalized_nonexistent() {
 
 #[test]
 fn from_local_absolute_unchecked_accepts_absolute() {
-    // Regression: on wasm32-unknown-unknown, std's `Path::is_absolute()` returns
-    // false for a Unix-rooted path, which used to trip the debug assert here and
-    // panic in debug wasm builds. The guard now checks absoluteness via the
-    // encoding-aware `typed_path` path, so a genuinely-absolute path must be
-    // accepted (and not panic) on every target.
+    // A genuinely-absolute path must be accepted (and not trip the debug assert).
     #[cfg(unix)]
     let (input, expected) = (Path::new("/Users/david/src/warp"), "/Users/david/src/warp");
     #[cfg(windows)]

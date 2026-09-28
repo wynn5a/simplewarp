@@ -142,16 +142,11 @@ impl AssetCacheExt for AssetCache {
 
 /// Fetches a file from the given `url` to memory.
 async fn fetch_file_to_memory(url: Url) -> Result<Bytes, anyhow::Error> {
-    cfg_if::cfg_if! {
-        if #[cfg(target_family = "wasm")] {
-            let response = reqwest::get(url).await?;
-        } else {
-            // On non-web platforms, reqwest expects that it is operating within
-            // a Tokio-compatible runtime, so use async-compat to wrap the call
-            // so reqwest's expectations are met.
-            let response = async_compat::Compat::new(async move { reqwest::get(url).await }).await?;
-        }
-    }
+    // reqwest expects that it is operating within
+    // a Tokio-compatible runtime, so use async-compat to wrap the call
+    // so reqwest's expectations are met.
+    let response = async_compat::Compat::new(async move { reqwest::get(url).await }).await?;
+
     let content = response.error_for_status()?.bytes().await?;
     Ok(content)
 }
@@ -172,7 +167,6 @@ fn get_file_path_for_asset(url: &Url, cache_dir: &Path) -> PathBuf {
     cache_dir.join(filename)
 }
 
-#[cfg(not(target_family = "wasm"))]
 async fn persist_bytes(bytes: &Bytes, file: &Path) {
     use anyhow::Context;
     use async_fs::{OpenOptions, create_dir_all};
@@ -213,11 +207,6 @@ async fn persist_bytes(bytes: &Bytes, file: &Path) {
     if let Err(e) = file.flush().await.context("Error flushing file") {
         report_error!(e);
     };
-}
-
-#[cfg(target_family = "wasm")]
-async fn persist_bytes(_bytes: &Bytes, file: &Path) {
-    log::debug!("Cannot persist asset to {} on the web", file.display());
 }
 
 async fn fetch_file_and_persist_bytes(url: Url, file: Option<PathBuf>) -> Result<Bytes> {

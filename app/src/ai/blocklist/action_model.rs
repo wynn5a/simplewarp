@@ -15,7 +15,6 @@
 mod execute;
 mod preprocess;
 pub(crate) mod recording_controller;
-#[cfg(not(target_family = "wasm"))]
 pub(crate) mod recording_finalize;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
@@ -41,7 +40,6 @@ use self::execute::{
     BlocklistAIActionExecutor, BlocklistAIActionExecutorEvent, NotExecutedReason,
     RunningActionPhase, TryExecuteResult,
 };
-#[cfg(not(target_family = "wasm"))]
 use self::recording_finalize::{FinalizeReason, finalize_recording_for_conversation};
 use super::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
@@ -1020,27 +1018,24 @@ impl BlocklistAIActionModel {
         self.executor.update(ctx, |executor, ctx| {
             executor.cancel_all_running_async_actions_for_conversation(conversation_id, reason, ctx)
         });
-        #[cfg(not(target_family = "wasm"))]
-        {
-            // Cancelling a conversation kills the running ffmpeg process
-            // without uploading the partial recording, so pass
-            // `should_upload = false`.
-            if let Some(finalization) = finalize_recording_for_conversation(
-                conversation_id,
-                FinalizeReason::RunCancelled,
-                false,
-                ctx,
-            ) {
-                ctx.spawn(
-                    async move { finalization.resolve().await },
-                    |_model, (result, actual_reason), _ctx| {
-                        log::info!(
-                            "Recording finalization after conversation cancellation completed \
-                             (reason={actual_reason:?}): {result:?}"
-                        );
-                    },
-                );
-            }
+        // Cancelling a conversation kills the running ffmpeg process
+        // without uploading the partial recording, so pass
+        // `should_upload = false`.
+        if let Some(finalization) = finalize_recording_for_conversation(
+            conversation_id,
+            FinalizeReason::RunCancelled,
+            false,
+            ctx,
+        ) {
+            ctx.spawn(
+                async move { finalization.resolve().await },
+                |_model, (result, actual_reason), _ctx| {
+                    log::info!(
+                        "Recording finalization after conversation cancellation completed \
+                         (reason={actual_reason:?}): {result:?}"
+                    );
+                },
+            );
         }
 
         let Some(actions_to_cancel) = self.pending_actions.get_mut(&conversation_id) else {

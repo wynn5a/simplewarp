@@ -2,7 +2,6 @@ mod items;
 use std::collections::HashMap;
 
 pub use items::Items;
-use warp_core::context_flag::ContextFlag;
 use warp_core::features::FeatureFlag;
 use warpui::elements::{Container, Flex, MouseStateHandle, ParentElement, Shrinkable, Wrap};
 use warpui::{
@@ -80,9 +79,7 @@ impl ZeroState {
 
         valid_filters.extend([QueryFilter::Actions, QueryFilter::Sessions]);
 
-        if ContextFlag::LaunchConfigurations.is_enabled() {
-            valid_filters.push(QueryFilter::LaunchConfigurations);
-        }
+        valid_filters.push(QueryFilter::LaunchConfigurations);
 
         if AISettings::as_ref(app).is_any_ai_enabled(app) {
             valid_filters.push(QueryFilter::Conversations);

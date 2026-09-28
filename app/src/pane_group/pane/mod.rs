@@ -19,7 +19,6 @@ pub(super) mod execution_profile_editor_pane;
 pub(super) mod file_pane;
 pub(super) mod get_started_pane;
 pub(super) mod get_started_view;
-#[cfg(not(target_family = "wasm"))]
 pub(super) mod local_harness_launch;
 pub(super) mod network_log_pane;
 pub(super) mod notebook_pane;
@@ -32,7 +31,6 @@ use std::any::Any;
 use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
-use url::Url;
 use warpui::elements::{DispatchEventResult, EventHandler, MouseInBehavior};
 use warpui::presenter::ChildView;
 use warpui::{
@@ -517,22 +515,6 @@ pub enum DetachType {
     Moved,
 }
 
-pub enum ShareableLink {
-    /// The base app url should be used for the browser url bar
-    Base,
-    /// The url for the active pane to use for the browser url bar
-    Pane { url: Url },
-}
-
-#[derive(Debug)]
-pub enum ShareableLinkError {
-    /// An expected error occurred when attempting to get the shareable link of the active pane.
-    /// For example the pane is not yet in a state where it has a shareable link but will soon.
-    Expected,
-    /// An unexpected error while trying to get the shareable link of the active pane.
-    Unexpected(String),
-}
-
 /// The contents of a leaf pane.
 ///
 /// The [`PaneData`] tree references panes by their [`PaneId`], while the [`PaneGroup`] view owns
@@ -593,16 +575,6 @@ pub trait PaneContent: 'static {
 
     /// Focus this pane's contents.
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>);
-
-    /// Get the shareable link for the pane.
-    ///
-    /// This is called when the focused pane changes. It is used to get the link to the
-    /// for the active pane (if there is one). This link is used to update the browser's
-    /// url bar.
-    fn shareable_link(
-        &self,
-        ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError>;
 
     /// Pane-agnostic state that all panes have.
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration>;

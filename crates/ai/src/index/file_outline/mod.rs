@@ -1,18 +1,11 @@
-#![cfg_attr(target_arch = "wasm32", allow(dead_code))]
-
-cfg_if::cfg_if! {
-    if #[cfg(not(target_arch = "wasm32"))] {
-        mod native;
-        pub use native::build_outline;
-    }
-}
-
+mod native;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use ignore::gitignore::Gitignore;
 use itertools::Itertools;
+pub use native::build_outline;
 use serde::{Deserialize, Serialize};
 
 use crate::index::{Entry, FileId};

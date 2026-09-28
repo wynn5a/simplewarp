@@ -6,14 +6,10 @@
 //!
 //! This is intended to initially be used to support communication between the Warp app and
 //! third-party plugins running in a separate "plugin host" process, but is designed generically to
-//! be extended to other use cases (such as the terminal server).  Where possible,
-//! transport-specific details are abstracted out to eventually support the same protocol on top of
-//! the WebWorkers `MessagePort` API in the browser for Warp on Web.
+//! be extended to other use cases (such as the terminal server).
 //!
-//! On native platforms, this is implemented on top of the `interprocess` crate, which uses
-//! Unix Domain Sockets on Unix platforms and named pipes on Windows as the underlying transport.
-//!
-//! WASM (wasm32-unknown-unknown) is currently unsupported.
+//! This is implemented on top of the `interprocess` crate, which uses Unix Domain Sockets on Unix
+//! platforms and named pipes on Windows as the underlying transport.
 //!
 //!
 //! Basic usage is like so:
@@ -44,11 +40,8 @@ mod protocol;
 mod server;
 mod service;
 
-// Platform-specific implementations of the underlying transport for both server and client.  For
-// native platforms, this uses the `interprocess` crate. On wasm, we plan to use the WebWorkers
-// MessagePort API, but this is not yet implemented.
-#[cfg_attr(not(target_family = "wasm"), path = "native.rs")]
-#[cfg_attr(target_family = "wasm", path = "wasm.rs")]
+// The underlying transport for both server and client, built on the `interprocess` crate.
+#[path = "native.rs"]
 mod platform;
 
 pub use client::{Client, ClientError};

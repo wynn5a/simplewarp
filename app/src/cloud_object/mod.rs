@@ -347,8 +347,7 @@ pub trait CloudObject: Debug {
 ///
 /// When building new model types (e.g. for settings or launch configs) we should just
 /// have to implement this trait, and not the entire CloudObject trait.
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[async_trait]
 pub trait CloudModelType: Debug + Clone + Send + Sync {
     /// The associated CloudObject type for this model (e.g. CloudNotebook, CloudWorkflow, etc)
     type CloudObjectType: CloudObject + 'static;
@@ -651,7 +650,6 @@ pub trait CloudObjectMetadataExt {
     fn semantic_editing_history(&self, app: &AppContext) -> Option<String>;
 
     /// Returns a semantic summary of the object's creator. For example, "Alice" or "joan@warp.dev".
-    #[cfg_attr(target_family = "wasm", expect(dead_code))]
     fn semantic_creator(&self, app: &AppContext) -> Option<String>;
 }
 

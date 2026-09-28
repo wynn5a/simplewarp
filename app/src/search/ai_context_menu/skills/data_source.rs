@@ -7,7 +7,6 @@ use crate::ai::skills::SkillManager;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::{DataSourceRunErrorWrapper, SyncDataSource};
-#[cfg(not(target_family = "wasm"))]
 use crate::workspace::ActiveSession;
 
 const MAX_RESULTS: usize = 50;
@@ -31,7 +30,6 @@ impl SyncDataSource for SkillsDataSource {
         let query_text = &query.text;
 
         // Resolve the current working directory from the active window's session.
-        #[cfg(not(target_family = "wasm"))]
         let cwd: Option<LocalOrRemotePath> = app
             .windows()
             .state()
@@ -41,8 +39,6 @@ impl SyncDataSource for SkillsDataSource {
                 active_session.working_directory(window_id).cloned()
             })
             .unwrap_or(None);
-        #[cfg(target_family = "wasm")]
-        let cwd: Option<LocalOrRemotePath> = None;
         let skills = SkillManager::as_ref(app).get_skills_for_working_directory(cwd.as_ref(), app);
 
         let mut results: Vec<QueryResult<Self::Action>> = if query_text.is_empty() {

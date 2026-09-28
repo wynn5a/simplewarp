@@ -14,7 +14,6 @@ use warp_cli::share::ShareRequest;
 use warp_cli::{CliCommand, GlobalOptions};
 use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
-#[cfg(not(target_family = "wasm"))]
 use warp_logging::log_file_path;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelSpawner, SingletonEntity};
@@ -38,8 +37,6 @@ use crate::workflows::workflow::Workflow;
 mod common;
 mod config_file;
 pub(crate) mod driver;
-#[cfg(not(target_family = "wasm"))]
-#[cfg(not(target_family = "wasm"))]
 mod mcp;
 mod mcp_config;
 mod model;
@@ -547,7 +544,6 @@ fn report_fatal_error(err: anyhow::Error, ctx: &mut AppContext) {
 
     tracing::event!(tracing::Level::ERROR, tags.cloud_agent = true, message);
 
-    #[cfg(not(target_family = "wasm"))]
     {
         if let Ok(path) = log_file_path() {
             let _ = write!(

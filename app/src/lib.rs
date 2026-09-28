@@ -30,8 +30,6 @@ mod dynamic_libraries;
 mod env_vars;
 mod experiments;
 mod external_secrets;
-#[cfg(target_family = "wasm")]
-mod font_fallback;
 mod global_resource_handles;
 mod gpu_state;
 mod input_classifier;
@@ -80,8 +78,6 @@ mod view_components;
 mod vim_registers;
 mod voltron;
 mod warp_managed_paths_watcher;
-#[cfg(target_family = "wasm")]
-mod wasm_nux_dialog;
 mod window_settings;
 mod workspaces;
 
@@ -142,7 +138,7 @@ use settings::import::model::ImportedConfigModel;
 use settings_view::pane_manager::SettingsPaneManager;
 use terminal::general_settings::GeneralSettings;
 use terminal::keys_settings::KeysSettings;
-#[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
+#[cfg(feature = "local_tty")]
 use terminal::local_shell::LocalShellState;
 pub use util::bindings::cmd_or_ctrl_shift;
 use warp_cli::agent::AgentCommand;
@@ -151,9 +147,7 @@ use warp_cli::{CliCommand, GlobalOptions};
 use watcher::HomeDirectoryWatcher;
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
-#[cfg(not(target_family = "wasm"))]
 use crate::ai::aws_credentials::AwsCredentialRefresher as _;
-#[cfg(not(target_family = "wasm"))]
 use crate::ai::geap_credentials::GeapCredentialRefresher as _;
 use crate::ai::mcp::{FileBasedMCPManager, FileMCPWatcher};
 pub mod workflows;
@@ -214,7 +208,6 @@ use crate::ai::mcp::{MCPGalleryManager, TemplatableMCPServerManager};
 use crate::ai::outline::RepoOutlines;
 use crate::ai::restored_conversations::RestoredAgentConversations;
 use crate::ai::skills::SkillManager;
-#[cfg(not(target_family = "wasm"))]
 use crate::antivirus::AntivirusInfo;
 use crate::app_state::AppState;
 use crate::cloud_object::export::ExportManager;
@@ -378,7 +371,6 @@ impl LaunchMode {
     /// (`crates/http_server`), which serves app-installation detection and profiling on a
     /// fixed port. Only non-headless GUI instances start it, since co-located headless
     /// processes (CLI) would otherwise contend for the fixed port.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     fn should_start_local_http_server(&self) -> bool {
         !self.is_headless()
     }
@@ -579,7 +571,6 @@ fn run_worker_command(worker: &warp_cli::WorkerCommand) -> Result<()> {
                 }
             }
         }
-        #[cfg(not(target_family = "wasm"))]
         warp_cli::WorkerCommand::RipgrepSearch {
             parent,
             ignore_case,
@@ -596,16 +587,6 @@ fn run_worker_command(worker: &warp_cli::WorkerCommand) -> Result<()> {
             )
             .map_err(|err| anyhow!(err.to_string()))?;
             Ok(())
-        }
-        #[cfg(not(any(
-            feature = "local_tty",
-            feature = "plugin_host",
-            not(target_family = "wasm")
-        )))]
-        worker => {
-            // On wasm, specifically, we should fail spectacularly if we get here.
-            #[cfg(target_family = "wasm")]
-            panic!("Worker process not supported on WASM: {worker:?}")
         }
     }
 }
@@ -705,17 +686,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     // any children we spawn (like the terminal server) inherit our adjusted
     // rlimits.
     resource_limits::adjust_resource_limits();
-
-    // For wasm builds we have this special case to parse out the intent
-    // from the url that is used to visite the app on web.
-    #[cfg(target_family = "wasm")]
-    {
-        use uri::web_intent_parser;
-        if let Some(intent) = web_intent_parser::parse_web_intent_from_current_url() {
-            launch_mode.add_url(intent);
-        }
-        web_intent_parser::set_context_flags_from_current_url();
-    }
 
     // Collect errors that occur in run_internal() before the Sentry client is initialized,
     // so they can be replayed to Sentry once it's ready.
@@ -911,7 +881,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     );
 
     app_builder.run(move |ctx| {
-        #[cfg(not(target_family = "wasm"))]
         // Rotate the log files in the background.
         ctx.background_executor()
             .spawn(warp_logging::rotate_log_files())
@@ -1132,13 +1101,10 @@ pub(crate) fn initialize_app(
 
     // Initialize ApiKeyManager after UserWorkspaces so it can subscribe to workspace/settings changes
     ctx.add_singleton_model(|ctx| {
-        #[cfg_attr(target_family = "wasm", allow(unused_mut))]
         let mut manager = ::ai::api_keys::ApiKeyManager::new(ctx);
-        #[cfg(not(target_family = "wasm"))]
         manager.subscribe_to_settings_changes(ctx);
         // Gemini Enterprise (GEAP) credential refresh triggers: workspace
         // settings saves / team changes and the member's enablement toggle.
-        #[cfg(not(target_family = "wasm"))]
         if FeatureFlag::GeminiEnterprise.is_enabled() {
             manager.subscribe_to_geap_settings_changes(ctx);
         }
@@ -1250,27 +1216,24 @@ pub(crate) fn initialize_app(
         })
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    {
-        ctx.add_singleton_model(DirectoryWatcher::new);
-        // Register the skill provider directories as force-included paths so
-        // the gitignore-pruning watch descend filter still watches gitignored
-        // skill directories (e.g. `.agents/skills`) for `Repository`
-        // subscribers (LSP, MCP). Registered before any repository begins
-        // watching so it gates descent on the very first registration.
-        DirectoryWatcher::handle(ctx).update(ctx, |watcher, _| {
-            watcher.register_force_included_paths(
-                ::ai::skills::SKILL_PROVIDER_DEFINITIONS
-                    .iter()
-                    .map(|provider| provider.skills_path.clone()),
-            );
-        });
-        ctx.add_singleton_model(|_| DetectedRepositories::default());
-        if let Some(home_dir) = dirs::home_dir() {
-            ctx.add_singleton_model(|ctx| HomeDirectoryWatcher::new(home_dir, ctx));
-        } else {
-            log::info!("Home directory not found; skipping HomeDirectoryWatcher registration");
-        }
+    ctx.add_singleton_model(DirectoryWatcher::new);
+    // Register the skill provider directories as force-included paths so
+    // the gitignore-pruning watch descend filter still watches gitignored
+    // skill directories (e.g. `.agents/skills`) for `Repository`
+    // subscribers (LSP, MCP). Registered before any repository begins
+    // watching so it gates descent on the very first registration.
+    DirectoryWatcher::handle(ctx).update(ctx, |watcher, _| {
+        watcher.register_force_included_paths(
+            ::ai::skills::SKILL_PROVIDER_DEFINITIONS
+                .iter()
+                .map(|provider| provider.skills_path.clone()),
+        );
+    });
+    ctx.add_singleton_model(|_| DetectedRepositories::default());
+    if let Some(home_dir) = dirs::home_dir() {
+        ctx.add_singleton_model(|ctx| HomeDirectoryWatcher::new(home_dir, ctx));
+    } else {
+        log::info!("Home directory not found; skipping HomeDirectoryWatcher registration");
     }
 
     #[cfg(feature = "local_fs")]
@@ -1315,8 +1278,6 @@ pub(crate) fn initialize_app(
     // Register initial keybindings prior to creating menus
     ai::init(ctx);
     app_services::init(ctx);
-    // // TODO: Temporarily disabling keybindings for WASM builds. Will be implemented in future WASM support.
-    #[cfg(not(target_family = "wasm"))]
     code::editor::find::view::init(ctx);
     workspace::init(ctx);
     pane_group::init(ctx);
@@ -1511,7 +1472,7 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(TerminalKeybindings::new);
     ctx.add_singleton_model(|_| ActiveSession::default());
 
-    #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
+    #[cfg(feature = "local_tty")]
     {
         ctx.add_singleton_model(LocalShellState::new);
         ctx.add_singleton_model(system::SystemInfo::new);
@@ -1604,7 +1565,6 @@ pub(crate) fn initialize_app(
         aliases.connect(ctx);
     });
 
-    #[cfg(not(target_family = "wasm"))]
     if launch_mode.should_start_local_http_server() {
         ctx.add_singleton_model(move |ctx| {
             let routers = vec![
@@ -1985,10 +1945,6 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
         timer.mark_interval_end("KEYBINDINGS_LOADED");
     });
 
-    // For now, we only specify application-level fallback fonts on web.
-    #[cfg(target_family = "wasm")]
-    ctx.set_fallback_font_fn(font_fallback::fallback_font_fn);
-
     match launch_mode {
         LaunchMode::App { .. } | LaunchMode::Test { .. } => {
             // Attempt to restore windows from the persisted application state.
@@ -2025,22 +1981,17 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
                 maybe_register_app_as_login_item(ctx);
             }
         }
-        #[cfg_attr(target_family = "wasm", allow(unused_variables))]
         LaunchMode::CommandLine {
             command,
             global_options,
             ..
         } => {
-            cfg_if::cfg_if! {
-                if #[cfg(target_family = "wasm")] {
-                    panic!("Cannot execute CLI command {command:?} on the web");
-                } else {
-                    if let Err(err) = crate::ai::agent_sdk::run(ctx, command.clone(), global_options.clone()) {
-                        eprintln!("{err:#}");
-                        report_error!(err);
-                        std::process::exit(1);
-                    }
-                }
+            if let Err(err) =
+                crate::ai::agent_sdk::run(ctx, command.clone(), global_options.clone())
+            {
+                eprintln!("{err:#}");
+                report_error!(err);
+                std::process::exit(1);
             }
         }
     }

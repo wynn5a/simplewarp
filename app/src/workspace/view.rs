@@ -13,8 +13,6 @@ mod tab_grouping;
 #[path = "view_tests.rs"]
 pub(crate) mod tests;
 mod vertical_tabs;
-#[cfg(target_family = "wasm")]
-mod wasm_view;
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
@@ -50,9 +48,6 @@ use repo_metadata::repositories::DetectedRepositories;
 #[cfg(all(target_os = "macos", feature = "crash_reporting"))]
 use sentry::protocol::{Attachment, AttachmentType};
 use serde_json;
-#[cfg(target_family = "wasm")]
-use url::Url;
-use warp_core::context_flag::ContextFlag;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
 use warp_core::semantic_selection::SemanticSelection;
@@ -69,8 +64,6 @@ use warpui::accessibility::{
     AccessibilityContent, AccessibilityVerbosity, ActionAccessibilityContent, WarpA11yRole,
 };
 use warpui::clipboard::ClipboardContent;
-#[cfg(target_family = "wasm")]
-use warpui::elements::Percentage;
 use warpui::elements::{
     Align, Border, CacheOption, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container,
     CornerRadius, CrossAxisAlignment, Dismiss, DispatchEventResult, DragAxis, Draggable,
@@ -104,7 +97,7 @@ use self::vertical_tabs::{
     render_settings_popup, render_summary_pane_kind_icons, show_before_indicator,
     vtab_group_position_id,
 };
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+#[cfg(feature = "local_fs")]
 use super::action::AutoCloudHandoffTrigger;
 use super::action::{
     InitContent, NewSessionMenuAnchor, RestoreConversationLayout, TabContextMenuAnchor,
@@ -132,15 +125,13 @@ use super::{ActiveSession, TabBarDropTargetData, TabBarLocation, WorkspaceRegist
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::agent::{AIAgentInput, EntrypointType};
-#[cfg(target_family = "wasm")]
-use crate::ai::agent_conversations_model::AgentConversationsModelEvent;
 use crate::ai::agent_management::AgentManagementEvent;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+#[cfg(feature = "local_fs")]
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEditorMode;
 use crate::ai::blocklist::agent_view::editor::{AgentToolbarEditorEvent, AgentToolbarEditorModal};
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+#[cfg(feature = "local_fs")]
 use crate::ai::blocklist::handoff::{HandoffLaunchAttachments, PendingCloudLaunch};
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
 use crate::ai::blocklist::suggested_agent_mode_workflow_modal::{
@@ -154,8 +145,6 @@ use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, FORK_PREFIX, PendingAttachment, PendingQueryState, QueuedQueryOrigin,
     SerializedBlockListItem, SlashCommandRequest,
 };
-#[cfg(target_family = "wasm")]
-use crate::ai::conversation_details_panel::ConversationDetailsPanel;
 use crate::ai::conversation_utils;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel};
 use crate::ai::execution_profiles::ExecutionProfileId;
@@ -279,10 +268,8 @@ use crate::terminal::available_shells::AvailableShell;
 #[cfg(target_os = "windows")]
 use crate::terminal::available_shells::AvailableShells;
 use crate::terminal::block_list_viewport::InputMode;
-#[cfg(not(target_family = "wasm"))]
 use crate::terminal::cli_agent_sessions::{CLIAgentSessionsModel, CLIAgentSessionsModelEvent};
 use crate::terminal::general_settings::GeneralSettings;
-#[cfg(not(target_family = "wasm"))]
 use crate::terminal::input::{Input, MenuPositioning};
 use crate::terminal::keys_settings::KeysSettings;
 use crate::terminal::ligature_settings::should_use_ligature_rendering;
@@ -352,16 +339,12 @@ use crate::util::openable_file_type::{
 };
 use crate::util::traffic_lights::{TrafficLightMouseStates, TrafficLightSide, traffic_light_data};
 use crate::util::truncation::truncate_from_end;
-#[cfg(target_family = "wasm")]
-use crate::view_components::action_button::ActionButton;
 use crate::view_components::callout_bubble::{
     CalloutArrowDirection, CalloutArrowPosition, CalloutBubbleConfig, render_callout_bubble,
 };
 use crate::view_components::{
     AgentToast, AgentToastStack, DismissibleToast, DismissibleToastStack, ToastLink,
 };
-#[cfg(target_family = "wasm")]
-use crate::wasm_nux_dialog::WasmNUXDialog;
 use crate::window_settings::{WindowSettings, WindowSettingsChangedEvent, ZoomLevel};
 use crate::workflows::manager::{WorkflowManager, WorkflowOpenSource};
 use crate::workflows::workflow::Workflow;
@@ -398,13 +381,6 @@ use crate::workspace::{ForkFromExchange, ForkedConversationDestination};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{AgentNotificationsModel, BlocklistAIHistoryModel, GlobalResourceHandles, settings};
 
-/// The padding that should be applied to the workspace as a whole.
-///
-/// Zero on web: browsers that round the viewport's corners clip this padding into a stray
-/// line along the top and left edges, so we rely on the browser's own edge there instead.
-#[cfg(target_family = "wasm")]
-pub const WORKSPACE_PADDING: f32 = 0.0;
-#[cfg(not(target_family = "wasm"))]
 pub const WORKSPACE_PADDING: f32 = 1.0;
 
 /// The minimum font size at which terminal text will be rendered.
@@ -515,11 +491,6 @@ const KEYBINDINGS_TO_CACHE: [&str; 3] = [
 const WORKFLOW_AND_ENV_VAR_SPLIT_RATIO: f32 = 0.56;
 const NOTEBOOK_SMART_SPLIT_RATIO: f32 = 0.42;
 
-#[cfg(target_family = "wasm")]
-const MOBILE_OVERLAY_PANEL_WIDTH_RATIO: f32 = 0.9;
-#[cfg(target_family = "wasm")]
-const MOBILE_OVERLAY_SCRIM_ALPHA: u8 = 128;
-
 pub const NEW_TAB_BUTTON_POSITION_ID: &str = "new_tab_button";
 pub const NEW_SESSION_MENU_BUTTON_POSITION_ID: &str = "new_session_menu_button";
 
@@ -532,7 +503,7 @@ const MAX_FORK_TOAST_TITLE_LENGTH: usize = 100;
 // The max length of the window title (matching conversation title truncation).
 const MAX_WINDOW_TITLE_LENGTH: usize = 80;
 
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+#[cfg(feature = "local_fs")]
 const AUTO_CLOUD_HANDOFF_PROMPT: &str =
     "Continue this local Warp Agent task in the cloud from the current conversation state.";
 
@@ -606,7 +577,7 @@ pub struct TabPaneGroupIdentifiers {
     pub terminal_ids: Vec<EntityId>,
 }
 
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+#[cfg(feature = "local_fs")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LocalToCloudHandoffIntent {
     UserInitiated,
@@ -630,17 +601,6 @@ impl ShowTabBar {
     fn has_tab_bar(self) -> bool {
         matches!(self, ShowTabBar::Stacked)
     }
-}
-
-/// The type of content being displayed when the simplified WASM tab bar is shown.
-/// Used to determine which elements to render (e.g., icon, info button).
-#[cfg(target_family = "wasm")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SimplifiedWasmTabBarContent {
-    /// Viewing a Warp Drive object (notebook, workflow, env vars, AI facts, MCP servers)
-    WarpDriveObject,
-    /// Viewing a conversation transcript. Contains the optional ambient agent task ID.
-    ConversationTranscript { task_id: Option<AmbientAgentTaskId> },
 }
 
 type RemoteUploadId = (TerminalPaneId, FileUploadId);
@@ -880,21 +840,6 @@ pub struct Workspace {
     tab_bar_pinned_by_popup: bool,
     user_menu: ViewHandle<Menu<WorkspaceAction>>,
     native_modal: ViewHandle<NativeModal>,
-
-    // When user's open WEB for the first time, we ask them to select a preference of
-    // always opening in web or opening in native app.
-    #[cfg(target_family = "wasm")]
-    show_wasm_nux_dialog: bool,
-    #[cfg(target_family = "wasm")]
-    wasm_nux_dialog: ViewHandle<WasmNUXDialog>,
-    #[cfg(target_family = "wasm")]
-    open_in_warp_button: ViewHandle<ActionButton>,
-    #[cfg(target_family = "wasm")]
-    view_cloud_runs_button: ViewHandle<ActionButton>,
-    #[cfg(target_family = "wasm")]
-    transcript_info_button: ViewHandle<ActionButton>,
-    #[cfg(target_family = "wasm")]
-    transcript_details_panel: ViewHandle<ConversationDetailsPanel>,
 
     file_upload_sessions: FileUploadSessions,
     ai_fact_view: ViewHandle<AIFactView>,
@@ -2452,35 +2397,6 @@ impl Workspace {
         let update_toast_stack =
             ctx.add_typed_action_view(|_| DismissibleToastStack::new(Duration::from_secs(4)));
 
-        #[cfg(target_family = "wasm")]
-        let wasm_nux_dialog = Self::build_wasm_nux_dialog(ctx);
-
-        #[cfg(target_family = "wasm")]
-        let open_in_warp_button = Self::build_open_in_warp_button(ctx);
-
-        #[cfg(target_family = "wasm")]
-        let transcript_info_button = Self::build_transcript_info_button(ctx);
-
-        #[cfg(target_family = "wasm")]
-        let view_cloud_runs_button = Self::build_view_cloud_runs_button(ctx);
-
-        #[cfg(target_family = "wasm")]
-        let transcript_details_panel = Self::build_transcript_details_panel(ctx);
-
-        // Subscribe to task updates so the transcript details panel can refresh when task data arrives
-        #[cfg(target_family = "wasm")]
-        ctx.subscribe_to_model(
-            &AgentConversationsModel::handle(ctx),
-            |me, _, event, ctx| match event {
-                // Update transcript details when conversation data is updated
-                AgentConversationsModelEvent::ConversationUpdated { .. }
-                | AgentConversationsModelEvent::ConversationArtifactsUpdated => {
-                    me.update_transcript_details_panel_data(ctx);
-                }
-                _ => {}
-            },
-        );
-
         let update_manager = UpdateManager::handle(ctx);
         ctx.subscribe_to_model(&update_manager, |me, _handle, event, ctx| {
             me.handle_update_manager_event(event, ctx);
@@ -2627,18 +2543,6 @@ impl Workspace {
             right_panel_view,
             working_directories_model,
 
-            #[cfg(target_family = "wasm")]
-            show_wasm_nux_dialog: WasmNUXDialog::should_display(ctx),
-            #[cfg(target_family = "wasm")]
-            wasm_nux_dialog,
-            #[cfg(target_family = "wasm")]
-            open_in_warp_button,
-            #[cfg(target_family = "wasm")]
-            transcript_info_button,
-            #[cfg(target_family = "wasm")]
-            view_cloud_runs_button,
-            #[cfg(target_family = "wasm")]
-            transcript_details_panel,
             tab_fixed_width: None,
             feature_intro_modal: feature_intro_view,
             feature_intro_tab_pane_group_id: None,
@@ -2757,38 +2661,6 @@ impl Workspace {
         event: &BlocklistAIHistoryEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        #[cfg(target_family = "wasm")]
-        if self
-            .current_workspace_state
-            .is_transcript_details_panel_open
-        {
-            let focused_terminal_view_id = self
-                .active_tab_pane_group()
-                .as_ref(ctx)
-                .focused_session_view(ctx)
-                .map(|view| view.id());
-
-            let is_relevant_update = matches!(
-                event,
-                BlocklistAIHistoryEvent::SetActiveConversation { .. }
-                    | BlocklistAIHistoryEvent::UpdatedConversationTitle { .. }
-                    | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
-                    | BlocklistAIHistoryEvent::RestoredConversations { .. }
-                    | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
-                    | BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
-                    | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. }
-            );
-
-            if is_relevant_update
-                && event.terminal_surface_id().is_some_and(|event_id| {
-                    focused_terminal_view_id.is_some_and(|id| id == event_id)
-                })
-            {
-                self.update_transcript_details_panel_data(ctx);
-                ctx.notify();
-            }
-        }
-
         if matches!(
             event,
             BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
@@ -3333,23 +3205,18 @@ impl Workspace {
         shell: Option<AvailableShell>,
         ctx: &mut ViewContext<Self>,
     ) {
-        if ContextFlag::CreateNewSession.is_enabled() {
-            if self.should_trigger_get_started_onboarding(ctx) {
-                self.trigger_get_started_onboarding(ctx);
-            } else {
-                self.add_new_session_tab_with_default_mode(
-                    NewSessionSource::Window,
-                    previous_active_window,
-                    shell,
-                    None,  /* ai_conversation */
-                    false, /* hide_homepage */
-                    ctx,
-                );
-                self.check_and_trigger_onboarding(ctx);
-            }
+        if self.should_trigger_get_started_onboarding(ctx) {
+            self.trigger_get_started_onboarding(ctx);
         } else {
-            let home_pane = super::home::create_home_pane(ctx);
-            self.add_tab_from_existing_pane(home_pane, 0, None, ctx);
+            self.add_new_session_tab_with_default_mode(
+                NewSessionSource::Window,
+                previous_active_window,
+                shell,
+                None,  /* ai_conversation */
+                false, /* hide_homepage */
+                ctx,
+            );
+            self.check_and_trigger_onboarding(ctx);
         }
     }
 
@@ -3363,36 +3230,6 @@ impl Workspace {
                     .lock()
                     .is_conversation_transcript_viewer()
             })
-    }
-
-    /// Returns the type of simplified WASM tab bar content to display, if any.
-    /// Used to determine whether to show the simplified tab bar layout on WASM.
-    #[cfg(target_family = "wasm")]
-    fn get_simplified_wasm_tab_bar_content(
-        &self,
-        ctx: &AppContext,
-    ) -> Option<SimplifiedWasmTabBarContent> {
-        let pane_group = self.active_tab_pane_group().as_ref(ctx);
-
-        // Check if focused pane is a terminal with special state
-        if let Some(terminal_view) = pane_group.focused_session_view(ctx) {
-            let model = terminal_view.as_ref(ctx).model.lock();
-
-            // Conversation transcript viewer takes priority
-            if model.is_conversation_transcript_viewer() {
-                return Some(SimplifiedWasmTabBarContent::ConversationTranscript {
-                    task_id: model.ambient_agent_task_id(),
-                });
-            }
-        }
-
-        // Check if focused pane is a Warp Drive object
-        let focused_pane_id = pane_group.focused_pane_id(ctx);
-        if focused_pane_id.is_warp_drive_object_pane() {
-            return Some(SimplifiedWasmTabBarContent::WarpDriveObject);
-        }
-
-        None
     }
 
     fn dismiss_ai_assistant_warm_welcome(&mut self, ctx: &mut ViewContext<Self>) {
@@ -5146,7 +4983,6 @@ impl Workspace {
                     );
                 }
             },
-            #[cfg(not(target_family = "wasm"))]
             RightPanelEvent::OpenLspLogs { log_path } => {
                 self.open_lsp_logs(&log_path, ctx);
             }
@@ -5171,7 +5007,6 @@ impl Workspace {
         ctx.open_url(&links::feedback_form_url());
     }
 
-    #[cfg(not(target_family = "wasm"))]
     fn view_logs(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.spawn(
             async { tokio::task::spawn_blocking(warp_logging::create_log_bundle_zip).await },
@@ -7546,7 +7381,6 @@ impl Workspace {
 
     fn update_right_panel_open_state(
         &mut self,
-        #[cfg_attr(target_family = "wasm", allow(unused_variables))]
         panel_update_params: RightPanelUpdateParams,
         ctx: &mut ViewContext<Self>,
     ) {
@@ -7724,7 +7558,6 @@ impl Workspace {
                 .into_item(),
         ]);
 
-        #[cfg(not(target_family = "wasm"))]
         items.push(
             MenuItemFields::new("View Warp logs")
                 .with_on_select_action(WorkspaceAction::ViewLogs)
@@ -9625,9 +9458,7 @@ impl Workspace {
         // If this is the last tab, close the window instead of actually removing
         // the tab.
         if self.tabs.len() == 1 {
-            if ContextFlag::CloseWindow.is_enabled() {
-                ctx.close_window();
-            }
+            ctx.close_window();
             return;
         }
 
@@ -9760,13 +9591,10 @@ impl Workspace {
                     })
                     .build();
 
-                if cfg!(all(not(target_family = "wasm"), target_os = "macos")) {
+                if cfg!(target_os = "macos") {
                     AppContext::show_native_platform_modal(ctx, dialog);
                     return false;
-                } else if cfg!(all(
-                    not(target_family = "wasm"),
-                    any(target_os = "linux", windows)
-                )) {
+                } else if cfg!(any(target_os = "linux", windows)) {
                     self.show_native_modal(dialog, ctx);
                     return false;
                 }
@@ -9794,10 +9622,6 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         let is_last_tab = self.tabs.len() == 1;
-        if !ContextFlag::CloseWindow.is_enabled() && is_last_tab {
-            return;
-        }
-
         let closed_tab_id = self.tabs.get(index).map(|tab| tab.pane_group.id());
 
         let tabs_closed = self.close_tabs(
@@ -10037,7 +9861,7 @@ impl Workspace {
         }
         // Docker sandboxes are inherently local — sbx resolution and the
         // `AvailableShell::new_docker_sandbox_shell` constructor both require
-        // `local_tty`. Other builds (e.g. wasm) log and bail.
+        // `local_tty`. Other builds log and bail.
         #[cfg(feature = "local_tty")]
         {
             // Resolve sbx via the user's interactive shell PATH (same mechanism
@@ -10166,7 +9990,7 @@ impl Workspace {
             ctx,
         );
 
-        #[cfg(all(feature = "local_tty", not(target_family = "wasm")))]
+        #[cfg(feature = "local_tty")]
         if is_docker_sandbox {
             match self
                 .active_tab_pane_group()
@@ -10183,7 +10007,7 @@ impl Workspace {
                 }
             }
         }
-        #[cfg(not(all(feature = "local_tty", not(target_family = "wasm"))))]
+        #[cfg(not(feature = "local_tty"))]
         let _ = is_docker_sandbox;
         // If the default session mode is Agent and AI is enabled, enter agent view
         if should_enter_agent_view {
@@ -12175,7 +11999,7 @@ impl Workspace {
 
     /// Opens a local-to-cloud handoff pane in place over the active local pane.
     /// Triggered by `/handoff`, `&` compose mode, and the handoff footer chip.
-    #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+    #[cfg(feature = "local_fs")]
     fn start_local_to_cloud_handoff(
         &mut self,
         launch: Option<PendingCloudLaunch>,
@@ -12214,7 +12038,7 @@ impl Workspace {
     /// with `FeatureFlag::OzHandoff` (round 4an, part 1/2). Kept as a no-op so
     /// its still-live callers (the handoff-pane stub above and the
     /// `AutoHandoffActiveAgentToCloud` action handler) keep compiling.
-    #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+    #[cfg(feature = "local_fs")]
     fn record_automatic_handoff_failed(
         _intent: LocalToCloudHandoffIntent,
         _ctx: &mut ViewContext<Self>,
@@ -12227,7 +12051,7 @@ impl Workspace {
     /// `start_local_to_cloud_handoff` and `AutoHandoffActiveAgentToCloud`
     /// compiling; it always reports the same failure the old pipeline did
     /// once `is_cloud_handoff_enabled()` had gone permanently false.
-    #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+    #[cfg(feature = "local_fs")]
     fn start_local_to_cloud_handoff_from_source(
         &mut self,
         _source_view: ViewHandle<TerminalView>,
@@ -12649,9 +12473,7 @@ impl Workspace {
                                 }
                             }
                         }
-                        #[cfg_attr(target_family = "wasm", allow(unused_variables))]
                         TabBarHoverIndex::OverTab(workspace_tab_index) => {
-                            #[cfg(not(target_family = "wasm"))]
                             {
                                 let prefers_tabbed_editor_view = FeatureFlag::TabbedEditorView
                                     .is_enabled()
@@ -13556,15 +13378,6 @@ impl Workspace {
         // * There's no active session
         // * The active session is busy but the fallback behavior is OpenIfNeeded
         // In this case, open a new terminal pane to the right.
-
-        if !ContextFlag::CreateNewSession.is_enabled() {
-            self.toast_stack.update(ctx, |toast_stack, ctx| {
-                let toast =
-                    DismissibleToast::error("Cannot open a new terminal session".to_string());
-                toast_stack.add_ephemeral_toast(toast, ctx);
-            });
-            return None;
-        }
 
         active_pane_group.as_ref(ctx).active_session_view(ctx)
     }
@@ -15817,91 +15630,6 @@ impl Workspace {
             .is_user_web_anonymous_user()
             .unwrap_or_default();
 
-        // Simplified mode for viewing Warp Drive objects, shared sessions, or conversation transcripts on WASM
-        #[cfg(target_family = "wasm")]
-        if let Some(content_type) = self.get_simplified_wasm_tab_bar_content(ctx) {
-            // Use MainAxisAlignment::SpaceBetween and expand to fill width
-            tab_bar = tab_bar
-                .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                .with_main_axis_size(MainAxisSize::Max);
-            let bg_color = blended_colors::neutral_1(appearance.theme());
-
-            // Left: Warp logo - clickable to link to warp.dev
-            let warp_logo = Hoverable::new(self.mouse_states.warp_logo.clone(), |_state| {
-                ConstrainedBox::new(
-                    warp_core::ui::Icon::Warp
-                        .to_warpui_icon(appearance.theme().foreground())
-                        .finish(),
-                )
-                .with_height(24.)
-                .with_width(24.)
-                .finish()
-            })
-            .on_click(|ctx, _, _| {
-                ctx.dispatch_typed_action(WorkspaceAction::OpenLink("https://warp.dev".to_owned()));
-            })
-            .with_cursor(Cursor::PointingHand)
-            .finish();
-            tab_bar.add_child(warp_logo);
-
-            // Right: Info button + "View all cloud runs" button (for ambient agent sessions) + "Open in Warp" button
-            let mut right_row = Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_main_axis_size(MainAxisSize::Min);
-
-            // Extract task_id from conversation transcripts and shared sessions
-            let task_id = match content_type {
-                SimplifiedWasmTabBarContent::ConversationTranscript { task_id } => task_id,
-                SimplifiedWasmTabBarContent::WarpDriveObject => None,
-            };
-
-            // Show info button for conversation transcripts and shared sessions (if there's content to display)
-            let should_show_info_button =
-                !matches!(content_type, SimplifiedWasmTabBarContent::WarpDriveObject)
-                    && self
-                        .active_tab_pane_group()
-                        .as_ref(ctx)
-                        .focused_session_view(ctx)
-                        .is_some_and(|view| {
-                            Self::should_show_conversation_details_panel(&view, ctx)
-                        });
-
-            if should_show_info_button {
-                right_row.add_child(
-                    Container::new(ChildView::new(&self.transcript_info_button).finish())
-                        .with_margin_right(8.)
-                        .finish(),
-                );
-
-                // Add "View all cloud runs" button when task_id exists (with 4px gap)
-                if task_id.is_some() {
-                    right_row.add_child(
-                        Container::new(ChildView::new(&self.view_cloud_runs_button).finish())
-                            .with_margin_right(4.)
-                            .finish(),
-                    );
-                }
-            }
-
-            // Hide "Open in Warp" button on mobile devices
-            if !warpui::platform::wasm::is_mobile_device() {
-                right_row.add_child(ChildView::new(&self.open_in_warp_button).finish());
-            }
-            tab_bar.add_child(right_row.finish());
-
-            return Container::new(tab_bar.finish())
-                .with_background_color(bg_color)
-                .with_border(
-                    Border::bottom(1.0)
-                        .with_border_fill(blended_colors::neutral_2(appearance.theme())),
-                )
-                .with_padding_left(24.)
-                .with_padding_right(24.)
-                .with_padding_top(4.)
-                .with_padding_bottom(4.)
-                .finish();
-        }
-
         // Check if vertical tabs mode is active
         let vertical_tabs_active =
             FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(ctx).use_vertical_tabs;
@@ -16096,9 +15824,7 @@ impl Workspace {
                 tab_bar.add_child(self.render_tab_hover_indicator(appearance));
             }
 
-            if ContextFlag::CreateNewSession.is_enabled() {
-                tab_bar.add_child(self.render_new_session_button(ctx));
-            }
+            tab_bar.add_child(self.render_new_session_button(ctx));
         }
 
         // Trailing spacer fills only the leftover width. When groups are collapsed
@@ -17212,21 +16938,13 @@ impl Workspace {
         }
     }
 
-    fn render_panels(
-        &self,
-        app: &AppContext,
-        terminal_view: Box<dyn Element>,
-        hide_vertical_tabs: bool,
-    ) -> Box<dyn Element> {
+    fn render_panels(&self, app: &AppContext, terminal_view: Box<dyn Element>) -> Box<dyn Element> {
         let mut panels_view = Flex::row();
         let mut prev_panel_added = false;
 
         // Config-driven vertical-tabs-era panels (left side).
-        // Hidden for simplified WASM views (notebooks, shared sessions, etc.)
-        // where these panels are unnecessary.
-        let vertical_tabs_active = !hide_vertical_tabs
-            && FeatureFlag::VerticalTabs.is_enabled()
-            && *TabSettings::as_ref(app).use_vertical_tabs;
+        let vertical_tabs_active =
+            FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(app).use_vertical_tabs;
 
         // In vertical tabs mode, config-driven panels are rendered here.
         // In horizontal tabs mode, they're rendered inside render_banner_and_active_tab.
@@ -17307,18 +17025,7 @@ impl Workspace {
             }
         }
 
-        #[cfg(target_family = "wasm")]
-        if !warpui::platform::wasm::is_mobile_device()
-            && self
-                .current_workspace_state
-                .is_transcript_details_panel_open
-            && let Some(panel_content) = self.render_transcript_details_panel(app)
-        {
-            panels_view = panels_view.with_child(panel_content);
-        }
-
         // The AI assistant is a workspace-level panel, not configurable.
-        #[cfg(not(target_family = "wasm"))]
         if self.current_workspace_state.is_right_panel_open() {
             let right_panel_content = if self.current_workspace_state.is_ai_assistant_panel_open {
                 Some(self.render_panel(
@@ -17377,7 +17084,7 @@ impl Workspace {
                 )
             }
             HeaderToolbarItemKind::ToolsPanel => {
-                if !pane_group.left_panel_open || warpui::platform::is_mobile_device() {
+                if !pane_group.left_panel_open {
                     return None;
                 }
                 Some(ChildView::new(&self.left_panel_view).finish())
@@ -18164,42 +17871,6 @@ impl Workspace {
             left_panel.update_available_views(views, ctx);
         });
     }
-
-    /// Opens a given URL in the desktop Warp app if installed, or redirects to download page.
-    #[cfg(target_family = "wasm")]
-    fn open_link_on_desktop(&mut self, url: &Url, ctx: &mut ViewContext<Self>) {
-        use crate::settings::app_installation_detection::{
-            UserAppInstallDetectionSettings, UserAppInstallStatus,
-        };
-
-        // Check if the desktop app is installed
-        let is_app_installed = *UserAppInstallDetectionSettings::as_ref(ctx)
-            .user_app_installation_detected
-            .value()
-            == UserAppInstallStatus::Detected;
-
-        if !is_app_installed {
-            // App not installed - redirect to download page
-            ctx.open_url("https://warp.dev/download");
-            // In webapp code we cannot distinguish between
-            // the localhost:9277/install_detection endpoint not running (not installed) vs
-            // the browser blocking Local Network Access which results in CORS error;
-            // the browser intentionally obscures the error root cause for privacy reasons.
-            // Many users' browser settings will block Local Network Access so this will end up redirecting to download page,
-            // even if they have the app installed.
-            let toast_message = format!(
-                "Have Warp installed but redirecting to download page?\nEnable Local Network Access for {} in your browser.",
-                ChannelState::server_root_url()
-            );
-            self.toast_stack.update(ctx, |toast_stack, ctx| {
-                toast_stack.add_persistent_toast(DismissibleToast::default(toast_message), ctx)
-            });
-            // Still try to open the url on desktop below
-        }
-
-        // Open the URL on desktop. This does nothing if the app isn't installed.
-        crate::uri::web_intent_parser::open_url_on_desktop(url);
-    }
 }
 
 impl Entity for Workspace {
@@ -18596,9 +18267,9 @@ impl TypedActionView for Workspace {
                 launch,
                 environment_id,
             } => {
-                #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+                #[cfg(feature = "local_fs")]
                 self.start_local_to_cloud_handoff(launch.clone(), *environment_id, ctx);
-                #[cfg(not(all(feature = "local_fs", not(target_family = "wasm"))))]
+                #[cfg(not(feature = "local_fs"))]
                 {
                     let _ = (launch, environment_id);
                 }
@@ -18608,7 +18279,7 @@ impl TypedActionView for Workspace {
                 conversation_id,
                 trigger,
             } => {
-                #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+                #[cfg(feature = "local_fs")]
                 {
                     let intent = LocalToCloudHandoffIntent::Automatic {
                         trigger: *trigger,
@@ -18638,7 +18309,7 @@ impl TypedActionView for Workspace {
                         }
                     }
                 }
-                #[cfg(not(all(feature = "local_fs", not(target_family = "wasm"))))]
+                #[cfg(not(feature = "local_fs"))]
                 {
                     let _ = (terminal_view_id, conversation_id, trigger);
                 }
@@ -18729,7 +18400,6 @@ impl TypedActionView for Workspace {
             ViewUserDocs => self.view_user_docs(ctx),
             ViewPrivacyPolicy => self.view_privacy_policy(ctx),
             SendFeedback => self.send_feedback(ctx),
-            #[cfg(not(target_family = "wasm"))]
             ViewLogs => self.view_logs(ctx),
             ChangeCursor(cursor) => self.change_cursor(*cursor, ctx),
             ToggleErrorUnderlining => self.toggle_error_underlining(ctx),
@@ -18745,8 +18415,6 @@ impl TypedActionView for Workspace {
                 ctx.dispatch_typed_action_for_view(window_id, self.settings_pane.id(), action)
             }
             OpenLink(link) => ctx.open_url(link),
-            #[cfg(target_family = "wasm")]
-            OpenLinkOnDesktop(url) => self.open_link_on_desktop(url, ctx),
             DumpDebugInfo => self.dump_debug_info(ctx),
             LogReviewCommentSendStatusForActiveTab => {
                 self.right_panel_view.update(ctx, |right_panel_view, ctx| {
@@ -19184,9 +18852,7 @@ impl TypedActionView for Workspace {
                 ctx.terminate_app(TerminationMode::Cancellable, None);
             }
             CloseWindow => {
-                if ContextFlag::CloseWindow.is_enabled() {
-                    ctx.close_window();
-                }
+                ctx.close_window();
             }
             RunAISuggestedCommand(code) => {
                 let command = code.trim().to_string();
@@ -19810,24 +19476,6 @@ impl TypedActionView for Workspace {
                     );
                 });
             }
-            #[cfg(target_family = "wasm")]
-            ToggleConversationTranscriptDetailsPanel => {
-                let is_open = !self
-                    .current_workspace_state
-                    .is_transcript_details_panel_open;
-                self.current_workspace_state
-                    .is_transcript_details_panel_open = is_open;
-
-                self.transcript_info_button.update(ctx, |button, ctx| {
-                    button.set_active(is_open, ctx);
-                });
-
-                if is_open {
-                    self.update_transcript_details_panel_data(ctx);
-                }
-
-                ctx.notify();
-            }
             OpenLightbox {
                 images,
                 initial_index,
@@ -19953,9 +19601,7 @@ impl View for Workspace {
             context.set.insert("AccessibilityVerbosity_Verbose");
         }
 
-        if ContextFlag::CloseWindow.is_enabled() {
-            context.set.insert("Workspace_CloseWindow");
-        }
+        context.set.insert("Workspace_CloseWindow");
 
         match self.tab_count() {
             0 => {
@@ -20098,11 +19744,6 @@ impl View for Workspace {
             }
         }
 
-        #[cfg(target_family = "wasm")]
-        if self.is_conversation_transcript_viewer_focused(app) {
-            context.set.insert("Workspace_CloudConversationWebViewer");
-        }
-
         context
     }
 
@@ -20111,38 +19752,13 @@ impl View for Workspace {
 
         let tab_bar_mode = self.tab_bar_mode(app);
 
-        // For WASM simplified tab bar views (Warp Drive objects, shared sessions, conversation transcripts),
-        // we render the tab bar outside of panels so that the details panel only affects content below the tab bar.
-        cfg_if::cfg_if! {
-            if #[cfg(target_family = "wasm")] {
-                let use_simplified_wasm_tab_bar = self.get_simplified_wasm_tab_bar_content(app).is_some();
-            } else {
-                let use_simplified_wasm_tab_bar = false;
-            }
-        }
-
-        let panels = if use_simplified_wasm_tab_bar {
-            // For the simplified WASM tab bar, we want to render the tab bar on top of all other content
-            // so that content being added/moved around in the workspace (for example the details panel being toggled)
-            // does not affect the tab.
+        let panels = {
             let mut outer_column = Flex::column();
             if tab_bar_mode == ShowTabBar::Stacked {
                 outer_column.add_child(self.render_tab_bar(self.tab_fixed_width, appearance, app));
             }
             let content = self.render_banner_and_active_tab(app, appearance);
-            // Hide the vertical tab rail for simplified WASM views (notebooks, shared sessions, etc.)
-            let panels_row = self.render_panels(app, Shrinkable::new(1.0, content).finish(), true);
-            outer_column.add_child(Shrinkable::new(1.0, panels_row).finish());
-            Container::new(outer_column.finish())
-                .with_background(util::get_terminal_background_fill(self.window_id, app))
-                .finish()
-        } else {
-            let mut outer_column = Flex::column();
-            if tab_bar_mode == ShowTabBar::Stacked {
-                outer_column.add_child(self.render_tab_bar(self.tab_fixed_width, appearance, app));
-            }
-            let content = self.render_banner_and_active_tab(app, appearance);
-            let panels_row = self.render_panels(app, Shrinkable::new(1.0, content).finish(), false);
+            let panels_row = self.render_panels(app, Shrinkable::new(1.0, content).finish());
             outer_column.add_child(Shrinkable::new(1.0, panels_row).finish());
             Container::new(outer_column.finish())
                 .with_background(util::get_terminal_background_fill(self.window_id, app))
@@ -20150,60 +19766,13 @@ impl View for Workspace {
         };
         let mut stack = Stack::new();
 
-        #[cfg(target_family = "wasm")]
-        {
-            let pane_group = self.active_tab_pane_group().as_ref(app);
-            if warpui::platform::wasm::is_mobile_device() && pane_group.left_panel_open {
-                let scrim = Rect::new()
-                    .with_background(Fill::Solid(ColorU::new(
-                        0,
-                        0,
-                        0,
-                        MOBILE_OVERLAY_SCRIM_ALPHA,
-                    )))
-                    .finish();
-                let clickable_scrim = EventHandler::new(scrim)
-                    .on_left_mouse_down(|ctx, _, _| {
-                        ctx.dispatch_typed_action(WorkspaceAction::ToggleLeftPanel);
-                        DispatchEventResult::StopPropagation
-                    })
-                    .finish();
-                stack.add_positioned_overlay_child(
-                    Percentage::width(1.0 - MOBILE_OVERLAY_PANEL_WIDTH_RATIO, clickable_scrim)
-                        .finish(),
-                    OffsetPositioning::offset_from_save_position_element(
-                        TAB_BAR_POSITION_ID,
-                        vec2f(0., 0.),
-                        PositionedElementOffsetBounds::WindowBySize,
-                        PositionedElementAnchor::BottomRight,
-                        ChildAnchor::TopRight,
-                    ),
-                );
-
-                let panel_content = Container::new(ChildView::new(&self.left_panel_view).finish())
-                    .with_background(appearance.theme().surface_1())
-                    .finish();
-                stack.add_positioned_overlay_child(
-                    Percentage::width(MOBILE_OVERLAY_PANEL_WIDTH_RATIO, panel_content).finish(),
-                    OffsetPositioning::offset_from_save_position_element(
-                        TAB_BAR_POSITION_ID,
-                        vec2f(0., 0.),
-                        PositionedElementOffsetBounds::WindowBySize,
-                        PositionedElementAnchor::BottomLeft,
-                        ChildAnchor::TopLeft,
-                    ),
-                );
-            }
-        }
-
         stack.add_child(
             Container::new(panels)
                 .with_uniform_padding(WORKSPACE_PADDING)
                 .finish(),
         );
 
-        if !use_simplified_wasm_tab_bar
-            && FeatureFlag::VerticalTabs.is_enabled()
+        if FeatureFlag::VerticalTabs.is_enabled()
             && *TabSettings::as_ref(app).use_vertical_tabs
             && self.vertical_tabs_panel_open
             && self.vertical_tabs_panel.show_settings_popup
@@ -20250,55 +19819,6 @@ impl View for Workspace {
                     bounds,
                     parent_anchor,
                     child_anchor,
-                ),
-            );
-        }
-
-        // Transcript details panel overlay (right side, mobile only)
-        #[cfg(target_family = "wasm")]
-        if warpui::platform::wasm::is_mobile_device()
-            && self
-                .current_workspace_state
-                .is_transcript_details_panel_open
-        {
-            // Dimming scrim on the left (10% width); tapping closes the panel
-            let scrim = Rect::new()
-                .with_background(Fill::Solid(ColorU::new(
-                    0,
-                    0,
-                    0,
-                    MOBILE_OVERLAY_SCRIM_ALPHA,
-                )))
-                .finish();
-            let clickable_scrim = EventHandler::new(scrim)
-                .on_left_mouse_down(|ctx, _, _| {
-                    ctx.dispatch_typed_action(
-                        WorkspaceAction::ToggleConversationTranscriptDetailsPanel,
-                    );
-                    DispatchEventResult::StopPropagation
-                })
-                .finish();
-            stack.add_positioned_overlay_child(
-                Percentage::width(1.0 - MOBILE_OVERLAY_PANEL_WIDTH_RATIO, clickable_scrim).finish(),
-                OffsetPositioning::offset_from_save_position_element(
-                    TAB_BAR_POSITION_ID,
-                    vec2f(0., 0.),
-                    PositionedElementOffsetBounds::WindowBySize,
-                    PositionedElementAnchor::BottomLeft,
-                    ChildAnchor::TopLeft,
-                ),
-            );
-
-            // Details panel overlay (90% width, positioned on the right)
-            let panel_content = ChildView::new(&self.transcript_details_panel).finish();
-            stack.add_positioned_overlay_child(
-                Percentage::width(MOBILE_OVERLAY_PANEL_WIDTH_RATIO, panel_content).finish(),
-                OffsetPositioning::offset_from_save_position_element(
-                    TAB_BAR_POSITION_ID,
-                    vec2f(0., 0.),
-                    PositionedElementOffsetBounds::WindowBySize,
-                    PositionedElementAnchor::BottomRight,
-                    ChildAnchor::TopRight,
                 ),
             );
         }
@@ -21030,19 +20550,6 @@ impl View for Workspace {
             stack.add_positioned_overlay_child(
                 ChildView::new(&self.update_toast_stack).finish(),
                 positioning,
-            );
-        }
-
-        #[cfg(target_family = "wasm")]
-        if self.show_wasm_nux_dialog {
-            stack.add_positioned_overlay_child(
-                ChildView::new(&self.wasm_nux_dialog).finish(),
-                OffsetPositioning::offset_from_parent(
-                    vec2f(-10., 67.),
-                    ParentOffsetBounds::WindowByPosition,
-                    ParentAnchor::TopRight,
-                    ChildAnchor::TopRight,
-                ),
             );
         }
 

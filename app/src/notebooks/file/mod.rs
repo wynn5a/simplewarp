@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pathfinder_geometry::vector::vec2f;
-#[cfg(not(target_family = "wasm"))]
 use warp_core::features::FeatureFlag;
 use warp_core::ui::icons::ICON_DIMENSIONS;
 use warp_editor::model::CoreEditorModel;
@@ -54,13 +53,9 @@ use crate::terminal::model::session::Session;
 use crate::ui_components::icons::Icon;
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
-// `renders_in_warp_notebook_viewer` is only consumed by non-wasm views
-// (`code::view` resolves to `view.rs` off-wasm and to `wasm.rs` on-wasm, and the
-// tooltips helper is `local_fs`-gated). Gate the re-export to match, otherwise it
-// is flagged as an unused import on the wasm build where those consumers are absent.
-#[cfg(not(target_family = "wasm"))]
-pub use crate::util::openable_file_type::renders_in_warp_notebook_viewer;
-pub use crate::util::openable_file_type::{is_jupyter_notebook_file, is_markdown_file};
+pub use crate::util::openable_file_type::{
+    is_jupyter_notebook_file, is_markdown_file, renders_in_warp_notebook_viewer,
+};
 use crate::view_components::{MarkdownToggleEvent, MarkdownToggleView};
 use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ActiveSession;
@@ -476,7 +471,6 @@ impl FileNotebookView {
 
         #[cfg(not(feature = "local_fs"))]
         {
-            // WASM builds should never call `open_local`, so we should never get here!
             safe_warn!(
                 safe: ("Local filesystem access is not available in this build"),
                 full: ("Local filesystem access is not available in this build (feature \"local_fs\" disabled)")

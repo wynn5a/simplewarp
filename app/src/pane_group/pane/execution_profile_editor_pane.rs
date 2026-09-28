@@ -1,10 +1,7 @@
 use warpui::{AppContext, ModelHandle, SingletonEntity, View, ViewContext, ViewHandle};
 
 use super::view::PaneView;
-use super::{
-    DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, ShareableLink,
-    ShareableLinkError,
-};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::ai::execution_profiles::editor::{
     ExecutionProfileEditorManager, ExecutionProfileEditorView, ExecutionProfileEditorViewEvent,
@@ -122,13 +119,6 @@ impl PaneContent for ExecutionProfileEditorPane {
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>) {
         self.execution_profile_editor_view(ctx)
             .update(ctx, |view, ctx| view.focus(ctx));
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

@@ -19,15 +19,12 @@ cfg_if::cfg_if! {
         use std::fs;
     }
 }
-#[cfg(not(target_family = "wasm"))]
 use warp_core::channel::ChannelState;
 #[cfg(feature = "local_fs")]
 use warp_core::sync_queue::SyncQueue;
 use warp_util::git::run_git_command;
-#[cfg(not(target_arch = "wasm32"))]
-use warpui::AppContext;
 use warpui::r#async::SpawnedFutureHandle;
-use warpui::{ModelContext, SingletonEntity};
+use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::code_review::diff_size_limits::{
     DiffSize, MAX_DIFF_SIZE, UnrenderableReason, compute_diff_size,
@@ -480,7 +477,7 @@ impl LocalDiffStateModel {
 
     #[cfg(not(feature = "local_fs"))]
     pub fn fetch_branches(&self, _ctx: &mut ModelContext<Self>) {
-        // Noop on WASM builds.
+        // Noop without local filesystem access.
     }
 
     pub fn set_diff_mode(
@@ -549,7 +546,7 @@ impl LocalDiffStateModel {
         _track_load_duration: bool,
         _ctx: &mut ModelContext<Self>,
     ) {
-        // Noop on WASM builds.
+        // Noop without local filesystem access.
     }
 
     /// Stashes uncommitted changes for specific files
@@ -856,7 +853,7 @@ impl LocalDiffStateModel {
         _branch_name: Option<String>,
         _ctx: &mut ModelContext<Self>,
     ) {
-        // Noop on WASM builds.
+        // Noop without local filesystem access.
     }
 
     /// Sets whether the code review pane needs diff metadata.
@@ -912,7 +909,7 @@ impl LocalDiffStateModel {
         _should_reload_diffs: bool,
         _ctx: &mut ModelContext<Self>,
     ) {
-        // Noop on WASM builds.
+        // Noop without local filesystem access.
     }
 
     #[cfg(feature = "local_fs")]

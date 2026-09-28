@@ -1,5 +1,4 @@
 use pathfinder_geometry::vector::Vector2F;
-use warp_core::context_flag::ContextFlag;
 use warpui::keymap::Trigger;
 use warpui::{SingletonEntity, ViewContext, ViewHandle};
 
@@ -179,14 +178,12 @@ impl EnvVarCollectionView {
 
         let mut items = Vec::new();
 
-        if ContextFlag::CreateNewSession.is_enabled() {
-            items.extend(vec![
-                split_pane_right,
-                split_pane_left,
-                split_pane_down,
-                split_pane_up,
-            ]);
-        }
+        items.extend(vec![
+            split_pane_right,
+            split_pane_left,
+            split_pane_down,
+            split_pane_up,
+        ]);
 
         if self
             .focus_handle

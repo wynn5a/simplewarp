@@ -17,7 +17,6 @@ use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_geometry::vector::vec2f;
 use settings::{Setting, ToggleableSetting};
 use strum::IntoEnumIterator;
-use warp_core::context_flag::ContextFlag;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::color::ContrastingColor;
 use warp_core::ui::color::contrast::MinimumAllowedContrast;
@@ -65,13 +64,11 @@ use super::{
 };
 use crate::UserWorkspaces;
 use crate::ai::AIRequestUsageModel;
-#[cfg(not(target_family = "wasm"))]
 use crate::ai::aws_credentials::refresh_aws_credentials;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::{
     AgentToolbarEditorMode, AgentToolbarInlineEditor,
 };
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-#[cfg(not(target_family = "wasm"))]
 use crate::ai::geap_credentials::force_refresh_geap_credentials;
 use crate::ai::llms::{LLMId, LLMPreferences, LLMProvider, is_using_api_key_for_provider};
 use crate::appearance::{Appearance, AppearanceEvent};
@@ -467,9 +464,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             )
             .with_group(bindings::BindingGroup::WarpAi)
             .with_enabled(|| {
-                FeatureFlag::McpServer.is_enabled()
-                    && FeatureFlag::FileBasedMcp.is_enabled()
-                    && ContextFlag::ShowMCPServers.is_enabled()
+                FeatureFlag::McpServer.is_enabled() && FeatureFlag::FileBasedMcp.is_enabled()
             }),
         ],
         app,
@@ -1909,14 +1904,12 @@ impl TypedActionView for WarpAgentPageView {
                 ctx.notify();
             }
             WarpAgentPageAction::RefreshAwsBedrockCredentials => {
-                #[cfg(not(target_family = "wasm"))]
                 ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
                     drop(refresh_aws_credentials(manager, ctx));
                 });
                 ctx.notify();
             }
             WarpAgentPageAction::RefreshGeminiEnterpriseCredentials => {
-                #[cfg(not(target_family = "wasm"))]
                 ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
                     force_refresh_geap_credentials(manager, ctx);
                 });

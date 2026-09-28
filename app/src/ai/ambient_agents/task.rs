@@ -1,8 +1,6 @@
 //! Ambient agent task types and utilities.
 
-#[cfg(not(target_family = "wasm"))]
-pub use cloud_object_models::HarnessModelConfig;
-pub use cloud_object_models::{AgentConfigSnapshot, HarnessConfig};
+pub use cloud_object_models::{AgentConfigSnapshot, HarnessConfig, HarnessModelConfig};
 use serde::{Deserialize, Serialize};
 use warpui::{SingletonEntity, View, ViewContext};
 

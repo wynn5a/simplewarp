@@ -3535,7 +3535,6 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
         flex.add_child(continue_button);
     }
 
-    #[cfg(not(target_family = "wasm"))]
     if !props.is_conversation_transcript_viewer {
         let fork_button_tooltip = "Fork conversation";
 

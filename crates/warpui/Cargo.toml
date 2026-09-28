@@ -58,6 +58,9 @@ vec1.workspace = true
 version-compare = { workspace = true, optional = true }
 warpui_core.workspace = true
 wgpu = { workspace = true, optional = true }
+async-io.workspace = true
+ctrlc.workspace = true
+font-kit.workspace = true
 
 [dev-dependencies]
 asset_cache.workspace = true
@@ -142,12 +145,8 @@ dispatch2 = { workspace = true }
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 rand.workspace = true
 
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-async-io.workspace = true
-ctrlc.workspace = true
-font-kit.workspace = true
-
 [target.'cfg(not(target_os = "macos"))'.dependencies]
+global-hotkey = "0.7.0"
 bimap = "0.6.2"
 bytemuck.workspace = true
 command.workspace = true
@@ -161,20 +160,6 @@ serde.workspace = true
 version-compare.workspace = true
 winit.workspace = true
 wgpu.workspace = true
-
-[target.'cfg(not(any(target_os = "macos", target_family = "wasm")))'.dependencies]
-global-hotkey = "0.7.0"
-
-[target.'cfg(target_family = "wasm")'.dependencies]
-gloo.workspace = true
-js-sys = "0.3.69"
-wasm-bindgen.workspace = true
-wasm-bindgen-futures.workspace = true
-web-sys.workspace = true
-
-[target.'cfg(all(target_family = "wasm"))'.dependencies.wgpu]
-workspace = true
-features = ["fragile-send-sync-non-atomic-wasm", "webgl"]
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))'.dependencies]
 arboard = { workspace = true, features = [

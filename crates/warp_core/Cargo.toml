@@ -46,7 +46,6 @@ tracing.workspace = true
 concat-idents.workspace = true
 url.workspace = true
 regex.workspace = true
-websocket.workspace = true
 instant.workspace = true
 schemars = "1"
 settings_value = { workspace = true, features = ["derive"] }
@@ -59,8 +58,6 @@ warpui_extras = { workspace = true, features = ["default"] }
 mockito = { workspace = true, optional = true }
 string-offset.workspace = true
 chrono.workspace = true
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -75,6 +72,3 @@ tempfile.workspace = true
 [dev-dependencies]
 rand.workspace = true
 serde_yaml.workspace = true
-
-[build-dependencies]
-anyhow.workspace = true

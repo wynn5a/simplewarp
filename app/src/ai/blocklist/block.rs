@@ -36,7 +36,6 @@ use parking_lot::{FairMutex, Mutex, RwLock};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 pub use pending_user_query_block::{PendingUserQueryBlock, PendingUserQueryBlockEvent};
-#[cfg(not(target_family = "wasm"))]
 use repo_metadata::repositories::DetectedRepositories;
 use secret_redaction::*;
 use serde::Serialize;
@@ -1570,8 +1569,8 @@ impl AIBlock {
     ///
     /// On `local_fs`, this spawns a background task via `spawn_blocking` to avoid blocking
     /// the main thread with filesystem I/O (file path detection + code block path resolution).
-    /// On other targets (e.g. WASM), `spawn_blocking` is unavailable so detection runs
-    /// synchronously. This is fine because it's only URL detection which is cheap.
+    /// Otherwise detection runs synchronously. This is fine because it's only URL detection
+    /// which is cheap.
     fn spawn_link_detection(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(handle) = self.link_detection_handle.take() {
             handle.abort();
@@ -3914,14 +3913,11 @@ impl AIBlock {
         let view = ctx.add_typed_action_view(GeminiEnterpriseCredentialsErrorView::new);
         ctx.subscribe_to_view(&view, |_me, _view, event, ctx| match event {
             GeminiEnterpriseCredentialsErrorEvent::RefreshCredentials => {
-                #[cfg(not(target_family = "wasm"))]
-                {
-                    use ai::api_keys::ApiKeyManager;
+                use ai::api_keys::ApiKeyManager;
 
-                    ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
-                        crate::ai::geap_credentials::force_refresh_geap_credentials(manager, ctx);
-                    });
-                }
+                ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
+                    crate::ai::geap_credentials::force_refresh_geap_credentials(manager, ctx);
+                });
             }
             GeminiEnterpriseCredentialsErrorEvent::OpenSettings => {
                 // Defer so Workspace is not opened while AIBlock is still mid-subscription.
@@ -5606,11 +5602,8 @@ impl AIBlock {
         cwd_location: Option<&LocalOrRemotePath>,
         ctx: &mut ViewContext<Self>,
     ) {
-        #[cfg(not(target_family = "wasm"))]
         let repo_path =
             cwd_location.and_then(|cwd| DetectedRepositories::as_ref(ctx).get_root_for_path(cwd));
-        #[cfg(target_family = "wasm")]
-        let repo_path = cwd_location.cloned();
 
         let cwd_matches_repo = match (cwd_location, repo_path.as_ref()) {
             (Some(cwd), Some(rp)) => rp.strip_repo_prefix(cwd).is_some(),

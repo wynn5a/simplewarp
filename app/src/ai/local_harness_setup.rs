@@ -1,7 +1,6 @@
 use warp_cli::agent::Harness;
 
 use crate::features::FeatureFlag;
-#[cfg(not(target_family = "wasm"))]
 use crate::util::path::resolve_executable;
 
 /// Tooltip shown when a local harness is product-enabled but its CLI is missing.
@@ -82,15 +81,7 @@ fn local_harness_setup_state_with_cli_resolver(
 }
 
 fn local_cli_is_installed(command: &str) -> bool {
-    #[cfg(not(target_family = "wasm"))]
-    {
-        resolve_executable(command).is_some()
-    }
-    #[cfg(target_family = "wasm")]
-    {
-        let _ = command;
-        false
-    }
+    resolve_executable(command).is_some()
 }
 
 #[cfg(test)]

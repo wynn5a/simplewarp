@@ -1508,7 +1508,6 @@ impl AIConversation {
             .flat_map(|task| task.exchanges_reversed())
     }
 
-    #[cfg_attr(target_family = "wasm", allow(unused))]
     pub fn exchange_with_id(&self, exchange_id: AIAgentExchangeId) -> Option<&AIAgentExchange> {
         self.task_store.exchange_by_id(exchange_id)
     }

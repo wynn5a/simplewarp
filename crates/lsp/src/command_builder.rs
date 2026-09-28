@@ -1,12 +1,10 @@
-#[cfg(not(target_arch = "wasm32"))]
 use command::r#async::Command;
 
 /// A wrapper around `path_env_var` that produces correctly-configured commands.
 ///
 /// This follows the same wrapping pattern as `command::r#async::Command`:
 /// callers construct commands through the executor, which transparently sets
-/// the PATH environment variable. On wasm, a dummy implementation is provided
-/// so that consumer code doesn't need cfg gating.
+/// the PATH environment variable.
 #[derive(Clone)]
 pub struct CommandBuilder {
     path_env_var: Option<String>,
@@ -33,7 +31,6 @@ impl CommandBuilder {
     /// `.bat` scripts on PATH are resolved correctly (e.g. `npm.cmd`,
     /// `typescript-language-server.cmd`). Rust's `Command::new` uses
     /// `CreateProcessW` which only resolves `.exe` extensions.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn command(&self, program: impl AsRef<std::ffi::OsStr>) -> Command {
         #[cfg(windows)]
         let mut cmd = {

@@ -449,13 +449,6 @@ impl pane::PaneContent for PreAttachReturnsFalsePane {
 
     fn focus(&self, _ctx: &mut ViewContext<PaneGroup>) {}
 
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<pane::ShareableLink, pane::ShareableLinkError> {
-        Ok(pane::ShareableLink::Base)
-    }
-
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {
         self.pane_configuration.clone()
     }

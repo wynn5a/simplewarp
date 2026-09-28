@@ -2,16 +2,11 @@
 use warpui::{AppContext, EntityId, SingletonEntity as _};
 
 use crate::AIExecutionProfilesModel;
-#[cfg(not(target_family = "wasm"))]
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-#[cfg(not(target_family = "wasm"))]
 use crate::ai::ambient_agents::task::normalize_orchestrator_agent_name;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::llms::LLMId;
-use crate::ai::llms::LLMPreferences;
+use crate::ai::llms::{LLMId, LLMPreferences};
 
 /// Server-side state prepared before a frontend creates the child's surface.
-#[cfg(not(target_family = "wasm"))]
 pub struct PreparedLocalOzChildLaunch {
     pub task_id: AmbientAgentTaskId,
     pub conversation_name: String,
@@ -20,7 +15,6 @@ pub struct PreparedLocalOzChildLaunch {
 /// Mints the local-only task id shared by the GUI hidden-pane launch path.
 /// No server row is created: the id only stamps the child conversation and
 /// controller so local state can tell children apart.
-#[cfg(not(target_family = "wasm"))]
 pub fn prepare_local_oz_child_launch(name: &str) -> PreparedLocalOzChildLaunch {
     let agent_name = normalize_orchestrator_agent_name(name);
     PreparedLocalOzChildLaunch {
@@ -55,7 +49,6 @@ pub fn inherit_child_agent_settings(
 
 /// Applies a non-empty run-wide model override after parent settings have
 /// been inherited.
-#[cfg(not(target_family = "wasm"))]
 pub fn apply_child_agent_model_override(
     child_surface_id: EntityId,
     model_id: Option<&str>,

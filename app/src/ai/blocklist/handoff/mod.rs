@@ -12,7 +12,6 @@ use super::PendingAttachment;
 use crate::ai::ambient_agents::task::AttachmentInput;
 
 /// Prompt attachments represented for both cloud submission and local restoration.
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 #[derive(Debug, Clone, Default)]
 pub struct HandoffLaunchAttachments {
     /// Serialized attachments sent in the cloud agent request.
@@ -24,7 +23,6 @@ pub struct HandoffLaunchAttachments {
 /// Carries the auto-submit payload for `& query` and `/handoff query`.
 /// `request_attachments` feed the spawn request while `display_attachments`
 /// are restored into the source input on failure.
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 #[derive(Debug, Clone)]
 pub struct PendingCloudLaunch {
     /// Optional prompt submitted with the handoff.

@@ -162,13 +162,6 @@ pub fn init(app: &mut AppContext) {
             TerminalAction::ToggleAIDocumentPane,
             id!("Terminal") & !id!("IMEOpen"),
         ),
-        // On the web, we get pastes from system paste events.
-        #[cfg(target_family = "wasm")]
-        FixedBinding::standard(
-            warpui::actions::StandardAction::Paste,
-            TerminalAction::Paste,
-            id!("Terminal") & !id!("IMEOpen"),
-        ),
     ]);
     if cfg!(target_os = "macos") {
         // On MacOS, if the user has the 'Option as meta' setting enabled, the cmd-alt-y binding
@@ -336,8 +329,6 @@ pub fn init(app: &mut AppContext) {
         )
         .with_custom_action(CustomAction::FocusInput)
         .with_context_predicate(id!("Terminal")),
-        // Paste is not rebindable on the web.
-        #[cfg(not(target_family = "wasm"))]
         EditableBinding::new("terminal:paste", "Paste", TerminalAction::Paste)
             .with_custom_action(CustomAction::Paste)
             .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
@@ -941,7 +932,6 @@ pub fn init(app: &mut AppContext) {
     .with_enabled(|| FeatureFlag::Projects.is_enabled())
     .with_context_predicate(id!("Workspace") & id!(flags::IS_ANY_AI_ENABLED))]);
 
-    #[cfg(not(target_arch = "wasm32"))]
     app.register_editable_bindings([EditableBinding::new(
         "terminal:toggle_conversation_details_panel",
         "Toggle Conversation Details Panel",

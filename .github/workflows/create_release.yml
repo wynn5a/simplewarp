@@ -27,10 +27,6 @@ on:
         description: Build macOS artifacts.
         type: boolean
         default: true
-      build_web:
-        description: Build web artifacts.
-        type: boolean
-        default: true
       should_publish:
         description: Publish this release
         type: boolean
@@ -50,10 +46,6 @@ on:
         default: true
       build_macos:
         description: Build macOS artifacts.
-        type: boolean
-        default: true
-      build_web:
-        description: Build web artifacts.
         type: boolean
         default: true
 
@@ -1509,120 +1501,6 @@ jobs:
             ${{ steps.bundle_app.outputs.packages_dir }}
             oz-${{ steps.get-config.outputs.channel }}-linux-aarch64.tar.gz
 
-  release_web:
-    name: Build Release (Web)
-    runs-on: namespace-profile-ubuntu-22-04
-    needs: prepare_release
-    if: ${{ inputs.build_web != false }}
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - uses: ./.github/actions/prepare_environment
-        with:
-          target_os: wasm
-          is_self_hosted: false
-          ref: ${{ needs.prepare_release.outputs.release_branch }}
-          ssh_key: ${{ secrets.WARP_CHANNEL_CONFIG_ACCESS_SSH_KEY }}
-
-      - name: Get channel configuration
-        id: get-config
-        uses: ./.github/actions/get_channel_config/
-        with:
-          config_file: ${{ env.CONFIG_FILE }}
-          channel: ${{ inputs.channel }}
-
-      - name: Bundle app
-        id: bundle_app
-        run: |
-          script/wasm/bundle --channel $CHANNEL
-        shell: bash
-        env:
-          CHANNEL: ${{ steps.get-config.outputs.channel }}
-          GIT_RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
-
-      - name: Brotli compress app bundle
-        run: |
-          # The brotli binary won't let us compress in-place, so we need to rename back to the
-          # original afterwards.
-          brotli --rm "${{ steps.bundle_app.outputs.packages_dir }}"/*
-          for file in "${{ steps.bundle_app.outputs.packages_dir }}"/*.br; do
-              mv -- "$file" "${file%.br}"
-          done
-        shell: bash
-
-      - name: Set up Sentry CLI
-        if: ${{ needs.prepare_release.outputs.should_publish == 'true' }}
-        uses: matbour/setup-sentry-cli@3e938c54b3018bdd019973689ef984e033b0454b # v2.0.0
-        with:
-          token: ${{ secrets.SENTRY_RELEASE_TOKEN }}
-          organization: warpdotdev
-          project: ${{ steps.get-config.outputs.sentry_project }}
-
-      - name: Upload debugging symbols to Sentry
-        if: ${{ needs.prepare_release.outputs.should_publish == 'true' }}
-        run: |
-          script/sentry_upload_dif.sh
-        shell: bash
-        env:
-          DEBUG_FILE_OR_FOLDER_PATH: ${{ steps.bundle_app.outputs.debug_executable_path }}
-
-      - name: Add packages to GitHub release assets
-        if: ${{ needs.prepare_release.outputs.should_publish == 'true' }}
-        id: upload_github_assets
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
-        with:
-          tag_name: ${{ needs.prepare_release.outputs.release_tag }}
-          files: ${{ steps.bundle_app.outputs.packages_dir }}/*
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        if: ${{ needs.prepare_release.outputs.should_publish == 'true' }}
-        with:
-          credentials_json: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
-
-      - name: Upload packages to Google Cloud Storage
-        if: ${{ needs.prepare_release.outputs.should_publish == 'true' }}
-        uses: google-github-actions/upload-cloud-storage@e95a15f226403ed658d3e65f40205649f342ba2c # v1
-        with:
-          path: ${{ steps.bundle_app.outputs.packages_dir }}
-          # Only upload the files from within `packages_dir`, don't include the
-          # (parent) folder itself.
-          gzip: false
-          parent: false
-          destination: ${{ steps.get-config.outputs.web_gcs_bucket_prefix }}-releases/${{ steps.get-config.outputs.channel }}/${{ needs.prepare_release.outputs.release_tag }}
-          # IMPORTANT: both the key and value of the cache-control header must be all lowercase;
-          # uppercase values will not be respected by Cloud CDN and using "Cache-Control" will be
-          # ignored by the upload-cloud-storage action.
-          headers: |-
-            cache-control: ${{ steps.get-config.outputs.gcs_cache_control_value }}
-            content-encoding: br
-
-      - name: Upload assets to Google Cloud Storage
-        if: ${{ needs.prepare_release.outputs.should_publish == 'true' }}
-        uses: google-github-actions/upload-cloud-storage@e95a15f226403ed658d3e65f40205649f342ba2c # v1
-        with:
-          path: ${{ steps.bundle_app.outputs.assets_dir }}
-          parent: false
-          # All asset filenames contain the file hash for cashing purposes, so we store them all in
-          # one directory so they can be cached across releases.
-          destination: ${{ steps.get-config.outputs.web_gcs_bucket_prefix }}-static-assets/
-          # IMPORTANT: both the key and value of the cache-control header must be all lowercase;
-          # uppercase values will not be respected by Cloud CDN and using "Cache-Control" will be
-          # ignored by the upload-cloud-storage action.
-          # These assets are all stored under cache busting names, so we want to cache them
-          # effectively forever. There's no defined maximum for the max-age directive, but a similar
-          # directive suggests a maximum of one year, so that's what's chosen here.
-          headers: |-
-            cache-control: private, max-age=31536000, immutable
-
-      - name: Upload web bundle as workflow artifact
-        if: ${{ needs.prepare_release.outputs.should_publish != 'true' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-web-${{ steps.get-config.outputs.channel }}
-          path: ${{ steps.bundle_app.outputs.packages_dir }}
-
   release_windows_tui:
     name: Build Release (Windows TUI ${{ matrix.arch }})
     runs-on: windows-latest-large
@@ -1915,7 +1793,6 @@ jobs:
       - release_linux_x86
       - release_linux_arm
       - release_linux_cli_x86
-      - release_web
       - release_windows_tui
       - release_windows
     if: ${{ always() && needs.prepare_release.outputs.should_publish == 'true' }}
@@ -1948,9 +1825,6 @@ jobs:
           fi
           if [[ ${{ needs.release_linux_cli_x86.result }} != 'success' ]]; then
               FAILED+=("Linux CLI x86_64")
-          fi
-          if [[ ${{ needs.release_web.result }} != 'success' && ${{ inputs.channel }} != 'preview' ]]; then
-              FAILED+=("WASM")
           fi
           if [[ ${{ needs.release_windows.result }} != 'success' ]]; then
               FAILED+=("Windows")
@@ -2018,7 +1892,6 @@ jobs:
       - release_linux_x86
       - release_linux_arm
       - release_linux_cli_x86
-      - release_web
       - release_windows
       - gate_tui_release_artifacts
     steps:

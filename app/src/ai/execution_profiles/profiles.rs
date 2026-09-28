@@ -41,7 +41,6 @@ use crate::{CloudModel, LaunchMode};
 #[derive(Clone, Debug)]
 pub struct AIExecutionProfileInfo {
     id: ExecutionProfileId,
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     sync_id: Option<SyncId>,
     data: AIExecutionProfile,
 }
@@ -52,7 +51,6 @@ impl AIExecutionProfileInfo {
     }
 
     /// The sync ID of this profile, if it has been synced.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn sync_id(&self) -> Option<SyncId> {
         self.sync_id
     }
@@ -1065,7 +1063,6 @@ impl AIExecutionProfilesModel {
     /// mappings from the current process, then derive deterministic keys for profiles restored on
     /// a later launch. Non-migrating settings backends, such as the TUI, have no legacy sync-ID
     /// mapping.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn get_profile_id_by_sync_id(
         &self,
         sync_id: &SyncId,

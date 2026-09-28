@@ -14,7 +14,3 @@ anyhow.workspace = true
 rust-embed.workspace = true
 warpui_core.workspace = true
 
-[target.'cfg(target_family = "wasm")'.dependencies]
-# Make sure we embed the data into the wasm binary even when running in debug
-# mode, as it cannot be read directly from the filesystem.
-rust-embed = { workspace = true, features = ["debug-embed"] }

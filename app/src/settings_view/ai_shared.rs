@@ -12,7 +12,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use settings::Setting;
-use warp_core::context_flag::ContextFlag;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
@@ -32,7 +31,7 @@ use crate::appearance::Appearance;
 use crate::editor::{EditorView, InteractionState};
 
 pub fn should_show_mcp_servers() -> bool {
-    FeatureFlag::McpServer.is_enabled() && ContextFlag::ShowMCPServers.is_enabled()
+    FeatureFlag::McpServer.is_enabled()
 }
 
 pub fn update_editor_interaction_state<V: View>(

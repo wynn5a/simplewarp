@@ -1794,16 +1794,7 @@ fn render_pill(
     let is_selected = spec.is_selected;
     let pin_state = spec.pin_state;
     let is_pinned = matches!(pin_state, PillPinState::Pinned);
-    // The 3-dot overflow menu offers pane-management actions (open in new
-    // pane / tab, focus pane) that don't apply to the single-pane web
-    // viewer. Suppress the dots on WASM so the menu can never open.
-    #[cfg(not(target_family = "wasm"))]
     let show_overflow_button = matches!(kind, PillKind::Child);
-    #[cfg(target_family = "wasm")]
-    let show_overflow_button = {
-        let _ = &kind;
-        false
-    };
     // Orchestrator is always anchored at the leading edge with no pin.
     let supports_pinning = matches!(kind, PillKind::Child);
     // `spec` is owned by value, so we can move `label` directly into the

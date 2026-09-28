@@ -27,20 +27,15 @@ serde_json.workspace = true
 serde_urlencoded.workspace = true
 warp_core.workspace = true
 warp_errors.workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # Used to read the current OTEL span context and inject it as a trace-link
-# header on cloud-agent requests. Native-only so the wasm build is unaffected.
+# header on cloud-agent requests.
 opentelemetry.workspace = true
 tracing.workspace = true
 tracing-opentelemetry.workspace = true
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-gloo.workspace = true
-wasm-bindgen-futures.workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+[dev-dependencies]
 # Install a real OTEL tracer/subscriber in tests so an active span produces a
 # valid span context for the trace-link header.
 opentelemetry_sdk.workspace = true
 tracing-subscriber.workspace = true
+

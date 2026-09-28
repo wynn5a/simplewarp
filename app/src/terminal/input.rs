@@ -62,7 +62,6 @@ use warp_completer::parsers::simple::command_at_cursor_position;
 use warp_completer::signatures::CommandRegistry;
 use warp_completer::util::parse_current_commands_and_tokens;
 use warp_core::r#async::debounce;
-use warp_core::context_flag::ContextFlag;
 use warp_core::ui::theme::AnsiColorIdentifier;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::user_preferences::GetUserPreferences as _;
@@ -155,7 +154,6 @@ use crate::ai::blocklist::{
     QueuedQuery, QueuedQueryEvent, QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin,
     SlashCommandRequest, ai_indicator_height, render_ai_agent_mode_icon, render_ai_follow_up_icon,
 };
-#[cfg(not(target_family = "wasm"))]
 use crate::ai::conversation_export::export_conversation_markdown;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
@@ -223,7 +221,6 @@ use crate::settings_view::{SettingsSection, flags};
 use crate::suggestions::ignored_suggestions_model::{
     IgnoredSuggestionsModel, IgnoredSuggestionsModelEvent, SuggestionType,
 };
-#[cfg(not(target_family = "wasm"))]
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::buffer_model::InputBufferModel;
 use crate::terminal::input::conversations::{
@@ -1596,8 +1593,7 @@ pub fn init(app: &mut AppContext) {
         "input:insert_network_logging_workflow",
         "Show Warp network log",
         WorkspaceAction::OpenNetworkLogPane,
-    )
-    .with_enabled(|| ContextFlag::NetworkLogConsole.is_enabled())]);
+    )]);
 
     app.register_editable_bindings([EditableBinding::new(
         "input:clear_screen",
@@ -2179,10 +2175,7 @@ impl Input {
                     // and we don't want to double-paste.
                     middle_click_paste: false,
                     allow_user_cursor_preference: true,
-                    #[cfg(not(target_family = "wasm"))]
                     include_ai_context_menu: true,
-                    #[cfg(target_family = "wasm")]
-                    include_ai_context_menu: false,
                     delegate_paste_handling: true,
                     keymap_context_modifier: Some(Box::new(move |context, app| {
                         context
@@ -2393,18 +2386,8 @@ impl Input {
                     ctx.notify();
                 }
             }
-            BlocklistAIControllerEvent::ExportConversationToFile {
-                #[cfg_attr(target_family = "wasm", allow(unused))]
-                filename,
-            } => {
-                #[cfg(not(target_family = "wasm"))]
-                {
-                    me.export_conversation_to_file(filename.clone(), ctx);
-                }
-                #[cfg(target_family = "wasm")]
-                {
-                    log::warn!("Export to file is not supported on WASM");
-                }
+            BlocklistAIControllerEvent::ExportConversationToFile { filename } => {
+                me.export_conversation_to_file(filename.clone(), ctx);
             }
             _ => {}
         });
@@ -4252,7 +4235,6 @@ impl Input {
         true
     }
 
-    #[cfg(not(target_family = "wasm"))]
     fn export_conversation_to_file(
         &mut self,
         filename_arg: Option<String>,
@@ -5127,7 +5109,6 @@ impl Input {
     /// Predicts the next action using an AI model and past context on blocks within Warp.
     /// Populates the autosuggestion with the predicted action, if any. Otherwise, falls back to
     /// existing autosuggestion logic.
-    #[cfg_attr(target_family = "wasm", allow(unused_variables))]
     fn maybe_predict_next_action_ai(
         &mut self,
         block_completed: UserBlockCompleted,

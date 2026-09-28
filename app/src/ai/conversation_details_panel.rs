@@ -823,14 +823,6 @@ impl View for ConversationDetailsPanel {
             )
             .finish();
 
-        // On mobile, add background and skip Resizable
-        #[cfg(target_family = "wasm")]
-        if warpui::platform::wasm::is_mobile_device() {
-            return Container::new(panel_content)
-                .with_background(theme.surface_1())
-                .finish();
-        }
-
         Resizable::new(self.resizable_state_handle.clone(), panel_content)
             .with_dragbar_side(DragBarSide::Left)
             .with_bounds_callback(Box::new(|_| (200.0, 800.0)))

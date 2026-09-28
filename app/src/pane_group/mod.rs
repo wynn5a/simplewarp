@@ -17,7 +17,6 @@ use tree::DEFAULT_FLEX_VALUE;
 use typed_path::TypedPath;
 use uuid::Uuid;
 use warp_core::command::ExitCode;
-use warp_core::context_flag::ContextFlag;
 use warp_errors::report_if_error;
 use warp_terminal::shell::{ShellName, ShellType};
 #[cfg(feature = "local_fs")]
@@ -79,8 +78,6 @@ use crate::pane_group::pane::get_started_pane::GetStartedPane;
 use crate::persistence::ModelEvent;
 use crate::quit_warning::UnsavedStateSummary;
 use crate::search::command_palette::PaletteSource;
-#[cfg(target_family = "wasm")]
-use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ObjectUid, SyncId};
 use crate::session_management::SessionNavigationData;
 use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
@@ -88,7 +85,6 @@ use crate::settings_view::SettingsSection;
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
-#[cfg(not(target_family = "wasm"))]
 use crate::terminal::focus_env::add_session_focus_env_vars;
 use crate::terminal::general_settings::{GeneralSettings, GeneralSettingsChangedEvent};
 #[cfg(feature = "local_tty")]
@@ -114,8 +110,6 @@ use crate::terminal::{
 };
 use crate::tips::{Tip, TipAction, TipsCompleted, mark_feature_used_and_write_to_user_defaults};
 use crate::undo_close::{UndoCloseStack, UndoCloseStackEvent};
-#[cfg(target_family = "wasm")]
-use crate::uri::browser_url_handler::update_browser_url;
 use crate::util::bindings::{CustomAction, is_binding_pty_compliant};
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
@@ -307,16 +301,14 @@ pub fn init(app: &mut AppContext) {
             PaneGroupAction::Add(Direction::Left),
         )
         .with_context_predicate(id!("PaneGroup") & !id!("PaneGroup_PaneDragging"))
-        .with_custom_action(CustomAction::SplitPaneLeft)
-        .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
+        .with_custom_action(CustomAction::SplitPaneLeft),
         EditableBinding::new(
             "pane_group:add_up",
             "Split pane up",
             PaneGroupAction::Add(Direction::Up),
         )
         .with_context_predicate(id!("PaneGroup") & !id!("PaneGroup_PaneDragging"))
-        .with_custom_action(CustomAction::SplitPaneUp)
-        .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
+        .with_custom_action(CustomAction::SplitPaneUp),
         EditableBinding::new(
             "pane_group:navigate_left",
             "Switch panes left",
@@ -404,16 +396,14 @@ pub fn init(app: &mut AppContext) {
             PaneGroupAction::Add(Direction::Down),
         )
         .with_context_predicate(id!("PaneGroup") & !id!("PaneGroup_PaneDragging"))
-        .with_custom_action(CustomAction::SplitPaneDown)
-        .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
+        .with_custom_action(CustomAction::SplitPaneDown),
         EditableBinding::new(
             "pane_group:add_right",
             "Split pane right",
             PaneGroupAction::Add(Direction::Right),
         )
         .with_context_predicate(id!("PaneGroup") & !id!("PaneGroup_PaneDragging"))
-        .with_custom_action(CustomAction::SplitPaneRight)
-        .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
+        .with_custom_action(CustomAction::SplitPaneRight),
         EditableBinding::new(
             TOGGLE_MAXIMIZE_PANE_BINDING_NAME,
             "Toggle Maximize Active Pane",
@@ -5216,37 +5206,6 @@ impl PaneGroup {
         if let Some(pane) = self.focused_pane_content(ctx) {
             pane.focus(ctx);
         }
-
-        #[cfg(target_family = "wasm")]
-        {
-            if ContextFlag::DynamicBrowserUrl.is_enabled() {
-                self.update_browser_url(ctx);
-            }
-        }
-    }
-
-    #[cfg(target_family = "wasm")]
-    fn update_browser_url(&self, ctx: &mut ViewContext<Self>) {
-        // We need to wait for the app to be loaded before we attempt to get the
-        // shareable links. This is because the links come from CloudModel objects
-
-        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-        ctx.spawn(initial_load_complete, move |me, _, ctx| {
-            if let Some(pane) = me.focused_pane_content(ctx) {
-                match pane.shareable_link(ctx) {
-                    Ok(crate::pane_group::pane::ShareableLink::Base) => {
-                        update_browser_url(None, false)
-                    }
-                    Ok(crate::pane_group::pane::ShareableLink::Pane { url }) => {
-                        update_browser_url(Some(url), false)
-                    }
-                    Err(crate::pane_group::pane::ShareableLinkError::Expected) => {}
-                    Err(crate::pane_group::pane::ShareableLinkError::Unexpected(message)) => {
-                        report_error!("Failed to update browser url", extra: { "message" => %message })
-                    }
-                }
-            }
-        });
     }
 
     /// Focus the active terminal session, if there is one.

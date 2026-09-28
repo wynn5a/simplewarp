@@ -74,12 +74,15 @@ sum_tree.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 titlecase = "1.0"
-tokio.workspace = true
 tracing.workspace = true
 trait-set = "0.3.0"
 unicode-segmentation.workspace = true
 vec1.workspace = true
 warp_util.workspace = true
+async-io.workspace = true
+ctrlc.workspace = true
+font-kit.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 command = { workspace = true, features = ["test-util"] }
@@ -97,19 +100,8 @@ warpui_core = { path = ".", features = ["test-util"] }
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-async-io.workspace = true
-ctrlc.workspace = true
-font-kit.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread"] }
-
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))'.dependencies]
 arboard = { workspace = true, features = ["image-data"] }
-
-[target.'cfg(target_family = "wasm")'.dependencies]
-gloo.workspace = true
-wasm-bindgen-futures.workspace = true
-woothee = "0.13.0"
 
 [build-dependencies]
 cfg_aliases.workspace = true

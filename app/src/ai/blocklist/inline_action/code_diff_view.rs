@@ -383,7 +383,6 @@ pub struct CodeDiffView {
     /// Client and server identifiers for the AI output associated with the code diffs.
     identifiers: AIIdentifiers,
     /// `False` until a user makes the first edit to one of the diffs in the view.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     user_edited_file_contents: bool,
     /// The ID of the pane that opened this code diff view.
     /// Used to return to the original pane after editing.
@@ -509,26 +508,19 @@ impl CodeDiffView {
         file_path_for_error: String,
         ctx: &mut ViewContext<Self>,
     ) {
-        #[cfg(not(target_family = "wasm"))]
         let file_path_clone = file_path_for_error;
-        #[cfg(target_family = "wasm")]
-        let _ = file_path_for_error;
-        #[cfg(not(target_family = "wasm"))]
         let window_id = ctx.window_id();
 
         ctx.subscribe_to_view(diff_view, move |me, _, event, ctx| match event {
             InlineDiffViewEvent::DiffStatusUpdated => {
                 ctx.notify();
             }
-            #[cfg(not(target_family = "wasm"))]
             InlineDiffViewEvent::FileLoaded => {
                 ctx.notify();
             }
-            #[cfg(not(target_family = "wasm"))]
             InlineDiffViewEvent::FileSaved => {
                 me.pending_saves = me.pending_saves.saturating_sub(1);
             }
-            #[cfg(not(target_family = "wasm"))]
             InlineDiffViewEvent::FailedToSave { error } => {
                 crate::safe_error!(
                     safe: ("Failed to save file for accepted AgentMode diffs"),
@@ -850,8 +842,7 @@ impl CodeDiffView {
                     )
                 });
 
-                // On non-WASM, register the file with FileModel for save support.
-                #[cfg(not(target_family = "wasm"))]
+                // Register the file with FileModel for save support.
                 diff_viewer.update(ctx, |view, ctx| view.register_file(ctx));
 
                 self.setup_diff_view_subscriptions(&diff_viewer, file_path, ctx);

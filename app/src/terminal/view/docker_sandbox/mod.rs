@@ -5,23 +5,17 @@ use std::path::PathBuf;
 #[cfg(feature = "local_tty")]
 use std::sync::mpsc::SyncSender;
 
-#[cfg(not(target_family = "wasm"))]
-#[cfg(any(feature = "local_tty", not(target_family = "wasm")))]
 use warp_errors::report_error;
 #[cfg(feature = "local_tty")]
 use warpui::ModelHandle;
-use warpui::ViewContext;
 #[cfg(feature = "local_tty")]
 use warpui::geometry::vector::Vector2F;
-#[cfg(not(target_family = "wasm"))]
-use warpui::{View, ViewHandle};
+use warpui::{View, ViewContext, ViewHandle};
 
 use super::TerminalView;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::agent_sdk::driver::{environment::prepare_environment, terminal::TerminalDriver};
-#[cfg(not(target_family = "wasm"))]
+use crate::ai::agent_sdk::driver::environment::prepare_environment;
+use crate::ai::agent_sdk::driver::terminal::TerminalDriver;
 use crate::ai::agent_sdk::setup_observability::SetupClientEventReporter;
-#[cfg(not(target_family = "wasm"))]
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 #[cfg(feature = "local_tty")]
 use crate::banner::BannerState;
@@ -29,15 +23,11 @@ use crate::banner::BannerState;
 use crate::pane_group::TerminalViewResources;
 #[cfg(feature = "local_tty")]
 use crate::persistence::ModelEvent;
-#[cfg(not(target_family = "wasm"))]
-#[cfg(not(target_family = "wasm"))]
 use crate::server::ids::{ServerId, SyncId};
-#[cfg(any(feature = "local_tty", not(target_family = "wasm")))]
 #[cfg(feature = "local_tty")]
 use crate::terminal::TerminalManager;
 #[cfg(feature = "local_tty")]
 use crate::terminal::available_shells::AvailableShell;
-#[cfg(not(target_family = "wasm"))]
 use crate::terminal::local_tty::docker_sandbox::DOCKER_SANDBOX_HOME_DIR;
 #[cfg(feature = "local_tty")]
 use crate::terminal::local_tty::docker_sandbox::resolve_sbx_path_from_user_shell;
@@ -145,8 +135,7 @@ impl TerminalView {
         // spawn and then build the pane in the completion callback.
         //
         // The sbx resolution and sandbox creation are only meaningful on
-        // platforms with a local tty; other builds (e.g. wasm) log
-        // and bail.
+        // platforms with a local tty; other builds log and bail.
         #[cfg(feature = "local_tty")]
         {
             let sbx_future = resolve_sbx_path_from_user_shell(ctx);
@@ -198,21 +187,18 @@ impl TerminalView {
             view.set_pane_configuration(pane_configuration);
         });
 
-        #[cfg(not(target_family = "wasm"))]
         let terminal_view_for_init = terminal_view.clone();
 
         pane_stack.update(ctx, |stack, ctx| {
             stack.push(terminal_manager, terminal_view, ctx);
         });
 
-        #[cfg(not(target_family = "wasm"))]
         Self::initialize_docker_sandbox_environment(&terminal_view_for_init, ctx);
 
         ctx.notify();
     }
 
     /// Kick off async environment initialization for a docker sandbox terminal.
-    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn initialize_docker_sandbox_environment<V: View>(
         terminal_view: &ViewHandle<TerminalView>,
         ctx: &mut ViewContext<V>,

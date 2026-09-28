@@ -2,10 +2,7 @@ use anyhow::Context;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use super::view::PaneView;
-use super::{
-    DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, ShareableLink,
-    ShareableLinkError,
-};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 use crate::app_state::{EnvVarCollectionPaneSnapshot, LeafContents};
 use crate::env_vars::EnvVarCollectionType;
 use crate::env_vars::manager::{EnvVarCollectionManager, EnvVarCollectionSource};
@@ -139,14 +136,6 @@ impl PaneContent for EnvVarCollectionPane {
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>) {
         self.env_var_collection_view(ctx)
             .update(ctx, |view, ctx| view.focus(ctx));
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        // TODO: sega
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

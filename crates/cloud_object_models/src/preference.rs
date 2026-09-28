@@ -36,20 +36,14 @@ impl Platform {
     }
 
     pub fn current_platform() -> Self {
-        if cfg!(all(not(target_family = "wasm"), target_os = "macos")) {
+        if cfg!(target_os = "macos") {
             return Self::Mac;
         }
-        if cfg!(all(
-            not(target_family = "wasm"),
-            any(target_os = "linux", target_os = "freebsd")
-        )) {
+        if cfg!(any(target_os = "linux", target_os = "freebsd")) {
             return Self::Linux;
         }
-        if cfg!(all(not(target_family = "wasm"), target_os = "windows")) {
+        if cfg!(target_os = "windows") {
             return Self::Windows;
-        }
-        if cfg!(target_family = "wasm") {
-            return Self::Web;
         }
         panic!("Unsupported platform");
     }

@@ -9,7 +9,6 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use string_offset::CharOffset;
 use syntax_highlightable::SyntaxHighlightable;
-use warp_core::context_flag::ContextFlag;
 use warp_core::ui::theme::AnsiColorIdentifier;
 use warp_editor::editor::NavigationKey;
 use warp_errors::report_error;
@@ -66,7 +65,7 @@ use crate::server::cloud_objects::update_manager::{
 };
 use crate::server::ids::{ClientId, SyncId};
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
-use crate::ui_components::buttons::{accent_icon_button, icon_button};
+use crate::ui_components::buttons::icon_button;
 use crate::ui_components::dialog::{Dialog, dialog_styles};
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::CustomAction;
@@ -134,7 +133,6 @@ const EDITOR_FONT_SIZE: f32 = 14.;
 
 const CREATE_BUTTON_TEXT: &str = "Create";
 const SAVE_BUTTON_TEXT: &str = "Update";
-const CANCEL_BUTTON_TEXT: &str = "Cancel";
 const BUTTON_PADDING: f32 = 12.;
 const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_BORDER_RADIUS: f32 = 4.;
@@ -220,13 +218,11 @@ struct EnvironmentVariablesState {
 #[derive(Default)]
 struct UiStateHandles {
     add_variable_state: MouseStateHandle,
-    cancel_mouse_state: MouseStateHandle,
     save_workflow_state: MouseStateHandle,
     // TODO: trash and restore with context menu
     restore_from_trash_button: MouseStateHandle,
     keep_editing_state: MouseStateHandle,
     discard_changes_state: MouseStateHandle,
-    edit_mode_button_mouse_state: MouseStateHandle,
     copy_content_button_mouse_state: MouseStateHandle,
     execute_command_mouse_state: MouseStateHandle,
     alias_header_tool_tip: MouseStateHandle,
@@ -1648,69 +1644,6 @@ impl WorkflowView {
         });
     }
 
-    fn render_edit_toggle_button(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let base_text_styles = UiComponentStyles {
-            ..Default::default()
-        };
-
-        let text_and_button = match self.workflow_view_mode {
-            WorkflowViewMode::Edit => {
-                let mode_text = appearance
-                    .ui_builder()
-                    .span("Editing")
-                    .with_style(base_text_styles)
-                    .build();
-                let edit_button = accent_icon_button(
-                    appearance,
-                    Icon::Pencil,
-                    false,
-                    self.ui_state_handles.edit_mode_button_mouse_state.clone(),
-                );
-
-                Some((mode_text, edit_button))
-            }
-            WorkflowViewMode::View => {
-                let mode_text = appearance
-                    .ui_builder()
-                    .span("Viewing")
-                    .with_style(base_text_styles)
-                    .build();
-                let edit_button = icon_button(
-                    appearance,
-                    Icon::Pencil,
-                    false,
-                    self.ui_state_handles.edit_mode_button_mouse_state.clone(),
-                );
-
-                Some((mode_text, edit_button))
-            }
-            _ => None,
-        };
-
-        if let Some((mode_text, edit_button)) = text_and_button {
-            let edit_button = edit_button.build();
-
-            Flex::row()
-                .with_child(
-                    Container::new(mode_text.finish())
-                        .with_margin_right(5.)
-                        .finish(),
-                )
-                .with_child(
-                    edit_button
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(WorkflowAction::ToggleViewMode)
-                        })
-                        .finish(),
-                )
-                .with_main_axis_size(MainAxisSize::Min)
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .finish()
-        } else {
-            Flex::row().finish()
-        }
-    }
-
     fn duplicate_object(&mut self, ctx: &mut ViewContext<Self>) {
         if self.show_enum_creation_dialog {
             return;
@@ -1795,41 +1728,35 @@ impl WorkflowView {
 
         let mut command_icon_buttons = Flex::row();
 
-        if !self.is_editable() || ContextFlag::RunWorkflow.is_enabled() {
-            command_icon_buttons.add_child(
+        command_icon_buttons.add_child(
+            icon_button(
+                appearance,
+                Icon::Copy,
+                false,
+                self.ui_state_handles
+                    .copy_content_button_mouse_state
+                    .clone(),
+            )
+            .build()
+            .on_click(|ctx, _, _| ctx.dispatch_typed_action(WorkflowAction::CopyContent))
+            .finish(),
+        );
+
+        command_icon_buttons.add_child(
+            Container::new(
                 icon_button(
                     appearance,
-                    Icon::Copy,
+                    Icon::TerminalInput,
                     false,
-                    self.ui_state_handles
-                        .copy_content_button_mouse_state
-                        .clone(),
+                    self.ui_state_handles.execute_command_mouse_state.clone(),
                 )
                 .build()
-                .on_click(|ctx, _, _| ctx.dispatch_typed_action(WorkflowAction::CopyContent))
+                .on_click(|ctx, _, _| ctx.dispatch_typed_action(WorkflowAction::RunWorkflow))
                 .finish(),
-            );
-
-            if ContextFlag::RunWorkflow.is_enabled() {
-                command_icon_buttons.add_child(
-                    Container::new(
-                        icon_button(
-                            appearance,
-                            Icon::TerminalInput,
-                            false,
-                            self.ui_state_handles.execute_command_mouse_state.clone(),
-                        )
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(WorkflowAction::RunWorkflow)
-                        })
-                        .finish(),
-                    )
-                    .with_margin_left(4.)
-                    .finish(),
-                );
-            }
-        }
+            )
+            .with_margin_left(4.)
+            .finish(),
+        );
 
         let content_editor_to_use = if self.is_editable() {
             &self.content_editor
@@ -2113,24 +2040,6 @@ impl WorkflowView {
             save_button = save_button.disabled();
         }
 
-        let mut cancel_button = self.build_footer_button(
-            ButtonVariant::Secondary,
-            CANCEL_BUTTON_TEXT.into(),
-            None,
-            self.ui_state_handles.cancel_mouse_state.clone(),
-            appearance,
-        );
-
-        if self.show_enum_creation_dialog {
-            cancel_button = cancel_button.disabled();
-        }
-
-        let render_cancel_button = cancel_button
-            .build()
-            .with_cursor(Cursor::PointingHand)
-            .on_click(|ctx, _, _| ctx.dispatch_typed_action(WorkflowAction::Cancel))
-            .finish();
-
         let render_save_button = save_button
             .build()
             .with_cursor(Cursor::PointingHand)
@@ -2140,17 +2049,6 @@ impl WorkflowView {
         let mut button_row = Flex::row();
 
         if self.is_editable() {
-            // If we are in a context where we can't run workflows and are in the edit mode, then
-            // show the cancel button
-            if !ContextFlag::RunWorkflow.is_enabled()
-                && matches!(self.workflow_view_mode, WorkflowViewMode::Edit)
-            {
-                button_row.add_child(
-                    Container::new(render_cancel_button)
-                        .with_margin_right(8.)
-                        .finish(),
-                );
-            }
             button_row.add_child(render_save_button);
         }
 
@@ -2376,31 +2274,6 @@ impl View for WorkflowView {
             ContainerConfiguration::Pane(_) => CORE_VERTICAL_MARGIN_IN_PANE,
             ContainerConfiguration::SuggestionDialog => 0.,
         };
-
-        // Workflows aren't runnable (so view mode is enabled) and the workflow is always
-        // editable, so both view and edit modes are allowed.
-        let mode_toggleable = !ContextFlag::RunWorkflow.is_enabled();
-
-        if mode_toggleable {
-            let mut row = Flex::row();
-            row.add_child(
-                Shrinkable::new(
-                    1.,
-                    Container::new(self.render_edit_toggle_button(appearance))
-                        .with_margin_right(CORE_HORIZONATAL_MARGIN)
-                        .with_vertical_margin(vertical_margin / 2.)
-                        .finish(),
-                )
-                .finish(),
-            );
-
-            content.add_child(
-                row.with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_main_axis_alignment(MainAxisAlignment::End)
-                    .with_main_axis_size(MainAxisSize::Max)
-                    .finish(),
-            );
-        }
 
         // We use a stack here with two children — an expanded transparent box and
         // container with the core ui elements. The core UI elements are layered

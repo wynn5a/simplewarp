@@ -3,9 +3,7 @@ use warpui_core::ModelContext;
 
 use super::model::{ProjectContextModel, ProjectRule};
 
-/// No-op stand-in for non-`local_fs` builds. File-based global rules require
-/// filesystem watchers that don't exist on WASM, so callers see an empty
-/// view here.
+/// No-op stand-in for non-`local_fs` builds, so callers see an empty view.
 #[derive(Debug, Default)]
 pub(crate) struct GlobalRules;
 

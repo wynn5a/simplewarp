@@ -101,7 +101,6 @@ dashmap.workspace = true
 deltae = "0.3.1"
 derivative.workspace = true
 dhat = { version = "0.3.2", optional = true }
-diesel.workspace = true
 difflib = { git = "https://github.com/warpdotdev/difflib.git", rev = "114177e7d8e1f8017baca397f943e11644b14d63" }
 directories.workspace = true
 dirs.workspace = true
@@ -236,7 +235,7 @@ warp_assets.workspace = true
 warp_channel_config.workspace = true
 warp_completer.workspace = true
 warp_core.workspace = true
-warp_errors = { workspace = true, features = ["reqwest-errors"] }
+warp_errors = { workspace = true, features = ["reqwest-errors", "tokio-errors"] }
 warp_editor.workspace = true
 warp_js = { workspace = true, optional = true }
 warp_search_core.workspace = true
@@ -249,7 +248,6 @@ warpui_extras = { workspace = true, features = ["default", "user_preferences-tom
 syntax_tree.workspace = true
 languages.workspace = true
 warp_terminal.workspace = true
-websocket.workspace = true
 wgpu = { workspace = true, optional = true }
 natural_language_detection.workspace = true
 onboarding.workspace = true
@@ -269,6 +267,48 @@ rmcp.workspace = true
 warp_isolation_platform.workspace = true
 warp_ripgrep.workspace = true
 local_inference.workspace = true
+app-installation-detection.workspace = true
+async-io.workspace = true
+axum.workspace = true
+build_cache.workspace = true
+cloud_object_persistence.workspace = true
+comfy-table = "7.1.4"
+inquire = "0.9.1"
+diesel = { workspace = true, features = ["sqlite", "chrono"] }
+diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
+env_logger.workspace = true
+git2 = { version = "0.20.4", default-features = false, features = [
+    "vendored-libgit2",
+] }
+http_server.workspace = true
+hyper.workspace = true
+libsqlite3-sys = { version = "0.33.0", features = ["bundled"] }
+mio = { version = "1.1.1", features = ["os-poll", "os-ext"] }
+opentelemetry.workspace = true
+opentelemetry-http.workspace = true
+opentelemetry-otlp.workspace = true
+opentelemetry_sdk.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing-opentelemetry.workspace = true
+tracing-subscriber.workspace = true
+
+# AWS SDK (loading credentials for BYO LLM)
+aws-config = { version = "1.8.16", features = ["credentials-login"] }
+aws-credential-types = "1"
+aws-sdk-sts = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-types = "1"
+
+notify-debouncer-full.workspace = true
+rquickjs = { workspace = true, optional = true }
+rustls.workspace = true
+syntect = "5.0"
+sysinfo.workspace = true
+warp-command-signatures = { workspace = true, features = ["embed-signatures"] }
+is_executable = "1.0.1"
+gethostname = "1.1.0"
+watcher.workspace = true
+warp_files.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 block.workspace = true
@@ -299,75 +339,6 @@ security-framework-sys = "2.0.0"
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 winit = { workspace = true }
 wgpu.workspace = true
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-app-installation-detection.workspace = true
-async-io.workspace = true
-axum.workspace = true
-build_cache.workspace = true
-cloud_object_persistence.workspace = true
-comfy-table = "7.1.4"
-inquire = "0.9.1"
-diesel = { workspace = true, features = ["sqlite", "chrono"] }
-diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
-env_logger.workspace = true
-git2 = { version = "0.20.4", default-features = false, features = [
-    "vendored-libgit2",
-] }
-http_server.workspace = true
-hyper.workspace = true
-libsqlite3-sys = { version = "0.33.0", features = ["bundled"] }
-mio = { version = "1.1.1", features = ["os-poll", "os-ext"] }
-opentelemetry.workspace = true
-opentelemetry-http.workspace = true
-opentelemetry-otlp.workspace = true
-opentelemetry_sdk.workspace = true
-tokio.workspace = true
-tokio-util.workspace = true
-tracing-opentelemetry.workspace = true
-tracing-subscriber.workspace = true
-warp_errors = { workspace = true, features = ["tokio-errors", "websocket-errors"] }
-
-# AWS SDK (loading credentials for BYO LLM)
-aws-config = { version = "1.8.16", features = ["credentials-login"] }
-aws-credential-types = "1"
-aws-sdk-sts = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
-aws-types = "1"
-
-notify-debouncer-full.workspace = true
-rquickjs = { workspace = true, optional = true }
-rustls.workspace = true
-syntect = "5.0"
-sysinfo.workspace = true
-warp-command-signatures = { workspace = true, features = ["embed-signatures"] }
-is_executable = "1.0.1"
-gethostname = "1.1.0"
-watcher.workspace = true
-warp_files.workspace = true
-
-[target.'cfg(target_family = "wasm")'.dependencies]
-console_error_panic_hook = { version = "0.1.6" }
-# We only have an indirect dependency on this crate; we depend on reqwest-eventsource@0.6.0 which depends on
-# futures-timer@3.0.2. For whatever unfortunate reason, this crate doesn't automatically enable its feature
-# required for wasm-compatibility when targeting wasm. So we need to explicitly specify this dependency when
-# targeting wasm and leverage the fact that cargo enables the superset of enabled features for a given crate.
-futures-timer = { version = "3.0.2", features = ["wasm-bindgen"] }
-js-sys = "0.3.63"
-# Make sure we embed the data into the wasm binary even when running in debug
-# mode, as it cannot be read directly from the filesystem.
-rust-embed = { workspace = true, features = ["debug-embed"] }
-syntect = { version = "5.0", default-features = false, features = [
-    "default-fancy",
-] }
-wasm-bindgen.workspace = true
-# We need to make sure that "js" is enabled as a feature when using wasm.
-getrandom = { version = "0.2", features = ["js"] }
-gloo.workspace = true
-serde-wasm-bindgen = "0.6.5"
-# For wasm, we don't use the feature "embed-signatures".
-warp-command-signatures = { workspace = true }
-web-sys.workspace = true
-warp_web_event_bus.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 cvt = "0.1.1"
@@ -443,8 +414,6 @@ warpui_core = { workspace = true, features = ["test-util"] }
 warpui_extras = { workspace = true, features = ["test-util"] }
 warp_files = { workspace = true, features = ["test-util"] }
 repo_metadata = { workspace = true, features = ["test-util"] }
-
-[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "process", "time"] }
 
 [build-dependencies]
@@ -452,7 +421,6 @@ anyhow = "1.0"
 cc = "1.0"
 cfg_aliases.workspace = true
 prost-build.workspace = true
-sha2.workspace = true
 tempfile.workspace = true
 walkdir = "2.3.2"
 warp_util.workspace = true

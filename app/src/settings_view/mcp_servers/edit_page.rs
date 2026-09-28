@@ -4,7 +4,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 #[cfg(feature = "local_fs")]
-#[cfg(not(target_family = "wasm"))]
 use diesel::SqliteConnection;
 #[cfg(feature = "local_fs")]
 use parking_lot::Mutex;
@@ -160,7 +159,6 @@ impl MCPServersEditPageView {
         });
 
         let json_editor = ctx.add_typed_action_view(|ctx| {
-            #[cfg_attr(target_family = "wasm", allow(unused_mut))]
             let mut editor = CodeEditorView::new(
                 None,
                 None,

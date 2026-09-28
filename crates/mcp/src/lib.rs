@@ -1,8 +1,5 @@
-#[cfg(not(target_family = "wasm"))]
 pub mod oauth;
-#[cfg(not(target_family = "wasm"))]
 pub mod runtime;
-#[cfg(not(target_family = "wasm"))]
 pub mod sse_transport;
 
 use uuid::Uuid;

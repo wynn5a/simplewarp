@@ -3,6 +3,5 @@
 mod convert;
 mod js_function;
 
-#[cfg_attr(target_family = "wasm", allow(unused_imports))]
 pub use convert::*;
 pub use js_function::*;

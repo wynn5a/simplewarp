@@ -1035,18 +1035,16 @@ where
         .with_child(content)
         .with_spacing(4.0);
 
-    if !warpui::platform::is_mobile_device() {
-        let keybinding_string = keybinding.map(|k| k.displayed()).unwrap_or_default();
-        let keybinding_label = Text::new_inline(
-            keybinding_string,
-            appearance.ui_font_family(),
-            get_keybinding_font_size(appearance),
-        )
-        .with_color(theme.foreground().into())
-        .finish();
+    let keybinding_string = keybinding.map(|k| k.displayed()).unwrap_or_default();
+    let keybinding_label = Text::new_inline(
+        keybinding_string,
+        appearance.ui_font_family(),
+        get_keybinding_font_size(appearance),
+    )
+    .with_color(theme.foreground().into())
+    .finish();
 
-        button_content.add_child(keybinding_label);
-    }
+    button_content.add_child(keybinding_label);
 
     let button_content = button_content.finish();
     let styles = UiComponentStyles::default()
@@ -1893,12 +1891,6 @@ fn can_render_blocklist_image(
     .is_some()
 }
 
-#[cfg(target_arch = "wasm32")]
-fn should_load_blocklist_image_asset(asset_source: &AssetSource) -> bool {
-    !matches!(asset_source, AssetSource::LocalFile { .. })
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 fn should_load_blocklist_image_asset(_: &AssetSource) -> bool {
     true
 }

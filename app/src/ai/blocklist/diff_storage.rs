@@ -270,6 +270,6 @@ fn clamp_to_file_context_range_start(file_location: &mut FileLocations) {
     }
 }
 
-#[cfg(all(test, not(target_family = "wasm")))]
+#[cfg(test)]
 #[path = "diff_storage_tests.rs"]
 mod tests;

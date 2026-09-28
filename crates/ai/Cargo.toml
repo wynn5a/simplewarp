@@ -44,7 +44,7 @@ regex.workspace = true
 rmcp.workspace = true
 strsim.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 futures.workspace = true
 derivative.workspace = true
 warp_core.workspace = true
@@ -56,24 +56,18 @@ persistence.workspace = true
 repo_metadata.workspace = true
 uuid.workspace = true
 unicode-width.workspace = true
-
-[target.'cfg(unix)'.dependencies]
-nix.workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-fs.workspace = true
 arborium.workspace = true
 languages.workspace = true
 syntax_tree.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread"] }
 watcher.workspace = true
 notify-debouncer-full.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
 
 [dev-dependencies]
 serial_test = "0.8.0"
 tempfile.workspace = true
 virtual-fs.workspace = true
 warp_core = { workspace = true, features = ["test-util"] }
-
-[build-dependencies]
-anyhow.workspace = true

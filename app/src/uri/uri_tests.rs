@@ -547,7 +547,6 @@ fn test_settings_widget_deeplink_target() {
         settings_widget_deeplink_target("custom_router").map(|(section, _)| section),
         Some(SettingsSection::WarpAgent),
     );
-    #[cfg(not(target_family = "wasm"))]
     assert_eq!(
         settings_widget_deeplink_target("cli_agents").map(|(section, _)| section),
         Some(SettingsSection::ThirdPartyCLIAgents),

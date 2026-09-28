@@ -1,11 +1,6 @@
-cfg_if::cfg_if! {
-    if #[cfg(not(target_family = "wasm"))] {
-        mod info;
-        mod memory_footprint;
-        pub use info::SystemInfo;
-    }
-}
-
+mod info;
+mod memory_footprint;
+pub use info::SystemInfo;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -35,9 +30,3 @@ impl Entity for SystemStats {
 }
 
 impl SingletonEntity for SystemStats {}
-
-#[cfg(not(target_family = "wasm"))]
-#[cfg(target_family = "wasm")]
-pub fn long_os_version(_ctx: &warpui::AppContext) -> Option<String> {
-    None
-}

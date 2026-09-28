@@ -1,23 +1,16 @@
-#[cfg(not(target_family = "wasm"))]
 use ai::agent::action_result::StopRecordingResult;
 use futures::FutureExt;
 use futures::future::BoxFuture;
-#[cfg(not(target_family = "wasm"))]
-use warpui::SingletonEntity;
-use warpui::{Entity, ModelContext};
+use warpui::{Entity, ModelContext, SingletonEntity};
 
 use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
-use crate::ai::agent::AIAgentActionType;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::{
-    agent::AIAgentActionResultType,
-    blocklist::{
-        BlocklistAIHistoryModel,
-        action_model::{
-            recording_controller::{RecordingController, StopRecordingControllerError},
-            recording_finalize::{FinalizeReason, finalize_recording_by_id},
-        },
-    },
+use crate::ai::agent::{AIAgentActionResultType, AIAgentActionType};
+use crate::ai::blocklist::BlocklistAIHistoryModel;
+use crate::ai::blocklist::action_model::recording_controller::{
+    RecordingController, StopRecordingControllerError,
+};
+use crate::ai::blocklist::action_model::recording_finalize::{
+    FinalizeReason, finalize_recording_by_id,
 };
 pub struct StopRecordingExecutor;
 
@@ -26,7 +19,6 @@ impl StopRecordingExecutor {
         Self
     }
 
-    #[cfg_attr(target_family = "wasm", allow(unused_variables))]
     pub(super) fn should_autoexecute(
         &self,
         input: ExecuteActionInput,
@@ -37,18 +29,11 @@ impl StopRecordingExecutor {
             && warp_core::features::FeatureFlag::VideoRecording.is_enabled()
     }
 
-    #[cfg_attr(target_family = "wasm", allow(unused_variables))]
     pub(super) fn execute(
         &mut self,
         input: ExecuteActionInput,
         ctx: &mut ModelContext<Self>,
     ) -> AnyActionExecution {
-        #[cfg(target_family = "wasm")]
-        {
-            ActionExecution::<()>::InvalidAction.into()
-        }
-
-        #[cfg(not(target_family = "wasm"))]
         {
             let ExecuteActionInput {
                 action,

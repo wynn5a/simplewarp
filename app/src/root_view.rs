@@ -9,7 +9,6 @@ use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
 use serde::{Deserialize, Serialize};
 use settings::Setting as _;
-use warp_core::context_flag::ContextFlag;
 use warpui::elements::{ParentElement, Stack};
 use warpui::keymap::{EditableBinding, FixedBinding};
 use warpui::platform::{WindowBounds, WindowStyle};
@@ -1262,9 +1261,7 @@ impl RootView {
     }
 
     fn close_window(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
-        if ContextFlag::CloseWindow.is_enabled() {
-            ctx.close_window();
-        }
+        ctx.close_window();
         true
     }
 

@@ -1635,7 +1635,6 @@ impl BlocklistAIController {
         // Safety net: re-arm the Gemini Enterprise (GEAP) credential refresh
         // chain if it was parked or never armed, so upcoming requests can
         // authenticate.
-        #[cfg(not(target_family = "wasm"))]
         {
             use ::ai::api_keys::ApiKeyManager;
 

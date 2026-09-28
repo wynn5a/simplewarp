@@ -1,12 +1,8 @@
 //! This module contains abstractions for registering and calling plugin JS functions.
-cfg_if::cfg_if! {
-    if #[cfg(not(target_family = "wasm"))] {
-        mod native;
-        pub use native::*;
-    }
-}
+mod native;
 use std::marker::PhantomData;
 
+pub use native::*;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

@@ -313,7 +313,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 /// Widget id backing the `cli_agents` deeplink slug. Lives here alongside the
 /// widget itself because the default `widget_id()` is the type's full path,
 /// which changes whenever the widget moves modules.
-#[cfg(not(target_family = "wasm"))]
 pub fn cli_agent_settings_widget_id() -> &'static str {
     CLIAgentWidget::static_widget_id()
 }

@@ -2,8 +2,7 @@
 //! engine.
 
 // The `js` module contains implementations of `warp_js::{IntoWarpJs, FromWarpJs}` for V2 command
-// signatures, which is only supported on native non-wasm platforms.
-#[cfg(not(target_family = "wasm"))]
+// signatures.
 mod js;
 
 mod lookup;

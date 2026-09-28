@@ -30,8 +30,6 @@ strum_macros.workspace = true
 warp_core.workspace = true
 warp_errors.workspace = true
 warpui_core.workspace = true
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
 tantivy = "0.26.0"
 
 [dev-dependencies]

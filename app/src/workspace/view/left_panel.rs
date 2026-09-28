@@ -1194,10 +1194,6 @@ impl View for LeftPanelView {
         })
         .finish();
 
-        if warpui::platform::is_mobile_device() {
-            return panel_content;
-        }
-
         let drag_side = match self.panel_position {
             super::PanelPosition::Left => DragBarSide::Right,
             super::PanelPosition::Right => DragBarSide::Left,

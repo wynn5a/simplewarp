@@ -20,8 +20,7 @@ use crate::cloud_object::{
 use crate::persistence::ModelEvent;
 use crate::server::ids::SyncId;
 
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[async_trait]
 impl CloudModelType for CloudNotebookModel {
     type CloudObjectType = CloudNotebook;
     type IdType = NotebookId;

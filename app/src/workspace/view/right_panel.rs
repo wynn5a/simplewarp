@@ -407,7 +407,6 @@ pub enum RightPanelEvent {
         path: LocalOrRemotePath,
         line_and_column: Option<LineAndColumnArg>,
     },
-    #[cfg(not(target_family = "wasm"))]
     OpenLspLogs {
         log_path: PathBuf,
     },
@@ -1273,7 +1272,6 @@ impl RightPanelView {
                         line_and_column: *line_and_column,
                     });
                 }
-                #[cfg(not(target_family = "wasm"))]
                 CodeReviewViewEvent::OpenLspLogs { log_path } => {
                     ctx.emit(RightPanelEvent::OpenLspLogs {
                         log_path: log_path.clone(),

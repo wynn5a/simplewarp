@@ -93,12 +93,20 @@ simplewarp (−16, all deleted with their code), 0 failed; clippy and format cle
 
 Queue, in order:
 
-1. **4gp — the wasm/web target** (user decision 2026-09-28: only the desktop app is kept).
-   ~1,300 `target_family = "wasm"` sites in ~270 files, plus the `serve-wasm` and
-   `warp_web_event_bus` crates. Takes the rest of the URL readers with it: `font_fallback.rs`,
-   `wasm_nux_dialog.rs`, `wasm_view.rs`, `web_intent_parser.rs`, the workspace
-   local-network-access toast, `WorkspaceAction::OpenLinkOnDesktop`, and the pane
-   `shareable_link` browser-URL machinery.
+1. ~~wasm/web target~~ — **4gp done (2026-09-28, user decision: desktop only).** −12.5k lines in
+   408 files: every wasm cfg site, the `serve-wasm`, `warp_web_event_bus` and `websocket` crates,
+   wasm platform backends in warpui/warpui_core, wasm-only app modules (font fallback, NUX dialog,
+   web intent parser, browser URL handler, …), wasm deps/profiles/CI jobs/scripts, the pane
+   `shareable_link` machinery, `ContextFlag` (all flags were true on desktop; only the web build
+   disabled them, so read sites collapsed to true), the web home page, mobile/soft-keyboard
+   plumbing, remote assets, and the `rtc_server_url` / `session_sharing_server_url` /
+   `oz_root_url` channel fields. `server_root_url` stays: `workload_audience_url()` still falls back
+   to it (read by `crates/isolation_platform`). Orphaned private setting `UserAppInstallStatus`
+   (web-only, never read on desktop). Tests unchanged (4,392 / 4,393); app launch verified.
+   Follow-ups: collapse `local_fs` / `local_tty` (now always on) and their `not(...)` stubs; the
+   inert external fallback-font subsystem in warpui_core; decide on `app-installation-detection`
+   (desktop still serves `/install_detection` for warp.dev); `ChannelState::firebase_api_key` (zero
+   readers); `.clippy.toml` wasm wording.
 2. **4gq — Sentry crash reporting**: the `crash_reporting` / `cocoa_sentry` / `heap_usage_tracking`
    cargo features (in neither set), ~1,200 lines in `app/src/crash_reporting/`, 46 cfg sites in
    17 files, the minidump server, the privacy-page crash-reports toggle, and `CrashReporting` /
@@ -118,8 +126,8 @@ Queue, in order:
    `GitRepoStatusModel`, `GitHubRepoModel`) and `SessionType` ≡ `BootstrapSessionType` to
    flatten, stale "SSH extension" text (tmux deprecation banner, migration comments, `specs/`,
    `EXCLUDE_REMOTE_SERVER_TESTS_FILTER` in `ci.yml`).
-4. After 1–3: the channel config fields themselves (`server_root_url`, `rtc_server_url`,
-   `oz_root_url`, `session_sharing_server_url`) and `crates/websocket` if nothing else uses it.
+4. `server_root_url`: trace `workload_audience_url()` / `crates/isolation_platform` and remove the
+   field once nothing reads it.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, WarpDrivePrivacySettings, `autosync_plans_to_warp_drive`,

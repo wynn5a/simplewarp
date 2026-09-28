@@ -3,7 +3,6 @@ use warpui::{AppContext, ModelHandle, View, ViewContext, ViewHandle};
 use super::PaneId;
 use crate::app_state::LeafContents;
 use crate::pane_group::pane::get_started_view::GetStartedView;
-use crate::pane_group::pane::{ShareableLink, ShareableLinkError};
 use crate::pane_group::{BackingView, PaneConfiguration, PaneContent, PaneGroup, PaneView};
 
 pub struct GetStartedPane {
@@ -76,13 +75,6 @@ impl PaneContent for GetStartedPane {
             .as_ref(ctx)
             .child(ctx)
             .update(ctx, BackingView::focus_contents)
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

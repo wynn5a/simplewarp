@@ -29,10 +29,8 @@ if [[ "$(source /etc/os-release; echo $ID $ID_LIKE)" = *"debian"* ]]; then
     libssl-dev libfreetype-dev libexpat1-dev libgit2-dev
     # libs needed for loading system fonts
     libfontconfig1-dev
-    # Needed in wasm compilation for parsing the version of wasm-bindgen
+    # Needed for parsing JSON in CI scripts
     jq
-    # Needed for compressing web bundles
-    brotli
     # Needed for voice input
     libasound2-dev
     # Needed by bindgen (used by minimp4-sys, pulled in by warpui_core's

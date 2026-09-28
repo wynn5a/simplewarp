@@ -1,38 +1,27 @@
-#[cfg(not(target_family = "wasm"))]
 use std::sync::Arc;
 
 use ai::diff_validation::DiffType;
-#[cfg(not(target_family = "wasm"))]
 use futures::FutureExt;
-#[cfg(not(target_family = "wasm"))]
 use warp_files::{FileModel, FileModelEvent};
-use warp_util::file::FileId;
-#[cfg(not(target_family = "wasm"))]
-use warp_util::file::FileSaveError;
+use warp_util::file::{FileId, FileSaveError};
 use warp_util::standardized_path::StandardizedPath;
-#[cfg(not(target_family = "wasm"))]
-use warpui::SingletonEntity;
 use warpui::elements::ChildView;
-use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
+use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+};
 
 use super::diff_viewer::{DiffViewer, DisplayMode};
 use super::editor::NavBarBehavior;
 use super::editor::scroll::{ScrollPosition, ScrollTrigger};
 use super::editor::view::{CodeEditorEvent, CodeEditorView};
 use crate::ai::blocklist::diff_storage::SaveFuture;
-#[cfg(not(target_family = "wasm"))]
 use crate::editor::InteractionState;
 
 pub enum InlineDiffViewEvent {
     DiffStatusUpdated,
-    #[cfg(not(target_family = "wasm"))]
     FileLoaded,
-    #[cfg(not(target_family = "wasm"))]
     FileSaved,
-    #[cfg(not(target_family = "wasm"))]
-    FailedToSave {
-        error: Arc<FileSaveError>,
-    },
+    FailedToSave { error: Arc<FileSaveError> },
     UserEdited,
 }
 
@@ -40,7 +29,7 @@ pub enum InlineDiffViewEvent {
 ///
 /// When a backing file is registered (via [`Self::register_file`]), this view supports the full
 /// accept/save/revert lifecycle through `FileModel`. Without a registered file, it behaves
-/// as a read-only diff viewer (e.g. for WASM or restored conversations).
+/// as a read-only diff viewer (e.g. for restored conversations).
 pub struct InlineDiffView {
     editor: ViewHandle<CodeEditorView>,
     diff_type: Option<DiffType>,
@@ -53,12 +42,11 @@ pub struct InlineDiffView {
     /// - The editor is editable (interaction state follows the `DisplayMode` rules).
     /// - Accept, save, and revert operations write through `FileModel`.
     ///
-    /// When `None` (WASM, restored conversations, or before registration):
+    /// When `None` (restored conversations, or before registration):
     /// - The editor is selection-only (never editable).
     /// - Accept, save, and revert are no-ops.
     backing_file_id: Option<FileId>,
     /// Whether the diff is a new file creation (for revert: delete instead of restore).
-    #[cfg(not(target_family = "wasm"))]
     is_new_file: bool,
 }
 
@@ -70,7 +58,6 @@ impl InlineDiffView {
         file_path: Option<StandardizedPath>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        #[cfg(not(target_family = "wasm"))]
         let is_new_file = matches!(diff_type, Some(DiffType::Create { .. }));
 
         ctx.subscribe_to_view(&editor, |me, _view, event, ctx| match event {
@@ -92,7 +79,6 @@ impl InlineDiffView {
             file_path,
             was_edited: false,
             backing_file_id: None,
-            #[cfg(not(target_family = "wasm"))]
             is_new_file,
         };
 
@@ -106,8 +92,7 @@ impl InlineDiffView {
 
     /// Register a file with `FileModel` for save support.
     ///
-    /// This must be called after construction for non-WASM environments.
-    #[cfg(not(target_family = "wasm"))]
+    /// This must be called after construction.
     pub fn register_file(&mut self, ctx: &mut ViewContext<Self>) {
         let Some(file_path) = &self.file_path else {
             return;
@@ -134,7 +119,6 @@ impl InlineDiffView {
 
     /// Common registration logic: subscribes to events and sets the
     /// backing file ID after a file has been registered with `FileModel`.
-    #[cfg(not(target_family = "wasm"))]
     fn finish_file_registration(&mut self, file_id: FileId, ctx: &mut ViewContext<Self>) {
         let file_model = FileModel::handle(ctx);
 
@@ -196,7 +180,6 @@ impl InlineDiffView {
     /// Saves the current editor content through `FileModel`, returning the
     /// save's completion future. `FileSaved` / `FailedToSave` events still
     /// fire alongside. `None` when no file is registered.
-    #[cfg(not(target_family = "wasm"))]
     fn save_content(&self, ctx: &mut ViewContext<Self>) -> Option<SaveFuture> {
         let file_id = self.backing_file_id?;
         let content = self.editor.as_ref(ctx).text(ctx).into_string();
@@ -218,18 +201,10 @@ impl InlineDiffView {
 
     /// Accepts the diff by saving the editor content to the backing file,
     /// returning the save's completion future. `None` when no file is
-    /// registered (WASM / restored conversations), in which case nothing is
+    /// registered (restored conversations), in which case nothing is
     /// dispatched.
     pub fn accept_and_save_diff(&self, ctx: &mut ViewContext<Self>) -> Option<SaveFuture> {
-        #[cfg(not(target_family = "wasm"))]
-        {
-            self.save_content(ctx)
-        }
-        #[cfg(target_family = "wasm")]
-        {
-            let _ = ctx;
-            None
-        }
+        self.save_content(ctx)
     }
 }
 
@@ -274,7 +249,7 @@ impl DiffViewer for InlineDiffView {
         let interaction_state = if self.backing_file_id.is_some() {
             mode.interaction_state(is_delete)
         } else {
-            // No file registered (e.g. WASM or restored conversations): always read-only.
+            // No file registered (e.g. restored conversations): always read-only.
             InteractionState::Selectable
         };
         self.editor().update(ctx, |editor, ctx| {
@@ -289,12 +264,11 @@ impl DiffViewer for InlineDiffView {
     }
 
     fn restore_diff_base(&mut self, _ctx: &mut ViewContext<Self>) -> Result<(), String> {
-        // No-op when no file is registered (WASM / restored conversations).
+        // No-op when no file is registered (restored conversations).
         if self.backing_file_id.is_none() {
             return Ok(());
         }
 
-        #[cfg(not(target_family = "wasm"))]
         {
             let file_id = self
                 .backing_file_id

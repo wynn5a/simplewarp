@@ -9,7 +9,6 @@ use warpui::{AppContext, SingletonEntity};
 use warpui_extras::user_preferences;
 
 use super::app_icon::AppIconSettings;
-use super::app_installation_detection::UserAppInstallDetectionSettings;
 use super::cloud_preferences::CloudPreferencesSettings;
 use super::native_preference::NativePreferenceSettings;
 use super::{
@@ -78,7 +77,6 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     NativePreferenceSettings::register(ctx);
     CloudPreferencesSettings::register(ctx);
     WarpDrivePrivacySettings::register(ctx);
-    UserAppInstallDetectionSettings::register(ctx);
     AppIconSettings::register(ctx);
     AppEditorSettings::register(ctx);
     InputSettings::register(ctx);
@@ -282,8 +280,6 @@ fn init_platform_native_preferences() -> user_preferences::Model {
             Box::new(user_preferences::user_defaults::UserDefaultsPreferencesStorage::new(
                 warp_core::channel::ChannelState::data_domain_if_not_default()
             ))
-        } else if #[cfg(target_family = "wasm")] {
-            Box::<user_preferences::local_storage::LocalStoragePreferences>::default()
         } else {
             unreachable!("Unspecified user preferences implementation for current platform!");
         }
@@ -312,8 +308,6 @@ pub fn init_public_user_preferences() -> (user_preferences::Model, Option<user_p
     cfg_if::cfg_if! {
         if #[cfg(test)] {
             (Box::<user_preferences::in_memory::InMemoryPreferences>::default(), None)
-        } else if #[cfg(target_family = "wasm")] {
-            (Box::<user_preferences::local_storage::LocalStoragePreferences>::default(), None)
         } else {
             if warp_core::features::FeatureFlag::SettingsFile.is_enabled() {
                 let (prefs, parse_error) =

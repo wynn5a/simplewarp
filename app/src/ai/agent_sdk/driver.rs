@@ -717,7 +717,7 @@ impl AgentDriver {
                         });
 
                     // Timer future: fires at deadline minus warning window, mapped to
-                    // () to avoid std::time::Instant which is disallowed on wasm targets.
+                    // () to avoid std::time::Instant, which is disallowed by clippy.
                     // Pending forever (never fires) when no deadline is set.
                     let timer_fut = maybe_wait
                         .map(|w| Either::Left(Timer::after(w).map(|_| ())))

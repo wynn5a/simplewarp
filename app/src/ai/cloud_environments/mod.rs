@@ -1,6 +1,6 @@
 mod catalog;
 pub use catalog::CloudEnvironmentCatalog;
-#[cfg_attr(any(target_family = "wasm", not(test)), expect(unused_imports))]
+#[cfg_attr(not(test), expect(unused_imports))]
 pub use cloud_object_models::{
     AmbientAgentEnvironment, CloudAmbientAgentEnvironment, CloudAmbientAgentEnvironmentModel,
     CodeForge, GithubRepo, SourceRepo,

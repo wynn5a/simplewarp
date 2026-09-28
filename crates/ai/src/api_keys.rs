@@ -1,6 +1,5 @@
 use std::time::SystemTime;
 
-#[cfg(not(target_family = "wasm"))]
 use futures::channel::oneshot;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -11,11 +10,9 @@ use warpui_extras::secure_storage::{self, AppContextExt};
 
 use crate::LLMProvider;
 pub use crate::aws_credentials::{AwsCredentials, AwsCredentialsState};
-#[cfg(not(target_family = "wasm"))]
-pub use crate::geap_credentials::GeapRefreshOutcome;
 pub use crate::geap_credentials::{
     GEAP_MINT_FAILURE_COOLDOWN, GEAP_REFRESH_LEAD_TIME, GeapCredentials, GeapCredentialsState,
-    GeapFederation, GeapMintBinding, LoadGeapCredentialsError,
+    GeapFederation, GeapMintBinding, GeapRefreshOutcome, LoadGeapCredentialsError,
 };
 
 const SECURE_STORAGE_KEY: &str = "AiApiKeys";
@@ -154,11 +151,9 @@ pub struct ApiKeyManager {
     /// `Some` means a mint is in flight *by construction* rather than by
     /// convention. Holds the completion senders for requests blocked on it;
     /// may be empty for a proactive mint with no waiters.
-    #[cfg(not(target_family = "wasm"))]
     pub(crate) geap_refresh_waiters: Option<Vec<oneshot::Sender<GeapRefreshOutcome>>>,
     /// When the last GEAP mint failed, if one has. The timestamp is what
     /// suppresses repeated request-time waits.
-    #[cfg(not(target_family = "wasm"))]
     pub(crate) geap_last_mint_failure: Option<SystemTime>,
     pub(crate) aws_credentials_state: AwsCredentialsState,
     /// In-memory Gemini Enterprise (GEAP) credential state.
@@ -178,9 +173,7 @@ impl ApiKeyManager {
         let keys = Self::load_keys_from_secure_storage(ctx);
         Self {
             keys,
-            #[cfg(not(target_family = "wasm"))]
             geap_refresh_waiters: None,
-            #[cfg(not(target_family = "wasm"))]
             geap_last_mint_failure: None,
             aws_credentials_state: AwsCredentialsState::Missing,
             geap_credentials_state: GeapCredentialsState::Missing,

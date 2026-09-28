@@ -1,6 +1,5 @@
 pub use cloud_object_models::{CloudWorkflow, CloudWorkflowModel, WorkflowId};
 use serde::{Deserialize, Serialize};
-use warp_core::context_flag::ContextFlag;
 use warpui::AppContext;
 
 pub mod categories;
@@ -88,11 +87,7 @@ impl WorkflowViewMode {
     /// Viewing is disabled if the user is allowed to edit the workflow and in a context where
     /// running workflows is supported.
     pub fn supported_view_mode(_workflow_id: Option<SyncId>, _app: &AppContext) -> Self {
-        if ContextFlag::RunWorkflow.is_enabled() {
-            Self::Edit
-        } else {
-            Self::View
-        }
+        Self::Edit
     }
 
     fn is_editable(&self) -> bool {
@@ -175,8 +170,7 @@ impl WorkflowType {
     }
 }
 
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[async_trait]
 impl CloudModelType for CloudWorkflowModel {
     type CloudObjectType = CloudWorkflow;
     type IdType = WorkflowId;

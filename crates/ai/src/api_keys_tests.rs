@@ -1,6 +1,5 @@
 use std::time::{Duration, SystemTime};
 
-#[cfg(not(target_family = "wasm"))]
 use warpui_core::App;
 
 use super::*;
@@ -8,9 +7,7 @@ use super::*;
 fn make_manager(keys: ApiKeys) -> ApiKeyManager {
     ApiKeyManager {
         keys,
-        #[cfg(not(target_family = "wasm"))]
         geap_refresh_waiters: None,
-        #[cfg(not(target_family = "wasm"))]
         geap_last_mint_failure: None,
         aws_credentials_state: AwsCredentialsState::Missing,
         geap_credentials_state: GeapCredentialsState::Missing,
@@ -649,7 +646,6 @@ fn api_keys_for_request_omits_geap_token_when_previous_binding_mismatches() {
     assert!(mgr.api_keys_for_request(false, false, Some(gate)).is_none());
 }
 
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn geap_expired_refresh_eligibility_requires_expired_matching_binding() {
     let binding = geap_gate();
@@ -672,7 +668,6 @@ fn geap_expired_refresh_eligibility_requires_expired_matching_binding() {
     assert!(!expired.geap_expired_refresh_eligibility(&mismatched));
 }
 
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn begin_expired_geap_refresh_is_single_flight() {
     App::test((), |mut app| async move {
@@ -703,7 +698,6 @@ fn begin_expired_geap_refresh_is_single_flight() {
     });
 }
 
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn declined_geap_kickoff_leaves_no_in_flight_window() {
     App::test((), |mut app| async move {
@@ -722,7 +716,6 @@ fn declined_geap_kickoff_leaves_no_in_flight_window() {
     });
 }
 
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn geap_mint_failure_cooldown_suppresses_the_blocking_wait() {
     let binding = geap_gate();

@@ -720,21 +720,7 @@ impl Input {
                 }
             }
             SlashCommandKind::ExportToFile => {
-                #[cfg(not(target_family = "wasm"))]
-                {
-                    self.export_conversation_to_file(
-                        argument.map(|filename| filename.to_owned()),
-                        ctx,
-                    );
-                }
-                #[cfg(target_family = "wasm")]
-                {
-                    show_error_toast(
-                        "Export conversation to file unsupported in web".to_owned(),
-                        ctx,
-                    );
-                    return true;
-                }
+                self.export_conversation_to_file(argument.map(|filename| filename.to_owned()), ctx);
             }
             SlashCommandKind::Init => {
                 ctx.dispatch_typed_action(&TerminalAction::InitProject);
@@ -863,7 +849,6 @@ impl Input {
                 self.open_user_query_menu(UserQueryMenuAction::ForkFrom, ctx);
                 return true;
             }
-            #[cfg(not(target_family = "wasm"))]
             SlashCommandKind::ForkAndCompact => {
                 let Some(conversation_id) = self
                     .ai_context_model

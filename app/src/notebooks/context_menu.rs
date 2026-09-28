@@ -1,7 +1,6 @@
 //! Shared context menu implementation for notebooks.
 
 use pathfinder_geometry::vector::Vector2F;
-use warp_core::context_flag::ContextFlag;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{ChildAnchor, OffsetPositioning, ParentAnchor, ParentOffsetBounds, Stack};
 use warpui::keymap::Trigger;
@@ -177,46 +176,44 @@ where
 
     fn split_pane_menu_items(&self, ctx: &mut ViewContext<V>) -> Vec<MenuItem<V::Action>> {
         let mut items = vec![];
-        if ContextFlag::CreateNewSession.is_enabled() {
-            items.extend([
-                MenuItemFields::new("Split pane right")
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitRight(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_right",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane left")
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitLeft(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_left",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane down")
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitDown(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_down",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane up")
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitUp(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_up",
-                        ctx,
-                    ))
-                    .into_item(),
-            ]);
-        }
+        items.extend([
+            MenuItemFields::new("Split pane right")
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitRight(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_right",
+                    ctx,
+                ))
+                .into_item(),
+            MenuItemFields::new("Split pane left")
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitLeft(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_left",
+                    ctx,
+                ))
+                .into_item(),
+            MenuItemFields::new("Split pane down")
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitDown(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_down",
+                    ctx,
+                ))
+                .into_item(),
+            MenuItemFields::new("Split pane up")
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitUp(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_up",
+                    ctx,
+                ))
+                .into_item(),
+        ]);
 
         let split_pane_state = self
             .focus_handle

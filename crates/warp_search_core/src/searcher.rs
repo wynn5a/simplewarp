@@ -1,5 +1,3 @@
-#![cfg(not(target_family = "wasm"))] // Tantivy is not supported for wasm target as of now.
-
 use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
 use std::sync::Arc;

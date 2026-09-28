@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
-use warp_core::context_flag::ContextFlag;
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
 use warpui::{Entity, ModelContext, SingletonEntity};
 
@@ -121,7 +120,6 @@ impl AIApiError {
             return AIApiError::Transport(err);
         }
         if err.is_decode() {
-            #[cfg(not(target_family = "wasm"))]
             {
                 use std::error::Error as _;
                 let mut source = err.source();
@@ -209,11 +207,9 @@ impl ServerApiProvider {
     /// Constructs a new ServerApiProvider.
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
         let mut client = http_client::Client::new();
-        if ContextFlag::NetworkLogConsole.is_enabled() {
-            NetworkLogModel::handle(ctx).update(ctx, |model, model_ctx| {
-                model.install_on_clients([&mut client], model_ctx);
-            });
-        }
+        NetworkLogModel::handle(ctx).update(ctx, |model, model_ctx| {
+            model.install_on_clients([&mut client], model_ctx);
+        });
         Self {
             http_client: Arc::new(client),
         }

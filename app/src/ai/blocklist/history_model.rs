@@ -2159,7 +2159,6 @@ impl BlocklistAIHistoryModel {
     }
 
     /// Returns the last conversation ID created for a terminal surface, if one exists.
-    #[cfg_attr(target_family = "wasm", allow(unused))]
     pub(crate) fn last_conversation_id(
         &self,
         terminal_surface_id: EntityId,

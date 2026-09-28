@@ -84,20 +84,12 @@ impl LocalFileContentVersion {
     /// render hot path (for example, once when a view resolves its image
     /// sources), never on every frame. Returns `None` when metadata cannot be
     /// read.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn for_path(path: impl AsRef<std::path::Path>) -> Option<Self> {
         let metadata = std::fs::metadata(path).ok()?;
         Some(Self {
             modified: metadata.modified().ok(),
             file_size: metadata.len(),
         })
-    }
-
-    /// Filesystem metadata is unavailable on WASM, so a local-file content
-    /// version is never computed there.
-    #[cfg(target_arch = "wasm32")]
-    pub fn for_path(_path: impl AsRef<std::path::Path>) -> Option<Self> {
-        None
     }
 }
 

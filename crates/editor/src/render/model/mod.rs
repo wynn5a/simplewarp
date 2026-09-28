@@ -2988,11 +2988,6 @@ impl RenderState {
     ///
     /// See [`ViewportState::set_size`].
     pub fn set_viewport_size(&mut self, size_info: SizeInfo, ctx: &mut ModelContext<Self>) {
-        let height_changed = size_info
-            .viewport_size
-            .y()
-            .approx_ne(self.viewport.height().as_f32(), UNIT_MARGIN);
-
         self.viewport
             .set_size(size_info.viewport_size, self.width(), self.height());
 
@@ -3003,11 +2998,6 @@ impl RenderState {
         // - Support text layout outside the Element lifecycle
         if size_info.needs_layout {
             ctx.emit(RenderEvent::NeedsResize);
-        }
-
-        // Autoscroll when viewport height changes on mobile (e.g., keyboard appears)
-        if cfg!(target_family = "wasm") && height_changed {
-            self.request_autoscroll();
         }
     }
 

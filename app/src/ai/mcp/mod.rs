@@ -1,17 +1,13 @@
 pub mod manager;
 pub mod templatable_manager;
 
-#[cfg(not(target_family = "wasm"))]
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-#[cfg(not(target_family = "wasm"))]
 use diesel::{QueryDsl, RunQueryDsl, SqliteConnection};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-#[cfg(not(target_family = "wasm"))]
-pub use templatable_manager::McpIntegration;
-pub use templatable_manager::TemplatableMCPServerManager;
+pub use templatable_manager::{McpIntegration, TemplatableMCPServerManager};
 use warp_core::ui::Icon;
 
 use crate::cloud_object::model::generic_string_model::StringModel;
@@ -19,7 +15,6 @@ use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
     CloudObjectUuid, GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
 };
-#[cfg(not(target_family = "wasm"))]
 use crate::persistence::model::MCPEnvironmentVariables;
 
 cfg_if::cfg_if! {
@@ -42,25 +37,18 @@ cfg_if::cfg_if! {
 
 pub mod gallery;
 pub use gallery::MCPGalleryManager;
-#[cfg(not(target_family = "wasm"))]
 pub mod templatable;
-#[cfg(not(target_family = "wasm"))]
 pub use cloud_object_models::{
-    CLIServer, JSONMCPServer, JSONTransportType, ServerSentEvents, StaticEnvVar, StaticHeader,
+    CLIServer, CloudMCPServer, JSONMCPServer, JSONTransportType, MCPServer, MCPServerState,
+    ServerSentEvents, StaticEnvVar, StaticHeader, TransportType,
 };
-pub use cloud_object_models::{CloudMCPServer, MCPServer, MCPServerState, TransportType};
 pub use templatable::{JsonTemplate, TemplatableMCPServer, TemplateVariable};
 pub mod logs;
 pub mod templatable_installation;
-pub use templatable_installation::TemplatableMCPServerInstallation;
-#[cfg(not(target_family = "wasm"))]
-pub use templatable_installation::{VariableType, VariableValue};
+pub use templatable_installation::{TemplatableMCPServerInstallation, VariableType, VariableValue};
 pub mod parsing;
-#[cfg(not(target_family = "wasm"))]
 pub use parsing::ParsedTemplatableMCPServerResult;
-#[cfg(not(target_family = "wasm"))]
 use warp_errors::report_error;
-#[cfg(not(target_family = "wasm"))]
 pub mod reconnecting_peer;
 
 impl CloudObjectUuid for MCPServer {
@@ -109,16 +97,13 @@ impl JsonModel for MCPServer {
 
 /// Trait for types that have a name and value field.
 /// Used for shared operations on `StaticEnvVar` and `StaticHeader`.
-#[cfg(not(target_family = "wasm"))]
 trait NameValuePair {
     fn name(&self) -> &str;
     fn value(&self) -> &str;
     fn new(name: String, value: String) -> Self;
-    #[cfg(not(target_family = "wasm"))]
     fn set_value(&mut self, value: String);
 }
 
-#[cfg(not(target_family = "wasm"))]
 impl NameValuePair for StaticEnvVar {
     fn name(&self) -> &str {
         &self.name
@@ -129,12 +114,10 @@ impl NameValuePair for StaticEnvVar {
     fn new(name: String, value: String) -> Self {
         Self { name, value }
     }
-    #[cfg(not(target_family = "wasm"))]
     fn set_value(&mut self, value: String) {
         self.value = value;
     }
 }
-#[cfg(not(target_family = "wasm"))]
 impl NameValuePair for StaticHeader {
     fn name(&self) -> &str {
         &self.name
@@ -145,14 +128,12 @@ impl NameValuePair for StaticHeader {
     fn new(name: String, value: String) -> Self {
         Self { name, value }
     }
-    #[cfg(not(target_family = "wasm"))]
     fn set_value(&mut self, value: String) {
         self.value = value;
     }
 }
 
 /// Converts a HashMap to a Vec of name/value pair items.
-#[cfg(not(target_family = "wasm"))]
 fn items_from_hashmap<T: NameValuePair>(map: &HashMap<String, String>) -> Vec<T> {
     map.iter()
         .map(|(name, value)| T::new(name.to_owned(), value.to_owned()))
@@ -160,7 +141,6 @@ fn items_from_hashmap<T: NameValuePair>(map: &HashMap<String, String>) -> Vec<T>
 }
 
 /// Converts a slice of name/value pair items to a HashMap.
-#[cfg(not(target_family = "wasm"))]
 #[allow(dead_code)]
 fn items_to_hashmap<T: NameValuePair>(items: &[T]) -> HashMap<String, String> {
     items
@@ -174,7 +154,6 @@ fn items_to_hashmap<T: NameValuePair>(items: &[T]) -> HashMap<String, String> {
 /// - HashMap with template placeholders (e.g., `{{name}}`)
 /// - Vec of TemplateVariables
 /// - HashMap of VariableValues
-#[cfg(not(target_family = "wasm"))]
 fn extract_template_variables<T: NameValuePair>(
     items: &[T],
 ) -> (
@@ -207,7 +186,6 @@ fn extract_template_variables<T: NameValuePair>(
 }
 
 /// Applies values from a persisted HashMap to a collection of name/value pairs.
-#[cfg(not(target_family = "wasm"))]
 fn apply_values<T: NameValuePair>(items: &mut [T], values: &HashMap<String, String>) {
     for item in items.iter_mut() {
         if let Some(value) = values.get(item.name()) {
@@ -216,7 +194,6 @@ fn apply_values<T: NameValuePair>(items: &mut [T], values: &HashMap<String, Stri
     }
 }
 
-#[cfg(not(target_family = "wasm"))]
 fn find_server_map(
     config: serde_json::Value,
 ) -> serde_json::Result<HashMap<String, JSONMCPServer>> {
@@ -262,7 +239,6 @@ fn find_server_map(
     serde_json::from_value::<HashMap<String, JSONMCPServer>>(config)
 }
 
-#[cfg(not(target_family = "wasm"))]
 pub trait MCPServerExt {
     fn from_user_json(json: &str) -> serde_json::Result<Vec<MCPServer>>;
     #[cfg(test)]
@@ -271,7 +247,6 @@ pub trait MCPServerExt {
     fn fill_environment_variables(&mut self, conn: &mut SqliteConnection);
 }
 
-#[cfg(not(target_family = "wasm"))]
 impl MCPServerExt for MCPServer {
     fn from_user_json(json: &str) -> serde_json::Result<Vec<MCPServer>> {
         // Some docs don't show curly braces around the json object, so add them if necessary.

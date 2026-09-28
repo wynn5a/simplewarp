@@ -1,9 +1,7 @@
 //! Implementation of terminal panes.
-#[cfg(not(target_family = "wasm"))]
 use std::collections::HashMap;
 use std::sync::mpsc::SyncSender;
 
-#[cfg(not(target_family = "wasm"))]
 use warp_cli::agent::Harness;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_errors::report_error;
@@ -11,14 +9,10 @@ use warpui::{
     AppContext, EntityId, ModelHandle, SingletonEntity, ViewContext, ViewHandle, WindowId,
 };
 
-#[cfg(not(target_family = "wasm"))]
 use super::local_harness_launch::{PreparedLocalHarnessLaunch, prepare_local_harness_child_launch};
 use super::{
-    DetachType, PaneConfiguration, PaneContent, PaneId, PaneStackEvent, PaneView, ShareableLink,
-    ShareableLinkError, TerminalPaneId,
+    DetachType, PaneConfiguration, PaneContent, PaneId, PaneStackEvent, PaneView, TerminalPaneId,
 };
-// Imports below are only consumed by the non-wasm `launch_local_*_child`
-// dispatch helpers; gating them keeps the wasm build warning-clean.
 use crate::AIExecutionProfilesModel;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::StartAgentExecutionMode;
@@ -28,9 +22,10 @@ use crate::ai::ambient_agents::task::normalize_orchestrator_agent_name;
 #[cfg(feature = "local_fs")]
 use crate::ai::blocklist::BlocklistAIHistoryEvent;
 use crate::ai::blocklist::agent_view::{AgentViewControllerEvent, AgentViewEntryOrigin};
-use crate::ai::blocklist::{BlocklistAIHistoryModel, StartAgentRequest};
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::blocklist::{apply_child_agent_model_override, prepare_local_oz_child_launch};
+use crate::ai::blocklist::{
+    BlocklistAIHistoryModel, StartAgentRequest, apply_child_agent_model_override,
+    prepare_local_oz_child_launch,
+};
 use crate::ai::conversation_utils;
 use crate::ai::llms::LLMPreferences;
 use crate::app_state::{AmbientAgentPaneSnapshot, LeafContents, TerminalPaneSnapshot};
@@ -39,19 +34,15 @@ use crate::code::buffer_location::LocalOrRemotePath;
 use crate::pane_group::CodeSource;
 use crate::pane_group::Event::OpenConversationHistory;
 use crate::pane_group::child_agent::{
-    ErrorChildAgentConversationRequest, create_error_child_agent_conversation,
-};
-#[cfg(not(target_family = "wasm"))]
-use crate::pane_group::child_agent::{
-    HiddenChildAgentConversation, HiddenChildAgentConversationRequest, HiddenChildAgentTaskContext,
-    create_hidden_child_agent_conversation,
+    ErrorChildAgentConversationRequest, HiddenChildAgentConversation,
+    HiddenChildAgentConversationRequest, HiddenChildAgentTaskContext,
+    create_error_child_agent_conversation, create_hidden_child_agent_conversation,
 };
 use crate::pane_group::{self, Direction, PaneGroup};
 use crate::persistence::{BlockCompleted, ModelEvent};
 use crate::session_management::SessionNavigationData;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::general_settings::GeneralSettings;
-#[cfg(not(target_family = "wasm"))]
 use crate::terminal::view::Event;
 use crate::terminal::{TerminalManager, TerminalView};
 use crate::view_components::ToastFlavor;
@@ -431,23 +422,6 @@ impl PaneContent for TerminalPane {
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>) {
         self.terminal_view(ctx)
             .update(ctx, |view, ctx| view.redetermine_global_focus(ctx));
-    }
-
-    fn shareable_link(
-        &self,
-        ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        let manager = self.terminal_manager(ctx);
-        let the_model = manager.as_ref(ctx).model();
-        let lock = the_model.lock();
-
-        // A conversation transcript viewer has no shareable link; Expected preserves the
-        // current browser URL.
-        if lock.is_conversation_transcript_viewer() {
-            return Err(ShareableLinkError::Expected);
-        }
-
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {
@@ -1216,7 +1190,6 @@ fn handle_terminal_view_event(
 /// Dispatches a StartAgent request to the appropriate per-mode helper.
 /// Each helper echoes the child conversation id back via
 /// [`BlocklistAIHistoryModel::record_new_conversation_request_complete`].
-#[cfg_attr(target_family = "wasm", allow(unused_variables))]
 fn dispatch_start_agent_conversation(
     group: &mut PaneGroup,
     parent_pane_id: PaneId,
@@ -1225,14 +1198,12 @@ fn dispatch_start_agent_conversation(
     ctx: &mut ViewContext<PaneGroup>,
 ) {
     match request.execution_mode.clone() {
-        #[cfg(not(target_family = "wasm"))]
         StartAgentExecutionMode::Local {
             harness_type: None,
             model_id,
         } => {
             launch_local_no_harness_child(group, parent_pane_id, request, model_id, ctx);
         }
-        #[cfg(not(target_family = "wasm"))]
         StartAgentExecutionMode::Local {
             harness_type: Some(harness_type),
             model_id,
@@ -1244,22 +1215,6 @@ fn dispatch_start_agent_conversation(
                 request,
                 harness_type,
                 model_id,
-                ctx,
-            );
-        }
-        #[cfg(target_family = "wasm")]
-        StartAgentExecutionMode::Local { .. } => {
-            let _ = create_error_child_agent_conversation(
-                group,
-                ErrorChildAgentConversationRequest {
-                    parent_pane_id,
-                    name: request.name,
-                    parent_conversation_id: request.parent_conversation_id,
-                    request_id: Some(request.id),
-                    orchestration_harness: None,
-                    error_message: "Local child agents are not supported in WASM builds."
-                        .to_string(),
-                },
                 ctx,
             );
         }
@@ -1288,11 +1243,6 @@ fn dispatch_start_agent_conversation(
 /// the shared session id to the child task once the shell bootstraps) and
 /// onto the child's `BlocklistAIController` via the
 /// `HiddenChildAgentTaskContext` (so the agent UI reflects it).
-///
-/// Gated to non-wasm; `dispatch_start_agent_conversation`'s wasm wildcard
-/// arm routes the Oz path through `create_error_child_agent_conversation`
-/// instead.
-#[cfg(not(target_family = "wasm"))]
 fn launch_local_no_harness_child(
     group: &mut PaneGroup,
     parent_pane_id: PaneId,
@@ -1381,7 +1331,6 @@ fn launch_local_no_harness_child(
 
 /// Asynchronously prepares a local harness launch, then creates the
 /// hidden child pane and executes the launch command.
-#[cfg(not(target_family = "wasm"))]
 #[allow(clippy::too_many_arguments)]
 fn launch_local_harness_child(
     group: &mut PaneGroup,

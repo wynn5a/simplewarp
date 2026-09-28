@@ -1,9 +1,7 @@
-#[cfg(not(target_family = "wasm"))]
 mod bootstrap_file;
 pub mod command_history;
 mod message;
 pub mod pty_controller;
-#[cfg(not(target_family = "wasm"))]
 pub mod terminal_manager_util;
 pub(crate) mod terminal_surface;
 

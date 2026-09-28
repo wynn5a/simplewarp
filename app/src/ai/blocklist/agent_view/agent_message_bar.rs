@@ -45,7 +45,6 @@ use crate::terminal::input::{InputAction, SET_INPUT_MODE_AGENT_ACTION_NAME};
 use crate::terminal::model::TerminalModel;
 use crate::terminal::view::TerminalAction;
 use crate::util::bindings::keybinding_name_to_keystroke;
-#[cfg(not(target_family = "wasm"))]
 use crate::workspace::WorkspaceAction;
 use crate::workspace::tab_settings::{TabSettings, TabSettingsChangedEvent};
 
@@ -555,7 +554,6 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
         }
 
         // Code review only works locally.
-        #[cfg(not(target_family = "wasm"))]
         if !is_cloud_agent && *TabSettings::as_ref(app).show_code_review_button {
             let code_review_keystroke = if OperatingSystem::get().is_mac() {
                 Keystroke::parse("cmd-shift-+").expect("keystroke should parse")

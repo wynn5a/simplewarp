@@ -29,8 +29,7 @@ const CODEX_EXIT_COMMAND: &str = "/exit";
 /// without requiring an unattended `/hooks` review step.
 const CODEX_BYPASS_HOOK_TRUST_FLAG: &str = "--dangerously-bypass-hook-trust";
 
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[async_trait]
 impl ThirdPartyHarness for CodexHarness {
     fn harness(&self) -> Harness {
         Harness::Codex
@@ -175,8 +174,7 @@ impl CodexHarnessRunner {
     }
 }
 
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[async_trait]
 impl HarnessRunner for CodexHarnessRunner {
     fn harness_name(&self) -> &str {
         &self.cli_name

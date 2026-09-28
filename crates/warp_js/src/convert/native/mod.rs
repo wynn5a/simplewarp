@@ -1,5 +1,4 @@
-//! Traits for converting Rust values into `rquickjs`-compatible values on native (non-wasm)
-//! platforms.
+//! Traits for converting Rust values into `rquickjs`-compatible values.
 pub mod util;
 
 use rquickjs::{Ctx, FromJs, IntoJs, Value};

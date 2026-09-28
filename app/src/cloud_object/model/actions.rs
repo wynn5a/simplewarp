@@ -80,7 +80,6 @@ pub enum ObjectActionSubtype {
 
 pub enum ObjectActionsEvent {}
 
-#[cfg(not(target_family = "wasm"))]
 pub fn object_action_from_persisted(
     other: crate::persistence::model::PersistedObjectAction,
 ) -> Result<ObjectAction, ()> {

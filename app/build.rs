@@ -9,11 +9,10 @@ use std::{env, fs};
 
 use anyhow::Result;
 use cfg_aliases::cfg_aliases;
-use sha2::Digest;
 use walkdir::WalkDir;
 use warp_util::assets::{
-    ASSETS_DIR, ASYNC_ASSETS_DIR, CONPTY_DLL_FILE, DXCOMPILER_DLL_FILE, DXIL_DLL_FILE,
-    OPEN_CONSOLE_EXE_FILE, REMOTE_ASSETS_DIR, WINDOWS_ASSETS_DIR,
+    ASSETS_DIR, CONPTY_DLL_FILE, DXCOMPILER_DLL_FILE, DXIL_DLL_FILE, OPEN_CONSOLE_EXE_FILE,
+    WINDOWS_ASSETS_DIR,
 };
 use warp_util::path::app_target_dir;
 
@@ -25,14 +24,12 @@ fn main() -> Result<()> {
 
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_OS");
-    println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_FAMILY");
 
     let target_os = env::var("CARGO_CFG_TARGET_OS")?;
-    let target_family = env::var("CARGO_CFG_TARGET_FAMILY")?;
 
-    add_features(&target_family, &target_os);
+    add_features(&target_os);
 
-    if target_os == "macos" && target_family != "wasm" {
+    if target_os == "macos" {
         println!("cargo:rustc-link-lib=framework=MetalKit");
         println!("cargo:rustc-link-lib=framework=UserNotifications");
         build_and_link_sentry();
@@ -140,11 +137,7 @@ fn main() -> Result<()> {
         embed_resource_file(&target_dir);
     }
 
-    if target_family == "wasm" {
-        copy_async_assets();
-    }
-
-    generate_channel_config_if_needed(&target_family, &target_os);
+    generate_channel_config_if_needed(&target_os);
 
     Ok(())
 }
@@ -152,7 +145,7 @@ fn main() -> Result<()> {
 /// If `warp-channel-config` is available on PATH and the `release_bundle` feature is enabled,
 /// invoke the config generator binary and write the JSON output to `OUT_DIR` so it can be
 /// embedded via `include_str!` in the binary entry points.
-fn generate_channel_config_if_needed(target_family: &str, target_os: &str) {
+fn generate_channel_config_if_needed(target_os: &str) {
     if env::var("CARGO_FEATURE_RELEASE_BUNDLE").is_err() {
         // For non-bundled builds, config is loaded at runtime — nothing to embed.
         return;
@@ -179,11 +172,6 @@ fn generate_channel_config_if_needed(target_family: &str, target_os: &str) {
     println!("cargo:rerun-if-env-changed=WS_SERVER_URL");
 
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR must be set");
-    let family_arg = if target_family == "wasm" {
-        "wasm"
-    } else {
-        "native"
-    };
 
     // Generate config for all internal channels. The build script runs once per crate (not
     // once per binary), so we generate all configs here and each binary's include_str! picks
@@ -193,7 +181,7 @@ fn generate_channel_config_if_needed(target_family: &str, target_os: &str) {
             .arg("--channel")
             .arg(channel)
             .arg("--target-family")
-            .arg(family_arg)
+            .arg("native")
             .arg("--target-os")
             .arg(target_os)
             .output()
@@ -226,11 +214,9 @@ fn get_build_profile_name() -> String {
         .into_owned()
 }
 
-fn add_features(target_family: &str, target_os: &str) {
-    if target_family != "wasm" {
-        println!("cargo:rustc-cfg=feature=\"local_fs\"");
-        println!("cargo:rustc-cfg=feature=\"local_tty\"");
-    }
+fn add_features(target_os: &str) {
+    println!("cargo:rustc-cfg=feature=\"local_fs\"");
+    println!("cargo:rustc-cfg=feature=\"local_tty\"");
 
     if target_os != "windows" {
         println!("cargo:rustc-cfg=feature=\"iterm_images\"");
@@ -371,44 +357,6 @@ fn get_xcode_toolchain() -> PathBuf {
 #[cfg(not(unix))]
 fn get_xcode_toolchain() -> PathBuf {
     panic!("get_xcode_toolchain is only supported on macOS")
-}
-
-fn copy_async_assets() {
-    println!("cargo:rerun-if-changed=assets/async");
-    println!("cargo:rerun-if-env-changed=ASSET_TARGET_DIR");
-    let Ok(out_dir_str) = env::var("ASSET_TARGET_DIR") else {
-        // Don't build assets if no target dir specified.
-        return;
-    };
-    let out_dir = Path::new(&out_dir_str);
-
-    let remote_asset_subdirs = &[ASYNC_ASSETS_DIR, REMOTE_ASSETS_DIR];
-    for remote_asset_subdir in remote_asset_subdirs {
-        let asset_dir = Path::new(ASSETS_DIR).join(remote_asset_subdir);
-
-        for asset in WalkDir::new(&asset_dir) {
-            let asset = asset.expect("access error");
-            let asset_path = asset.path();
-            if asset_path.is_file() {
-                let contents = fs::read(asset_path).expect("could not read file");
-
-                let mut hasher = sha2::Sha256::new();
-                hasher.update(&contents);
-                let hash: [u8; 32] = hasher.finalize().into();
-                let new_relative_path = warp_util::assets::hashed_asset_path(
-                    asset_path
-                        .strip_prefix(&asset_dir)
-                        .expect("asset in unexpected location"),
-                    &hash,
-                );
-                let new_path = out_dir.join(new_relative_path);
-
-                fs::create_dir_all(new_path.parent().unwrap())
-                    .expect("failed to create directories");
-                fs::write(new_path, contents).expect("failed to copy file");
-            }
-        }
-    }
 }
 
 /// Copies the DLLs needed to run Warp on Windows.

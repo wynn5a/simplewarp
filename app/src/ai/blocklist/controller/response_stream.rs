@@ -6,7 +6,6 @@ use chrono::{DateTime, Local, TimeDelta};
 use futures::channel::oneshot;
 use uuid::Uuid;
 use warp_errors::report_error;
-#[cfg(not(target_family = "wasm"))]
 use warp_multi_agent_api as maa_api;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
@@ -22,7 +21,6 @@ const MAX_RETRIES: usize = 3;
 
 /// How long a request will hold for a request-time GEAP credential mint before
 /// giving up and sending anyway.
-#[cfg(not(target_family = "wasm"))]
 const GEAP_REFRESH_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// What to do about a failed or truncated MAA response attempt.
@@ -242,7 +240,6 @@ impl ResponseStream {
         ctx: &mut ModelContext<Self>,
     ) {
         // The GEAP credential refresh is native-only.
-        #[cfg(not(target_family = "wasm"))]
         {
             use ::ai::api_keys::{ApiKeyManager, GeapRefreshOutcome};
             use warpui::r#async::FutureExt as _;
@@ -639,7 +636,6 @@ impl ResponseStream {
 /// Applies the result of a request-time GEAP mint to the request snapshot.
 ///
 /// A successful mint swaps in the fresh credential.
-#[cfg(not(target_family = "wasm"))]
 fn apply_geap_refresh_to_params(
     params: &mut api::RequestParams,
     fresh_credentials: Option<maa_api::request::settings::api_keys::GoogleCloudCredentials>,

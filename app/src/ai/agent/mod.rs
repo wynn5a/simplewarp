@@ -933,7 +933,6 @@ impl ProgrammingLanguage {
 
     /// Returns the file extension for the given programming language.
     // TODO(INT-605): Refactor so we don't have to edit this function and the `languages` crate.
-    #[cfg_attr(target_family = "wasm", allow(unused))]
     pub fn to_extension(&self) -> Option<&str> {
         match self {
             // The arms below cover both canonical language names emitted by the agent (e.g.
@@ -2190,7 +2189,6 @@ impl AIAgentOutputMessage {
 // Information about what MCP capabilities the client has, to
 // be provided as context for Agent Mode requests.
 #[derive(Debug, Clone)]
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub struct MCPContext {
     // Old flat structure (deprecated but kept for backward compatibility)
     #[deprecated]
@@ -2202,7 +2200,6 @@ pub struct MCPContext {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub struct MCPServer {
     pub id: String,
     pub name: String,

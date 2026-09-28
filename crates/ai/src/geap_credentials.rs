@@ -15,7 +15,6 @@
 use std::time::{Duration, SystemTime};
 
 use chrono::{DateTime, Local};
-#[cfg(not(target_family = "wasm"))]
 use futures::channel::oneshot;
 use warp_core::ui::Icon;
 use warp_multi_agent_api as api;
@@ -85,7 +84,6 @@ impl From<GeapCredentials> for api::request::settings::api_keys::GoogleCloudCred
 
 /// Outcome of a Gemini Enterprise credential mint, delivered to requests
 /// waiting for an expired credential to be replaced before sending.
-#[cfg(not(target_family = "wasm"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GeapRefreshOutcome {
     Refreshed,
@@ -330,7 +328,6 @@ impl ApiKeyManager {
     ///
     /// True only when the stored credential was minted for this same binding
     /// and is at or past hard expiry, and no mint has failed recently.
-    #[cfg(not(target_family = "wasm"))]
     pub fn geap_expired_refresh_eligibility(&self, binding: &GeapMintBinding) -> bool {
         if self.geap_mint_recently_failed() {
             return false;
@@ -350,7 +347,6 @@ impl ApiKeyManager {
 
     /// Ensures one mint is in flight for an expired GEAP credential and returns
     /// a receiver for its completion, or `None` when no wait is warranted.
-    #[cfg(not(target_family = "wasm"))]
     pub fn begin_expired_geap_refresh<F>(
         &mut self,
         binding: &GeapMintBinding,
@@ -375,7 +371,6 @@ impl ApiKeyManager {
     }
 
     /// Opens the single-flight window for a mint that is about to start.
-    #[cfg(not(target_family = "wasm"))]
     pub fn install_geap_refresh_waiter(
         &mut self,
         waiter: Option<oneshot::Sender<GeapRefreshOutcome>>,
@@ -383,22 +378,18 @@ impl ApiKeyManager {
         self.geap_refresh_waiters = Some(waiter.into_iter().collect());
     }
 
-    #[cfg(not(target_family = "wasm"))]
     pub fn take_geap_refresh_waiters(&mut self) -> Vec<oneshot::Sender<GeapRefreshOutcome>> {
         self.geap_refresh_waiters.take().unwrap_or_default()
     }
 
-    #[cfg(not(target_family = "wasm"))]
     pub fn record_geap_mint_failure(&mut self) {
         self.geap_last_mint_failure = Some(SystemTime::now());
     }
 
-    #[cfg(not(target_family = "wasm"))]
     pub fn clear_geap_mint_failure(&mut self) {
         self.geap_last_mint_failure = None;
     }
 
-    #[cfg(not(target_family = "wasm"))]
     fn geap_mint_recently_failed(&self) -> bool {
         self.geap_last_mint_failure.is_some_and(|failed_at| {
             SystemTime::now()

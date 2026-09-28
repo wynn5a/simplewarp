@@ -15,9 +15,7 @@ use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-#[cfg(not(target_family = "wasm"))]
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::Context as _;
 use futures::{Future, FutureExt};
@@ -297,10 +295,8 @@ impl TestDriver {
 
         // Set up Ctrl+C handler to ensure on_finish runs
         let sigint_received = Arc::new(AtomicBool::new(false));
-        #[cfg(not(target_family = "wasm"))]
         let sigint_received_clone = sigint_received.clone();
 
-        #[cfg(not(target_family = "wasm"))]
         ctrlc::set_handler(move || {
             log::info!("Received Ctrl+C in test driver");
             sigint_received_clone.store(true, Ordering::Relaxed);

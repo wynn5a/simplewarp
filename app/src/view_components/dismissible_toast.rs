@@ -598,8 +598,6 @@ impl<A: Action + Clone> DismissibleToast<A> {
             .with_child(Shrinkable::new(2., right_aligned.finish()).finish());
 
         let is_clickable = self.is_clickable();
-        // On mobile devices, always show close button since hover effects don't work with touch
-        let is_mobile = warpui::platform::is_mobile_device();
 
         Hoverable::new(self.close_button_hover_state.clone(), move |mouse_state| {
             let toast_container = Container::new(row.finish())
@@ -626,7 +624,7 @@ impl<A: Action + Clone> DismissibleToast<A> {
             let mut stack = Stack::new()
                 .with_child(SavePosition::new(toast_element, &self.position_id(uuid)).finish());
 
-            if mouse_state.is_hovered() || is_mobile {
+            if mouse_state.is_hovered() {
                 stack.add_positioned_overlay_child(
                     self.render_close_button(ui_builder, uuid, appearance),
                     OffsetPositioning::offset_from_save_position_element(

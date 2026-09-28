@@ -1,20 +1,16 @@
 use futures::FutureExt;
 use futures::future::BoxFuture;
-#[cfg(not(target_family = "wasm"))]
 use itertools::Itertools;
-#[cfg(not(target_family = "wasm"))]
-use warpui::SingletonEntity;
-use warpui::{Entity, EntityId, ModelContext, ModelHandle};
+use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-#[cfg(not(target_family = "wasm"))]
-use super::get_server_output_id;
-use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::{
-    agent::{AIAgentAction, AIAgentActionResultType, CallMCPToolResult},
-    blocklist::{BlocklistAIPermissions, action_model::AIAgentActionType},
-    mcp::TemplatableMCPServerManager,
+use super::{
+    ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput,
+    get_server_output_id,
 };
+use crate::ai::agent::{AIAgentAction, AIAgentActionResultType, CallMCPToolResult};
+use crate::ai::blocklist::BlocklistAIPermissions;
+use crate::ai::blocklist::action_model::AIAgentActionType;
+use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::terminal::model::session::active_session::ActiveSession;
 
 pub struct CallMCPToolExecutor {
@@ -31,18 +27,11 @@ impl CallMCPToolExecutor {
         }
     }
 
-    #[cfg_attr(target_family = "wasm", allow(unused_variables), allow(dead_code))]
     pub(super) fn should_autoexecute(
         &self,
         input: ExecuteActionInput,
         ctx: &mut ModelContext<Self>,
     ) -> bool {
-        #[cfg(target_family = "wasm")]
-        {
-            false
-        }
-
-        #[cfg(not(target_family = "wasm"))]
         {
             let ExecuteActionInput {
                 action:
@@ -69,18 +58,11 @@ impl CallMCPToolExecutor {
         }
     }
 
-    #[cfg_attr(target_family = "wasm", allow(unused_variables), allow(dead_code))]
     pub(super) fn execute(
         &mut self,
         input: ExecuteActionInput,
         ctx: &mut ModelContext<Self>,
     ) -> impl Into<AnyActionExecution> + use<> {
-        #[cfg(target_family = "wasm")]
-        {
-            ActionExecution::<()>::InvalidAction
-        }
-
-        #[cfg(not(target_family = "wasm"))]
         {
             let server_output_id = get_server_output_id(input.conversation_id, ctx);
             let AIAgentAction {
@@ -287,7 +269,6 @@ fn coerce_value_against_schema(value: &mut serde_json::Value, schema: &serde_jso
 mod tests;
 
 /// Handles the result of a call_tool request, converting it to an AIAgentActionResultType.
-#[cfg(not(target_family = "wasm"))]
 fn handle_call_tool_result(
     res: Result<rmcp::model::CallToolResult, rmcp::ServiceError>,
     _server_output_id: Option<crate::ai::blocklist::action_model::execute::ServerOutputId>,

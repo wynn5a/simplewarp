@@ -8,7 +8,6 @@ use enclose::enclose;
 use itertools::Itertools;
 use settings::Setting as _;
 use settings::manager::SettingsManager;
-use warp_core::context_flag::ContextFlag;
 use warp_errors::{report_error, report_if_error};
 use warp_util::path::user_friendly_path;
 use warpui::actions::StandardAction;
@@ -498,7 +497,7 @@ fn make_new_ai_menu(ctx: &AppContext) -> Menu {
         ]);
     }
 
-    if FeatureFlag::McpServer.is_enabled() && ContextFlag::ShowMCPServers.is_enabled() {
+    if FeatureFlag::McpServer.is_enabled() {
         items.push(updateable_custom_item_without_checkmark(
             CustomAction::OpenMCPServerCollection,
             ctx,

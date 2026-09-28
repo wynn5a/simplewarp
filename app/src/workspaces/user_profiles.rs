@@ -7,7 +7,6 @@ use crate::auth::UserUid;
 
 pub enum UserProfilesEvent {}
 
-#[cfg(not(target_family = "wasm"))]
 pub fn user_profile_from_persistence(
     user_profile: crate::persistence::model::UserProfile,
 ) -> UserProfileWithUID {

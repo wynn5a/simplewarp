@@ -64,7 +64,6 @@ impl ConversationOrTaskId {
 /// State of the focused terminal view and the active conversation in that terminal view.
 #[derive(Clone)]
 struct FocusedTerminalState {
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     focused_terminal_id: EntityId,
     active_conversation_id: Option<ConversationOrTaskId>,
 }
@@ -130,7 +129,6 @@ impl ActiveAgentViewsModel {
     }
 
     /// Register an agent view controller to track when the agent view is entered/exited.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn register_agent_view_controller(
         &mut self,
         controller: &ModelHandle<AgentViewController>,
@@ -196,7 +194,6 @@ impl ActiveAgentViewsModel {
 
     /// Unregister an agent view controller
     /// (called when the controller's terminal pane is hidden or closed).
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn unregister_agent_view_controller(
         &mut self,
         terminal_pane_id: EntityId,
@@ -315,7 +312,6 @@ impl ActiveAgentViewsModel {
     }
 
     /// Register an ambient session (open in a tab).
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn register_ambient_session(
         &mut self,
         terminal_view_id: EntityId,
@@ -333,7 +329,6 @@ impl ActiveAgentViewsModel {
     }
 
     /// Unregister an ambient session when the tab is closed.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn unregister_ambient_session(
         &mut self,
         terminal_view_id: EntityId,

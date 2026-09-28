@@ -32,7 +32,6 @@ mod open_in_warp;
 mod pane_impl;
 mod passive_suggestions;
 mod pending_user_query;
-#[cfg(not(target_family = "wasm"))]
 pub mod rich_content;
 mod shell_terminated_banner;
 pub mod ssh_file_upload;
@@ -94,9 +93,7 @@ use markdown_parser::FormattedTextFragment;
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
 use regex::Regex;
-#[cfg(not(target_family = "wasm"))]
-use repo_metadata::repositories::DetectedRepositories;
-use repo_metadata::repositories::RepoDetectionSource;
+use repo_metadata::repositories::{DetectedRepositories, RepoDetectionSource};
 use serde::Serialize;
 use serde_json::json;
 use settings::{Setting, ToggleableSetting};
@@ -108,7 +105,6 @@ use vec1::vec1;
 use warp_core::r#async::debounce;
 use warp_core::channel::ChannelState;
 use warp_core::command::ExitCode;
-use warp_core::context_flag::ContextFlag;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_core::user_preferences::GetUserPreferences as _;
 use warp_errors::{report_error, report_if_error};
@@ -333,7 +329,6 @@ use crate::terminal::cli_agent_sessions::event::{
     CLIAgentEventType, parse_event,
 };
 use crate::terminal::cli_agent_sessions::listener::{CLIAgentSessionListener, is_agent_supported};
-#[cfg(not(target_family = "wasm"))]
 use crate::terminal::cli_agent_sessions::plugin_manager::plugin_manager_for;
 use crate::terminal::cli_agent_sessions::{
     CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
@@ -2437,9 +2432,8 @@ pub struct TerminalView {
         ViewHandle<crate::ai::conversation_details_panel::ConversationDetailsPanel>,
     /// Whether the conversation details panel is currently open.
     is_conversation_details_panel_open: bool,
-    /// Mouse state handle for the conversation details panel toggle button in the pane header.
-    /// On WASM this is used by the workspace-level transcript panel toggle; on desktop, it is used
-    /// by the pane-level details panel toggle.
+    /// Mouse state handle for the pane-level conversation details panel toggle button in the pane
+    /// header.
     conversation_details_panel_toggle_mouse_state: warpui::elements::MouseStateHandle,
 
     /// Whether the environment setup mode selector is currently visible.
@@ -6572,46 +6566,6 @@ impl TerminalView {
         }
     }
 
-    /// Whether the WASM workspace-level conversation details panel should be shown for this
-    /// terminal view. This is the authoritative predicate: `Workspace::should_show_conversation_details_panel`
-    /// delegates here. The `#[cfg(any(test, target_arch = "wasm32"))]` gate allows this logic
-    /// to be exercised by host-target unit tests even though the WASM render path is compiled out.
-    ///
-    /// Note: the pane-header `(i)` button uses a narrower gate
-    /// ([`Self::should_show_wasm_pane_header_details_button`]) that additionally excludes shared
-    /// sessions and transcript viewers, so it only appears on surfaces without a tab-bar
-    /// affordance. This predicate is intentionally broader so the panel renders for all three
-    /// surfaces.
-    ///
-    /// Returns `true` for:
-    /// - Restored ambient cloud tasks
-    /// - Conversation transcript viewers
-    /// - Shared sessions with an active conversation
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn should_show_wasm_conversation_details_panel(&self, app: &AppContext) -> bool {
-        if self.model.lock().ambient_agent_task_id().is_some() {
-            return true;
-        }
-        let model = self.model.lock();
-        if model.is_conversation_transcript_viewer() {
-            return true;
-        }
-        false
-    }
-
-    /// Whether the WASM pane-header `(i)` details toggle should be shown for this terminal view.
-    /// Narrower than [`Self::should_show_wasm_conversation_details_panel`]: the pane-header button
-    /// appears only on ambient-task panes that lack a tab-bar `(i)` affordance, so
-    /// conversation-transcript viewers — which already show the simplified WASM tab-bar `(i)`
-    /// via `get_simplified_wasm_tab_bar_content` — are excluded to avoid a duplicate button. The
-    /// `#[cfg(any(test, target_arch = "wasm32"))]` gate lets host-target unit tests exercise this
-    /// even though the render path is compiled out on the host.
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn should_show_wasm_pane_header_details_button(&self) -> bool {
-        let model = self.model.lock();
-        model.ambient_agent_task_id().is_some() && !model.is_conversation_transcript_viewer()
-    }
-
     pub fn active_session(&self) -> &ModelHandle<ActiveSession> {
         &self.active_session
     }
@@ -10603,7 +10557,6 @@ impl TerminalView {
         agent: CLIAgent,
         ctx: &mut ViewContext<Self>,
     ) {
-        #[cfg(not(target_family = "wasm"))]
         let plugin_version = if matches!(agent, CLIAgent::Codex) {
             // We use the lack of a plugin version for codex to differentiate between
             // OSC 9 notification fallback and real plugin.
@@ -10614,8 +10567,6 @@ impl TerminalView {
             // so the update chip doesn't flash before the user runs /reload-plugins.
             plugin_manager_for(agent).map(|m| m.minimum_plugin_version().to_owned())
         };
-        #[cfg(target_family = "wasm")]
-        let plugin_version = None;
         let notification = CLIAgentEvent {
             source: CLIAgentEventSource::RichPlugin,
             v: 1,
@@ -13478,17 +13429,29 @@ impl TerminalView {
                         ));
 
                         // Add fork option for conversation management
-                        if !cfg!(target_family = "wasm") {
-                            let fork_label = fork_label_for_query(
-                                &ai_metadata
-                                    .ai_block_handle
-                                    .as_ref(ctx)
-                                    .get_preceding_user_query(ctx),
-                            );
+                        let fork_label = fork_label_for_query(
+                            &ai_metadata
+                                .ai_block_handle
+                                .as_ref(ctx)
+                                .get_preceding_user_query(ctx),
+                        );
+                        items.push(
+                            MenuItemFields::new(fork_label)
+                                .with_on_select_action(TerminalAction::ContextMenu(
+                                    ContextMenuAction::ForkAIConversationFromBlock {
+                                        ai_block_view_id: *rich_content_view_id,
+                                        exchange_id: ai_metadata.exchange_id,
+                                        conversation_id: ai_metadata.conversation_id,
+                                    },
+                                ))
+                                .into_item(),
+                        );
+
+                        if ChannelState::channel().is_dogfood() {
                             items.push(
-                                MenuItemFields::new(fork_label)
+                                MenuItemFields::new("Fork from here (dev only)")
                                     .with_on_select_action(TerminalAction::ContextMenu(
-                                        ContextMenuAction::ForkAIConversationFromBlock {
+                                        ContextMenuAction::ForkAIConversationFromExactExchange {
                                             ai_block_view_id: *rich_content_view_id,
                                             exchange_id: ai_metadata.exchange_id,
                                             conversation_id: ai_metadata.conversation_id,
@@ -13496,20 +13459,6 @@ impl TerminalView {
                                     ))
                                     .into_item(),
                             );
-
-                            if ChannelState::channel().is_dogfood() {
-                                items.push(
-                                    MenuItemFields::new("Fork from here (dev only)")
-                                        .with_on_select_action(TerminalAction::ContextMenu(
-                                            ContextMenuAction::ForkAIConversationFromExactExchange {
-                                                ai_block_view_id: *rich_content_view_id,
-                                                exchange_id: ai_metadata.exchange_id,
-                                                conversation_id: ai_metadata.conversation_id,
-                                            },
-                                        ))
-                                        .into_item(),
-                                );
-                            }
                         }
 
                         // We can't revert restored blocks since we don't restore the full diff
@@ -13672,38 +13621,36 @@ impl TerminalView {
     ) -> Vec<MenuItem<TerminalAction>> {
         let mut items = vec![];
 
-        if ContextFlag::CreateNewSession.is_enabled() {
-            items.extend(vec![
-                MenuItemFields::new("Split pane right")
-                    .with_on_select_action(TerminalAction::SplitRight(shell.clone()))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_right",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane left")
-                    .with_on_select_action(TerminalAction::SplitLeft(shell.clone()))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_left",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane down")
-                    .with_on_select_action(TerminalAction::SplitDown(shell.clone()))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_down",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane up")
-                    .with_on_select_action(TerminalAction::SplitUp(shell))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_up",
-                        ctx,
-                    ))
-                    .into_item(),
-            ]);
-        }
+        items.extend(vec![
+            MenuItemFields::new("Split pane right")
+                .with_on_select_action(TerminalAction::SplitRight(shell.clone()))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_right",
+                    ctx,
+                ))
+                .into_item(),
+            MenuItemFields::new("Split pane left")
+                .with_on_select_action(TerminalAction::SplitLeft(shell.clone()))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_left",
+                    ctx,
+                ))
+                .into_item(),
+            MenuItemFields::new("Split pane down")
+                .with_on_select_action(TerminalAction::SplitDown(shell.clone()))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_down",
+                    ctx,
+                ))
+                .into_item(),
+            MenuItemFields::new("Split pane up")
+                .with_on_select_action(TerminalAction::SplitUp(shell))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_up",
+                    ctx,
+                ))
+                .into_item(),
+        ]);
 
         let pane_state = self.split_pane_state(ctx);
         if pane_state.is_in_split_pane() {
@@ -23335,9 +23282,7 @@ impl View for TerminalView {
         {
             // Only show one of these banners at a time, to avoid them visually
             // stacking on top of each other.
-            if self.is_slow_bootstrap_banner_open
-                && ContextFlag::ShowSlowShellStartupBanner.is_enabled()
-            {
+            if self.is_slow_bootstrap_banner_open {
                 stack.add_child(ChildView::new(&self.slow_bootstrap_banner).finish());
             } else if self.control_master_error_banner_state.is_open {
                 stack.add_child(ChildView::new(&self.control_master_error_banner).finish());
@@ -23469,12 +23414,10 @@ impl View for TerminalView {
         };
 
         // Wrap with conversation details panel on the right if open.
-        // On WASM, the panel is rendered in the wasm_view instead.
         //
         // Use the `_from_model` variant since `render` already holds
         // `self.model.lock()` and the task-id lookup would otherwise re-lock.
-        let should_show_panel = !cfg!(target_family = "wasm")
-            && self.is_conversation_details_panel_open
+        let should_show_panel = self.is_conversation_details_panel_open
             && self.can_show_conversation_details_ui_from_model(&model, app);
 
         if should_show_panel {
@@ -23619,7 +23562,6 @@ impl View for TerminalView {
             context.set.insert("InsideRepository");
         }
 
-        #[cfg(not(target_arch = "wasm32"))]
         if self.can_show_conversation_details_ui_from_model(&model_lock, app) {
             context.set.insert(init::CAN_SHOW_CONVERSATION_DETAILS_KEY);
         }

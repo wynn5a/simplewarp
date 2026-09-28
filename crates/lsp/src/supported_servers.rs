@@ -1,29 +1,24 @@
-#[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[cfg(not(target_arch = "wasm32"))]
 use command::r#async::Command;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-#[cfg(not(target_arch = "wasm32"))]
-use crate::CommandBuilder;
 use crate::servers::clangd::ClangdCandidate;
 use crate::servers::go::GoPlsCandidate;
 use crate::servers::pyright::PyrightCandidate;
 use crate::servers::rust::RustAnalyzerCandidate;
 use crate::servers::typescript_language_server::TypeScriptLanguageServerCandidate;
-use crate::{LanguageId, LanguageServerCandidate};
+use crate::{CommandBuilder, LanguageId, LanguageServerCandidate};
 
 /// Configuration for a custom LSP binary installation.
 ///
 /// For most LSP servers, we just need the binary path. However, for Node.js-based
 /// servers like Pyright, we need to run `node langserver.index.js --stdio` instead
 /// of relying on the wrapper script (which has a shebang that requires node in PATH).
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Clone)]
 pub struct CustomBinaryConfig {
     /// The path to the executable (e.g., node binary or rust-analyzer binary)
@@ -54,7 +49,6 @@ impl LSPServerType {
     ///
     /// If a custom binary config is provided (e.g., from our data_dir installation),
     /// it will be used. Otherwise, falls back to the system PATH.
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn create_command(
         &self,
         custom_config: Option<CustomBinaryConfig>,
@@ -80,7 +74,6 @@ impl LSPServerType {
     /// # Arguments
     /// * `path_env_var` - The PATH environment variable to use when checking for system dependencies
     ///   (e.g., system node for pyright).
-    #[cfg(not(target_arch = "wasm32"))]
     pub async fn find_installed_binary_config(
         &self,
         path_env_var: Option<&str>,
@@ -117,7 +110,6 @@ impl LSPServerType {
     ///
     /// Delegates to each server's candidate implementation.
     /// Returns true only if the binary executes successfully with exit code 0.
-    #[cfg(not(target_arch = "wasm32"))]
     pub async fn is_working_on_path(
         &self,
         executor: &CommandBuilder,
@@ -137,7 +129,6 @@ impl LSPServerType {
     }
 
     /// Arguments for running via system PATH.
-    #[cfg(not(target_arch = "wasm32"))]
     fn args(&self) -> Vec<&'static str> {
         match self {
             LSPServerType::RustAnalyzer | LSPServerType::GoPls | LSPServerType::Clangd => vec![],
@@ -147,7 +138,6 @@ impl LSPServerType {
 
     /// Arguments for running from a custom installation.
     /// These are added after any prepend_args from CustomBinaryConfig.
-    #[cfg(not(target_arch = "wasm32"))]
     fn custom_install_args(&self) -> Vec<&'static str> {
         match self {
             LSPServerType::RustAnalyzer => vec![],

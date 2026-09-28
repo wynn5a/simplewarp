@@ -4,10 +4,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
-use super::{
-    DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, PaneView, ShareableLink,
-    ShareableLinkError,
-};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, PaneView};
 use crate::app_state::{LeafContents, WorkflowPaneSnapshot};
 use crate::server::ids::SyncId;
 use crate::workflows::manager::{WorkflowManager, WorkflowOpenSource};
@@ -137,13 +134,6 @@ impl PaneContent for WorkflowPane {
     /// Focus this pane's contents.
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>) {
         self.get_view(ctx).update(ctx, |view, ctx| view.focus(ctx));
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

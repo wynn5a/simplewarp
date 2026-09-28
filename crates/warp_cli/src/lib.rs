@@ -1,5 +1,3 @@
-#![cfg_attr(target_family = "wasm", allow(dead_code))]
-
 use std::path::Path;
 use std::{env, fmt};
 
@@ -128,26 +126,20 @@ impl Args {
     /// Parses command-line arguments from the operating environment. May exit early if arguments
     /// are incorrectly specified.
     pub fn from_env() -> Self {
-        cfg_if::cfg_if! {
-            // wasm doesn't have any concept of an environment, so skip parsing and return defaults
-            if #[cfg(target_family = "wasm")] {
-                Args::default()
-            } else {
-                use clap::FromArgMatches as _;
+        use clap::FromArgMatches as _;
 
-                let command = Self::clap_command();
+        let command = Self::clap_command();
 
-                command.try_get_matches()
-                    .and_then(|matches| Self::from_arg_matches(&matches))
-                    .unwrap_or_else(|err| {
-                        // We attach a console to ensure help and error messages are printed
-                        // when using the CLI.
-                        #[cfg(windows)]
-                        warp_util::windows::attach_to_parent_console();
-                        err.exit()
-                    })
-            }
-        }
+        command
+            .try_get_matches()
+            .and_then(|matches| Self::from_arg_matches(&matches))
+            .unwrap_or_else(|err| {
+                // We attach a console to ensure help and error messages are printed
+                // when using the CLI.
+                #[cfg(windows)]
+                warp_util::windows::attach_to_parent_console();
+                err.exit()
+            })
     }
 
     /// Construct the [`clap::Command`] that backs `Args`.
@@ -248,7 +240,6 @@ pub enum WorkerCommand {
     },
 
     /// Run a headless ripgrep search worker.
-    #[cfg(not(target_family = "wasm"))]
     #[clap(hide = true)]
     RipgrepSearch {
         #[clap(flatten)]
@@ -389,7 +380,6 @@ pub fn installation_detection_server_subcommand() -> String {
 }
 
 /// Returns the subcommand name to use for starting the ripgrep search worker.
-#[cfg(not(target_family = "wasm"))]
 pub fn ripgrep_search_subcommand() -> String {
     <Args as CommandFactory>::command()
         .find_subcommand("ripgrep-search")

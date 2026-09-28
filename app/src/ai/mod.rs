@@ -12,7 +12,6 @@ pub mod ambient_agents;
 pub(crate) mod artifact_download;
 pub mod artifacts;
 pub(crate) mod attachment_utils;
-#[cfg(not(target_family = "wasm"))]
 pub mod aws_credentials;
 pub(crate) mod block_context;
 pub(crate) mod blocklist;
@@ -27,7 +26,6 @@ pub(crate) mod conversation_utils;
 pub(crate) mod custom_model_router_editor;
 pub(crate) mod custom_model_routers;
 pub(crate) mod document;
-#[cfg(not(target_family = "wasm"))]
 pub mod geap_credentials;
 pub(crate) mod get_relevant_files;
 pub mod harness_availability;
@@ -44,7 +42,6 @@ pub(crate) mod skills;
 pub use agent_tips::*;
 pub use request_usage_model::*;
 use warpui::AppContext;
-#[cfg(not(target_family = "wasm"))]
 pub mod agent_sdk;
 pub mod cloud_agent_config;
 pub mod cloud_agent_settings;

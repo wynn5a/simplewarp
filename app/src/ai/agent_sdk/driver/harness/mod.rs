@@ -37,8 +37,7 @@ use gemini::GeminiHarness;
 /// Trait for third-party agent harnesses that execute prompts via their own CLIs.
 ///
 /// Each new external harness (e.g. Claude, Codex) implements this to be used with cloud agents.
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[async_trait]
 pub(crate) trait ThirdPartyHarness: Send + Sync {
     /// Returns the [`Harness`] variant this implementation corresponds to.
     fn harness(&self) -> Harness;
@@ -297,8 +296,7 @@ pub(crate) fn harness_model_env_vars(
 /// store the runner in a mutex and lock it across `await` points.
 ///
 /// The driver uses this to manage the lifecycle of a particular third-party harness.
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[async_trait]
 pub(crate) trait HarnessRunner: Send + Sync {
     fn harness_name(&self) -> &str;
 

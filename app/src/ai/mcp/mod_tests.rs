@@ -1,8 +1,6 @@
 use serde_json;
 
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::mcp::parsing::normalize_codex_toml_to_json;
-use crate::ai::mcp::parsing::resolve_json;
+use crate::ai::mcp::parsing::{normalize_codex_toml_to_json, resolve_json};
 use crate::ai::mcp::{
     CLIServer, JsonTemplate, MCPProvider, MCPServer, MCPServerExt,
     ParsedTemplatableMCPServerResult, ServerSentEvents, StaticEnvVar, StaticHeader,
@@ -516,7 +514,6 @@ fn test_parse_templatable_cli_server_without_args_and_resolve_json() {
 // ── Codex TOML normalizer tests ────────────────────────────────────────
 
 /// Basic STDIO server: `command` + `args` round-trips cleanly.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_basic_stdio_server() {
     let toml = r#"
@@ -538,7 +535,6 @@ fn test_codex_toml_basic_stdio_server() {
 }
 
 /// `env_vars` entries are lowered to `${NAME}` placeholders in the env map.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_env_vars_become_placeholders() {
     let toml = r#"
@@ -559,7 +555,6 @@ fn test_codex_toml_env_vars_become_placeholders() {
 }
 
 /// Explicit `env` values win over `env_vars` placeholders on collision.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_explicit_env_wins_over_env_vars_on_collision() {
     let toml = r#"
@@ -590,7 +585,6 @@ fn test_codex_toml_explicit_env_wins_over_env_vars_on_collision() {
 }
 
 /// `cwd` is mapped to `working_directory` in the output JSON.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_cwd_maps_to_working_directory() {
     let toml = r#"
@@ -610,7 +604,6 @@ fn test_codex_toml_cwd_maps_to_working_directory() {
 }
 
 /// A TOML with one STDIO and one HTTP server produces both in the output.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_mixed_stdio_and_http_servers() {
     let toml = r#"
@@ -638,7 +631,6 @@ fn test_codex_toml_mixed_stdio_and_http_servers() {
 }
 
 /// An HTTP server with only a `url` field round-trips correctly.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_http_url_only() {
     let toml = r#"
@@ -657,7 +649,6 @@ fn test_codex_toml_http_url_only() {
 }
 
 /// `bearer_token_env_var` is lowered to `Authorization: "Bearer ${VAR}"`.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_http_bearer_token_env_var() {
     let toml = r#"
@@ -676,7 +667,6 @@ fn test_codex_toml_http_bearer_token_env_var() {
 }
 
 /// `env_http_headers` entries become `header: "${VAR}"` placeholders.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_http_env_http_headers() {
     let toml = r#"
@@ -695,7 +685,6 @@ fn test_codex_toml_http_env_http_headers() {
 }
 
 /// `http_headers` static values are passed through verbatim.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_http_static_headers() {
     let toml = r#"
@@ -714,7 +703,6 @@ fn test_codex_toml_http_static_headers() {
 }
 
 /// `http_headers` wins over `env_http_headers` on collision.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_http_static_headers_win_over_env_headers_on_collision() {
     let toml = r#"
@@ -734,7 +722,6 @@ fn test_codex_toml_http_static_headers_win_over_env_headers_on_collision() {
 }
 
 /// Entries with neither `command` nor `url` are skipped.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_unknown_entry_skipped() {
     let toml = r#"
@@ -762,7 +749,6 @@ fn test_codex_toml_unknown_entry_skipped() {
 
 /// Full round-trip: TOML with env + env_vars parses into a working installation
 /// whose resolved JSON is consumable by `MCPServer::from_user_json`.
-#[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_codex_toml_round_trip_through_from_user_json() {
     let toml = r#"

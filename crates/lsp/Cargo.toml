@@ -10,9 +10,6 @@ description = "Language Server Protocol implementation for Warp"
 [features]
 local_fs = []
 
-[build-dependencies]
-anyhow = { workspace = true }
-
 [dependencies]
 anyhow = { workspace = true }
 async-channel = { workspace = true }
@@ -37,8 +34,6 @@ warpui_core.workspace = true
 instant.workspace = true
 http_client = { workspace = true }
 cfg-if.workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-fs = { workspace = true }
 url = "2"
 async-process = { workspace = true }
@@ -48,3 +43,4 @@ nix = { workspace = true }
 repo_metadata.workspace = true
 sha2 = { workspace = true }
 tokio = { workspace = true, features = ["process"] }
+

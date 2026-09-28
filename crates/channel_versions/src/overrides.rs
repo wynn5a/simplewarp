@@ -45,9 +45,7 @@ impl TargetOS {
     /// Returns the current operating system, based on the build-time target_os
     /// cfg variable, or None if it is not supported.
     pub fn current() -> Option<Self> {
-        if cfg!(target_family = "wasm") {
-            Some(TargetOS::Web)
-        } else if cfg!(target_os = "macos") {
+        if cfg!(target_os = "macos") {
             Some(TargetOS::MacOS)
         } else if cfg!(any(target_os = "linux", target_os = "freebsd")) {
             Some(TargetOS::Linux)

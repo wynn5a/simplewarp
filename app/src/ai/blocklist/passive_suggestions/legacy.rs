@@ -1,10 +1,8 @@
 use std::path::PathBuf;
-#[cfg(not(target_family = "wasm"))]
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
-#[cfg(not(target_family = "wasm"))]
 use command::r#async::Command;
 use parking_lot::FairMutex;
 use serde_json::json;
@@ -12,9 +10,7 @@ use warpui::r#async::{FutureExt as AsyncFutureExt, SpawnedFutureHandle, Timer};
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use super::static_prompt_suggestions::static_suggested_query;
-use crate::ai::agent::CancellationReason;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::agent::PassiveSuggestionTrigger;
+use crate::ai::agent::{CancellationReason, PassiveSuggestionTrigger};
 use crate::ai::blocklist::controller::response_stream::ResponseStreamId;
 use crate::ai::blocklist::controller::{BlocklistAIController, BlocklistAIControllerEvent};
 use crate::ai::blocklist::{BlocklistAIPermissions, read_local_file_context};
@@ -239,12 +235,6 @@ impl PassiveSuggestionsModel {
         block_completed: UserBlockCompleted,
         ctx: &mut ModelContext<Self>,
     ) {
-        #[cfg(target_family = "wasm")]
-        {
-            let (_, _) = (block_completed, ctx);
-        }
-
-        #[cfg(not(target_family = "wasm"))]
         {
             let Some(current_dir) = block_completed
                 .serialized_block

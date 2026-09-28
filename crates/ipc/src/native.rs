@@ -12,7 +12,7 @@ pub(crate) mod client {
     use crate::client::{ClientError, InitializationError, Result};
 
     /// Returns a tuple containing structs for reading and writing to a local socket, which is the
-    /// underlying IPC transport for native (non-wasm) platforms.
+    /// underlying IPC transport.
     pub async fn connect_client(
         connection_address: ConnectionAddress,
     ) -> Result<(impl AsyncRead + Unpin, impl AsyncWrite + Unpin)> {

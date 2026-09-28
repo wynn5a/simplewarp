@@ -23,8 +23,7 @@ use crate::ai::mcp::JSONTransportType;
 use crate::terminal::CLIAgent;
 
 pub(crate) struct ClaudeHarness;
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[async_trait]
 impl ThirdPartyHarness for ClaudeHarness {
     fn harness(&self) -> Harness {
         Harness::Claude
@@ -209,8 +208,7 @@ impl ClaudeHarnessRunner {
     }
 }
 
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[async_trait]
 impl HarnessRunner for ClaudeHarnessRunner {
     fn harness_name(&self) -> &str {
         &self.cli_name

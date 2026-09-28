@@ -620,27 +620,23 @@ impl ThemeChooser {
             );
 
         // Custom themes are only supported on desktop platforms currently.
-        if cfg!(not(target_family = "wasm")) {
-            let create_theme_button = SavePosition::new(
-                icon_button(
-                    appearance,
-                    icons::Icon::Plus,
-                    false,
-                    self.button_mouse_states
-                        .create_theme_button_hover_state
-                        .clone(),
-                )
-                .build()
-                .on_click(|ctx, _, _| {
-                    ctx.dispatch_typed_action(ThemeChooserAction::OpenThemeCreator)
-                })
-                .finish(),
-                "create_theme_button",
+        let create_theme_button = SavePosition::new(
+            icon_button(
+                appearance,
+                icons::Icon::Plus,
+                false,
+                self.button_mouse_states
+                    .create_theme_button_hover_state
+                    .clone(),
             )
-            .finish();
+            .build()
+            .on_click(|ctx, _, _| ctx.dispatch_typed_action(ThemeChooserAction::OpenThemeCreator))
+            .finish(),
+            "create_theme_button",
+        )
+        .finish();
 
-            title_row = title_row.with_child(create_theme_button);
-        }
+        title_row = title_row.with_child(create_theme_button);
 
         Container::new(title_row.finish())
             .with_margin_bottom(6.)

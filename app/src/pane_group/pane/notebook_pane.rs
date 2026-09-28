@@ -5,10 +5,7 @@ use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use super::super::{DefaultSessionModeBehavior, Direction};
 use super::view::PaneView;
-use super::{
-    DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, ShareableLink,
-    ShareableLinkError,
-};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 use crate::app_state::{LeafContents, NotebookPaneSnapshot};
 use crate::notebooks::link::{LinkEvent, NotebookLinks};
 use crate::notebooks::manager::{NotebookManager, NotebookSource};
@@ -125,13 +122,6 @@ impl PaneContent for NotebookPane {
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>) {
         self.notebook_view(ctx)
             .update(ctx, |view, ctx| view.focus(ctx));
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

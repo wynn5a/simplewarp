@@ -4,12 +4,10 @@ use std::path::PathBuf;
 use ai::skills::SkillProvider;
 use fuzzy_match::FuzzyMatchResult;
 use ordered_float::OrderedFloat;
-#[cfg(not(target_family = "wasm"))]
 use repo_metadata::repositories::DetectedRepositories;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::Icon as WarpIcon;
 use warp_core::ui::appearance::Appearance;
-#[cfg(not(target_family = "wasm"))]
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::fonts::FamilyId;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
@@ -318,7 +316,6 @@ pub trait SlashCommandDataSource {
     /// `cd`, without waiting for async repo detection to resolve. Delegates path
     /// membership to `DetectedRepositories`, reusing its centralized
     /// canonicalization + ancestor walk.
-    #[cfg(not(target_family = "wasm"))]
     fn cwd_is_in_repository(&self, ctx: &AppContext) -> bool {
         let active_session = self.active_session().as_ref(ctx);
         let Some(cwd) = active_session.current_working_directory() else {
@@ -345,12 +342,6 @@ pub trait SlashCommandDataSource {
         DetectedRepositories::as_ref(ctx)
             .get_root_for_path(&LocalOrRemotePath::Local(path))
             .is_some()
-    }
-
-    /// Repo detection is not wired up on wasm, so no directory is ever in a repo.
-    #[cfg(target_family = "wasm")]
-    fn cwd_is_in_repository(&self, _ctx: &AppContext) -> bool {
-        false
     }
 
     /// Whether a command should be shown given the availability set and the shared gates.

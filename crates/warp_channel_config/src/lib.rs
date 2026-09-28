@@ -56,12 +56,6 @@ macro_rules! load_config {
 /// Invokes the config generator binary at runtime and deserializes its JSON
 /// output into a [`ChannelConfig`].
 pub fn load_config_from_generator(channel: &str) -> ChannelConfig {
-    let target_family = if cfg!(target_family = "wasm") {
-        "wasm"
-    } else {
-        "native"
-    };
-
     let target_os = if cfg!(target_os = "macos") {
         "macos"
     } else if cfg!(target_os = "windows") {
@@ -74,7 +68,7 @@ pub fn load_config_from_generator(channel: &str) -> ChannelConfig {
         .arg("--channel")
         .arg(channel)
         .arg("--target-family")
-        .arg(target_family)
+        .arg("native")
         .arg("--target-os")
         .arg(target_os)
         .output()

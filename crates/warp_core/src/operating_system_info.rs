@@ -5,10 +5,6 @@ use std::sync::OnceLock;
 
 use serde::Serialize;
 use serde_with::SerializeDisplay;
-#[cfg(target_family = "wasm")]
-use warpui_core::platform::OperatingSystem;
-#[cfg(target_family = "wasm")]
-use warpui_core::platform::wasm;
 
 static OS_INFO: OnceLock<Result<OperatingSystemInfo, OperatingSystemInfoError>> = OnceLock::new();
 
@@ -38,7 +34,6 @@ pub struct OperatingSystemInfo {
 }
 
 impl OperatingSystemInfo {
-    #[cfg(not(target_family = "wasm"))]
     fn new() -> Result<Self, OperatingSystemInfoError> {
         let os_category =
             OperatingSystemCategory::new().ok_or(OperatingSystemInfoError::Unknown)?;
@@ -63,29 +58,6 @@ impl OperatingSystemInfo {
             linux_kernel_version,
             browser_name: None,
             browser_version: None,
-        })
-    }
-
-    #[cfg(target_family = "wasm")]
-    fn new() -> Result<Self, OperatingSystemInfoError> {
-        // To make sure the operating system names are consistent between native
-        // and web platforms, we try to use the display names encoded by the
-        // `OperatingSystemCategory` enum.
-        let os = match OperatingSystem::get() {
-            OperatingSystem::Linux => OperatingSystemCategory::Linux.to_string(),
-            OperatingSystem::Mac => OperatingSystemCategory::Mac.to_string(),
-            OperatingSystem::Windows => OperatingSystemCategory::Windows.to_string(),
-            OperatingSystem::Other(Some(os)) => os.to_string(),
-            _ => "Unknown".to_string(),
-        };
-
-        Ok(Self {
-            name: os,
-            version: wasm::current_os_version().map(str::to_string),
-            category: OperatingSystemCategory::Web,
-            browser_name: wasm::current_browser().map(str::to_string),
-            browser_version: wasm::current_browser_version().map(str::to_string),
-            linux_kernel_version: None,
         })
     }
 
@@ -129,7 +101,6 @@ pub enum OperatingSystemCategory {
 }
 
 impl OperatingSystemCategory {
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     fn new() -> Option<Self> {
         if cfg!(any(target_os = "linux", target_os = "freebsd")) {
             Some(OperatingSystemCategory::Linux)
@@ -137,8 +108,6 @@ impl OperatingSystemCategory {
             Some(OperatingSystemCategory::Mac)
         } else if cfg!(target_os = "windows") {
             Some(OperatingSystemCategory::Windows)
-        } else if cfg!(target_family = "wasm") {
-            Some(OperatingSystemCategory::Web)
         } else {
             None
         }
@@ -163,7 +132,6 @@ pub enum OperatingSystemInfoError {
     #[error("computing the operating system information is unsupported on this platform")]
     #[allow(dead_code)]
     UnsupportedPlatform,
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     #[error("unable to compute the operating system information")]
     Unknown,
 }

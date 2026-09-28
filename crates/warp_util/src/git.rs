@@ -4,7 +4,6 @@ use anyhow::{Result, anyhow};
 
 /// Runs a git command and returns the output as a string.
 /// Thin wrapper over [`run_git_command_with_env`] with no `PATH` override.
-#[cfg(not(target_family = "wasm"))]
 pub async fn run_git_command(repo_path: &Path, args: &[&str]) -> Result<String> {
     run_git_command_with_env(repo_path, args, None).await
 }
@@ -12,7 +11,6 @@ pub async fn run_git_command(repo_path: &Path, args: &[&str]) -> Result<String> 
 /// Like [`run_git_command`] but sets `PATH` on the child when `path_env` is
 /// `Some`. Used by callers whose hooks need user-installed binaries (e.g.
 /// the LFS `pre-push` hook → `git-lfs`). See `specs/APP-4188/TECH.md`.
-#[cfg(not(target_family = "wasm"))]
 pub async fn run_git_command_with_env(
     repo_path: &Path,
     args: &[&str],
@@ -59,7 +57,6 @@ pub async fn run_git_command_with_env(
 /// A WSL session's working directory is a `\\wsl$\<distro>\...` UNC path on a Windows host, and
 /// the Windows `git.exe` mishandles those: it reports "dubious ownership", produces bogus diffs,
 /// and can hang. Such a path is instead routed to the distribution's own git via `wsl.exe`.
-#[cfg(not(target_family = "wasm"))]
 fn git_command(repo_path: &Path, args: &[&str], env: &[(&str, &str)]) -> command::r#async::Command {
     use command::r#async::Command;
 
@@ -96,7 +93,6 @@ fn git_command(repo_path: &Path, args: &[&str], env: &[(&str, &str)]) -> command
 }
 
 /// A `git` command rewritten to run inside a WSL distribution via `wsl.exe`.
-#[cfg(not(target_family = "wasm"))]
 #[derive(Debug, PartialEq, Eq)]
 struct WslGitCommand {
     args: Vec<String>,
@@ -109,7 +105,6 @@ struct WslGitCommand {
 /// `wsl.exe` invocation, carrying `env` across as `WSLENV` entries except for `PATH`, which
 /// becomes an argv element (`--exec /usr/bin/env PATH=<value> git ...`). Returns `None` when
 /// `repo_path` is not a WSL UNC path.
-#[cfg(not(target_family = "wasm"))]
 fn translate_for_wsl_unc_cwd(
     args: &[&str],
     repo_path: &Path,
@@ -153,7 +148,6 @@ fn translate_for_wsl_unc_cwd(
 
 /// Converts an argument that is a UNC path for `distro` into its Linux path. Every other argument
 /// is passed through unchanged.
-#[cfg(not(target_family = "wasm"))]
 fn translate_arg(arg: &str, distro: &str) -> String {
     match crate::path::parse_wsl_unc_path(Path::new(arg)) {
         Some(parsed) if parsed.distro.eq_ignore_ascii_case(distro) => parsed.linux_path,
@@ -168,7 +162,6 @@ fn translate_arg(arg: &str, distro: &str) -> String {
 /// `PATH` is deliberately excluded: Windows applies a non-disableable Windows-to-WSL `PATH`
 /// conversion, and a `PATH` that is already in Linux form fails that conversion and gets
 /// truncated. It travels as an argv element instead.
-#[cfg(not(target_family = "wasm"))]
 fn build_wslenv(env: &[(&str, &str)]) -> String {
     env.iter()
         .map(|(key, _)| key)
@@ -179,25 +172,10 @@ fn build_wslenv(env: &[(&str, &str)]) -> String {
 }
 
 /// True when `key` names the `PATH` environment variable, compared case-insensitively.
-#[cfg(not(target_family = "wasm"))]
 fn is_path_env_key(key: &str) -> bool {
     key.eq_ignore_ascii_case("PATH")
 }
 
-#[cfg(target_family = "wasm")]
-pub async fn run_git_command(_repo_path: &Path, _args: &[&str]) -> Result<String> {
-    Err(anyhow!("Not supported on wasm"))
-}
-
-#[cfg(target_family = "wasm")]
-pub async fn run_git_command_with_env(
-    _repo_path: &Path,
-    _args: &[&str],
-    _path_env: Option<&str>,
-) -> Result<String> {
-    Err(anyhow!("Not supported on wasm"))
-}
-
-#[cfg(all(test, not(target_family = "wasm")))]
+#[cfg(test)]
 #[path = "git_tests.rs"]
 mod tests;

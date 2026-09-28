@@ -12,7 +12,6 @@ use warpui::{AppContext, Entity, ModelContext, RetryOption, SingletonEntity};
 
 use crate::ai::execution_profiles::{AIExecutionProfile, CloudAIExecutionProfileModel};
 use crate::ai::facts::{AIFact, CloudAIFactModel};
-#[cfg(not(target_family = "wasm"))]
 use crate::ai::mcp::templatable::{CloudTemplatableMCPServerModel, TemplatableMCPServer};
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::AuthManager;
@@ -160,7 +159,6 @@ impl UpdateManager {
         self.update_object(CloudAIFactModel::new(ai_fact), ai_fact_id, ctx);
     }
 
-    #[cfg(not(target_family = "wasm"))]
     pub fn update_templatable_mcp_server(
         &mut self,
         templatable_mcp_server: TemplatableMCPServer,
@@ -404,7 +402,6 @@ impl UpdateManager {
         );
     }
 
-    #[cfg(not(target_family = "wasm"))]
     pub fn create_templatable_mcp_server(
         &mut self,
         templatable_mcp_server: TemplatableMCPServer,

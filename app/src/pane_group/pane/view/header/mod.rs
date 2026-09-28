@@ -753,13 +753,7 @@ impl<P: BackingView> View for PaneHeader<P> {
             }
         );
         let element = match header_content {
-            HeaderContent::Standard(mut header) => {
-                // On mobile devices, always show icons since hover effects don't work with touch
-                if warpui::platform::is_mobile_device() {
-                    header.options.always_show_icons = true;
-                }
-                self.render_standard_header(header, app)
-            }
+            HeaderContent::Standard(header) => self.render_standard_header(header, app),
             HeaderContent::Custom { element, .. } => Clipped::new(
                 ConstrainedBox::new(element)
                     .with_height(PANE_HEADER_HEIGHT)

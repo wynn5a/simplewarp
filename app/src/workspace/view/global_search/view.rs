@@ -104,7 +104,6 @@ pub enum GlobalSearchAction {
     ToggleCaseSensitivity,
 }
 
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub enum GlobalSearchEvent {
     Started {
         search_id: u32,

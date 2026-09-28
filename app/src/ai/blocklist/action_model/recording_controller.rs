@@ -18,8 +18,6 @@ use crate::ai::agent::conversation::AIConversationId;
 /// completion back to every waiter, including callers that only joined work
 /// started by a different path.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-// Every variant is constructed only in non-wasm finalization paths.
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub(crate) enum FinalizeReason {
     StoppedByAgent,
     RunEnded,
@@ -51,7 +49,6 @@ pub enum StartRecordingControllerError {
     FinalizedResultPendingDelivery { recording_id: String },
 }
 
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 #[derive(Debug, Error)]
 pub enum StopRecordingControllerError {
     #[error("No recording with id '{recording_id}'.")]
@@ -60,7 +57,6 @@ pub enum StopRecordingControllerError {
     ConversationNotSynced,
 }
 
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub(crate) struct ActiveRecording {
     pub(crate) id: String,
     pub(crate) conversation_id: AIConversationId,
@@ -105,7 +101,6 @@ impl ActiveRecording {
 /// are captured when the call begins, and the entry is committed with its
 /// finish offset only when the call's action sequence returns successfully.
 /// Failed or cancelled calls discard the pending group without committing.
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub(crate) struct PendingActionGroup {
     pub(crate) start_offset: Duration,
     pub(crate) labels: Vec<String>,
@@ -135,7 +130,6 @@ enum RecordingState {
     },
 }
 
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub(crate) enum FinalizationClaim {
     Claimed {
         recording: Box<ActiveRecording>,
@@ -224,7 +218,6 @@ impl RecordingController {
     ///
     /// [`commit_action_group`]: Self::commit_action_group
     /// [`discard_action_group`]: Self::discard_action_group
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn begin_action_group(
         &mut self,
         conversation_id: AIConversationId,
@@ -261,7 +254,6 @@ impl RecordingController {
     ///
     /// [`commit_action_group_now`]: Self::commit_action_group_now
     /// [`discard_action_group`]: Self::discard_action_group
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn maybe_begin_action_group(
         &mut self,
         conversation_id: AIConversationId,
@@ -282,7 +274,6 @@ impl RecordingController {
     /// wrong recording.
     ///
     /// [`begin_action_group`]: Self::begin_action_group
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn commit_action_group(
         &mut self,
         conversation_id: AIConversationId,
@@ -307,7 +298,6 @@ impl RecordingController {
     /// elapsed time as the finish offset, for callers that cannot thread the
     /// capture start instant through to completion. No-op unless a recording is
     /// active for this conversation with a pending group.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn commit_action_group_now(&mut self, conversation_id: AIConversationId) {
         if let RecordingState::Active(recording) = &mut self.state
             && recording.conversation_id == conversation_id
@@ -319,7 +309,6 @@ impl RecordingController {
     /// Discards the in-flight action group without committing it (a failed or
     /// cancelled `UseComputer` call). No-op if the recording is no longer active
     /// for this conversation.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn discard_action_group(&mut self, conversation_id: AIConversationId) {
         if let RecordingState::Active(recording) = &mut self.state
             && recording.conversation_id == conversation_id
@@ -342,12 +331,10 @@ impl RecordingController {
         }
     }
 
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub(crate) fn claim_finalization_by_id(&mut self, recording_id: &str) -> FinalizationClaim {
         self.claim_matching_finalization(|id, _| id == recording_id)
     }
 
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub(crate) fn claim_finalization_for_conversation(
         &mut self,
         conversation_id: AIConversationId,
@@ -437,7 +424,6 @@ impl RecordingController {
     /// claimed when joining). Every waiter receives the same reason, and the
     /// reason is retained with the result until it is consumed, so telemetry
     /// downstream always reflects why finalization actually ran.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub(crate) fn complete_finalization(
         &mut self,
         recording_id: &str,
@@ -464,7 +450,6 @@ impl RecordingController {
         }
     }
 
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub(crate) fn consume_finalized(&mut self, recording_id: &str) {
         match mem::replace(&mut self.state, RecordingState::Idle) {
             RecordingState::Finalized { id, .. } if id == recording_id => {}
@@ -472,7 +457,6 @@ impl RecordingController {
         }
     }
 
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub(crate) fn poll_active_exit(
         &mut self,
         recording_id: &str,
@@ -489,7 +473,6 @@ impl RecordingController {
         }
     }
 
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub(crate) fn active_recording_id(&self) -> Option<&str> {
         match &self.state {
             RecordingState::Active(recording) => Some(&recording.id),

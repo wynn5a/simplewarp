@@ -96,9 +96,8 @@ fn register_reclaims_closed_logger() {
 /// predicate succeeding. Used to synchronize on async file writes without
 /// hard-coding sleeps that pad every run with dead time.
 fn wait_for<T>(deadline_ms: u64, label: &str, mut predicate: impl FnMut() -> Option<T>) -> T {
-    // `instant::Instant` is the cross-target (incl. wasm) drop-in for
-    // `std::time::Instant`; the rest of the workspace standardizes on it via
-    // the `disallowed_types` clippy lint.
+    // The workspace standardizes on `instant::Instant` over `std::time::Instant` via the
+    // `disallowed_types` clippy lint.
     let start = instant::Instant::now();
     let deadline = std::time::Duration::from_millis(deadline_ms);
     loop {

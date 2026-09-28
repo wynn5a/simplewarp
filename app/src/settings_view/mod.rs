@@ -20,7 +20,6 @@ use settings_page::{
 };
 use warp_agent_page::{WarpAgentPageAction, WarpAgentPageEvent, WarpAgentPageView};
 use warp_core::channel::ChannelState;
-use warp_core::context_flag::ContextFlag;
 use warp_core::features::FeatureFlag;
 use warp_core::settings::ToggleableSetting as _;
 use warp_core::ui::theme::color::internal_colors;
@@ -88,7 +87,6 @@ pub(crate) mod settings_page;
 mod warp_agent_page;
 mod warpify_page;
 
-#[cfg(not(target_family = "wasm"))]
 pub use cli_agents_page::cli_agent_settings_widget_id;
 pub use features_page::FeaturesPageAction;
 pub use privacy_page::PrivacyPageAction;
@@ -353,7 +351,6 @@ pub fn settings_widget_deeplink_target(slug: &str) -> Option<(SettingsSection, &
             features_page::global_hotkey_widget_id(),
         )),
         "custom_router" => Some((SettingsSection::WarpAgent, custom_model_routers_widget_id())),
-        #[cfg(not(target_family = "wasm"))]
         "cli_agents" => Some((
             SettingsSection::ThirdPartyCLIAgents,
             cli_agent_settings_widget_id(),
@@ -1377,38 +1374,36 @@ impl SettingsView {
     fn context_menu_items(&self, ctx: &mut ViewContext<Self>) -> Vec<MenuItem<SettingsAction>> {
         let mut items = vec![];
 
-        if ContextFlag::CreateNewSession.is_enabled() {
-            items.extend(vec![
-                MenuItemFields::new("Split pane right")
-                    .with_on_select_action(SettingsAction::Split(Direction::Right))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_right",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane left")
-                    .with_on_select_action(SettingsAction::Split(Direction::Left))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_left",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane down")
-                    .with_on_select_action(SettingsAction::Split(Direction::Down))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_down",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane up")
-                    .with_on_select_action(SettingsAction::Split(Direction::Up))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_up",
-                        ctx,
-                    ))
-                    .into_item(),
-            ]);
-        }
+        items.extend(vec![
+            MenuItemFields::new("Split pane right")
+                .with_on_select_action(SettingsAction::Split(Direction::Right))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_right",
+                    ctx,
+                ))
+                .into_item(),
+            MenuItemFields::new("Split pane left")
+                .with_on_select_action(SettingsAction::Split(Direction::Left))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_left",
+                    ctx,
+                ))
+                .into_item(),
+            MenuItemFields::new("Split pane down")
+                .with_on_select_action(SettingsAction::Split(Direction::Down))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_down",
+                    ctx,
+                ))
+                .into_item(),
+            MenuItemFields::new("Split pane up")
+                .with_on_select_action(SettingsAction::Split(Direction::Up))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_up",
+                    ctx,
+                ))
+                .into_item(),
+        ]);
 
         let split_pane_state = self
             .focus_handle

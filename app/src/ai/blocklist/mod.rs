@@ -33,10 +33,8 @@ pub(crate) mod view_util;
 
 #[allow(unused_imports)]
 pub use action_model::AIActionStatus;
-#[cfg_attr(target_family = "wasm", allow(unused_imports))]
 pub(crate) use action_model::read_local_file_context;
 pub(crate) use action_model::recording_controller::RecordingController;
-#[cfg(not(target_family = "wasm"))]
 pub(crate) use action_model::recording_finalize::{
     FinalizeReason, finalize_recording_for_conversation,
 };
@@ -53,7 +51,6 @@ pub(crate) use block::model::testing::FakeAIBlockModel;
 pub(crate) use block::{AIBlock, AIBlockEvent, init, model};
 pub use block::{keyboard_navigable_buttons, toggleable_items};
 pub use child_agent_launch::inherit_child_agent_settings;
-#[cfg(not(target_family = "wasm"))]
 #[allow(unused_imports)]
 pub use child_agent_launch::{
     PreparedLocalOzChildLaunch, apply_child_agent_model_override, prepare_local_oz_child_launch,
@@ -94,11 +91,8 @@ pub(crate) use passive_suggestions::{
 pub use permissions::BlocklistAIPermissions;
 #[cfg(test)]
 pub use permissions::CommandExecutionPermissionAllowedReason;
-#[cfg_attr(target_family = "wasm", allow(unused))]
-pub(crate) use persistence::PersistedAIInputType;
-#[cfg_attr(target_family = "wasm", allow(unused))]
 pub use persistence::maybe_build_ai_query_upsert_event;
-pub(crate) use persistence::{PersistedAIInput, SerializedBlockListItem};
+pub(crate) use persistence::{PersistedAIInput, PersistedAIInputType, SerializedBlockListItem};
 pub(crate) use queued_query::{
     AutofireAction, QueuedQuery, QueuedQueryId, QueuedQueryOrigin, is_lrc_auto_queue_active,
 };
