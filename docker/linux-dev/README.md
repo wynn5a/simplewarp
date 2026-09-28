@@ -34,9 +34,8 @@ LOCAL_PATH="/Users/$USER/src"
 # Run the image as a container, bridging port 22 for SSH connections,
 # mounting the provided directory into the container as `/src`, mounting
 # your SSH key directory into the container (so you don't need to create a
-# new GitHub SSH key), and mounting gcloud configuration (and auth information,
-# so you can run SSH integration tests).
-docker run -dp 127.0.0.1:22:22/tcp -v $LOCAL_PATH:/src -v $HOME/.ssh:/home/dev/.ssh -v $HOME/.config/gcloud:/home/dev/.config/gcloud $CONTAINER_NAME
+# new GitHub SSH key).
+docker run -dp 127.0.0.1:22:22/tcp -v $LOCAL_PATH:/src -v $HOME/.ssh:/home/dev/.ssh $CONTAINER_NAME
 ```
 
 ## Usage

@@ -1,4 +1,3 @@
-mod cloud_mode_v2_view;
 mod data_source;
 mod mixer;
 mod search_item;
@@ -7,7 +6,6 @@ pub(super) mod view;
 use std::path::PathBuf;
 
 use ai::skills::SkillReference;
-pub use cloud_mode_v2_view::{CloudModeV2SlashCommandView, Section as CloudModeV2Section};
 pub use data_source::*;
 pub use mixer::{SlashCommandMixer, build_slash_command_mixer, slash_command_query};
 pub use view::{CloseReason, InlineSlashCommandView, SlashCommandsEvent};
@@ -1156,3 +1154,7 @@ pub fn slash_command_is_submitted_as_prompt(command: &StaticCommand) -> bool {
         SlashCommandKind::Compact | SlashCommandKind::Plan | SlashCommandKind::Orchestrate
     )
 }
+
+#[cfg(test)]
+#[path = "mod_tests.rs"]
+mod tests;

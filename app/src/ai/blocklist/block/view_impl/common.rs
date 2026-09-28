@@ -3314,10 +3314,10 @@ pub struct FindContext<'a> {
 const USER_DISPLAY_NAME: &str = "User";
 
 /// Renders the local user's avatar.
-pub fn render_user_avatar(avatar_color: Option<ColorU>, app: &AppContext) -> Box<dyn Element> {
+pub fn render_user_avatar(app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
-    let background = avatar_color.unwrap_or_else(|| blended_colors::accent(theme).into());
+    let background: ColorU = blended_colors::accent(theme).into();
     let avatar = Avatar::new(
         AvatarContent::DisplayName(USER_DISPLAY_NAME.to_owned()),
         UiComponentStyles {

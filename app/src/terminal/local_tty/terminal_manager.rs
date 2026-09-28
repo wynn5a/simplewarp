@@ -17,7 +17,6 @@ use pathfinder_geometry::vector::Vector2F;
 use settings::Setting as _;
 use warp_core::SessionId;
 use warp_errors::report_error;
-use warpui::r#async::executor::Background;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity, ViewHandle};
 
 use super::event_loop::EventLoop;
@@ -483,14 +482,11 @@ fn on_shell_determined<S: TerminalSurface>(
     }
 
     log::debug!("Using shell starter source {shell_starter_source:?}");
-    let bg_executor = ctx.background_executor();
-
     let is_fallback_shell = matches!(
         shell_starter_source,
         Some(ShellStarterSource::Fallback { .. })
     );
-    let shell_starter =
-        shell_starter_source.map(|source| get_shell_starter_internal(source, bg_executor));
+    let shell_starter = shell_starter_source.map(get_shell_starter_internal);
     let shell_starter = match shell_starter {
         Some(shell_starter) => shell_starter,
         None => {
@@ -898,28 +894,16 @@ pub fn get_shell_starter(
         .and_then(|starter| {
             warpui::r#async::block_on(async { starter.to_shell_starter_source().await })
         })
-        .map(|starter_source| {
-            get_shell_starter_internal(starter_source, ctx.background_executor().clone())
-        })
+        .map(get_shell_starter_internal)
 }
 
-fn get_shell_starter_internal(
-    shell_starter_source: ShellStarterSource,
-    _background_executor: Arc<Background>,
-) -> ShellStarter {
+fn get_shell_starter_internal(shell_starter_source: ShellStarterSource) -> ShellStarter {
     match shell_starter_source {
         ShellStarterSource::Override(shell_starter) => shell_starter,
         ShellStarterSource::Environment(starter) | ShellStarterSource::UserDefault(starter) => {
             ShellStarter::Direct(starter)
         }
-        ShellStarterSource::Fallback {
-            unsupported_shell,
-            starter,
-        } => {
-            if let Some(_unsupported_shell) = unsupported_shell {}
-
-            ShellStarter::Direct(starter)
-        }
+        ShellStarterSource::Fallback { starter, .. } => ShellStarter::Direct(starter),
     }
 }
 

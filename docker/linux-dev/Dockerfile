@@ -36,14 +36,6 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
     && apt-get update -y \
     && apt-get install gh -y
 
-# Install the gcloud CLI.
-RUN mkdir -p -m 755 /etc/apt/keyrings \
-    && curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg > /etc/apt/keyrings/cloud.google.gpg \
-    && chmod go+r /etc/apt/keyrings/cloud.google.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee /etc/apt/sources.list.d/google-cloud-sdk.list > /dev/null \
-    && apt-get update -y \
-    && apt-get install google-cloud-cli -y
-
 # Set up the dev user (password is "password").
 RUN useradd -rm -d /home/dev -s /usr/bin/zsh -g root -G sudo -u 1000 dev && echo 'dev:password' | chpasswd
 

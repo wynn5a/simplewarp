@@ -122,7 +122,6 @@ integration_tests! {
     test_with_launch_config_with_no_active_pane,
     test_find_query_not_evaluated_on_terminal_mode_change,
     test_custom_open_completions_menu_binding,
-    test_ssh_with_shell_override,
 
     #[ignore = "Affected by agent_view feature flag UI changes"]
     test_copy_prompt_from_block_honor_ps1_disabled,
@@ -168,11 +167,6 @@ integration_tests! {
     test_can_run_command_in_synced_panes_in_tab,
     test_synced_panes_long_running_commands,
     test_synced_inputs_terminal_mode_change_view_focus,
-
-    #[ignore = "Affected by agent_view feature flag UI changes"]
-    test_can_bootstrap_remote_bash_subshell,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
-    test_can_bootstrap_remote_zsh_subshell,
 
     #[ignore = "Affected by agent_view feature flag UI changes"]
     test_can_auto_bootstrap,

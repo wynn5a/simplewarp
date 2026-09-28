@@ -1,11 +1,5 @@
 use super::slash_command_is_submitted_as_prompt;
-use crate::search::slash_command_menu::static_commands::{
-    Availability, SlashCommandKind, commands,
-};
-
-const BASELINE_AVAILABILITY: Availability = Availability::AGENT_VIEW
-    .union(Availability::AI_ENABLED)
-    .union(Availability::NO_LRC_CONTROL);
+use crate::search::slash_command_menu::static_commands::{SlashCommandKind, commands};
 
 /// The centralized classifier must mark only the prompt-submitting commands (/compact, /plan,
 /// /orchestrate) as "submitted as a prompt". Every other slash command emits an immediate action

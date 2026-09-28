@@ -36,7 +36,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | Rounds done through 4ht; the remaining remote-only residue (R7, from the 4hp survey) is queued under Next |
+| 4 — Delete the dead cloud code and the TUI | DONE through 4hu: the 4hp remote-only queue (R1–R7) is empty; what remains under Next is product decisions and small follow-ups |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
@@ -86,9 +86,9 @@ Workspace is down to 62 packages (`cargo metadata`). Gone, in rough order:
 - ~~**R5 — `channel_versions` crate**~~ — **4ht done (2026-09-29).**
 - ~~**R6 — Warp server error shapes**~~ — **4ht done (2026-09-29)**, with the `X-Warp-*` request
   headers.
-- **R7 — scripts / test infra**: `script/linux/bundle_rpm`'s rpmsign + `releases.warp.dev` key
-  import; `/opt/warpdotdev` / `REPO_NAME=warpdotdev` package paths (branding); the
-  `setup_gcloud_sdk` integration steps (Warp's GCP) in `crates/integration/src/test/{ssh,subshell}.rs`.
+- ~~**R7 — scripts / test infra**~~ — **4hu done (2026-09-29).**
+
+The queue is empty.
 
 Product decisions, not deletions: the Oz branding of the local CLI install and ~23 user-visible
 "Oz" strings (rebrand); the Help menu / `JoinSlack` / feedback / ~69 `docs.warp.dev` links (repoint
@@ -1079,6 +1079,50 @@ Queue, in order:
    local_inference 97,
    0 failed. **Follow-ups:** `RenderableAIError::QuotaLimit`'s `user_display_message` is always
    `None` now (could map a provider 429 to it instead of the generic error, a product call).
+
+32. ~~R7: Warp release/test infra in scripts; orphaned source files~~ — **4hu done (2026-09-29).**
+   −3.5k lines in 48 files. **Packaging:** a locally built Linux package no longer points the
+   machine at Warp's repositories: the `.deb` postinst/postrm repo templates
+   (`debian/common/postinst.repo.template` wrote Warp's signing key and a
+   `releases.warp.dev/linux/deb` apt source, `postrm.repo.template` purged them) and the `.rpm`
+   `%post` Warp signing key + yum/zypper `releases.warp.dev/linux/rpm` repo setup (app and cli
+   specs) are gone, as are `bundle_rpm`'s GitHub-only `rpm --import releases.warp.dev/…/warp.asc` +
+   `rpmsign` step, `REPO_NAME` and `bundle_deb`'s stable repo-name check. The app `%post` keeps
+   `update-desktop-database`; the cli spec has no `%post`. **Tests:** the SSH integration tests
+   (`crates/integration/src/test/ssh.rs`, 6 tests) and the 2 remote-subshell tests tunnelled into
+   Warp's GCP VM (`gcloud compute start-iap-tunnel … warp-ssh-integration-testing`), so they, the
+   step helpers (`setup_gcloud_sdk`, `enter_ssh_command`, `enter_remote_subshell_command`,
+   `wait_for_password_prompt`, `enter_ssh_password`), `integration_testing/subshell/util.rs`, their
+   registrations, `ci.yml`'s `EXCLUDE_SSH_TESTS_FILTER` + ssh-agent step, and the gcloud CLI in
+   `docker/linux-dev` (+ README mount) are gone; the local-subshell tests stay. The stale
+   `.agents/specs/APP-4957` (deleted `docker/agent-dev` image) too. **Code:**
+   `slash_commands/cloud_mode_v2_view.rs` (`CloudModeV2SlashCommandView`, 1.2k lines, never
+   constructed). `get_shell_starter_internal` lost its unused executor (and a no-op `if let`);
+   `render_user_avatar` / `query::Props` / `render_query` lost the always-`None` `avatar_color`.
+   **Orphaned `.rs` files** (a script walked every crate's `mod` / `#[path]` / `cfg_attr(path)`
+   graph from its lib/main/bin/test/bench roots): re-wired `slash_commands/mod_tests.rs` (+3 tests;
+   the unused `BASELINE_AVAILABILITY` dropped; its `#[cfg(windows)]` WSL test is not compile-checked
+   here) and `warp_completer/src/completer/tests.rs` (+2; `display` is `SmolStr` now). Deleted as
+   testing deleted or rewritten code: `agent_sdk/driver/snapshot_tests.rs` (`build_repo_patch`),
+   `agent_sdk/runner_tests.rs` and `warp_cli/src/runner_tests.rs` (cloud runners),
+   `settings_view/platform_page_tests.rs` (API-key page), `inline_action/malformed_line_heuristics_tests.rs`
+   (its module is gone), `writeable_pty/pty_controller_tests.rs` (pre-rewrite
+   `PtyController` API; covered by the command-bytes/lifecycle tests). Deleted as dead or duplicate
+   sources: `action_model/execute/get_files.rs` (`GetFilesRequestType` gone),
+   `block/model/debug_model_impl.rs` (debug-link conversation model), `ai/voice/transcribe.rs`
+   (warp-server Transcribe; its `api` module was gone), `usage/mod.rs` (its only module gone),
+   `app/src/app_id_tests.rs` and `app/src/util/meta.rs` (byte-identical copies of `warp_core` /
+   `warp_completer` files), and the empty `conversation_navigation/legacy.rs`,
+   `metadata_project_rules_tests.rs`, `persisted_workspace_tests.rs`, `warp_core/src/errors.rs`.
+   Remaining script hits are false positives (Linux `cfg_attr(path)` modules, `test_data` fixtures).
+   **Kept:** `/opt/warpdotdev/<package>` and the `warp-terminal` / `oz` package names — the local
+   `script/linux/bundle` deb/rpm/arch/AppImage builds install there (branding, not infra); Warp
+   `Homepage` / `Maintainer` / `License` metadata in the templates and the Windows installer URL;
+   `ci.yml` (user decision); `script/resolve_common_skills` (GitHub raw `warpdotdev/common-skills`,
+   used by bootstrap/run). `bash -n` clean on every edited script and package template. Tests 4,103
+   default / 4,104 simplewarp (+3), warp_completer 176 / 125 (v2) (+2 each), warp_cli + warp_core 104,
+   0 failed. **Follow-ups:** `apply_edits`' unused `_ai_identifiers` / `_background_executor` /
+   `_passive_diff`; rebrand the Linux package names/paths if the fork ever ships packages.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

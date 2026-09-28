@@ -138,7 +138,7 @@ impl View for PendingUserQueryBlock {
         let theme = appearance.theme();
         let dimmed_color = blended_colors::text_sub(theme, theme.surface_1());
 
-        let avatar = Container::new(render_user_avatar(None, app))
+        let avatar = Container::new(render_user_avatar(app))
             .with_margin_right(16.)
             .finish();
 

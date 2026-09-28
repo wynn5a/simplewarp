@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use itertools::Itertools;
 
 use crate::completer::{Priority, Suggestion, SuggestionType};
@@ -18,8 +16,8 @@ fn test_suggestions_cmp_display() {
     let suggestions: Vec<Suggestion> = display_names
         .iter()
         .map(|display| Suggestion {
-            display: Arc::new(display.to_owned()),
-            replacement: "dummy".to_owned(),
+            display: display.into(),
+            replacement: "dummy".into(),
             description: None,
             suggestion_type: SuggestionType::Argument,
             priority: Priority::default(),
@@ -49,8 +47,8 @@ fn test_suggestions_cmp_by_reversed_priority_and_display() {
         .into_iter()
         .enumerate()
         .map(|(idx, priority)| Suggestion {
-            display: Arc::new(format!("status_{}", priorities.len() - idx)),
-            replacement: "status".to_owned(),
+            display: format!("status_{}", priorities.len() - idx).into(),
+            replacement: "status".into(),
             description: None,
             suggestion_type: SuggestionType::Argument,
             priority,

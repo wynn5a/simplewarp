@@ -962,10 +962,8 @@ impl View for AIBlock {
                 contents.add_child(header.with_content_item_spacing().finish());
                 did_render_header = true;
             }
-            let avatar_color = None;
             if let Some(rendered_query) = query::maybe_render(
                 query::Props {
-                    avatar_color,
                     query_and_index: Some((&query_for_display, input_index)),
                     query_prefix_highlight_len,
                     detected_links_state: &self.detected_links_state,

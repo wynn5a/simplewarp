@@ -2,7 +2,6 @@
 //!
 //! Queries are not rendered in blocks corresponding to requested command or requested action responses.
 
-use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::color::Opacity;
@@ -37,7 +36,6 @@ const NAVIGATION_HALO_OPACITY: Opacity = 60;
 /// Data required to render the AI block query component.
 #[derive(Copy, Clone, Debug)]
 pub(super) struct Props<'a> {
-    pub(super) avatar_color: Option<ColorU>,
     pub(super) query_and_index: Option<(&'a str, usize)>,
     pub(super) query_prefix_highlight_len: Option<usize>,
     pub(super) detected_links_state: &'a DetectedLinksState,
@@ -53,7 +51,6 @@ pub(super) fn maybe_render(props: Props, app: &AppContext) -> Option<Box<dyn Ele
     props.query_and_index.map(|(query, input_index)| {
         render_query(
             query,
-            props.avatar_color,
             props.detected_links_state,
             props.secret_redaction_state,
             input_index,
@@ -71,7 +68,6 @@ pub(super) fn maybe_render(props: Props, app: &AppContext) -> Option<Box<dyn Ele
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn render_query(
     query: &str,
-    avatar_color: Option<ColorU>,
     detected_links_state: &DetectedLinksState,
     secret_redaction_state: &SecretRedactionState,
     input_index: usize,
@@ -83,8 +79,7 @@ pub(crate) fn render_query(
     is_agent_transcript_navigation_target: bool,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    let mut avatar_container =
-        Container::new(render_user_avatar(avatar_color, app)).with_margin_right(16.);
+    let mut avatar_container = Container::new(render_user_avatar(app)).with_margin_right(16.);
     if is_agent_transcript_navigation_target {
         // Cmd-Up/Cmd-Down transcript navigation is stopped on this query: ring the avatar
         // with the theme accent plus a soft accent halo so the stop is unmistakable even

@@ -29,3 +29,6 @@ fn get_path_separators(ctx: &dyn CompletionContext) -> PathSeparators {
         .map(|ctx| ctx.path_separators())
         .unwrap_or(PathSeparators::for_os())
 }
+
+#[cfg(test)]
+mod tests;
