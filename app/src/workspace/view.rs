@@ -346,8 +346,7 @@ use crate::window_settings::{WindowSettings, WindowSettingsChangedEvent, ZoomLev
 use crate::workflows::manager::{WorkflowManager, WorkflowOpenSource};
 use crate::workflows::workflow::Workflow;
 use crate::workflows::{
-    AIWorkflowOrigin, CloudWorkflow, WorkflowSelectionSource, WorkflowSource, WorkflowType,
-    WorkflowViewMode,
+    AIWorkflowOrigin, CloudWorkflow, WorkflowSource, WorkflowType, WorkflowViewMode,
 };
 use crate::workspace::action::CommandSearchOptions;
 #[cfg(target_os = "macos")]
@@ -4346,12 +4345,10 @@ impl Workspace {
                 workflow,
                 source,
                 argument_override,
-                workflow_selection_source,
             } => {
                 self.run_workflow_in_active_input(
                     workflow,
                     *source.clone(),
-                    *workflow_selection_source,
                     argument_override.clone(),
                     TerminalSessionFallbackBehavior::default(),
                     ctx,
@@ -8683,7 +8680,6 @@ impl Workspace {
                 if let Some(workflow) = cloud_model.get_workflow(workflow_id) {
                     self.run_cloud_workflow_in_active_input(
                         workflow.clone(),
-                        WorkflowSelectionSource::Undefined,
                         TerminalSessionFallbackBehavior::default(),
                         ctx,
                     );
@@ -11624,7 +11620,6 @@ impl Workspace {
 
                 self.run_cloud_workflow_in_active_input(
                     workflow.clone(),
-                    WorkflowSelectionSource::CommandPalette,
                     TerminalSessionFallbackBehavior::default(),
                     ctx,
                 );
@@ -12134,13 +12129,11 @@ impl Workspace {
             pane_group::Event::RunWorkflow {
                 workflow,
                 workflow_source,
-                workflow_selection_source,
                 argument_override,
             } => {
                 self.run_workflow_in_active_input(
                     workflow,
                     *workflow_source,
-                    *workflow_selection_source,
                     argument_override.clone(),
                     TerminalSessionFallbackBehavior::default(),
                     ctx,
@@ -13139,14 +13132,12 @@ impl Workspace {
     fn run_cloud_workflow_in_active_input(
         &mut self,
         workflow: CloudWorkflow,
-        workflow_selection_source: WorkflowSelectionSource,
         fallback_behavior: TerminalSessionFallbackBehavior,
         ctx: &mut ViewContext<Self>,
     ) {
         self.run_workflow_in_active_input(
             &WorkflowType::Cloud(Box::new(workflow.clone())),
             WorkflowSource::PersonalCloud,
-            workflow_selection_source,
             None,
             fallback_behavior,
             ctx,
@@ -13303,7 +13294,6 @@ impl Workspace {
         &mut self,
         workflow: &WorkflowType,
         workflow_source: WorkflowSource,
-        workflow_selection_source: WorkflowSelectionSource,
         argument_override: Option<HashMap<String, String>>,
         fallback_behavior: TerminalSessionFallbackBehavior,
         ctx: &mut ViewContext<Self>,
@@ -13317,7 +13307,6 @@ impl Workspace {
                 input.show_workflows_info_box_on_workflow_selection(
                     workflow.clone(),
                     workflow_source,
-                    workflow_selection_source,
                     argument_override,
                     ctx,
                 );
@@ -13427,7 +13416,6 @@ impl Workspace {
                                         command.as_str(),
                                         workflow_type,
                                         workflow_source,
-                                        WorkflowSelectionSource::UniversalSearch,
                                         ctx,
                                     );
                                 }
@@ -14085,7 +14073,6 @@ impl Workspace {
                         origin: AIWorkflowOrigin::LegacyWarpAI,
                     },
                     WorkflowSource::WarpAI,
-                    WorkflowSelectionSource::WarpAI,
                     None,
                     TerminalSessionFallbackBehavior::default(),
                     ctx,
@@ -18687,7 +18674,6 @@ impl TypedActionView for Workspace {
                         origin: AIWorkflowOrigin::AgentMode,
                     },
                     WorkflowSource::WarpAI,
-                    WorkflowSelectionSource::WarpAI,
                     None,
                     TerminalSessionFallbackBehavior::default(),
                     ctx,
@@ -18875,12 +18861,10 @@ impl TypedActionView for Workspace {
             RunWorkflow {
                 workflow,
                 workflow_source,
-                workflow_selection_source,
                 argument_override,
             } => self.run_workflow_in_active_input(
                 workflow,
                 *workflow_source,
-                *workflow_selection_source,
                 argument_override.clone(),
                 TerminalSessionFallbackBehavior::default(),
                 ctx,

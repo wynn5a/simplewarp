@@ -493,7 +493,6 @@ pub fn to_cloud_object_metadata(metadata: &ObjectMetadata) -> CloudObjectMetadat
         is_welcome_object: metadata.is_welcome_object,
         creator_uid: metadata.creator_uid.clone(),
         last_editor_uid: metadata.last_editor_uid.clone(),
-        last_task_run_ts: None,
     }
 }
 

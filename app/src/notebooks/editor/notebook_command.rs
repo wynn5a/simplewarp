@@ -54,7 +54,6 @@ use crate::features::FeatureFlag;
 use crate::menu::MenuItemFields;
 use crate::notebooks::file::MarkdownDisplayMode;
 use crate::notebooks::styles::block_footer_action_button;
-use crate::notebooks::telemetry::{ActionEntrypoint, BlockInfo};
 use crate::settings::FontSettings;
 use crate::terminal::input::DEBOUNCE_INPUT_DECORATION_PERIOD;
 use crate::terminal::input::decorations::{
@@ -785,8 +784,6 @@ impl RunnableCommandModel for NotebookCommand {
                     {
                         ctx.dispatch_typed_action(EditorViewAction::CopyTextToClipboard {
                             text: UserInput::new(block_content.trim()),
-                            block: BlockInfo::CodeBlock,
-                            entrypoint: ActionEntrypoint::Button,
                         });
                     }
                 })

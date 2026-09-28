@@ -53,7 +53,7 @@ use crate::terminal::model::session::Session;
 use crate::terminal::view::TerminalAction;
 use crate::ui_components::color_dot;
 use crate::view_components::DismissibleToast;
-use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
+use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::{ForkedConversationDestination, ToastStack, WorkspaceAction};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -350,7 +350,6 @@ impl Input {
                 self.show_workflows_info_box_on_workflow_selection(
                     WorkflowType::Cloud(Box::new(workflow)),
                     WorkflowSource::WarpAI,
-                    WorkflowSelectionSource::SlashMenu,
                     None,
                     ctx,
                 );

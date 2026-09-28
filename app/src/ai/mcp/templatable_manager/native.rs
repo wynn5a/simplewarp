@@ -42,7 +42,7 @@ use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{
     CloudObject, CloudObjectLookup as _, CloudObjectUuidLookup as _, GenericStringObjectFormat,
-    JsonObjectType, Space,
+    JsonObjectType, personal_drive,
 };
 use crate::persistence::{ModelEvent, database_file_path, establish_ro_connection};
 use crate::server::cloud_objects::update_manager::{InitiatedBy, UpdateManager};
@@ -450,15 +450,13 @@ impl TemplatableMCPServerManager {
             .map(|server| &server.model().string_model)
     }
 
-    /// Creates a new templatable MCP server in the specified space.
+    /// Creates a new templatable MCP server in the personal drive.
     pub fn create_templatable_mcp_server(
         &mut self,
         templatable_mcp_server: TemplatableMCPServer,
-        space: Space,
         ctx: &mut ModelContext<Self>,
     ) {
-        let owner = space.owner(ctx);
-        if let Some(owner) = owner {
+        if let Some(owner) = personal_drive(ctx) {
             let update_manager = UpdateManager::handle(ctx);
             update_manager.update(ctx, |update_manager, ctx| {
                 let client_id = ClientId::default();
@@ -1437,7 +1435,6 @@ impl TemplatableMCPServerManager {
         &mut self,
         sync_id: SyncId,
         mut legacy_mcp_server: MCPServer,
-        space: Space,
         automatically_start_server: bool,
         ctx: &mut ModelContext<Self>,
     ) -> Result<ParsedTemplatableMCPServerResult, LegacyToTemplatableMCPConversionError> {
@@ -1461,7 +1458,7 @@ impl TemplatableMCPServerManager {
             ..
         } = parsed_result.clone();
         let template_uuid = templatable_mcp_server.uuid;
-        self.create_templatable_mcp_server(templatable_mcp_server, space, ctx);
+        self.create_templatable_mcp_server(templatable_mcp_server, ctx);
         self.copy_oauth_from_legacy_to_templatable(sync_id, template_uuid, ctx);
         if let Some(templatable_mcp_server_installation) = templatable_mcp_server_installation {
             let installation = self.install_from_template(
@@ -1500,7 +1497,6 @@ impl TemplatableMCPServerManager {
             let result = self.convert_legacy_to_templatable(
                 sync_id,
                 legacy_mcp_server,
-                Space::Personal,
                 servers_to_restart.contains(&uuid),
                 ctx,
             );

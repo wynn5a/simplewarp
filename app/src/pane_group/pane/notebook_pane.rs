@@ -12,7 +12,7 @@ use crate::notebooks::link::{LinkEvent, NotebookLinks};
 use crate::notebooks::manager::{NotebookManager, NotebookSource};
 use crate::notebooks::notebook::{NotebookEvent, NotebookView};
 use crate::server::ids::SyncId;
-use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
+use crate::workflows::{WorkflowSource, WorkflowType};
 
 pub struct NotebookPane {
     view: ViewHandle<PaneView<NotebookView>>,
@@ -208,7 +208,6 @@ fn run_notebook_workflow(
     ctx.emit(crate::pane_group::Event::RunWorkflow {
         workflow,
         workflow_source,
-        workflow_selection_source: WorkflowSelectionSource::Notebook,
         argument_override: None,
     });
 }

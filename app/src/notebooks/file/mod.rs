@@ -638,7 +638,6 @@ impl FileNotebookView {
             }
             EditorViewEvent::OpenedBlockInsertionMenu => (),
             EditorViewEvent::OpenedFindBar => (),
-            EditorViewEvent::CopiedBlock { .. } => (),
             EditorViewEvent::NavigatedCommands => (),
             EditorViewEvent::ChangedSelectionMode(_) => (),
             EditorViewEvent::Navigate(_)

@@ -11,7 +11,6 @@ use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::Owner;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::model::view::CloudViewModel;
 use crate::network::NetworkStatus;
 use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::notebooks::notebook::NotebookView;
@@ -90,7 +89,6 @@ fn initialize_app(app: &mut App) -> TestState {
     let (sender, receiver) = mpsc::sync_channel(10);
     app.add_singleton_model(|_| UpdateManager::new(Some(sender)));
 
-    app.add_singleton_model(CloudViewModel::mock);
     let manager = app.add_singleton_model(NotebookManager::mock);
     TestState {
         manager,

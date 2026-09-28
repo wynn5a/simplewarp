@@ -142,7 +142,6 @@ impl<K, M> GenericCloudObject<K, M> {
                 is_welcome_object: false,
                 creator_uid: None,
                 last_editor_uid: None,
-                last_task_run_ts: None,
             },
             permissions: CloudObjectPermissions {
                 owner,

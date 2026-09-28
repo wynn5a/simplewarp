@@ -3,8 +3,7 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 use super::CloudNotebookModel;
 use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::model::view::{CloudViewModel, Editor};
-use crate::cloud_object::{CloudObject, Owner, Space};
+use crate::cloud_object::{CloudObject, Owner};
 use crate::notebooks::CloudNotebook;
 use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
@@ -161,14 +160,14 @@ impl ActiveNotebookData {
         )
     }
 
-    /// The space that the active notebook is shown in for this user.
-    pub fn space(&self, app: &AppContext) -> Option<Space> {
+    /// Whether a notebook is open and still present (possibly trashed) in [`CloudModel`].
+    pub fn exists(&self, app: &AppContext) -> bool {
         match &self.active_notebook {
-            ActiveNotebook::None => None,
-            ActiveNotebook::CommittedNotebook(id) => CloudModel::as_ref(app)
-                .get_notebook(id)
-                .map(|notebook| notebook.space()),
-            ActiveNotebook::NewNotebook(notebook) => Some(notebook.space()),
+            ActiveNotebook::None => false,
+            ActiveNotebook::CommittedNotebook(id) => {
+                CloudModel::as_ref(app).get_notebook(id).is_some()
+            }
+            ActiveNotebook::NewNotebook(_) => true,
         }
     }
 
@@ -195,13 +194,6 @@ impl ActiveNotebookData {
 
     pub fn feature_not_available(&self) -> bool {
         self.feature_not_available
-    }
-
-    /// Returns the current editor of the active object. Returns None
-    /// if there is not currently an active notebook
-    pub fn current_editor(&self, ctx: &AppContext) -> Option<Editor> {
-        let id = self.id()?;
-        CloudViewModel::as_ref(ctx).object_current_editor(&id.uid(), ctx)
     }
 
     /// Checks if this notebook is trashed or deleted.

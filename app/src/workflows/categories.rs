@@ -29,7 +29,6 @@ use warpui::{
 use super::WorkflowSource;
 use super::workflow::Workflow;
 use crate::appearance::Appearance;
-use crate::cloud_object::Space;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::editor::Event as EditorEvent;
 use crate::themes::theme::{self, Blend, WarpTheme};
@@ -481,17 +480,15 @@ impl CategoriesView {
     }
 
     pub fn load_cloud_workflows(&mut self, ctx: &mut ViewContext<Self>) {
-        let space = Space::Personal;
-        let workflows_in_space = CloudModel::as_ref(ctx).active_workflows_in_space(space);
-        let new_workflows_in_space = Self::categorize_workflows(
+        let cloud_workflows = Self::categorize_workflows(
             // Don't include AI workflows in Voltron.
-            workflows_in_space
-                .into_iter()
+            CloudModel::as_ref(ctx)
+                .get_all_active_workflows()
                 .filter(|workflow| !workflow.model().data.is_agent_mode_workflow())
                 .map(|w| Arc::new(WorkflowType::Cloud(Box::new(w.clone())))),
         );
         self.workflows_by_source
-            .insert(WorkflowSource::PersonalCloud, new_workflows_in_space);
+            .insert(WorkflowSource::PersonalCloud, cloud_workflows);
 
         self.selected_workflow_index = 0;
         self.compute_active_workflows(ctx);

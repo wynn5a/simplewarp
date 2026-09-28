@@ -1,25 +1,21 @@
 //! Components for the notebook header.
 
+use warpui::Element;
 use warpui::elements::{
-    Container, CrossAxisAlignment, Flex, Highlight, MainAxisAlignment, MainAxisSize,
-    MouseStateHandle, ParentElement, Shrinkable,
+    Container, CrossAxisAlignment, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle,
+    ParentElement, Shrinkable,
 };
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::{AppContext, Element};
 
-use super::super::active_notebook_data::ActiveNotebookData;
 use super::{EDIT_BUTTON_MARGIN, NotebookAction};
 use crate::appearance::Appearance;
-use crate::cloud_object::model::view::{Editor, EditorState};
 use crate::notebooks::active_notebook_data::Mode;
 use crate::notebooks::styles;
 use crate::ui_components::buttons::{accent_icon_button, icon_button};
 use crate::ui_components::icons::Icon;
 
-/// Component to show details about a notebook:
-/// * The current editor of the notebook
-/// * Grab-the-baton UI controls
+/// Component showing the notebook's view/edit mode and its toggle.
 pub struct DetailsBar {
     edit_mode_button_mouse_state: MouseStateHandle,
 }
@@ -31,22 +27,14 @@ impl DetailsBar {
         }
     }
 
-    pub fn render(
-        &self,
-        notebook_data: &ActiveNotebookData,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    pub fn render(&self, mode: Mode, appearance: &Appearance) -> Box<dyn Element> {
         let mut editing_state_row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::End)
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
-        if let Some(editor) = notebook_data.current_editor(app) {
-            editing_state_row
-                .add_child(Shrinkable::new(1., self.render_editor(&editor, appearance)).finish());
-        }
-
-        editing_state_row.add_child(self.render_mode_toggle(notebook_data.mode, appearance));
+        editing_state_row
+            .add_child(Shrinkable::new(1., self.render_mode_label(mode, appearance)).finish());
+        editing_state_row.add_child(self.render_mode_toggle(mode, appearance));
 
         editing_state_row.finish()
     }
@@ -80,41 +68,19 @@ impl DetailsBar {
         .finish()
     }
 
-    /// Renders a label for the current editor.
-    fn render_editor(&self, editor: &Editor, appearance: &Appearance) -> Box<dyn Element> {
-        let base_text_styles = UiComponentStyles {
-            font_color: Some(styles::title_text_fill(appearance).into_solid()),
-            ..Default::default()
+    fn render_mode_label(&self, mode: Mode, appearance: &Appearance) -> Box<dyn Element> {
+        let label = match mode {
+            Mode::View => "Viewing",
+            Mode::Editing => "Editing",
         };
-        let theme = appearance.theme();
-        match editor.state {
-            EditorState::None => appearance
-                .ui_builder()
-                .span("Viewing")
-                .with_style(base_text_styles)
-                .build()
-                .finish(),
-            EditorState::CurrentUser => appearance
-                .ui_builder()
-                .span("Editing")
-                .with_style(base_text_styles)
-                .build()
-                .finish(),
-            EditorState::OtherUserActive | EditorState::OtherUserIdle => {
-                let editor = "Other user";
-                appearance
-                    .ui_builder()
-                    .span(format!("{editor} is editing"))
-                    .with_style(base_text_styles)
-                    .with_highlights(
-                        (0..editor.chars().count()).collect(),
-                        Highlight::new().with_foreground_color(
-                            theme.main_text_color(theme.background()).into_solid(),
-                        ),
-                    )
-                    .build()
-                    .finish()
-            }
-        }
+        appearance
+            .ui_builder()
+            .span(label)
+            .with_style(UiComponentStyles {
+                font_color: Some(styles::title_text_fill(appearance).into_solid()),
+                ..Default::default()
+            })
+            .build()
+            .finish()
     }
 }

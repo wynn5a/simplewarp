@@ -280,7 +280,7 @@ use crate::workflows::info_box::{
 };
 use crate::workflows::local_workflows::LocalWorkflows;
 use crate::workflows::workflow_enum::EnumVariants;
-use crate::workflows::{self, WorkflowSelectionSource, WorkflowSource, WorkflowType};
+use crate::workflows::{self, WorkflowSource, WorkflowType};
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::{
     CommandSearchOptions, ForkFromExchange, ForkedConversationDestination, InitContent,
@@ -1095,7 +1095,6 @@ struct SelectedWorkflowState {
 
     workflow_source: WorkflowSource,
     workflow_type: WorkflowType,
-    workflow_selection_source: WorkflowSelectionSource,
 
     /// `true` if the WorkflowsMoreInfoView should be shown for the selected workflow. This is true
     /// in all cases except when a workflow-linked history command is selected from up-arrow
@@ -3918,7 +3917,6 @@ impl Input {
                     self.insert_workflow_into_input(
                         workflow_type,
                         workflow_source,
-                        WorkflowSelectionSource::UpArrowHistory,
                         None,
                         Some(command),
                         env_vars,
@@ -5755,7 +5753,6 @@ impl Input {
                 self.show_workflows_info_box_on_workflow_selection(
                     *workflow.clone(),
                     workflow_source,
-                    WorkflowSelectionSource::Voltron,
                     None,
                     ctx,
                 );
@@ -5792,7 +5789,6 @@ impl Input {
         &mut self,
         workflow_type: WorkflowType,
         workflow_source: WorkflowSource,
-        workflow_selection_source: WorkflowSelectionSource,
         argument_override: Option<HashMap<String, String>>,
         ctx: &mut ViewContext<Input>,
     ) {
@@ -5801,7 +5797,6 @@ impl Input {
         self.insert_workflow_into_input(
             workflow_type,
             workflow_source,
-            workflow_selection_source,
             argument_override,
             None,
             env_vars,
@@ -5815,7 +5810,6 @@ impl Input {
         history_command: &str,
         workflow_type: WorkflowType,
         workflow_source: WorkflowSource,
-        workflow_selection_source: WorkflowSelectionSource,
         ctx: &mut ViewContext<Input>,
     ) {
         let should_show_more_info_view = true;
@@ -5823,7 +5817,6 @@ impl Input {
         self.insert_workflow_into_input(
             workflow_type,
             workflow_source,
-            workflow_selection_source,
             None,
             Some(history_command),
             env_vars,
@@ -5866,7 +5859,6 @@ impl Input {
         &mut self,
         workflow_type: WorkflowType,
         workflow_source: WorkflowSource,
-        workflow_selection_source: WorkflowSelectionSource,
         argument_overrides: Option<HashMap<String, String>>,
         history_command: Option<&str>,
         selected_env_vars: Option<SyncId>,
@@ -5990,7 +5982,6 @@ impl Input {
                     argument_index_to_enum_variants: enum_variants_map,
                     workflow_source,
                     workflow_type,
-                    workflow_selection_source,
                     should_show_more_info_view,
                 });
             }
@@ -6013,7 +6004,6 @@ impl Input {
                     argument_index_to_enum_variants: HashMap::new(),
                     workflow_source,
                     workflow_type,
-                    workflow_selection_source,
                     should_show_more_info_view,
                 });
             }
@@ -6382,7 +6372,6 @@ impl Input {
                             self.insert_workflow_into_input(
                                 workflow_type,
                                 workflow_source,
-                                WorkflowSelectionSource::UpArrowHistory,
                                 None,
                                 Some(selected_item.text()),
                                 env_vars,
@@ -6521,7 +6510,6 @@ impl Input {
             self.insert_workflow_into_input(
                 state.workflow_type,
                 state.workflow_source,
-                state.workflow_selection_source,
                 None,
                 None,
                 env_vars,
@@ -10714,7 +10702,6 @@ impl Input {
                         self.insert_workflow_into_input(
                             workflow_type,
                             WorkflowSource::PersonalCloud,
-                            WorkflowSelectionSource::Alias,
                             alias.arguments,
                             None,
                             env_vars,

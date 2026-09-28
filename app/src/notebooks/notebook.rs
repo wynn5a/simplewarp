@@ -42,9 +42,8 @@ use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::appearance::Appearance;
 use crate::cloud_object::export::ExportManager;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::model::view::{Editor, EditorState};
 use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_notebook_limit;
-use crate::cloud_object::{CloudObjectTypeAndId, ObjectType, Owner, Space, personal_drive};
+use crate::cloud_object::{CloudObjectTypeAndId, ObjectType, Owner, personal_drive};
 use crate::cmd_or_ctrl_shift;
 use crate::editor::{
     EditOrigin, EditorView, Event as EditorEvent, InteractionState, PropagateAndNoOpNavigationKeys,
@@ -535,7 +534,7 @@ impl NotebookView {
             EditorEvent::Enter
             | EditorEvent::CmdEnter
             | EditorEvent::Navigate(NavigationKey::Tab) => {
-                self.grab_edit_access_or_display_access_dialog(ctx);
+                self.request_edit_mode(ctx);
             }
             EditorEvent::Blurred => {
                 self.title.update(ctx, move |title_editor, ctx| {
@@ -574,7 +573,7 @@ impl NotebookView {
                     .trash_status(ctx)
                     .is_editable()
                 {
-                    self.give_up_edit_access_and_start_viewing(ctx)
+                    self.switch_to_view(ctx)
                 }
             }
             CloudModelEvent::ObjectUntrashed { .. } => {
@@ -671,13 +670,6 @@ impl NotebookView {
         }
     }
 
-    /// Checks if the user is the current known editor of the notebook, if they
-    /// are, then sets the current editor to be None both locally and on the server
-    fn give_up_edit_access_and_start_viewing(&mut self, ctx: &mut ViewContext<Self>) {
-        self.switch_to_view(ctx);
-        ctx.notify();
-    }
-
     /// Save any changes to the notebook.
     fn handle_save(&mut self, _: NotebookUpdateRequestDebounceArg, ctx: &mut ViewContext<Self>) {
         if self.content_is_dirty {
@@ -728,7 +720,6 @@ impl NotebookView {
                 ctx.emit(NotebookEvent::Pane(PaneEvent::FocusSelf));
             }
             EditorViewEvent::Navigate(NavigationKey::ShiftTab) => {
-                // Focus the title editor, but do not give up the baton.
                 ctx.focus(&self.title);
             }
             EditorViewEvent::Navigate(_) => (),
@@ -738,7 +729,6 @@ impl NotebookView {
             }
             EditorViewEvent::OpenedBlockInsertionMenu => (),
             EditorViewEvent::OpenedFindBar => (),
-            EditorViewEvent::CopiedBlock { .. } => (),
             EditorViewEvent::NavigatedCommands => (),
             EditorViewEvent::ChangedSelectionMode(_) => (),
             EditorViewEvent::OpenFile { .. } => {
@@ -796,13 +786,10 @@ impl NotebookView {
         self.set_editor_interaction_state(InteractionState::Editable, ctx);
     }
 
-    /// Sends a request to the server to grab notebook edit access, if the user is taking
-    /// access from another user, we wait to actually switch them into edit mode. If we are
-    /// not taking access, we go ahead and optimistically switch them in.
-    fn grab_edit_access(&mut self, ctx: &mut ViewContext<Self>) {
+    /// Switches into edit mode and focuses the body editor, unless the notebook is trashed.
+    fn start_editing(&mut self, ctx: &mut ViewContext<Self>) {
         let active_notebook = self.active_notebook_data.as_ref(ctx);
         if !active_notebook.trash_status(ctx).is_editable() {
-            // Do not allow grabbing edit access if the notebook is trashed or feature flag is turned off.
             return;
         }
         self.switch_to_edit(ctx);
@@ -811,24 +798,12 @@ impl NotebookView {
         ctx.notify();
     }
 
-    /// Called when a user hits the edit button from within a notebook view.
-    /// If there's not another editor, grabs notebook edit access and directly switches it
-    /// into edit mode. If there is another editor currently, displays the grab edit access
-    /// dialog.
-    pub fn grab_edit_access_or_display_access_dialog(&mut self, ctx: &mut ViewContext<Self>) {
-        let active_notebook_data = self.active_notebook_data.as_ref(ctx);
-        if active_notebook_data.has_conflicts(ctx) {
-            // Do not attempt to grab edit access if there are conflicts.
+    /// Enters edit mode from an explicit user request, unless the notebook has conflicts.
+    pub fn request_edit_mode(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.active_notebook_data.as_ref(ctx).has_conflicts(ctx) {
             return;
         }
-
-        let current_editor = active_notebook_data
-            .current_editor(ctx)
-            .unwrap_or(Editor::no_editor());
-        if current_editor.state != EditorState::OtherUserActive {
-            log::info!("Explicitly grabbing edit access, no active editor");
-            self.grab_edit_access(ctx);
-        }
+        self.start_editing(ctx);
 
         self.focus_input(ctx);
         ctx.notify();
@@ -982,9 +957,7 @@ impl NotebookView {
                 active_notebook.open_existing(copy_sync_id, ctx);
             });
 
-        // Because the notebook was just created, and is in the user's personal space, grabbing
-        // access must be safe.
-        self.grab_edit_access(ctx);
+        self.start_editing(ctx);
 
         // Save the new notebook ID for session restoration.
         ctx.emit(NotebookEvent::Pane(PaneEvent::AppStateChanged));
@@ -1207,10 +1180,8 @@ impl NotebookView {
 
     pub fn toggle_mode(&mut self, ctx: &mut ViewContext<Self>) {
         match self.mode(ctx) {
-            Mode::Editing => {
-                self.give_up_edit_access_and_start_viewing(ctx);
-            }
-            Mode::View => self.grab_edit_access_or_display_access_dialog(ctx),
+            Mode::Editing => self.switch_to_view(ctx),
+            Mode::View => self.request_edit_mode(ctx),
         }
     }
 
@@ -1270,7 +1241,7 @@ impl NotebookView {
         let details = if active_notebook_data.trash_status(app).is_editable() {
             Some(
                 self.details_bar
-                    .render(active_notebook_data, appearance, app),
+                    .render(active_notebook_data.mode, appearance),
             )
         } else {
             None
@@ -1362,7 +1333,7 @@ impl NotebookView {
                 );
             }
 
-            if active_notebook_data.space(app) != Some(Space::Personal) {
+            if !active_notebook_data.exists(app) {
                 let ui_builder = appearance.ui_builder().clone();
                 action_row.add_child(
                     Container::new(

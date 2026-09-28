@@ -22,7 +22,7 @@ pub struct CloudEnvironment {
 #[derive(Clone, Copy, Debug)]
 pub struct CloudEnvironmentCatalogEvent;
 
-/// Canonical, recency-ordered cloud-environment projection shared by frontends.
+/// Canonical, name-ordered cloud-environment projection shared by frontends.
 pub struct CloudEnvironmentCatalog {
     environments: Vec<CloudEnvironment>,
     orchestration_default_environment_id: Option<SyncId>,
@@ -37,8 +37,7 @@ impl CloudEnvironmentCatalog {
                 CloudModelEvent::ObjectCreated { .. } => {
                     ctx.spawn(async {}, |catalog, (), ctx| catalog.refresh(ctx));
                 }
-                CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated
-                | CloudModelEvent::ObjectUpdated { .. }
+                CloudModelEvent::ObjectUpdated { .. }
                 | CloudModelEvent::ObjectTrashed { .. }
                 | CloudModelEvent::ObjectUntrashed { .. }
                 | CloudModelEvent::ObjectDeleted { .. }
@@ -52,7 +51,7 @@ impl CloudEnvironmentCatalog {
         }
     }
 
-    /// Current environments ordered by most-recent use, then display name.
+    /// Current environments ordered by case-insensitive display name.
     pub fn environments(&self) -> &[CloudEnvironment] {
         &self.environments
     }
@@ -113,7 +112,7 @@ impl CloudEnvironmentCatalog {
                 .first()
                 .map(|environment| environment.id)
         };
-        sort_environments_by_recency(&mut environments);
+        sort_environments_by_name(&mut environments);
         let environments = environments
             .into_iter()
             .map(|environment| CloudEnvironment {
@@ -131,32 +130,17 @@ impl Entity for CloudEnvironmentCatalog {
 
 impl warpui::SingletonEntity for CloudEnvironmentCatalog {}
 
-pub(crate) fn sort_environments_by_recency(environments: &mut [CloudAmbientAgentEnvironment]) {
-    environments.sort_by(|a, b| {
-        b.metadata
-            .last_task_run_ts
-            .cmp(&a.metadata.last_task_run_ts)
-            .then_with(|| {
-                a.model()
-                    .string_model
-                    .name
-                    .to_lowercase()
-                    .cmp(&b.model().string_model.name.to_lowercase())
-            })
-    });
+fn sort_environments_by_name(environments: &mut [CloudAmbientAgentEnvironment]) {
+    environments
+        .sort_by_cached_key(|environment| environment.model().string_model.name.to_lowercase());
 }
 
 fn sort_environments_for_orchestration_default(environments: &mut [CloudAmbientAgentEnvironment]) {
     environments.sort_by(|a, b| {
-        b.metadata
-            .last_task_run_ts
-            .cmp(&a.metadata.last_task_run_ts)
-            .then_with(|| {
-                a.model()
-                    .string_model
-                    .name
-                    .cmp(&b.model().string_model.name)
-            })
+        a.model()
+            .string_model
+            .name
+            .cmp(&b.model().string_model.name)
     });
 }
 

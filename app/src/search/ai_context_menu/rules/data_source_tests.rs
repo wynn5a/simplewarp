@@ -7,7 +7,6 @@ use crate::ai::facts::{AIFact, AIMemory, CloudAIFact};
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::generic_string_model::GenericStringModel;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::model::view::CloudViewModel;
 use crate::cloud_object::{
     CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus, Owner,
     Revision,
@@ -47,7 +46,6 @@ fn mock_cloud_ai_fact(id: i64, name: &str, content: &str, revision: Revision) ->
             is_welcome_object: false,
             creator_uid: None,
             last_editor_uid: None,
-            last_task_run_ts: None,
         },
         CloudObjectPermissions {
             owner: Owner::mock_current_user(),
@@ -63,7 +61,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_ctx| UpdateManager::new(None));
-    app.add_singleton_model(CloudViewModel::new);
     app.add_singleton_model(NotebookManager::mock);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| SettingsManager::default());

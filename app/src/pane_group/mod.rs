@@ -114,7 +114,7 @@ use crate::util::bindings::{CustomAction, is_binding_pty_compliant};
 use crate::util::openable_file_type::FileTarget;
 use crate::view_components::ToastFlavor;
 use crate::workflows::workflow::Workflow;
-use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
+use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::tab_group::TabGroupId;
 use crate::workspace::{
     self, CommandSearchOptions, PaneViewLocator, TabBarLocation, WorkspaceAction,
@@ -486,7 +486,6 @@ pub enum Event {
     RunWorkflow {
         workflow: Arc<WorkflowType>,
         workflow_source: WorkflowSource,
-        workflow_selection_source: WorkflowSelectionSource,
         argument_override: Option<HashMap<String, String>>,
     },
     /// Invoke env var from pane

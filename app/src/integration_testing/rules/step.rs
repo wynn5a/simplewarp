@@ -7,7 +7,7 @@ use warpui::{SingletonEntity, WindowId, async_assert};
 use crate::ai::facts::AIMemory;
 use crate::ai::facts::view::AIFactPage;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{Space, personal_drive};
+use crate::cloud_object::personal_drive;
 use crate::integration_testing::view_getters::workspace_view;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
@@ -45,10 +45,7 @@ pub fn create_a_personal_rule(
         .add_assertion(move |app, _| {
             CloudModel::handle(app).read(app, |cloud_model, _| {
                 async_assert!(
-                    cloud_model
-                        .active_cloud_objects_in_space(Space::Personal)
-                        .count()
-                        > 0,
+                    cloud_model.active_cloud_objects().count() > 0,
                     "Rule exists"
                 )
             })

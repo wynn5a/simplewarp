@@ -40,7 +40,6 @@ use crate::ai::restored_conversations::RestoredAgentConversations;
 use crate::ai::skills::SkillManager;
 use crate::cloud_object::Owner;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::model::view::CloudViewModel;
 use crate::context_chips::prompt::Prompt;
 use crate::editor::Event;
 use crate::gpu_state::GPUState;
@@ -86,7 +85,6 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(CloudEnvironmentCatalog::new);
     app.add_singleton_model(|_| UpdateManager::mock());
     app.add_singleton_model(|_| MCPGalleryManager::new());
-    app.add_singleton_model(CloudViewModel::mock);
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(AppearanceManager::new);
     app.add_singleton_model(|_| DisplayCount::mock());

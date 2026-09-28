@@ -413,6 +413,40 @@ Queue, in order:
    notebook baton/editor-state (`current_editor_uid`, `EditorState::OtherUser*`) now only
    reachable from stale metadata.
 
+12. ~~Notebook baton, cloud-env timestamps, single-variant `Space`, workflow telemetry plumbing~~ —
+   **4ha done (2026-09-28).** −0.7k lines in 54 files. Baton: `CloudViewModel` is deleted outright
+   (its only reader was the baton; its folder-timestamp cache was never filled), with `Editor` /
+   `EditorState` / `object_current_editor` / the 15-minute idle rule, `ActiveNotebookData::current_editor`,
+   `set_current_editor`, and the create-time `current_editor_uid` write (always `None`: no user).
+   `grab_edit_access(_or_display_access_dialog)` / `give_up_edit_access_and_start_viewing` →
+   `start_editing` / `request_edit_mode` / `switch_to_view`; open-in-view (4bg) unchanged. The details
+   bar label now follows the local mode ("Viewing" / "Editing"; it used to read "Viewing" always in
+   production, "Other user is editing" for stale upstream metadata, which also blocked the edit toggle
+   unless the recorded revision and metadata were over 15 minutes old). `current_editor_uid` stays in `CloudObjectMetadata`
+   (sqlite `current_editor` column round-trips). Cloud-env timestamps: `last_task_run_ts` (never
+   persisted, always `None`), `update_environment_last_task_run_timestamps`,
+   `CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated`; the environment catalog sorts by name
+   only (unchanged order). `Space` (never serialized) is gone with `CloudObjectLocation` (never
+   serialized), `CloudObject::space` / `is_in_space` / `location`, `Space::owner` (→ `personal_drive`),
+   the MCP-template `space` params, `ExportId`'s space half; `PERSONAL_SPACE_NAME` keeps the
+   "Personal" breadcrumb root and bulk-export subdirectory; CloudModel `*_in_space(space)` queries →
+   `active_cloud_objects` / `active_non_welcome_*` / `active_cloud_objects_directly_in_folder(Option)`
+   (duplicate naming); `ActiveNotebookData::space` → `exists`. Telemetry residue (verified by
+   compiling without the derives: nothing serializes them): serde off `WorkflowSource`,
+   `NotebookLocation`, `SelectionMode`; `WorkflowSelectionSource` deleted with its plumbing through
+   workspace/pane/input actions (stored, never read); notebook `BlockInfo` / `ActionEntrypoint` and
+   the never-handled `EditorViewEvent::CopiedBlock` deleted (`copy`/`cut` lost their entrypoint).
+   Tests 4,288 default / 4,289 simplewarp (−1, deleted with its code: env-timestamp recency order; the
+   two baton tests re-pinned to open-in-view and stale-editor-does-not-block-editing),
+   `cloud_objects` + `cloud_object_models` + `cloud_object_persistence` 30 passed, 0 failed.
+   Follow-ups: `personal_drive()` is `None` in every production build (no user is ever set), so each
+   creation gated on it is a silent no-op — "save as workflow" / temporary-workflow panes, restoring
+   new notebook/env-var/workflow panes, the MCP template cloud object (the local installation still
+   happens) — needs a local owner uid (product-visible, verify in the app first); the remaining
+   ignored `EditorViewEvent` telemetry variants (`OpenedBlockInsertionMenu`, `OpenedFindBar`,
+   `NavigatedCommands`, `ChangedSelectionMode`) and the `notebooks::telemetry` module name;
+   `workflow_enums_with_owner`'s unused `AppContext` param.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

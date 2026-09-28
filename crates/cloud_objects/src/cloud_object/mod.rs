@@ -294,12 +294,8 @@ impl Owner {
 }
 
 /// Server representation of an object's container. This corresponds to the `Container` GraphQL
-/// type.
-///
-/// Containers are similar to, but not quite the same as, the `CloudObjectLocation` type.
-/// Locations depend on object state - an object might currently be in the trash. Containers, on
-/// the other hand, represent an object's canonical parent - its one parent folder or drive that
-/// permissions are inherited from.
+/// type: an object's canonical parent, its one parent folder or drive that permissions are
+/// inherited from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ServerObjectContainer {
     Folder { folder_uid: ServerId },
@@ -390,12 +386,6 @@ pub struct CloudObjectMetadata {
     pub is_welcome_object: bool,
     pub last_editor_uid: Option<String>,
     pub creator_uid: Option<String>,
-    /// The "last used" timestamp for this environment.
-    ///
-    /// This is populated via `GetCloudEnvironments` from
-    /// `CloudEnvironment.lastTaskCreated.createdAt`.
-    /// Only applicable for CloudEnvironment objects.
-    pub last_task_run_ts: Option<ServerTimestamp>,
 }
 
 impl CloudObjectMetadata {
@@ -416,7 +406,6 @@ impl CloudObjectMetadata {
             is_welcome_object: false,
             last_editor_uid: None,
             creator_uid: None,
-            last_task_run_ts: None,
         }
     }
 
@@ -440,10 +429,6 @@ impl CloudObjectMetadata {
             || self.pending_changes_statuses.has_pending_metadata_change
             || self.pending_changes_statuses.pending_untrash
             || self.pending_changes_statuses.pending_delete
-    }
-
-    pub fn set_current_editor(&mut self, editor_uid: Option<String>) {
-        self.current_editor_uid = editor_uid;
     }
 }
 

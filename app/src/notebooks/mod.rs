@@ -11,7 +11,6 @@ pub mod telemetry;
 use async_trait::async_trait;
 pub use cloud_object_models::{CloudNotebook, CloudNotebookModel, NotebookId, SerializedNotebook};
 use cloud_objects::cloud_object::SerializedModel;
-use serde::{Deserialize, Serialize};
 use warpui::AppContext;
 
 use crate::cloud_object::{
@@ -74,7 +73,7 @@ impl CloudModelType for CloudNotebookModel {
 }
 
 /// A notebook location. Mainly, this lets us distinguish between cloud and file-based notebooks.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NotebookLocation {
     /// A cloud notebook in the user's personal space.
     PersonalCloud,

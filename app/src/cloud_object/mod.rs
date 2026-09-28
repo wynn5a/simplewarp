@@ -4,7 +4,6 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use cloud_objects::cloud_object::SerializedModel;
-use derivative::Derivative;
 use lazy_static::lazy_static;
 use regex::Regex;
 use warpui::{AppContext, SingletonEntity};
@@ -56,12 +55,7 @@ pub use drive_object_type::DriveObjectType;
 ///
 /// This implies that, for now, *all* CloudObjects must implement GenericCloudObject.
 ///
-/// Additionally, they must support the "grab the baton" UX for editing, where any
-/// user can grab edit access of an object, revoking it from anyone else currently
-/// editing.
-///
 /// For more info on revisions: https://docs.google.com/document/d/1SGtX_5AiSJmUxXCRk5NzGTzrC_XrxQRsio-KZOec_ng/edit
-/// And grab the baton: https://docs.google.com/document/d/1LgGaz8bB40AONTzC0ZFOw5Kg0SD8_RM10V_nyt3zOvY/edit#heading=h.tcup5oqi82p4
 pub trait CloudObject: Debug {
     /// Returns the name of this model type (e.g. Workflow, Folder, Notebook)
     fn model_type_name(&self) -> &'static str;
@@ -116,15 +110,10 @@ pub trait CloudObject: Debug {
         true
     }
 
-    /// The space containing this object.
-    fn space(&self) -> Space {
-        self.permissions().owner.into()
-    }
-
     // Returns the names of all the containing "objects" for this object, ordered from
-    // the space down to the direct parent. This could include folders or spaces.
+    // the personal space down to the direct parent folder.
     fn containing_object_names(&self, app: &AppContext) -> Vec<String> {
-        let mut names = vec![self.space().name()];
+        let mut names = vec![PERSONAL_SPACE_NAME.to_string()];
         if let Some(folder_id) = self.metadata().folder_id {
             let cloud_model = CloudModel::as_ref(app);
             let mut chain = Vec::new();
@@ -145,26 +134,16 @@ pub trait CloudObject: Debug {
         self.containing_object_names(app).join(" / ")
     }
 
-    /// Returns whether this CloudObject is in the given space
-    fn is_in_space(&self, space: Space) -> bool {
-        self.space() == space
-    }
-
     fn is_welcome_object(&self) -> bool {
         self.metadata().is_welcome_object
     }
 
-    /// Returns the direct location of the object. If the object
-    /// is not in a folder, this will be the object's space. Otherwise, it will
-    /// be the folder the object is placed in directly, even if that folder is nested.
-    fn location(&self, cloud_model: &CloudModel) -> CloudObjectLocation {
-        if let Some(folder_id) = self.metadata().folder_id
-            && cloud_model.get_folder(&folder_id).is_some()
-        {
-            return CloudObjectLocation::Folder(folder_id);
-        }
-
-        CloudObjectLocation::Space(self.space())
+    /// The folder this object is placed in directly (even if that folder is nested), or `None`
+    /// when it sits at the top level of the personal space.
+    fn parent_folder(&self, cloud_model: &CloudModel) -> Option<SyncId> {
+        self.metadata()
+            .folder_id
+            .filter(|folder_id| cloud_model.get_folder(folder_id).is_some())
     }
 
     /// Return true is this object or any of its ancestors are trashed. Also returns true
@@ -630,36 +609,9 @@ impl CloudObjectMetadataExt for CloudObjectMetadata {
 
 use warp_errors::report_error;
 
-#[derive(Default, Clone, Copy, Debug, Eq, Derivative)]
-#[derivative(PartialEq, Hash)]
-pub enum Space {
-    /// The current user's personal drive.
-    #[default]
-    Personal,
-}
-
-impl Space {
-    pub fn name(&self) -> String {
-        match self {
-            Space::Personal => "Personal".to_string(),
-        }
-    }
-
-    /// The [`Owner`] of objects in this space, or `None` when there is no user.
-    pub fn owner(self, app: &AppContext) -> Option<Owner> {
-        match self {
-            Space::Personal => personal_drive(app),
-        }
-    }
-}
-
-/// Every object is in the personal space: team-owned objects only come from a stale upstream
-/// cache, and are treated as the user's own.
-impl From<Owner> for Space {
-    fn from(_owner: Owner) -> Self {
-        Space::Personal
-    }
-}
+/// Display name of the single, personal space every object lives in. Also the export
+/// subdirectory name.
+pub const PERSONAL_SPACE_NAME: &str = "Personal";
 
 /// The [`Owner`] for the user's personal drive, or `None` when there is no user.
 pub fn personal_drive(app: &AppContext) -> Option<Owner> {
@@ -667,13 +619,4 @@ pub fn personal_drive(app: &AppContext) -> Option<Owner> {
         .get()
         .user_id()
         .map(|user_uid| Owner::User { user_uid })
-}
-
-/// Enum for specifying the location of a warp drive object.
-/// Objects can live in top level spaces, or a specific folder.
-#[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
-pub enum CloudObjectLocation {
-    Space(Space),
-    Folder(SyncId),
-    Trash,
 }

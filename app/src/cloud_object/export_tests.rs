@@ -13,7 +13,7 @@ use super::{ExportEvent, ExportId, ExportManager, safe_filename};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{
     CloudObjectMetadata, CloudObjectPermissions, CloudObjectTypeAndId, ObjectIdType, ObjectType,
-    Space,
+    PERSONAL_SPACE_NAME,
 };
 use crate::notebooks::{CloudNotebook, CloudNotebookModel, NotebookId};
 use crate::server::ids::SyncId;
@@ -61,7 +61,7 @@ impl ExportTest {
         export_ids: CloudObjectTypeAndId,
         app: &mut App,
     ) -> (ExportId, oneshot::Receiver<ExportEvent>) {
-        let id = ExportId(export_ids, Space::Personal);
+        let id = ExportId(export_ids);
         let (tx, rx) = oneshot::channel();
         self.pending_exports.lock().insert(id, tx);
 
@@ -87,10 +87,9 @@ impl ExportTest {
     }
 
     /// Get an export path, given the expected name.
-    fn path(&self, name: impl AsRef<Path>, space: Option<Space>) -> PathBuf {
-        if let Some(space) = space {
-            let space_name = space.name();
-            self.target_dir.path().join(space_name).join(name)
+    fn path(&self, name: impl AsRef<Path>, in_personal_space_dir: bool) -> PathBuf {
+        if in_personal_space_dir {
+            self.target_dir.path().join(PERSONAL_SPACE_NAME).join(name)
         } else {
             self.target_dir.path().join(name)
         }
@@ -152,7 +151,7 @@ fn test_export_workflow_success() {
             CloudObjectTypeAndId::from_id_and_type(workflow_id, ObjectType::Workflow),
             &mut app,
         );
-        let expected_path = exporter.path("Test workflow.yaml", None);
+        let expected_path = exporter.path("Test workflow.yaml", false);
 
         // The export should succeed.
         assert_eq!(
@@ -194,14 +193,14 @@ fn test_export_workflow_duplicate() {
         let exporter = ExportTest::new(&mut app);
 
         // Create a file at the default export path.
-        fs::write(exporter.path("Test workflow.yaml", None), "Already exists")
+        fs::write(exporter.path("Test workflow.yaml", false), "Already exists")
             .expect("failed to write existing workflow");
 
         let (id, export) = exporter.start_export(
             CloudObjectTypeAndId::from_id_and_type(workflow_id, ObjectType::Workflow),
             &mut app,
         );
-        let expected_path = exporter.path("Test workflow (1).yaml", None);
+        let expected_path = exporter.path("Test workflow (1).yaml", false);
 
         // The export should succeed, and not overwrite the existing file.
         assert_eq!(
@@ -213,7 +212,7 @@ fn test_export_workflow_duplicate() {
         );
 
         assert_eq!(
-            fs::read_to_string(exporter.path("Test workflow.yaml", None))
+            fs::read_to_string(exporter.path("Test workflow.yaml", false))
                 .expect("failed to read original file"),
             "Already exists"
         );
@@ -296,7 +295,7 @@ print("hello")
             CloudObjectTypeAndId::from_id_and_type(notebook_id, ObjectType::Notebook),
             &mut app,
         );
-        let expected_path = exporter.path("Test notebook.md", None);
+        let expected_path = exporter.path("Test notebook.md", false);
 
         // The export should succeed.
         assert_eq!(
@@ -351,7 +350,7 @@ fn test_export_untitled_notebook() {
             CloudObjectTypeAndId::from_id_and_type(notebook_id, ObjectType::Notebook),
             &mut app,
         );
-        let expected_path = exporter.path("Untitled.md", None);
+        let expected_path = exporter.path("Untitled.md", false);
 
         // The export should succeed.
         assert_eq!(
@@ -382,7 +381,7 @@ fn test_export_with_special_characters() {
             CloudObjectTypeAndId::from_id_and_type(workflow_id, ObjectType::Workflow),
             &mut app,
         );
-        let expected_path = exporter.path("Prefix_ Some_workflow.yaml", None);
+        let expected_path = exporter.path("Prefix_ Some_workflow.yaml", false);
 
         // The export should succeed, and transform the path.
         assert_eq!(
@@ -448,7 +447,7 @@ fn test_export_multiple_objects() {
             let mut pending_exports = exporter.pending_exports.lock();
             for &id in &export_ids {
                 let (tx, rx) = oneshot::channel();
-                pending_exports.insert(ExportId(id, Space::Personal), tx);
+                pending_exports.insert(ExportId(id), tx);
                 receivers.push(rx);
             }
         }
@@ -459,7 +458,7 @@ fn test_export_multiple_objects() {
 
             let all_export_ids = export_ids
                 .iter()
-                .map(|&id| ExportId(id, Space::Personal))
+                .map(|&id| ExportId(id))
                 .collect::<Vec<_>>();
             export_manager.handle_files_picked(
                 all_export_ids,
@@ -486,17 +485,17 @@ fn test_export_multiple_objects() {
         }
 
         // Verify the contents of each exported file
-        let workflow1_path = exporter.path("Test workflow 1.yaml", Some(Space::Personal));
+        let workflow1_path = exporter.path("Test workflow 1.yaml", true);
         let workflow1_contents =
             fs::read_to_string(&workflow1_path).expect("Failed to read workflow 1");
         assert!(workflow1_contents.contains("echo hello world"));
 
-        let workflow2_path = exporter.path("Test workflow 2.yaml", Some(Space::Personal));
+        let workflow2_path = exporter.path("Test workflow 2.yaml", true);
         let workflow2_contents =
             fs::read_to_string(&workflow2_path).expect("Failed to read workflow 2");
         assert!(workflow2_contents.contains("echo goodbye world"));
 
-        let notebook_path = exporter.path("Test notebook.md", Some(Space::Personal));
+        let notebook_path = exporter.path("Test notebook.md", true);
         let notebook_contents =
             fs::read_to_string(&notebook_path).expect("Failed to read notebook");
         assert!(notebook_contents.contains("This is a test notebook"));

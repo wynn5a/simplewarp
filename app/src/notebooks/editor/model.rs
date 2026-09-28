@@ -50,7 +50,6 @@ use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::editor::InteractionState;
 use crate::notebooks::editor::interaction_state_model::InteractionStateModelEvent;
 use crate::notebooks::file::MarkdownDisplayMode;
-use crate::notebooks::telemetry::BlockInfo;
 use crate::terminal::ShellLaunchData;
 
 const DEBOUNCED_RESIZE_PERIOD: Duration = Duration::from_millis(5);
@@ -1048,28 +1047,25 @@ impl NotebooksEditorModel {
     }
 
     /// Copy the current selection. If a code block is selected, copy its entire contents.
-    pub fn copy(&self, ctx: &mut ModelContext<Self>) -> Option<BlockInfo> {
-        let (clipboard, block) = match self.single_selected_command_range(ctx) {
+    pub fn copy(&self, ctx: &mut ModelContext<Self>) {
+        let clipboard = match self.single_selected_command_range(ctx) {
             SelectedCommandResult::Single { start, end } => {
-                let clipboard = self.command_clipboard_content(start, end, ctx);
-                (clipboard, Some(BlockInfo::CodeBlock))
+                self.command_clipboard_content(start, end, ctx)
             }
             SelectedCommandResult::None if !self.selection_is_single_cursor(ctx) => {
-                (self.read_selected_text_as_clipboard_content(ctx), None)
+                self.read_selected_text_as_clipboard_content(ctx)
             }
-            _ => return None,
+            _ => return,
         };
 
         ctx.clipboard().write(clipboard);
-        block
     }
 
     /// Cut the current text or command selection.
-    pub fn cut(&mut self, ctx: &mut ModelContext<Self>) -> Option<BlockInfo> {
+    pub fn cut(&mut self, ctx: &mut ModelContext<Self>) {
         match self.single_selected_command_range(ctx) {
             SelectedCommandResult::Single { start, end } => {
                 self.delete_selected_command_range(start, end, true, ctx);
-                Some(BlockInfo::CodeBlock)
             }
             SelectedCommandResult::None if !self.selection_is_single_cursor(ctx) => {
                 let clipboard = self.read_selected_text_as_clipboard_content(ctx);
@@ -1088,9 +1084,8 @@ impl NotebooksEditorModel {
                     ctx,
                 );
                 self.validate(ctx);
-                None
             }
-            _ => None,
+            _ => (),
         }
     }
 

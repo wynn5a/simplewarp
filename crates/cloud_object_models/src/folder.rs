@@ -7,9 +7,6 @@ use cloud_objects::ids::FolderId;
 #[derive(Clone, Debug, PartialEq)]
 pub struct CloudFolderModel {
     pub name: String,
-    // TODO: since this is local only state, we should consider only surfacing it as part of the
-    // CloudViewModel. Right now, every server folder uses CloudFolderModel, which means it
-    // hardcodes a value of `false` for this property since it can't know what the local state is.
     pub is_open: bool,
     pub is_warp_pack: bool,
 }

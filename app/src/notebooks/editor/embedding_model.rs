@@ -32,7 +32,6 @@ use crate::cloud_object::CloudObject;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::completer::SessionAgnosticContext;
 use crate::notebooks::styles::block_footer_action_button;
-use crate::notebooks::telemetry::{ActionEntrypoint, BlockInfo};
 use crate::server::ids::{HashableId, ToServerId};
 use crate::settings::FontSettings;
 use crate::terminal::input::decorations::{
@@ -214,9 +213,6 @@ impl NotebookEmbed {
 
         let workflow_id = workflow.id;
         let workflow_info = NotebookWorkflow::from_cloud_workflow(Box::new(workflow.clone()));
-        let block_info = BlockInfo::EmbeddedWorkflow {
-            workflow_id: workflow_id.into_server().map(Into::into),
-        };
 
         let workflow_content = workflow.model().data.content().to_owned();
         footer.add_child(Shrinkable::new(1.0, Empty::new().finish()).finish());
@@ -250,8 +246,6 @@ impl NotebookEmbed {
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(EditorViewAction::CopyTextToClipboard {
                         text: UserInput::new(workflow_content.clone()),
-                        block: block_info,
-                        entrypoint: ActionEntrypoint::Button,
                     });
                 })
                 .finish(),

@@ -22,7 +22,7 @@ use crate::pane_group::PaneEvent;
 use crate::server::ids::SyncId;
 use crate::ui_components::blended_colors;
 use crate::workflows::workflow_view::{WorkflowView, WorkflowViewEvent};
-use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
+use crate::workflows::{WorkflowSource, WorkflowType};
 
 const SUGGESTED_PROMPT_MODAL_HEADER: &str = "Prompt";
 
@@ -59,7 +59,6 @@ pub enum SuggestedAgentModeWorkflowModalEvent {
         workflow: Arc<WorkflowType>,
         source: Box<WorkflowSource>,
         argument_override: Option<HashMap<String, String>>,
-        workflow_selection_source: WorkflowSelectionSource,
     },
 }
 
@@ -194,7 +193,6 @@ impl SuggestedAgentModeWorkflowModal {
                     workflow: workflow.clone(),
                     source: Box::new(*source),
                     argument_override: argument_override.clone(),
-                    workflow_selection_source: WorkflowSelectionSource::WorkflowView,
                 });
                 self.close(ctx);
             }

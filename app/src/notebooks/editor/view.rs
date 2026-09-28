@@ -62,7 +62,7 @@ use crate::notebooks::editor::find_bar::FindBarAction;
 use crate::notebooks::editor::model::word_unit;
 use crate::notebooks::file::MarkdownDisplayMode;
 use crate::notebooks::link::{LinkTarget, NotebookLinks, ResolveError};
-use crate::notebooks::telemetry::{ActionEntrypoint, BlockInfo, SelectionMode};
+use crate::notebooks::telemetry::SelectionMode;
 use crate::server::ids::SyncId;
 use crate::settings::{AppEditorSettings, FontSettings, SelectionSettings};
 use crate::terminal::grid_renderer::URL_COLOR;
@@ -857,8 +857,6 @@ pub enum EditorViewAction {
     },
     CopyTextToClipboard {
         text: UserInput<String>,
-        block: BlockInfo,
-        entrypoint: ActionEntrypoint,
     },
     RemoveEmbeddingAt(CharOffset),
     MiddleClickPaste,
@@ -951,11 +949,6 @@ pub enum EditorViewEvent {
     OpenedBlockInsertionMenu,
     /// The find bar was opened.
     OpenedFindBar,
-    /// embeds).
-    CopiedBlock {
-        block: BlockInfo,
-        entrypoint: ActionEntrypoint,
-    },
     /// One of the command-navigation keyboard shortcuts was used.
     NavigatedCommands,
     /// The editor switched between text selection and command selection. The event contains the
@@ -2028,18 +2021,14 @@ impl RichTextEditorView {
     }
 
     /// Copy the current selection.
-    pub fn copy(&self, entrypoint: ActionEntrypoint, ctx: &mut ViewContext<Self>) {
-        if let Some(block) = self.model.update(ctx, |model, ctx| model.copy(ctx)) {
-            ctx.emit(EditorViewEvent::CopiedBlock { block, entrypoint });
-        }
+    pub fn copy(&self, ctx: &mut ViewContext<Self>) {
+        self.model.update(ctx, |model, ctx| model.copy(ctx));
     }
 
     /// Cuts the current selection.
-    pub fn cut(&mut self, entrypoint: ActionEntrypoint, ctx: &mut ViewContext<Self>) {
-        if self.is_editable(ctx)
-            && let Some(block) = self.model.update(ctx, |model, ctx| model.cut(ctx))
-        {
-            ctx.emit(EditorViewEvent::CopiedBlock { block, entrypoint });
+    pub fn cut(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.is_editable(ctx) {
+            self.model.update(ctx, |model, ctx| model.cut(ctx));
         }
     }
 
@@ -2993,8 +2982,8 @@ impl TypedActionView for RichTextEditorView {
                 });
                 ctx.notify();
             }
-            Copy => self.copy(ActionEntrypoint::Keyboard, ctx),
-            Cut => self.cut(ActionEntrypoint::Keyboard, ctx),
+            Copy => self.copy(ctx),
+            Cut => self.cut(ctx),
             Undo => self.undo(ctx),
             Redo => self.redo(ctx),
             OpenBlockInsertionMenu => {
@@ -3041,17 +3030,9 @@ impl TypedActionView for RichTextEditorView {
                     });
                 }
             }
-            CopyTextToClipboard {
-                text,
-                block,
-                entrypoint,
-            } => {
+            CopyTextToClipboard { text } => {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(text.clone().into_inner()));
-                ctx.emit(EditorViewEvent::CopiedBlock {
-                    block: *block,
-                    entrypoint: *entrypoint,
-                });
             }
             RemoveEmbeddingAt(offset) => self
                 .model

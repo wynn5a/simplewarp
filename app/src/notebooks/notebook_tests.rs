@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use warp_core::ui::appearance::Appearance;
 use warp_editor::editor::EditorView;
-use warp_server_auth::user::TEST_USER_UID;
 use warpui::platform::WindowStyle;
 use warpui::presenter::ChildView;
 use warpui::{
@@ -16,7 +15,6 @@ use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::Owner;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::model::view::{CloudViewModel, Editor, EditorState};
 use crate::editor::{DisplayPoint, EditorAction, SelectAction};
 use crate::network::NetworkStatus;
 use crate::notebooks::active_notebook_data::Mode;
@@ -55,7 +53,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(PrivacySettings::mock);
     app.add_singleton_model(|_| UpdateManager::mock());
-    app.add_singleton_model(CloudViewModel::mock);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| ObjectActions::new(Vec::new()));
@@ -293,91 +290,54 @@ fn test_focus_tracking() {
         assert_eq!(app.focused_view_id(window), Some(input_view.id()));
     });
 }
-/// Opening a notebook stays in view mode: the eager baton grab waited on the
-/// server initial load, which can no longer complete, so there is nothing to
-/// wait for and nothing to grab. Entering edit mode is an explicit toggle.
+/// Opening a notebook stays in view mode; entering edit mode is an explicit toggle.
 #[test]
-fn test_no_eager_baton_grab_without_initial_load() {
+fn test_open_notebook_starts_in_view_mode() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
         let (_, notebook_view, _) = create_notebook(&mut app);
-        let mut cloud_notebook = cloud_notebook("Test Notebook", r#"A notebook"#);
+        let cloud_notebook = cloud_notebook("Test Notebook", r#"A notebook"#);
 
-        // Set the current editor of the notebook to be the test notebook
-        cloud_notebook.metadata.current_editor_uid = Some(TEST_USER_UID.to_string().clone());
-
-        // Add the notebook to cloud model
         CloudModel::handle(&app).update(&mut app, |model, _| {
             model.add_object(cloud_notebook.id, cloud_notebook.clone())
         });
 
-        // Open the notebook
         open_notebook(&mut app, &notebook_view, cloud_notebook).await;
 
-        // The recorded editor is still reported as the current user ...
-        notebook_view.update(&mut app, |notebook, ctx| {
-            assert_eq!(
-                notebook
-                    .active_notebook_data
-                    .as_ref(ctx)
-                    .current_editor(ctx),
-                Some(Editor {
-                    state: EditorState::CurrentUser,
-                })
-            )
-        });
-
-        // ... but opening does not enter edit mode on its own.
         let mode = notebook_view.read(&app, |notebook, ctx| notebook.mode(ctx));
         assert_eq!(mode, Mode::View);
     });
 }
 
-/// Test to make sure we do not eagerly enter edit mode when there is another editor
+/// A stale editor recorded in upstream metadata does not block entering edit mode.
 #[test]
-fn test_not_eager_baton_grab_different_editor() {
+fn test_stale_recorded_editor_does_not_block_editing() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let uid = "ian@warp.dev".to_string();
-
         let (_, notebook_view, _) = create_notebook(&mut app);
         let mut cloud_notebook = cloud_notebook("Test Notebook", r#"A notebook"#);
+        cloud_notebook.metadata.current_editor_uid = Some("ian@warp.dev".to_string());
 
-        // Set the current editor of the notebook to be another user
-        cloud_notebook.metadata.current_editor_uid = Some(uid);
-
-        // Add the notebook to cloud model
         CloudModel::handle(&app).update(&mut app, |model, _| {
             model.add_object(cloud_notebook.id, cloud_notebook.clone())
         });
 
-        // Open the notebook
         open_notebook(&mut app, &notebook_view, cloud_notebook).await;
+        assert_eq!(
+            notebook_view.read(&app, |notebook, ctx| notebook.mode(ctx)),
+            Mode::View
+        );
 
-        // Assert that the editor is the other user
-        notebook_view.update(&mut app, |notebook, ctx| {
-            assert_eq!(
-                notebook
-                    .active_notebook_data
-                    .as_ref(ctx)
-                    .current_editor(ctx),
-                Some(Editor {
-                    state: EditorState::OtherUserActive,
-                })
-            )
-        });
-
-        let mode = notebook_view.read(&app, |notebook, ctx| notebook.mode(ctx));
-
-        // Assert that we are in view mode open since there is another editor
-        assert_eq!(mode, Mode::View);
+        notebook_view.update(&mut app, |notebook, ctx| notebook.toggle_mode(ctx));
+        assert_eq!(
+            notebook_view.read(&app, |notebook, ctx| notebook.mode(ctx)),
+            Mode::Editing
+        );
     });
 }
 
-/// Test to make sure we do not eagerly enter edit mode when another editor took the baton
-/// while Warp was closed.
 #[test]
 fn test_untitled_notebook() {
     App::test((), |mut app| async move {

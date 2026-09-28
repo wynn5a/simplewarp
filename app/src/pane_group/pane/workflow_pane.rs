@@ -10,7 +10,7 @@ use crate::cloud_object::personal_drive;
 use crate::server::ids::SyncId;
 use crate::workflows::manager::{WorkflowManager, WorkflowOpenSource};
 use crate::workflows::workflow_view::{WorkflowView, WorkflowViewEvent};
-use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType, WorkflowViewMode};
+use crate::workflows::{WorkflowSource, WorkflowType, WorkflowViewMode};
 
 pub struct WorkflowPane {
     view: ViewHandle<PaneView<WorkflowView>>,
@@ -175,6 +175,5 @@ fn run_workflow(
         workflow,
         workflow_source,
         argument_override,
-        workflow_selection_source: WorkflowSelectionSource::WorkflowView,
     });
 }

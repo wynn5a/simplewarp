@@ -1,5 +1,4 @@
 pub use cloud_object_models::{CloudWorkflow, CloudWorkflowModel, WorkflowId};
-use serde::{Deserialize, Serialize};
 use warpui::AppContext;
 
 pub mod categories;
@@ -31,7 +30,7 @@ pub fn init(app: &mut AppContext) {
     self::workflow_view::init(app);
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum WorkflowSource {
     Global,
     Local,
@@ -46,21 +45,6 @@ pub enum WorkflowSource {
     /// A hardcoded workflow type that allows Warp to surface features as Workflows (e.g.
     /// a command to see our network log)
     App,
-}
-
-#[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Hash, PartialOrd)]
-pub enum WorkflowSelectionSource {
-    CommandPalette,
-    UniversalSearch,
-    Voltron,
-    WarpAI,
-    Notebook,
-    SlashMenu,
-    UpArrowHistory,
-    WorkflowView,
-    AgentMode,
-    Undefined,
-    Alias,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

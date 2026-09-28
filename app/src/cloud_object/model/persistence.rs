@@ -1,14 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::SyncSender;
 
-use chrono::{DateTime, Utc};
 use warp_errors::report_error;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use crate::cloud_object::folders::{CloudFolder, CloudFolderModel};
 use crate::cloud_object::{
-    CloudModelType, CloudObject, CloudObjectLocation, CloudObjectTypeAndId, GenericCloudObject,
-    ObjectIdType, Owner, Space,
+    CloudModelType, CloudObject, CloudObjectTypeAndId, GenericCloudObject, ObjectIdType, Owner,
 };
 use crate::env_vars::CloudEnvVarCollection;
 use crate::notebooks::CloudNotebook;
@@ -18,6 +16,7 @@ use crate::workflows::CloudWorkflow;
 use crate::workflows::workflow_enum::CloudWorkflowEnum;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)]
 pub enum CloudModelEvent {
     ObjectUpdated {
         type_and_id: CloudObjectTypeAndId,
@@ -41,14 +40,10 @@ pub enum CloudModelEvent {
     ObjectForceExpanded {
         id: String,
     },
-    /// Environment last-task timestamps fetched outside the generic cloud-object sync were merged.
-    EnvironmentLastTaskRunTimestampsUpdated,
 }
 
 /// Persistence model for [CloudObject] information. In an ideal world, this singleton model
-/// is a 1:1 mapping for what we persist in sqlite. Any logic beyond a basic update
-/// or query to data in [CloudModel] should instead be stored in [CloudViewModel] and tested in
-/// model_test.rs.
+/// is a 1:1 mapping for what we persist in sqlite.
 pub struct CloudModel {
     objects_by_id: HashMap<ObjectUid, Box<dyn CloudObject>>,
     model_event_sender: Option<SyncSender<ModelEvent>>,
@@ -119,23 +114,6 @@ impl CloudModel {
         }
         ctx.notify();
         (sync_ids_and_types, count)
-    }
-
-    /// Updates the per-environment "last used" timestamp.
-    ///
-    /// This timestamp is derived from `CloudEnvironment.lastTaskCreated.createdAt`.
-    pub fn update_environment_last_task_run_timestamps(
-        &mut self,
-        timestamps: HashMap<String, DateTime<Utc>>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        for (uid, timestamp) in timestamps {
-            if let Some(object) = self.objects_by_id.get_mut(&uid) {
-                object.metadata_mut().last_task_run_ts = Some(timestamp.into());
-            }
-        }
-        ctx.emit(CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated);
-        ctx.notify();
     }
 
     /// Update an object in the cloud model as part of a local user edit. This should not be used
@@ -268,39 +246,23 @@ impl CloudModel {
             .filter_map(|object| object.into())
     }
 
-    /// Returns all active (not trashed) workflows in the space.
-    pub fn active_workflows_in_space<'a>(
-        &'a self,
-        space: Space,
-    ) -> impl Iterator<Item = &'a CloudWorkflow> + 'a {
-        self.active_cloud_objects_in_space(space)
+    /// Returns all active (not trashed) and non-welcome workflows (ie. non starter workflows).
+    pub fn active_non_welcome_workflows(&self) -> impl Iterator<Item = &CloudWorkflow> {
+        self.active_non_welcome_cloud_objects()
             .filter_map(|object| object.into())
     }
 
-    /// Returns all active (not trashed) and non-welcome workflows (ie. non starter workflows) in the space.
-    pub fn active_non_welcome_workflows_in_space<'a>(
-        &'a self,
-        space: Space,
-    ) -> impl Iterator<Item = &'a CloudWorkflow> + 'a {
-        self.active_non_welcome_cloud_objects_in_space(space)
+    /// Returns all active (not trashed) and non-welcome notebooks (ie. non starter notebooks).
+    pub fn active_non_welcome_notebooks(&self) -> impl Iterator<Item = &CloudNotebook> {
+        self.active_non_welcome_cloud_objects()
             .filter_map(|object| object.into())
     }
 
-    /// Returns all active (not trashed) and non-welcome notebooks (ie. non starter notebooks) in the space.
-    pub fn active_non_welcome_notebooks_in_space<'a>(
-        &'a self,
-        space: Space,
-    ) -> impl Iterator<Item = &'a CloudNotebook> + 'a {
-        self.active_non_welcome_cloud_objects_in_space(space)
-            .filter_map(|object| object.into())
-    }
-
-    /// Returns all active (not trashed) and non-welcome env var collections in the space.
-    pub fn active_non_welcome_env_var_collections_in_space<'a>(
-        &'a self,
-        space: Space,
-    ) -> impl Iterator<Item = &'a CloudEnvVarCollection> + 'a {
-        self.active_non_welcome_cloud_objects_in_space(space)
+    /// Returns all active (not trashed) and non-welcome env var collections.
+    pub fn active_non_welcome_env_var_collections(
+        &self,
+    ) -> impl Iterator<Item = &CloudEnvVarCollection> {
+        self.active_non_welcome_cloud_objects()
             .filter_map(|object| object.into())
     }
 
@@ -454,40 +416,31 @@ impl CloudModel {
         result
     }
 
-    /// Given a CloudObjectLocation (either a folder or a space), returns an iterator of active (not trashed) cloud objects
-    /// that live directly in this location (its children). I.e. this function does NOT look into nested folders in order
-    /// to return those children.
-    pub fn active_cloud_objects_in_location_without_descendents<'a>(
-        &'a self,
-        location: CloudObjectLocation,
-    ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
+    /// Returns the active (not trashed) cloud objects placed directly in `folder` (`None` for the
+    /// top level), without descending into nested folders.
+    pub fn active_cloud_objects_directly_in_folder(
+        &self,
+        folder: Option<SyncId>,
+    ) -> impl Iterator<Item = &dyn CloudObject> {
         self.objects_by_id
             .values()
-            .filter(move |object| !object.is_trashed(self) && object.location(self) == location)
+            .filter(move |object| !object.is_trashed(self) && object.parent_folder(self) == folder)
             .map(|object| object.as_ref())
     }
 
-    /// Returns all active (not trashed) cloud objects in the space.
-    pub fn active_cloud_objects_in_space<'a>(
-        &'a self,
-        space: Space,
-    ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
+    /// Returns all active (not trashed) cloud objects.
+    pub fn active_cloud_objects(&self) -> impl Iterator<Item = &dyn CloudObject> {
         self.objects_by_id
             .values()
-            .filter(move |object| object.is_in_space(space) && !object.is_trashed(self))
+            .filter(move |object| !object.is_trashed(self))
             .map(|object| object.as_ref())
     }
 
-    /// Returns all active (not trashed) cloud objects in the space.
-    pub fn active_non_welcome_cloud_objects_in_space<'a>(
-        &'a self,
-        space: Space,
-    ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
+    /// Returns all active (not trashed) and non-welcome cloud objects.
+    pub fn active_non_welcome_cloud_objects(&self) -> impl Iterator<Item = &dyn CloudObject> {
         self.objects_by_id
             .values()
-            .filter(move |object| {
-                object.is_in_space(space) && !object.is_trashed(self) && !object.is_welcome_object()
-            })
+            .filter(move |object| !object.is_trashed(self) && !object.is_welcome_object())
             .map(|object| object.as_ref())
     }
 

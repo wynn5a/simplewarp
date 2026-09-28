@@ -17,7 +17,7 @@ use warpui::platform::{FilePickerConfiguration, OperatingSystem};
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity, WindowId};
 
 use super::CloudObjectTypeAndId;
-use crate::cloud_object::Space;
+use crate::cloud_object::PERSONAL_SPACE_NAME;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::safe_warn;
 use crate::view_components::DismissibleToast;
@@ -36,7 +36,7 @@ pub struct ExportManager {
 
 /// Identifier for an export.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ExportId(CloudObjectTypeAndId, Space);
+pub struct ExportId(CloudObjectTypeAndId);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExportEvent {
@@ -104,8 +104,8 @@ impl ExportManager {
                 Some(obj) if !obj.can_export() => {
                     log::warn!("Tried to export un-exportable object {object:?}")
                 }
-                Some(cloud_object) => {
-                    let id = ExportId(*object, cloud_object.space());
+                Some(_) => {
+                    let id = ExportId(*object);
                     ids.push(id);
                     match self.exports.entry(id) {
                         Entry::Occupied(_) => {
@@ -321,7 +321,7 @@ impl ExportManager {
         };
 
         let path = if is_bulk {
-            parent_path.join(safe_filename(&id.1.name()))
+            parent_path.join(safe_filename(PERSONAL_SPACE_NAME))
         } else {
             parent_path.to_path_buf()
         };

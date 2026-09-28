@@ -8,7 +8,6 @@ use warpui::platform::WindowStyle;
 use super::MenuSource;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::model::view::CloudViewModel;
 use crate::editor::InteractionState;
 use crate::network::NetworkStatus;
 use crate::notebooks::editor::keys::NotebookKeybindings;
@@ -34,7 +33,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| Appearance::mock());
 
     app.add_singleton_model(|_| UpdateManager::mock());
-    app.add_singleton_model(CloudViewModel::mock);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| KeybindingChangedNotifier::new());

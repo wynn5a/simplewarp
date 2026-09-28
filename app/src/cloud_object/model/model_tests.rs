@@ -53,7 +53,6 @@ fn mock_cloud_folder(id: SyncId, name: String, folder_id: Option<SyncId>) -> Clo
             is_welcome_object: false,
             creator_uid: None,
             last_editor_uid: None,
-            last_task_run_ts: None,
         },
         mock_permissions(),
     )
@@ -84,7 +83,6 @@ fn mock_cloud_notebook(id: SyncId, title: String, folder_id: Option<SyncId>) -> 
             is_welcome_object: false,
             creator_uid: None,
             last_editor_uid: None,
-            last_task_run_ts: None,
         },
         mock_permissions(),
     )
@@ -126,7 +124,6 @@ fn test_create_json_object() {
             is_welcome_object: false,
             creator_uid: None,
             last_editor_uid: None,
-            last_task_run_ts: None,
         },
         mock_permissions(),
     ));

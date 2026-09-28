@@ -15,7 +15,6 @@ use crate::ai::mcp::{
     TemplatableMCPServerManager,
 };
 use crate::appearance::Appearance;
-use crate::cloud_object::Space;
 use crate::modal::{Modal, ModalViewState};
 use crate::settings_view::SettingsSection;
 use crate::settings_view::mcp_servers::edit_page::{
@@ -241,11 +240,8 @@ impl MCPServersSettingsPageView {
                 .get_cloud_server(templatable_mcp_server.uuid, ctx)
                 .is_none()
             {
-                templatable_manager.create_templatable_mcp_server(
-                    templatable_mcp_server.clone(),
-                    Space::Personal,
-                    ctx,
-                );
+                templatable_manager
+                    .create_templatable_mcp_server(templatable_mcp_server.clone(), ctx);
             }
 
             let installation = templatable_manager.install_from_template(

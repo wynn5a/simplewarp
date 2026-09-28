@@ -34,7 +34,7 @@ use crate::ai::mcp::{
     MCPServer, TemplatableMCPServer, TemplatableMCPServerInstallation, TemplatableMCPServerManager,
     TransportType,
 };
-use crate::cloud_object::{CloudObject, Space};
+use crate::cloud_object::CloudObject;
 use crate::code::editor::view::{CodeEditorRenderOptions, CodeEditorView};
 use crate::persistence::ModelEvent;
 #[cfg(feature = "local_fs")]
@@ -785,7 +785,6 @@ impl TypedActionView for MCPServersEditPageView {
                             |templatable_manager, ctx| {
                                 templatable_manager.create_templatable_mcp_server(
                                     parsed_server.templatable_mcp_server.clone(),
-                                    Space::Personal,
                                     ctx,
                                 );
                                 if let Some(installation) =

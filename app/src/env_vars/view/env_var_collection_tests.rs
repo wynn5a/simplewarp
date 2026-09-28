@@ -5,7 +5,6 @@ use warpui::{App, ViewHandle};
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::model::view::CloudViewModel;
 use crate::env_vars::active_env_var_collection_data::SavingStatus;
 use crate::env_vars::view::env_var_collection::EnvVarCollectionView;
 use crate::network::NetworkStatus;
@@ -26,7 +25,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| Appearance::mock());
 
     app.add_singleton_model(|_| UpdateManager::mock());
-    app.add_singleton_model(CloudViewModel::mock);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| ObjectActions::new(Vec::new()));

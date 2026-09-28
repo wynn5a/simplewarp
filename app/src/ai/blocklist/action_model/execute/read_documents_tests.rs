@@ -63,7 +63,6 @@ fn add_saved_plan_notebook(app: &mut App, document_id: AIDocumentId, content: &s
             is_welcome_object: false,
             creator_uid: None,
             last_editor_uid: None,
-            last_task_run_ts: None,
         },
         CloudObjectPermissions {
             owner: Owner::mock_current_user(),

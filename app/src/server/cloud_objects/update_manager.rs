@@ -25,7 +25,7 @@ use crate::cloud_object::object_limits::{
 };
 use crate::cloud_object::{
     CloudModelType, CloudObject, CloudObjectTypeAndId, GenericCloudObject,
-    GenericStringObjectFormat, JsonObjectType, ObjectIdType, Owner, Space,
+    GenericStringObjectFormat, JsonObjectType, ObjectIdType, Owner,
 };
 use crate::env_vars::{CloudEnvVarCollectionModel, EnvVarCollection};
 use crate::notebooks::{CloudNotebookModel, NotebookId};
@@ -336,11 +336,8 @@ impl UpdateManager {
         force_expand: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        let count = CloudModel::handle(ctx).read(ctx, |model, _| {
-            model
-                .active_non_welcome_notebooks_in_space(Space::Personal)
-                .count()
-        });
+        let count = CloudModel::handle(ctx)
+            .read(ctx, |model, _| model.active_non_welcome_notebooks().count());
         if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
             is_feature_gated_anonymous_user_past_notebook_limit(
                 auth_state_provider.get(),
@@ -373,8 +370,8 @@ impl UpdateManager {
         // Iterate through items in the same folder as the original object that are of the
         // same type, and populate a hashset with those names.
         let same_type_and_folder_names = cloud_model
-            .active_cloud_objects_in_location_without_descendents(
-                original_cloud_object.location(cloud_model),
+            .active_cloud_objects_directly_in_folder(
+                original_cloud_object.parent_folder(cloud_model),
             )
             .filter(|&object| object.object_type() == original_cloud_object.object_type())
             .map(|object| object.display_name())
@@ -400,11 +397,8 @@ impl UpdateManager {
         force_expand: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        let count = CloudModel::handle(ctx).read(ctx, |model, _| {
-            model
-                .active_non_welcome_workflows_in_space(Space::Personal)
-                .count()
-        });
+        let count = CloudModel::handle(ctx)
+            .read(ctx, |model, _| model.active_non_welcome_workflows().count());
         if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
             is_feature_gated_anonymous_user_past_workflow_limit(
                 auth_state_provider.get(),
@@ -437,9 +431,7 @@ impl UpdateManager {
         ctx: &mut ModelContext<Self>,
     ) {
         let count = CloudModel::handle(ctx).read(ctx, |model, _| {
-            model
-                .active_non_welcome_env_var_collections_in_space(Space::Personal)
-                .count()
+            model.active_non_welcome_env_var_collections().count()
         });
         if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
             is_feature_gated_anonymous_user_past_env_var_limit(auth_state_provider.get(), count + 1)
@@ -503,18 +495,14 @@ impl UpdateManager {
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
         let object_id = SyncId::ClientId(client_id);
-        let auth_state = AuthStateProvider::as_ref(ctx).get();
-        let initial_editor = auth_state.user_id();
-
         // Update in-memory model.
         CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
-            let mut object = GenericCloudObject::<K, M>::new_local(
+            let object = GenericCloudObject::<K, M>::new_local(
                 model.clone(),
                 owner,
                 initial_folder_id,
                 client_id,
             );
-            object.metadata.current_editor_uid = initial_editor.map(|uid| uid.as_string());
             cloud_model.create_object(object_id, object, ctx);
 
             if force_expand {

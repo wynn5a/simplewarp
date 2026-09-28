@@ -7,7 +7,6 @@ pub use assertion::*;
 use itertools::Itertools;
 use warpui::{App, SingletonEntity};
 
-use crate::cloud_object::Space;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 
@@ -16,7 +15,7 @@ use crate::server::cloud_objects::update_manager::UpdateManager;
 pub fn clear_cloud_model(app: &mut App) -> Pin<Box<dyn Future<Output = ()> + Send>> {
     let object_ids_to_delete = CloudModel::handle(app).read(app, |cloud_model, _| {
         cloud_model
-            .active_non_welcome_cloud_objects_in_space(Space::Personal)
+            .active_non_welcome_cloud_objects()
             .map(|object| object.cloud_object_type_and_id())
             .collect_vec()
     });

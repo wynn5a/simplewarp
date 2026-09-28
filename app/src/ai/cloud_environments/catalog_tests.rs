@@ -1,7 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 
-use chrono::{Duration, Utc};
 use warpui::{App, SingletonEntity as _};
 
 use super::*;
@@ -61,56 +59,6 @@ fn environment_creation_refreshes_after_cloud_model_inserts_the_object() {
                 id: sync_id,
                 name: "Created environment".to_owned(),
             }]
-        );
-    });
-}
-
-#[test]
-fn environment_timestamp_updates_refresh_recency_order() {
-    App::test((), |mut app| async move {
-        let cloud_model = app.add_singleton_model(CloudModel::mock);
-        let older_id = SyncId::ClientId(ClientId::new());
-        let newer_id = SyncId::ClientId(ClientId::new());
-        app.update(|ctx| {
-            cloud_model.update(ctx, |model, ctx| {
-                model.create_object(older_id, environment(older_id, "Alpha"), ctx);
-                model.create_object(newer_id, environment(newer_id, "Zulu"), ctx);
-            });
-        });
-        let catalog = app.add_singleton_model(CloudEnvironmentCatalog::new);
-        assert_eq!(
-            catalog.read(&app, |catalog, _| {
-                catalog
-                    .environments()
-                    .iter()
-                    .map(|environment| environment.id)
-                    .collect::<Vec<_>>()
-            }),
-            vec![older_id, newer_id]
-        );
-
-        let now = Utc::now();
-        app.update(|ctx| {
-            cloud_model.update(ctx, |model, ctx| {
-                model.update_environment_last_task_run_timestamps(
-                    HashMap::from([
-                        (older_id.uid(), now - Duration::hours(1)),
-                        (newer_id.uid(), now),
-                    ]),
-                    ctx,
-                );
-            });
-        });
-
-        assert_eq!(
-            catalog.read(&app, |catalog, _| {
-                catalog
-                    .environments()
-                    .iter()
-                    .map(|environment| environment.id)
-                    .collect::<Vec<_>>()
-            }),
-            vec![newer_id, older_id]
         );
     });
 }

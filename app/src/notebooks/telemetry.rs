@@ -1,32 +1,7 @@
 //! Notebook interaction types shared by the editor and its views.
 
-use serde::{Deserialize, Serialize};
-
-use crate::workflows::WorkflowId;
-
-/// Generic entrypoint information for actions that might be keyboard or mouse driven.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ActionEntrypoint {
-    /// A keyboard shortcut.
-    Keyboard,
-    /// A button in the UI.
-    Button,
-    /// A menu item.
-    Menu,
-}
-
-/// Information about a block in the notebook.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "block_type")]
-pub enum BlockInfo {
-    /// A workflow embedded in the notebook.
-    EmbeddedWorkflow { workflow_id: Option<WorkflowId> },
-    /// A code or command block within the notebook.
-    CodeBlock,
-}
-
 /// A selection/navigation mode within the notebook.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SelectionMode {
     /// Navigate between command/code blocks and embedded workflows.
     Command,
