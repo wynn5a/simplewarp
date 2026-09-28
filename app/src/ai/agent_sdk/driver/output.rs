@@ -14,8 +14,7 @@ pub mod text {
         ArtifactCreatedData, CallMCPToolResult, FileGlobResult, FileGlobV2Result, GrepResult,
         ReadFilesResult, ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult,
         SearchCodebaseResult, SuggestNewConversationResult, SuggestPromptResult, TodoOperation,
-        UploadArtifactResult, WebFetchStatus, WebSearchStatus,
-        WriteToLongRunningShellCommandResult,
+        WebFetchStatus, WebSearchStatus, WriteToLongRunningShellCommandResult,
     };
 
     /// Format an agent input as a human-readable string. For action results, it's assumed that
@@ -106,22 +105,6 @@ pub mod text {
                     ReadFilesResult::Success { .. } => Ok(()),
                     ReadFilesResult::Error(error) => writeln!(w, "Reading files failed: {error}"),
                     ReadFilesResult::Cancelled => writeln!(w, "{CANCELLED_MESSAGE}"),
-                },
-                AIAgentActionResultType::UploadArtifact(result) => match result {
-                    UploadArtifactResult::Success {
-                        artifact_uid,
-                        filepath,
-                        ..
-                    } => match filepath {
-                        Some(filepath) => {
-                            writeln!(w, "Uploaded artifact {artifact_uid} from {filepath}")
-                        }
-                        None => writeln!(w, "Uploaded artifact {artifact_uid}"),
-                    },
-                    UploadArtifactResult::Error(error) => {
-                        writeln!(w, "Uploading artifact failed: {error}")
-                    }
-                    UploadArtifactResult::Cancelled => writeln!(w, "{CANCELLED_MESSAGE}"),
                 },
                 AIAgentActionResultType::SearchCodebase(result) => match result {
                     SearchCodebaseResult::Success { files } => {
@@ -331,9 +314,6 @@ pub mod text {
                                 .format_with(", ", |loc, f| f(&format_args!("{}", loc.name)))
                         )?;
                         // TODO: Better formatting, need shell info.
-                    }
-                    AIAgentActionType::UploadArtifact(request) => {
-                        writeln!(w, "Uploading artifact {}", request.file_path)?;
                     }
                     AIAgentActionType::SearchCodebase(request) => {
                         writeln!(
@@ -551,8 +531,7 @@ pub mod json {
         AIAgentOutputMessageType, AIAgentTodo, ArtifactCreatedData, CallMCPToolResult, FileContext,
         FileGlobResult, FileGlobV2Result, GrepResult, ReadFilesFailedFile, ReadFilesResult,
         ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult,
-        SearchCodebaseResult, SubagentCall, TodoOperation, UploadArtifactResult,
-        WriteToLongRunningShellCommandResult,
+        SearchCodebaseResult, SubagentCall, TodoOperation, WriteToLongRunningShellCommandResult,
     };
     use crate::code::buffer_location::LocalOrRemotePath;
 
@@ -619,10 +598,6 @@ pub mod json {
         ReadFiles {
             files: Vec<JsonFile<'a>>,
         },
-        UploadArtifact {
-            path: &'a str,
-            description: Option<&'a str>,
-        },
         SearchCodebase {
             query: &'a str,
             codebase: Option<&'a str>,
@@ -655,7 +630,6 @@ pub mod json {
         RunCommand(JsonRunCommandResult<'a>),
         EditFiles(JsonEditFilesResult<'a>),
         ReadFiles(JsonReadFilesResult<'a>),
-        UploadArtifact(JsonUploadArtifactResult<'a>),
         SearchCodebase(JsonFileCollectionResult<'a>),
         Grep(JsonFileCollectionResult<'a>),
         FileGlob(JsonFileCollectionResult<'a>),
@@ -700,17 +674,6 @@ pub mod json {
     #[derive(Serialize)]
     struct JsonFileCollectionResult<'a> {
         files: Vec<JsonFile<'a>>,
-    }
-
-    #[derive(Serialize)]
-    struct JsonUploadArtifactResult<'a> {
-        artifact_uid: &'a str,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        filepath: Option<&'a str>,
-        mime_type: &'a str,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        description: Option<&'a str>,
-        size_bytes: i64,
     }
 
     #[derive(Serialize)]
@@ -867,27 +830,6 @@ pub mod json {
                     }),
                     ReadFilesResult::Cancelled => Some(JsonMessage::ToolCanceled),
                 },
-                AIAgentActionResultType::UploadArtifact(result) => match result {
-                    UploadArtifactResult::Success {
-                        artifact_uid,
-                        filepath,
-                        mime_type,
-                        description,
-                        size_bytes,
-                    } => Some(JsonMessage::ToolResult(JsonToolResult::UploadArtifact(
-                        JsonUploadArtifactResult {
-                            artifact_uid,
-                            filepath: filepath.as_deref(),
-                            mime_type,
-                            description: description.as_deref(),
-                            size_bytes: *size_bytes,
-                        },
-                    ))),
-                    UploadArtifactResult::Error(error) => Some(JsonMessage::ToolError {
-                        error: Cow::Borrowed(error.as_str()),
-                    }),
-                    UploadArtifactResult::Cancelled => Some(JsonMessage::ToolCanceled),
-                },
                 AIAgentActionResultType::SearchCodebase(result) => match result {
                     SearchCodebaseResult::Success { files } => Some(JsonMessage::ToolResult(
                         JsonToolResult::SearchCodebase(JsonFileCollectionResult {
@@ -1026,12 +968,6 @@ pub mod json {
                             })
                             .collect();
                         Some(JsonMessage::ToolCall(JsonToolCall::ReadFiles { files }))
-                    }
-                    AIAgentActionType::UploadArtifact(request) => {
-                        Some(JsonMessage::ToolCall(JsonToolCall::UploadArtifact {
-                            path: request.file_path.as_str(),
-                            description: request.description.as_deref(),
-                        }))
                     }
                     AIAgentActionType::SearchCodebase(request) => {
                         Some(JsonMessage::ToolCall(JsonToolCall::SearchCodebase {

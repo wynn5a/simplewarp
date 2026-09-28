@@ -13,9 +13,8 @@ use diesel::result::Error;
 use crate::{
     CloudAIExecutionProfile, CloudAIExecutionProfileModel, CloudAIFact, CloudAIFactModel,
     CloudEnvVarCollection, CloudEnvVarCollectionModel, CloudMCPServer, CloudMCPServerModel,
-    CloudPreference, CloudPreferenceModel, CloudScheduledAmbientAgent,
-    CloudScheduledAmbientAgentModel, CloudTemplatableMCPServer, CloudTemplatableMCPServerModel,
-    CloudWorkflowEnum, CloudWorkflowEnumModel,
+    CloudPreference, CloudPreferenceModel, CloudTemplatableMCPServer,
+    CloudTemplatableMCPServerModel, CloudWorkflowEnum, CloudWorkflowEnumModel,
 };
 
 pub enum PersistedGenericStringObject {
@@ -26,7 +25,6 @@ pub enum PersistedGenericStringObject {
     MCPServer(CloudMCPServer),
     TemplatableMCPServer(CloudTemplatableMCPServer),
     AIExecutionProfile(CloudAIExecutionProfile),
-    ScheduledAmbientAgent(CloudScheduledAmbientAgent),
 }
 
 pub fn read_generic_string_objects(
@@ -133,23 +131,11 @@ pub fn read_generic_string_objects(
                         )
                     })
                 }
-                JsonObjectType::ScheduledAmbientAgent => {
-                    let model = CloudScheduledAmbientAgentModel::deserialize_owned(&object.data);
-                    model.ok().map(|model| {
-                        PersistedGenericStringObject::ScheduledAmbientAgent(
-                            CloudScheduledAmbientAgent::new(
-                                object_id,
-                                model,
-                                to_cloud_object_metadata(metadata),
-                                cloud_object_permissions,
-                            ),
-                        )
-                    })
-                }
                 // TODO: Implement CloudAgentConfig model when full sync support is added
                 JsonObjectType::CloudAgentConfig => None,
-                // Environments were only ever synced from the server; stale rows are skipped.
-                JsonObjectType::CloudEnvironment => None,
+                // Environments and scheduled agents were only ever synced from the server;
+                // stale rows are skipped.
+                JsonObjectType::CloudEnvironment | JsonObjectType::ScheduledAmbientAgent => None,
             }
         })
         .collect())

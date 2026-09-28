@@ -1,189 +1,10 @@
 use super::*;
-use crate::agent::action::{RunAgentsAgentRunConfig, RunAgentsExecutionMode, RunAgentsRequest};
 
-fn make_config(model: &str, harness: &str, remote: bool) -> OrchestrationConfig {
+fn make_config(model: &str, harness: &str) -> OrchestrationConfig {
     OrchestrationConfig {
         model_id: model.to_string(),
         harness_type: harness.to_string(),
-        execution_mode: if remote {
-            OrchestrationExecutionMode::Remote {
-                environment_id: "env-1".to_string(),
-                worker_host: "warp".to_string(),
-                runner_id: String::new(),
-            }
-        } else {
-            OrchestrationExecutionMode::Local
-        },
     }
-}
-
-fn make_request(model: &str, harness: &str, remote: bool) -> RunAgentsRequest {
-    RunAgentsRequest {
-        summary: "test".to_string(),
-        base_prompt: "prompt".to_string(),
-        skills: vec![],
-        model_id: model.to_string(),
-        harness_type: harness.to_string(),
-        execution_mode: if remote {
-            RunAgentsExecutionMode::Remote {
-                environment_id: "env-1".to_string(),
-                worker_host: "warp".to_string(),
-                computer_use_enabled: false,
-                runner_id: String::new(),
-            }
-        } else {
-            RunAgentsExecutionMode::Local
-        },
-        agent_run_configs: vec![RunAgentsAgentRunConfig {
-            name: "a".to_string(),
-            prompt: String::new(),
-            title: String::new(),
-            agent_identity_uid: String::new(),
-            model_id: String::new(),
-        }],
-        plan_id: String::new(),
-        harness_auth_secret_name: None,
-    }
-}
-
-#[test]
-fn exact_match_local() {
-    let config = make_config("auto", "oz", false);
-    let request = make_request("auto", "oz", false);
-    assert!(matches_active_config(&request, &config));
-}
-
-#[test]
-fn exact_match_remote() {
-    let config = make_config("auto", "oz", true);
-    let request = make_request("auto", "oz", true);
-    assert!(matches_active_config(&request, &config));
-}
-
-#[test]
-fn empty_model_inherits_and_matches() {
-    let config = make_config("auto", "oz", false);
-    let request = make_request("", "oz", false);
-    assert!(matches_active_config(&request, &config));
-}
-
-#[test]
-fn empty_harness_inherits_and_matches() {
-    let config = make_config("auto", "oz", false);
-    let request = make_request("auto", "", false);
-    assert!(matches_active_config(&request, &config));
-}
-
-#[test]
-fn different_model_mismatches() {
-    let config = make_config("auto", "oz", false);
-    let request = make_request("claude-4-6-opus-high", "oz", false);
-    assert!(!matches_active_config(&request, &config));
-}
-
-#[test]
-fn different_harness_mismatches() {
-    let config = make_config("auto", "oz", false);
-    let request = make_request("auto", "claude", false);
-    assert!(!matches_active_config(&request, &config));
-}
-
-#[test]
-fn execution_mode_variant_mismatch() {
-    let config = make_config("auto", "oz", false);
-    let request = make_request("auto", "oz", true);
-    assert!(!matches_active_config(&request, &config));
-}
-
-#[test]
-fn remote_different_environment_mismatches() {
-    let config = make_config("auto", "oz", true);
-    let mut request = make_request("auto", "oz", true);
-    if let RunAgentsExecutionMode::Remote {
-        ref mut environment_id,
-        ..
-    } = request.execution_mode
-    {
-        *environment_id = "env-other".to_string();
-    }
-    assert!(!matches_active_config(&request, &config));
-}
-
-#[test]
-fn remote_empty_env_inherits_and_matches() {
-    let config = make_config("auto", "oz", true);
-    let mut request = make_request("auto", "oz", true);
-    if let RunAgentsExecutionMode::Remote {
-        ref mut environment_id,
-        ..
-    } = request.execution_mode
-    {
-        *environment_id = String::new();
-    }
-    assert!(matches_active_config(&request, &config));
-}
-
-#[test]
-fn remote_matching_runner_matches() {
-    let mut config = make_config("auto", "oz", true);
-    if let OrchestrationExecutionMode::Remote { runner_id, .. } = &mut config.execution_mode {
-        *runner_id = "runner-1".to_string();
-    }
-    let mut request = make_request("auto", "oz", true);
-    if let RunAgentsExecutionMode::Remote { runner_id, .. } = &mut request.execution_mode {
-        *runner_id = "runner-1".to_string();
-    }
-    assert!(matches_active_config(&request, &config));
-}
-
-#[test]
-fn remote_different_runner_mismatches() {
-    let mut config = make_config("auto", "oz", true);
-    if let OrchestrationExecutionMode::Remote { runner_id, .. } = &mut config.execution_mode {
-        *runner_id = "runner-1".to_string();
-    }
-    let mut request = make_request("auto", "oz", true);
-    if let RunAgentsExecutionMode::Remote { runner_id, .. } = &mut request.execution_mode {
-        *runner_id = "runner-2".to_string();
-    }
-    assert!(!matches_active_config(&request, &config));
-}
-
-#[test]
-fn remote_empty_runner_inherits_and_matches() {
-    let mut config = make_config("auto", "oz", true);
-    if let OrchestrationExecutionMode::Remote { runner_id, .. } = &mut config.execution_mode {
-        *runner_id = "runner-1".to_string();
-    }
-    // Request leaves runner_id empty → inherits from config → matches.
-    let request = make_request("auto", "oz", true);
-    assert!(matches_active_config(&request, &config));
-}
-
-#[test]
-fn proto_round_trip_config_remote_with_runner() {
-    let mut config = make_config("auto", "claude", true);
-    if let OrchestrationExecutionMode::Remote { runner_id, .. } = &mut config.execution_mode {
-        *runner_id = "runner-xyz".to_string();
-    }
-    let proto = config.to_proto();
-    let round_tripped = OrchestrationConfig::from_proto(&proto);
-    assert_eq!(config, round_tripped);
-}
-
-#[test]
-fn computer_use_not_in_match_check() {
-    let config = make_config("auto", "oz", true);
-    let mut request = make_request("auto", "oz", true);
-    if let RunAgentsExecutionMode::Remote {
-        ref mut computer_use_enabled,
-        ..
-    } = request.execution_mode
-    {
-        *computer_use_enabled = true;
-    }
-    // computer_use_enabled differs but should still match
-    assert!(matches_active_config(&request, &config));
 }
 
 #[test]
@@ -204,18 +25,31 @@ fn status_predicates() {
 
 #[test]
 fn proto_round_trip_config_local() {
-    let config = make_config("auto", "oz", false);
+    let config = make_config("auto", "oz");
     let proto = config.to_proto();
     let round_tripped = OrchestrationConfig::from_proto(&proto);
     assert_eq!(config, round_tripped);
 }
 
 #[test]
-fn proto_round_trip_config_remote() {
-    let config = make_config("auto", "claude", true);
-    let proto = config.to_proto();
-    let round_tripped = OrchestrationConfig::from_proto(&proto);
-    assert_eq!(config, round_tripped);
+fn persisted_remote_config_reads_as_local() {
+    let proto = api::OrchestrationConfig {
+        model_id: "auto".to_string(),
+        harness: harness_type_to_proto("claude"),
+        execution_mode: Some(api::orchestration_config::ExecutionMode::Remote(
+            api::orchestration_config::Remote {
+                environment_id: "env-1".to_string(),
+                worker_host: "warp".to_string(),
+                runner_id: String::new(),
+            },
+        )),
+    };
+    let config = OrchestrationConfig::from_proto(&proto);
+    assert_eq!(config, make_config("auto", "claude"));
+    assert!(matches!(
+        config.to_proto().execution_mode,
+        Some(api::orchestration_config::ExecutionMode::Local(_))
+    ));
 }
 
 #[test]

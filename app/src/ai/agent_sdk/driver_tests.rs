@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
-use std::sync::Arc;
 use std::time::Duration;
 
 use futures::channel::oneshot;
@@ -20,11 +19,9 @@ use super::{
     SDKConversationOutputStatus, idle_window_for_cli_session_status,
     idle_window_for_terminal_status, terminal_status_log_outcome,
 };
-use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
-    AIAgentActionResult, AIAgentActionResultType, AIAgentInput, AIAgentOutput,
-    AIAgentOutputMessage, ArtifactCreatedData, CancellationReason, MessageId, RenderableAIError,
-    UploadArtifactResult,
+    AIAgentOutput, AIAgentOutputMessage, ArtifactCreatedData, CancellationReason, MessageId,
+    RenderableAIError,
 };
 use crate::ai::agent_sdk::task_env_vars;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
@@ -524,38 +521,6 @@ fn json_format_output_includes_filename_for_file_artifact_created_event() {
     assert_eq!(value["mime_type"], "text/plain");
     assert_eq!(value["description"], "Build output for the latest run");
     assert_eq!(value["size_bytes"], 42);
-}
-
-#[test]
-fn json_format_input_omits_filepath_and_description_for_proto_upload_result() {
-    let input = AIAgentInput::ActionResult {
-        result: AIAgentActionResult {
-            id: "tool-call-1".to_string().into(),
-            task_id: TaskId::new("task-1".to_string()),
-            result: AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Success {
-                artifact_uid: "artifact-123".to_string(),
-                filepath: None,
-                mime_type: "text/plain".to_string(),
-                description: None,
-                size_bytes: 42,
-            }),
-        },
-        context: Arc::from([]),
-    };
-
-    let mut bytes = Vec::new();
-    super::output::json::format_input(&input, &mut bytes).expect("json formatting should work");
-
-    let value: serde_json::Value =
-        serde_json::from_slice(&bytes).expect("output should be valid json");
-
-    assert_eq!(value["type"], "tool_result");
-    assert_eq!(value["tool"], "upload_artifact");
-    assert_eq!(value["artifact_uid"], "artifact-123");
-    assert_eq!(value["mime_type"], "text/plain");
-    assert_eq!(value["size_bytes"], 42);
-    assert!(value.get("filepath").is_none());
-    assert!(value.get("description").is_none());
 }
 
 /// Write a minimal SKILL.md at `{skills_dir}/{name}/SKILL.md`.

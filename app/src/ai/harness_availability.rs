@@ -1,16 +1,9 @@
-use std::collections::HashMap;
-use std::time::Duration;
-
-use ai::agent::AgentHarness;
-use instant::Instant;
 use serde::{Deserialize, Serialize};
 use warp_cli::agent::Harness;
 use warp_core::features::FeatureFlag;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::harness_display;
-
-const AUTH_SECRET_FETCH_FAILURE_COOLDOWN: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HarnessModelInfo {
@@ -40,32 +33,14 @@ fn default_harnesses() -> Vec<HarnessAvailability> {
     }]
 }
 
-#[derive(Debug, Clone)]
-pub enum AuthSecretFetchState {
-    NotFetched,
-    Failed(#[allow(dead_code)] String),
-}
-
-pub enum HarnessAvailabilityEvent {
-    /// Emitted when a lazy auth-secrets fetch fails. Subscribers should
-    /// re-render so any "Loading…" placeholders can transition to an
-    /// error state — without this signal the picker would otherwise be
-    /// stuck on the loading placeholder until the next refetch.
-    AuthSecretsFetchFailed,
-}
-
 pub struct HarnessAvailabilityModel {
     harnesses: Vec<HarnessAvailability>,
-    auth_secrets: HashMap<Harness, AuthSecretFetchState>,
-    auth_secret_retry_after: HashMap<Harness, Instant>,
 }
 
 impl HarnessAvailabilityModel {
     pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
         Self {
             harnesses: default_harnesses(),
-            auth_secrets: HashMap::new(),
-            auth_secret_retry_after: HashMap::new(),
         }
     }
 
@@ -93,60 +68,10 @@ impl HarnessAvailabilityModel {
             .map(|h| h.available_models.as_slice())
             .filter(|m| !m.is_empty())
     }
-
-    pub fn auth_secrets_for(&self, harness: Harness) -> &AuthSecretFetchState {
-        self.auth_secrets
-            .get(&harness)
-            .unwrap_or(&AuthSecretFetchState::NotFetched)
-    }
-
-    pub fn ensure_auth_secrets_fetched(&mut self, harness: Harness, ctx: &mut ModelContext<Self>) {
-        match self.auth_secrets_for(harness) {
-            AuthSecretFetchState::NotFetched => self.fetch_auth_secrets(harness, ctx),
-            AuthSecretFetchState::Failed(_) if self.can_retry_auth_secret_fetch(harness) => {
-                self.fetch_auth_secrets(harness, ctx);
-            }
-            AuthSecretFetchState::Failed(_) => {}
-        }
-    }
-
-    /// There is no server to ask for harness auth secrets in this build, so this always
-    /// resolves to `Failed` immediately rather than round-tripping through a client that
-    /// could only ever answer with an error.
-    fn fetch_auth_secrets(&mut self, harness: Harness, ctx: &mut ModelContext<Self>) {
-        if to_agent_harness(harness).is_none() {
-            return;
-        }
-
-        self.auth_secrets.insert(
-            harness,
-            AuthSecretFetchState::Failed("Auth secrets are not available".to_string()),
-        );
-        self.auth_secret_retry_after
-            .insert(harness, Instant::now() + AUTH_SECRET_FETCH_FAILURE_COOLDOWN);
-        ctx.emit(HarnessAvailabilityEvent::AuthSecretsFetchFailed);
-    }
-
-    fn can_retry_auth_secret_fetch(&self, harness: Harness) -> bool {
-        self.auth_secret_retry_after
-            .get(&harness)
-            .map(|retry_after| Instant::now() >= *retry_after)
-            .unwrap_or(true)
-    }
-}
-
-fn to_agent_harness(harness: Harness) -> Option<AgentHarness> {
-    match harness {
-        Harness::Oz => Some(AgentHarness::Oz),
-        Harness::Claude => Some(AgentHarness::ClaudeCode),
-        Harness::Gemini => Some(AgentHarness::Gemini),
-        Harness::Codex => Some(AgentHarness::Codex),
-        Harness::OpenCode | Harness::Unknown => None,
-    }
 }
 
 impl Entity for HarnessAvailabilityModel {
-    type Event = HarnessAvailabilityEvent;
+    type Event = ();
 }
 
 impl SingletonEntity for HarnessAvailabilityModel {}

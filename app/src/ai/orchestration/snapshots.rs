@@ -1,94 +1,49 @@
 //! Plain-data option lists for the orchestration configuration fields:
-//! location, harness, model, API key, host, and runner. One builder
-//! per field turns the live catalogs into an [`OptionSnapshot`] — rows,
-//! ordering, badges, disabled reasons, load state, and selection — and
-//! both frontends render their pickers/pages from that snapshot, so the
-//! option lists cannot drift between the GUI and the TUI.
+//! harness and model. One builder per field turns the live catalogs into an
+//! [`OptionSnapshot`] — rows, ordering, disabled reasons, load state, and
+//! selection — and the pickers render from that snapshot.
 
-use ai::agent::action::RunAgentsExecutionMode;
 use warp_cli::agent::Harness;
 use warpui::{AppContext, SingletonEntity};
 
-use super::config_state::{AuthSecretSelection, OrchestrationConfigState};
-use super::providers::{
-    ORCHESTRATION_RUNNER_NONE_LABEL, ORCHESTRATION_WARP_WORKER_HOST, get_base_model_choices,
-    resolve_default_host_slug, resolve_recent_host_slug,
-};
+use super::config_state::OrchestrationConfigState;
 use crate::LLMPreferences;
-use crate::ai::harness_availability::{AuthSecretFetchState, HarnessAvailabilityModel};
+use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
 use crate::ai::local_harness_setup::{
     LocalHarnessSetupState, local_harness_is_product_enabled, local_harness_setup_state,
 };
 
 const DEFAULT_MODEL_LABEL: &str = "Default model";
-/// Label shown in the auth secret picker when no secret is selected
-/// (the child agent will inherit credentials from its environment).
-pub(crate) const AUTH_SECRET_INHERIT_LABEL: &str = "Skip (advanced)";
-const CUSTOM_HOST_LABEL: &str = "Custom host…";
-const AUTH_SECRETS_LOAD_FAILED_MESSAGE: &str = "Unable to load secrets";
-
-/// Row id for the Cloud location option.
-#[allow(dead_code)]
-pub const LOCATION_CLOUD_ID: &str = "cloud";
-/// Row id for the Local location option.
-#[allow(dead_code)]
-pub const LOCATION_LOCAL_ID: &str = "local";
 
 /// One selectable row in an option snapshot. Carries no GUI types.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OptionRow {
     pub id: String,
     pub label: String,
-    /// Harness identifier for rows representing harnesses; each frontend
-    /// maps it to its own icon (GUI `Icon`) or glyph/color (TUI).
+    /// Harness identifier for rows representing harnesses; the picker maps
+    /// it to an icon and brand color.
     pub harness: Option<Harness>,
-    pub badge: Option<OptionBadge>,
     pub disabled_reason: Option<String>,
 }
 
 impl OptionRow {
-    /// Creates an enabled row with no badge or harness.
+    /// Creates an enabled row with no harness.
     fn new(id: impl Into<String>, label: impl Into<String>) -> Self {
         Self {
             id: id.into(),
             label: label.into(),
             harness: None,
-            badge: None,
             disabled_reason: None,
         }
     }
-}
-
-/// Secondary marker rendered next to a row's label.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptionBadge {
-    Default,
-    Recent,
-    Connected,
-    /// Constructed by `warp_tui` (the TUI ask-question card). The variant
-    /// lives here so both frontends share a single `OptionBadge` type.
-    /// The lint is suppressed because the construction site is in the
-    /// downstream `warp_tui` crate, which is invisible to clippy when
-    /// linting `warp` in isolation.
-    #[allow(dead_code)]
-    Recommended,
 }
 
 /// Load state of the catalog backing a snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionSourceStatus {
     Ready,
-    Loading,
-    Failed { message: String },
     Empty { message: String },
-}
-
-/// Trailing affordance below the option list.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptionFooter {
-    /// Free-form text entry (e.g. custom host slug).
-    CustomText { label: String },
 }
 
 /// A complete option list for one configuration field.
@@ -97,38 +52,17 @@ pub struct OptionSnapshot {
     pub rows: Vec<OptionRow>,
     pub selected_id: Option<String>,
     pub status: OptionSourceStatus,
-    pub footer: Option<OptionFooter>,
 }
 
 impl OptionSnapshot {
-    /// A `Ready` snapshot with no footer.
+    /// A `Ready` snapshot.
     fn ready(rows: Vec<OptionRow>, selected_id: Option<String>) -> Self {
         Self {
             rows,
             selected_id,
             status: OptionSourceStatus::Ready,
-            footer: None,
         }
     }
-}
-
-// ── Location ────────────────────────────────────────────────────────
-
-/// Builds the Cloud/Local location options with the current mode selected.
-// Only the TUI renders a location page (via `tui_export`); the GUI has
-// its own Cloud/Local mode toggle.
-#[allow(dead_code)]
-pub fn location_snapshot(state: &OrchestrationConfigState, _ctx: &AppContext) -> OptionSnapshot {
-    let rows = vec![
-        OptionRow::new(LOCATION_CLOUD_ID, "Cloud"),
-        OptionRow::new(LOCATION_LOCAL_ID, "Local"),
-    ];
-    let selected = if state.execution_mode.is_remote() {
-        LOCATION_CLOUD_ID
-    } else {
-        LOCATION_LOCAL_ID
-    };
-    OptionSnapshot::ready(rows, Some(selected.to_string()))
 }
 
 // ── Harness ─────────────────────────────────────────────────────────
@@ -141,11 +75,9 @@ struct HarnessEntryInput {
     enabled: bool,
 }
 
-/// Builds the harness options, mirroring the GUI's
-/// `populate_harness_picker` filtering, ordering, disabled reasons, and
+/// Builds the harness options: filtering, ordering, disabled reasons, and
 /// selection matching.
 pub fn harness_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> OptionSnapshot {
-    let is_local = !state.execution_mode.is_remote();
     let availability = HarnessAvailabilityModel::as_ref(ctx);
     let entries: Vec<HarnessEntryInput> = availability
         .available_harnesses()
@@ -162,7 +94,6 @@ pub fn harness_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> O
         entries,
         &state.harness_type,
         target_display,
-        is_local,
         &local_harness_setup_state,
     )
 }
@@ -173,7 +104,6 @@ fn build_harness_snapshot(
     entries: Vec<HarnessEntryInput>,
     initial_harness: &str,
     target_display: Option<String>,
-    is_local: bool,
     setup_state_for: &dyn Fn(Harness) -> LocalHarnessSetupState,
 ) -> OptionSnapshot {
     let resolve_entry_harness = |harness: Harness, display_name: &str| match harness {
@@ -189,7 +119,7 @@ fn build_harness_snapshot(
         .unwrap_or(Harness::Unknown),
         harness => harness,
     };
-    let setup_is_ready = |harness: Harness| !is_local || setup_state_for(harness).is_selectable();
+    let setup_is_ready = |harness: Harness| setup_state_for(harness).is_selectable();
 
     // Sort selectable harnesses before disabled ones, preserving
     // relative order within each group.
@@ -199,7 +129,7 @@ fn build_harness_snapshot(
         .iter()
         .filter(|entry| {
             let harness = resolve_entry_harness(entry.harness, &entry.display_name);
-            harness != Harness::Gemini && (!is_local || local_harness_is_product_enabled(harness))
+            harness != Harness::Gemini && local_harness_is_product_enabled(harness)
         })
         .collect();
     sorted.sort_by_key(|entry| {
@@ -216,16 +146,11 @@ fn build_harness_snapshot(
         let disabled_reason = if selectable {
             None
         } else {
-            let local_setup_state = if is_local {
-                Some(setup_state_for(harness))
-            } else {
-                None
-            };
             Some(
-                match local_setup_state {
-                    Some(LocalHarnessSetupState::MissingHarness { tooltip }) => tooltip,
-                    Some(LocalHarnessSetupState::ProductDisabled { message }) => message,
-                    Some(LocalHarnessSetupState::Ready) | None => "Disabled by your administrator",
+                match setup_state_for(harness) {
+                    LocalHarnessSetupState::MissingHarness { tooltip } => tooltip,
+                    LocalHarnessSetupState::ProductDisabled { message } => message,
+                    LocalHarnessSetupState::Ready => "Disabled by your administrator",
                 }
                 .to_string(),
             )
@@ -250,7 +175,6 @@ fn build_harness_snapshot(
             // show the correct name.
             label: entry.display_name.clone(),
             harness: Some(harness),
-            badge: None,
             disabled_reason,
         });
     }
@@ -261,7 +185,6 @@ fn build_harness_snapshot(
             status: OptionSourceStatus::Empty {
                 message: "No harnesses available".to_string(),
             },
-            footer: None,
         };
     }
     OptionSnapshot::ready(rows, selected_id)
@@ -276,19 +199,18 @@ struct ModelChoiceInput {
     disabled_reason: Option<String>,
 }
 
-/// Builds the model options for the active harness, mirroring the GUI's
-/// `populate_model_picker_for_harness` three catalog branches:
+/// Builds the model options for the active harness, in three catalog
+/// branches:
 /// - **Oz / empty**: the Warp LLM catalog (auto, then custom, then other
-///   models; custom models excluded for Cloud runs).
-/// - **Local Codex**: only a "Default model" entry.
-/// - **Other non-Oz harnesses**: "Default model" plus the server-provided
-///   harness model catalog.
+///   models).
+/// - **Codex**: only a "Default model" entry.
+/// - **Other non-Oz harnesses**: "Default model" plus the harness model
+///   catalog.
 pub fn model_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> OptionSnapshot {
-    let is_local = !state.execution_mode.is_remote();
     let harness = Harness::parse_orchestration_harness(&state.harness_type);
     match harness {
-        Some(Harness::Oz) | None => oz_model_snapshot(&state.model_id, is_local, ctx),
-        Some(Harness::Codex) if is_local => {
+        Some(Harness::Oz) | None => oz_model_snapshot(&state.model_id, ctx),
+        Some(Harness::Codex) => {
             // Local Codex: only "Default model" entry.
             OptionSnapshot::ready(
                 vec![OptionRow::new(String::new(), DEFAULT_MODEL_LABEL)],
@@ -313,19 +235,12 @@ pub fn model_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> Opt
     }
 }
 
-/// Builds the Oz model options available for the requested execution location.
-///
-/// Local execution includes custom models backed by local endpoints. Cloud
-/// execution excludes them because remote workers cannot reach those endpoints.
-pub fn oz_model_snapshot(
-    selected_model_id: &str,
-    is_local: bool,
-    ctx: &AppContext,
-) -> OptionSnapshot {
-    // Oz / unset: Warp LLM catalog. Custom models are excluded for cloud
-    // execution because remote workers cannot use local custom endpoints.
+/// Builds the Oz model options, including custom models backed by local
+/// endpoints.
+fn oz_model_snapshot(selected_model_id: &str, ctx: &AppContext) -> OptionSnapshot {
     let llm_prefs = LLMPreferences::as_ref(ctx);
-    let (auto_models, rest): (Vec<_>, Vec<_>) = get_base_model_choices(llm_prefs, is_local)
+    let (auto_models, rest): (Vec<_>, Vec<_>) = llm_prefs
+        .get_base_llm_choices_for_agent_mode()
         .partition(|llm| llm.id.as_str().starts_with("auto"));
     let (custom_models, other_models): (Vec<_>, Vec<_>) = rest
         .into_iter()
@@ -369,7 +284,6 @@ fn build_oz_model_snapshot(
             status: OptionSourceStatus::Empty {
                 message: "No models available".to_string(),
             },
-            footer: None,
         };
     }
     OptionSnapshot::ready(rows, selected_id)
@@ -396,156 +310,6 @@ fn build_non_oz_model_snapshot(
         Some(String::new())
     };
     OptionSnapshot::ready(rows, selected_id)
-}
-
-// ── API key ─────────────────────────────────────────────────────────
-
-/// Fetch state reduced to plain data for the pure API-key builder.
-enum AuthSecretNamesInput {
-    NotLoaded,
-    Failed,
-}
-
-/// Builds the API-key options: the "Skip (advanced)" (inherit) row.
-/// Status mirrors `AuthSecretFetchState`.
-pub fn api_key_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> OptionSnapshot {
-    let Some(harness) = Harness::parse_orchestration_harness(&state.harness_type) else {
-        return OptionSnapshot::ready(Vec::new(), None);
-    };
-    if harness == Harness::Oz {
-        return OptionSnapshot::ready(Vec::new(), None);
-    }
-    let names = match HarnessAvailabilityModel::as_ref(ctx).auth_secrets_for(harness) {
-        AuthSecretFetchState::NotFetched => AuthSecretNamesInput::NotLoaded,
-        AuthSecretFetchState::Failed(_) => AuthSecretNamesInput::Failed,
-    };
-    build_api_key_snapshot(names, &state.auth_secret_selection)
-}
-
-/// Pure core of [`api_key_snapshot`].
-fn build_api_key_snapshot(
-    names: AuthSecretNamesInput,
-    selection: &AuthSecretSelection,
-) -> OptionSnapshot {
-    let rows = vec![OptionRow::new(String::new(), AUTH_SECRET_INHERIT_LABEL)];
-    let status = match names {
-        AuthSecretNamesInput::NotLoaded => OptionSourceStatus::Loading,
-        AuthSecretNamesInput::Failed => OptionSourceStatus::Failed {
-            message: AUTH_SECRETS_LOAD_FAILED_MESSAGE.to_string(),
-        },
-    };
-    // The selection derives directly from the edit state. `Named` is kept
-    // even while the catalog is loading so a transient refresh never
-    // clears it; `Unset` has no selected row.
-    let selected_id = match selection {
-        AuthSecretSelection::Named(name) => Some(name.clone()),
-        AuthSecretSelection::Inherit => Some(String::new()),
-        AuthSecretSelection::Unset => None,
-    };
-    OptionSnapshot {
-        rows,
-        selected_id,
-        status,
-        footer: None,
-    }
-}
-
-// ── Host ────────────────────────────────────────────────────────────
-
-/// Builds the host options in the GUI host picker's order: workspace
-/// default (badged), warp, the recent custom slug (badged), then a
-/// custom-host text-entry footer.
-pub fn host_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> OptionSnapshot {
-    let default_host = resolve_default_host_slug();
-    let recent_host = resolve_recent_host_slug(ctx);
-    let connected_hosts: Vec<String> = Vec::new();
-    let current = match &state.execution_mode {
-        RunAgentsExecutionMode::Remote { worker_host, .. } if !worker_host.trim().is_empty() => {
-            worker_host.trim().to_string()
-        }
-        RunAgentsExecutionMode::Remote { .. } | RunAgentsExecutionMode::Local => {
-            ORCHESTRATION_WARP_WORKER_HOST.to_string()
-        }
-    };
-    build_host_snapshot(default_host, recent_host, connected_hosts, &current)
-}
-
-/// Pure core of [`host_snapshot`].
-fn build_host_snapshot(
-    default_host: Option<String>,
-    recent_host: Option<String>,
-    connected_hosts: Vec<String>,
-    current: &str,
-) -> OptionSnapshot {
-    let mut rows: Vec<OptionRow> = Vec::new();
-    let mut added_slugs: Vec<String> = Vec::new();
-    if let Some(slug) = default_host.filter(|s| !s.trim().is_empty()) {
-        rows.push(OptionRow {
-            badge: Some(OptionBadge::Default),
-            ..OptionRow::new(slug.clone(), slug.clone())
-        });
-        added_slugs.push(slug);
-    }
-    rows.push(OptionRow::new(
-        ORCHESTRATION_WARP_WORKER_HOST,
-        ORCHESTRATION_WARP_WORKER_HOST,
-    ));
-    added_slugs.push(ORCHESTRATION_WARP_WORKER_HOST.to_string());
-
-    for slug in connected_hosts {
-        if slug.trim().is_empty()
-            || added_slugs
-                .iter()
-                .any(|known| known.eq_ignore_ascii_case(&slug))
-        {
-            continue;
-        }
-        rows.push(OptionRow {
-            badge: Some(OptionBadge::Connected),
-            ..OptionRow::new(slug.clone(), slug.clone())
-        });
-        added_slugs.push(slug);
-    }
-    // `recent_host` already comes from the persisted last selection. Only add
-    // its row when the same slug was not emitted from a higher-priority source.
-    if let Some(slug) = recent_host.filter(|s| !s.trim().is_empty())
-        && !added_slugs
-            .iter()
-            .any(|known| known.eq_ignore_ascii_case(&slug))
-    {
-        rows.push(OptionRow {
-            badge: Some(OptionBadge::Recent),
-            ..OptionRow::new(slug.clone(), slug)
-        });
-    }
-    OptionSnapshot {
-        rows,
-        selected_id: Some(current.to_string()),
-        status: OptionSourceStatus::Ready,
-        footer: Some(OptionFooter::CustomText {
-            label: CUSTOM_HOST_LABEL.to_string(),
-        }),
-    }
-}
-
-// ── Runner ──────────────────────────────────────────────────────────
-
-/// Builds the runner options: just the "Use environment default" clear row.
-///
-/// Runners came from `FactoryClient::get_runners`, and this build has no server to answer
-/// it, so there is never anything to list. A config that still carries a `runner_id` from
-/// elsewhere selects nothing rather than a wrong row — the runner it names cannot be
-/// looked up here.
-pub fn build_runner_snapshot(current: &str) -> OptionSnapshot {
-    OptionSnapshot {
-        rows: vec![OptionRow::new(
-            String::new(),
-            ORCHESTRATION_RUNNER_NONE_LABEL,
-        )],
-        selected_id: current.is_empty().then(String::new),
-        status: OptionSourceStatus::Ready,
-        footer: None,
-    }
 }
 
 #[cfg(test)]

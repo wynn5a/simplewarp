@@ -556,9 +556,6 @@ impl TryFrom<AIAgentActionResult> for api::request::input::user_inputs::user_inp
             AIAgentActionResultType::ReadFiles(read_files_result) => {
                 Some(read_files_result.try_into()?)
             }
-            AIAgentActionResultType::UploadArtifact(upload_artifact_result) => {
-                Some(upload_artifact_result.try_into()?)
-            }
             AIAgentActionResultType::SearchCodebase(search_codebase_result) => {
                 Some(search_codebase_result.try_into()?)
             }

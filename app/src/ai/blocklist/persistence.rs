@@ -406,7 +406,6 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             | AIAgentActionType::CreateDocuments(_)
             | AIAgentActionType::ReadShellCommandOutput { .. }
             | AIAgentActionType::ReadSkill(_)
-            | AIAgentActionType::UploadArtifact(_)
             | AIAgentActionType::TransferShellCommandControlToUser { .. } => Self::NotPersisted,
             AIAgentActionType::UseComputer(req) => Self::UseComputer {
                 action_summary: req.action_summary.clone(),

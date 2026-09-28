@@ -11,7 +11,6 @@ use ai::agent::action_result::{
     RunAgentsResult,
 };
 use ai::agent::orchestration_config::OrchestrationConfig;
-use ai::skills::SkillReference;
 use futures::FutureExt;
 use futures::future::BoxFuture;
 use warp_cli::agent::Harness;
@@ -27,16 +26,18 @@ use crate::ai::agent::{
 };
 use crate::ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};
 use crate::ai::local_harness_setup::local_harness_product_disabled_message;
-use crate::ai::orchestration::{
-    OrchestrationConfigState, can_execute_with_auth_secret,
-    populate_default_auth_secret_for_execution,
-};
+use crate::ai::orchestration::OrchestrationConfigState;
 use crate::features::FeatureFlag;
 
 /// Per-child spawn timeout. If a child agent doesn't report back within
 /// this window (e.g. binary not found, server error), the slot is failed
 /// rather than hanging the "Spawning agents" UI indefinitely.
 const SPAWN_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Failure for a persisted server-resolved Remote `run_agents` call dispatched without
+/// the user re-accepting it (and so re-targeting it to local) in the confirmation card.
+const REMOTE_CHILD_AGENTS_UNSUPPORTED: &str =
+    "Remote child agents are not supported in this build.";
 
 /// Snapshot of an in-flight dispatch, carried through
 /// [`RunAgentsExecutorEvent::SpawningStarted`].
@@ -183,41 +184,23 @@ impl RunAgentsExecutor {
             .and_then(|c| c.run_id());
 
         let RunAgentsRequest {
-            execution_mode: run_execution_mode,
             harness_type,
             model_id,
-            skills,
             agent_run_configs,
             base_prompt,
-            harness_auth_secret_name,
             ..
         } = request;
 
         let mut slots: Vec<ChildSlot> = Vec::with_capacity(agent_run_configs.len());
         for cfg in &agent_run_configs {
             let prompt = compose_run_agents_child_prompt(&base_prompt, &cfg.prompt);
-            let mode = match run_agents_to_start_agent_mode(
-                &run_execution_mode,
-                &harness_type,
-                &model_id,
-                &skills,
-                harness_auth_secret_name.as_deref(),
-                cfg,
-            ) {
+            let mode = match run_agents_to_start_agent_mode(&harness_type, &model_id, cfg) {
                 Ok(mode) => mode,
                 Err(err) => {
                     slots.push(ChildSlot::Failed(err));
                     continue;
                 }
             };
-            if matches!(run_execution_mode, RunAgentsExecutionMode::Remote { .. })
-                && parent_run_id.is_none()
-            {
-                slots.push(ChildSlot::Failed(
-                    "Remote child agents require the parent run_id to be available.".to_string(),
-                ));
-                continue;
-            }
             let recv = self.start_agent_executor.update(ctx, |executor, exec_ctx| {
                 executor.dispatch(
                     cfg.name.clone(),
@@ -236,7 +219,6 @@ impl RunAgentsExecutor {
         let action_id_for_aggr = action_id.clone();
         let run_model_id = model_id.clone();
         let run_harness_type = harness_type.clone();
-        let run_execution_mode_for_aggr = run_execution_mode.clone();
         let parent_conversation_id_for_result = parent_conversation_id;
 
         ctx.spawn(
@@ -297,24 +279,10 @@ impl RunAgentsExecutor {
                     })
                     .collect();
                 me.record_launched_agents(parent_conversation_id_for_result, &agents);
-                let launched_mode = match &run_execution_mode_for_aggr {
-                    RunAgentsExecutionMode::Local => RunAgentsLaunchedExecutionMode::Local,
-                    RunAgentsExecutionMode::Remote {
-                        environment_id,
-                        worker_host,
-                        computer_use_enabled,
-                        runner_id,
-                    } => RunAgentsLaunchedExecutionMode::Remote {
-                        environment_id: environment_id.clone(),
-                        worker_host: worker_host.clone(),
-                        computer_use_enabled: *computer_use_enabled,
-                        runner_id: runner_id.clone(),
-                    },
-                };
                 let result = RunAgentsResult::Launched {
                     model_id: run_model_id,
                     harness_type: run_harness_type,
-                    execution_mode: launched_mode,
+                    execution_mode: RunAgentsLaunchedExecutionMode::Local,
                     agents,
                 };
                 me.pending.remove(&action_id_for_aggr);
@@ -388,7 +356,6 @@ impl RunAgentsExecutor {
         }
         let mut resolved_request = request.clone();
         resolve_request_from_approved_config(&mut resolved_request, input.conversation_id, ctx);
-        populate_default_auth_secret_for_execution(&mut resolved_request, ctx);
         if self
             .duplicate_launched_agents_reason(&resolved_request, input.conversation_id, ctx)
             .is_some()
@@ -427,7 +394,6 @@ fn approved_orchestration_config_can_autoexecute(
     let mut resolved_request = request.clone();
     resolve_request_from_approved_config(&mut resolved_request, parent_conversation_id, ctx)
         .is_some_and(|status| status.is_approved())
-        && can_execute_with_auth_secret(&resolved_request, ctx)
 }
 
 fn resolve_request_from_approved_config(
@@ -447,8 +413,8 @@ fn resolve_request_from_approved_config(
 /// Normalizes the request and returns a denial reason when launch is blocked.
 ///
 /// Autonomous agents always run: their calls may still inherit approved plan
-/// config fields and default auth secrets, but they bypass interactive policy
-/// denials because they cannot present a confirmation card.
+/// config fields, but they bypass interactive policy denials because they
+/// cannot present a confirmation card.
 fn prepare_request_for_execution(
     request: &mut RunAgentsRequest,
     parent_conversation_id: AIConversationId,
@@ -457,7 +423,6 @@ fn prepare_request_for_execution(
     ctx: &ModelContext<RunAgentsExecutor>,
 ) -> Option<String> {
     let status = resolve_request_from_approved_config(request, parent_conversation_id, ctx);
-    populate_default_auth_secret_for_execution(request, ctx);
     if let Some(reason) =
         duplicate_launched_agents_reason(request, parent_conversation_id, launched_agents, ctx)
     {
@@ -490,13 +455,6 @@ fn prepare_request_for_execution(
     {
         return Some(
             "Running child agents is disabled by the active execution profile.".to_string(),
-        );
-    }
-
-    if !can_execute_with_auth_secret(request, ctx) {
-        return Some(
-            "Cloud child agents using this harness require an API key before they can run."
-                .to_string(),
         );
     }
 
@@ -596,21 +554,20 @@ fn normalize_agent_name(name: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_ascii_lowercase())
 }
 
-/// Unconditionally overrides run-wide fields on a `RunAgentsRequest`
-/// from the approved orchestration config, delegating to
-/// `OrchestrationConfigState::override_from_approved_config`.
+/// Unconditionally overrides the run-wide model and harness on a
+/// `RunAgentsRequest` from the approved orchestration config, delegating to
+/// `OrchestrationConfigState::override_from_approved_config`. The execution
+/// mode is left alone: a persisted Remote request still fails at dispatch.
 fn resolve_request_from_config(request: &mut RunAgentsRequest, config: &OrchestrationConfig) {
     // The approved plan config is the source of truth for these run-wide fields,
     // so callers pass a mutable request and continue with the normalized value.
     let mut config_state = OrchestrationConfigState::from_run_agents_fields(
         Some(&request.model_id),
         Some(&request.harness_type),
-        &request.execution_mode,
     );
     config_state.override_from_approved_config(config);
     request.model_id = config_state.model_id;
     request.harness_type = config_state.harness_type;
-    request.execution_mode = config_state.execution_mode;
 }
 
 /// Defence-in-depth validation; mirrors the card view's
@@ -619,18 +576,16 @@ fn validate_request(request: &RunAgentsRequest) -> Result<(), String> {
     if request.agent_run_configs.is_empty() {
         return Err("orchestrate: empty agent_run_configs".to_string());
     }
-    if matches!(request.execution_mode, RunAgentsExecutionMode::Local)
-        && let Some(harness) = Harness::parse_local_child_harness(&request.harness_type)
+    match request.execution_mode {
+        RunAgentsExecutionMode::Local => {}
+        RunAgentsExecutionMode::Remote => {
+            return Err(REMOTE_CHILD_AGENTS_UNSUPPORTED.to_string());
+        }
+    }
+    if let Some(harness) = Harness::parse_local_child_harness(&request.harness_type)
         && let Some(message) = local_harness_product_disabled_message(harness)
     {
         return Err(message.to_string());
-    }
-    if matches!(
-        request.execution_mode,
-        RunAgentsExecutionMode::Remote { .. }
-    ) && request.harness_type.eq_ignore_ascii_case("opencode")
-    {
-        return Err("Remote child agents do not support the opencode harness yet.".to_string());
     }
     Ok(())
 }
@@ -648,90 +603,44 @@ pub fn compose_run_agents_child_prompt(base_prompt: &str, per_agent_prompt: &str
     }
 }
 
-/// Translates run-wide config into a per-child
-/// [`StartAgentExecutionMode`]. Returns `Err` for rejected
-/// combinations (e.g. OpenCode+Remote).
-///
-/// `run_auth_secret_name` is the managed-secret name the orchestration UI
-/// resolved for the run-wide harness; only Remote mode currently consumes
-/// it (Local children inherit auth from the user's shell environment).
+/// Translates run-wide config into a per-child local
+/// [`StartAgentExecutionMode`]. Returns `Err` for rejected combinations
+/// (a named-agent identity, or a product-disabled local harness).
 pub fn run_agents_to_start_agent_mode(
-    run_execution_mode: &RunAgentsExecutionMode,
     run_harness_type: &str,
     run_model_id: &str,
-    run_skills: &[SkillReference],
-    run_auth_secret_name: Option<&str>,
     cfg: &RunAgentsAgentRunConfig,
 ) -> Result<StartAgentExecutionMode, String> {
-    match run_execution_mode {
-        RunAgentsExecutionMode::Local => {
-            // Named-agent identity requires the public-API dispatch path, which
-            // only remote children use. Mirrors server-side validation.
-            if !cfg.agent_identity_uid.trim().is_empty() {
-                return Err(
-                    "agent_identity_uid requires remote execution; local child agents cannot \
-                     run as a different named agent."
-                        .to_string(),
-                );
-            }
-            let trimmed = run_harness_type.trim();
-            // Per-agent model_id overrides the batch-level run_model_id when set.
-            let effective_model_id = if !cfg.model_id.trim().is_empty() {
-                cfg.model_id.trim()
-            } else {
-                run_model_id.trim()
-            };
-            let model_id = (!effective_model_id.is_empty()).then(|| effective_model_id.to_string());
-            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("oz") {
-                Ok(StartAgentExecutionMode::Local {
-                    harness_type: None,
-                    model_id,
-                })
-            } else {
-                if let Some(harness) = Harness::parse_local_child_harness(trimmed)
-                    && let Some(message) = local_harness_product_disabled_message(harness)
-                {
-                    return Err(message.to_string());
-                }
-                Ok(StartAgentExecutionMode::Local {
-                    harness_type: Some(trimmed.to_string()),
-                    model_id,
-                })
-            }
+    // Named-agent identity required the server's public-API dispatch path.
+    if !cfg.agent_identity_uid.trim().is_empty() {
+        return Err(
+            "agent_identity_uid requires remote execution; local child agents cannot \
+             run as a different named agent."
+                .to_string(),
+        );
+    }
+    let trimmed = run_harness_type.trim();
+    // Per-agent model_id overrides the batch-level run_model_id when set.
+    let effective_model_id = if !cfg.model_id.trim().is_empty() {
+        cfg.model_id.trim()
+    } else {
+        run_model_id.trim()
+    };
+    let model_id = (!effective_model_id.is_empty()).then(|| effective_model_id.to_string());
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("oz") {
+        Ok(StartAgentExecutionMode::Local {
+            harness_type: None,
+            model_id,
+        })
+    } else {
+        if let Some(harness) = Harness::parse_local_child_harness(trimmed)
+            && let Some(message) = local_harness_product_disabled_message(harness)
+        {
+            return Err(message.to_string());
         }
-        RunAgentsExecutionMode::Remote {
-            environment_id,
-            worker_host,
-            computer_use_enabled,
-            runner_id,
-        } => {
-            // OpenCode is unsupported on Remote.
-            if run_harness_type.eq_ignore_ascii_case("opencode") {
-                return Err(
-                    "Remote child agents do not support the opencode harness yet.".to_string(),
-                );
-            }
-            // Per-agent model_id overrides the batch-level run_model_id when set.
-            let effective_model_id = if !cfg.model_id.trim().is_empty() {
-                cfg.model_id.clone()
-            } else {
-                run_model_id.to_string()
-            };
-            Ok(StartAgentExecutionMode::Remote {
-                environment_id: environment_id.clone(),
-                skill_references: run_skills.to_vec(),
-                model_id: effective_model_id,
-                computer_use_enabled: *computer_use_enabled,
-                worker_host: worker_host.clone(),
-                harness_type: run_harness_type.to_string(),
-                title: cfg.title.clone(),
-                auth_secret_name: run_auth_secret_name
-                    .map(str::to_string)
-                    .filter(|s| !s.trim().is_empty()),
-                runner_id: runner_id.clone(),
-                agent_identity_uid: Some(cfg.agent_identity_uid.clone())
-                    .filter(|s| !s.trim().is_empty()),
-            })
-        }
+        Ok(StartAgentExecutionMode::Local {
+            harness_type: Some(trimmed.to_string()),
+            model_id,
+        })
     }
 }

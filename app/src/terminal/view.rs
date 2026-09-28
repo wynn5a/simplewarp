@@ -1492,7 +1492,7 @@ pub enum Event {
     },
     OpenCodeReviewPaneAndScrollToComment {
         open_code_review: CodeReviewPanelArg,
-        comment: AttachedReviewComment,
+        comment: Box<AttachedReviewComment>,
         diff_mode: DiffMode,
     },
     ImportAllCodeReviewComments {
@@ -16203,7 +16203,7 @@ impl TerminalView {
                 let diff_mode = self.diff_mode_for_branch(base_branch.as_deref(), ctx);
                 ctx.emit(Event::OpenCodeReviewPaneAndScrollToComment {
                     open_code_review: arg,
-                    comment: (**comment).clone(),
+                    comment: comment.clone(),
                     diff_mode,
                 });
             }
@@ -18177,7 +18177,6 @@ impl TerminalView {
                 })
                 .collect(),
             plan_id: String::new(),
-            harness_auth_secret_name: None,
         };
 
         let output = AIAgentOutput {

@@ -25,8 +25,7 @@ use crate::agent::action_result::{
     RequestComputerUseResult, RequestFileEditsResult, RunAgentsResult, SearchCodebaseResult,
     SendMessageToAgentResult, StartRecordingResult, StopRecordingResult,
     SuggestNewConversationResult, SuggestPromptResult, TransferShellCommandControlToUserResult,
-    UploadArtifactResult, UseComputerResult, WaitForEventsResult,
-    WriteToLongRunningShellCommandResult,
+    UseComputerResult, WaitForEventsResult, WriteToLongRunningShellCommandResult,
 };
 use crate::agent::{AIAgentCitation, FileLocations};
 use crate::diff_validation::ParsedDiff;
@@ -70,9 +69,6 @@ pub enum AIAgentActionType {
 
     /// AI requested getting the content of some files.
     ReadFiles(ReadFilesRequest),
-
-    /// AI requested uploading a local file as a conversation artifact.
-    UploadArtifact(UploadArtifactRequest),
 
     SearchCodebase(SearchCodebaseRequest),
 
@@ -198,7 +194,7 @@ pub enum AIAgentActionType {
 /// Run-wide + per-agent configuration for a `RunAgents` tool call.
 ///
 /// Mirrors the proto `RunAgents` message. Server-resolved fields
-/// (`model_id`, `harness_type`, `execution_mode`'s remote details) are
+/// (`model_id`, `harness_type`, `execution_mode`) are
 /// folded in by the server's final tool-call re-emission once the
 /// payload is complete; the client renders the full layout from a
 /// fully-resolved instance only.
@@ -212,29 +208,14 @@ pub struct RunAgentsRequest {
     pub execution_mode: RunAgentsExecutionMode,
     pub agent_run_configs: Vec<RunAgentsAgentRunConfig>,
     pub plan_id: String,
-    /// Resolved client-side at dispatch time; not serialized to the wire.
-    pub harness_auth_secret_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum RunAgentsExecutionMode {
     Local,
-    Remote {
-        environment_id: String,
-        worker_host: String,
-        computer_use_enabled: bool,
-        /// Runner UID selecting the children's compute config (docker
-        /// image, instance shape, setup commands). Empty means "no
-        /// override" — fall back to the environment's default runner then
-        /// system defaults.
-        runner_id: String,
-    },
-}
-
-impl RunAgentsExecutionMode {
-    pub fn is_remote(&self) -> bool {
-        matches!(self, Self::Remote { .. })
-    }
+    /// A server-resolved remote run from persisted conversation data. This build has no
+    /// remote workers, so dispatching one fails; an edited request is always `Local`.
+    Remote,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -264,27 +245,6 @@ pub enum StartAgentExecutionMode {
         /// model id (used by the orchestrate confirmation card so the user's
         /// model selection is honored on local launches).
         model_id: Option<String>,
-    },
-    Remote {
-        environment_id: String,
-        skill_references: Vec<SkillReference>,
-        model_id: String,
-        computer_use_enabled: bool,
-        worker_host: String,
-        harness_type: String,
-        title: String,
-        /// Name of a managed secret to forward as the authentication
-        /// credential for the remote child when running a non-Oz harness.
-        /// `None` means no client-side secret was selected — the remote
-        /// environment falls back to its own ambient credentials.
-        auth_secret_name: Option<String>,
-        /// Runner UID selecting the child's compute config. Empty means
-        /// "no override" — resolved at dispatch via the environment's
-        /// default runner then system defaults.
-        runner_id: String,
-        /// UID of the named agent (service account) the remote child run
-        /// should execute as. `None` means the child runs as the caller.
-        agent_identity_uid: Option<String>,
     },
 }
 
@@ -322,9 +282,6 @@ impl AIAgentActionType {
                 AIAgentActionResultType::RequestFileEdits(RequestFileEditsResult::Cancelled)
             }
             Self::ReadFiles(..) => AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled),
-            Self::UploadArtifact(..) => {
-                AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Cancelled)
-            }
             Self::SearchCodebase(..) => {
                 AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
             }
@@ -410,7 +367,6 @@ impl AIAgentActionType {
                 "Write to long running shell command".to_string()
             }
             Self::ReadFiles(_) => "Read files".to_string(),
-            Self::UploadArtifact(_) => "Upload artifact".to_string(),
             Self::SearchCodebase(_) => "Search codebase".to_string(),
             Self::RequestFileEdits { file_edits, .. } => {
                 let file_names = file_edits.iter().filter_map(|edit| edit.file()).join(", ");
@@ -477,9 +433,6 @@ impl Display for AIAgentActionType {
                 )
             }
             AIAgentActionType::ReadFiles(request) => {
-                write!(f, "{request}")
-            }
-            AIAgentActionType::UploadArtifact(request) => {
                 write!(f, "{request}")
             }
             AIAgentActionType::SearchCodebase(request) => {
@@ -707,18 +660,6 @@ impl Display for ReadFilesRequest {
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "ReadFiles: [{file_names}]")
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct UploadArtifactRequest {
-    pub file_path: String,
-    pub description: Option<String>,
-}
-
-impl Display for UploadArtifactRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UploadArtifact: {}", self.file_path)
     }
 }
 

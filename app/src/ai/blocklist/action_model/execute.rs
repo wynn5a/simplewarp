@@ -76,7 +76,7 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
     AIAgentActionType, AIAgentActionTypeDiscriminants, AnyFileContent, CancellationReason,
-    FileContext, FileLocations, ReadFilesFailedFile, ServerOutputId, UploadArtifactResult,
+    FileContext, FileLocations, ReadFilesFailedFile, ServerOutputId,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
@@ -473,7 +473,6 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::ReadFiles(..) => self
                 .read_files_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::UploadArtifact(..) => futures::future::ready(()).boxed(),
             AIAgentActionType::SearchCodebase(..) => self
                 .search_codebase_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
@@ -646,12 +645,6 @@ impl BlocklistAIActionExecutor {
                 .read_files_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
-            AIAgentActionType::UploadArtifact(..) => ActionExecution::<()>::Sync(
-                AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Error(
-                    "Current conversation has not been synced to the server yet".to_string(),
-                )),
-            )
-            .into(),
             AIAgentActionType::SearchCodebase(..) => self
                 .search_codebase_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
@@ -920,7 +913,6 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::ReadFiles(_) => self
                 .read_files_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::UploadArtifact(_) => false,
             AIAgentActionType::SearchCodebase(_) => self
                 .search_codebase_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),

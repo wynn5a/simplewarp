@@ -83,7 +83,7 @@ fn test_convert_tool_call_result_to_input_transfer_control_snapshot() {
 }
 
 #[test]
-fn test_convert_tool_call_result_to_input_upload_artifact_success() {
+fn test_convert_tool_call_result_to_input_upload_artifact_is_dropped() {
     let task_id = crate::ai::agent::task::TaskId::new("task".to_string());
     let mut document_versions = HashMap::new();
     let tool_call_result = api::message::ToolCallResult {
@@ -107,63 +107,9 @@ fn test_convert_tool_call_result_to_input_upload_artifact_success() {
         &tool_call_result,
         &HashMap::new(),
         &mut document_versions,
-    )
-    .unwrap();
+    );
 
-    match input {
-        AIAgentInput::ActionResult { result, .. } => match result.result {
-            crate::ai::agent::AIAgentActionResultType::UploadArtifact(
-                crate::ai::agent::UploadArtifactResult::Success {
-                    artifact_uid,
-                    filepath,
-                    mime_type,
-                    description,
-                    size_bytes,
-                },
-            ) => {
-                assert_eq!(artifact_uid, "artifact-123");
-                assert_eq!(filepath, None);
-                assert_eq!(mime_type, "text/plain");
-                assert_eq!(description, None);
-                assert_eq!(size_bytes, 42);
-            }
-            other => panic!("Expected upload-artifact success result, got {other:?}"),
-        },
-        other => panic!("Expected action-result input, got {other:?}"),
-    }
-}
-
-#[test]
-fn test_convert_tool_call_result_to_input_upload_artifact_missing_result_is_error() {
-    let task_id = crate::ai::agent::task::TaskId::new("task".to_string());
-    let mut document_versions = HashMap::new();
-    let tool_call_result = api::message::ToolCallResult {
-        tool_call_id: "tool_call".to_string(),
-        context: None,
-        result: Some(api::message::tool_call_result::Result::UploadFileArtifact(
-            api::UploadFileArtifactResult { result: None },
-        )),
-    };
-
-    let input = convert_tool_call_result_to_input(
-        &task_id,
-        &tool_call_result,
-        &HashMap::new(),
-        &mut document_versions,
-    )
-    .unwrap();
-
-    match input {
-        AIAgentInput::ActionResult { result, .. } => match result.result {
-            crate::ai::agent::AIAgentActionResultType::UploadArtifact(
-                crate::ai::agent::UploadArtifactResult::Error(message),
-            ) => {
-                assert_eq!(message, "Upload artifact tool call returned no result");
-            }
-            other => panic!("Expected upload-artifact error result, got {other:?}"),
-        },
-        other => panic!("Expected action-result input, got {other:?}"),
-    }
+    assert!(input.is_none());
 }
 
 #[test]

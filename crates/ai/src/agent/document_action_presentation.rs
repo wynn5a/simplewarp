@@ -101,7 +101,6 @@ impl DocumentActionPresentation {
                 AIAgentActionType::RequestCommandOutput { .. }
                 | AIAgentActionType::WriteToLongRunningShellCommand { .. }
                 | AIAgentActionType::ReadFiles(_)
-                | AIAgentActionType::UploadArtifact(_)
                 | AIAgentActionType::SearchCodebase(_)
                 | AIAgentActionType::RequestFileEdits { .. }
                 | AIAgentActionType::Grep { .. }

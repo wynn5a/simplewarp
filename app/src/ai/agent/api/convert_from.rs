@@ -96,14 +96,7 @@ fn convert_run_agents_execution_mode(
     execution_mode: Option<api::run_agents::ExecutionModeOneOf>,
 ) -> RunAgentsExecutionMode {
     match execution_mode {
-        Some(api::run_agents::ExecutionModeOneOf::Remote(remote)) => {
-            RunAgentsExecutionMode::Remote {
-                environment_id: remote.environment_id,
-                worker_host: remote.worker_host,
-                computer_use_enabled: remote.computer_use_enabled,
-                runner_id: remote.runner_id,
-            }
-        }
+        Some(api::run_agents::ExecutionModeOneOf::Remote(_)) => RunAgentsExecutionMode::Remote,
         Some(api::run_agents::ExecutionModeOneOf::Local(_)) | None => RunAgentsExecutionMode::Local,
     }
 }
@@ -143,10 +136,6 @@ fn convert_run_agents(
             })
             .collect(),
         plan_id,
-        // Auth secret is a client-side dispatch concern populated by the
-        // confirmation card from `CloudAgentSettings.last_selected_auth_secret`
-        // before Accept. The proto does not carry it.
-        harness_auth_secret_name: None,
     })
 }
 
@@ -654,8 +643,9 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             api::message::tool_call::Tool::ReadFiles(read_files) => {
                 create_standard_action(read_files.into())
             }
-            api::message::tool_call::Tool::UploadFileArtifact(upload_file_artifact) => {
-                create_standard_action(upload_file_artifact.try_into()?)
+            // Server-offered upload to server artifact storage; persisted calls are not shown.
+            api::message::tool_call::Tool::UploadFileArtifact(_) => {
+                Ok(MaybeAIAgentAction::NoClientRepresentation)
             }
             api::message::tool_call::Tool::SearchCodebase(search_codebase) => {
                 create_standard_action(search_codebase.into())

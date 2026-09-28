@@ -217,43 +217,6 @@ impl TryFrom<ReadFilesResult> for api::request::input::tool_call_result::Result 
     }
 }
 
-impl TryFrom<UploadArtifactResult> for api::request::input::tool_call_result::Result {
-    type Error = ConvertToAPITypeError;
-
-    fn try_from(result: UploadArtifactResult) -> Result<Self, Self::Error> {
-        match result {
-            UploadArtifactResult::Success {
-                artifact_uid,
-                mime_type,
-                size_bytes,
-                ..
-            } => Ok(
-                api::request::input::tool_call_result::Result::UploadFileArtifact(
-                    api::UploadFileArtifactResult {
-                        result: Some(api::upload_file_artifact_result::Result::Success(
-                            api::upload_file_artifact_result::Success {
-                                artifact_uid,
-                                mime_type,
-                                size_bytes,
-                            },
-                        )),
-                    },
-                ),
-            ),
-            UploadArtifactResult::Error(message) => Ok(
-                api::request::input::tool_call_result::Result::UploadFileArtifact(
-                    api::UploadFileArtifactResult {
-                        result: Some(api::upload_file_artifact_result::Result::Error(
-                            api::upload_file_artifact_result::Error { message },
-                        )),
-                    },
-                ),
-            ),
-            UploadArtifactResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
-        }
-    }
-}
-
 impl TryFrom<SearchCodebaseResult> for api::request::input::tool_call_result::Result {
     type Error = ConvertToAPITypeError;
 

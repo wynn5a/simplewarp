@@ -625,6 +625,41 @@ Queue, in order:
    already fail with "not supported in this build"); `ScheduledAmbientAgent` (server-scheduled);
    `UploadFileArtifact` tool-call conversion; conversation-list Screenshot / File artifact filters.
 
+19. ~~Cloud/Remote orchestration mode, scheduled agents, upload-artifact conversion~~ — **4hh done
+   (2026-09-28).** −5.3k lines in 59 files. Orchestration is local-only: the Local/Cloud toggle,
+   host / runner / API-key pickers (`host_picker.rs`, runner + auth-secret snapshots, auto-open
+   create-key stubs), `OrchestrationConfigState::execution_mode` / `auth_secret_selection` /
+   `AuthSecretSelection`, the host/secret providers, `CloudAgentSettings` (five private keys, none
+   read elsewhere), `HarnessAvailabilityModel` auth-secret state and its event,
+   `RunAgentsRequest::harness_auth_secret_name`, `StartAgentExecutionMode::Remote` (dispatch already
+   failed "not supported in this build"), the unused `matches_active_config`, and the test-only
+   `ensure_remote_child_conversation`; every `is_local` catalog branch collapsed to local.
+   Persisted shapes: `OrchestrationConfig` drops its execution mode (a stale Remote config reads as
+   local; `to_proto` writes Local); `RunAgentsExecutionMode::Remote` stays as a field-less marker
+   from stale tool calls — the confirmation card edits and accepts it as a local run, while an
+   unattended dispatch (autonomous / always-allow / approved plan) fails with "Remote child agents
+   are not supported in this build."; `RunAgentsLaunchedExecutionMode::Remote` (serde) kept.
+   `ScheduledAmbientAgent` + its Cloud aliases and app `StringModel` glue gone, stale
+   `SCHEDULEDAMBIENTAGENT` rows skipped at load; `SourceRepo` kept (`AgentConfigSnapshot` still
+   reads it); `scheduled_ambient_agent.rs` → `agent_config_snapshot.rs`. `UploadFileArtifact`
+   (server-offered upload to server storage): `AIAgentActionType::UploadArtifact`,
+   `UploadArtifactResult`, the card, CLI text/JSON output, redaction, executor stub; persisted calls
+   and results now have no client representation (proto-level YAML export untouched).
+   `ArtifactFilter::Screenshot` / `File` are left: persisted artifacts still load, and the filter
+   is only ever `All` (the loaded snapshot deserializes with `.ok()`). Clippy: boxed
+   `terminal::view::Event::OpenCodeReviewPaneAndScrollToComment::comment` (`large_enum_variant`
+   after the Remote payloads shrank the runner-up). Tests 4,152 default / 4,153 simplewarp (−59,
+   deleted with their code: 11 host picker, 13 card remote/runner/toggle, 7 remote start-mode, 7
+   host/api-key/cloud snapshot, 5 edit-state toggle/secret, 3+2 validation/config toggles, 5
+   run_agents auth-secret (+1 persisted-Remote refusal), 3+1+1 upload artifact, 1 runner flag, 1
+   `ensure_remote_child_conversation`), `ai` −14 (remote match / round-trip),
+   ai + cloud_object_models + cloud_objects 204 passed, 0 failed. Follow-ups: stale remote-child
+   rows (`is_remote_child` readers: pill-bar cloud badge, restoration skip, cloud-cancel candidate;
+   test-only `mark_conversation_as_remote_child`, `start_new_child_conversation`'s always-false
+   `is_remote`); `ArtifactFilter` itself (never set but `All`); `RunAgentsAgentRunConfig::
+   agent_identity_uid` (wire field, locally always rejected); the `from_restore` flag on
+   `OrchestrationConfigUpdated` (its only UI consumer, the create-key auto-open, is gone).
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

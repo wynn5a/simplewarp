@@ -110,19 +110,6 @@ fn convert_api_question_uses_zero_based_recommended_index_when_present() {
     assert!(!options[1].recommended);
 }
 
-fn extract_upload_artifact_action(output: MaybeAIAgentOutputMessage) -> (String, Option<String>) {
-    let MaybeAIAgentOutputMessage::Message(output_message) = output else {
-        panic!("expected output message");
-    };
-    let AIAgentOutputMessageType::Action(action) = output_message.message else {
-        panic!("expected action output message");
-    };
-    let AIAgentActionType::UploadArtifact(request) = action.action else {
-        panic!("expected UploadArtifact action");
-    };
-    (request.file_path, request.description)
-}
-
 fn extract_file_artifact_created(
     output: MaybeAIAgentOutputMessage,
 ) -> (String, String, Option<String>, i64) {
@@ -146,7 +133,7 @@ fn extract_file_artifact_created(
 }
 
 #[test]
-fn converts_upload_artifact_tool_call_to_action() {
+fn upload_artifact_tool_call_has_no_client_representation() {
     let task_id = TaskId::new("task-id".to_string());
     let message = upload_artifact_tool_call_message(
         "/tmp/build/output.log",
@@ -162,13 +149,10 @@ fn converts_upload_artifact_tool_call_to_action() {
         })
         .expect("conversion should succeed");
 
-    let (file_path, description) = extract_upload_artifact_action(output);
-
-    assert_eq!(file_path, "/tmp/build/output.log");
-    assert_eq!(
-        description.as_deref(),
-        Some("Build output for the latest run")
-    );
+    assert!(matches!(
+        output,
+        MaybeAIAgentOutputMessage::NoClientRepresentation
+    ));
 }
 
 #[test]

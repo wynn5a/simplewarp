@@ -11,6 +11,7 @@
 // code from the persistence modules is imported with fully-qualified paths.
 #![allow(ambiguous_glob_reexports)]
 
+pub mod agent_config_snapshot;
 pub mod ai_execution_profile;
 pub mod ai_fact;
 pub mod cloud_agent_config;
@@ -20,11 +21,11 @@ pub mod json_model;
 pub mod mcp;
 pub mod notebook;
 pub mod preference;
-pub mod scheduled_ambient_agent;
 pub mod source_repo;
 pub mod workflow;
 pub mod workflow_enum;
 
+pub use agent_config_snapshot::*;
 pub use ai_execution_profile::*;
 pub use ai_fact::*;
 pub use cloud_agent_config::*;
@@ -34,7 +35,6 @@ pub use json_model::*;
 pub use mcp::*;
 pub use notebook::*;
 pub use preference::*;
-pub use scheduled_ambient_agent::*;
 pub use source_repo::*;
 pub use workflow::*;
 pub use workflow_enum::*;

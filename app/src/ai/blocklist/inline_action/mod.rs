@@ -1,7 +1,6 @@
 pub(crate) mod ask_user_question_view;
 pub(crate) mod code_diff_view;
 pub(crate) mod create_or_edit_document;
-pub(crate) mod host_picker;
 pub(crate) mod inline_action_header;
 pub(crate) mod inline_action_icons;
 pub(crate) mod orchestration_controls;

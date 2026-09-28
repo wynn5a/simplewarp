@@ -37,7 +37,7 @@ use crate::ai::agent::{
     RequestCommandOutputResult, RequestFileEditsResult, SearchCodebaseFailureReason,
     SearchCodebaseResult, ServerOutputId, Shared, ShellCommandError, SuggestNewConversationResult,
     SuggestPromptResult, TransferShellCommandControlToUserResult, UpdatedFileContext,
-    UploadArtifactResult, UserQueryMode, WriteToLongRunningShellCommandResult,
+    UserQueryMode, WriteToLongRunningShellCommandResult,
 };
 use crate::ai::block_context::BlockContext;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
@@ -619,34 +619,9 @@ pub(crate) fn convert_tool_call_result_to_input(
                 context,
             })
         }
-        Some(ToolCallResultType::UploadFileArtifact(result)) => {
-            let upload_result = match &result.result {
-                Some(api::upload_file_artifact_result::Result::Success(success)) => {
-                    UploadArtifactResult::Success {
-                        artifact_uid: success.artifact_uid.clone(),
-                        filepath: None,
-                        mime_type: success.mime_type.clone(),
-                        description: None,
-                        size_bytes: success.size_bytes,
-                    }
-                }
-                Some(api::upload_file_artifact_result::Result::Error(error)) => {
-                    UploadArtifactResult::Error(error.message.clone())
-                }
-                None => UploadArtifactResult::Error(
-                    "Upload artifact tool call returned no result".to_string(),
-                ),
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::UploadArtifact(upload_result),
-                },
-                context,
-            })
-        }
+        // Uploads went to server artifact storage; persisted results have no client
+        // representation.
+        Some(ToolCallResultType::UploadFileArtifact(_)) => None,
         Some(ToolCallResultType::SearchCodebase(result)) => {
             let search_result = match &result.result {
                 Some(api::search_codebase_result::Result::Success(success)) => {
@@ -1689,9 +1664,7 @@ fn create_cancelled_result_for_tool_call(
             )
         }
         ToolType::ReadFiles(_) => AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled),
-        ToolType::UploadFileArtifact(_) => {
-            AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Cancelled)
-        }
+        ToolType::UploadFileArtifact(_) => return None,
         ToolType::SearchCodebase(_) => {
             AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
         }

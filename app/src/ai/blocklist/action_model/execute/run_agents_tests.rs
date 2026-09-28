@@ -1,10 +1,5 @@
-use std::collections::HashMap;
-
 use ai::agent::action::{RunAgentsAgentRunConfig, RunAgentsExecutionMode, RunAgentsRequest};
-use ai::agent::orchestration_config::{
-    OrchestrationConfig, OrchestrationConfigStatus, OrchestrationExecutionMode,
-};
-use settings::Setting;
+use ai::agent::orchestration_config::{OrchestrationConfig, OrchestrationConfigStatus};
 use warp_core::execution_mode::ExecutionMode;
 use warp_core::features::FeatureFlag;
 use warpui::{App, Entity, EntityId, ModelHandle};
@@ -15,12 +10,10 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::blocklist::{
     BlocklistAIHistoryModel, BlocklistAIPermissions, StartAgentExecutorEvent, StartAgentRequest,
 };
-use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::execution_profiles::RunAgentsPermission;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManager;
-use crate::ai::orchestration::populate_default_auth_secret_for_execution;
 use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
@@ -78,11 +71,6 @@ fn persist_plan_config_with_harness(
                 OrchestrationConfig {
                     model_id: "auto".to_string(),
                     harness_type: harness_type.to_string(),
-                    execution_mode: OrchestrationExecutionMode::Remote {
-                        environment_id: "env-1".to_string(),
-                        worker_host: "warp".to_string(),
-                        runner_id: String::new(),
-                    },
                 },
                 status,
             );
@@ -105,7 +93,7 @@ fn should_autoexecute_duplicate_launched_agent_denial() {
                 }],
             );
         });
-        let action = remote_run_agents_action("oz");
+        let action = run_agents_action("oz");
 
         let should_autoexecute = state.executor.update(&mut app, |executor, ctx| {
             executor.should_autoexecute(
@@ -137,7 +125,7 @@ fn execute_denies_duplicate_launched_agent() {
                 }],
             );
         });
-        let action = with_agent_name(remote_run_agents_action("oz"), "Child");
+        let action = with_agent_name(run_agents_action("oz"), "Child");
 
         let execution = state.executor.update(&mut app, |executor, ctx| {
             executor
@@ -212,7 +200,7 @@ fn subscribe_to_start_agent_requests(
     captured
 }
 
-fn remote_run_agents_action(harness_type: &str) -> AIAgentAction {
+fn run_agents_action(harness_type: &str) -> AIAgentAction {
     AIAgentAction {
         id: AIAgentActionId::from("run-agents-action".to_string()),
         task_id: TaskId::new("run-agents-task".to_string()),
@@ -223,12 +211,7 @@ fn remote_run_agents_action(harness_type: &str) -> AIAgentAction {
             skills: vec![],
             model_id: String::new(),
             harness_type: harness_type.to_string(),
-            execution_mode: RunAgentsExecutionMode::Remote {
-                environment_id: "env-1".to_string(),
-                worker_host: "warp".to_string(),
-                computer_use_enabled: false,
-                runner_id: String::new(),
-            },
+            execution_mode: RunAgentsExecutionMode::Local,
             agent_run_configs: vec![RunAgentsAgentRunConfig {
                 name: "child".to_string(),
                 prompt: "Help".to_string(),
@@ -237,7 +220,6 @@ fn remote_run_agents_action(harness_type: &str) -> AIAgentAction {
                 model_id: String::new(),
             }],
             plan_id: String::new(),
-            harness_auth_secret_name: None,
         }),
     }
 }
@@ -261,15 +243,8 @@ fn local_codex_run_agents_maps_to_local_harness_mode_when_flag_enabled() {
         model_id: String::new(),
     };
 
-    let mode = run_agents_to_start_agent_mode(
-        &RunAgentsExecutionMode::Local,
-        "codex",
-        "",
-        &[],
-        None,
-        &cfg,
-    )
-    .expect("local Codex should be accepted when the feature flag is enabled");
+    let mode = run_agents_to_start_agent_mode("codex", "", &cfg)
+        .expect("local Codex should be accepted when the feature flag is enabled");
 
     assert_eq!(
         mode,
@@ -278,21 +253,6 @@ fn local_codex_run_agents_maps_to_local_harness_mode_when_flag_enabled() {
             model_id: None,
         }
     );
-}
-
-fn persist_default_auth_secret(app: &mut App, harness_config_name: &str, secret_name: &str) {
-    CloudAgentSettings::handle(app).update(app, |settings, ctx| {
-        let mut secrets = settings.last_selected_auth_secret.value().clone();
-        secrets.insert(harness_config_name.to_string(), secret_name.to_string());
-        settings
-            .last_selected_auth_secret
-            .set_value(secrets, ctx)
-            .unwrap();
-        settings
-            .inherit_auth_secret_harnesses
-            .set_value(HashMap::new(), ctx)
-            .unwrap();
-    });
 }
 
 #[test]
@@ -305,7 +265,7 @@ fn should_autoexecute_when_plan_has_approved_orchestration_config() {
             "plan-1",
             OrchestrationConfigStatus::Approved,
         );
-        let action = with_plan_id(remote_run_agents_action("oz"), "plan-1");
+        let action = with_plan_id(run_agents_action("oz"), "plan-1");
 
         let should_autoexecute = state.executor.update(&mut app, |executor, ctx| {
             executor.should_autoexecute(
@@ -322,33 +282,6 @@ fn should_autoexecute_when_plan_has_approved_orchestration_config() {
 }
 
 #[test]
-fn should_not_autoexecute_approved_remote_non_warp_plan_without_default_auth_secret() {
-    App::test((), |mut app| async move {
-        let state = initialize_run_agents_test(&mut app, ExecutionMode::App);
-        persist_plan_config_with_harness(
-            &mut app,
-            state.conversation_id,
-            "plan-1",
-            "codex",
-            OrchestrationConfigStatus::Approved,
-        );
-        let action = with_plan_id(remote_run_agents_action("oz"), "plan-1");
-
-        let should_autoexecute = state.executor.update(&mut app, |executor, ctx| {
-            executor.should_autoexecute(
-                ExecuteActionInput {
-                    action: &action,
-                    conversation_id: state.conversation_id,
-                },
-                ctx,
-            )
-        });
-
-        assert!(!should_autoexecute);
-    });
-}
-
-#[test]
 fn execute_denies_disapproved_plan_config() {
     App::test((), |mut app| async move {
         let state = initialize_run_agents_test(&mut app, ExecutionMode::App);
@@ -358,7 +291,7 @@ fn execute_denies_disapproved_plan_config() {
             "plan-1",
             OrchestrationConfigStatus::Disapproved,
         );
-        let action = with_plan_id(remote_run_agents_action("oz"), "plan-1");
+        let action = with_plan_id(run_agents_action("oz"), "plan-1");
 
         let execution = state.executor.update(&mut app, |executor, ctx| {
             executor
@@ -387,7 +320,7 @@ fn execute_denies_never_allow_profile_setting() {
     App::test((), |mut app| async move {
         let state = initialize_run_agents_test(&mut app, ExecutionMode::App);
         set_run_agents_permission(&mut app, RunAgentsPermission::NeverAllow);
-        let action = remote_run_agents_action("oz");
+        let action = run_agents_action("oz");
 
         let execution = state.executor.update(&mut app, |executor, ctx| {
             executor
@@ -415,11 +348,11 @@ fn execute_denies_never_allow_profile_setting() {
 }
 
 #[test]
-fn autonomous_mode_autoexecutes_and_does_not_deny_missing_api_key() {
+fn autonomous_mode_autoexecutes_despite_never_allow_profile() {
     App::test((), |mut app| async move {
         let state = initialize_run_agents_test(&mut app, ExecutionMode::Sdk);
         set_run_agents_permission(&mut app, RunAgentsPermission::NeverAllow);
-        let action = remote_run_agents_action("codex");
+        let action = run_agents_action("oz");
 
         let should_autoexecute = state.executor.update(&mut app, |executor, ctx| {
             executor.should_autoexecute(
@@ -457,11 +390,7 @@ fn execute_dispatches_children_without_waiting_on_plans() {
             model.create_document("Second plan", "# Second", state.conversation_id, None, ctx);
         });
         let captured = subscribe_to_start_agent_requests(&mut app, &state.start_agent_executor);
-        let mut action = remote_run_agents_action("oz");
-        let AIAgentActionType::RunAgents(request) = &mut action.action else {
-            panic!("expected run_agents action");
-        };
-        request.execution_mode = RunAgentsExecutionMode::Local;
+        let action = run_agents_action("oz");
         let action_id = action.id.clone();
 
         let execution = state.executor.update(&mut app, |executor, ctx| {
@@ -501,7 +430,7 @@ fn set_run_agents_permission(app: &mut App, permission: RunAgentsPermission) {
 fn should_not_autoexecute_without_approved_plan_or_always_allow_profile() {
     App::test((), |mut app| async move {
         let state = initialize_run_agents_test(&mut app, ExecutionMode::App);
-        let action = remote_run_agents_action("oz");
+        let action = run_agents_action("oz");
 
         let should_autoexecute = state.executor.update(&mut app, |executor, ctx| {
             executor.should_autoexecute(
@@ -535,7 +464,7 @@ fn should_autoexecute_for_child_conversation_without_plan_or_profile() {
                     ctx,
                 )
             });
-        let action = remote_run_agents_action("oz");
+        let action = run_agents_action("oz");
 
         let should_autoexecute = state.executor.update(&mut app, |executor, ctx| {
             executor.should_autoexecute(
@@ -567,7 +496,7 @@ fn child_run_agents_executes_when_multi_level_orchestration_enabled() {
                     ctx,
                 )
             });
-        let action = remote_run_agents_action("oz");
+        let action = run_agents_action("oz");
 
         let should_autoexecute = state.executor.update(&mut app, |executor, ctx| {
             executor.should_autoexecute(
@@ -611,7 +540,7 @@ fn execute_denies_child_run_agents_when_multi_level_orchestration_disabled() {
                     ctx,
                 )
             });
-        let action = remote_run_agents_action("oz");
+        let action = run_agents_action("oz");
 
         // Auto-execution still bypasses the confirmation card (invisible in a
         // hidden pane) so the denial below renders instead of hanging the run.
@@ -651,42 +580,11 @@ fn execute_denies_child_run_agents_when_multi_level_orchestration_disabled() {
 }
 
 #[test]
-fn execute_denies_remote_non_warp_harness_without_default_auth_secret() {
-    App::test((), |mut app| async move {
-        let state = initialize_run_agents_test(&mut app, ExecutionMode::App);
-        let action = remote_run_agents_action("codex");
-
-        let execution = state.executor.update(&mut app, |executor, ctx| {
-            executor
-                .execute(
-                    ExecuteActionInput {
-                        action: &action,
-                        conversation_id: state.conversation_id,
-                    },
-                    ctx,
-                )
-                .into()
-        });
-
-        let AnyActionExecution::Sync(AIAgentActionResultType::RunAgents(RunAgentsResult::Denied {
-            reason,
-        })) = execution
-        else {
-            panic!("expected synchronous run_agents denial");
-        };
-        assert_eq!(
-            reason,
-            "Cloud child agents using this harness require an API key before they can run."
-        );
-    });
-}
-
-#[test]
-fn should_autoexecute_remote_non_warp_harness_with_always_allow_even_without_default_auth_secret() {
+fn should_autoexecute_with_always_allow_profile() {
     App::test((), |mut app| async move {
         let state = initialize_run_agents_test(&mut app, ExecutionMode::App);
         set_run_agents_permission(&mut app, RunAgentsPermission::AlwaysAllow);
-        let action = remote_run_agents_action("codex");
+        let action = run_agents_action("oz");
 
         let should_autoexecute = state.executor.update(&mut app, |executor, ctx| {
             executor.should_autoexecute(
@@ -703,65 +601,14 @@ fn should_autoexecute_remote_non_warp_harness_with_always_allow_even_without_def
 }
 
 #[test]
-fn should_autoexecute_remote_non_warp_harness_with_default_auth_secret() {
-    App::test((), |mut app| async move {
-        let state = initialize_run_agents_test(&mut app, ExecutionMode::App);
-        set_run_agents_permission(&mut app, RunAgentsPermission::AlwaysAllow);
-        persist_default_auth_secret(&mut app, "codex", "default-openai-key");
-        let action = remote_run_agents_action("codex");
+fn validate_request_refuses_persisted_remote_request() {
+    let AIAgentActionType::RunAgents(mut request) = run_agents_action("oz").action else {
+        panic!("expected run_agents action");
+    };
+    request.execution_mode = RunAgentsExecutionMode::Remote;
 
-        let should_autoexecute = state.executor.update(&mut app, |executor, ctx| {
-            executor.should_autoexecute(
-                ExecuteActionInput {
-                    action: &action,
-                    conversation_id: state.conversation_id,
-                },
-                ctx,
-            )
-        });
-
-        assert!(should_autoexecute);
-    });
-}
-
-#[test]
-fn should_autoexecute_remote_warp_harness_without_default_auth_secret() {
-    App::test((), |mut app| async move {
-        let state = initialize_run_agents_test(&mut app, ExecutionMode::App);
-        set_run_agents_permission(&mut app, RunAgentsPermission::AlwaysAllow);
-        let action = remote_run_agents_action("oz");
-
-        let should_autoexecute = state.executor.update(&mut app, |executor, ctx| {
-            executor.should_autoexecute(
-                ExecuteActionInput {
-                    action: &action,
-                    conversation_id: state.conversation_id,
-                },
-                ctx,
-            )
-        });
-
-        assert!(should_autoexecute);
-    });
-}
-
-#[test]
-fn populate_default_auth_secret_for_autoexecute_uses_persisted_secret() {
-    App::test((), |mut app| async move {
-        let state = initialize_run_agents_test(&mut app, ExecutionMode::App);
-        persist_default_auth_secret(&mut app, "claude", "default-anthropic-key");
-        let AIAgentActionType::RunAgents(mut request) = remote_run_agents_action("claude").action
-        else {
-            panic!("expected run_agents action");
-        };
-
-        state.executor.update(&mut app, |_, ctx| {
-            populate_default_auth_secret_for_execution(&mut request, ctx);
-        });
-
-        assert_eq!(
-            request.harness_auth_secret_name.as_deref(),
-            Some("default-anthropic-key")
-        );
-    });
+    assert_eq!(
+        validate_request(&request),
+        Err(REMOTE_CHILD_AGENTS_UNSUPPORTED.to_string())
+    );
 }

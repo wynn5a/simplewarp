@@ -1,13 +1,10 @@
 use warp_cli::agent::Harness;
 
 use super::{
-    AuthSecretNamesInput, DEFAULT_MODEL_LABEL, HarnessEntryInput, ModelChoiceInput, OptionBadge,
-    OptionFooter, OptionSourceStatus, build_api_key_snapshot, build_harness_snapshot,
-    build_host_snapshot, build_non_oz_model_snapshot, build_oz_model_snapshot,
-    build_runner_snapshot,
+    DEFAULT_MODEL_LABEL, HarnessEntryInput, ModelChoiceInput, OptionSourceStatus,
+    build_harness_snapshot, build_non_oz_model_snapshot, build_oz_model_snapshot,
 };
 use crate::ai::local_harness_setup::LocalHarnessSetupState;
-use crate::ai::orchestration::config_state::AuthSecretSelection;
 
 fn entry(harness: Harness, display_name: &str, enabled: bool) -> HarnessEntryInput {
     HarnessEntryInput {
@@ -31,7 +28,7 @@ fn harness_snapshot_excludes_gemini_and_selects_initial() {
         entry(Harness::Gemini, "Gemini", true),
     ];
 
-    let snapshot = build_harness_snapshot(entries, "claude", None, false, &all_ready);
+    let snapshot = build_harness_snapshot(entries, "claude", None, &all_ready);
 
     let ids: Vec<&str> = snapshot.rows.iter().map(|r| r.id.as_str()).collect();
     assert!(!ids.contains(&"gemini"));
@@ -48,28 +45,10 @@ fn harness_snapshot_filters_product_disabled_local_harness() {
     ];
 
     // Local Codex is product-disabled (feature flag off in tests).
-    let snapshot = build_harness_snapshot(entries, "oz", None, true, &all_ready);
+    let snapshot = build_harness_snapshot(entries, "oz", None, &all_ready);
 
     let ids: Vec<&str> = snapshot.rows.iter().map(|r| r.id.as_str()).collect();
     assert_eq!(ids, vec!["oz"]);
-}
-
-#[test]
-fn harness_snapshot_keeps_cloud_opencode_selectable() {
-    let entries = vec![
-        entry(Harness::Oz, "Warp", true),
-        entry(Harness::OpenCode, "OpenCode", true),
-    ];
-
-    let snapshot = build_harness_snapshot(entries, "oz", None, false, &all_ready);
-
-    let opencode = snapshot
-        .rows
-        .iter()
-        .find(|r| r.id == "opencode")
-        .expect("OpenCode row present on Cloud");
-    // The harness list doesn't disable OpenCode; the accept gate does.
-    assert_eq!(opencode.disabled_reason, None);
 }
 
 #[test]
@@ -87,7 +66,7 @@ fn harness_snapshot_marks_missing_local_cli_disabled_and_sorts_last() {
         }
     };
 
-    let snapshot = build_harness_snapshot(entries, "oz", None, true, &setup);
+    let snapshot = build_harness_snapshot(entries, "oz", None, &setup);
 
     let ids: Vec<&str> = snapshot.rows.iter().map(|r| r.id.as_str()).collect();
     assert_eq!(ids, vec!["oz", "claude"]);
@@ -104,7 +83,7 @@ fn harness_snapshot_marks_server_disabled_entries() {
         entry(Harness::Claude, "Claude Code", false),
     ];
 
-    let snapshot = build_harness_snapshot(entries, "oz", None, false, &all_ready);
+    let snapshot = build_harness_snapshot(entries, "oz", None, &all_ready);
 
     assert_eq!(
         snapshot.rows[1].disabled_reason.as_deref(),
@@ -121,7 +100,6 @@ fn harness_snapshot_matches_selection_by_display_name_for_stale_cache() {
         entries,
         "claude",
         Some("Claude Code".to_string()),
-        false,
         &all_ready,
     );
 
@@ -179,89 +157,4 @@ fn non_oz_model_snapshot_falls_back_to_default_for_unknown_or_empty_id() {
     let snapshot = build_non_oz_model_snapshot(None, "");
     assert_eq!(snapshot.rows.len(), 1);
     assert_eq!(snapshot.selected_id.as_deref(), Some(""));
-}
-
-// ── API key ─────────────────────────────────────────────────────────
-
-#[test]
-fn api_key_snapshot_keeps_named_selection_while_loading() {
-    let snapshot = build_api_key_snapshot(
-        AuthSecretNamesInput::NotLoaded,
-        &AuthSecretSelection::Named("my-key".to_string()),
-    );
-    assert_eq!(snapshot.selected_id.as_deref(), Some("my-key"));
-}
-
-#[test]
-fn api_key_snapshot_maps_inherit_and_unset_selection() {
-    let inherit = build_api_key_snapshot(
-        AuthSecretNamesInput::NotLoaded,
-        &AuthSecretSelection::Inherit,
-    );
-    assert_eq!(inherit.selected_id.as_deref(), Some(""));
-
-    let unset =
-        build_api_key_snapshot(AuthSecretNamesInput::NotLoaded, &AuthSecretSelection::Unset);
-    assert_eq!(unset.selected_id, None);
-}
-
-// ── Host ────────────────────────────────────────────────────────────
-
-#[test]
-fn host_snapshot_orders_default_warp_connected_recent() {
-    let snapshot = build_host_snapshot(
-        Some("team-default".to_string()),
-        Some("recent-host".to_string()),
-        vec!["worker-1".to_string()],
-        "warp",
-    );
-
-    let ids: Vec<&str> = snapshot.rows.iter().map(|r| r.id.as_str()).collect();
-    assert_eq!(ids, vec!["team-default", "warp", "worker-1", "recent-host"]);
-    assert_eq!(snapshot.rows[0].badge, Some(OptionBadge::Default));
-    assert_eq!(snapshot.rows[2].badge, Some(OptionBadge::Connected));
-    assert_eq!(snapshot.rows[3].badge, Some(OptionBadge::Recent));
-    assert_eq!(snapshot.selected_id.as_deref(), Some("warp"));
-    assert!(matches!(
-        snapshot.footer,
-        Some(OptionFooter::CustomText { .. })
-    ));
-}
-
-#[test]
-fn host_snapshot_dedupes_connected_and_recent_against_known_rows() {
-    let snapshot = build_host_snapshot(
-        Some("team-default".to_string()),
-        Some("team-default".to_string()),
-        vec!["warp".to_string(), "team-default".to_string()],
-        "team-default",
-    );
-
-    let ids: Vec<&str> = snapshot.rows.iter().map(|r| r.id.as_str()).collect();
-    assert_eq!(ids, vec!["team-default", "warp"]);
-}
-
-// ── Runner ──────────────────────────────────────────────────────
-
-#[test]
-fn runner_snapshot_offers_only_the_use_default_row() {
-    let snapshot = build_runner_snapshot("");
-
-    assert_eq!(snapshot.rows.len(), 1);
-    assert_eq!(snapshot.rows[0].id, "");
-    assert_eq!(
-        snapshot.rows[0].label,
-        super::ORCHESTRATION_RUNNER_NONE_LABEL
-    );
-    assert_eq!(snapshot.selected_id.as_deref(), Some(""));
-    assert_eq!(snapshot.status, OptionSourceStatus::Ready);
-}
-
-#[test]
-fn runner_snapshot_selects_nothing_for_a_config_that_still_names_a_runner() {
-    // The runner cannot be looked up in this build, so selecting the "use environment
-    // default" row would misreport the config rather than describe it.
-    let snapshot = build_runner_snapshot("r-b");
-
-    assert_eq!(snapshot.selected_id, None);
 }

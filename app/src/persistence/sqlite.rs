@@ -1939,7 +1939,6 @@ fn box_persisted_generic_string_object(
         PersistedGenericStringObject::MCPServer(object) => Box::new(object),
         PersistedGenericStringObject::TemplatableMCPServer(object) => Box::new(object),
         PersistedGenericStringObject::AIExecutionProfile(object) => Box::new(object),
-        PersistedGenericStringObject::ScheduledAmbientAgent(object) => Box::new(object),
     }
 }
 

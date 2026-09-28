@@ -30,17 +30,15 @@ use crate::ai::blocklist::agent_view::orchestration_pill_bar::render_static_agen
 use crate::ai::blocklist::block::AIBlock;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockOutputStatus};
 use crate::ai::blocklist::block::view_impl::WithContentItemSpacing;
-use crate::ai::blocklist::inline_action::host_picker::{HostPicker, HostPickerEvent};
 use crate::ai::blocklist::inline_action::inline_action_header::{HeaderConfig, InteractionMode};
 use crate::ai::blocklist::inline_action::inline_action_icons;
 use crate::ai::blocklist::inline_action::orchestration_controls::{
-    self as oc, AuthSecretSelection, OrchestrationConfigState, OrchestrationControlAction,
-    OrchestrationEditState, OrchestrationPickerHandles,
+    self as oc, OrchestrationConfigState, OrchestrationControlAction, OrchestrationEditState,
+    OrchestrationPickerHandles,
 };
 use crate::ai::blocklist::inline_action::requested_action::{
     CTRL_C_KEYSTROKE, ENTER_KEYSTROKE, render_requested_action_row_for_text,
 };
-use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
 use crate::features::FeatureFlag;
@@ -103,18 +101,13 @@ pub struct RunAgentsEditState {
 
 impl RunAgentsEditState {
     pub fn from_request(req: &RunAgentsRequest) -> Self {
+        // The card always edits a local run; a persisted Remote request is
+        // launched locally once the user accepts it here.
         let mut orchestration_config_state = oc::OrchestrationConfigState::from_run_agents_fields(
             Some(&req.model_id),
             Some(&req.harness_type),
-            &req.execution_mode,
         );
-        // Carry the request's auth secret across the round trip. Absence
-        // becomes `Unset`; the picker re-resolves from persisted settings.
-        orchestration_config_state.auth_secret_selection =
-            AuthSecretSelection::from_optional_name(req.harness_auth_secret_name.clone());
-        if matches!(req.execution_mode, RunAgentsExecutionMode::Local) {
-            orchestration_config_state.sanitize_for_local_execution();
-        }
+        orchestration_config_state.sanitize_for_local_execution();
         Self {
             orchestration_config_state,
             card: RunAgentsCardFields {
@@ -134,32 +127,19 @@ impl RunAgentsEditState {
             skills: self.card.skills.clone(),
             model_id: self.orchestration_config_state.model_id.clone(),
             harness_type: self.orchestration_config_state.harness_type.clone(),
-            execution_mode: self.orchestration_config_state.execution_mode.clone(),
+            execution_mode: RunAgentsExecutionMode::Local,
             agent_run_configs: self.card.agent_run_configs.clone(),
             plan_id: self.card.plan_id.clone(),
-            harness_auth_secret_name: self
-                .orchestration_config_state
-                .auth_secret_name()
-                .map(str::to_string),
         }
     }
 }
 
 impl OrchestrationControlAction for RunAgentsCardViewAction {
-    fn execution_mode_toggled(is_remote: bool) -> Self {
-        Self::ExecutionModeToggled { is_remote }
-    }
     fn model_changed(model_id: String) -> Self {
         Self::ModelChanged { model_id }
     }
     fn harness_changed(harness_type: String) -> Self {
         Self::HarnessChanged { harness_type }
-    }
-    fn runner_changed(runner_id: String) -> Self {
-        Self::RunnerChanged { runner_id }
-    }
-    fn auth_secret_changed(auth_secret_name: Option<String>) -> Self {
-        Self::AuthSecretChanged { auth_secret_name }
     }
 }
 
@@ -177,12 +157,8 @@ pub enum RunAgentsCardViewAction {
     AcceptWithoutOrchestration,
     ToggleAcceptMenu,
     Reject,
-    ExecutionModeToggled { is_remote: bool },
     ModelChanged { model_id: String },
     HarnessChanged { harness_type: String },
-    RunnerChanged { runner_id: String },
-    WorkerHostChanged { worker_host: String },
-    AuthSecretChanged { auth_secret_name: Option<String> },
 }
 
 #[derive(Clone, Debug)]
@@ -213,18 +189,12 @@ pub struct RunAgentsCardView {
     /// stream. Used at decision time to diff the run-wide config
     /// fields the user changed before accepting.
     original_tool_call_request: RunAgentsRequest,
-    /// One-shot guard: cancelling the auto-popped modal must not re-pop.
-    /// Reset on harness / execution-mode change.
-    has_auto_opened_create_modal: bool,
 }
 
 /// Resolves UI-only interactive defaults on edit state that has
 /// already had config-inherited fields resolved. These defaults are
 /// for the picker display and should NOT run before auto-launch
-/// matching.
-///
-/// 1. Defaults the Oz model to the conversation's base model.
-/// 2. Defaults Remote worker_host to "warp".
+/// matching: defaults the Oz model to the conversation's base model.
 fn resolve_interactive_defaults(
     orchestration_config_state: &mut OrchestrationConfigState,
     block_model: &dyn AIBlockModel<View = AIBlock>,
@@ -239,18 +209,6 @@ fn resolve_interactive_defaults(
         {
             orchestration_config_state.model_id = base;
         }
-    }
-    if let RunAgentsExecutionMode::Remote { worker_host, .. } =
-        &orchestration_config_state.execution_mode
-        && worker_host.is_empty()
-    {
-        // Prefer the workspace default (or the dev env-var override)
-        // over the bare "warp" fallback so self-hosted teams see
-        // their default pre-selected. Mirrors the Oz webapp's
-        // `HostSelector` initial-selection behavior.
-        let default_host = oc::resolve_default_host_slug()
-            .unwrap_or_else(|| oc::ORCHESTRATION_WARP_WORKER_HOST.to_string());
-        orchestration_config_state.set_worker_host(default_host);
     }
 }
 impl RunAgentsCardView {
@@ -357,18 +315,7 @@ impl RunAgentsCardView {
                     &me.handles.pickers,
                     ctx,
                 );
-                // The runner picker isn't part of the shared picker sync
-                // (its options load asynchronously and are cached on the
-                // view). Lazily create it now if the final streamed
-                // execution mode is Remote but `new()` started with Local
-                // (ensure_runner_picker is idempotent and a no-op when the
-                // picker already exists or the flag/mode gate is not met).
-                me.ensure_runner_picker(ctx);
-                // Re-apply its selection now that the streamed request has
-                // finalized with the requested runner.
-                me.resync_runner_selection(ctx);
                 me.refresh_accept_button_state(ctx);
-                me.maybe_auto_open_create_modal(ctx);
                 ctx.notify();
             }
             _ => {}
@@ -381,11 +328,6 @@ impl RunAgentsCardView {
             if let LLMPreferencesEvent::UpdatedAvailableLLMs = event
                 && let Some(handle) = &me.handles.pickers.model_picker
             {
-                let is_local = !me
-                    .orchestration_edit_state
-                    .orchestration_config_state
-                    .execution_mode
-                    .is_remote();
                 oc::populate_model_picker_for_harness(
                     handle,
                     &me.orchestration_edit_state
@@ -394,23 +336,9 @@ impl RunAgentsCardView {
                     &me.orchestration_edit_state
                         .orchestration_config_state
                         .harness_type,
-                    is_local,
                     ctx,
                 );
             }
-        });
-
-        // Repopulate pickers when a harness auth-secrets fetch fails
-        // (to replace the "Loading…" placeholder).
-        ctx.subscribe_to_model(&HarnessAvailabilityModel::handle(ctx), |me, _, _, ctx| {
-            oc::repopulate_all_pickers(
-                &mut me.orchestration_edit_state.orchestration_config_state,
-                &me.handles.pickers,
-                ctx,
-            );
-            me.refresh_accept_button_state(ctx);
-            me.maybe_auto_open_create_modal(ctx);
-            ctx.notify();
         });
 
         // When auto_launched is true, execution is deferred to the
@@ -433,14 +361,10 @@ impl RunAgentsCardView {
             action_model,
             block_model,
             original_tool_call_request,
-            has_auto_opened_create_modal: false,
         };
 
         view.ensure_pickers(ctx);
         view.refresh_accept_button_state(ctx);
-        // No-ops if secrets are still in flight; the `AuthSecretsLoaded`
-        // subscription will retry once they resolve.
-        view.maybe_auto_open_create_modal(ctx);
 
         view
     }
@@ -484,44 +408,6 @@ impl RunAgentsCardView {
                 new_state.orchestration_config_state.model_id = base;
             }
         }
-        // Re-seed an Unset selection from persisted per-harness settings,
-        // honoring an explicit `Inherit` choice for this harness.
-        if matches!(
-            new_state.orchestration_config_state.auth_secret_selection,
-            AuthSecretSelection::Unset
-        ) {
-            new_state.orchestration_config_state.auth_secret_selection =
-                oc::resolve_auth_secret_selection_for_harness(
-                    &new_state.orchestration_config_state.harness_type,
-                    ctx,
-                );
-        }
-        // Preserve a non-empty runner across streamed updates. `update_request`
-        // runs on every stream chunk, but run_agents requests usually omit a
-        // `runner_id`; without this, a runner the user picked in the card (or a
-        // runner already resolved on the call) would be clobbered back to
-        // "use environment default" on the next chunk. A request that *does*
-        // carry a runner still wins.
-        if let (
-            RunAgentsExecutionMode::Remote {
-                runner_id: new_runner,
-                ..
-            },
-            RunAgentsExecutionMode::Remote {
-                runner_id: current_runner,
-                ..
-            },
-        ) = (
-            &mut new_state.orchestration_config_state.execution_mode,
-            &self
-                .orchestration_edit_state
-                .orchestration_config_state
-                .execution_mode,
-        ) && new_runner.is_empty()
-            && !current_runner.is_empty()
-        {
-            *new_runner = current_runner.clone();
-        }
         if self.config_state() != new_state {
             let harness_or_model_changed = self
                 .orchestration_edit_state
@@ -532,37 +418,18 @@ impl RunAgentsCardView {
                     .orchestration_edit_state
                     .orchestration_config_state
                     .model_id
-                    != new_state.orchestration_config_state.model_id
-                || self
-                    .orchestration_edit_state
-                    .orchestration_config_state
-                    .execution_mode
-                    != new_state.orchestration_config_state.execution_mode;
+                    != new_state.orchestration_config_state.model_id;
             self.orchestration_edit_state.orchestration_config_state =
                 new_state.orchestration_config_state;
             self.card = new_state.card;
             if harness_or_model_changed {
-                // If the execution mode switched to Remote, lazily build the
-                // Runner picker now (same as the ExecutionModeToggled handler).
-                // Without this, a Local→Remote mode change during streaming
-                // would leave runner_picker as None, causing the "Runner"
-                // label to render with no dropdown below it.
-                self.ensure_runner_picker(ctx);
-                // Repopulate pickers and re-arm auto-open for the newly-
-                // streamed harness.
                 oc::repopulate_all_pickers(
                     &mut self.orchestration_edit_state.orchestration_config_state,
                     &self.handles.pickers,
                     ctx,
                 );
-                self.has_auto_opened_create_modal = false;
             }
-            // Re-apply the runner selection: a streamed update can finalize
-            // the requested `runner_id` after the runner options have loaded,
-            // and the shared picker sync does not cover the runner picker.
-            self.resync_runner_selection(ctx);
             self.refresh_accept_button_state(ctx);
-            self.maybe_auto_open_create_modal(ctx);
             ctx.notify();
         }
     }
@@ -576,9 +443,8 @@ impl RunAgentsCardView {
         if self.spawning.is_some() {
             return;
         }
-        if let Some(reason) = oc::accept_disabled_reason_with_auth(
+        if let Some(reason) = oc::accept_disabled_reason_with_setup(
             &self.orchestration_edit_state.orchestration_config_state,
-            ctx,
         ) {
             log::warn!("RunAgentsCardView: refusing Accept because action is disabled: {reason}");
             return;
@@ -590,65 +456,11 @@ impl RunAgentsCardView {
         });
     }
 
-    /// Auto-pops the create-key modal once per card per harness/mode
-    /// change when the harness has no loaded secrets and selection is
-    /// `Unset`. Cancelling leaves the picker on "+ New API key…"; the
-    /// user can reopen the modal by clicking that item.
-    fn maybe_auto_open_create_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.has_auto_opened_create_modal {
-            return;
-        }
-        // Skip non-interactive card states (render short-circuits to a
-        // status-only card; the user can't act on a popped modal).
-        if self.spawning.is_some() {
-            return;
-        }
-        if self.block_model.is_restored() {
-            return;
-        }
-        if matches!(
-            self.action_model
-                .as_ref(ctx)
-                .get_action_status(&self.action_id),
-            Some(AIActionStatus::Finished(_)) | Some(AIActionStatus::RunningAsync)
-        ) {
-            return;
-        }
-        if !oc::should_show_auth_secret_picker(
-            &self.orchestration_edit_state.orchestration_config_state,
-        ) {
-            return;
-        }
-        if !matches!(
-            self.orchestration_edit_state
-                .orchestration_config_state
-                .auth_secret_selection,
-            AuthSecretSelection::Unset
-        ) {
-            return;
-        }
-        let Some(harness) = warp_cli::agent::Harness::parse_orchestration_harness(
-            &self
-                .orchestration_edit_state
-                .orchestration_config_state
-                .harness_type,
-        ) else {
-            return;
-        };
-        // This used to auto-open when the fetch resolved to `Loaded([])`
-        // (zero secrets on file). `AuthSecretFetchState::Loaded` no longer
-        // exists — `harness_availability.rs` now always resolves the fetch
-        // straight to `Failed`, so that state can never occur — and this
-        // auto-open behavior can no longer trigger.
-        let _ = harness;
-    }
-
     /// Re-derives the Accept button's `disabled` + tooltip from the gate.
     /// Call after every code path that mutates `self.orchestration_edit_state.orchestration_config_state`.
     fn refresh_accept_button_state(&mut self, ctx: &mut ViewContext<Self>) {
-        let reason = oc::accept_disabled_reason_with_auth(
+        let reason = oc::accept_disabled_reason_with_setup(
             &self.orchestration_edit_state.orchestration_config_state,
-            ctx,
         );
         let Some(mut accept) = self.handles.accept_button.clone() else {
             return;
@@ -677,14 +489,12 @@ impl RunAgentsCardView {
             } else {
                 state.model_id.clone()
             };
-            let is_local = !state.execution_mode.is_remote();
             let handle = oc::new_standard_filterable_picker_dropdown(&styles, ctx);
             Self::set_upward_filterable_menu_position(&handle, ctx);
             oc::populate_model_picker_for_harness(
                 &handle,
                 &initial_model_id,
                 &state.harness_type,
-                is_local,
                 ctx,
             );
             Self::subscribe_filterable_picker_close(&handle, ctx);
@@ -695,151 +505,12 @@ impl RunAgentsCardView {
         if self.handles.pickers.harness_picker.is_none() {
             let handle = oc::new_standard_picker_dropdown(&colors, ctx);
             Self::set_upward_menu_position(&handle, ctx);
-            oc::populate_harness_picker(
-                &handle,
-                &state.harness_type,
-                !state.execution_mode.is_remote(),
-                ctx,
-            );
+            oc::populate_harness_picker(&handle, &state.harness_type, ctx);
             Self::subscribe_picker_close(&handle, ctx);
             self.handles.pickers.harness_picker = Some(handle);
         }
 
-        self.ensure_runner_picker(ctx);
-
-        let state = &self.orchestration_edit_state.orchestration_config_state;
-        if self.handles.pickers.host_picker.is_none() {
-            let initial_host = match &state.execution_mode {
-                RunAgentsExecutionMode::Remote { worker_host, .. } => worker_host.as_str(),
-                RunAgentsExecutionMode::Local => oc::ORCHESTRATION_WARP_WORKER_HOST,
-            };
-            let handle = ctx.add_typed_action_view(HostPicker::new);
-            // Open upward so the menu doesn't overlap pickers below it,
-            // matching the other dropdowns in this card.
-            handle.update(ctx, |picker, picker_ctx| {
-                picker.set_menu_position(
-                    warpui::elements::PositionedElementAnchor::TopLeft,
-                    warpui::elements::ChildAnchor::BottomLeft,
-                    picker_ctx,
-                );
-            });
-            oc::populate_host_picker(&handle, initial_host, ctx);
-            ctx.subscribe_to_view(&handle, |me, _, event, ctx| match event {
-                HostPickerEvent::Opened => {}
-                HostPickerEvent::HostChanged { slug } => {
-                    ctx.dispatch_typed_action(&RunAgentsCardViewAction::WorkerHostChanged {
-                        worker_host: slug.clone(),
-                    });
-                }
-                HostPickerEvent::Closed => {
-                    me.refocus_after_picker_close(ctx);
-                }
-            });
-            self.handles.pickers.host_picker = Some(handle);
-        }
-
-        if self.handles.pickers.auth_secret_picker.is_none() {
-            // Seed from the request's secret name first; otherwise fall
-            // back to the persisted per-harness selection so the picker
-            // matches what cloud-mode would show. Honors an explicit
-            // `Inherit` choice for this harness.
-            if matches!(
-                self.orchestration_edit_state
-                    .orchestration_config_state
-                    .auth_secret_selection,
-                AuthSecretSelection::Unset
-            ) {
-                self.orchestration_edit_state
-                    .orchestration_config_state
-                    .auth_secret_selection = oc::resolve_auth_secret_selection_for_harness(
-                    &self
-                        .orchestration_edit_state
-                        .orchestration_config_state
-                        .harness_type,
-                    ctx,
-                );
-            }
-            let selection = self
-                .orchestration_edit_state
-                .orchestration_config_state
-                .auth_secret_selection
-                .clone();
-            let harness_type = self
-                .orchestration_edit_state
-                .orchestration_config_state
-                .harness_type
-                .clone();
-            let handle = oc::new_standard_picker_dropdown(&colors, ctx);
-            Self::set_upward_menu_position(&handle, ctx);
-            oc::populate_auth_secret_picker_for_harness(&handle, &selection, &harness_type, ctx);
-            Self::subscribe_picker_close(&handle, ctx);
-            self.handles.pickers.auth_secret_picker = Some(handle);
-        }
-
         self.sync_picker_selections(ctx);
-    }
-
-    /// Builds the Runner picker and kicks off the `getRunners` fetch, but
-    /// only when the runner controls are enabled and the card is
-    /// in remote mode — otherwise the Runner control is not rendered, so
-    /// there is no reason to create the picker or hit `getRunners`.
-    /// Idempotent, and re-invoked on the Local→Cloud toggle so the picker
-    /// appears (and loads) the first time the card enters remote mode.
-    fn ensure_runner_picker(&mut self, ctx: &mut ViewContext<Self>) {
-        if !oc::runner_controls_enabled(ctx) {
-            return;
-        }
-        if !self
-            .orchestration_edit_state
-            .orchestration_config_state
-            .execution_mode
-            .is_remote()
-        {
-            return;
-        }
-        if self.handles.pickers.runner_picker.is_some() {
-            return;
-        }
-        let appearance = Appearance::as_ref(ctx);
-        let (styles, _colors) = oc::picker_styles(appearance);
-        let initial_runner = match &self
-            .orchestration_edit_state
-            .orchestration_config_state
-            .execution_mode
-        {
-            RunAgentsExecutionMode::Remote { runner_id, .. } => runner_id.clone(),
-            RunAgentsExecutionMode::Local => String::new(),
-        };
-        let handle = oc::create_runner_picker(&initial_runner, &styles, ctx);
-        handle.update(ctx, |d, _| {
-            d.set_orientation(FilterableDropdownOrientation::Up)
-        });
-        ctx.subscribe_to_view(&handle, |me, _, event, ctx| {
-            if let FilterableDropdownEvent::Close = event {
-                me.refocus_after_picker_close(ctx);
-            }
-        });
-        self.handles.pickers.runner_picker = Some(handle);
-    }
-
-    /// Re-applies the runner picker's selection from the current
-    /// `runner_id`, using the view-cached runner list. The runner picker
-    /// is intentionally excluded from the shared picker sync (its options
-    /// are fetched asynchronously and cached on the view, not in a global
-    /// catalog), so callers must invoke this after the run-wide config's
-    /// `runner_id` may have changed (e.g. a streamed request finalizing).
-    fn resync_runner_selection(&mut self, ctx: &mut ViewContext<Self>) {
-        let current = match &self
-            .orchestration_edit_state
-            .orchestration_config_state
-            .execution_mode
-        {
-            RunAgentsExecutionMode::Remote { runner_id, .. } => runner_id.clone(),
-            RunAgentsExecutionMode::Local => String::new(),
-        };
-        if let Some(handle) = self.handles.pickers.runner_picker.clone() {
-            oc::populate_runner_picker(&handle, &current, ctx);
-        }
     }
 
     /// Opens the dropdown menu above the trigger to avoid overlapping
@@ -1041,26 +712,6 @@ impl TypedActionView for RunAgentsCardView {
             RunAgentsCardViewAction::Reject => {
                 ctx.emit(RunAgentsCardViewEvent::RejectRequested);
             }
-            RunAgentsCardViewAction::ExecutionModeToggled { is_remote } => {
-                let fallback = self.block_model.base_model(ctx).map(|id| id.to_string());
-                oc::apply_execution_mode_change(
-                    &mut self.orchestration_edit_state.orchestration_config_state,
-                    &self.handles.pickers,
-                    *is_remote,
-                    fallback,
-                    ctx,
-                );
-                // Switching to Cloud reveals the Runner control (when the
-                // flag is on); build + fetch it lazily so Local cards never
-                // hit `getRunners`.
-                self.ensure_runner_picker(ctx);
-                // Mode change can newly reveal the auth picker (Local
-                // → Cloud) — give the user a fresh auto-open prompt.
-                self.has_auto_opened_create_modal = false;
-                self.refresh_accept_button_state(ctx);
-                self.maybe_auto_open_create_modal(ctx);
-                ctx.notify();
-            }
             RunAgentsCardViewAction::ModelChanged { model_id } => {
                 self.orchestration_edit_state
                     .orchestration_config_state
@@ -1077,41 +728,6 @@ impl TypedActionView for RunAgentsCardView {
                     fallback,
                     ctx,
                 );
-                // Harness change resets per-harness selection state, so
-                // give the new harness a fresh auto-open prompt.
-                self.has_auto_opened_create_modal = false;
-                self.refresh_accept_button_state(ctx);
-                self.maybe_auto_open_create_modal(ctx);
-                ctx.notify();
-            }
-            RunAgentsCardViewAction::RunnerChanged { runner_id } => {
-                self.orchestration_edit_state
-                    .orchestration_config_state
-                    .set_runner_id(runner_id.clone());
-                self.refresh_accept_button_state(ctx);
-                // A menu click dispatches `SelectActionAndClose`, which does
-                // not update the dropdown's displayed selection, and we're
-                // mid-dispatch from the runner dropdown itself so we cannot
-                // repopulate it synchronously (that panics with "Circular
-                // view update"). Defer the re-sync so the closed dropdown
-                // reflects the runner the user just picked.
-                ctx.spawn(async {}, |me, _, ctx| {
-                    me.resync_runner_selection(ctx);
-                });
-                ctx.notify();
-            }
-            RunAgentsCardViewAction::WorkerHostChanged { worker_host } => {
-                self.orchestration_edit_state
-                    .orchestration_config_state
-                    .set_worker_host(worker_host.clone());
-                oc::persist_host_selection(worker_host, ctx);
-                self.refresh_accept_button_state(ctx);
-                ctx.notify();
-            }
-            RunAgentsCardViewAction::AuthSecretChanged { auth_secret_name } => {
-                self.orchestration_edit_state
-                    .orchestration_config_state
-                    .apply_auth_secret_change(auth_secret_name.clone(), ctx);
                 self.refresh_accept_button_state(ctx);
                 ctx.notify();
             }
@@ -1435,25 +1051,9 @@ fn render_editor(
     .finish();
     column.add_child(divider);
 
-    column.add_child(
-        Container::new(oc::render_mode_toggle(
-            orchestration_config_state.execution_mode.is_remote(),
-            &handles.pickers,
-            appearance,
-            None,
-            false,
-        ))
-        .with_margin_top(12.)
-        .finish(),
-    );
-    column.add_child(oc::render_picker_row(
-        orchestration_config_state,
-        &handles.pickers,
-        appearance,
-        oc::runner_controls_enabled(app),
-    ));
+    column.add_child(oc::render_picker_row(&handles.pickers, appearance));
 
-    if let Some(reason) = oc::accept_disabled_reason_with_auth(orchestration_config_state, app) {
+    if let Some(reason) = oc::accept_disabled_reason_with_setup(orchestration_config_state) {
         column.add_child(oc::render_validation_error(
             reason,
             theme.ui_error_color(),

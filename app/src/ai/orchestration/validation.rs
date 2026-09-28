@@ -1,100 +1,22 @@
 //! Frontend-neutral validation predicates for orchestration edit flows.
 
-use ai::agent::action::RunAgentsExecutionMode;
 use warp_cli::agent::Harness;
-use warpui::AppContext;
 
-use super::config_state::{AuthSecretSelection, OrchestrationConfigState};
-use crate::ai::local_harness_setup::{
-    LocalHarnessSetupState, local_harness_is_product_enabled, local_harness_setup_state,
-};
+use super::config_state::OrchestrationConfigState;
+use crate::ai::local_harness_setup::{LocalHarnessSetupState, local_harness_setup_state};
 
-/// Whether a harness's local setup allows selecting it: always true for
-/// Cloud, otherwise requires the local CLI to be installed and the
-/// harness to be product-enabled.
-#[allow(dead_code)]
-pub(crate) fn local_harness_setup_is_ready(harness: Harness, is_local: bool) -> bool {
-    !is_local || local_harness_setup_state(harness).is_selectable()
-}
-
-/// Whether a harness can be confirmed as the run-wide harness: excludes
-/// Gemini (not yet supported for multi-agent runs), product-disabled
-/// local harnesses, and local harnesses whose CLI setup is not ready.
-/// Both frontends must filter/disable identically through this predicate.
-// Only the TUI consumes this predicate directly (via `tui_export`); the
-// GUI filters through the harness snapshot builder, which mirrors it.
-#[allow(dead_code)]
-pub fn harness_is_selectable(harness: Harness, is_local: bool) -> bool {
-    if harness == Harness::Gemini {
-        return false;
-    }
-    if is_local && !local_harness_is_product_enabled(harness) {
-        return false;
-    }
-    local_harness_setup_is_ready(harness, is_local)
-}
-
-/// The harnesses with managed auth-secret types (Claude and Codex).
-pub(crate) fn harness_supports_auth_secrets(harness: Harness) -> bool {
-    matches!(harness, Harness::Claude | Harness::Codex)
-}
-
-/// Returns `true` when the auth secret picker should be visible: Cloud +
-/// non-Oz + a harness with at least one supported auth-secret type. Local
-/// non-Oz children inherit auth from the user's shell environment.
-pub fn should_show_auth_secret_picker(state: &OrchestrationConfigState) -> bool {
-    if !state.execution_mode.is_remote() {
-        return false;
-    }
-    let Some(harness) = Harness::parse_orchestration_harness(&state.harness_type) else {
-        return false;
-    };
-    if harness == Harness::Oz {
-        return false;
-    }
-    harness_supports_auth_secrets(harness)
-}
-
-/// `true` when the user must pick an API key (or Inherit) before Accept is
-/// allowed. Fires on `Unset` for any non-Oz cloud harness with managed-secret
-/// types, regardless of fetch state — dispatching with an unintended
-/// `Inherit` while secrets are still loading would fail downstream.
-pub fn auth_secret_selection_required(state: &OrchestrationConfigState, _ctx: &AppContext) -> bool {
-    if !should_show_auth_secret_picker(state) {
-        return false;
-    }
-    if !matches!(state.auth_secret_selection, AuthSecretSelection::Unset) {
-        return false;
-    }
-    true
-}
-
-/// [`OrchestrationConfigState::accept_disabled_reason`] plus the
-/// auth-secret-selection gate. Card views should prefer this.
-pub fn accept_disabled_reason_with_auth(
-    state: &OrchestrationConfigState,
-    ctx: &AppContext,
-) -> Option<String> {
+/// [`OrchestrationConfigState::accept_disabled_reason`] plus the local
+/// harness CLI setup gate. Card views should prefer this.
+pub fn accept_disabled_reason_with_setup(state: &OrchestrationConfigState) -> Option<String> {
     if let Some(reason) = state.accept_disabled_reason() {
         return Some(reason.to_string());
     }
-    if matches!(state.execution_mode, RunAgentsExecutionMode::Local)
-        && let Some(harness) = Harness::parse_local_child_harness(&state.harness_type)
-    {
-        match local_harness_setup_state(harness) {
-            LocalHarnessSetupState::MissingHarness { tooltip } => {
-                return Some(tooltip.to_string());
-            }
-            LocalHarnessSetupState::ProductDisabled { message } => {
-                return Some(message.to_string());
-            }
-            LocalHarnessSetupState::Ready => {}
-        }
+    let harness = Harness::parse_local_child_harness(&state.harness_type)?;
+    match local_harness_setup_state(harness) {
+        LocalHarnessSetupState::MissingHarness { tooltip } => Some(tooltip.to_string()),
+        LocalHarnessSetupState::ProductDisabled { message } => Some(message.to_string()),
+        LocalHarnessSetupState::Ready => None,
     }
-    if auth_secret_selection_required(state, ctx) {
-        return Some("Select an API key for this harness to continue.".to_string());
-    }
-    None
 }
 
 #[cfg(test)]

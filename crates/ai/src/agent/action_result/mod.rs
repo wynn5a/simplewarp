@@ -28,9 +28,6 @@ pub enum AIAgentActionResultType {
     /// The output of a read files action.
     ReadFiles(ReadFilesResult),
 
-    /// The output of an upload artifact action.
-    UploadArtifact(UploadArtifactResult),
-
     /// The output of a search codebase action.
     SearchCodebase(SearchCodebaseResult),
 
@@ -155,7 +152,6 @@ impl Display for AIAgentActionResultType {
             AIAgentActionResultType::WriteToLongRunningShellCommand(result) => result.fmt(f),
             AIAgentActionResultType::RequestFileEdits(result) => result.fmt(f),
             AIAgentActionResultType::ReadFiles(result) => result.fmt(f),
-            AIAgentActionResultType::UploadArtifact(result) => result.fmt(f),
             AIAgentActionResultType::SearchCodebase(result) => result.fmt(f),
             AIAgentActionResultType::Grep(result) => result.fmt(f),
             AIAgentActionResultType::FileGlob(result) => result.fmt(f),
@@ -445,36 +441,6 @@ impl Display for ReadFilesResult {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum UploadArtifactResult {
-    Success {
-        artifact_uid: String,
-        filepath: Option<String>,
-        mime_type: String,
-        description: Option<String>,
-        size_bytes: i64,
-    },
-    Error(String),
-    Cancelled,
-}
-
-impl Display for UploadArtifactResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            UploadArtifactResult::Success {
-                artifact_uid,
-                filepath,
-                ..
-            } => match filepath {
-                Some(filepath) => write!(f, "Uploaded artifact {artifact_uid} from {filepath}"),
-                None => write!(f, "Uploaded artifact {artifact_uid}"),
-            },
-            UploadArtifactResult::Error(error) => write!(f, "Upload artifact error: {error}"),
-            UploadArtifactResult::Cancelled => write!(f, "Upload artifact cancelled"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct DocumentContext {
     pub document_id: AIDocumentId,
     pub document_version: AIDocumentVersion,
@@ -758,7 +724,6 @@ impl AIAgentActionResultType {
                 "The diff from editing the last file in Agent Mode"
             }
             AIAgentActionResultType::ReadFiles(_) => "The requested file content",
-            AIAgentActionResultType::UploadArtifact(_) => "The uploaded artifact metadata",
             AIAgentActionResultType::SearchCodebase(_) => "The codebase search results",
             AIAgentActionResultType::Grep(_) => "The results of the grep operation",
             AIAgentActionResultType::FileGlob(_) => "The results of the file glob operation",
@@ -803,7 +768,6 @@ impl AIAgentActionResultType {
             Self::RequestCommandOutput(r) => r.is_successful(),
             Self::RequestFileEdits(RequestFileEditsResult::Success { .. })
             | Self::ReadFiles(ReadFilesResult::Success { .. })
-            | Self::UploadArtifact(UploadArtifactResult::Success { .. })
             | Self::SearchCodebase(SearchCodebaseResult::Success { .. })
             | Self::Grep(GrepResult::Success { .. })
             | Self::FileGlob(FileGlobResult::Success { .. })
@@ -848,7 +812,6 @@ impl AIAgentActionResultType {
             Self::RequestCommandOutput(r) => r.failed(),
             Self::RequestFileEdits(RequestFileEditsResult::DiffApplicationFailed { .. })
             | Self::ReadFiles(ReadFilesResult::Error(_))
-            | Self::UploadArtifact(UploadArtifactResult::Error(_))
             | Self::SearchCodebase(SearchCodebaseResult::Failed { .. })
             | Self::Grep(GrepResult::Error(_))
             | Self::FileGlob(FileGlobResult::Error(_))
@@ -889,7 +852,6 @@ impl AIAgentActionResultType {
             }) if exit_code.value() == 130 => true,
             Self::RequestFileEdits(RequestFileEditsResult::Cancelled)
             | Self::ReadFiles(ReadFilesResult::Cancelled)
-            | Self::UploadArtifact(UploadArtifactResult::Cancelled)
             | Self::SearchCodebase(SearchCodebaseResult::Cancelled)
             | Self::Grep(GrepResult::Cancelled)
             | Self::FileGlob(FileGlobResult::Cancelled)

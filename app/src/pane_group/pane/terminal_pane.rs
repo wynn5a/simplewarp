@@ -869,7 +869,7 @@ fn handle_terminal_view_event(
             } => {
                 ctx.emit(pane_group::Event::OpenCodeReviewPaneAndScrollToComment {
                     open_code_review: open_code_review.clone(),
-                    comment: Box::new(comment.clone()),
+                    comment: comment.clone(),
                     diff_mode: diff_mode.clone(),
                 });
             }
@@ -1199,21 +1199,6 @@ fn dispatch_start_agent_conversation(
                 request,
                 harness_type,
                 model_id,
-                ctx,
-            );
-        }
-        StartAgentExecutionMode::Remote { .. } => {
-            let _ = create_error_child_agent_conversation(
-                group,
-                ErrorChildAgentConversationRequest {
-                    parent_pane_id,
-                    name: request.name,
-                    parent_conversation_id: request.parent_conversation_id,
-                    request_id: Some(request.id),
-                    orchestration_harness: None,
-                    error_message: "Remote child agents are not supported in this build."
-                        .to_string(),
-                },
                 ctx,
             );
         }
