@@ -397,14 +397,12 @@ impl AIDocumentModel {
             } => {
                 self.reconcile_server_backed_notebook(*sync_id, ctx);
             }
-            CloudModelEvent::ObjectMoved { .. }
-            | CloudModelEvent::ObjectUpdated { .. }
+            CloudModelEvent::ObjectUpdated { .. }
             | CloudModelEvent::ObjectTrashed { .. }
             | CloudModelEvent::ObjectUntrashed { .. }
             | CloudModelEvent::ObjectDeleted { .. }
             | CloudModelEvent::ObjectForceExpanded { .. }
             | CloudModelEvent::ObjectCreated { .. }
-            | CloudModelEvent::NotebookEditorChangedFromServer { .. }
             | CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated => {}
         }
     }

@@ -21,7 +21,6 @@ use crate::server::ids::SyncId;
 use crate::server::server_api::ServerApiProvider;
 use crate::settings::AISettings;
 use crate::system::SystemStats;
-use crate::workspaces::user_profiles::UserProfiles;
 
 fn mock_cloud_ai_fact(id: i64, name: &str, content: &str, revision: Revision) -> CloudAIFact {
     CloudAIFact::new(
@@ -64,7 +63,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_ctx| UpdateManager::new(None));
-    app.add_singleton_model(|_| UserProfiles::new(Vec::new()));
     app.add_singleton_model(CloudViewModel::new);
     app.add_singleton_model(NotebookManager::mock);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());

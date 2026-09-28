@@ -17,14 +17,14 @@ use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::folders::CloudFolderModel;
 use crate::cloud_object::model::actions::{ObjectActionType, ObjectActions};
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
-use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
+use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::object_limits::{
     is_feature_gated_anonymous_user_past_env_var_limit,
     is_feature_gated_anonymous_user_past_notebook_limit,
     is_feature_gated_anonymous_user_past_workflow_limit,
 };
 use crate::cloud_object::{
-    CloudModelType, CloudObject, CloudObjectLocation, CloudObjectTypeAndId, GenericCloudObject,
+    CloudModelType, CloudObject, CloudObjectTypeAndId, GenericCloudObject,
     GenericStringObjectFormat, JsonObjectType, ObjectIdType, Owner, Space,
 };
 use crate::env_vars::{CloudEnvVarCollectionModel, EnvVarCollection};
@@ -54,8 +54,6 @@ pub enum OperationSuccessType {
 #[derive(Debug, PartialEq)]
 pub enum ObjectOperation {
     Update,
-    MoveToFolder,
-    MoveToDrive,
     Trash,
     Untrash,
     Delete { initiated_by: InitiatedBy },
@@ -108,12 +106,6 @@ impl UpdateManager {
                     report_error!(anyhow::Error::new(e).context("Error saving to database"));
                 }
             }
-        }
-    }
-
-    fn save_in_memory_object_to_sqlite(&mut self, cloud_model: &CloudModel, uid: &ObjectUid) {
-        if let Some(cloud_object) = cloud_model.get_by_uid(uid) {
-            self.save_to_db([cloud_object.upsert_event()]);
         }
     }
 
@@ -228,74 +220,6 @@ impl UpdateManager {
         } else {
             log::warn!("Expected notebook to be in model with id {notebook_id:?}");
         }
-    }
-
-    pub fn move_object_to_location(
-        &mut self,
-        object_id: CloudObjectTypeAndId,
-        new_location: CloudObjectLocation,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let uid = object_id.uid();
-        let Some(object_current_owner) = CloudModel::handle(ctx).read(ctx, |model, _| {
-            model
-                .get_by_uid(&uid)
-                .map(|object| object.permissions().owner)
-        }) else {
-            return;
-        };
-
-        // Apply the move to the in-memory model, persist it, and report success.
-        // `update_object_location` emits `CloudModelEvent::ObjectMoved`.
-        let operation;
-        match new_location {
-            // Moving into the trash is really a trash operation.
-            CloudObjectLocation::Trash => return self.trash_object(object_id, ctx),
-            CloudObjectLocation::Space(destination_space) => {
-                match destination_space.owner(ctx) {
-                    Some(destination_owner) if destination_owner != object_current_owner => {
-                        CloudModel::handle(ctx).update(ctx, |model, ctx| {
-                            model.update_object_location(&uid, Some(destination_owner), None, ctx);
-                        });
-                        operation = ObjectOperation::MoveToDrive;
-                    }
-                    Some(_) => {
-                        // The space is staying the same, so this is a move to its root.
-                        CloudModel::handle(ctx).update(ctx, |model, ctx| {
-                            model.update_object_location(&uid, None, None, ctx);
-                        });
-                        operation = ObjectOperation::MoveToFolder;
-                    }
-                    None => {
-                        // We couldn't map the space to a valid owner (most likely, it's the
-                        // "shared" space).
-                        return;
-                    }
-                }
-            }
-            CloudObjectLocation::Folder(folder_id) => {
-                CloudModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.update_object_location(&uid, None, Some(folder_id), ctx);
-                });
-                operation = ObjectOperation::MoveToFolder;
-            }
-        }
-
-        // Persist changes in sqlite.
-        CloudModel::handle(ctx).update(ctx, |cloud_model, _| {
-            self.save_in_memory_object_to_sqlite(cloud_model, &uid);
-        });
-
-        ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
-            result: ObjectOperationResult {
-                success_type: OperationSuccessType::Success,
-                operation,
-                client_id: None,
-                server_id: None,
-                num_objects: None,
-            },
-        });
-        ctx.notify();
     }
 
     pub fn duplicate_object(
@@ -676,7 +600,6 @@ impl UpdateManager {
                     .has_pending_metadata_change = true;
                 ctx.emit(CloudModelEvent::ObjectTrashed {
                     type_and_id: object.cloud_object_type_and_id(),
-                    source: UpdateSource::Local,
                 });
                 ctx.notify();
                 (
@@ -781,10 +704,7 @@ impl UpdateManager {
                     &hashed_sqlite_id,
                 );
 
-                ctx.emit(CloudModelEvent::ObjectUntrashed {
-                    type_and_id,
-                    source: UpdateSource::Local,
-                });
+                ctx.emit(CloudModelEvent::ObjectUntrashed { type_and_id });
                 ctx.notify();
             }
         });

@@ -9,9 +9,13 @@ use crate::ui_components::dialog::{Dialog, dialog_styles};
 use crate::view_components::action_button::{ActionButton, DangerPrimaryTheme, NakedTheme};
 
 const DIALOG_WIDTH: f32 = 450.;
+const TITLE_TEXT: &str = "Delete MCP server?";
+const DESCRIPTION_TEXT: &str =
+    "This will uninstall and remove this MCP server from all your devices.";
+
 pub enum DestructiveMCPConfirmationDialogEvent {
     Cancel,
-    Confirm(DestructiveMCPConfirmationDialogVariant),
+    Confirm,
 }
 
 #[derive(Debug)]
@@ -20,67 +24,8 @@ pub enum DestructiveMCPConfirmationDialogAction {
     Confirm,
 }
 
-#[derive(Default)]
-struct DestructiveMCPConfirmationDialogDisplayOptions {
-    title_text: String,
-    description_text: String,
-    confirm_button_label: String,
-    cancel_button_label: String,
-}
-
-impl DestructiveMCPConfirmationDialogDisplayOptions {
-    pub fn new(
-        title_text: String,
-        description_text: String,
-        confirm_button_label: String,
-        cancel_button_label: String,
-    ) -> Self {
-        Self {
-            title_text,
-            description_text,
-            confirm_button_label,
-            cancel_button_label,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum DestructiveMCPConfirmationDialogVariant {
-    DeleteLocal,
-    DeleteShared,
-    Unshare,
-}
-
-impl From<&DestructiveMCPConfirmationDialogVariant>
-    for DestructiveMCPConfirmationDialogDisplayOptions
-{
-    fn from(variant: &DestructiveMCPConfirmationDialogVariant) -> Self {
-        match *variant {
-            DestructiveMCPConfirmationDialogVariant::DeleteLocal => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                "Delete MCP server?".to_string(),
-                "This will uninstall and remove this MCP server from all your devices.".to_string(),
-                "Delete MCP".to_string(),
-                "Cancel".to_string(),
-            ),
-            DestructiveMCPConfirmationDialogVariant::DeleteShared => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                "Delete shared MCP server?".to_string(),
-                "This will not only delete this MCP server for yourself, but also uninstall and remove this MCP server from Warp and across all of your teammates' devices.".to_string(),
-                "Delete MCP".to_string(),
-                "Cancel".to_string(),
-            ),
-            DestructiveMCPConfirmationDialogVariant::Unshare => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                "Remove shared MCP server from team?".to_string(),
-                "This will uninstall and remove this MCP server from Warp and across all of your teammates' devices.".to_string(),
-                "Remove from team".to_string(),
-                "Cancel".to_string(),
-            ),
-        }
-    }
-}
-
 pub struct DestructiveMCPConfirmationDialog {
     visible: bool,
-    variant: DestructiveMCPConfirmationDialogVariant,
     cancel_button: ViewHandle<ActionButton>,
     confirm_button: ViewHandle<ActionButton>,
 }
@@ -88,42 +33,26 @@ pub struct DestructiveMCPConfirmationDialog {
 impl DestructiveMCPConfirmationDialog {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let cancel_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("", NakedTheme).on_click(|ctx| {
+            ActionButton::new("Cancel", NakedTheme).on_click(|ctx| {
                 ctx.dispatch_typed_action(DestructiveMCPConfirmationDialogAction::Cancel);
             })
         });
 
         let confirm_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("", DangerPrimaryTheme).on_click(|ctx| {
+            ActionButton::new("Delete MCP", DangerPrimaryTheme).on_click(|ctx| {
                 ctx.dispatch_typed_action(DestructiveMCPConfirmationDialogAction::Confirm);
             })
         });
 
         Self {
             visible: false,
-            variant: DestructiveMCPConfirmationDialogVariant::DeleteLocal,
             cancel_button,
             confirm_button,
         }
     }
 
-    pub fn show(
-        &mut self,
-        variant: DestructiveMCPConfirmationDialogVariant,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let display_options: DestructiveMCPConfirmationDialogDisplayOptions = (&variant).into();
-
-        self.cancel_button.update(ctx, |button, ctx| {
-            button.set_label(display_options.cancel_button_label.clone(), ctx);
-        });
-        self.confirm_button.update(ctx, |button, ctx| {
-            button.set_label(display_options.confirm_button_label.clone(), ctx);
-        });
-
-        self.variant = variant;
+    pub fn show(&mut self, ctx: &mut ViewContext<Self>) {
         self.visible = true;
-
         ctx.notify();
     }
 
@@ -148,12 +77,9 @@ impl View for DestructiveMCPConfirmationDialog {
         }
 
         let appearance = Appearance::as_ref(app);
-        let display_options: DestructiveMCPConfirmationDialogDisplayOptions =
-            (&self.variant).into();
-
         let dialog = Dialog::new(
-            display_options.title_text.clone(),
-            Some(display_options.description_text.clone()),
+            TITLE_TEXT.to_string(),
+            Some(DESCRIPTION_TEXT.to_string()),
             dialog_styles(appearance),
         )
         .with_bottom_row_child(ChildView::new(&self.cancel_button).finish())
@@ -183,9 +109,9 @@ impl TypedActionView for DestructiveMCPConfirmationDialog {
             DestructiveMCPConfirmationDialogAction::Cancel => {
                 ctx.emit(DestructiveMCPConfirmationDialogEvent::Cancel)
             }
-            DestructiveMCPConfirmationDialogAction::Confirm => ctx.emit(
-                DestructiveMCPConfirmationDialogEvent::Confirm(self.variant.clone()),
-            ),
+            DestructiveMCPConfirmationDialogAction::Confirm => {
+                ctx.emit(DestructiveMCPConfirmationDialogEvent::Confirm)
+            }
         }
     }
 }

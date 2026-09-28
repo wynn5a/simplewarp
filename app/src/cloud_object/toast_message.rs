@@ -1,5 +1,3 @@
-use warpui::AppContext;
-
 use super::{CloudObject, ObjectType};
 use crate::server::cloud_objects::update_manager::{
     InitiatedBy, ObjectOperation, OperationSuccessType,
@@ -12,7 +10,6 @@ impl CloudObjectToastMessage {
         object: &dyn CloudObject,
         operation: &ObjectOperation,
         success_type: &OperationSuccessType,
-        app: &AppContext,
     ) -> Option<String> {
         let object_name = object.model_type_name().to_owned();
 
@@ -22,11 +19,6 @@ impl CloudObjectToastMessage {
             (ObjectType::Notebook, ObjectOperation::Update, OperationSuccessType::Success) => None,
             (_, ObjectOperation::Update, OperationSuccessType::Success) => {
                 Some(format!("{object_name} updated"))
-            }
-            (_, ObjectOperation::MoveToFolder, OperationSuccessType::Success)
-            | (_, ObjectOperation::MoveToDrive, OperationSuccessType::Success) => {
-                let containing_object_name = object.containing_object_name(app);
-                Some(format!("{object_name} moved to {containing_object_name}"))
             }
             (_, ObjectOperation::Trash, OperationSuccessType::Success) => {
                 Some(format!("{object_name} trashed"))

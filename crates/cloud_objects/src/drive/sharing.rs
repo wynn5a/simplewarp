@@ -27,7 +27,7 @@ pub enum Subject {
 /// differently in certain cases.
 #[derive(Debug, Clone)]
 pub enum UserKind {
-    /// A Warp user account, tracked in the [`UserProfiles`] model.
+    /// A Warp user account.
     Account(UserUid),
 }
 

@@ -472,18 +472,9 @@ impl EnvVarCollectionView {
         .finish()
     }
 
-    /// Sync all editors with the user's access level. If the env var collection is view-only, all
-    /// editors are set to selection-only mode. Otherwise, all are enabled.
+    /// Makes all editors editable.
     pub(super) fn update_editor_interactivity(&mut self, ctx: &mut ViewContext<Self>) {
-        let editability = self
-            .active_env_var_collection_data
-            .as_ref(ctx)
-            .editability(ctx);
-        let interaction_state = if editability.can_edit() {
-            InteractionState::Editable
-        } else {
-            InteractionState::Selectable
-        };
+        let interaction_state = InteractionState::Editable;
 
         // Update metadata editors.
         self.title_editor.update(ctx, |editor, ctx| {

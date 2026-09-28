@@ -41,7 +41,7 @@ use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::appearance::Appearance;
 use crate::cloud_object::export::ExportManager;
-use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
+use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::{Editor, EditorState};
 use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_notebook_limit;
 use crate::cloud_object::{CloudObjectTypeAndId, ObjectType, Owner, Space, personal_drive};
@@ -474,11 +474,7 @@ impl NotebookView {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            ActiveNotebookDataEvent::ModeChangedFromServer => {
-                log::info!("Edit mode stolen");
-                self.switch_to_view(ctx);
-            }
-            ActiveNotebookDataEvent::TrashStatusChanged | ActiveNotebookDataEvent::MovedToSpace => {
+            ActiveNotebookDataEvent::TrashStatusChanged => {
                 self.pane_configuration.update(ctx, |pane_config, ctx| {
                     pane_config.refresh_pane_header_overflow_menu_items(ctx)
                 });
@@ -551,16 +547,6 @@ impl NotebookView {
         }
     }
 
-    /// Reload an updated notebook.
-    fn handle_notebook_updated(&mut self, notebook: &CloudNotebook, ctx: &mut ViewContext<Self>) {
-        self.set_title(&notebook.model().title, ctx);
-        self.input.update(ctx, |input_editor, ctx| {
-            input_editor.system_clear_buffer(ctx);
-            input_editor.reset_with_markdown(notebook.model().data.as_str(), ctx);
-        });
-        ctx.notify();
-    }
-
     /// Given a cloud object ID, check if it's the ID of the active notebook.
     ///
     /// This is a helper for handling [`CloudModelEvent`]s, which should be ignored if they're not
@@ -579,18 +565,6 @@ impl NotebookView {
 
     fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ViewContext<Self>) {
         match event {
-            CloudModelEvent::ObjectUpdated {
-                type_and_id,
-                source: UpdateSource::Server,
-            } => {
-                if let Some(updated_notebook) = self
-                    .as_active_notebook_id(type_and_id, ctx)
-                    .and_then(|notebook_id| CloudModel::as_ref(ctx).get_notebook(&notebook_id))
-                    .cloned()
-                {
-                    self.handle_notebook_updated(&updated_notebook, ctx);
-                }
-            }
             CloudModelEvent::ObjectTrashed { .. } | CloudModelEvent::ObjectDeleted { .. } => {
                 // Check is_trashed rather than the event ID, since this notebook could have been
                 // indirectly trashed.
@@ -615,7 +589,6 @@ impl NotebookView {
                     ctx.notify();
                 }
             }
-            CloudModelEvent::ObjectMoved { .. } => {}
             CloudModelEvent::ObjectCreated { type_and_id, .. } => {
                 if self.as_active_notebook_id(type_and_id, ctx).is_some() {
                     // Re-render to update the status bar.
@@ -1026,7 +999,6 @@ impl NotebookView {
     /// Items to show in the pane header overflow menu.
     fn overflow_menu_items(&self, ctx: &AppContext) -> Vec<MenuItem<NotebookAction>> {
         let active_notebook_data = self.active_notebook_data.as_ref(ctx);
-        let _access_level = active_notebook_data.access_level(ctx);
         let mut menu_items = Vec::new();
 
         if !active_notebook_data.is_on_server()
@@ -1044,15 +1016,12 @@ impl NotebookView {
             );
         }
 
-        // Add "Duplicate" to menu
-        if active_notebook_data.space(ctx) != Some(Space::Shared) {
-            menu_items.push(
-                MenuItemFields::new("Duplicate")
-                    .with_on_select_action(NotebookAction::Duplicate)
-                    .with_icon(icons::Icon::Duplicate)
-                    .into_item(),
-            );
-        }
+        menu_items.push(
+            MenuItemFields::new("Duplicate")
+                .with_on_select_action(NotebookAction::Duplicate)
+                .with_icon(icons::Icon::Duplicate)
+                .into_item(),
+        );
 
         #[cfg(feature = "local_fs")]
         {
@@ -1251,19 +1220,9 @@ impl NotebookView {
             workflow.named_workflow(|| Some(format!("Command from {}", self.title(ctx))));
 
         let notebook_id = self.server_id(ctx);
-        let source = workflow.source.unwrap_or_else(|| {
-            let owner = self.active_notebook_data.as_ref(ctx).owner(ctx);
-            let team_uid = match owner {
-                Some(Owner::Team { team_uid }) => Some(team_uid),
-                _ => None,
-            };
-            WorkflowSource::Notebook {
-                notebook_id,
-                team_uid,
-                location: owner
-                    .map(Into::into)
-                    .unwrap_or(NotebookLocation::PersonalCloud),
-            }
+        let source = workflow.source.unwrap_or(WorkflowSource::Notebook {
+            notebook_id,
+            location: NotebookLocation::PersonalCloud,
         });
 
         ctx.emit(NotebookEvent::RunWorkflow {

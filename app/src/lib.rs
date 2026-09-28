@@ -56,7 +56,6 @@ mod safe_triangle;
 mod search_bar;
 mod server;
 mod session_management;
-mod sharing;
 mod shell_indicator;
 mod suggestions;
 mod system;
@@ -76,7 +75,6 @@ mod vim_registers;
 mod voltron;
 mod warp_managed_paths_watcher;
 mod window_settings;
-mod workspaces;
 
 // PLEASE DO NOT ADD MORE PUBLIC MODULES!
 //
@@ -253,7 +251,6 @@ use crate::workflows::local_workflows::LocalWorkflows;
 use crate::workspace::{
     ActiveSession, OneTimeModalModel, PaneViewLocator, ToastStack, Workspace, WorkspaceAction,
 };
-use crate::workspaces::user_profiles::UserProfiles;
 
 /// Our embedded application assets.
 pub static ASSETS: warp_assets::Assets = warp_assets::Assets;
@@ -960,7 +957,6 @@ pub(crate) fn initialize_app(
         cloud_objects,
         app_state,
         command_history,
-        restored_user_profiles,
         object_actions,
         ai_queries,
         nld_prompts,
@@ -978,7 +974,6 @@ pub(crate) fn initialize_app(
                 sqlite_data.cloud_objects,
                 sqlite_data.app_state,
                 sqlite_data.command_history,
-                sqlite_data.user_profiles,
                 sqlite_data.object_actions,
                 sqlite_data.ai_queries,
                 sqlite_data.nld_prompts,
@@ -994,7 +989,6 @@ pub(crate) fn initialize_app(
         })
         .unwrap_or_else(|| {
             (
-                Default::default(),
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -1290,8 +1284,6 @@ pub(crate) fn initialize_app(
     } else {
         ctx.add_singleton_model(|ctx| RepoOutlines::new_with_indexing_enabled(false, ctx));
     }
-
-    ctx.add_singleton_model(|_| UserProfiles::new(restored_user_profiles));
 
     ctx.add_singleton_model(|_| ObjectActions::new(object_actions));
 

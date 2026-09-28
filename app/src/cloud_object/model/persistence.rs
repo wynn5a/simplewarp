@@ -2,55 +2,31 @@ use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::SyncSender;
 
 use chrono::{DateTime, Utc};
-use cloud_objects::time::ServerTimestamp;
-use itertools::Itertools;
 use warp_errors::report_error;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
-use super::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::folders::{CloudFolder, CloudFolderModel};
 use crate::cloud_object::{
     CloudModelType, CloudObject, CloudObjectLocation, CloudObjectTypeAndId, GenericCloudObject,
-    ObjectIdType, ObjectType, Owner, Revision, Space,
+    ObjectIdType, Owner, Space,
 };
-use crate::env_vars::{CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVarCollection};
+use crate::env_vars::CloudEnvVarCollection;
 use crate::notebooks::CloudNotebook;
 use crate::persistence::ModelEvent;
 use crate::server::ids::{HashableId, ObjectUid, SyncId, ToServerId};
-use crate::workflows::workflow::Workflow;
-use crate::workflows::workflow_enum::{CloudWorkflowEnum, CloudWorkflowEnumModel, WorkflowEnum};
-use crate::workflows::{CloudWorkflow, CloudWorkflowModel};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UpdateSource {
-    /// This cloud model change came from the server (i.e. an RTC message).
-    Server,
-    /// This cloud model change originated locally (i.e. from a user edit).
-    Local,
-}
+use crate::workflows::CloudWorkflow;
+use crate::workflows::workflow_enum::CloudWorkflowEnum;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CloudModelEvent {
-    ObjectMoved {
-        type_and_id: CloudObjectTypeAndId,
-        source: UpdateSource,
-        from_folder: Option<SyncId>,
-        to_folder: Option<SyncId>,
-    },
     ObjectUpdated {
         type_and_id: CloudObjectTypeAndId,
-        source: UpdateSource,
     },
     ObjectTrashed {
         type_and_id: CloudObjectTypeAndId,
-        source: UpdateSource,
     },
     ObjectUntrashed {
         type_and_id: CloudObjectTypeAndId,
-        source: UpdateSource,
-    },
-    NotebookEditorChangedFromServer {
-        notebook_id: SyncId,
     },
     ObjectCreated {
         type_and_id: CloudObjectTypeAndId,
@@ -94,75 +70,6 @@ impl CloudModel {
         }
     }
 
-    /// Determines whether or not the given object_id can be moved to the given location, based on
-    /// what we currently support from an API perspective.
-    ///
-    /// We do NOT support
-    /// - Moving folders across spaces
-    /// - Transferring from team space to personal space
-    /// - Moving directly into a folder across spaces
-    pub fn can_move_object_to_location(
-        &self,
-        hashed_id: &str,
-        new_location: CloudObjectLocation,
-    ) -> bool {
-        // TODO(ben): Update as sharing+moving is supported in more cases.
-
-        if let Some(object) = self.objects_by_id.get(hashed_id) {
-            let object_space = object.space();
-            if let CloudObjectLocation::Space(space) = new_location {
-                if matches!(object_space, Space::Team { .. }) && space == Space::Personal {
-                    return false;
-                }
-
-                if !object.can_move_to_space(space) {
-                    return false;
-                }
-            }
-
-            if let CloudObjectLocation::Folder(target_folder_id) = new_location {
-                let folder_to_move: Option<&CloudFolder> = object.into();
-                if let Some(folder_to_move) = folder_to_move {
-                    // We do not want to move a folder into itself.
-                    if folder_to_move.id == target_folder_id {
-                        return false;
-                    }
-
-                    // Since we are trying to move a folder into a folder, we want to ensure that the
-                    // target folder is not a child of the folder we are trying to move.
-                    let mut target_folder_parent_folder_id = self
-                        .get_folder(&target_folder_id)
-                        .and_then(|folder| folder.metadata().folder_id);
-                    while let Some(parent_id) = target_folder_parent_folder_id {
-                        if parent_id == folder_to_move.id {
-                            return false;
-                        }
-                        target_folder_parent_folder_id = self
-                            .get_folder(&parent_id)
-                            .and_then(|folder| folder.metadata().folder_id);
-                    }
-                }
-                if let Some(target_folder) = self.get_folder(&target_folder_id) {
-                    // TODO: @ianhodge We do not yet support moving directly into a folder from another space
-                    if target_folder.permissions.owner != object.permissions().owner {
-                        return false;
-                    }
-                }
-            }
-
-            return true;
-        }
-        false
-    }
-
-    /// Given a hashed object-id, returns the object's CloudObjectLocation
-    /// (either a folder or top level space)
-    pub fn object_location(&self, hashed_id: &str) -> Option<CloudObjectLocation> {
-        self.objects_by_id
-            .get(hashed_id)
-            .map(|object| object.location(self))
-    }
-
     pub fn get_by_uid(&self, uid: &ObjectUid) -> Option<&dyn CloudObject> {
         self.objects_by_id.get(uid).map(|o| o.as_ref())
     }
@@ -173,10 +80,6 @@ impl CloudModel {
 
     pub fn cloud_objects(&self) -> impl Iterator<Item = &Box<dyn CloudObject>> {
         self.objects_by_id.values()
-    }
-
-    pub fn cloud_objects_mut(&mut self) -> impl Iterator<Item = &mut Box<dyn CloudObject>> {
-        self.objects_by_id.values_mut()
     }
 
     pub fn create_object(
@@ -218,116 +121,6 @@ impl CloudModel {
         (sync_ids_and_types, count)
     }
 
-    /// Remove an object and all its descendants from `CloudModel` recursively.
-    pub fn delete_object_and_descendants(
-        &mut self,
-        uid: ObjectUid,
-        ctx: &mut ModelContext<Self>,
-    ) -> Vec<(SyncId, ObjectIdType)> {
-        let mut accumulator = Vec::new();
-        self.delete_object_and_descendants_internal(uid, &mut accumulator, ctx);
-        accumulator
-    }
-
-    fn delete_object_and_descendants_internal(
-        &mut self,
-        uid: ObjectUid,
-        accumulator: &mut Vec<(SyncId, ObjectIdType)>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(object) = self.objects_by_id.remove(&uid) {
-            accumulator.push((
-                object.sync_id(),
-                object.cloud_object_type_and_id().object_id_type(),
-            ));
-            ctx.emit(CloudModelEvent::ObjectDeleted {
-                type_and_id: object.cloud_object_type_and_id(),
-                folder_id: object.metadata().folder_id,
-            });
-            if object.object_type() == ObjectType::Folder {
-                let contents = self
-                    .objects_by_id
-                    .iter()
-                    .filter_map(|(child_uid, child)| {
-                        if child
-                            .metadata()
-                            .folder_id
-                            .is_some_and(|parent| parent.uid() == uid)
-                        {
-                            Some(child_uid.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    // Collect into a temporary Vec so that we can can call this mutable method
-                    // recursively.
-                    .collect_vec();
-                for child in contents {
-                    self.delete_object_and_descendants_internal(child, accumulator, ctx);
-                }
-            }
-        }
-    }
-
-    pub fn check_if_object_is_in_cloudmodel(&mut self, uid: ObjectUid) -> bool {
-        self.objects_by_id.contains_key(&uid)
-    }
-
-    /// Update an object's location (folder and owner). This is an implementation detail of
-    /// `UpdateManager` to keep local state in sync with optimistic moves. It does not validate
-    /// that the move is valid and MUST not be used elsewhere.
-    ///
-    /// If `new_space` is `None`, the space is unchanged.
-    pub fn update_object_location(
-        &mut self,
-        uid: &ObjectUid,
-        new_owner: Option<Owner>,
-        new_folder: Option<SyncId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // TODO(ben): This should use a container instead of a folder+owner pair.
-
-        if let Some(object) = self.get_mut_by_uid(uid) {
-            let old_folder = object.metadata().folder_id;
-            let mut changed = false;
-
-            if let Some(new_owner) = new_owner
-                && new_owner != object.permissions().owner
-            {
-                object.permissions_mut().owner = new_owner;
-                changed = true;
-            }
-
-            if new_folder != old_folder {
-                object.metadata_mut().folder_id = new_folder;
-                changed = true;
-            }
-
-            if changed {
-                ctx.emit(CloudModelEvent::ObjectMoved {
-                    type_and_id: object.cloud_object_type_and_id(),
-                    source: UpdateSource::Local,
-                    from_folder: old_folder,
-                    to_folder: new_folder,
-                });
-                ctx.notify();
-            }
-        }
-    }
-
-    pub fn update_notebook_current_editor(
-        &mut self,
-        notebook_id: SyncId,
-        new_editor_uid: Option<String>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(notebook) = self.get_notebook_mut(&notebook_id) {
-            notebook.metadata.set_current_editor(new_editor_uid.clone());
-            ctx.emit(CloudModelEvent::NotebookEditorChangedFromServer { notebook_id });
-            ctx.notify();
-        }
-    }
-
     /// Updates the per-environment "last used" timestamp.
     ///
     /// This timestamp is derived from `CloudEnvironment.lastTaskCreated.createdAt`.
@@ -343,27 +136,6 @@ impl CloudModel {
         }
         ctx.emit(CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated);
         ctx.notify();
-    }
-
-    pub fn update_object_metadata_last_updated_ts(
-        &mut self,
-        uid: &ObjectUid,
-        new_ts: ServerTimestamp,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(object) = self.objects_by_id.get_mut(uid) {
-            object.metadata_mut().metadata_last_updated_ts = Some(new_ts);
-
-            if let Some(model_event_sender) = &self.model_event_sender
-                && let Err(e) = model_event_sender.send(ModelEvent::UpdateObjectMetadata {
-                    id: object.hashed_sqlite_id(),
-                    metadata: object.metadata().clone(),
-                })
-            {
-                report_error!(anyhow::Error::new(e).context("Error saving to cache"));
-            }
-            ctx.notify();
-        }
     }
 
     /// Update an object in the cloud model as part of a local user edit. This should not be used
@@ -389,65 +161,6 @@ impl CloudModel {
             cloud_object.set_model(model);
             ctx.emit(CloudModelEvent::ObjectUpdated {
                 type_and_id: cloud_object.cloud_object_type_and_id(),
-                source: UpdateSource::Local,
-            });
-            ctx.notify();
-        }
-    }
-
-    /// Overwrite a workflow's definition. For example, if a workflow is in conflict with the
-    /// server, we'll replace the local state with the server's version.
-    pub fn overwrite_workflow(
-        &mut self,
-        workflow: Workflow,
-        workflow_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(cloud_workflow) = self.get_workflow_mut(&workflow_id) {
-            cloud_workflow.set_model(CloudWorkflowModel::new(workflow));
-            ctx.emit(CloudModelEvent::ObjectUpdated {
-                type_and_id: cloud_workflow.cloud_object_type_and_id(),
-                source: UpdateSource::Server,
-            });
-            ctx.notify();
-        }
-    }
-
-    pub fn overwrite_env_var_collection(
-        &mut self,
-        env_var_collection: EnvVarCollection,
-        env_var_collection_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(cloud_env_var_collection) = self
-            .get_object_of_type_mut::<GenericStringObjectId, CloudEnvVarCollectionModel>(
-                &env_var_collection_id,
-            )
-        {
-            cloud_env_var_collection.set_model(CloudEnvVarCollectionModel::new(env_var_collection));
-            ctx.emit(CloudModelEvent::ObjectUpdated {
-                type_and_id: cloud_env_var_collection.cloud_object_type_and_id(),
-                source: UpdateSource::Server,
-            });
-            ctx.notify();
-        }
-    }
-
-    pub fn overwrite_workflow_enum(
-        &mut self,
-        workflow_enum: WorkflowEnum,
-        workflow_enum_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(cloud_workflow_enum) = self
-            .get_object_of_type_mut::<GenericStringObjectId, CloudWorkflowEnumModel>(
-                &workflow_enum_id,
-            )
-        {
-            cloud_workflow_enum.set_model(CloudWorkflowEnumModel::new(workflow_enum));
-            ctx.emit(CloudModelEvent::ObjectUpdated {
-                type_and_id: cloud_workflow_enum.cloud_object_type_and_id(),
-                source: UpdateSource::Server,
             });
             ctx.notify();
         }
@@ -507,19 +220,6 @@ impl CloudModel {
         }
     }
 
-    pub fn delete_object(&mut self, id: SyncId, ctx: &mut ModelContext<Self>) {
-        // TODO: for now we are simply hard deleting the object from memory. When
-        // we have conflict resolution. We should only mark the object as deleted
-        // without deleting the content until the server returns successful response.
-        if let Some(object) = self.objects_by_id.remove(&id.uid()) {
-            ctx.emit(CloudModelEvent::ObjectDeleted {
-                type_and_id: object.cloud_object_type_and_id(),
-                folder_id: object.metadata().folder_id,
-            });
-        }
-        ctx.notify();
-    }
-
     pub fn get_folder_by_uid(&self, uid: &str) -> Option<&CloudFolder> {
         self.objects_by_id.get(uid).and_then(|object| object.into())
     }
@@ -534,14 +234,6 @@ impl CloudModel {
         self.objects_by_id
             .get_mut(&folder_id.uid())
             .and_then(|object| object.into())
-    }
-
-    pub fn get_all_exportable_object_ids(&self) -> Vec<CloudObjectTypeAndId> {
-        self.objects_by_id
-            .values()
-            .filter(|object| object.can_export())
-            .map(|object| object.cloud_object_type_and_id())
-            .collect()
     }
 
     /// Returns only active (not trashed) folders in cloud model.
@@ -568,39 +260,11 @@ impl CloudModel {
             .and_then(|object| object.into())
     }
 
-    pub fn get_workflow_enum_mut(&mut self, enum_id: &SyncId) -> Option<&mut CloudWorkflowEnum> {
-        self.objects_by_id
-            .get_mut(&enum_id.uid())
-            .and_then(|object| object.into())
-    }
-
-    pub fn get_workflow_mut(&mut self, workflow_id: &SyncId) -> Option<&mut CloudWorkflow> {
-        self.objects_by_id
-            .get_mut(&workflow_id.uid())
-            .and_then(|object| object.into())
-    }
-
     /// Returns only active (not trashed) workflows in cloud model.
     pub fn get_all_active_workflows(&self) -> impl Iterator<Item = &CloudWorkflow> {
         self.objects_by_id
             .values()
             .filter(|object| !object.is_trashed(self))
-            .filter_map(|object| object.into())
-    }
-
-    /// Returns all workflows (trashed or not) in cloud model.
-    pub fn get_all_active_and_inactive_workflows(&self) -> impl Iterator<Item = &CloudWorkflow> {
-        self.objects_by_id
-            .values()
-            .filter_map(|object| object.into())
-    }
-
-    /// Returns all workflows (trashed or not) in cloud model.
-    pub fn get_all_active_and_inactive_workflows_mut(
-        &mut self,
-    ) -> impl Iterator<Item = &mut CloudWorkflow> {
-        self.objects_by_id
-            .values_mut()
             .filter_map(|object| object.into())
     }
 
@@ -619,15 +283,6 @@ impl CloudModel {
         space: Space,
     ) -> impl Iterator<Item = &'a CloudWorkflow> + 'a {
         self.active_non_welcome_cloud_objects_in_space(space)
-            .filter_map(|object| object.into())
-    }
-
-    /// Returns all active (not trashed) notebooks in the space.
-    pub fn active_notebooks_in_space<'a>(
-        &'a self,
-        space: Space,
-    ) -> impl Iterator<Item = &'a CloudNotebook> + 'a {
-        self.active_cloud_objects_in_space(space)
             .filter_map(|object| object.into())
     }
 
@@ -704,12 +359,6 @@ impl CloudModel {
         self.objects_by_id.get(uid).and_then(|object| object.into())
     }
 
-    pub fn get_notebook_mut(&mut self, notebook_id: &SyncId) -> Option<&mut CloudNotebook> {
-        self.objects_by_id
-            .get_mut(&notebook_id.uid())
-            .and_then(|notebook| notebook.into())
-    }
-
     pub fn get_env_var_collection(
         &self,
         env_var_collection_id: &SyncId,
@@ -733,24 +382,11 @@ impl CloudModel {
             .filter_map(|object| object.into())
     }
 
-    pub fn current_revision(&self, id: &SyncId) -> Option<&Revision> {
-        self.objects_by_id
-            .get(&id.uid())
-            .and_then(|warp_cloud_object| warp_cloud_object.metadata().revision.as_ref())
-    }
-
     /// Returns only active (not trashed) notebooks in cloud model.
     pub fn get_all_active_notebooks(&self) -> impl Iterator<Item = &CloudNotebook> {
         self.objects_by_id
             .values()
             .filter(|object| !object.is_trashed(self))
-            .filter_map(|object| object.into())
-    }
-
-    /// Returns all notebooks (trashed or not) in cloud model.
-    pub fn get_all_active_and_inactive_notebooks(&self) -> impl Iterator<Item = &CloudNotebook> {
-        self.objects_by_id
-            .values()
             .filter_map(|object| object.into())
     }
 
@@ -831,71 +467,6 @@ impl CloudModel {
             .map(|object| object.as_ref())
     }
 
-    /// Given a CloudObjectLocation (either a folder or a space), returns an iterator of trashed cloud objects
-    /// that live directly in this location (its children). I.e. this function does NOT look into nested folders in order
-    /// to return those children.
-    pub fn trashed_cloud_objects_in_location_without_descendents<'a>(
-        &'a self,
-        location: CloudObjectLocation,
-    ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
-        self.objects_by_id
-            .values()
-            .filter(move |object| object.is_trashed(self) && object.location(self) == location)
-            .map(|object| object.as_ref())
-    }
-
-    pub fn trashed_cloud_object_types_in_location_with_descendants(
-        &self,
-        location: CloudObjectLocation,
-    ) -> Vec<ObjectType> {
-        let mut trashed_objects: Vec<ObjectType> = Vec::new();
-        self.trashed_cloud_object_types_in_location_with_descendants_helper(
-            location,
-            &mut trashed_objects,
-        );
-        trashed_objects
-    }
-
-    /// Helper function for trashed_cloud_objects_in_location_with_descendants.
-    /// Recursively traverses through descendants, adding object types of any trashed
-    /// objects found to the trashed_objects mutable vector reference.
-    fn trashed_cloud_object_types_in_location_with_descendants_helper(
-        &self,
-        location: CloudObjectLocation,
-        trashed_objects: &mut Vec<ObjectType>,
-    ) {
-        // Fetch direct descendants of the location
-        self.trashed_cloud_objects_in_location_without_descendents(location)
-            .for_each(|object| {
-                trashed_objects.push(object.object_type());
-                let folder: Option<&CloudFolder> = object.into();
-                // If any of the direct descendants are folders, recursively traverse through them
-                if let Some(folder) = folder {
-                    self.trashed_cloud_object_types_in_location_with_descendants_helper(
-                        CloudObjectLocation::Folder(folder.id),
-                        trashed_objects,
-                    );
-                }
-            });
-    }
-
-    /// Given a CloudObjectLocation (either a folder or a space), returns an iterator of cloud objects
-    /// that live directly in this location (its children) are in the trash but have not been explicitly
-    /// trashed by a user. I.e. this function does NOT look into nested folders in order to return those children.
-    pub fn indirectly_trashed_cloud_objects_in_location_without_descendents(
-        &self,
-        location: CloudObjectLocation,
-    ) -> impl Iterator<Item = &dyn CloudObject> {
-        self.objects_by_id
-            .values()
-            .filter(move |object| {
-                object.is_trashed(self)
-                    && object.location(self) == location
-                    && object.metadata().trashed_ts.is_none()
-            })
-            .map(|object| object.as_ref())
-    }
-
     /// Returns all active (not trashed) cloud objects in the space.
     pub fn active_cloud_objects_in_space<'a>(
         &'a self,
@@ -918,61 +489,6 @@ impl CloudModel {
                 object.is_in_space(space) && !object.is_trashed(self) && !object.is_welcome_object()
             })
             .map(|object| object.as_ref())
-    }
-
-    // Returns all objects, trashed or otherwise, in the space.
-    pub fn all_cloud_objects_in_space<'a>(
-        &'a self,
-        space: Space,
-    ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
-        self.objects_by_id
-            .values()
-            .filter(move |object| object.is_in_space(space))
-            .map(|object| object.as_ref())
-    }
-
-    /// Returns all trashed cloud objects in the space.
-    pub fn trashed_cloud_objects_in_space<'a>(
-        &'a self,
-        space: Space,
-    ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
-        self.objects_by_id
-            .values()
-            .filter(move |object| object.is_in_space(space) && object.is_trashed(self))
-            .map(|object| object.as_ref())
-    }
-
-    /// Returns all cloud objects in the space that have been explicitly trashed by a user.
-    pub fn directly_trashed_cloud_objects_in_space(
-        &self,
-        space: Space,
-    ) -> impl Iterator<Item = &dyn CloudObject> {
-        self.objects_by_id
-            .values()
-            .filter(move |object| {
-                object.is_in_space(space) && object.metadata().trashed_ts.is_some()
-            })
-            .map(|object| object.as_ref())
-    }
-
-    /// Returns a map of how many active (not trashed) objects reside within specified spaces.
-    pub fn num_active_cloud_objects_per_space<'a, I>(&self, spaces: I) -> HashMap<Space, usize>
-    where
-        I: Iterator<Item = &'a Space>,
-    {
-        spaces
-            .map(|space| (*space, self.active_cloud_objects_in_space(*space).count()))
-            .collect::<HashMap<_, _>>()
-    }
-
-    /// Returns a map of how many trashed objects reside within specified spaces.
-    pub fn num_trashed_cloud_objects_per_space<'a, I>(&self, spaces: I) -> HashMap<Space, usize>
-    where
-        I: Iterator<Item = &'a Space>,
-    {
-        spaces
-            .map(|space| (*space, self.trashed_cloud_objects_in_space(*space).count()))
-            .collect::<HashMap<_, _>>()
     }
 
     #[cfg(test)]

@@ -344,7 +344,7 @@ pub struct NotebookWorkflow {
 impl NotebookWorkflow {
     pub fn from_cloud_workflow(cloud_workflow: Box<CloudWorkflow>) -> Self {
         Self {
-            source: Some(cloud_workflow.permissions.owner.into()),
+            source: Some(WorkflowSource::PersonalCloud),
             workflow: UserInput::new(Arc::new(WorkflowType::Cloud(cloud_workflow))),
         }
     }

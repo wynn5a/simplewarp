@@ -276,7 +276,8 @@ impl From<DateTime<Utc>> for Revision {
 pub enum Owner {
     /// The owner of the object is a user (the object is in their personal drive).
     User { user_uid: UserUid },
-    /// The owner of the object is a team (the object is in a team drive).
+    /// The owner of the object is a team. Kept so objects cached by upstream Warp still load; the
+    /// app treats them as the user's own.
     Team { team_uid: ServerId },
 }
 
@@ -292,23 +293,13 @@ impl Owner {
     }
 }
 
-impl From<Owner> for Option<ServerId> {
-    fn from(owner: Owner) -> Option<ServerId> {
-        match owner {
-            Owner::User { .. } => None,
-            Owner::Team { team_uid, .. } => Some(team_uid),
-        }
-    }
-}
-
 /// Server representation of an object's container. This corresponds to the `Container` GraphQL
 /// type.
 ///
-/// Containers are similar to, but not quite the same as, the [`CloudObjectLocation`] type.
-/// Locations depend on object and user state - an object might currently be in the trash, or
-/// it could be in one user's [shared space](Space::Shared) but another's
-/// [team space](Space::Team). Containers, on the other hand, represent an object's canonical
-/// parent - its one parent folder or drive that permissions are inherited from.
+/// Containers are similar to, but not quite the same as, the `CloudObjectLocation` type.
+/// Locations depend on object state - an object might currently be in the trash. Containers, on
+/// the other hand, represent an object's canonical parent - its one parent folder or drive that
+/// permissions are inherited from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ServerObjectContainer {
     Folder { folder_uid: ServerId },

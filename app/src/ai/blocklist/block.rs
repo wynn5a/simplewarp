@@ -134,7 +134,7 @@ use crate::ai::get_relevant_files::controller::{
 };
 #[cfg(feature = "local_fs")]
 use crate::ai::skills::SkillOpenOrigin;
-use crate::auth::{AuthStateProvider, UserUid};
+use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code::editor::comment_editor::create_readonly_comment_markdown_editor;
@@ -179,7 +179,6 @@ use crate::view_components::action_button::{
 use crate::view_components::compactible_action_button::CompactibleActionButton;
 use crate::view_components::find::FindEvent;
 use crate::workspace::{ForkAIConversationParams, ForkedConversationDestination, WorkspaceAction};
-use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 use crate::{AIAgentTodoList, Appearance, FileEdit, ToastStack};
 
 /// The default display name used for the user if they have no associated display name.
@@ -216,48 +215,6 @@ fn current_user_avatar_info(app: &AppContext) -> UserAvatarInfo {
             .unwrap_or_else(|| DEFAULT_USER_DISPLAY_NAME.to_owned()),
         profile_image_path: auth_state.user_photo_url(),
     }
-}
-
-#[cfg_attr(not(test), allow(dead_code))]
-fn non_empty_photo_url(photo_url: &str) -> Option<String> {
-    (!photo_url.is_empty()).then(|| photo_url.to_string())
-}
-
-#[cfg_attr(not(test), allow(dead_code))]
-fn display_name_for_user_profile(profile: &UserProfileWithUID) -> String {
-    profile
-        .display_name
-        .as_ref()
-        .filter(|name| !name.is_empty())
-        .or_else(|| (!profile.email.is_empty()).then_some(&profile.email))
-        .cloned()
-        .unwrap_or_else(|| profile.firebase_uid.to_string())
-}
-
-#[cfg_attr(not(test), allow(dead_code))]
-fn user_avatar_info_for_conversation_creator(
-    creator: Option<&UserProfileWithUID>,
-    creator_uid: Option<&str>,
-    fallback: UserAvatarInfo,
-    app: &AppContext,
-) -> UserAvatarInfo {
-    if let Some(creator) = creator {
-        return UserAvatarInfo {
-            display_name: display_name_for_user_profile(creator),
-            profile_image_path: non_empty_photo_url(&creator.photo_url),
-        };
-    }
-
-    if let Some(creator_uid) = creator_uid
-        && let Some(profile) = UserProfiles::as_ref(app).profile_for_uid(UserUid::new(creator_uid))
-    {
-        return UserAvatarInfo {
-            display_name: profile.displayable_identifier(),
-            profile_image_path: non_empty_photo_url(&profile.photo_url),
-        };
-    }
-
-    fallback
 }
 
 pub fn init(app: &mut AppContext) {

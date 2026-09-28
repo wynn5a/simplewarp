@@ -18,7 +18,6 @@ use crate::env_vars::active_env_var_collection_data::SavingStatus;
 use crate::external_secrets::{ExternalSecretManager, SecretManager};
 use crate::search::external_secrets::searcher::ExternalSecretSearchItemAction;
 use crate::search::external_secrets::view::ExternalSecretsMenuEvent;
-use crate::sharing::ContentEditability;
 use crate::ui_components::icons::Icon;
 #[cfg(feature = "local_tty")]
 use crate::{
@@ -134,7 +133,6 @@ impl EnvVarCollectionView {
         menu_button_mouse_state: MouseStateHandle,
         row_index: usize,
         is_focused: bool,
-        _editability: ContentEditability,
     ) -> Box<dyn Element> {
         let (display_name, action, menu, icon) = match secret {
             EnvVarValue::Secret(sec) => (

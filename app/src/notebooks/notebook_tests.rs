@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use warp_core::ui::appearance::Appearance;
 use warp_editor::editor::EditorView;
-use warp_server_auth::user::{TEST_USER_EMAIL, TEST_USER_UID};
+use warp_server_auth::user::TEST_USER_UID;
 use warpui::platform::WindowStyle;
 use warpui::presenter::ChildView;
 use warpui::{
@@ -11,8 +11,8 @@ use warpui::{
 };
 
 use super::{NotebookEvent, NotebookView};
+use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::AuthManager;
-use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::Owner;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
@@ -36,7 +36,6 @@ use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workflows::workflow::Workflow;
 use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ActiveSession;
-use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider, PrivacySettings};
 
 fn initialize_app(app: &mut App) {
@@ -57,7 +56,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(PrivacySettings::mock);
     app.add_singleton_model(|_| UpdateManager::mock());
     app.add_singleton_model(CloudViewModel::mock);
-    app.add_singleton_model(|_| UserProfiles::new(vec![]));
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| ObjectActions::new(Vec::new()));
@@ -201,7 +199,6 @@ echo hello
                     ))),
                     source: WorkflowSource::Notebook {
                         notebook_id: None,
-                        team_uid: None,
                         location: NotebookLocation::PersonalCloud,
                     },
                 }),
@@ -327,7 +324,6 @@ fn test_no_eager_baton_grab_without_initial_load() {
                     .current_editor(ctx),
                 Some(Editor {
                     state: EditorState::CurrentUser,
-                    email: Some(TEST_USER_EMAIL.to_string())
                 })
             )
         });
@@ -345,21 +341,12 @@ fn test_not_eager_baton_grab_different_editor() {
         initialize_app(&mut app);
 
         let uid = "ian@warp.dev".to_string();
-        let email = "ian@warp.dev".to_string();
 
         let (_, notebook_view, _) = create_notebook(&mut app);
         let mut cloud_notebook = cloud_notebook("Test Notebook", r#"A notebook"#);
 
-        // Set the current editor of the notebook to be another email
-        cloud_notebook.metadata.current_editor_uid = Some(uid.clone());
-        UserProfiles::handle(&app).update(&mut app, |user_profiles, _| {
-            user_profiles.insert_profiles(&vec![UserProfileWithUID {
-                firebase_uid: UserUid::new(&uid),
-                display_name: Some(email.clone()),
-                email: email.clone(),
-                photo_url: "".to_string(),
-            }]);
-        });
+        // Set the current editor of the notebook to be another user
+        cloud_notebook.metadata.current_editor_uid = Some(uid);
 
         // Add the notebook to cloud model
         CloudModel::handle(&app).update(&mut app, |model, _| {
@@ -369,7 +356,7 @@ fn test_not_eager_baton_grab_different_editor() {
         // Open the notebook
         open_notebook(&mut app, &notebook_view, cloud_notebook).await;
 
-        // Assert that the editor is the other email
+        // Assert that the editor is the other user
         notebook_view.update(&mut app, |notebook, ctx| {
             assert_eq!(
                 notebook
@@ -378,7 +365,6 @@ fn test_not_eager_baton_grab_different_editor() {
                     .current_editor(ctx),
                 Some(Editor {
                     state: EditorState::OtherUserActive,
-                    email: Some(email)
                 })
             )
         });

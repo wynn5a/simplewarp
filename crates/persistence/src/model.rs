@@ -15,8 +15,8 @@ use super::schema::{
     mcp_environment_variables, mcp_server_installations, mcp_server_panes, notebook_panes,
     notebooks, object_actions, object_metadata, object_permissions, pane_branches, pane_leaves,
     pane_nodes, panels, project_rules, projects, server_experiments, settings_panes, tab_groups,
-    tabs, terminal_panes, user_profiles, windows, workflow_panes, workflows,
-    workspace_language_server, workspace_metadata,
+    tabs, terminal_panes, windows, workflow_panes, workflows, workspace_language_server,
+    workspace_metadata,
 };
 
 #[derive(Insertable)]
@@ -728,16 +728,6 @@ pub struct Command {
     pub cloud_workflow_id: Option<String>,
     pub workflow_command: Option<String>,
     pub is_agent_executed: Option<bool>,
-}
-
-#[derive(Identifiable, Queryable, Insertable)]
-#[diesel(table_name = user_profiles)]
-#[diesel(primary_key(firebase_uid))]
-pub struct UserProfile {
-    pub firebase_uid: String,
-    pub photo_url: String,
-    pub email: String,
-    pub display_name: Option<String>,
 }
 
 #[derive(Insertable)]

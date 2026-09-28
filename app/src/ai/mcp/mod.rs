@@ -407,7 +407,6 @@ impl MCPServerExt for MCPServer {
 #[derive(Debug, Clone)]
 pub enum Author {
     CurrentUser,
-    OtherUser { name: String },
     Unknown,
 }
 

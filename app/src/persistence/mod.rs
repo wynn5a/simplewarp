@@ -53,7 +53,6 @@ use crate::terminal::history::PersistedCommand;
 use crate::terminal::model::block::{SerializedAgentViewVisibility, SerializedBlock};
 use crate::terminal::model::session::SessionId;
 use crate::workflows::CloudWorkflow;
-use crate::workspaces::user_profiles::UserProfileWithUID;
 
 /// A conversation whose `summary` column had to be derived from its task
 /// snapshot at read time (rows written before the column existed, or rows
@@ -165,7 +164,6 @@ pub struct PersistedData {
     /// Shareable objects.
     pub cloud_objects: Vec<Box<dyn CloudObject>>,
     pub command_history: Vec<PersistedCommand>,
-    pub user_profiles: Vec<UserProfileWithUID>,
     pub object_actions: Vec<ObjectAction>,
     pub ai_queries: Vec<PersistedAIInput>,
     pub nld_prompts: Vec<(String, DateTime<Local>)>,
@@ -244,10 +242,6 @@ pub enum ModelEvent {
     UpdateFinishedCommand {
         metadata: FinishedCommandMetadata,
     },
-    UpsertUserProfiles {
-        profiles: Vec<UserProfileWithUID>,
-    },
-    ClearUserProfiles,
     InsertObjectAction {
         object_action: ObjectAction,
     },

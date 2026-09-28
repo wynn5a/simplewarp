@@ -216,7 +216,6 @@ impl NotebookEmbed {
         let workflow_info = NotebookWorkflow::from_cloud_workflow(Box::new(workflow.clone()));
         let block_info = BlockInfo::EmbeddedWorkflow {
             workflow_id: workflow_id.into_server().map(Into::into),
-            team_uid: workflow.permissions.owner.into(),
         };
 
         let workflow_content = workflow.model().data.content().to_owned();

@@ -40,7 +40,6 @@ use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
 use crate::search::external_secrets::view::ExternalSecretsMenu;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::SyncId;
-use crate::sharing::ContentEditability;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
@@ -891,8 +890,7 @@ impl EnvVarCollectionView {
             }
             CloudModelEvent::ObjectTrashed { .. }
             | CloudModelEvent::ObjectDeleted { .. }
-            | CloudModelEvent::ObjectUntrashed { .. }
-            | CloudModelEvent::ObjectMoved { .. } => ctx.notify(),
+            | CloudModelEvent::ObjectUntrashed { .. } => ctx.notify(),
             _ => (),
         }
     }
@@ -996,7 +994,6 @@ impl EnvVarCollectionView {
 
     fn render_variable_rows(
         &self,
-        editability: ContentEditability,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Vec<Box<dyn Element>> {
@@ -1080,7 +1077,6 @@ impl EnvVarCollectionView {
                                 .clone(),
                             index,
                             variable_editor_row.rendered_secret_menu_is_focused,
-                            editability,
                         ),
                         command @ EnvVarValue::Command(_) => self.render_secret_or_command_button(
                             appearance,
@@ -1090,7 +1086,6 @@ impl EnvVarCollectionView {
                                 .clone(),
                             index,
                             variable_editor_row.rendered_command_menu_is_focused,
-                            editability,
                         ),
                     });
 
@@ -1177,16 +1172,7 @@ impl View for EnvVarCollectionView {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
         let mut content = Flex::column();
-        let access_level = self
-            .active_env_var_collection_data
-            .as_ref(app)
-            .access_level(app);
-        let editability = self
-            .active_env_var_collection_data
-            .as_ref(app)
-            .editability(app);
-
-        content.extend(self.render_trash_banner(access_level, app));
+        content.extend(self.render_trash_banner(app));
 
         if let TrashStatus::Active = self
             .active_env_var_collection_data
@@ -1235,13 +1221,13 @@ impl View for EnvVarCollectionView {
                     .finish(),
             )
             .with_child(
-                Container::new(self.render_variables_section_header(editability, appearance))
+                Container::new(self.render_variables_section_header(appearance))
                     .with_margin_bottom(SECTION_SPACING)
                     .finish(),
             )
             .with_child(
                 Flex::column()
-                    .with_children(self.render_variable_rows(editability, appearance, app))
+                    .with_children(self.render_variable_rows(appearance, app))
                     .finish(),
             );
         if let Some(error_element) = self.render_bottom_error_message(appearance) {

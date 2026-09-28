@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use warpui::AppContext;
 
 use crate::cloud_object::{
-    CloudModelType, CloudObjectTypeAndId, CloudObjectUpsertParams, ObjectType, Owner,
+    CloudModelType, CloudObjectTypeAndId, CloudObjectUpsertParams, ObjectType,
 };
 use crate::persistence::ModelEvent;
 use crate::server::ids::SyncId;
@@ -78,22 +78,10 @@ impl CloudModelType for CloudNotebookModel {
 pub enum NotebookLocation {
     /// A cloud notebook in the user's personal space.
     PersonalCloud,
-    /// A cloud notebook in a team space.
-    Team,
     /// A notebook backed by a local file.
     LocalFile,
     /// A notebook backed by a remote file.
     RemoteFile,
-}
-
-impl From<Owner> for NotebookLocation {
-    fn from(owner: Owner) -> Self {
-        // TODO(ben): Account for shared objects in notebook telemetry.
-        match owner {
-            Owner::User { .. } => NotebookLocation::PersonalCloud,
-            Owner::Team { .. } => NotebookLocation::Team,
-        }
-    }
 }
 
 /// Initialize notebooks-related keybindings.

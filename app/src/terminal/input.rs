@@ -10708,14 +10708,12 @@ impl Input {
                 if let Some(alias) = WorkflowAliases::as_ref(ctx).match_alias(&command_string) {
                     if let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(&alias.workflow_id)
                     {
-                        let owner = workflow.clone().permissions.owner.into();
-
                         let workflow_type = WorkflowType::Cloud(Box::new(workflow.clone()));
                         let env_vars = alias.env_vars.or(workflow.model().data.default_env_vars());
 
                         self.insert_workflow_into_input(
                             workflow_type,
-                            owner,
+                            WorkflowSource::PersonalCloud,
                             WorkflowSelectionSource::Alias,
                             alias.arguments,
                             None,

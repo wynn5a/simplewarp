@@ -18,7 +18,7 @@ use warpui::{
 };
 
 use crate::ai::mcp::templatable_installation::{VariableType, VariableValue};
-use crate::ai::mcp::{TemplatableMCPServer, TemplatableMCPServerManager, TemplateVariable};
+use crate::ai::mcp::{TemplatableMCPServer, TemplateVariable};
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};
 use crate::settings_view::mcp_servers::style::{
@@ -69,7 +69,6 @@ pub struct InstallationModalBody {
     cancel_button: ViewHandle<ActionButton>,
     install_button: ViewHandle<ActionButton>,
     close_button_mouse_state: MouseStateHandle,
-    is_shared: bool,
 }
 
 impl InstallationModalBody {
@@ -96,7 +95,6 @@ impl InstallationModalBody {
             cancel_button,
             install_button,
             close_button_mouse_state: Default::default(),
-            is_shared: false,
         }
     }
 
@@ -110,9 +108,6 @@ impl InstallationModalBody {
         self.instructions_in_markdown = instructions_in_markdown;
 
         if let Some(templatable_mcp_server) = &self.templatable_mcp_server {
-            self.is_shared = TemplatableMCPServerManager::as_ref(ctx)
-                .is_server_template_shared(templatable_mcp_server.uuid);
-
             self.variable_inputs = templatable_mcp_server
                 .template
                 .variables
@@ -169,7 +164,6 @@ impl InstallationModalBody {
                 .collect();
         } else {
             self.variable_inputs = HashMap::new();
-            self.is_shared = false;
         }
 
         ctx.notify();
@@ -412,7 +406,7 @@ impl InstallationModalBody {
         form_column
     }
 
-    fn render_source_indicator(is_shared: bool, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_source_indicator(appearance: &Appearance) -> Box<dyn Element> {
         let info_icon = ConstrainedBox::new(
             Icon::Info
                 .to_warpui_icon(appearance.theme().disabled_ui_text_color())
@@ -422,14 +416,8 @@ impl InstallationModalBody {
         .with_height(16.)
         .finish();
 
-        let source_text = if is_shared {
-            "Shared from team"
-        } else {
-            "From another device"
-        };
-
         let label_text = Text::new_inline(
-            source_text.to_string(),
+            "From another device".to_string(),
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
@@ -457,7 +445,7 @@ impl InstallationModalBody {
     }
 
     fn render_buttons_row(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let source_indicator = Self::render_source_indicator(self.is_shared, appearance);
+        let source_indicator = Self::render_source_indicator(appearance);
         let action_buttons = self.render_action_buttons();
 
         let spacer = Shrinkable::new(1., Container::new(Empty::new().finish()).finish()).finish();

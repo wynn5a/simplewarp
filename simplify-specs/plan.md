@@ -365,6 +365,54 @@ Queue, in order:
    CloudModel query `trashed_cloud_object_types_in_location_with_descendants` and other
    zero-caller space queries.
 
+11. ~~Team-object residue, `UserProfiles`, dead CloudModel queries~~ — **4gz done (2026-09-28).**
+   −1.9k lines in 64 files. Stale team objects (only from an upstream cache) now load as the
+   user's own: `Owner::Team` stays (persisted `TEAM` rows), but `From<Owner> for Space` maps every
+   owner to `Personal`, and `Space::Team` / `Space::Shared` are gone (`Space` was never serialized;
+   `Shared` was never constructed), so `Space` is single-variant. Gone with them: the Team→Personal
+   move guard, `can_move_to_space` (trait + folder impl), `WorkflowSource::Team` /
+   `NotebookLocation::Team` / the `team_uid` fields on `WorkflowSource::Notebook` and
+   `BlockInfo::EmbeddedWorkflow` (verified never serialized: runtime events/actions only; every
+   cloud workflow source is `PersonalCloud`), `From<Owner> for Option<ServerId>`, the "Duplicate"
+   shared-space gates (always shown), access levels / `ContentEditability` and the `sharing`
+   module (always full/editable; a stale team object is now editable, not `RequiresLogin`
+   read-only), the Team MCP surface (`is_server_template_shared` / `_installation_shared`,
+   "Shared by …" / "Shared from team" chips and the shared list section, the "Remove from team"
+   unshare button + dialog variants + manager methods, the "only team admins" banner, the
+   delete-shared dialog; `Author::OtherUser`, unknown publisher reads "another user"), and the
+   now-unproduced move path (`UpdateManager::move_object_to_location`,
+   `ObjectOperation::MoveToFolder` / `MoveToDrive` — not serialized — and their toast/notebook
+   arms, `CloudModelEvent::ObjectMoved`, `UpdateSource`, `ActiveNotebookDataEvent::MovedToSpace`).
+   `UserProfiles` is deleted outright (it only held server-fetched profiles of other users, from a
+   sqlite cache nothing writes): `UserProfileWithUID` (+ `session-sharing-protocol` dep of
+   cloud_object_models), the `UpsertUserProfiles` / `ClearUserProfiles` events, the diesel
+   `UserProfile` row (the `user_profiles` table is kept, no longer read), `semantic_creator`,
+   the test-only AI-block creator avatar helpers; readers collapse to no name ("Edited 3 days
+   ago", "Other user is editing", `Editor.email` gone). Zero-caller pub CloudModel methods deleted
+   (verified incl. tests): `trashed_cloud_object_types_in_location_with_descendants` + helper,
+   `can_move_object_to_location`, `object_location`, `cloud_objects_mut`,
+   `delete_object(_and_descendants)` + internal, `check_if_object_is_in_cloudmodel`,
+   `update_notebook_current_editor` (with the then-unemitted `NotebookEditorChangedFromServer` →
+   `ModeChangedFromServer` chain), `update_object_metadata_last_updated_ts`, `overwrite_workflow` /
+   `_env_var_collection` / `_workflow_enum`, `get_all_exportable_object_ids`,
+   `get_workflow_enum_mut`, `get_notebook_mut`, `get_workflow_mut`,
+   `get_all_active_and_inactive_{workflows,workflows_mut,notebooks}`, `active_notebooks_in_space`,
+   `current_revision`, `(in)directly_trashed_cloud_objects_in_…`, `trashed_cloud_objects_in_space`,
+   `all_cloud_objects_in_space`, `num_{active,trashed}_cloud_objects_per_space`,
+   `update_object_location`; plus `CloudViewModel::object_space`, the env-var / notebook
+   `space` / `owner` / `access_level` getters, `Banner::new_without_close`, and the orphaned
+   `sharing/qr_code_tests.rs`. Kept: the notebook trash banner's "Copy to Personal" (now shows only
+   when the notebook is gone from CloudModel, as before for personal ones); test-only
+   `active_object_uids` / `add_object`; `update_environment_last_task_run_timestamps` (test-only
+   caller, cloud-environment residue). Tests 4,289 default / 4,290 simplewarp (−3, deleted with
+   their code: details-bar editor name, 2 AI-block creator avatar), `cloud_objects` +
+   `cloud_object_models` + `persistence` + `cloud_object_persistence` 53 passed, 0 failed.
+   Follow-ups: single-variant `Space` (thread through ~30 signatures, `CloudObjectLocation::Space`,
+   `ExportId`); `WorkflowSource` / `WorkflowSelectionSource` / `BlockInfo` serde derives and
+   plumbing (telemetry residue, never read for behavior); cloud-environment last-task timestamps;
+   notebook baton/editor-state (`current_editor_uid`, `EditorState::OtherUser*`) now only
+   reachable from stale metadata.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

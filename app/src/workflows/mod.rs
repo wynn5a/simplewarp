@@ -24,7 +24,7 @@ use crate::cloud_object::{
 };
 use crate::notebooks::{NotebookId, NotebookLocation};
 use crate::persistence::ModelEvent;
-use crate::server::ids::{ServerId, SyncId};
+use crate::server::ids::SyncId;
 
 pub fn init(app: &mut AppContext) {
     categories::init(app);
@@ -36,14 +36,10 @@ pub enum WorkflowSource {
     Global,
     Local,
     Project,
-    Team {
-        team_uid: ServerId,
-    },
     PersonalCloud,
     WarpAI,
     Notebook {
         notebook_id: Option<NotebookId>,
-        team_uid: Option<ServerId>,
         location: NotebookLocation,
     },
 

@@ -3,7 +3,7 @@ pub use cloud_object_models::{CloudFolder, CloudFolderModel};
 use cloud_objects::cloud_object::SerializedModel;
 pub use cloud_objects::ids::FolderId;
 
-use super::{CloudModelType, CloudObjectUpsertParams, ObjectType, Space};
+use super::{CloudModelType, CloudObjectUpsertParams, ObjectType};
 use crate::cloud_object::CloudObjectTypeAndId;
 use crate::persistence::ModelEvent;
 use crate::server::ids::SyncId;
@@ -41,10 +41,5 @@ impl CloudModelType for CloudFolderModel {
 
     fn serialized(&self) -> SerializedModel {
         SerializedModel::new(self.name.to_owned())
-    }
-
-    fn can_move_to_space(&self, current_space: Space, new_space: Space) -> bool {
-        // We don't currently support moving folders across spaces.
-        current_space == new_space
     }
 }

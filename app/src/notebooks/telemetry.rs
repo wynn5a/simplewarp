@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::server::ids::ServerId;
 use crate::workflows::WorkflowId;
 
 /// Generic entrypoint information for actions that might be keyboard or mouse driven.
@@ -21,10 +20,7 @@ pub enum ActionEntrypoint {
 #[serde(tag = "block_type")]
 pub enum BlockInfo {
     /// A workflow embedded in the notebook.
-    EmbeddedWorkflow {
-        workflow_id: Option<WorkflowId>,
-        team_uid: Option<ServerId>,
-    },
+    EmbeddedWorkflow { workflow_id: Option<WorkflowId> },
     /// A code or command block within the notebook.
     CodeBlock,
 }

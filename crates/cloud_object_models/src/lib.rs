@@ -22,7 +22,6 @@ pub mod mcp;
 pub mod notebook;
 pub mod preference;
 pub mod scheduled_ambient_agent;
-pub mod user_profile;
 pub mod workflow;
 pub mod workflow_enum;
 
@@ -37,6 +36,5 @@ pub use mcp::*;
 pub use notebook::*;
 pub use preference::*;
 pub use scheduled_ambient_agent::*;
-pub use user_profile::*;
 pub use workflow::*;
 pub use workflow_enum::*;

@@ -13143,10 +13143,9 @@ impl Workspace {
         fallback_behavior: TerminalSessionFallbackBehavior,
         ctx: &mut ViewContext<Self>,
     ) {
-        let owner = workflow.clone().permissions.owner.into();
         self.run_workflow_in_active_input(
             &WorkflowType::Cloud(Box::new(workflow.clone())),
-            owner,
+            WorkflowSource::PersonalCloud,
             workflow_selection_source,
             None,
             fallback_behavior,
@@ -13554,7 +13553,6 @@ impl Workspace {
                 object,
                 &result.operation,
                 &result.success_type,
-                ctx,
             ) {
                 let notebook: Option<&CloudNotebook> = object.into();
                 let cloned_notebook = notebook.cloned();

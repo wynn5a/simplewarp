@@ -38,11 +38,9 @@ impl CloudEnvironmentCatalog {
                     ctx.spawn(async {}, |catalog, (), ctx| catalog.refresh(ctx));
                 }
                 CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated
-                | CloudModelEvent::ObjectMoved { .. }
                 | CloudModelEvent::ObjectUpdated { .. }
                 | CloudModelEvent::ObjectTrashed { .. }
                 | CloudModelEvent::ObjectUntrashed { .. }
-                | CloudModelEvent::NotebookEditorChangedFromServer { .. }
                 | CloudModelEvent::ObjectDeleted { .. }
                 | CloudModelEvent::ObjectForceExpanded { .. } => catalog.refresh(ctx),
             }

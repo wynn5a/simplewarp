@@ -148,11 +148,6 @@ impl<T: Action + Clone> Banner<T> {
         Self::new_internal(content, vec![], /* with_close_button */ true)
     }
 
-    /// Creates a plain banner without a close button.
-    pub fn new_without_close(content: BannerTextContent<T>) -> Self {
-        Self::new_internal(content, vec![], /* with_close_button */ false)
-    }
-
     /// Creates a banner with the given text buttons and a close button.
     pub fn new_with_buttons(
         content: BannerTextContent<T>,

@@ -90,7 +90,6 @@ use crate::persistence::block_list::{
 };
 use crate::persistence::model::{
     CODE_REVIEW_PANE_KIND, GET_STARTED_PANE_KIND, NewPersistedObjectAction, ProjectRules,
-    UserProfile,
 };
 use crate::safe_info;
 use crate::server::ids::{ClientId, HashableId, SyncId};
@@ -102,7 +101,6 @@ use crate::terminal::history::PersistedCommand;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::workflows::WorkflowId;
 use crate::workspace::tab_group::TabGroupId;
-use crate::workspaces::user_profiles::{UserProfileWithUID, user_profile_from_persistence};
 
 diesel::define_sql_function! {
     fn json_extract(target: diesel::sql_types::Text, path: diesel::sql_types::Text) -> diesel::sql_types::Text;
@@ -479,12 +477,6 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
         }
         ModelEvent::UpdateFinishedCommand { metadata } => {
             update_finished_command(connection, metadata).context("error updating finished command")
-        }
-        ModelEvent::UpsertUserProfiles { profiles } => {
-            upsert_user_profiles(connection, profiles).context("error updating user profiles")
-        }
-        ModelEvent::ClearUserProfiles => {
-            clear_user_profiles(connection).context("error clearing user profiles")
         }
         ModelEvent::InsertObjectAction { object_action } => {
             insert_object_action(connection, object_action).context("error inserting object action")
@@ -2201,12 +2193,6 @@ fn read_sqlite_data(
         .map(PersistedCommand::from)
         .collect();
 
-    let user_profiles = schema::user_profiles::dsl::user_profiles
-        .load_iter::<model::UserProfile, DefaultLoadingMode>(conn)?
-        .filter_map(|user_profile| user_profile.ok())
-        .map(user_profile_from_persistence)
-        .collect();
-
     let object_actions: Vec<ObjectAction> = schema::object_actions::dsl::object_actions
         .load_iter::<model::PersistedObjectAction, DefaultLoadingMode>(conn)?
         .filter_map(|object_action| object_action.ok()) // parse into PersistedObjectAction
@@ -2241,7 +2227,6 @@ fn read_sqlite_data(
         app_state,
         cloud_objects,
         command_history: commands,
-        user_profiles,
         object_actions,
         ai_queries,
         nld_prompts,
@@ -2329,44 +2314,6 @@ fn update_finished_command(
                 completed_ts.eq(completed_command.completed_ts.naive_utc()),
             ))
             .execute(conn)?;
-        Ok(())
-    })
-}
-
-fn upsert_user_profiles(
-    conn: &mut SqliteConnection,
-    profiles: Vec<UserProfileWithUID>,
-) -> Result<(), Error> {
-    use schema::user_profiles::dsl::*;
-
-    conn.transaction::<(), Error, _>(|conn| {
-        for profile in profiles {
-            // Delete any stale profile with that uid
-            diesel::delete(
-                schema::user_profiles::dsl::user_profiles
-                    .filter(firebase_uid.eq(profile.firebase_uid.to_string())),
-            )
-            .execute(conn)?;
-
-            // Insert a new user profile row
-            let new_user_profile = UserProfile {
-                firebase_uid: profile.firebase_uid.to_string(),
-                photo_url: profile.photo_url,
-                display_name: profile.display_name,
-                email: profile.email,
-            };
-            diesel::insert_into(schema::user_profiles::dsl::user_profiles)
-                .values(new_user_profile)
-                .execute(conn)?;
-        }
-        Ok(())
-    })
-}
-
-fn clear_user_profiles(conn: &mut SqliteConnection) -> Result<(), Error> {
-    conn.transaction::<(), Error, _>(|conn| {
-        diesel::delete(schema::user_profiles::dsl::user_profiles).execute(conn)?;
-
         Ok(())
     })
 }

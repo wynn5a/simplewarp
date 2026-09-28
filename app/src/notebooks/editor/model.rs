@@ -501,8 +501,7 @@ impl NotebooksEditorModel {
             CloudModelEvent::ObjectUpdated { type_and_id, .. }
             | CloudModelEvent::ObjectTrashed { type_and_id, .. }
             | CloudModelEvent::ObjectUntrashed { type_and_id, .. }
-            | CloudModelEvent::ObjectDeleted { type_and_id, .. }
-            | CloudModelEvent::ObjectMoved { type_and_id, .. } => {
+            | CloudModelEvent::ObjectDeleted { type_and_id, .. } => {
                 if let Some(model) = self
                     .child_models
                     .model_handles::<NotebookEmbed>()

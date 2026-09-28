@@ -13,12 +13,10 @@ use self::model::generic_string_model::{
     GenericStringModel, GenericStringObjectId, Serializer, StringModel,
 };
 use self::model::persistence::CloudModel;
-use crate::auth::{AuthStateProvider, UserUid};
+use crate::auth::AuthStateProvider;
 use crate::persistence::ModelEvent;
-use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, ServerId, SyncId, ToServerId};
+use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, SyncId, ToServerId};
 use crate::util::time_format::format_approx_duration_from_now_utc;
-use crate::workflows::WorkflowSource;
-use crate::workspaces::user_profiles::UserProfiles;
 
 pub mod cloud_object_styling;
 pub mod drive_object_type;
@@ -96,11 +94,6 @@ pub trait CloudObject: Debug {
     /// Returns the CloudObjectTypeAndId for this object.
     fn cloud_object_type_and_id(&self) -> CloudObjectTypeAndId;
 
-    /// Returns whether this object can be moved to the given space.
-    fn can_move_to_space(&self, _space: Space) -> bool {
-        true
-    }
-
     // Whether to clear this object from the local SQLite DB on a unique key conflict.
     fn should_clear_on_unique_key_conflict(&self) -> bool {
         false
@@ -124,20 +117,8 @@ pub trait CloudObject: Debug {
     }
 
     /// The space containing this object.
-    ///
-    /// If the object is shared with the current user, the space will reflect that, not the
-    /// object's actual owner.
     fn space(&self) -> Space {
         self.permissions().owner.into()
-    }
-
-    /// Returns the name of the containing "object" for this object.
-    /// This could be a folder, or in the case of top-level objects,
-    /// the name of the space it belongs to.
-    fn containing_object_name(&self, app: &AppContext) -> String {
-        self.containing_object_names(app)
-            .pop()
-            .expect("Object should have at least one ancestor")
     }
 
     // Returns the names of all the containing "objects" for this object, ordered from
@@ -389,11 +370,6 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
     /// Returns a serialized model.
     fn serialized(&self) -> SerializedModel;
 
-    /// Returns whether this model type supports being moved to the given space.
-    fn can_move_to_space(&self, _current_space: Space, _new_space: Space) -> bool {
-        true
-    }
-
     /// Returns whether this model type should clear on a unique key conflict.
     fn should_clear_on_unique_key_conflict(&self) -> bool {
         false
@@ -527,10 +503,6 @@ where
         self.model().should_clear_on_unique_key_conflict()
     }
 
-    fn can_move_to_space(&self, space: Space) -> bool {
-        self.model().can_move_to_space(self.space(), space)
-    }
-
     fn has_conflicting_changes(&self) -> bool {
         self.conflict_status.has_conflicts()
     }
@@ -642,48 +614,17 @@ impl From<&Box<dyn CloudObject>> for ObjectType {
     }
 }
 
-/// Extension trait for CloudObjectMetadata with methods that require AppContext.
+/// Extension trait for CloudObjectMetadata.
 pub trait CloudObjectMetadataExt {
-    /// Returns a semantic summary of the last edit to the object. For example, "Alice edited 4 weeks ago".
-    /// Returns None if the revision and last_editor are None.
-    fn semantic_editing_history(&self, app: &AppContext) -> Option<String>;
-
-    /// Returns a semantic summary of the object's creator. For example, "Alice" or "joan@warp.dev".
-    fn semantic_creator(&self, app: &AppContext) -> Option<String>;
+    /// Returns a semantic summary of the last edit to the object. For example, "Edited 4 weeks
+    /// ago". Returns None if the revision is None.
+    fn semantic_editing_history(&self) -> Option<String>;
 }
 
 impl CloudObjectMetadataExt for CloudObjectMetadata {
-    fn semantic_editing_history(&self, app: &AppContext) -> Option<String> {
-        let user_profiles = UserProfiles::as_ref(app);
-
-        // First, the editor. For example, "Joan Didion" or "joan@warp.dev".
-        let editor_string = self
-            .last_editor_uid
-            .as_ref()
-            .and_then(|uid| user_profiles.displayable_identifier_for_uid(UserUid::new(uid)));
-
-        // Second, the time elapsed since the edit. For example, "just now" or "3 months ago".
-        let time_ago_string = self
-            .revision
-            .map(|r| format_approx_duration_from_now_utc(r.utc()));
-
-        let full_string = match (editor_string, time_ago_string) {
-            (Some(name), Some(time_ago)) if name.is_empty() => format!("Edited {time_ago}"),
-            (Some(name), Some(time_ago)) => format!("{name} edited {time_ago}"),
-            (None, Some(time_ago)) => format!("Edited {time_ago}"),
-            (Some(name), None) => format!("Last edited by {name}"),
-            _ => return None,
-        };
-
-        Some(full_string)
-    }
-
-    fn semantic_creator(&self, app: &AppContext) -> Option<String> {
-        // Todo(Jack): add creation ts.
-        let user_profiles = UserProfiles::as_ref(app);
-        self.creator_uid
-            .as_ref()
-            .and_then(|uid| user_profiles.displayable_identifier_for_uid(UserUid::new(uid)))
+    fn semantic_editing_history(&self) -> Option<String> {
+        self.revision
+            .map(|r| format!("Edited {}", format_approx_duration_from_now_utc(r.utc())))
     }
 }
 
@@ -695,38 +636,28 @@ pub enum Space {
     /// The current user's personal drive.
     #[default]
     Personal,
-    /// A team that the current user belongs to.
-    Team { team_uid: ServerId },
-    /// An object shared from a drive the user is not a member of.
-    Shared,
 }
 
 impl Space {
     pub fn name(&self) -> String {
         match self {
             Space::Personal => "Personal".to_string(),
-            Space::Team { .. } => "Team".to_string(),
-            Space::Shared => "Shared with me".to_string(),
         }
     }
 
-    /// The [`Owner`] of objects in this space, or `None` for the space of shared objects (or the
-    /// personal space when there is no user).
+    /// The [`Owner`] of objects in this space, or `None` when there is no user.
     pub fn owner(self, app: &AppContext) -> Option<Owner> {
         match self {
-            Space::Team { team_uid } => Some(Owner::Team { team_uid }),
             Space::Personal => personal_drive(app),
-            Space::Shared => None,
         }
     }
 }
 
+/// Every object is in the personal space: team-owned objects only come from a stale upstream
+/// cache, and are treated as the user's own.
 impl From<Owner> for Space {
-    fn from(owner: Owner) -> Self {
-        match owner {
-            Owner::User { .. } => Space::Personal,
-            Owner::Team { team_uid } => Space::Team { team_uid },
-        }
+    fn from(_owner: Owner) -> Self {
+        Space::Personal
     }
 }
 
@@ -745,25 +676,4 @@ pub enum CloudObjectLocation {
     Space(Space),
     Folder(SyncId),
     Trash,
-}
-
-impl From<Space> for WorkflowSource {
-    fn from(space: Space) -> Self {
-        match space {
-            Space::Personal => WorkflowSource::PersonalCloud,
-            Space::Team { team_uid } => WorkflowSource::Team { team_uid },
-            // TODO(ben): Model sharing in workflow telemetry.
-            Space::Shared => WorkflowSource::PersonalCloud,
-        }
-    }
-}
-
-impl From<Owner> for WorkflowSource {
-    fn from(owner: Owner) -> WorkflowSource {
-        match owner {
-            // TODO(ben): Represent shared objects in telemetry.
-            Owner::User { .. } => Self::PersonalCloud,
-            Owner::Team { team_uid } => Self::Team { team_uid },
-        }
-    }
 }

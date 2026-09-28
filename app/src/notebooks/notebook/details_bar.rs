@@ -6,7 +6,7 @@ use warpui::elements::{
 };
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::{AppContext, Element, SingletonEntity};
+use warpui::{AppContext, Element};
 
 use super::super::active_notebook_data::ActiveNotebookData;
 use super::{EDIT_BUTTON_MARGIN, NotebookAction};
@@ -14,10 +14,8 @@ use crate::appearance::Appearance;
 use crate::cloud_object::model::view::{Editor, EditorState};
 use crate::notebooks::active_notebook_data::Mode;
 use crate::notebooks::styles;
-use crate::sharing::ContentEditability;
 use crate::ui_components::buttons::{accent_icon_button, icon_button};
 use crate::ui_components::icons::Icon;
-use crate::workspaces::user_profiles::UserProfiles;
 
 /// Component to show details about a notebook:
 /// * The current editor of the notebook
@@ -44,27 +42,17 @@ impl DetailsBar {
             .with_main_axis_alignment(MainAxisAlignment::End)
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
         if let Some(editor) = notebook_data.current_editor(app) {
-            editing_state_row.add_child(
-                Shrinkable::new(1., self.render_editor(&editor, appearance, app)).finish(),
-            );
+            editing_state_row
+                .add_child(Shrinkable::new(1., self.render_editor(&editor, appearance)).finish());
         }
 
-        editing_state_row.add_child(self.render_mode_toggle(
-            notebook_data.mode,
-            ContentEditability::Editable,
-            appearance,
-        ));
+        editing_state_row.add_child(self.render_mode_toggle(notebook_data.mode, appearance));
 
         editing_state_row.finish()
     }
 
     /// Renders a toggle button for the editing mode.
-    fn render_mode_toggle(
-        &self,
-        mode: Mode,
-        editability: ContentEditability,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
+    fn render_mode_toggle(&self, mode: Mode, appearance: &Appearance) -> Box<dyn Element> {
         let edit_button = match mode {
             Mode::View => icon_button(
                 appearance,
@@ -83,11 +71,7 @@ impl DetailsBar {
         Container::new(
             edit_button
                 .build()
-                .on_click(move |ctx, _, _| {
-                    if editability.can_edit() {
-                        ctx.dispatch_typed_action(NotebookAction::ToggleMode)
-                    }
-                })
+                .on_click(move |ctx, _, _| ctx.dispatch_typed_action(NotebookAction::ToggleMode))
                 .with_cursor(Cursor::PointingHand)
                 .finish(),
         )
@@ -97,12 +81,7 @@ impl DetailsBar {
     }
 
     /// Renders a label for the current editor.
-    fn render_editor(
-        &self,
-        editor: &Editor,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_editor(&self, editor: &Editor, appearance: &Appearance) -> Box<dyn Element> {
         let base_text_styles = UiComponentStyles {
             font_color: Some(styles::title_text_fill(appearance).into_solid()),
             ..Default::default()
@@ -122,7 +101,7 @@ impl DetailsBar {
                 .build()
                 .finish(),
             EditorState::OtherUserActive | EditorState::OtherUserIdle => {
-                let editor = editor_display_name(editor.email.as_deref(), app);
+                let editor = "Other user";
                 appearance
                     .ui_builder()
                     .span(format!("{editor} is editing"))
@@ -139,17 +118,3 @@ impl DetailsBar {
         }
     }
 }
-
-/// Get the display name for an editor.
-fn editor_display_name(email: Option<&str>, app: &AppContext) -> String {
-    match email {
-        Some(email) => UserProfiles::as_ref(app)
-            .displayable_identifier_for_email(email)
-            .unwrap_or_else(|| email.to_string()),
-        None => "Other user".to_string(),
-    }
-}
-
-#[cfg(test)]
-#[path = "details_bar_tests.rs"]
-mod tests;

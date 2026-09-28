@@ -491,7 +491,7 @@ impl CategoriesView {
                 .map(|w| Arc::new(WorkflowType::Cloud(Box::new(w.clone())))),
         );
         self.workflows_by_source
-            .insert(space.into(), new_workflows_in_space);
+            .insert(WorkflowSource::PersonalCloud, new_workflows_in_space);
 
         self.selected_workflow_index = 0;
         self.compute_active_workflows(ctx);

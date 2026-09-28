@@ -6,7 +6,7 @@ use super::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView, Va
 use crate::AppContext;
 use crate::cloud_object::export::ExportManager;
 use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_env_var_limit;
-use crate::cloud_object::{CloudObjectTypeAndId, GenericStringObjectFormat, Space};
+use crate::cloud_object::{CloudObjectTypeAndId, GenericStringObjectFormat};
 use crate::env_vars::active_env_var_collection_data::TrashStatus;
 use crate::external_secrets::SecretManager;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
@@ -356,8 +356,6 @@ impl EnvVarCollectionView {
         let mut menu_items = Vec::new();
 
         let active_collection_data = self.active_env_var_collection_data.as_ref(ctx);
-        let _access_level = active_collection_data.access_level(ctx);
-        let space = active_collection_data.space(ctx);
 
         if !active_collection_data.is_on_server()
             || active_collection_data.trash_status(ctx) != TrashStatus::Active
@@ -365,15 +363,12 @@ impl EnvVarCollectionView {
             return menu_items;
         }
 
-        // Add "Duplicate" to menu
-        if space != Some(Space::Shared) {
-            menu_items.push(
-                MenuItemFields::new("Duplicate")
-                    .with_on_select_action(EnvVarCollectionAction::Duplicate)
-                    .with_icon(Icon::Duplicate)
-                    .into_item(),
-            );
-        }
+        menu_items.push(
+            MenuItemFields::new("Duplicate")
+                .with_on_select_action(EnvVarCollectionAction::Duplicate)
+                .with_icon(Icon::Duplicate)
+                .into_item(),
+        );
 
         // Add "Trash" to menu
         if self.is_online(ctx) {

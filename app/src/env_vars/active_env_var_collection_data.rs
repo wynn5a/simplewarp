@@ -1,14 +1,12 @@
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use super::CloudEnvVarCollectionModel;
-use crate::cloud_object::model::view::CloudViewModel;
-use crate::cloud_object::{CloudObject, Owner, Revision, Space};
+use crate::cloud_object::{CloudObject, Owner, Revision};
 use crate::env_vars::CloudEnvVarCollection;
 use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManagerEvent,
 };
 use crate::server::ids::{ClientId, SyncId};
-use crate::sharing::{ContentEditability, SharingAccessLevel};
 use crate::{AppContext, CloudModel, UpdateManager};
 
 #[derive(Default, Clone)]
@@ -147,42 +145,6 @@ impl ActiveEnvVarCollectionData {
             ActiveEnvVarCollection::CommittedEnvVarCollection(id) => Some(*id),
             ActiveEnvVarCollection::NewEnvVarCollection(env_var_collection) => {
                 Some(env_var_collection.id)
-            }
-        }
-    }
-
-    /// The current user's access level on this env var collection.
-    pub fn access_level(&self, app: &AppContext) -> SharingAccessLevel {
-        match &self.active_env_var_collection {
-            ActiveEnvVarCollection::CommittedEnvVarCollection(sync_id) => {
-                CloudViewModel::as_ref(app).access_level(&sync_id.uid(), app)
-            }
-            ActiveEnvVarCollection::None | ActiveEnvVarCollection::NewEnvVarCollection(_) => {
-                SharingAccessLevel::Full
-            }
-        }
-    }
-
-    pub fn editability(&self, app: &AppContext) -> ContentEditability {
-        match &self.active_env_var_collection {
-            ActiveEnvVarCollection::CommittedEnvVarCollection(sync_id) => {
-                CloudViewModel::as_ref(app).object_editability(&sync_id.uid(), app)
-            }
-            ActiveEnvVarCollection::None | ActiveEnvVarCollection::NewEnvVarCollection(_) => {
-                ContentEditability::Editable
-            }
-        }
-    }
-
-    /// The space that this env var collection is in.
-    pub fn space(&self, app: &AppContext) -> Option<Space> {
-        match &self.active_env_var_collection {
-            ActiveEnvVarCollection::None => None,
-            ActiveEnvVarCollection::CommittedEnvVarCollection(sync_id) => {
-                CloudViewModel::as_ref(app).object_space(&sync_id.uid(), app)
-            }
-            ActiveEnvVarCollection::NewEnvVarCollection(env_var_collection) => {
-                Some(env_var_collection.space())
             }
         }
     }

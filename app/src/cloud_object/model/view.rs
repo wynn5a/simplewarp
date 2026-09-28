@@ -6,13 +6,11 @@ use cloud_objects::time::ServerTimestamp;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::persistence::{CloudModel, CloudModelEvent};
-use crate::auth::{AuthStateProvider, UserUid};
+use crate::auth::AuthStateProvider;
+use crate::cloud_object::CloudObject;
 use crate::cloud_object::folders::CloudFolder;
-use crate::cloud_object::{CloudObject, Space};
 use crate::safe_info;
 use crate::server::ids::{ObjectUid, SyncId};
-use crate::sharing::{ContentEditability, SharingAccessLevel};
-use crate::workspaces::user_profiles::UserProfiles;
 
 pub const EDITOR_TIMEOUT_DURATION_MINUTES: i64 = 15;
 
@@ -25,22 +23,16 @@ pub enum EditorState {
     OtherUserIdle,
 }
 
-/// Stores information about the current editor of
-/// a particular notebook, for display purposes.
-/// For now, this just includes the state and
-/// an email, but will eventually hold more information
-/// about the user.
+/// Stores information about the current editor of a particular notebook, for display purposes.
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct Editor {
     pub state: EditorState,
-    pub email: Option<String>,
 }
 
 impl Editor {
     pub fn no_editor() -> Self {
         Self {
             state: EditorState::None,
-            email: None,
         }
     }
 }
@@ -95,14 +87,8 @@ impl CloudViewModel {
                 if user_uid.is_some_and(|user_uid| user_uid.as_string() == uid.clone()) {
                     return Some(Editor {
                         state: EditorState::CurrentUser,
-                        email: auth_state.user_email().clone(),
                     });
                 }
-
-                let editor_uid = UserUid::new(uid);
-                let editor_email = UserProfiles::as_ref(ctx)
-                    .profile_for_uid(editor_uid)
-                    .map(|profile| profile.email.clone());
 
                 match &object.metadata().revision {
                     Some(revision) => {
@@ -123,108 +109,19 @@ impl CloudViewModel {
                             );
                             Some(Editor {
                                 state: EditorState::OtherUserIdle,
-                                email: editor_email,
                             })
                         } else {
                             Some(Editor {
                                 state: EditorState::OtherUserActive,
-                                email: editor_email,
                             })
                         }
                     }
                     None => Some(Editor {
                         state: EditorState::OtherUserActive,
-                        email: editor_email,
                     }),
                 }
             }
             _ => Some(Editor::no_editor()),
-        }
-    }
-
-    /// Get the [`Space`] that contains an object.
-    pub fn object_space(&self, id: &ObjectUid, app: &AppContext) -> Option<Space> {
-        CloudModel::as_ref(app)
-            .get_by_uid(id)
-            .map(|object| object.space())
-    }
-
-    /// Get the current user's access level on a Warp Drive object.
-    ///
-    /// This is based on the client's current view of the object permissions, which may be stale. The
-    /// server is the source of truth for all permission data, and it may reject a request that the
-    /// client expects is allowed.
-    pub fn access_level(&self, object_uid: &ObjectUid, app: &AppContext) -> SharingAccessLevel {
-        match CloudModel::as_ref(app).get_by_uid(object_uid) {
-            Some(object) => Self::object_access_level(object, app),
-            None => SharingAccessLevel::View,
-        }
-    }
-
-    fn object_access_level(object: &dyn CloudObject, app: &AppContext) -> SharingAccessLevel {
-        match object.space() {
-            // For now, users have full access to all objects in their own drives. We may introduce
-            // drive-level ACLs in the future.
-            Space::Personal | Space::Team { .. } => SharingAccessLevel::Full,
-            Space::Shared => {
-                let mut access_level = SharingAccessLevel::View;
-
-                // Check the default link-based access (if set, this is *at least* View).
-                if let Some(link_settings) = &object.permissions().anyone_with_link {
-                    access_level = link_settings.access_level;
-                }
-
-                let user_uid = AuthStateProvider::as_ref(app).get().user_id();
-                if let Some(user_uid) = user_uid {
-                    for guest in object.permissions().guests.iter() {
-                        if guest.subject.is_user(user_uid) {
-                            access_level = access_level.max(guest.access_level);
-                        }
-                    }
-                }
-
-                // If the user created an object in a shared space, they will be treated as a guest and not the owner.
-                // The guest permissions aren't fetched until the object is re-fetched, and this fixes this behavior
-                // by forcing edit access if they created the object.
-                if let (Some(creator_uid), Some(user_uid)) =
-                    (object.metadata().creator_uid.clone(), user_uid)
-                    && creator_uid == user_uid.as_string()
-                {
-                    access_level = access_level.max(SharingAccessLevel::Edit);
-                }
-
-                access_level
-            }
-        }
-    }
-
-    /// Get the current user's editability state for a Warp Drive object.
-    pub fn object_editability(
-        &self,
-        object_uid: &ObjectUid,
-        app: &AppContext,
-    ) -> ContentEditability {
-        match CloudModel::as_ref(app).get_by_uid(object_uid) {
-            Some(object) => {
-                let access_level = Self::object_access_level(object, app);
-                if access_level < SharingAccessLevel::Edit {
-                    ContentEditability::ReadOnly
-                } else if AuthStateProvider::as_ref(app)
-                    .get()
-                    .is_anonymous_or_logged_out()
-                {
-                    // The object is editable, but the user is not logged in.
-                    if object.space() == Space::Personal {
-                        ContentEditability::Editable
-                    } else {
-                        ContentEditability::RequiresLogin
-                    }
-                } else {
-                    ContentEditability::Editable
-                }
-            }
-            // Assume objects not yet in CloudModel are new, and therefore editable.
-            None => ContentEditability::Editable,
         }
     }
 
@@ -240,25 +137,6 @@ impl CloudViewModel {
             | CloudModelEvent::ObjectUntrashed { type_and_id, .. } => {
                 // If an object is updated, we need to recompute the timestamps of its parents.
                 if self.invalidate_object_timestamps(&type_and_id.uid(), CloudModel::as_ref(ctx)) {
-                    ctx.emit(CloudViewModelEvent::SortTimestampsChanged);
-                }
-            }
-            CloudModelEvent::ObjectMoved {
-                from_folder,
-                to_folder,
-                ..
-            } => {
-                // Both the old parent and the new parent need to be invalidated, since this object
-                // could affect the sort timestamp of both. Even if the moved object were a folder,
-                // its own sort timestamp isn't affected.
-                let cloud_model = CloudModel::as_ref(ctx);
-                let old_parent_changed = from_folder.is_some_and(|folder_id| {
-                    self.invalidate_folder_timestamps(&folder_id, cloud_model)
-                });
-                let new_parent_changed = to_folder.is_some_and(|folder_id| {
-                    self.invalidate_folder_timestamps(&folder_id, cloud_model)
-                });
-                if old_parent_changed || new_parent_changed {
                     ctx.emit(CloudViewModelEvent::SortTimestampsChanged);
                 }
             }
@@ -284,8 +162,7 @@ impl CloudViewModel {
                     ctx.emit(CloudViewModelEvent::SortTimestampsChanged);
                 }
             }
-            CloudModelEvent::NotebookEditorChangedFromServer { .. }
-            | CloudModelEvent::ObjectForceExpanded { .. }
+            CloudModelEvent::ObjectForceExpanded { .. }
             | CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated => (),
         }
     }

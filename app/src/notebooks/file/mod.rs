@@ -629,7 +629,6 @@ impl FileNotebookView {
                 });
                 let source = workflow.source.unwrap_or(WorkflowSource::Notebook {
                     notebook_id: None,
-                    team_uid: None,
                     location: NotebookLocation::LocalFile,
                 });
                 ctx.emit(FileNotebookEvent::RunWorkflow {

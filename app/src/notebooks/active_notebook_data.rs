@@ -2,15 +2,14 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use super::CloudNotebookModel;
 use crate::ai::document::ai_document_model::AIDocumentId;
-use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::model::view::{CloudViewModel, Editor, EditorState};
+use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::model::view::{CloudViewModel, Editor};
 use crate::cloud_object::{CloudObject, Owner, Space};
 use crate::notebooks::CloudNotebook;
 use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
 use crate::server::ids::{ClientId, SyncId};
-use crate::sharing::SharingAccessLevel;
 
 #[derive(Default, Clone)]
 pub enum ActiveNotebook {
@@ -61,30 +60,8 @@ impl ActiveNotebookData {
             me.handle_update_manager_event(event, ctx);
         });
 
-        let cloud_model = CloudModel::handle(ctx);
-        ctx.subscribe_to_model(&cloud_model, |me, _, event, ctx| {
-            me.handle_cloud_model_event(event, ctx);
-        });
-
         Self {
             ..Default::default()
-        }
-    }
-
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
-        let CloudModelEvent::NotebookEditorChangedFromServer { notebook_id } = event else {
-            return;
-        };
-        if self.is_active_notebook(*notebook_id) {
-            if let Some(new_editor) =
-                CloudViewModel::as_ref(ctx).object_current_editor(&notebook_id.uid(), ctx)
-                && self.mode == Mode::Editing
-                && matches!(new_editor.state, EditorState::OtherUserActive)
-            {
-                self.mode = Mode::View;
-                ctx.emit(ActiveNotebookDataEvent::ModeChangedFromServer);
-            }
-            ctx.notify();
         }
     }
 
@@ -114,15 +91,6 @@ impl ActiveNotebookData {
                     && id.into_server() == Some(server_id)
                 {
                     ctx.emit(ActiveNotebookDataEvent::TrashStatusChanged);
-                }
-            }
-            (ObjectOperation::MoveToDrive, OperationSuccessType::Success) => {
-                let current_id = self.id();
-                let server_id = result.server_id.expect("Expect server id on success");
-                if let Some(id) = current_id
-                    && id.into_server() == Some(server_id)
-                {
-                    ctx.emit(ActiveNotebookDataEvent::MovedToSpace);
                 }
             }
             _ => {}
@@ -204,17 +172,6 @@ impl ActiveNotebookData {
         }
     }
 
-    /// The drive that owns the active notebook.
-    pub fn owner(&self, app: &AppContext) -> Option<Owner> {
-        match &self.active_notebook {
-            ActiveNotebook::None => None,
-            ActiveNotebook::CommittedNotebook(id) => CloudModel::as_ref(app)
-                .get_notebook(id)
-                .map(|notebook| notebook.permissions.owner),
-            ActiveNotebook::NewNotebook(notebook) => Some(notebook.permissions.owner),
-        }
-    }
-
     pub fn is_active_notebook(&self, notebook_id: SyncId) -> bool {
         self.id() == Some(notebook_id)
     }
@@ -266,25 +223,11 @@ impl ActiveNotebookData {
             }
         }
     }
-
-    /// The current user's access level on the notebook.
-    pub fn access_level(&self, app: &AppContext) -> SharingAccessLevel {
-        match &self.active_notebook {
-            ActiveNotebook::CommittedNotebook(object_id) => {
-                CloudViewModel::as_ref(app).access_level(&object_id.uid(), app)
-            }
-            ActiveNotebook::None | ActiveNotebook::NewNotebook(_) => SharingAccessLevel::Full,
-        }
-    }
 }
 
 pub enum ActiveNotebookDataEvent {
-    /// Another user stole the baton for the current object.
-    ModeChangedFromServer,
     /// This notebook was trashed or untrashed (used for refreshing pane overflow items)
     TrashStatusChanged,
-    // This notebook was moved to a shared space.
-    MovedToSpace,
 }
 
 /// Whether or not a notebook is trashed.

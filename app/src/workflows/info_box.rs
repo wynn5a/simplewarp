@@ -676,7 +676,7 @@ impl WorkflowsMoreInfoView {
 
         match &self.workflow {
             WorkflowType::Cloud(cloud_workflow) => {
-                let editing_history = cloud_workflow.metadata.semantic_editing_history(app);
+                let editing_history = cloud_workflow.metadata.semantic_editing_history();
 
                 let action_history = ObjectActions::as_ref(app)
                     .get_action_history_summary_for_action_type(

@@ -11,7 +11,6 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 
 use crate::env_vars::active_env_var_collection_data::TrashStatus;
 use crate::env_vars::view::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView};
-use crate::sharing::{ContentEditability, SharingAccessLevel};
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::{AppContext, Appearance, SingletonEntity};
@@ -26,11 +25,7 @@ const VARIABLES_LABEL_TEXT: &str = "Variables";
 /// This file contains components that fixed in the view,
 /// i.e. the trash banner and variables section header
 impl EnvVarCollectionView {
-    pub(super) fn render_trash_banner(
-        &self,
-        _access_level: SharingAccessLevel,
-        app: &AppContext,
-    ) -> Option<Box<dyn Element>> {
+    pub(super) fn render_trash_banner(&self, app: &AppContext) -> Option<Box<dyn Element>> {
         let deleted = match self
             .active_env_var_collection_data
             .as_ref(app)
@@ -136,7 +131,6 @@ impl EnvVarCollectionView {
 
     pub(super) fn render_variables_section_header(
         &self,
-        _editability: ContentEditability,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let mut variables_section_row = Flex::row()

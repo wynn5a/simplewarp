@@ -37,10 +37,9 @@ use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::appearance::Appearance;
 use crate::cloud_object::cloud_object_styling::warp_drive_icon_color;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::model::view::CloudViewModel;
 use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_workflow_limit;
 use crate::cloud_object::{
-    CloudObject, CloudObjectTypeAndId, DriveObjectType, ObjectType, Owner, Revision, Space,
+    CloudObject, CloudObjectTypeAndId, DriveObjectType, ObjectType, Owner, Revision,
 };
 use crate::drive::workflows::arguments::ArgumentsState;
 use crate::drive::workflows::enum_creation_dialog::{
@@ -470,7 +469,6 @@ impl WorkflowView {
         match event {
             CloudModelEvent::ObjectUpdated {
                 type_and_id: CloudObjectTypeAndId::Workflow(sync_id),
-                source: _,
             } => {
                 if self.workflow_id() == *sync_id && !self.is_editable() {
                     self.reset(ctx);
@@ -1258,25 +1256,25 @@ impl WorkflowView {
             if let Some(cloud_workflow) = self.get_cloud_workflow(ctx) {
                 let mut cloned_cloud_workflow = cloud_workflow.clone();
                 cloned_cloud_workflow.set_model(CloudWorkflowModel::new(new_workflow));
-                if let Some(owner) = self.owner {
+                if self.owner.is_some() {
                     ctx.emit(WorkflowViewEvent::RunWorkflow {
                         workflow: Arc::new(WorkflowType::Cloud(Box::new(cloned_cloud_workflow))),
-                        source: owner.into(),
+                        source: WorkflowSource::PersonalCloud,
                         argument_override: None,
                     });
                 };
-            } else if let Some(owner) = self.owner {
+            } else if self.owner.is_some() {
                 ctx.emit(WorkflowViewEvent::RunWorkflow {
                     workflow: Arc::new(WorkflowType::Local(new_workflow)),
-                    source: owner.into(),
+                    source: WorkflowSource::PersonalCloud,
                     argument_override: None,
                 })
             }
         } else if let Some(workflow) = self.get_cloud_workflow(ctx) {
-            if let Some(owner) = self.owner {
+            if self.owner.is_some() {
                 ctx.emit(WorkflowViewEvent::RunWorkflow {
                     workflow: Arc::new(WorkflowType::Cloud(Box::new(workflow))),
-                    source: owner.into(),
+                    source: WorkflowSource::PersonalCloud,
                     argument_override: Some(self.command_display_data.get_argument_values()),
                 });
             } else {
@@ -2437,17 +2435,12 @@ impl BackingView for WorkflowView {
     fn pane_header_overflow_menu_items(&self, ctx: &AppContext) -> Vec<MenuItem<WorkflowAction>> {
         let mut menu_items = Vec::new();
 
-        let space = CloudViewModel::as_ref(ctx).object_space(&self.workflow_id.uid(), ctx);
-
-        // Add "Duplicate" to menu
-        if space != Some(Space::Shared) {
-            menu_items.push(
-                MenuItemFields::new("Duplicate")
-                    .with_on_select_action(WorkflowAction::Duplicate)
-                    .with_icon(Icon::Duplicate)
-                    .into_item(),
-            );
-        }
+        menu_items.push(
+            MenuItemFields::new("Duplicate")
+                .with_on_select_action(WorkflowAction::Duplicate)
+                .with_icon(Icon::Duplicate)
+                .into_item(),
+        );
 
         // Add "Trash" to menu
         if self.is_online(ctx) {
