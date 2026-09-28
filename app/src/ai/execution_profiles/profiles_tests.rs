@@ -24,7 +24,7 @@ use crate::settings::cloud_preferences::{
     CloudPreference, CloudPreferenceModel, CloudPreferencesSettings,
 };
 use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
-use crate::settings::{AISettings, PrivacySettings, WarpDrivePrivacySettings};
+use crate::settings::{AISettings, PrivacySettings};
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -93,7 +93,6 @@ fn install_singletons(app: &mut App, auth_state: AuthStateProvider) {
     app.add_singleton_model(|ctx| {
         CloudPreferencesSyncer::new(false, std::path::PathBuf::new(), false, ctx)
     });
-    WarpDrivePrivacySettings::register(app);
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| UpdateManager::mock());
     app.add_singleton_model(CloudModel::mock);

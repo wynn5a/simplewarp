@@ -204,7 +204,6 @@ use crate::ai::blocklist::orchestration_topology::OrchestrationNavigationDirecti
 use crate::ai::blocklist::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
 use crate::ai::blocklist::suggested_rule_modal::SuggestedRuleAndId;
 use crate::ai::blocklist::summarization_cancel_dialog::SummarizationCancelDialog;
-use crate::ai::blocklist::telemetry_banner::TelemetryBanner;
 use crate::ai::blocklist::usage::conversation_usage_view::{
     ConversationUsageInfo, ConversationUsageView, TimingInfo,
 };
@@ -454,7 +453,6 @@ use crate::workspace::{
     ForkedConversationDestination, ToastStack, WorkspaceAction,
 };
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
-use crate::workspaces::workspace::CustomerType;
 use crate::{
     AIAgentActionResultType, AIRequestUsageModel, ActiveSession as WindowActiveSession, safe_error,
     safe_warn,
@@ -4881,15 +4879,6 @@ impl TerminalView {
                 ..
             } => {
                 self.maybe_send_lrc_queued_prompts_after_subagent_handoff(*conversation_id, ctx);
-                // Hide telemetry banner forever after first AI input user sends.
-                if FeatureFlag::GlobalAIAnalyticsBanner.is_enabled()
-                    && !GeneralSettings::as_ref(ctx)
-                        .telemetry_banner_dismissed
-                        .value()
-                {
-                    self.hide_telemetry_banner_permanently(ctx);
-                }
-
                 // Close any open usage footer(s) when a new AI block is added
                 if !self.usage_footer_view_ids.is_empty() {
                     let owner_block_ids: Vec<EntityId> =
@@ -8640,61 +8629,6 @@ impl TerminalView {
         ctx.notify();
     }
 
-    /// Inserts telemetry policy banner into the blocklist.
-    pub fn insert_telemetry_banner(&mut self, is_onboarded: bool, ctx: &mut ViewContext<Self>) {
-        // Don't ever show telemetry banner for enterprise users.
-        if UserWorkspaces::as_ref(ctx)
-            .current_workspace()
-            .is_some_and(|w| matches!(w.billing_metadata.customer_type, CustomerType::Enterprise))
-        {
-            return;
-        }
-
-        if FeatureFlag::GlobalAIAnalyticsBanner.is_enabled()
-            && !GeneralSettings::as_ref(ctx)
-                .telemetry_banner_dismissed
-                .value()
-            // Do not insert telemetry banner if one is already showing
-            // (Happens in the case of a new user going from loginless to login
-            // without dismissing banner the first time)
-            && !self.rich_content_views.iter().any(|content| content.is_telemetry_banner())
-        {
-            let banner = ctx.add_view(|ctx| TelemetryBanner::new(is_onboarded, ctx));
-            self.insert_rich_content(
-                None,
-                banner.clone(),
-                Some(RichContentMetadata::TelemetryBanner {
-                    telemetry_banner_handle: banner,
-                }),
-                RichContentInsertionPosition::Append {
-                    insert_below_long_running_block: true,
-                },
-                ctx,
-            );
-            ctx.notify();
-        }
-    }
-
-    fn hide_telemetry_banner_permanently(&mut self, ctx: &mut ViewContext<Self>) {
-        GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
-            let _ = general_settings
-                .telemetry_banner_dismissed
-                .set_value(true, ctx);
-        });
-        for rich_content in self.rich_content_views.iter() {
-            if let Some(RichContentMetadata::TelemetryBanner {
-                telemetry_banner_handle,
-            }) = rich_content.metadata()
-            {
-                self.model
-                    .lock()
-                    .block_list_mut()
-                    .remove_rich_content(telemetry_banner_handle.id());
-            }
-        }
-        ctx.notify();
-    }
-
     /// Redetermine focus in the terminal view -- note that this will not steal focus
     /// from other parts of the app, the find bar, or the block filter editor.
     ///
@@ -8845,15 +8779,6 @@ impl TerminalView {
                     ctx,
                 );
             });
-        }
-
-        // Hide telemetry banner forever after first block user executes.
-        if FeatureFlag::GlobalAIAnalyticsBanner.is_enabled()
-            && !GeneralSettings::as_ref(ctx)
-                .telemetry_banner_dismissed
-                .value()
-        {
-            self.hide_telemetry_banner_permanently(ctx);
         }
     }
 
@@ -21941,7 +21866,6 @@ impl TypedActionView for TerminalView {
             | StartFileDropTarget
             | StopFileDropTarget
             | RunNativeShellCompletions { .. }
-            | HideTelemetryBannerPermanently
             | LoadAgentModeConversation
             | DeleteAttachment { .. }
             | OpenAttachmentLightbox { .. }
@@ -22510,7 +22434,6 @@ impl TypedActionView for TerminalView {
                 selected_range,
             } => self.set_marked_text_on_terminal(marked_text, selected_range, ctx),
             ClearMarkedText => self.clear_marked_text_on_terminal(ctx),
-            HideTelemetryBannerPermanently => self.hide_telemetry_banner_permanently(ctx),
             ShowInitializationBlock => self.show_initialization_block(),
             LoadAgentModeConversation => {
                 self.load_agent_mode_conversation(ctx);

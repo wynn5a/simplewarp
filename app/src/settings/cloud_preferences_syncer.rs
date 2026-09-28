@@ -14,7 +14,6 @@ use warp_core::user_preferences::GetUserPreferences;
 use warpui::{Entity, ModelContext, SingletonEntity};
 use warpui_extras::user_preferences::toml_backed::TomlBackedUserPreferences;
 
-use super::PrivacySettings;
 use super::ai::ExecutionProfiles;
 use super::cloud_preferences::{CloudPreferencesSettings, CloudPreferencesSettingsChangedEvent};
 use super::manager::SettingsEvent;
@@ -167,11 +166,8 @@ struct PreferenceToCreate {
 }
 
 lazy_static! {
-    static ref LEGACY_CLOUD_SETTINGS_STORAGE_KEYS: Vec<&'static str> = vec![
-        super::privacy::TELEMETRY_ENABLED_DEFAULTS_KEY,
-        super::privacy::CLOUD_CONVERSATION_STORAGE_ENABLED_DEFAULTS_KEY,
-        ExecutionProfiles::storage_key(),
-    ];
+    static ref LEGACY_CLOUD_SETTINGS_STORAGE_KEYS: Vec<&'static str> =
+        vec![ExecutionProfiles::storage_key(),];
 }
 
 const PREFERENCES_DEBOUNCE_PERIOD: Duration = Duration::from_millis(500);
@@ -339,10 +335,6 @@ impl CloudPreferencesSyncer {
         }
 
         self.handle_initial_load(force_cloud_to_match_local, ctx);
-
-        PrivacySettings::handle(ctx).update(ctx, |privacy_settings, ctx| {
-            privacy_settings.maybe_sync_with_warp_drive_prefs(ctx);
-        });
     }
 
     /// Fixes https://linear.app/warpdotdev/issue/CLD-2629/duplicate-prefs-for-users

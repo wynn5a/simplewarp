@@ -16,7 +16,7 @@ use super::{
     BlockVisibilitySettings, CodeSettings, DebugSettings, EmacsBindingsSettings, FontSettings,
     FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings, InputSettings,
     PaneSettings, SameLinePromptBlockSettings, ScrollSettings, SelectionSettings, SshSettings,
-    ThemeSettings, VimBannerSettings, WarpDrivePrivacySettings,
+    ThemeSettings, VimBannerSettings,
 };
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::appearance;
@@ -76,7 +76,6 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     AccessibilitySettings::register(ctx);
     NativePreferenceSettings::register(ctx);
     CloudPreferencesSettings::register(ctx);
-    WarpDrivePrivacySettings::register(ctx);
     AppIconSettings::register(ctx);
     AppEditorSettings::register(ctx);
     InputSettings::register(ctx);

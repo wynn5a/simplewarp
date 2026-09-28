@@ -28,7 +28,7 @@ mod suggestion_chip_view;
 pub mod summarization_cancel_dialog;
 pub mod usage;
 
-pub(crate) mod telemetry_banner;
+pub(crate) mod ugc_telemetry;
 pub(crate) mod view_util;
 
 #[allow(unused_imports)]

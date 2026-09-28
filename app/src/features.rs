@@ -89,8 +89,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ClearAutosuggestionOnEscape,
         #[cfg(all(not(windows), feature = "kitty_images"))]
         FeatureFlag::KittyImages,
-        #[cfg(feature = "global_ai_analytics_banner")]
-        FeatureFlag::GlobalAIAnalyticsBanner,
         #[cfg(feature = "default_adeberry_theme")]
         FeatureFlag::DefaultAdeberryTheme,
         #[cfg(feature = "agent_onboarding")]

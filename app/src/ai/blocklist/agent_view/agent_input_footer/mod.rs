@@ -50,10 +50,7 @@ use crate::context_chips::prompt_type::PromptType;
 use crate::context_chips::{self, ContextChipKind};
 use crate::features::FeatureFlag;
 use crate::network::NetworkStatus;
-use crate::settings::{
-    AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
-    PrivacySettingsChangedEvent,
-};
+use crate::settings::{AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent};
 use crate::settings_view::SettingsSection;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::MenuPositioningProvider;
@@ -343,14 +340,6 @@ impl AgentInputFooter {
         });
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
             if matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled { .. }) {
-                ctx.notify()
-            }
-        });
-        ctx.subscribe_to_model(&PrivacySettings::handle(ctx), |_, _, event, ctx| {
-            if matches!(
-                event,
-                PrivacySettingsChangedEvent::UpdateIsCloudConversationStorageEnabled { .. }
-            ) {
                 ctx.notify()
             }
         });

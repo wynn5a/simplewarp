@@ -18,9 +18,7 @@ use crate::ai::skills::{SkillDescriptor, SkillManager};
 use crate::search::slash_command_menu::fuzzy_match::SlashCommandFuzzyMatchResult;
 use crate::search::slash_command_menu::static_commands::{Availability, commands};
 use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
-use crate::settings::{
-    AISettings, AISettingsChangedEvent, PrivacySettings, PrivacySettingsChangedEvent,
-};
+use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::terminal::input::slash_command_model::{
     DetectedCommand, DetectedSkillCommand, ParsedSlashCommandInput,
     slash_command_composition_filter,
@@ -84,14 +82,6 @@ pub(super) fn subscribe_to_shared_dependencies<T>(
             event,
             AISettingsChangedEvent::IsAnyAIEnabled { .. }
                 | AISettingsChangedEvent::AIAutoDetectionEnabled { .. }
-        ) {
-            recompute_active_commands(me, ctx);
-        }
-    });
-    ctx.subscribe_to_model(&PrivacySettings::handle(ctx), move |me, _, event, ctx| {
-        if matches!(
-            event,
-            PrivacySettingsChangedEvent::UpdateIsCloudConversationStorageEnabled { .. }
         ) {
             recompute_active_commands(me, ctx);
         }

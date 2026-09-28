@@ -234,8 +234,8 @@ use crate::settings::{
     AISettings, AISettingsChangedEvent, AccessibilitySettings, AliasExpansionSettings,
     AppEditorSettings, BlockVisibilitySettings, CodeSettings, CodeSettingsChangedEvent,
     CtrlTabBehavior, CursorBlink, DebugSettings, DefaultSessionMode, FontSettings, GPUSettings,
-    InputModeSettings, InputSettings, MonospaceFontSize, PaneSettings, PrivacySettings,
-    SelectionSettings, SshSettings, ThemeSettings, active_theme_kind, respect_system_theme,
+    InputModeSettings, InputSettings, MonospaceFontSize, PaneSettings, SelectionSettings,
+    SshSettings, ThemeSettings, active_theme_kind, respect_system_theme,
 };
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
@@ -6347,13 +6347,6 @@ impl Workspace {
                     return false;
                 }
                 self.trigger_agent_onboarding(ctx);
-            }
-
-            // Add telemetry banner for new users BEFORE the agentic onboarding blocks.
-            if let Some(terminal_view_handle) = self.active_session_view(ctx) {
-                terminal_view_handle.update(ctx, |terminal_view, ctx| {
-                    terminal_view.insert_telemetry_banner(false, ctx);
-                });
             }
 
             // After onboarding is triggered, mark the user as onboarded
@@ -17185,7 +17178,6 @@ impl Workspace {
     }
 
     fn add_toggle_setting_context_flags(&self, app: &AppContext, context: &mut Context) {
-        let privacy_settings = PrivacySettings::as_ref(app);
         let editor_settings = AppEditorSettings::as_ref(app);
         let semantic_selection_settings = SemanticSelection::as_ref(app);
         let selection_settings = SelectionSettings::as_ref(app);
@@ -17327,10 +17319,6 @@ impl Workspace {
 
         if *input_settings.syntax_highlighting.value() {
             context.set.insert(flags::SYNTAX_HIGHLIGHTING_FLAG);
-        }
-
-        if privacy_settings.is_telemetry_enabled {
-            context.set.insert(flags::TELEMETRY_FLAG);
         }
 
         if *block_list_settings

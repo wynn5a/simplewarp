@@ -150,11 +150,6 @@ pub enum FeatureFlag {
     /// Enables Kitty image rendering
     KittyImages,
 
-    /// Enables the revised AI analytics policy banner.
-    ///
-    /// This does not gate actual collection of data under the new policy.
-    GlobalAIAnalyticsBanner,
-
     /// Enables Agent Mode onboarding.
     AgentOnboarding,
 

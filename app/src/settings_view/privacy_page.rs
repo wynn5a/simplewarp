@@ -52,10 +52,9 @@ const FONT_SIZE: f32 = 12.;
 
 const SAFE_MODE_TITLE: &str = "Secret redaction";
 static SAFE_MODE_DESCRIPTION: LazyLock<&'static str> = LazyLock::new(|| {
-    "When this setting is enabled, Warp will scan blocks, the contents of \
-        Warp Drive objects, and Oz prompts for potential sensitive \
-        information and prevent saving or sending this data to any \
-        servers. You can customize this list via regexes."
+    "When this setting is enabled, Warp will scan blocks and AI prompts for potential \
+        sensitive information and prevent saving or sending this data to any servers. You can \
+        customize this list via regexes."
 });
 const USER_SECRET_REGEX_TITLE: &str = "Custom secret redaction";
 const USER_SECRET_REGEX_DESCRIPTION: &str = "Use regex to define additional secrets or data you'd like to redact. This will take effect \
@@ -247,15 +246,6 @@ impl PrivacyPageView {
         ctx.notify();
     }
 
-    fn toggle_telemetry(&mut self, ctx: &mut ViewContext<Self>) {
-        let privacy_settings_handle = PrivacySettings::handle(ctx);
-        let old_value = privacy_settings_handle.as_ref(ctx).is_telemetry_enabled;
-        ctx.update_model(&privacy_settings_handle, |privacy_settings, ctx| {
-            privacy_settings.set_is_telemetry_enabled(!old_value, ctx);
-        });
-        ctx.notify();
-    }
-
     fn queue_regex_removal(&mut self, idx: usize, ctx: &mut ViewContext<Self>) {
         // Check if this removal is already pending
         if self.pending_regex_removals.contains(&idx) {
@@ -426,7 +416,6 @@ pub enum PrivacyPageAction {
     ToggleSafeMode,
     ToggleHideSecretsInBlockList,
     SetSecretDisplayMode(SecretDisplayMode),
-    ToggleTelemetry,
     LaunchNetworkLogging,
     RemoveCustomRegex(usize),
     AddAllRecommendedRegexes,
@@ -504,7 +493,6 @@ impl TypedActionView for PrivacyPageView {
             PrivacyPageAction::SetSecretDisplayMode(mode) => {
                 self.set_secret_display_mode(*mode, ctx)
             }
-            PrivacyPageAction::ToggleTelemetry => self.toggle_telemetry(ctx),
             PrivacyPageAction::LaunchNetworkLogging => self.launch_network_logging(ctx),
             PrivacyPageAction::RemoveCustomRegex(idx) => {
                 self.queue_regex_removal(*idx, ctx);
@@ -1423,23 +1411,14 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     context: &ContextPredicate,
     builder: fn(SettingsAction) -> T,
 ) {
-    let mut toggle_binding_pairs = vec![ToggleSettingActionPair::new(
-        "app analytics",
-        builder(SettingsAction::PrivacyPageToggle(
-            PrivacyPageAction::ToggleTelemetry,
-        )),
-        context,
-        flags::TELEMETRY_FLAG,
-    )];
-
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
+    let toggle_binding_pairs = vec![ToggleSettingActionPair::new(
         "secret redaction",
         builder(SettingsAction::PrivacyPageToggle(
             PrivacyPageAction::ToggleSafeMode,
         )),
         context,
         flags::SAFE_MODE_FLAG,
-    ));
+    )];
 
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(toggle_binding_pairs, app);
 }

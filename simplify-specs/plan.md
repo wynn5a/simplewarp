@@ -164,9 +164,32 @@ Queue, in order:
    generator; `agent_sdk/driver/cache_setup` + `crates/build_cache` (runs only on Warp-hosted
    Namespace instances with source repos from a cloud environment); `DockerSandbox` isolation
    variant (only via a server-set env var); orphaned `app/src/sharing/qr_code_tests.rs` (no module).
+5. ~~Remote-only privacy toggles~~ — **4gt done (2026-09-28).** −627 lines in 25 files. Both
+   toggles' widgets were already gone; what was left controlled nothing (no reader of either value
+   drove local behavior — the only readers were the palette context flag and three
+   recompute-on-change subscriptions in the slash-command sources and agent footer). Gone: the
+   `WarpDrivePrivacySettings` group (`IsTelemetryEnabled`, `IsCloudConversationStorageEnabled`;
+   the orphaned `TelemetryEnabled` / `CloudConversationStorageEnabled` keys and their TOML paths
+   still load harmlessly) and its schema test, `PrivacySettings::is_telemetry_enabled` /
+   `is_cloud_conversation_storage_enabled` / `is_telemetry_force_enabled` with their setters and
+   `Update*` events, the "app analytics" palette toggle, `ToggleTelemetry` and `TELEMETRY_FLAG`, the
+   Warp Drive pref sync (`maybe_sync_with_warp_drive_prefs`, its call in the syncer's `sync()`, the
+   two legacy storage keys), and the telemetry-policy banner (`TelemetryBanner`, the
+   `GlobalAIAnalyticsBanner` flag and cargo feature, `HideTelemetryBannerPermanently`, its
+   rich-content variant, the `TelemetryBannerDismissed` setting, key orphaned). Kept, being local:
+   secret redaction, the network log console, `should_collect_ai_ugc_telemetry` (moved to
+   `ai/blocklist/ugc_telemetry.rs`; it picks how much block output is serialized), and the
+   privacy-policy link. Tests 4,391 / 4,392 (−1, the deleted schema test). Follow-ups:
+   `initialize_default_regexes_once` has had no production caller since the syncer went inert (the
+   deleted pref sync was its only caller), so new installs no longer get the recommended secret
+   regexes auto-added (product decision: call it at startup, or leave the manual "Add all");
+   `CloudPreferencesSyncer` itself is sync-disabled in every build (only its local settings-file
+   hash path runs); the privacy-policy links point at warp.dev (settings page, app menu, workspace
+   action); `WorkspaceSettings.telemetry_settings` / `cloud_conversation_storage_settings` are
+   now-unread server team shapes.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
-PersonalCloud, WarpDrivePrivacySettings, `autosync_plans_to_warp_drive`,
+PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,
 `Icon::Warp`, the app_state WarpDrive tombstone), `crates/onboarding`'s live local tutorial, the
 enable-candidate flags above, and the `AgentHarness` flag (live by design).

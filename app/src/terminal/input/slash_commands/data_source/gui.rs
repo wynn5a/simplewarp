@@ -14,9 +14,7 @@ use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::slash_command_menu::StaticCommand;
 use crate::search::slash_command_menu::static_commands::Availability;
 use crate::search::slash_command_menu::static_commands::commands::COMMAND_REGISTRY;
-use crate::settings::{
-    InputSettings, InputSettingsChangedEvent, PrivacySettings, PrivacySettingsChangedEvent,
-};
+use crate::settings::{InputSettings, InputSettingsChangedEvent};
 use crate::terminal::input::slash_commands::AcceptSlashCommandOrSavedPrompt;
 use crate::terminal::model::session::active_session::ActiveSession;
 
@@ -53,15 +51,6 @@ impl GuiSlashCommandDataSource {
                 me.recompute_active_commands(ctx);
             }
             _ => (),
-        });
-        // Preserve the existing GUI subscriptions whose settings affect GUI-only command gates.
-        ctx.subscribe_to_model(&PrivacySettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(
-                event,
-                PrivacySettingsChangedEvent::UpdateIsCloudConversationStorageEnabled { .. }
-            ) {
-                me.recompute_active_commands(ctx);
-            }
         });
         ctx.subscribe_to_model(&InputSettings::handle(ctx), |me, _, event, ctx| {
             if matches!(
