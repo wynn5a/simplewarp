@@ -41,7 +41,7 @@ use crate::rendering::wgpu::{
     Renderer, Resources, adapter_has_rendering_offset_bug, from_wgpu_backend, renderer,
     to_wgpu_backend,
 };
-use crate::rendering::{GPUPowerPreference, GlyphConfig, OnGPUDeviceSelected};
+use crate::rendering::{GPUPowerPreference, GlyphConfig};
 use crate::windowing::WindowCallbacks;
 use crate::{DisplayId, DisplayIdx, OptionalPlatformWindow, Scene, WindowId, fonts, geometry};
 
@@ -684,10 +684,6 @@ struct Inner {
     gpu_power_preference: GPUPowerPreference,
     backend_preference: Option<wgpu::Backend>,
     rendering_resources: Option<RenderingResources>,
-    /// Callback that reports when a GPU device is selected. We need to store this on the window
-    /// because we may attempt to recreate resources (which in turns reselects a GPU device) to
-    /// handle cases where wgpu treats the device as "lost" when the system is waking up from sleep.
-    on_gpu_device_selected: Box<OnGPUDeviceSelected>,
     active_drag_resize_direction: Option<ResizeDirection>,
     surface_size: Vector2F,
     surface_requires_reconfiguration: bool,
@@ -765,7 +761,6 @@ impl Window {
             window.clone(),
             gpu_power_preference,
             backend_preference,
-            &window_options.on_gpu_device_info_reported,
             initial_surface_size,
             downrank_non_nvidia_vulkan_adapters,
         )?;
@@ -785,7 +780,6 @@ impl Window {
                 resources,
                 renderer,
             }),
-            on_gpu_device_selected: window_options.on_gpu_device_info_reported,
             active_drag_resize_direction: None,
             surface_size: initial_surface_size,
             surface_requires_reconfiguration: false,
@@ -935,7 +929,6 @@ impl Window {
             inner.window.clone(),
             inner.gpu_power_preference,
             inner.backend_preference,
-            &inner.on_gpu_device_selected,
             inner.surface_size,
             downrank_non_nvidia_vulkan_adapters,
         )

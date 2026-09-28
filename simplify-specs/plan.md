@@ -875,6 +875,36 @@ Queue, in order:
    `windows-installer.iss` / DockTilePlugin channel branches; `app_services/linux` D-Bus default
    `dev.warp.WarpLocal`.
 
+26. ~~URL-scheme fix; 4gq / 4hk / 4hn dead hooks~~ — **4ho done (2026-09-28).** **Fix:**
+   `ChannelState::url_scheme()` was keyed on `Channel` and returned `warposs` for the simplewarp
+   bin, whose Info.plist (embedded in `bin/simplewarp.rs` and written by `script/bundle_simplewarp`)
+   registers `simplewarp`: deep links (`simplewarp://…`) were rejected by `validate_custom_uri`, and
+   the MCP OAuth `redirect_uri` (`warposs://mcp/oauth2callback`) was never routed back to the app, so
+   MCP OAuth sign-in could not complete. The scheme is now `ChannelConfig::url_scheme`, set by each
+   bin (`simplewarp` / `warposs` / `warpintegration`); `uri_tests` pins each bin's scheme against its
+   plist(s). `ChannelConfig` lost its unused serde derives. **Cleanup:** `SystemInfo` is now just the
+   Windows process-table lookup (the 5 s poll, `MemoryUsageHigh`, the excessive-memory check, the
+   `memory_footprint` module on all four platforms, app's `mach2` dep and the
+   `Win32_System_ProcessStatus` feature); `crash_recovery::Event` (neither variant observed);
+   warpui's `on_gpu_driver_selected` / `on_gpu_device_info_reported` hook and the `GPUDeviceInfo`
+   types behind it (mac Metal + wgpu + winit); the ambient-session half of `ActiveAgentViewsModel`
+   (`ConversationOrTaskId` folded to `AIConversationId`) and everything that could only feed it —
+   `PaneGroup::new_for_conversation_transcript_viewer` / `create_conversation_viewer` (no callers),
+   `ViewingAmbientConversation`, `TerminalModel::ambient_agent_task_id` / `is_cloud_agent_conversation`,
+   `TerminalView::is_cloud_agent_session` and its cloud-icon/tab-indicator branches
+   (`Indicator::AmbientAgent`), `OpenConversationTranscriptViewer` (never dispatched), the icon
+   helpers' always-false `is_ambient` input; `EditOrigin::RemoteEdit` (test-only intake now emits
+   `SystemEdit`); `ForkFromExchange::fork_from_exact_exchange` (rewind uses `fork_conversation`, not
+   this path; the reconciliation test now stops at a user query instead). Non-mac edits
+   (winit window, `crash_recovery` on_frame_drawn in `lib.rs`, Windows `memory_footprint` removal)
+   were not compile-checked. `app_services/linux`'s `dev.warp.WarpLocal` proxy default left as is:
+   not live (the only proxy build sets `.destination()` / `.path()`). Tests 4,105 default / 4,106
+   simplewarp (−4 deleted with their code, +1 scheme pin), warp_core + warpui + warpui_core 390, 0
+   failed. Follow-ups: `ConversationTranscriptViewerStatus::ViewingLocalConversation` is never
+   constructed (only `Loading` is set); `IconWithStatusVariant`'s `is_ambient` still has
+   `vertical_tabs` `true` producers (summary CLI rows) worth checking; `Channel::cli_command_name()`
+   says `warp-oss` for the simplewarp bin too; the `app_services/linux` D-Bus default.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

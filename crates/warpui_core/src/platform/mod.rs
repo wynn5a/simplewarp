@@ -32,7 +32,7 @@ use crate::fonts::{
 use crate::keymap::Keystroke;
 use crate::modals::{AlertDialog, ModalId};
 use crate::notification::{NotificationSendError, RequestPermissionsOutcome, UserNotification};
-use crate::rendering::{GPUPowerPreference, OnGPUDeviceSelected};
+use crate::rendering::GPUPowerPreference;
 use crate::text_layout::{ClipConfig, Line, StyleAndFont, TextAlignment, TextFrame};
 use crate::windowing::WindowCallbacks;
 use crate::{
@@ -83,7 +83,6 @@ pub struct WindowOptions {
     pub background_blur_texture: bool,
     pub gpu_power_preference: GPUPowerPreference,
     pub backend_preference: Option<GraphicsBackend>,
-    pub on_gpu_device_info_reported: Box<OnGPUDeviceSelected>,
     /// This is an identifier to distinguish different windows among one application. It is a no-op
     /// on all platforms except X11 Linux.
     /// See docs on the "WM_CLASS" property:

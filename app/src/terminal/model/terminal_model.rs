@@ -46,7 +46,6 @@ use super::secrets::{RespectObfuscatedSecrets, SecretAndHandle};
 use super::selection::ScrollDelta;
 use super::session::{InBandCommandOutputReceiver, SessionId, SessionType};
 use super::{Secret, SecretHandle};
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::terminal::block_filter::BlockFilterQuery;
 use crate::terminal::block_list_element::GridType;
@@ -89,10 +88,8 @@ const TITLE_STACK_MAX_DEPTH: usize = 4096;
 pub enum ConversationTranscriptViewerStatus {
     /// Loading conversation data from the server.
     Loading,
-    /// Viewing a local conversation (not from ambient agent).
+    /// Viewing a local conversation.
     ViewingLocalConversation,
-    /// Viewing an ambient agent conversation with the associated task ID.
-    ViewingAmbientConversation(AmbientAgentTaskId),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1056,29 +1053,6 @@ impl TerminalModel {
             next_kitty_image_id: 2147483647,
             registered_session_ids: HashSet::new(),
         }
-    }
-
-    pub fn ambient_agent_task_id(&self) -> Option<AmbientAgentTaskId> {
-        if let Some(ConversationTranscriptViewerStatus::ViewingAmbientConversation(task_id)) =
-            &self.conversation_transcript_viewer_status
-        {
-            return Some(*task_id);
-        }
-        None
-    }
-
-    /// Model-only portion of the "is this a cloud agent conversation?" check used for display
-    /// purposes (e.g. the cloud agent icon). Callers holding a [`TerminalView`] should use
-    /// [`TerminalView::is_cloud_agent_session`], which also accounts for the ambient agent view
-    /// model.
-    ///
-    /// This intentionally keys off cloud-execution (ambient agent) semantics — viewing an
-    /// ambient conversation — NOT the mere presence of an orchestrator task id.
-    pub fn is_cloud_agent_conversation(&self) -> bool {
-        matches!(
-            self.conversation_transcript_viewer_status.as_ref(),
-            Some(ConversationTranscriptViewerStatus::ViewingAmbientConversation(_))
-        )
     }
 
     pub fn obfuscate_secrets(&self) -> ObfuscateSecrets {

@@ -101,25 +101,6 @@ fn take_typeahead_for_input_is_none_when_typeahead_is_empty() {
 
     assert_eq!(model.take_typeahead_for_input(), None);
 }
-/// `is_cloud_agent_conversation` is the icon check for the agent surface: only a terminal
-/// that is viewing an ambient conversation transcript counts.
-#[test]
-fn is_cloud_agent_conversation_only_true_when_viewing_an_ambient_transcript() {
-    use std::str::FromStr;
-
-    let task_id = "123e4567-e89b-12d3-a456-426614174000";
-
-    let mut model = TerminalModel::mock(None, None);
-    assert!(!model.is_cloud_agent_conversation());
-
-    model.set_conversation_transcript_viewer_status(Some(
-        ConversationTranscriptViewerStatus::ViewingAmbientConversation(
-            AmbientAgentTaskId::from_str(task_id).expect("valid task id"),
-        ),
-    ));
-    assert!(model.is_cloud_agent_conversation());
-}
-
 fn iterm_file_osc(name: &str, inline: bool, payload: &[u8]) -> String {
     let inline = if inline { "1" } else { "0" };
     format!(

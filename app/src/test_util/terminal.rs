@@ -121,7 +121,7 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     #[cfg(feature = "voice_input")]
     app.add_singleton_model(voice_input::VoiceInput::new);
 
-    app.add_singleton_model(SystemInfo::new);
+    app.add_singleton_model(|_| SystemInfo::default());
 
     app.add_singleton_model(|_| RestoredAgentConversations::new_seeded(vec![]));
     app.add_singleton_model(OneTimeModalModel::new);

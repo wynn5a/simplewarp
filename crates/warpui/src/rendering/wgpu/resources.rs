@@ -13,14 +13,13 @@ use pathfinder_geometry::vector::Vector2F;
 use thiserror::Error;
 use version_compare::Version;
 use warp_errors::report_error;
-use warpui_core::rendering::{GPUBackend, GPUDeviceInfo, GPUDeviceType};
 use wgpu::{
     Adapter, Backend, CompositeAlphaMode, CurrentSurfaceTexture, Device, DeviceType, PresentMode,
     Queue, Surface, SurfaceConfiguration,
 };
 
 use crate::r#async::block_on;
-use crate::rendering::{GPUPowerPreference, OnGPUDeviceSelected};
+use crate::rendering::GPUPowerPreference;
 use crate::windowing;
 
 /// A mostly-arbitrary value to use as the height/width of a surface when
@@ -77,7 +76,6 @@ impl Resources {
         window_handle: impl Into<wgpu::SurfaceTarget<'static>> + wgpu::rwh::HasDisplayHandle,
         gpu_power_preference: GPUPowerPreference,
         backend_preference: Option<wgpu::Backend>,
-        on_gpu_device_selected: &OnGPUDeviceSelected,
         initial_surface_size: Vector2F,
         downrank_non_nvidia_vulkan_adapters: bool,
     ) -> Result<Self> {
@@ -110,8 +108,6 @@ impl Resources {
                 adapter_info.device_type,
                 adapter_info.name,
             );
-
-            on_gpu_device_selected(device_info_from_adapter_info(adapter_info));
 
             let uniforms = uniforms::Uniforms::new(&device);
             let quad = quad::Resources::new(&device);
@@ -210,31 +206,6 @@ impl Resources {
                 }
             }
         }
-    }
-}
-
-fn device_info_from_adapter_info(adapter_info: wgpu::AdapterInfo) -> GPUDeviceInfo {
-    let device_type = match adapter_info.device_type {
-        DeviceType::Other => GPUDeviceType::Other,
-        DeviceType::IntegratedGpu => GPUDeviceType::IntegratedGpu,
-        DeviceType::DiscreteGpu => GPUDeviceType::DiscreteGpu,
-        DeviceType::VirtualGpu => GPUDeviceType::VirtualGpu,
-        DeviceType::Cpu => GPUDeviceType::Cpu,
-    };
-    let backend = match adapter_info.backend {
-        Backend::Noop => GPUBackend::Empty,
-        Backend::Vulkan => GPUBackend::Vulkan,
-        Backend::Metal => GPUBackend::Metal,
-        Backend::Dx12 => GPUBackend::Dx12,
-        Backend::Gl => GPUBackend::Gl,
-        Backend::BrowserWebGpu => GPUBackend::BrowserWebGpu,
-    };
-    GPUDeviceInfo {
-        device_type,
-        device_name: adapter_info.name,
-        driver_name: adapter_info.driver,
-        driver_info: adapter_info.driver_info,
-        backend,
     }
 }
 

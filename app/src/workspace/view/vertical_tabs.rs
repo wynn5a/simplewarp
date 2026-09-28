@@ -1054,11 +1054,10 @@ fn summary_conversation_status_for_terminal(
         return Some(session.status.to_conversation_status());
     }
 
-    let is_ambient = terminal_view.is_cloud_agent_session();
     let has_conversation = terminal_view
         .selected_conversation_display_title(app)
         .is_some();
-    (has_conversation || is_ambient)
+    has_conversation
         .then(|| terminal_view.selected_conversation_status_for_display(app))
         .flatten()
 }
@@ -1444,9 +1443,7 @@ fn render_detail_kind_badge_icon(
                 return icon.to_warpui_icon(color).finish();
             }
 
-            let icon = if terminal_view.is_cloud_agent_session() {
-                WarpIcon::CloudFilled
-            } else if terminal_view
+            let icon = if terminal_view
                 .selected_conversation_display_title(app)
                 .is_some()
             {
@@ -1457,7 +1454,6 @@ fn render_detail_kind_badge_icon(
                 WarpIcon::Terminal
             };
             let color = match icon {
-                WarpIcon::CloudFilled => theme.main_text_color(theme.background()),
                 // Theme-adaptive fill: no black chip behind this glyph in the
                 // sidecar context, so use the main text color to stay visible
                 // on both dark and light themes.
@@ -4171,10 +4167,7 @@ fn preferred_agent_tab_titles(
 fn terminal_agent_text(terminal_view: &TerminalView, app: &AppContext) -> TerminalAgentText {
     let cli_agent_session = CLIAgentSessionsModel::as_ref(app).session(terminal_view.id());
     let is_plugin_backed = cli_agent_session.is_some_and(|session| session.listener.is_some());
-    let is_ambient_agent = terminal_view.is_cloud_agent_session();
-
     let mut agent_text = TerminalAgentText {
-        is_oz_agent: is_ambient_agent,
         cli_agent: cli_agent_session.map(|session| session.agent),
         ..Default::default()
     };
@@ -4186,8 +4179,7 @@ fn terminal_agent_text(terminal_view: &TerminalView, app: &AppContext) -> Termin
     agent_text.conversation_display_title = terminal_view.selected_conversation_display_title(app);
     agent_text.conversation_latest_user_prompt =
         terminal_view.selected_conversation_latest_user_prompt_for_tab_name(app);
-    agent_text.is_oz_agent =
-        agent_text.conversation_display_title.is_some() || agent_text.is_oz_agent;
+    agent_text.is_oz_agent = agent_text.conversation_display_title.is_some();
 
     if let Some(session) = cli_agent_session {
         agent_text.cli_agent_title = session.session_context.title_like_text();

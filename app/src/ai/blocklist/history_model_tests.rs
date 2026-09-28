@@ -3988,13 +3988,13 @@ fn install_mock_model_event_sender(app: &mut warpui::App) -> std::sync::mpsc::Re
     receiver
 }
 
-/// Forking at an exact exchange reconciles exactly the client tool_calls in
-/// the fork-point exchange: a completed call gets its REAL result pulled
+/// Forking at an exchange reconciles exactly the client tool_calls in the
+/// fork-point exchange: a completed call gets its REAL result pulled
 /// forward from the source, an in-flight call gets a synthesized `Cancel`
 /// right after the call, and unresolved server tool calls plus danglers from
 /// earlier exchanges are left untouched.
 #[test]
-fn fork_exact_reconciles_fork_point_client_tool_calls() {
+fn fork_reconciles_fork_point_client_tool_calls() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
         let _receiver = install_mock_model_event_sender(&mut app);
@@ -4009,8 +4009,8 @@ fn fork_exact_reconciles_fork_point_client_tool_calls() {
         // req-1 holds a client tool_call that never received a result (a
         // pre-existing dangler). The fork point (req-2) holds an unresolved
         // server tool_call plus two client tool_calls: one whose real result
-        // lives in req-3 (truncated by the fork) and one that never receives a
-        // result (in-flight).
+        // lives in req-3 (truncated by the fork, which stops at req-3's user
+        // query) and one that never receives a result (in-flight).
         let root_task = create_api_task(
             root_task_id,
             vec![
@@ -4020,6 +4020,7 @@ fn fork_exact_reconciles_fork_point_client_tool_calls() {
                 server_tool_call_message("m4", root_task_id, server_id, "req-2"),
                 regular_tool_call_message("m5", root_task_id, completed_id, "req-2"),
                 regular_tool_call_message("m6", root_task_id, inflight_id, "req-2"),
+                create_user_query_message("m6q", root_task_id, "req-3", "third"),
                 regular_tool_call_result_message("m7", root_task_id, completed_id, "req-3"),
                 agent_output_message("m8", root_task_id, "req-3", "done"),
             ],
@@ -4033,7 +4034,7 @@ fn fork_exact_reconciles_fork_point_client_tool_calls() {
         let forked = history_model.update(&mut app, |model, ctx| {
             let source = model.conversation(&source_id).unwrap().clone();
             model
-                .fork_conversation_at_exchange(&source, exchange_id, true, "[Fork] ", None, ctx)
+                .fork_conversation_at_exchange(&source, exchange_id, "[Fork] ", None, ctx)
                 .expect("fork should succeed")
         });
 

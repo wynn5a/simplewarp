@@ -1069,9 +1069,7 @@ pub(crate) fn initialize_app(
 
         #[cfg(enable_crash_recovery)]
         ctx.on_frame_drawn(|ctx, window_id| {
-            crash_recovery::CrashRecovery::handle(ctx).update(ctx, |crash_recovery, ctx| {
-                crash_recovery.on_frame_drawn(window_id, ctx);
-            });
+            crash_recovery::CrashRecovery::as_ref(ctx).on_frame_drawn(window_id);
         })
     }
 
@@ -1310,7 +1308,7 @@ pub(crate) fn initialize_app(
 
     {
         ctx.add_singleton_model(LocalShellState::new);
-        ctx.add_singleton_model(system::SystemInfo::new);
+        ctx.add_singleton_model(|_| system::SystemInfo::default());
     }
 
     // Add a singleton model that holds the current prompt configuration.

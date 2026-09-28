@@ -24,7 +24,7 @@ use warpui::{
 };
 
 use super::view_model::{ConversationEntry, ConversationListViewModel};
-use crate::ai::active_agent_views_model::{ActiveAgentViewsModel, ConversationOrTaskId};
+use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::{
     AgentConversationEntryId, AgentConversationNavigationSubject, AgentConversationsModel,
@@ -316,7 +316,6 @@ impl ConversationListView {
                 active_views_model.get_all_open_conversation_ids(ctx)
             }
             .into_iter()
-            .filter_map(|id| id.conversation_id())
             .map(AgentConversationEntryId::Conversation)
             .collect();
 
@@ -369,15 +368,13 @@ impl ConversationListView {
         active_items.sort_by(|a, b| {
             let get_time = |item: &ListItem| match item {
                 ListItem::Conversation { entry, .. } => {
-                    let entry_time = active_views_model
-                        .get_last_opened_time(&ConversationOrTaskId::from(entry.id));
+                    let AgentConversationEntryId::Conversation(entry_conversation_id) = entry.id;
+                    let entry_time =
+                        active_views_model.get_last_opened_time(&entry_conversation_id);
                     let local_time = model
                         .get_item_by_id(&entry.id, ctx)
                         .and_then(|item| item.identity.local_conversation_id)
-                        .and_then(|id| {
-                            active_views_model
-                                .get_last_opened_time(&ConversationOrTaskId::ConversationId(id))
-                        });
+                        .and_then(|id| active_views_model.get_last_opened_time(&id));
                     entry_time.max(local_time)
                 }
                 _ => None,
@@ -470,7 +467,6 @@ impl ConversationListView {
         let focused_conversation =
             ActiveAgentViewsModel::as_ref(ctx).get_focused_conversation(ctx.window_id());
         self.selected_index = focused_conversation
-            .and_then(|id| id.conversation_id())
             .map(AgentConversationEntryId::Conversation)
             .and_then(|id| self.get_index_of_conversation_id(id));
 
@@ -1245,7 +1241,6 @@ impl View for ConversationListView {
             let overflow_menu_state = self.overflow_menu_state;
             let focused_conversation = ActiveAgentViewsModel::as_ref(app)
                 .get_focused_conversation(self.window_id)
-                .and_then(|id| id.conversation_id())
                 .map(AgentConversationEntryId::Conversation);
             let rename_editor = self.rename_editor.clone();
             let renaming_conversation_id = self.renaming_conversation_id;
@@ -1315,8 +1310,7 @@ impl View for ConversationListView {
                                     // a prompt is sent).
                                     let can_rename = local_conversation_id.is_some_and(|id| {
                                         *section == ConversationSection::Active
-                                            || open_conversation_ids
-                                                .contains(&ConversationOrTaskId::ConversationId(id))
+                                            || open_conversation_ids.contains(&id)
                                     });
 
                                     let overflow_menu_display = match overflow_menu_state {

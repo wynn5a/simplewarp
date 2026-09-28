@@ -3738,7 +3738,6 @@ impl Input {
                     conversation_id,
                     fork_from_exchange: Some(ForkFromExchange {
                         exchange_id: *exchange_id,
-                        fork_from_exact_exchange: false,
                     }),
                     summarize_after_fork: false,
                     summarization_prompt: None,
@@ -7795,8 +7794,6 @@ impl Input {
                                 .as_ref(ctx)
                                 .should_run_input_autodetection(ctx)
                     }
-                    // Remote edits have no local producer now that session sharing is gone.
-                    EditOrigin::RemoteEdit => false,
                     // System edits should never trigger autodetection.
                     EditOrigin::SystemEdit => false,
                 };
@@ -11358,7 +11355,7 @@ impl Input {
             EditOrigin::SystemEdit => {
                 editor.system_insert(text, PlainTextEditorViewAction::SystemInsert, ctx)
             }
-            EditOrigin::SyncedTerminalInput | EditOrigin::RemoteEdit => (),
+            EditOrigin::SyncedTerminalInput => (),
         });
         ctx.notify();
         true

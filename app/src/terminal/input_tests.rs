@@ -277,7 +277,7 @@ pub fn initialize_app(app: &mut App) {
 
     #[cfg(windows)]
     {
-        app.add_singleton_model(SystemInfo::new);
+        app.add_singleton_model(|_| SystemInfo::default());
     }
 
     app.update(experiments::init);

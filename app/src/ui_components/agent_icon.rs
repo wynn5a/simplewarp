@@ -32,19 +32,7 @@ pub(crate) fn terminal_view_agent_icon_variant(
 ) -> Option<IconWithStatusVariant> {
     let cli_agent_session = CLIAgentSessionsModel::as_ref(app).session(terminal_view.id());
 
-    // Local orchestration children are dispatched as server tasks (so they carry an ambient
-    // task id) but execute on the user's machine, so they must not get the cloud treatment.
-    let is_local_child = terminal_view.selected_conversation_is_local_child(app);
-
-    // Whether this pane is genuinely a cloud/ambient conversation for icon purposes. Keys off
-    // [`TerminalView::is_cloud_agent_session`], NOT the mere presence of an orchestrator task
-    // id — a manually shared *local* (`User`) session carries a `source_task_id` sidecar but
-    // is not cloud (see QUALITY-726). Local orchestration children always keep the local
-    // treatment.
-    let is_cloud = terminal_view.is_cloud_agent_session() && !is_local_child;
-
     let inputs = TerminalIconInputs {
-        is_ambient: is_cloud,
         cli_session: cli_agent_session.map(|session| CLISessionInputs {
             agent: session.agent,
             has_listener: session.listener.is_some(),
@@ -63,17 +51,16 @@ pub(crate) fn agent_conversation_entry_icon_variant(
     entry: &AgentConversationEntry,
 ) -> IconWithStatusVariant {
     let status = entry.display.status.to_conversation_status();
-    agent_icon_variant_for_run(entry.display.harness.unwrap_or(Harness::Oz), status, false)
+    agent_icon_variant_for_run(entry.display.harness.unwrap_or(Harness::Oz), status)
 }
 
 /// Primitive inputs to the terminal-view waterfall, gathered once from the live
 /// [`TerminalView`] / [`AppContext`].
 struct TerminalIconInputs {
-    is_ambient: bool,
     cli_session: Option<CLISessionInputs>,
     /// The conversation status that the terminal view would surface in its status-icon slot.
     selected_conversation_status: Option<ConversationStatus>,
-    /// Whether the terminal view currently has a selected conversation (ambient or local).
+    /// Whether the terminal view currently has a selected conversation.
     has_selected_conversation: bool,
 }
 
@@ -106,29 +93,27 @@ fn agent_icon_variant_from_terminal_inputs(
         return Some(IconWithStatusVariant::CLIAgent {
             agent: session.agent,
             status,
-            is_ambient: inputs.is_ambient,
+            is_ambient: false,
         });
     }
 
-    // 2. Selected conversation OR ambient (Oz) terminal: Oz agent variant.
-    if inputs.has_selected_conversation || inputs.is_ambient {
+    // 2. Selected conversation: Oz agent variant.
+    if inputs.has_selected_conversation {
         return Some(IconWithStatusVariant::OzAgent {
             status: inputs.selected_conversation_status.clone(),
-            is_ambient: inputs.is_ambient,
+            is_ambient: false,
         });
     }
 
     None
 }
 
-/// Pure run-card logic: maps a [`Harness`], status, and ambient flag into an
-/// [`IconWithStatusVariant`]. Falls back to the Oz variant for [`Harness::Oz`] and
+/// Pure run-card logic: maps a [`Harness`] and status into an [`IconWithStatusVariant`]. Falls back to the Oz variant for [`Harness::Oz`] and
 /// [`Harness::Unknown`], the latter so a future-server harness this client doesn't
 /// recognize doesn't render an unbranded gray circle.
 pub(crate) fn agent_icon_variant_for_run(
     harness: Harness,
     status: ConversationStatus,
-    is_ambient: bool,
 ) -> IconWithStatusVariant {
     let cli_agent =
         CLIAgent::from_harness(harness).filter(|agent| !matches!(agent, CLIAgent::Unknown));
@@ -136,11 +121,11 @@ pub(crate) fn agent_icon_variant_for_run(
         Some(agent) => IconWithStatusVariant::CLIAgent {
             agent,
             status: Some(status),
-            is_ambient,
+            is_ambient: false,
         },
         None => IconWithStatusVariant::OzAgent {
             status: Some(status),
-            is_ambient,
+            is_ambient: false,
         },
     }
 }

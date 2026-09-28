@@ -13,15 +13,14 @@ use wgpu::rwh::{
 };
 
 use crate::platform::mac::rendering::Device;
+use crate::rendering::GPUPowerPreference;
 use crate::rendering::wgpu::Resources;
-use crate::rendering::{GPUPowerPreference, OnGPUDeviceSelected};
 
 impl Device {
     /// Constructs a new [`Device`] to render using WGPU.
     pub fn new_wgpu(
         native_view: &NSView,
         gpu_power_preference: GPUPowerPreference,
-        on_gpu_device_info: Box<OnGPUDeviceSelected>,
     ) -> Result<Device> {
         let view_frame = native_view.frame();
         let surface_size = vec2f(view_frame.size.width as f32, view_frame.size.height as f32);
@@ -44,7 +43,6 @@ impl Device {
             trusted_window,
             gpu_power_preference,
             None,
-            &on_gpu_device_info,
             surface_size,
             false, /* downrank_non_nvidia_vulkan_adapters */
         )?;

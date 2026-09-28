@@ -174,7 +174,6 @@ use crate::ai::agent::{
     FinishedAIAgentOutput, PassiveSuggestionTrigger, RenderableAIError, ServerOutputId,
     ShellCommandCompletedTrigger,
 };
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::agent_view::orchestration_conversation_links::pane_group_id_containing_terminal_view;
 use crate::ai::blocklist::agent_view::{
     AgentViewController, AgentViewControllerEvent, AgentViewConversationSelection,
@@ -6371,29 +6370,12 @@ impl TerminalView {
             .active_conversation_id()
     }
 
-    pub fn ambient_agent_task_id_for_details_panel(&self) -> Option<AmbientAgentTaskId> {
-        self.model.lock().ambient_agent_task_id()
-    }
-
     /// Whether the conversation details side panel should be available in the
     /// pane header / pane layout for this terminal view.
-    fn can_show_conversation_details_ui_from_model(
-        &self,
-        model: &TerminalModel,
-        app: &AppContext,
-    ) -> bool {
-        model.ambient_agent_task_id().is_some()
-            || BlocklistAIHistoryModel::as_ref(app)
-                .active_conversation(self.view_id)
-                .is_some_and(|conversation| !conversation.is_empty())
-    }
-
-    /// Convenience wrapper around
-    /// [`Self::can_show_conversation_details_ui_from_model`] that locks the
-    /// terminal model. Do not call from contexts that already hold the lock.
     fn can_show_conversation_details_ui(&self, app: &AppContext) -> bool {
-        let model = self.model.lock();
-        self.can_show_conversation_details_ui_from_model(&model, app)
+        BlocklistAIHistoryModel::as_ref(app)
+            .active_conversation(self.view_id)
+            .is_some_and(|conversation| !conversation.is_empty())
     }
 
     /// Populates the conversation details panel from the active local
@@ -19755,7 +19737,6 @@ impl TerminalView {
                     *conversation_id,
                     Some(ForkFromExchange {
                         exchange_id: *exchange_id,
-                        fork_from_exact_exchange: false,
                     }),
                     ctx,
                 );
@@ -21814,10 +21795,7 @@ impl TypedActionView for TerminalView {
                     if let Some(exchange_id) = exchange_id {
                         ctx.dispatch_typed_action(&WorkspaceAction::ForkAIConversation {
                             conversation_id,
-                            fork_from_exchange: Some(ForkFromExchange {
-                                exchange_id,
-                                fork_from_exact_exchange: false,
-                            }),
+                            fork_from_exchange: Some(ForkFromExchange { exchange_id }),
                             summarize_after_fork: false,
                             summarization_prompt: None,
                             initial_prompt: None,
@@ -22536,11 +22514,8 @@ impl View for TerminalView {
         };
 
         // Wrap with conversation details panel on the right if open.
-        //
-        // Use the `_from_model` variant since `render` already holds
-        // `self.model.lock()` and the task-id lookup would otherwise re-lock.
-        let should_show_panel = self.is_conversation_details_panel_open
-            && self.can_show_conversation_details_ui_from_model(&model, app);
+        let should_show_panel =
+            self.is_conversation_details_panel_open && self.can_show_conversation_details_ui(app);
 
         if should_show_panel {
             Container::new(
@@ -22683,7 +22658,7 @@ impl View for TerminalView {
             context.set.insert("InsideRepository");
         }
 
-        if self.can_show_conversation_details_ui_from_model(&model_lock, app) {
+        if self.can_show_conversation_details_ui(app) {
             context.set.insert(init::CAN_SHOW_CONVERSATION_DETAILS_KEY);
         }
 

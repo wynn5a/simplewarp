@@ -6,21 +6,13 @@ use cfg_if::cfg_if;
 use warp_cli::RecoveryMechanism;
 use warp_core::channel::{Channel, ChannelState};
 use warp_errors::{report_error, report_if_error};
-use warpui::{Entity, ModelContext, SingletonEntity, WindowId};
+use warpui::{Entity, SingletonEntity, WindowId};
 use warpui_extras::user_preferences::UserPreferences;
 
 use crate::settings;
 
 /// Keep in sync with [`warp_cli::AppArgs`].
 pub const RECOVERY_MECHANISM_ARG: &str = "crash-recovery-mechanism";
-
-pub enum Event {
-    /// User has acknowledged the fact that the application crashed and
-    /// recovered from the crash.
-    UserAcknowledgedCrash,
-    /// The crash recovery process was successfully torn down.
-    CrashRecoveryProcessTornDown,
-}
 
 /// Returns true if this process is the crash recovery process.
 pub fn is_crash_recovery_process(args: &warp_cli::AppArgs) -> bool {
@@ -223,9 +215,8 @@ impl CrashRecovery {
         self.should_notify_user_about_crash
     }
 
-    pub fn handle_user_acknowledged_crash(&mut self, ctx: &mut ModelContext<Self>) {
+    pub fn handle_user_acknowledged_crash(&mut self) {
         self.should_notify_user_about_crash = None;
-        ctx.emit(Event::UserAcknowledgedCrash);
     }
 
     pub fn on_draw_frame_error(&mut self, window_id: WindowId) {
@@ -234,19 +225,12 @@ impl CrashRecovery {
         }
     }
 
-    pub fn on_frame_drawn(&self, window_id: WindowId, ctx: &mut ModelContext<Self>) {
+    pub fn on_frame_drawn(&self, window_id: WindowId) {
         let mut child_process_borrow = self.child_process.borrow_mut();
         let mut child_process = child_process_borrow.take();
 
         if let Some(child_process) = child_process.as_mut() {
             child_process.handle_frame_drawn(window_id);
-
-            // If the process is no longer alive, fire a `CrashRecoveryProcessTornDown` event. We
-            // do this here as opposed to below to ensure we only omit the event once as opposed to
-            // on every render.
-            if !child_process.is_alive {
-                ctx.emit(Event::CrashRecoveryProcessTornDown);
-            }
         }
 
         let is_child_process_alive = child_process
@@ -267,7 +251,7 @@ impl CrashRecovery {
 }
 
 impl Entity for CrashRecovery {
-    type Event = Event;
+    type Event = ();
 }
 
 impl SingletonEntity for CrashRecovery {}

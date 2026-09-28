@@ -32,10 +32,8 @@ use warpui::{
     ViewHandle, WeakViewHandle, WindowId,
 };
 
-use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::ai_document_view::AIDocumentView;
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
 use crate::ai::blocklist::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
@@ -2591,48 +2589,6 @@ impl PaneGroup {
         )
     }
 
-    /// Create a new pane group for a view-only cloud conversation.
-    pub fn new_for_conversation_transcript_viewer(
-        conversation: AIConversation,
-        ambient_agent_task_id: Option<AmbientAgentTaskId>,
-        tips_completed: ModelHandle<TipsCompleted>,
-        user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
-        model_event_sender: Option<SyncSender<ModelEvent>>,
-        ctx: &mut ViewContext<Self>,
-    ) -> Self {
-        let model_event_sender_clone = model_event_sender.clone();
-        let initial_layout = move |resources,
-                                   pane_contents: &mut HashMap<PaneId, Box<dyn AnyPaneContent>>,
-                                   pane_history: &mut Vec<PaneId>,
-                                   view_bounds: RectF,
-                                   ctx: &mut ViewContext<Self>| {
-            let (view, terminal_manager) = PaneGroup::create_conversation_viewer(
-                conversation.clone(),
-                ambient_agent_task_id,
-                resources,
-                view_bounds.size(),
-                ctx,
-            );
-
-            Self::terminal_pane_data(
-                Uuid::new_v4().as_bytes().to_vec(),
-                view,
-                terminal_manager,
-                model_event_sender_clone,
-                pane_contents,
-                pane_history,
-                ctx,
-            )
-        };
-        Self::new_internal(
-            tips_completed,
-            user_default_shell_unsupported_banner_model_handle,
-            model_event_sender,
-            Box::new(initial_layout),
-            ctx,
-        )
-    }
-
     /// Create a new pane group with a loading state for a conversation viewer.
     /// The actual conversation data will be loaded asynchronously.
     pub fn new_for_conversation_transcript_viewer_loading(
@@ -4462,64 +4418,6 @@ impl PaneGroup {
         );
         let terminal_manager = terminal_init.manager;
         let terminal_view = terminal_init.surface;
-
-        (terminal_view, terminal_manager)
-    }
-
-    fn create_conversation_viewer(
-        conversation: AIConversation,
-        ambient_agent_task_id: Option<AmbientAgentTaskId>,
-        resources: TerminalViewResources,
-        initial_size: Vector2F,
-        ctx: &mut ViewContext<Self>,
-    ) -> (
-        ViewHandle<TerminalView>,
-        ModelHandle<Box<dyn TerminalManager>>,
-    ) {
-        let restored_blocks = conversation.to_serialized_blocklist_items();
-        let terminal_init = MockTerminalManager::create_model(
-            ShellLaunchState::ShellSpawned {
-                available_shell: None,
-                display_name: ShellName::blank(),
-                shell_type: ShellType::Zsh,
-            },
-            resources,
-            Some(&restored_blocks),
-            Some(ConversationRestorationInNewPaneType::Historical {
-                conversation,
-                should_use_live_appearance: true,
-                ambient_agent_task_id,
-            }),
-            initial_size,
-            ctx.window_id(),
-            ctx,
-        );
-        let terminal_manager = terminal_init.manager;
-        let terminal_view = terminal_init.view;
-        // Set the conversation viewer status based on whether this is an ambient agent conversation
-        let viewer_status = ambient_agent_task_id
-            .map(ConversationTranscriptViewerStatus::ViewingAmbientConversation)
-            .unwrap_or(ConversationTranscriptViewerStatus::ViewingLocalConversation);
-
-        terminal_manager.update(ctx, |terminal_manager, _ctx| {
-            terminal_manager
-                .model()
-                .lock()
-                .set_conversation_transcript_viewer_status(Some(viewer_status.clone()));
-        });
-
-        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, _ctx| {
-            history_model
-                .mark_terminal_surface_as_conversation_transcript_viewer(terminal_view.id());
-        });
-
-        // Register the transcript viewer as an ambient session so it appears in the Active section
-        // of the conversation list.
-        if let Some(task_id) = ambient_agent_task_id {
-            ActiveAgentViewsModel::handle(ctx).update(ctx, |active_views, ctx| {
-                active_views.register_ambient_session(terminal_view.id(), task_id, ctx);
-            });
-        }
 
         (terminal_view, terminal_manager)
     }

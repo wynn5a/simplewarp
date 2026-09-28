@@ -118,7 +118,6 @@ use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::agent::{AIAgentInput, EntrypointType};
 use crate::ai::agent_management::AgentManagementEvent;
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEditorMode;
 use crate::ai::blocklist::agent_view::editor::{AgentToolbarEditorEvent, AgentToolbarEditorModal};
@@ -3595,44 +3594,6 @@ impl Workspace {
         self.tabs.get(index).and_then(|tab| tab.color())
     }
 
-    /// Finds the pane containing a terminal viewing the given ambient agent conversation,
-    /// returning None if the ambient conversation is not open in any tab.
-    fn find_pane_with_ambient_agent_conversation(
-        &self,
-        task_id: AmbientAgentTaskId,
-        ctx: &AppContext,
-    ) -> Option<(usize, PaneViewLocator)> {
-        // First, check ActiveAgentViewsModel for the terminal view that has this task registered.
-        // This is the authoritative source since it's updated when the session is joined.
-        let active_terminal_view_id =
-            ActiveAgentViewsModel::as_ref(ctx).get_terminal_view_id_for_ambient_task(task_id);
-
-        self.tabs.iter().enumerate().find_map(|(index, tab)| {
-            let pane_group = tab.pane_group.as_ref(ctx);
-            let pane_id = pane_group.visible_pane_ids().into_iter().find(|pane_id| {
-                pane_group
-                    .terminal_view_from_pane_id(*pane_id, ctx)
-                    .is_some_and(|tv| {
-                        // Check if this is the terminal view registered in ActiveAgentViewsModel
-                        if active_terminal_view_id == Some(tv.id()) {
-                            return true;
-                        }
-                        // Fall back to checking the terminal view directly.
-                        tv.as_ref(ctx).ambient_agent_task_id_for_details_panel() == Some(task_id)
-                    })
-            });
-            pane_id.map(|pane_id| {
-                (
-                    index,
-                    PaneViewLocator {
-                        pane_group_id: tab.pane_group.id(),
-                        pane_id,
-                    },
-                )
-            })
-        })
-    }
-
     /// Gets all sessions in the current workspace.
     pub fn workspace_sessions<'a>(
         &'a self,
@@ -3711,32 +3672,14 @@ impl Workspace {
     }
 
     /// Notifies the agent views model and notifications model that a terminal view gained focus.
-    fn ambient_agent_task_id_for_focused_terminal_view(
-        &self,
-        ctx: &AppContext,
-    ) -> Option<AmbientAgentTaskId> {
-        let pane_group = self.active_tab_pane_group().as_ref(ctx);
-        let focused_pane_id = pane_group.focused_pane_id(ctx);
-        pane_group
-            .terminal_view_from_pane_id(focused_pane_id, ctx)
-            .and_then(|view| view.as_ref(ctx).ambient_agent_task_id_for_details_panel())
-    }
-
-    /// Notifies the agent views model and notifications model that a terminal view gained focus.
     fn notify_terminal_focus_change(
         &self,
         focused_terminal_view_id: Option<EntityId>,
-        ambient_agent_task_id: Option<AmbientAgentTaskId>,
         ctx: &mut ViewContext<Self>,
     ) {
         let window_id = ctx.window_id();
         ActiveAgentViewsModel::handle(ctx).update(ctx, |model, ctx| {
-            model.handle_pane_focus_change(
-                window_id,
-                focused_terminal_view_id,
-                ambient_agent_task_id,
-                ctx,
-            );
+            model.handle_pane_focus_change(window_id, focused_terminal_view_id, ctx);
         });
     }
 
@@ -3800,8 +3743,7 @@ impl Workspace {
             .as_ref(ctx)
             .terminal_view_from_pane_id(pane_group.as_ref(ctx).focused_pane_id(ctx), ctx)
             .map(|tv| tv.id());
-        let ambient_agent_task_id = self.ambient_agent_task_id_for_focused_terminal_view(ctx);
-        self.notify_terminal_focus_change(focused_terminal_view_id, ambient_agent_task_id, ctx);
+        self.notify_terminal_focus_change(focused_terminal_view_id, ctx);
 
         self.update_active_session(ctx);
     }
@@ -10461,7 +10403,6 @@ impl Workspace {
                 history_model.fork_conversation_at_exchange(
                     &source_conversation,
                     fork_from.exchange_id,
-                    fork_from.fork_from_exact_exchange,
                     FORK_PREFIX,
                     None,
                     ctx,
@@ -11911,13 +11852,7 @@ impl Workspace {
                         .terminal_view_from_pane_id(pane_group.focused_pane_id(ctx), ctx)
                         .map(|tv| tv.id())
                 };
-                let ambient_agent_task_id =
-                    self.ambient_agent_task_id_for_focused_terminal_view(ctx);
-                self.notify_terminal_focus_change(
-                    focused_terminal_view_id,
-                    ambient_agent_task_id,
-                    ctx,
-                );
+                self.notify_terminal_focus_change(focused_terminal_view_id, ctx);
             }
             pane_group::Event::RepoChanged => {
                 self.refresh_working_directories_for_pane_group(&pane_group, ctx);
@@ -13705,14 +13640,7 @@ impl Workspace {
                         .as_ref(ctx)
                         .focused_session_view(ctx)
                 {
-                    let ambient_agent_task_id = terminal_view
-                        .as_ref(ctx)
-                        .ambient_agent_task_id_for_details_panel();
-                    self.notify_terminal_focus_change(
-                        Some(terminal_view.id()),
-                        ambient_agent_task_id,
-                        ctx,
-                    );
+                    self.notify_terminal_focus_change(Some(terminal_view.id()), ctx);
                 }
 
                 // Re-render if fullscreen state for active window has changed.
@@ -18528,17 +18456,6 @@ impl TypedActionView for Workspace {
                     *restore_layout,
                     ctx,
                 );
-            }
-            OpenConversationTranscriptViewer {
-                ambient_agent_task_id,
-            } => {
-                // Check if there's already a terminal viewing this conversation's task.
-                if let Some(task_id) = ambient_agent_task_id
-                    && let Some((_, locator)) =
-                        self.find_pane_with_ambient_agent_conversation(*task_id, ctx)
-                {
-                    self.focus_pane(locator, ctx);
-                }
             }
             ForkAIConversation {
                 conversation_id,

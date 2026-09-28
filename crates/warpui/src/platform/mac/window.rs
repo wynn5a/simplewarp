@@ -604,7 +604,6 @@ impl Window {
                     &native_view,
                     native_window_ref,
                     options.gpu_power_preference,
-                    options.on_gpu_device_info_reported,
                 )),
                 None => None,
             };

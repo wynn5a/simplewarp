@@ -1629,7 +1629,7 @@ fn test_edit_events() {
                     old_range: to_char_index_range(2..4),
                     new_range: to_char_index_range(2..5)
                 }],
-                edit_origin: EditOrigin::RemoteEdit,
+                edit_origin: EditOrigin::SystemEdit,
             }
         );
     })

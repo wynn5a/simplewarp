@@ -3,14 +3,13 @@ use std::sync::Arc;
 
 use parking_lot::FairMutex;
 use pathfinder_geometry::vector::Vector2F;
-use warpui::{AppContext, ModelHandle, SingletonEntity, ViewHandle, WindowId};
+use warpui::{AppContext, ModelHandle, ViewHandle, WindowId};
 
 use super::event_listener::ChannelEventListener;
 use super::model::session::Sessions;
 use super::model_events::ModelEventDispatcher;
 use super::terminal_manager::BlockSpacing;
 use super::{ShellLaunchState, TerminalManager, TerminalModel, TerminalView};
-use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::context_chips::prompt_type::PromptType;
 use crate::pane_group::TerminalViewResources;
@@ -18,7 +17,6 @@ use crate::terminal::view::ConversationRestorationInNewPaneType;
 
 pub struct MockTerminalManager {
     model: Arc<FairMutex<TerminalModel>>,
-    view: ViewHandle<TerminalView>,
 }
 pub struct MockTerminalManagerInit {
     pub(crate) manager: ModelHandle<Box<dyn TerminalManager>>,
@@ -95,15 +93,14 @@ impl MockTerminalManager {
             });
         });
 
-        let terminal_view = view.clone();
-        let terminal_manager = Self { model, view };
+        let terminal_manager = Self { model };
         let manager_model = ctx.add_model(|_ctx| {
             let manager: Box<dyn TerminalManager> = Box::new(terminal_manager);
             manager
         });
         MockTerminalManagerInit {
             manager: manager_model,
-            view: terminal_view,
+            view,
         }
     }
 }
@@ -111,20 +108,6 @@ impl MockTerminalManager {
 impl TerminalManager for MockTerminalManager {
     fn model(&self) -> Arc<FairMutex<TerminalModel>> {
         self.model.clone()
-    }
-
-    fn on_view_detached(
-        &self,
-        _detach_type: crate::pane_group::pane::DetachType,
-        app: &mut AppContext,
-    ) {
-        // If this is a conversation transcript viewer, unregister the ambient session.
-        if self.model.lock().is_conversation_transcript_viewer() {
-            let terminal_view_id = self.view.id();
-            ActiveAgentViewsModel::handle(app).update(app, |model, ctx| {
-                model.unregister_ambient_session(terminal_view_id, ctx);
-            });
-        }
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

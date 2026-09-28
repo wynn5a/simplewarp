@@ -55,15 +55,12 @@ impl ForkedConversationDestination {
 #[derive(Debug, Clone, Copy)]
 pub struct ForkFromExchange {
     pub exchange_id: AIAgentExchangeId,
-    /// When true, the fork stops immediately after this exchange without extending
-    /// to the next user query boundary.
-    pub fork_from_exact_exchange: bool,
 }
 
 /// Parameters for forking an AI conversation.
 pub struct ForkAIConversationParams {
     pub conversation_id: AIConversationId,
-    /// When Some, fork from the given response (or exchange if `fork_from_exact_exchange` is true).
+    /// When Some, fork from the given response.
     pub fork_from_exchange: Option<ForkFromExchange>,
     pub summarize_after_fork: bool,
     pub summarization_prompt: Option<String>,

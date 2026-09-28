@@ -12378,7 +12378,6 @@ dependencies = [
  "lsp",
  "lsp-types",
  "lz4_flex 0.11.6",
- "mach2",
  "markdown_parser",
  "mcp",
  "memchr",

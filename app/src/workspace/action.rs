@@ -18,7 +18,6 @@ use super::tab_settings::{
 use super::view::{OnboardingTutorial, WorkspaceBanner};
 use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::PendingAttachment;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::palette::PaletteMode;
@@ -515,8 +514,7 @@ pub enum WorkspaceAction {
     /// Optionally summarizes the conversation after forking and/or sends an initial prompt.
     ForkAIConversation {
         conversation_id: AIConversationId,
-        /// When Some, fork from the given response (or exchange if `fork_from_exact_exchange`
-        /// is true). When None, fork from the last exchange.
+        /// When Some, fork from the given response. When None, fork from the last exchange.
         fork_from_exchange: Option<ForkFromExchange>,
         /// Whether to summarize the conversation after forking.
         summarize_after_fork: bool,
@@ -631,10 +629,6 @@ pub enum WorkspaceAction {
     ExecuteDeleteConversation {
         conversation_id: AIConversationId,
         terminal_view_id: Option<EntityId>,
-    },
-    /// Focus the terminal pane already viewing an ambient agent task's conversation.
-    OpenConversationTranscriptViewer {
-        ambient_agent_task_id: Option<AmbientAgentTaskId>,
     },
     /// Open a full-window lightbox displaying the given images.
     OpenLightbox {
@@ -922,7 +916,6 @@ impl WorkspaceAction {
             | ShowRewindConfirmationDialog { .. }
             | ExecuteRewindAIConversation { .. }
             | ExecuteDeleteConversation { .. }
-            | OpenConversationTranscriptViewer { .. }
             | OpenLightbox { .. }
             | UpdateLightboxImage { .. }
             | StartAgentOnboardingTutorial(_)

@@ -279,7 +279,6 @@ warp_files.workspace = true
 block.workspace = true
 cocoa.workspace = true
 core-foundation.workspace = true
-mach2 = "0.5"
 objc.workspace = true
 objc2.workspace = true
 objc2-app-kit = { workspace = true, features = [
@@ -338,7 +337,6 @@ windows = { workspace = true, features = [
     "Win32_System_Diagnostics_Debug",
     "Win32_System_Environment",
     "Win32_System_IO",
-    "Win32_System_ProcessStatus",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
     "Win32_System_LibraryLoader",

@@ -1,5 +1,4 @@
 mod info;
-mod memory_footprint;
 pub use info::SystemInfo;
 use warpui::{Entity, ModelContext, SingletonEntity};
 

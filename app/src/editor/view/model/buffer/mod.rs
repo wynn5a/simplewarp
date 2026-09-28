@@ -252,10 +252,6 @@ pub enum EditOrigin {
 
     /// The change is caused by a change in a synced terminal input
     SyncedTerminalInput,
-
-    /// This edit came from a peer.
-    /// Used for collaborative editors.
-    RemoteEdit,
 }
 
 impl EditOrigin {
@@ -1644,7 +1640,7 @@ impl Buffer {
         let edits_since = self.edits_since(since).collect();
         ctx.emit(Event::Edited {
             edits: edits_since,
-            edit_origin: EditOrigin::RemoteEdit,
+            edit_origin: EditOrigin::SystemEdit,
         });
 
         Ok(())

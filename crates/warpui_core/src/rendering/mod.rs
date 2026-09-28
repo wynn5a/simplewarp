@@ -1,6 +1,4 @@
-mod gpu_info;
 pub mod texture_cache;
-pub use gpu_info::{GPUBackend, GPUDeviceInfo, GPUDeviceType, OnGPUDeviceSelected};
 use serde::{Deserialize, Serialize};
 
 use crate::platform::GraphicsBackend;

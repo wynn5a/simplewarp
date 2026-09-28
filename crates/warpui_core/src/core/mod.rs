@@ -30,7 +30,6 @@ pub use view::*;
 pub use window::*;
 
 use crate::platform::{self, FullscreenState, WindowBounds, WindowStyle};
-use crate::rendering::OnGPUDeviceSelected;
 use crate::{Element, keymap};
 
 /// A unique identifier for a display.
@@ -169,9 +168,6 @@ pub struct AddWindowOptions {
     /// If true, new windows created immediately after this window is closed
     /// will have the same position and size as this window.
     pub anchor_new_windows_from_closed_position: NextNewWindowsHasThisWindowsBoundsUponClose,
-    /// The callback to be called when the GPU driver this window will render to is selected.
-    #[derivative(Debug = "ignore")]
-    pub on_gpu_driver_selected: Option<Box<OnGPUDeviceSelected>>,
     /// This is a name to distinguish different windows among one application. It is a no-op on all
     /// platforms except X11 Linux. See docs on the "WM_CLASS" property:
     /// https://www.x.org/docs/ICCCM/icccm.pdf

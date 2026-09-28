@@ -211,7 +211,6 @@ impl TerminalView {
             ClipConfig::start()
         };
 
-        let should_render_agent_indicator = self.is_cloud_agent_session();
         let theme = appearance.theme();
         let render_agent_circle = |variant| {
             render_icon_with_status(
@@ -222,11 +221,7 @@ impl TerminalView {
                 theme.background(),
             )
         };
-        let pane_indicator = if should_render_agent_indicator {
-            // Shared/viewed cloud-agent session: route through the shared helper so the pane
-            // header renders the same brand-color circle + cloud lobe + status as the vertical tab.
-            terminal_view_agent_icon_variant(self, app).map(render_agent_circle)
-        } else if self.is_using_conversation_for_pane_header_title
+        let pane_indicator = if self.is_using_conversation_for_pane_header_title
             || (self.is_long_running()
                 && self
                     .ai_context_model
@@ -654,18 +649,6 @@ impl TerminalView {
         None
     }
 
-    /// Whether this pane should be treated as a cloud agent conversation for display
-    /// purposes (e.g. the agent icon in the pane header and vertical tab). This is the
-    /// single source of truth for that check; surfaces should call it rather than re-deriving
-    /// the condition, so they can't drift apart.
-    ///
-    /// It deliberately does NOT treat a manually shared *local* (`User`) session as a cloud
-    /// agent session even though it now carries an orchestrator task id on its `source_task_id`
-    /// sidecar (see QUALITY-726).
-    pub fn is_cloud_agent_session(&self) -> bool {
-        self.model.lock().is_cloud_agent_conversation()
-    }
-
     fn selected_conversation_for_user_facing_chrome<'a>(
         &'a self,
         ctx: &'a AppContext,
@@ -746,14 +729,6 @@ impl TerminalView {
     pub fn selected_conversation_display_title(&self, ctx: &AppContext) -> Option<String> {
         self.selected_conversation_for_user_facing_chrome(ctx)
             .map(|conversation| self.selected_conversation_display_title_for_chrome(conversation))
-    }
-
-    /// Whether the selected conversation is an orchestration child. These runs can carry an
-    /// ambient task id but execute locally, so their agent icon must use the local treatment
-    /// rather than the cloud/ambient one.
-    pub(crate) fn selected_conversation_is_local_child(&self, ctx: &AppContext) -> bool {
-        self.selected_conversation_for_user_facing_chrome(ctx)
-            .is_some_and(AIConversation::is_child_agent_conversation)
     }
 
     pub fn selected_conversation_latest_user_prompt_for_tab_name(

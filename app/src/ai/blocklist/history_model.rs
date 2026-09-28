@@ -1386,10 +1386,9 @@ impl BlocklistAIHistoryModel {
         Ok(forked_conversation)
     }
 
-    /// Forks an existing conversation at a specific exchange boundary. When `exact_exchange`
-    /// is true, the fork includes all messages up to and including the selected exchange.
-    /// Otherwise, it extends through the full response (every message after the user's query
-    /// until the next root-task user query).
+    /// Forks an existing conversation at a specific exchange boundary. The fork extends through
+    /// the full response (every message after the user's query until the next root-task user
+    /// query).
     ///
     /// The `prefix` parameter specifies the prefix added to the root task description
     /// (e.g., `FORK_PREFIX` for forks, `PRE_REWIND_PREFIX` for pre-rewind backups).
@@ -1397,7 +1396,6 @@ impl BlocklistAIHistoryModel {
         &mut self,
         source_conversation: &AIConversation,
         from_exchange_id: AIAgentExchangeId,
-        fork_from_exact_exchange: bool,
         prefix: &str,
         title_override: Option<&str>,
         app: &AppContext,
@@ -1417,8 +1415,8 @@ impl BlocklistAIHistoryModel {
         let mut found_from_exchange_id = false;
         'outer: for (task_id, task_exchanges) in exchanges_by_task.into_iter() {
             for exchange in task_exchanges {
-                // In the non-exact case, we continue past the selected exchange until we reach
-                // the next user query (effectively forking from the selected 'response').
+                // Continue past the selected exchange until we reach the next user query
+                // (effectively forking from the selected 'response').
                 if found_from_exchange_id && task_id == root_task_id && exchange.has_user_query() {
                     break 'outer;
                 }
@@ -1429,9 +1427,6 @@ impl BlocklistAIHistoryModel {
                 message_ids_to_retain.extend(exchange.added_message_ids.iter().cloned());
                 fork_point_exchange_by_task.insert(task_id.clone(), exchange);
                 if exchange.id == from_exchange_id {
-                    if fork_from_exact_exchange {
-                        break 'outer;
-                    }
                     found_from_exchange_id = true;
                 }
             }
