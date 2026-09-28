@@ -50,7 +50,6 @@ pub struct UnsavedStateSummary<'a> {
     /// All terminal sessions in this scope.
     terminal_sessions: Vec<SessionNavigationData>,
 
-    /// The number of live shared sessions.
     /// Whether or not there are unsaved code changes.
     unsaved_code_changes: bool,
 }

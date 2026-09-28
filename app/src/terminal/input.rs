@@ -2267,8 +2267,9 @@ impl Input {
         });
 
         current_prompt.update(ctx, |prompt_type, ctx| {
-            if let PromptType::Dynamic { prompt } = prompt_type {
-                prompt.update(ctx, |current_prompt, ctx| {
+            prompt_type
+                .current_prompt()
+                .update(ctx, |current_prompt, ctx| {
                     current_prompt.subscribe_to_input_editor(
                         editor.clone(),
                         agent_view_controller.clone(),
@@ -2276,7 +2277,6 @@ impl Input {
                         ctx,
                     );
                 });
-            }
         });
 
         ctx.subscribe_to_view(&editor, move |me, _, event, ctx| {
@@ -2814,9 +2814,6 @@ impl Input {
             });
             ctx.subscribe_to_view(&panel, |me, _, event, ctx| {
                 me.handle_queued_prompts_panel_event(event, ctx);
-            });
-            panel.update(ctx, |panel, ctx| {
-                panel.set_can_send_prompt(true, ctx);
             });
             panel
         });
@@ -11362,28 +11359,6 @@ impl Input {
         if steal_focus {
             self.focus_input_box(ctx);
         }
-    }
-
-    /// Applies an input config update from an external source (e.g., session sharing).
-    pub fn apply_external_input_config_update(
-        &mut self,
-        config: InputConfig,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // do nothing if the config is the same as the current config
-        if config == self.ai_input_model.as_ref(ctx).input_config() {
-            return;
-        }
-
-        let is_input_buffer_empty = self.editor.as_ref(ctx).buffer_text(ctx).is_empty();
-        self.ai_input_model.update(ctx, |model, ctx| {
-            model.set_input_config(
-                config,
-                is_input_buffer_empty,
-                Some(InputTypeAutoDetectionSource::SessionSharingApply),
-                ctx,
-            );
-        });
     }
 
     /// Returns true if the input is locked in shell mode

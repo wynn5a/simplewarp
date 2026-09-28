@@ -332,7 +332,7 @@ fn build_three_level_tree(
     let terminal_view_id = EntityId::new();
     let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
     let root_id = history_model.update(app, |history, ctx| {
-        history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+        history.start_new_conversation(terminal_view_id, false, false, ctx)
     });
     let mid_id = history_model.update(app, |history, ctx| {
         history.start_new_child_conversation(
@@ -451,7 +451,7 @@ fn drill_down_anchor_matches_root_anchoring_at_depth_one() {
         let terminal_view_id = EntityId::new();
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let root_id = history_model.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let child_id = history_model.update(&mut app, |history, ctx| {
             history.start_new_child_conversation(
@@ -681,7 +681,7 @@ fn conversation_server_token_assignment_rerenders_the_pill_bar() {
         });
 
         let root_id = history_model.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let child_id = history_model.update(&mut app, |history, ctx| {
             history.start_new_child_conversation(

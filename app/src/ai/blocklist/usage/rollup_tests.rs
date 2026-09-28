@@ -45,7 +45,7 @@ fn returns_none_when_orchestrator_has_no_descendants() {
         let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, false, ctx)
         });
 
         // Even if the orchestrator itself has spent credits, no descendants
@@ -66,7 +66,7 @@ fn sums_orchestrator_and_loaded_descendants() {
         let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let child_id = spawn_child(
             &mut app,
@@ -105,7 +105,7 @@ fn excludes_zero_credit_descendants_from_breakdown() {
         let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let alpha_id = spawn_child(
             &mut app,
@@ -156,7 +156,7 @@ fn rolls_up_grandchildren_transitively() {
         let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let child_id = spawn_child(
             &mut app,
@@ -193,7 +193,7 @@ fn returns_six_contributors_for_show_n_more_caller() {
         let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         set_credits(&mut app, &history, orchestrator_id, 1.0);
 
@@ -225,7 +225,7 @@ fn returns_none_when_only_orchestrator_has_zero_credits_with_loaded_children() {
         let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         // One spawned child, but neither it nor the orchestrator has spent
         // any credits yet.
@@ -251,7 +251,7 @@ fn ties_break_by_spawn_order_earlier_first() {
         let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let first_id = spawn_child(
             &mut app,
@@ -290,7 +290,7 @@ fn unloaded_descendant_id_is_silently_skipped() {
         let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let real_child_id = spawn_child(
             &mut app,

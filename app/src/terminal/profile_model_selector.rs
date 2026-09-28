@@ -1838,14 +1838,10 @@ impl View for ProfileModelSelector {
         let profiles_model = AIExecutionProfilesModel::as_ref(app);
         let has_multiple_profiles = profiles_model.has_multiple_profiles();
 
-        let is_viewer = false;
-
         let mut compact_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
 
-        // Only add profile button to compact layout if there are multiple profiles
-        // and the user is not a viewer (we currently don't support profiles in shared sessions).
-        let should_show_profile_section = has_multiple_profiles && !is_viewer;
-        if should_show_profile_section {
+        // Only add profile button to compact layout if there are multiple profiles.
+        if has_multiple_profiles {
             let profile_button_with_save_position = SavePosition::new(
                 ChildView::new(&self.profile_compact_button).finish(),
                 "profile_model_selector_profile_compact_button",
@@ -1867,7 +1863,7 @@ impl View for ProfileModelSelector {
 
         // Only add profile section and separator if there are multiple profiles
         // and the user is not a viewer
-        if should_show_profile_section {
+        if has_multiple_profiles {
             // Don't show separator if either selector is hovered
             let profile_hovered = self.profile_mouse_state.lock().unwrap().is_hovered();
             let model_hovered = self.model_mouse_state.lock().unwrap().is_hovered();
@@ -1899,7 +1895,7 @@ impl View for ProfileModelSelector {
         let mut stack = Stack::new();
         stack.add_child(content);
 
-        if self.is_profile_menu_open && should_show_profile_section {
+        if self.is_profile_menu_open && has_multiple_profiles {
             let profile_menu = ChildView::new(&self.profile_dropdown).finish();
             let positioning = self.get_menu_positioning(app, true);
             stack.add_positioned_overlay_child(profile_menu, positioning);

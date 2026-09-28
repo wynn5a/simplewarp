@@ -692,6 +692,39 @@ Queue, in order:
    readers (session sharing is gone); the other `AgentManagementFilters` fields (`creator`,
    `environment`, `source`) and the always-`None` `agent_management_filters` snapshot write.
 
+21. ~~Shared-session viewer residue, `OrchestrationUnifiedStack`, agent-management filters~~ — **4hj
+   done (2026-09-28).** −2.0k lines in 71 files. Viewer: `AIConversation::is_viewing_shared_session`
+   (+ setter, `new`/`start_new_conversation` arg, history-model setter; never set true) and every
+   reader collapsed to the local path (navigation hiding, persist skip, follow-up/cancel/auto-resume
+   gates, viewer start-time/TTFT derivation, subtask exchange re-pointing, search-subagent temp-dir
+   cleanup, AI-document "follow latest version", agent-footer transcript check, fork-from-good-state,
+   pane cloud-cancel candidate + the two toast-only `cancel_task_*` stubs); the viewer input
+   reconstruction chain (`should_convert_input_messages` on `Task::new_subtask` / `add_messages` /
+   `upsert_message` / `update_exchange_from_messages`, `user_inputs_from_messages`); the executor's
+   always-false `is_shared_session_viewer` + `NotExecutedReason::WaitingOnSharer`;
+   `AgentViewEntryOrigin::SharedSessionSelection`; command-palette / `@`-menu viewer flags (setters
+   had no callers); queued-prompts `can_send_prompt` (always true) and its read-only tooltip;
+   `PromptType::Static` (never built; `PromptType` is now a struct over `CurrentPrompt`); the
+   profile selector's `is_viewer`; `apply_external_input_*` + `SessionSharingApply`; the unused
+   `session_sharing` cargo feature. Ctrl-C harness cancel (REMOTE-2597) was scoped to the viewer
+   input path only (`write_viewer_bytes_to_pty`, no other caller): the grace-window state machine in
+   `CLIAgentSessionsModel`, `CLIAgentSessionStatus::Cancelled`, `write_user_bytes_to_pty`'s bool and
+   the `CtrlCCancelsThirdPartyHarness` flag are gone. `OrchestrationUnifiedStack` gated nothing else:
+   removed. Filters: `AgentManagementFilters` had no setter anywhere (its view is gone) — every
+   `get_entries` caller passed the default — so the whole struct goes (owner/creator/source/
+   environment/status/created-on/harness, `OwnerFilter` and the other filter enums, `matches_*`,
+   the entry's filter-only `creator` / `source` / `environment_id` display fields, `AgentSource`);
+   `get_entries` takes no filter. `WindowSnapshot::agent_management_filters` /
+   `PersistedAgentManagementFilters` gone: the sqlite column stays, written `NULL`, never read.
+   `EntrypointType::SharedSession` kept (serde). Tests 4,127 default / 4,128 simplewarp (−22,
+   deleted with their code: 18 Ctrl-C state machine, 2 viewer Ctrl-C, harness is-filtering, filter
+   serde; can-send test rewritten to its non-empty-input half), warp_features 1 passed, 0 failed.
+   Follow-ups: the input CRDT sync plumbing (`latest_buffer_operations`,
+   `DeferredRemoteOperations`, `process_remote_edits`, `EditorEvent::UpdatePeers` /
+   `Event::EditorUpdated`); `session_sharing_protocol` dep (5 type uses); `is_dummy_cloud_mode_session`;
+   `AIContextMenu::is_in_ambient_agent` (setter has no callers); the entry's other cloud-only
+   fields (`executor`, `run_time`, `session_status`, `has_ambient_run`, `PrincipalType`).
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

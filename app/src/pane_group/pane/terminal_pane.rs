@@ -16,7 +16,6 @@ use super::{
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::StartAgentExecutionMode;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::ambient_agents::task::normalize_orchestrator_agent_name;
 use crate::ai::blocklist::agent_view::{AgentViewControllerEvent, AgentViewEntryOrigin};
 use crate::ai::blocklist::{
@@ -290,9 +289,7 @@ impl PaneContent for TerminalPane {
             .map(|(_, view)| view.id())
             .collect::<Vec<_>>();
         for (manager, view) in contents {
-            // Notify the view that it's being detached so it can react appropriately
-            // (e.g. the shared-session viewer tears down its network only when the detach
-            // is not reversible).
+            // Notify the view that it's being detached so it can react appropriately.
             manager.update(ctx, |terminal_manager, ctx| {
                 terminal_manager.on_view_detached(detach_type, ctx);
             });
@@ -425,9 +422,7 @@ impl PaneContent for TerminalPane {
 #[derive(Clone, Copy)]
 struct AgentConversationActionState {
     owner_terminal_view_id: EntityId,
-    task_id: Option<AmbientAgentTaskId>,
     is_in_progress: bool,
-    is_cloud_cancel_candidate: bool,
 }
 
 fn agent_conversation_action_state(
@@ -440,9 +435,7 @@ fn agent_conversation_action_state(
         history_model.terminal_surface_id_for_conversation(&conversation_id)?;
     Some(AgentConversationActionState {
         owner_terminal_view_id,
-        task_id: conversation.task_id(),
         is_in_progress: conversation.status().is_in_progress(),
-        is_cloud_cancel_candidate: conversation.is_viewing_shared_session(),
     })
 }
 
@@ -498,26 +491,6 @@ fn stop_local_agent_conversation(
     true
 }
 
-fn cancel_cloud_agent_task(
-    task_id: Option<AmbientAgentTaskId>,
-    conversation_id: AIConversationId,
-    show_toast: bool,
-    ctx: &mut ViewContext<PaneGroup>,
-) -> bool {
-    let Some(task_id) = task_id else {
-        log::warn!(
-            "cancel_cloud_agent_task: cloud conversation {conversation_id:?} has no task id"
-        );
-        return false;
-    };
-    if show_toast {
-        crate::ai::ambient_agents::cancel_task_with_toast(task_id, ctx);
-    } else {
-        crate::ai::ambient_agents::cancel_task_silently(task_id, ctx);
-    }
-    true
-}
-
 fn stop_agent_conversation(
     group: &PaneGroup,
     conversation_id: AIConversationId,
@@ -530,14 +503,7 @@ fn stop_agent_conversation(
     if !state.is_in_progress {
         return;
     }
-    if state.is_cloud_cancel_candidate {
-        cancel_cloud_agent_task(state.task_id, conversation_id, true, ctx);
-    } else if !stop_local_agent_conversation(
-        group,
-        state.owner_terminal_view_id,
-        conversation_id,
-        ctx,
-    ) {
+    if !stop_local_agent_conversation(group, state.owner_terminal_view_id, conversation_id, ctx) {
         // If the owner view is gone, still make Stop visible in history.
         BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
             history_model.update_conversation_status(
@@ -614,16 +580,7 @@ fn kill_agent_conversation(
     if let Some(state) = state
         && state.is_in_progress
     {
-        if state.is_cloud_cancel_candidate {
-            cancel_cloud_agent_task(state.task_id, conversation_id, false, ctx);
-        } else {
-            stop_local_agent_conversation(
-                group,
-                state.owner_terminal_view_id,
-                conversation_id,
-                ctx,
-            );
-        }
+        stop_local_agent_conversation(group, state.owner_terminal_view_id, conversation_id, ctx);
     }
 
     let owner_terminal_view_id = state

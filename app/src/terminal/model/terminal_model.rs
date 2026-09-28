@@ -471,7 +471,7 @@ pub struct TerminalModel {
     obfuscate_secrets: ObfuscateSecrets,
 
     /// Whether this terminal model was created as a cloud mode dummy session
-    /// (no local shell process, deferred shared-session viewer backing).
+    /// (no local shell process).
     is_dummy_cloud_mode_session: bool,
 
     /// If Some, this terminal is displaying a read-only conversation transcript.

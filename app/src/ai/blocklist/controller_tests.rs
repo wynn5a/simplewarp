@@ -47,7 +47,7 @@ fn input_for_query_converts_prompt_attachments_and_ignores_live_staging() {
         terminal.update(&mut app, |terminal, ctx| {
             let conversation_id =
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_conversation(terminal.id(), false, false, false, ctx)
+                    history_model.start_new_conversation(terminal.id(), false, false, ctx)
                 });
 
             let controller = terminal.ai_controller();
@@ -179,13 +179,8 @@ fn mock_response_stream_updates_history_through_controller() {
             let stream_id = ResponseStreamId::new_for_test();
             let conversation_id =
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                    let conversation_id = history.start_new_conversation(
-                        terminal_surface_id,
-                        false,
-                        false,
-                        false,
-                        ctx,
-                    );
+                    let conversation_id =
+                        history.start_new_conversation(terminal_surface_id, false, false, ctx);
                     let task_id = history
                         .conversation(&conversation_id)
                         .unwrap()
@@ -290,13 +285,8 @@ fn fail_conversation_due_to_shell_exit_reports_error_and_survives_manual_cancel(
             let stream_id = ResponseStreamId::new_for_test();
             let conversation_id =
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                    let conversation_id = history.start_new_conversation(
-                        terminal_surface_id,
-                        false,
-                        false,
-                        false,
-                        ctx,
-                    );
+                    let conversation_id =
+                        history.start_new_conversation(terminal_surface_id, false, false, ctx);
                     let task_id = history
                         .conversation(&conversation_id)
                         .unwrap()
@@ -378,13 +368,8 @@ fn optimistic_cli_subagent_completion_with_in_flight_stream_reports_success() {
             let stream_id = ResponseStreamId::new_for_test();
             let conversation_id =
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                    let conversation_id = history.start_new_conversation(
-                        terminal_surface_id,
-                        false,
-                        false,
-                        false,
-                        ctx,
-                    );
+                    let conversation_id =
+                        history.start_new_conversation(terminal_surface_id, false, false, ctx);
                     let task_id = history
                         .conversation(&conversation_id)
                         .unwrap()

@@ -75,8 +75,6 @@ pub enum InputTypeAutoDetectionSource {
     AgentModePrefix,
     /// Inline code review send overrode the input mode to AI.
     InlineCodeReviewSend,
-    /// External input config update from session sharing applied.
-    SessionSharingApply,
     /// Fullscreen AgentView inline history command cycling force-locked Shell.
     FullscreenInlineHistoryCycling,
     /// Closing history suggestions restored the previously saved config.

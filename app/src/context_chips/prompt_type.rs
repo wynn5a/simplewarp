@@ -10,13 +10,10 @@ use crate::terminal::model::session::Sessions;
 use crate::terminal::session_settings::{SessionSettings, ToolbarChipSelection};
 use crate::terminal::view::{ContextMenuAction, PromptPart, PromptPosition, TerminalAction};
 
-/// The type of warp prompt being used
+/// A warp prompt that refreshes chip values on its own.
 #[derive(Clone)]
-pub enum PromptType {
-    /// A warp prompt that refreshes chip values on its own. Typical for local sessions.
-    Dynamic { prompt: ModelHandle<CurrentPrompt> },
-    /// A warp prompt that does not change unless explicitly overwritten. Used for viewers of shared sessions.
-    Static { snapshot: PromptSnapshot },
+pub struct PromptType {
+    prompt: ModelHandle<CurrentPrompt>,
 }
 
 impl PromptType {
@@ -33,19 +30,13 @@ impl PromptType {
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         ctx.observe(&current_prompt, |_, _, ctx| ctx.notify());
-        Self::Dynamic {
+        Self {
             prompt: current_prompt,
         }
     }
 
-    pub fn new_static(
-        chips: Vec<ChipResult>,
-        same_line_prompt_enabled: bool,
-        separator: WarpPromptSeparator,
-    ) -> Self {
-        PromptType::Static {
-            snapshot: PromptSnapshot::from_chips(chips, same_line_prompt_enabled, separator),
-        }
+    pub fn current_prompt(&self) -> &ModelHandle<CurrentPrompt> {
+        &self.prompt
     }
 
     /// Returns menu items for copying parts of the prompt given a prompt snapshot.
@@ -88,26 +79,18 @@ impl PromptType {
         chip_kind: &ContextChipKind,
         ctx: &AppContext,
     ) -> Option<ChipValue> {
-        match self {
-            Self::Dynamic { prompt } => prompt.as_ref(ctx).latest_chip_value(chip_kind).cloned(),
-            Self::Static { snapshot } => snapshot.chip_value(chip_kind),
-        }
+        self.prompt
+            .as_ref(ctx)
+            .latest_chip_value(chip_kind)
+            .cloned()
     }
 
     pub fn prompt_as_string(&self, ctx: &AppContext) -> String {
-        match self {
-            Self::Dynamic { prompt } => prompt.as_ref(ctx).prompt_as_string(ctx),
-            Self::Static { snapshot } => snapshot.to_string(),
-        }
+        self.prompt.as_ref(ctx).prompt_as_string(ctx)
     }
 
     pub fn snapshot(&self, ctx: &AppContext) -> PromptSnapshot {
-        match self {
-            Self::Dynamic { prompt } => {
-                PromptSnapshot::from_current_prompt(prompt.as_ref(ctx), ctx)
-            }
-            Self::Static { snapshot } => snapshot.clone(),
-        }
+        PromptSnapshot::from_current_prompt(self.prompt.as_ref(ctx), ctx)
     }
 
     pub fn chips(&self, ctx: &AppContext) -> Vec<ChipResult> {
@@ -149,31 +132,18 @@ impl PromptType {
     ) -> Vec<ChipResult> {
         chip_kinds
             .into_iter()
-            .filter_map(|chip_kind| match self {
-                Self::Dynamic { prompt } => prompt.as_ref(ctx).latest_chip_result(&chip_kind),
-                Self::Static { snapshot } => snapshot
-                    .chips()
-                    .iter()
-                    .find(|chip_result| chip_result.kind() == &chip_kind)
-                    .cloned(),
-            })
+            .filter_map(|chip_kind| self.prompt.as_ref(ctx).latest_chip_result(&chip_kind))
             .collect()
     }
 
     /// Whether same line prompt is enabled for the Warp Prompt.
     pub fn same_line_prompt_enabled(&self, ctx: &AppContext) -> bool {
-        match self {
-            Self::Dynamic { prompt } => prompt.as_ref(ctx).same_line_prompt_enabled(),
-            Self::Static { snapshot } => snapshot.same_line_prompt_enabled(),
-        }
+        self.prompt.as_ref(ctx).same_line_prompt_enabled()
     }
 
     /// The separator for the Warp prompt.
     pub fn separator(&self, ctx: &AppContext) -> WarpPromptSeparator {
-        match self {
-            Self::Dynamic { prompt } => prompt.as_ref(ctx).separator(),
-            Self::Static { snapshot } => snapshot.separator(),
-        }
+        self.prompt.as_ref(ctx).separator()
     }
 }
 

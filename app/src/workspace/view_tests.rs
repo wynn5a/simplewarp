@@ -891,9 +891,9 @@ fn restore_conversation_in_active_pane_enters_existing_live_conversation_without
                 .expect("workspace should start with a terminal view")
         });
         let terminal_view_id = terminal_view.read(&app, |view, _| view.view_id());
-        let conversation_id =
-            BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
-                history.start_new_conversation(terminal_view_id, false, false, false, ctx)
+        let conversation_id = BlocklistAIHistoryModel::handle(&app)
+            .update(&mut app, |history, ctx| {
+                history.start_new_conversation(terminal_view_id, false, false, ctx)
             });
 
         workspace.update(&mut app, |workspace, ctx| {

@@ -3846,11 +3846,11 @@ impl TerminalView {
         self.deferred_code_review_open = None;
 
         self.current_prompt.update(ctx, |prompt_type, ctx| {
-            if let PromptType::Dynamic { prompt } = prompt_type {
-                prompt.update(ctx, |current_prompt, ctx| {
+            prompt_type
+                .current_prompt()
+                .update(ctx, |current_prompt, ctx| {
                     current_prompt.set_git_repo_status(None, ctx);
                 });
-            }
         });
     }
 
@@ -3860,11 +3860,11 @@ impl TerminalView {
         };
 
         self.current_prompt.update(ctx, |prompt_type, ctx| {
-            if let PromptType::Dynamic { prompt } = prompt_type {
-                prompt.update(ctx, |current_prompt, ctx| {
+            prompt_type
+                .current_prompt()
+                .update(ctx, |current_prompt, ctx| {
                     current_prompt.set_github_repo_model(None, ctx);
                 });
-            }
         });
         self.ai_context_model.update(ctx, |context_model, _| {
             context_model.set_github_repo_model(None);
@@ -4008,11 +4008,11 @@ impl TerminalView {
                     let weak_for_context = handle.downgrade();
                     self.github_repo_model = Some(handle);
                     self.current_prompt.update(ctx, |prompt_type, ctx| {
-                        if let PromptType::Dynamic { prompt } = prompt_type {
-                            prompt.update(ctx, |current_prompt, ctx| {
+                        prompt_type
+                            .current_prompt()
+                            .update(ctx, |current_prompt, ctx| {
                                 current_prompt.set_github_repo_model(Some(weak_for_prompt), ctx);
                             });
-                        }
                     });
                     self.ai_context_model.update(ctx, |context_model, _| {
                         context_model.set_github_repo_model(Some(weak_for_context));
@@ -4084,11 +4084,11 @@ impl TerminalView {
                 let weak_for_prompt = handle.downgrade();
                 self.git_repo_status = Some(handle);
                 self.current_prompt.update(ctx, |prompt_type, ctx| {
-                    if let PromptType::Dynamic { prompt } = prompt_type {
-                        prompt.update(ctx, |current_prompt, ctx| {
+                    prompt_type
+                        .current_prompt()
+                        .update(ctx, |current_prompt, ctx| {
                             current_prompt.set_git_repo_status(Some(weak_for_prompt), ctx);
                         });
-                    }
                 });
                 // Acquire a GitHub-info handle if the terminal's prompt/footer
                 // chips or agent context need PR or repository info. The AI
@@ -6380,18 +6380,6 @@ impl TerminalView {
         self.ai_input_model.as_ref(app).input_config()
     }
 
-    /// Applies an input mode update from an external source (e.g., session sharing).
-    /// This bypasses normal event emission to prevent update loops.
-    pub fn apply_external_input_mode_update(
-        &mut self,
-        config: InputConfig,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.input.update(ctx, |input, ctx| {
-            input.apply_external_input_config_update(config, ctx);
-        });
-    }
-
     pub fn ai_controller(&self) -> &ModelHandle<BlocklistAIController> {
         &self.ai_controller
     }
@@ -7247,27 +7235,6 @@ impl TerminalView {
         });
     }
 
-    /// Writes a shared session viewer's bytes to the pty.
-    ///
-    /// A lone Ctrl-C byte that is actually forwarded to the PTY is
-    /// additionally observed by `CLIAgentSessionsModel` so that an interrupt
-    /// which silently kills a third-party harness turn (no plugin hook fires
-    /// on user interrupt) can still resolve the session, and its task, to
-    /// Cancelled. See `CLIAgentSessionsModel::observe_ctrl_c_write`.
-    /// Observation never delays or drops the write itself, and never arms a
-    /// window for a byte that `write_user_bytes_to_pty` rejected (e.g. the
-    /// active block is under agent control).
-    pub fn write_viewer_bytes_to_pty(&mut self, bytes: Vec<u8>, ctx: &mut ViewContext<Self>) {
-        let is_ctrl_c = bytes == [0x03];
-        let forwarded = self.write_user_bytes_to_pty(bytes, ctx);
-        if forwarded && is_ctrl_c && FeatureFlag::CtrlCCancelsThirdPartyHarness.is_enabled() {
-            let terminal_view_id = self.view_id;
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.observe_ctrl_c_write(terminal_view_id, ctx);
-            });
-        }
-    }
-
     /// Ends the current line before writing the given bytes to the PTY.
     fn clear_line_editor_and_write_to_pty<B: Into<Cow<'static, [u8]>>>(
         &mut self,
@@ -7287,19 +7254,17 @@ impl TerminalView {
     }
 
     /// Writes to the PTY, resets selected blocks and updates scroll position.
-    /// Also calls logic to emit a sync event. Returns whether the bytes were
-    /// actually forwarded to the PTY: `false` when the active block is under
-    /// agent control, in which case nothing is written.
+    /// Also calls logic to emit a sync event.
     fn write_user_bytes_to_pty<B: Into<Cow<'static, [u8]>>>(
         &mut self,
         data: B,
         ctx: &mut ViewContext<Self>,
-    ) -> bool {
+    ) {
         {
             let mut terminal_model = self.model.lock();
             let active_block = terminal_model.block_list().active_block();
             if active_block.is_agent_in_control() {
-                return false;
+                return;
             }
             if active_block.is_active_and_long_running() && !active_block.has_received_user_input()
             {
@@ -7316,7 +7281,6 @@ impl TerminalView {
         self.update_scroll_position_locking(ScrollPositionUpdate::AfterWriteUserBytesToPty, ctx);
         self.write_to_pty(bytes, ctx);
         self.emit_non_editor_typed_event(bytes_vec, ctx);
-        true
     }
 
     /// Write to the PTY if the session has finished bootstrapping and
@@ -8334,12 +8298,12 @@ impl TerminalView {
         });
 
         self.current_prompt.update(ctx, |prompt_type, ctx| {
-            if let PromptType::Dynamic { prompt } = prompt_type {
-                prompt.update(ctx, |current_prompt, ctx| {
+            prompt_type
+                .current_prompt()
+                .update(ctx, |current_prompt, ctx| {
                     current_prompt
                         .update_context(self.model.lock().block_list().active_block(), ctx);
                 });
-            }
         });
     }
 
@@ -10620,7 +10584,7 @@ impl TerminalView {
         } else {
             Some(
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_conversation(self.view_id, false, false, false, ctx)
+                    history_model.start_new_conversation(self.view_id, false, false, ctx)
                 }),
             )
         }) else {
@@ -18245,8 +18209,7 @@ impl TerminalView {
         let terminal_view_id = ctx.view_id();
         let mut new_conversation_id = None;
         BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, model_ctx| {
-            let id =
-                history.start_new_conversation(terminal_view_id, false, false, false, model_ctx);
+            let id = history.start_new_conversation(terminal_view_id, false, false, model_ctx);
             // Mark it active for good measure (not strictly required for rendering).
             history.set_active_conversation_id(id, terminal_view_id, model_ctx);
             new_conversation_id = Some(id);

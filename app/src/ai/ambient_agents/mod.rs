@@ -11,7 +11,7 @@ use crate::ai::agent::{
 
 pub mod task;
 
-pub use task::{AgentConfigSnapshot, AgentSource, cancel_task_silently, cancel_task_with_toast};
+pub use task::AgentConfigSnapshot;
 
 #[derive(Debug, thiserror::Error)]
 #[error("Invalid task ID: {0}")]

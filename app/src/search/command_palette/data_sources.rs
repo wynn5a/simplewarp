@@ -68,7 +68,6 @@ impl DataSourceStore {
     pub fn reset_search_mixer(
         &mut self,
         mixer: ModelHandle<CommandPaletteMixer>,
-        is_shared_session_viewer: bool,
         ctx: &mut ModelContext<Self>,
     ) {
         mixer.update(ctx, |mixer, ctx| {
@@ -96,7 +95,7 @@ impl DataSourceStore {
                 );
             }
 
-            if FeatureFlag::CommandPaletteFileSearch.is_enabled() && !is_shared_session_viewer {
+            if FeatureFlag::CommandPaletteFileSearch.is_enabled() {
                 let file_search_model = FileSearchModel::as_ref(ctx);
                 let is_in_git_repo = file_search_model.repo_root_location(ctx).is_some();
 

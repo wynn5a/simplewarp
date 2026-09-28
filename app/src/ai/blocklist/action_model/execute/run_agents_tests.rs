@@ -172,7 +172,7 @@ fn initialize_run_agents_test(app: &mut App, mode: ExecutionMode) -> RunAgentsTe
     });
     app.add_singleton_model(PrivacySettings::mock);
     let conversation_id = history.update(app, |history_model, ctx| {
-        history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+        history_model.start_new_conversation(terminal_view_id, false, false, ctx)
     });
     let start_agent_executor = app.add_model(StartAgentExecutor::new);
     let executor =

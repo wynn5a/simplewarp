@@ -372,24 +372,13 @@ impl BlocklistAIController {
             }
 
             let history_model = BlocklistAIHistoryModel::handle(ctx);
-            let Some((is_viewing_shared_session, is_entirely_passive_code_diff)) = history_model
+            let Some(is_entirely_passive_code_diff) = history_model
                 .as_ref(ctx)
                 .conversation(conversation_id)
-                .map(|conversation| {
-                    (
-                        conversation.is_viewing_shared_session(),
-                        conversation.is_entirely_passive_code_diff(),
-                    )
-                })
+                .map(|conversation| conversation.is_entirely_passive_code_diff())
             else {
                 return;
             };
-
-            // Viewer sessions should not send follow-ups.
-            // They only act as passive viewers of the action stream.
-            if is_viewing_shared_session {
-                return;
-            }
 
             let Some(finished_action_results) =
                 action_model.get_finished_action_results(*conversation_id)
@@ -500,9 +489,6 @@ impl BlocklistAIController {
             let Some(conversation) = history.as_ref(ctx).conversation(conversation_id) else {
                 return;
             };
-            if conversation.is_viewing_shared_session() {
-                return;
-            }
             if conversation.status().is_in_progress() {
                 me.cancel_conversation_progress(
                     *conversation_id,
@@ -1522,7 +1508,6 @@ impl BlocklistAIController {
             history_model.start_new_conversation(
                 self.terminal_surface_id,
                 is_autoexecute_override,
-                false,
                 false,
                 ctx,
             )

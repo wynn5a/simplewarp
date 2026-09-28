@@ -47,9 +47,9 @@ fn execute_reads_plan_owned_by_another_conversation() {
                 ctx,
             )
         });
-        let child_conversation_id =
-            BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
-                history.start_new_conversation(EntityId::new(), false, false, false, ctx)
+        let child_conversation_id = BlocklistAIHistoryModel::handle(&app)
+            .update(&mut app, |history, ctx| {
+                history.start_new_conversation(EntityId::new(), false, false, ctx)
             });
         let action = read_action(document_id);
 

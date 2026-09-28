@@ -17,7 +17,7 @@ fn participant_resolution_uses_the_direct_parent_as_orchestrator() {
         let grandchild_run_id = Uuid::new_v4().to_string();
 
         let (root_id, child_id, grandchild_id) = history_model.update(&mut app, |history, ctx| {
-            let root_id = history.start_new_conversation(surface_id, false, false, false, ctx);
+            let root_id = history.start_new_conversation(surface_id, false, false, ctx);
             history.assign_run_id_for_conversation(
                 root_id,
                 root_run_id.clone(),
@@ -120,7 +120,7 @@ fn descendant_conversation_ids_in_spawn_order_flattens_nested_children_preorder(
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history_model.update(&mut app, |history_model, ctx| {
-            history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history_model.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let child_a = history_model.update(&mut app, |history_model, ctx| {
             history_model.start_new_child_conversation(
@@ -191,7 +191,7 @@ fn adjacent_orchestration_child_navigation_uses_pinned_first_order() {
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history_model.update(&mut app, |history_model, ctx| {
-            history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history_model.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let child_a = history_model.update(&mut app, |history_model, ctx| {
             history_model.start_new_child_conversation(
@@ -311,7 +311,7 @@ fn orchestration_aware_status_uses_direct_status_for_non_parent() {
         let terminal_view_id = EntityId::new();
         let conversation_id = history_model.update(&mut app, |history_model, ctx| {
             let conversation_id =
-                history_model.start_new_conversation(terminal_view_id, false, false, false, ctx);
+                history_model.start_new_conversation(terminal_view_id, false, false, ctx);
             history_model.update_conversation_status(
                 terminal_view_id,
                 conversation_id,
@@ -341,7 +341,7 @@ fn descendant_conversation_ids_in_spawn_order_returns_empty_without_children() {
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history_model.update(&mut app, |history_model, ctx| {
-            history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history_model.start_new_conversation(terminal_view_id, false, false, ctx)
         });
 
         history_model.read(&app, |history_model, _| {
@@ -421,7 +421,7 @@ fn adjacent_orchestration_child_navigation_cycles_whole_tree_from_grandchild() {
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let root_id = history_model.update(&mut app, |history_model, ctx| {
-            history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history_model.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let mid_id = history_model.update(&mut app, |history_model, ctx| {
             history_model.start_new_child_conversation(
@@ -481,7 +481,7 @@ fn child_conversations_in_pill_order_returns_direct_children_only() {
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let root_id = history_model.update(&mut app, |history_model, ctx| {
-            history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history_model.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let mid_id = history_model.update(&mut app, |history_model, ctx| {
             history_model.start_new_child_conversation(
@@ -525,7 +525,7 @@ fn adjacent_orchestration_child_navigation_noops_for_single_child() {
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
 
         let orchestrator_id = history_model.update(&mut app, |history_model, ctx| {
-            history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history_model.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let child_id = history_model.update(&mut app, |history_model, ctx| {
             history_model.start_new_child_conversation(
@@ -579,7 +579,7 @@ fn build_orchestrator_with_two_children(
 ) {
     let terminal_view_id = EntityId::new();
     let orchestrator_id = history_model.update(app, |history_model, ctx| {
-        history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+        history_model.start_new_conversation(terminal_view_id, false, false, ctx)
     });
     let child_a = history_model.update(app, |history_model, ctx| {
         history_model.start_new_child_conversation(
@@ -1140,7 +1140,7 @@ fn loaded_subtree_rollup_is_none_when_no_descendant_is_loaded() {
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let terminal_view_id = EntityId::new();
         let leaf_id = history_model.update(&mut app, |history_model, ctx| {
-            history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            history_model.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let unloaded_child = AIConversationId::new();
         history_model.update(&mut app, |history_model, _ctx| {

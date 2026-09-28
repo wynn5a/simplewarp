@@ -368,11 +368,6 @@ fn cli_harness_session_idle_window_follows_idle_on_complete() {
         idle_window_for_cli_session_status(&CLIAgentSessionStatus::InProgress, idle_on_complete),
         None
     );
-    assert_eq!(
-        idle_window_for_cli_session_status(&CLIAgentSessionStatus::Cancelled, idle_on_complete),
-        idle_on_complete,
-        "a Ctrl-C cancellation is a non-error completion, like Success or Blocked"
-    );
 }
 
 #[test]

@@ -80,7 +80,7 @@ fn add_window_with_local_conversation(
     let terminal = add_window_with_terminal(app, None);
     let terminal_view_id = terminal.read(app, |view, _| view.view_id);
     let conversation_id = BlocklistAIHistoryModel::handle(app).update(app, |history, ctx| {
-        let id = history.start_new_conversation(terminal_view_id, false, false, false, ctx);
+        let id = history.start_new_conversation(terminal_view_id, false, false, ctx);
         history.set_active_conversation_id(id, terminal_view_id, ctx);
         id
     });
@@ -272,7 +272,7 @@ fn complete_drain_keeps_command_row_when_dispatch_fails_with_draft() {
         let terminal_view_id = terminal.read(&app, |view, _| view.view_id);
         let conversation_id =
             BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
-                let id = history.start_new_conversation(terminal_view_id, false, false, false, ctx);
+                let id = history.start_new_conversation(terminal_view_id, false, false, ctx);
                 history.set_active_conversation_id(id, terminal_view_id, ctx);
                 id
             });
@@ -340,7 +340,7 @@ fn commit_edit_saves_current_editor_text_for_lrc_row() {
         let terminal_view_id = terminal.read(&app, |view, _| view.view_id);
         let conversation_id =
             BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
-                let id = history.start_new_conversation(terminal_view_id, false, false, false, ctx);
+                let id = history.start_new_conversation(terminal_view_id, false, false, ctx);
                 history.set_active_conversation_id(id, terminal_view_id, ctx);
                 id
             });
@@ -389,7 +389,7 @@ fn lrc_finish_commits_edited_lrc_row_before_sending() {
         let terminal_view_id = terminal.read(&app, |view, _| view.view_id);
         let conversation_id =
             BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
-                let id = history.start_new_conversation(terminal_view_id, false, false, false, ctx);
+                let id = history.start_new_conversation(terminal_view_id, false, false, ctx);
                 history.set_active_conversation_id(id, terminal_view_id, ctx);
                 id
             });
@@ -470,7 +470,7 @@ fn lrc_finish_queued_compact_and_sends_followup_after_summary() {
         let terminal_view_id = terminal.read(&app, |view, _| view.view_id);
         let conversation_id =
             BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
-                let id = history.start_new_conversation(terminal_view_id, false, false, false, ctx);
+                let id = history.start_new_conversation(terminal_view_id, false, false, ctx);
                 history.set_active_conversation_id(id, terminal_view_id, ctx);
                 id
             });
@@ -852,7 +852,7 @@ fn build_panel_with_active_conversation(
     let terminal = add_window_with_terminal(app, None);
     let terminal_view_id = terminal.read(app, |view, _| view.view_id);
     let conversation_id = BlocklistAIHistoryModel::handle(app).update(app, |history, ctx| {
-        let id = history.start_new_conversation(terminal_view_id, false, false, false, ctx);
+        let id = history.start_new_conversation(terminal_view_id, false, false, ctx);
         history.set_active_conversation_id(id, terminal_view_id, ctx);
         id
     });
@@ -892,7 +892,7 @@ fn redetermine_terminal_focus_preserves_focused_queued_prompt_editor() {
         let terminal_view_id = terminal.read(&app, |view, _| view.view_id);
         let conversation_id =
             BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
-                let id = history.start_new_conversation(terminal_view_id, false, false, false, ctx);
+                let id = history.start_new_conversation(terminal_view_id, false, false, ctx);
                 history.set_active_conversation_id(id, terminal_view_id, ctx);
                 id
             });
@@ -928,10 +928,7 @@ fn redetermine_terminal_focus_preserves_focused_queued_prompt_editor() {
 }
 
 #[test]
-fn can_send_prompt_gates_buttons_and_hint_while_nonempty_input_gates_only_the_hint() {
-    // When the host reports prompts cannot be sent (read-only shared-session viewer), every
-    // row's send-now button is disabled and the enter hint hides. A non-empty input hides the
-    // hint but leaves the buttons alone.
+fn nonempty_input_hides_the_hint_but_leaves_send_now_enabled() {
     App::test((), |mut app| async move {
         let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app_for_terminal_view(&mut app);
@@ -942,30 +939,6 @@ fn can_send_prompt_gates_buttons_and_hint_while_nonempty_input_gates_only_the_hi
         });
 
         // Default: sendable, hint shown.
-        panel.read(&app, |panel, ctx| {
-            assert_eq!(
-                panel.send_now_button_disabled_for_test(row_id, ctx),
-                Some(false)
-            );
-            assert!(panel.enter_hint_shown_for_test(ctx));
-        });
-
-        // Sending unavailable: button disabled and hint hidden.
-        panel.update(&mut app, |panel, ctx| {
-            panel.set_can_send_prompt(false, ctx);
-        });
-        panel.read(&app, |panel, ctx| {
-            assert_eq!(
-                panel.send_now_button_disabled_for_test(row_id, ctx),
-                Some(true)
-            );
-            assert!(!panel.enter_hint_shown_for_test(ctx));
-        });
-
-        // Sending available again: button re-enabled and hint restored.
-        panel.update(&mut app, |panel, ctx| {
-            panel.set_can_send_prompt(true, ctx);
-        });
         panel.read(&app, |panel, ctx| {
             assert_eq!(
                 panel.send_now_button_disabled_for_test(row_id, ctx),

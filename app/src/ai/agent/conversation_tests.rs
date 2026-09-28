@@ -474,7 +474,7 @@ fn update_cost_and_usage_resolves_custom_endpoint_alias_for_footer_usage() {
         });
         app.add_singleton_model(LLMPreferences::new);
 
-        let mut conversation = AIConversation::new(false, false);
+        let mut conversation = AIConversation::new(false);
         app.read(|ctx| {
             conversation
                 .update_cost_and_usage_for_request(
@@ -509,7 +509,7 @@ fn update_cost_and_usage_uses_fallback_label_for_unknown_custom_endpoint() {
         initialize_custom_endpoint_usage_test_app(&mut app);
         app.add_singleton_model(LLMPreferences::new);
 
-        let mut conversation = AIConversation::new(false, false);
+        let mut conversation = AIConversation::new(false);
         app.read(|ctx| {
             conversation
                 .update_cost_and_usage_for_request(
@@ -580,7 +580,7 @@ fn usage_totals_reads_gui_credits_and_accumulates_provider_cost() {
         initialize_custom_endpoint_usage_test_app(&mut app);
         app.add_singleton_model(LLMPreferences::new);
 
-        let mut conversation = AIConversation::new(false, false);
+        let mut conversation = AIConversation::new(false);
         assert_eq!(
             conversation.usage_totals(),
             ConversationUsageTotals {
@@ -891,7 +891,7 @@ fn test_new_restored_prefers_parentless_task_with_messages_over_empty_stub() {
 
 #[test]
 fn cli_agent_transcript_vehicle_is_excluded_from_navigation() {
-    let conversation = AIConversation::new(false, true);
+    let conversation = AIConversation::new(true);
 
     assert!(conversation.should_exclude_from_navigation());
 }

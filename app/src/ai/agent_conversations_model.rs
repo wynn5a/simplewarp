@@ -3,15 +3,13 @@ mod query;
 
 use std::collections::{HashMap, HashSet};
 
-use clap::ValueEnum;
 pub use entry::{
     AgentConversationEntry, AgentConversationEntryId, AgentConversationNavigationSubject,
 };
 use fuzzy_match::FuzzyMatchResult;
 use itertools::Itertools;
 pub use query::query_conversation_entries;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use warp_cli::agent::Harness;
+use serde::{Deserialize, Serialize};
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::WarpTheme;
 use warp_core::ui::theme::color::internal_colors;
@@ -21,7 +19,6 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
-use crate::ai::ambient_agents::AgentSource;
 use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, ConversationStatusUpdate,
 };
@@ -43,86 +40,6 @@ pub enum StatusFilter {
     Working,
     Done,
     Failed,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum SourceFilter {
-    #[default]
-    All,
-    Specific(AgentSource),
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum CreatorFilter {
-    #[default]
-    All,
-    Specific {
-        name: String,
-        uid: String,
-    },
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum CreatedOnFilter {
-    #[default]
-    All,
-    Last24Hours,
-    Past3Days,
-    LastWeek,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum EnvironmentFilter {
-    #[default]
-    All,
-    NoEnvironment,
-    Specific(String),
-}
-
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum OwnerFilter {
-    All,
-    #[default]
-    PersonalOnly,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub enum HarnessFilter {
-    #[default]
-    All,
-    Specific(Harness),
-}
-
-impl Serialize for HarnessFilter {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            HarnessFilter::All => serializer.serialize_str("all"),
-            HarnessFilter::Specific(harness) => serializer.collect_str(harness),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for HarnessFilter {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(deserializer)?;
-        Ok(Harness::from_str(&raw, false)
-            .ok()
-            .map(HarnessFilter::Specific)
-            .unwrap_or(HarnessFilter::All))
-    }
-}
-
-#[derive(Default, PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
-pub struct AgentManagementFilters {
-    pub owners: OwnerFilter,
-    pub status: StatusFilter,
-    pub source: SourceFilter,
-    pub created_on: CreatedOnFilter,
-    pub creator: CreatorFilter,
-    #[serde(default)]
-    pub environment: EnvironmentFilter,
-    #[serde(default)]
-    pub harness: HarnessFilter,
 }
 
 /// Frontend-specific classification of a normalized conversation-list entry.
@@ -148,26 +65,6 @@ pub trait AgentConversationListPolicy: 'static {
 pub struct AgentConversationQueryResult {
     pub entry: AgentConversationEntry,
     pub title_match: Option<FuzzyMatchResult>,
-}
-
-impl AgentManagementFilters {
-    pub fn reset_all_but_owner(&mut self) {
-        self.status = StatusFilter::default();
-        self.source = SourceFilter::default();
-        self.created_on = CreatedOnFilter::default();
-        self.creator = CreatorFilter::default();
-        self.environment = EnvironmentFilter::default();
-        self.harness = HarnessFilter::default();
-    }
-
-    pub fn is_filtering(&self) -> bool {
-        self.status != StatusFilter::default()
-            || self.source != SourceFilter::default()
-            || self.created_on != CreatedOnFilter::default()
-            || self.creator != CreatorFilter::default() && self.owners != OwnerFilter::PersonalOnly
-            || self.environment != EnvironmentFilter::default()
-            || self.harness != HarnessFilter::default()
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -336,14 +233,9 @@ impl AgentConversationsModel {
     }
 
     /// Returns normalized, owned entries for agent management/navigation surfaces.
-    pub fn get_entries(
-        &self,
-        filters: &AgentManagementFilters,
-        app: &AppContext,
-    ) -> Vec<AgentConversationEntry> {
+    pub fn get_entries(&self, app: &AppContext) -> Vec<AgentConversationEntry> {
         self.unfiltered_entries(app)
             .into_iter()
-            .filter(|entry| entry.matches_filters(filters, app))
             .sorted_by(|a, b| b.display.last_updated.cmp(&a.display.last_updated))
             .collect()
     }
@@ -356,7 +248,7 @@ impl AgentConversationsModel {
 
         for metadata in self.conversations.values() {
             let conversation_id = metadata.nav_data.id;
-            let entry = entry::entry_for_conversation(metadata, history_model, app);
+            let entry = entry::entry_for_conversation(metadata, history_model);
             emitted_conversation_ids.insert(conversation_id);
             entries.push(entry);
         }
@@ -371,7 +263,6 @@ impl AgentConversationsModel {
                 metadata,
                 nav_data,
                 history_model,
-                app,
             ));
         }
 
@@ -387,7 +278,7 @@ impl AgentConversationsModel {
         let AgentConversationEntryId::Conversation(conversation_id) = id;
         self.conversations
             .get(conversation_id)
-            .map(|metadata| entry::entry_for_conversation(metadata, history_model, app))
+            .map(|metadata| entry::entry_for_conversation(metadata, history_model))
             .or_else(|| {
                 history_model
                     .get_conversation_metadata(conversation_id)
@@ -396,7 +287,7 @@ impl AgentConversationsModel {
                             ConversationNavigationData::from_historical_conversation_metadata(
                                 metadata,
                             );
-                        entry::entry_for_historical_metadata(metadata, nav_data, history_model, app)
+                        entry::entry_for_historical_metadata(metadata, nav_data, history_model)
                     })
             })
     }

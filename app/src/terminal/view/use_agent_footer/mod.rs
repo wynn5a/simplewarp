@@ -201,9 +201,7 @@ impl TerminalView {
                 ctx.notify();
             }
             UseAgentToolbarEvent::WriteToPty(text) => {
-                // Route like user-typed terminal input so shared-session viewers
-                // forward the write request to the sharer instead of only
-                // emitting a local PTY write event.
+                // Route like user-typed terminal input so the usual PTY write gates apply.
                 self.write_user_bytes_to_pty(text.as_bytes().to_vec(), ctx);
             }
             UseAgentToolbarEvent::InsertIntoCLIPty(text) => {
@@ -482,7 +480,7 @@ impl TerminalView {
     /// (the same pipeline as the CLI agent rich input composer).
     ///
     /// Intended for callers that produce prompts outside the rich input
-    /// editor (e.g. shared-session viewer follow-up prompts). Returns
+    /// editor (e.g. the agent SDK driver). Returns
     /// without writing if there is no active CLI agent session or the text
     /// is empty.
     pub(crate) fn submit_text_to_cli_agent_pty(

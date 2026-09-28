@@ -1,21 +1,16 @@
 use chrono::{DateTime, Utc};
 use session_sharing_protocol::common::SessionId;
 use warp_cli::agent::Harness;
-use warpui::{AppContext, SingletonEntity};
+use warpui::AppContext;
 
-use super::{
-    AgentManagementFilters, AgentRunDisplayStatus, ConversationMetadata, CreatedOnFilter,
-    CreatorFilter, EnvironmentFilter, HarnessFilter, OwnerFilter, SessionStatus, SourceFilter,
-    StatusFilter,
-};
+use super::{AgentRunDisplayStatus, ConversationMetadata, SessionStatus};
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::ambient_agents::{AgentSource, AmbientAgentTaskId};
+use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::history_model::{AIConversationMetadata, BlocklistAIHistoryModel};
 use crate::ai::blocklist::orchestration_topology::orchestration_aware_conversation_status;
 use crate::ai::conversation_navigation::ConversationNavigationData;
-use crate::auth::AuthStateProvider;
 use crate::workspace::RestoreConversationLayout;
 
 /// Stable projection identity used by list and navigation surfaces.
@@ -71,14 +66,11 @@ pub struct AgentConversationDisplayData {
     pub created_at: DateTime<Utc>,
     pub last_updated: DateTime<Utc>,
     pub status: AgentRunDisplayStatus,
-    pub creator: AgentConversationPrincipal,
     pub executor: Option<AgentConversationPrincipal>,
     pub request_usage: Option<f32>,
     pub run_time: Option<String>,
     pub session_status: Option<SessionStatus>,
-    pub source: Option<AgentSource>,
     pub working_directory: Option<String>,
-    pub environment_id: Option<String>,
     pub harness: Option<Harness>,
     pub artifacts: Vec<Artifact>,
 }
@@ -147,98 +139,6 @@ impl AgentConversationEntry {
         self.backing.has_ambient_run || self.identity.ambient_agent_task_id.is_some()
     }
 
-    pub(super) fn matches_filters(
-        &self,
-        filters: &AgentManagementFilters,
-        app: &AppContext,
-    ) -> bool {
-        self.matches_owner_and_creator(&filters.owners, &filters.creator, app)
-            && self.matches_status(&filters.status)
-            && self.matches_source(&filters.source)
-            && self.matches_created_on(&filters.created_on)
-            && self.matches_environment(&filters.environment)
-            && self.matches_harness(&filters.harness)
-    }
-
-    fn matches_owner_and_creator(
-        &self,
-        owner_filter: &OwnerFilter,
-        creator_filter: &CreatorFilter,
-        app: &AppContext,
-    ) -> bool {
-        let current_user_id = AuthStateProvider::as_ref(app)
-            .get()
-            .user_id()
-            .map(|uid| uid.as_string());
-
-        let passes_owner = match owner_filter {
-            OwnerFilter::All => true,
-            OwnerFilter::PersonalOnly => {
-                if self.backing.has_ambient_run {
-                    self.display.creator.uid == current_user_id
-                } else {
-                    true
-                }
-            }
-        };
-
-        if !passes_owner || matches!(owner_filter, OwnerFilter::PersonalOnly) {
-            return passes_owner;
-        }
-
-        match creator_filter {
-            CreatorFilter::All => true,
-            CreatorFilter::Specific { name, .. } => {
-                self.display.creator.name.as_ref() == Some(name)
-            }
-        }
-    }
-
-    fn matches_status(&self, status_filter: &StatusFilter) -> bool {
-        match status_filter {
-            StatusFilter::All => true,
-            StatusFilter::Working | StatusFilter::Done | StatusFilter::Failed => {
-                self.display.status.status_filter() == *status_filter
-            }
-        }
-    }
-
-    fn matches_source(&self, source_filter: &SourceFilter) -> bool {
-        match source_filter {
-            SourceFilter::All => true,
-            SourceFilter::Specific(source) => self.display.source.as_ref() == Some(source),
-        }
-    }
-
-    fn matches_created_on(&self, created_on_filter: &CreatedOnFilter) -> bool {
-        let now = Utc::now();
-        let created_cutoff = match created_on_filter {
-            CreatedOnFilter::All => None,
-            CreatedOnFilter::Last24Hours => Some(now - chrono::Duration::hours(24)),
-            CreatedOnFilter::Past3Days => Some(now - chrono::Duration::days(3)),
-            CreatedOnFilter::LastWeek => Some(now - chrono::Duration::days(7)),
-        };
-        match created_cutoff {
-            Some(cutoff) => self.display.created_at >= cutoff,
-            None => true,
-        }
-    }
-
-    fn matches_environment(&self, environment_filter: &EnvironmentFilter) -> bool {
-        match environment_filter {
-            EnvironmentFilter::All => true,
-            EnvironmentFilter::NoEnvironment => self.display.environment_id.is_none(),
-            EnvironmentFilter::Specific(id) => self.display.environment_id.as_ref() == Some(id),
-        }
-    }
-
-    fn matches_harness(&self, harness_filter: &HarnessFilter) -> bool {
-        match harness_filter {
-            HarnessFilter::All => true,
-            HarnessFilter::Specific(harness) => self.display.harness == Some(*harness),
-        }
-    }
-
     pub fn has_open_action(
         &self,
         restore_layout: Option<RestoreConversationLayout>,
@@ -251,17 +151,6 @@ impl AgentConversationEntry {
         )
         .is_some()
     }
-}
-
-fn current_user_name(app: &AppContext) -> Option<String> {
-    AuthStateProvider::as_ref(app).get().username_for_display()
-}
-
-fn current_user_uid(app: &AppContext) -> Option<String> {
-    AuthStateProvider::as_ref(app)
-        .get()
-        .user_id()
-        .map(|uid| uid.to_string())
 }
 
 fn conversation_title(
@@ -319,25 +208,15 @@ fn conversation_artifacts(
         .unwrap_or_default()
 }
 
-fn conversation_creator(app: &AppContext) -> AgentConversationPrincipal {
-    AgentConversationPrincipal {
-        name: current_user_name(app),
-        uid: current_user_uid(app),
-        principal_type: Some(PrincipalType::User),
-    }
-}
-
 pub(super) fn entry_for_conversation(
     metadata: &ConversationMetadata,
     history_model: &BlocklistAIHistoryModel,
-    app: &AppContext,
 ) -> AgentConversationEntry {
     let conversation_metadata = history_model.get_conversation_metadata(&metadata.nav_data.id);
     entry_for_conversation_parts(
         metadata.nav_data.clone(),
         conversation_metadata,
         history_model,
-        app,
     )
 }
 
@@ -345,16 +224,14 @@ pub(super) fn entry_for_historical_metadata(
     metadata: &AIConversationMetadata,
     nav_data: ConversationNavigationData,
     history_model: &BlocklistAIHistoryModel,
-    app: &AppContext,
 ) -> AgentConversationEntry {
-    entry_for_conversation_parts(nav_data, Some(metadata), history_model, app)
+    entry_for_conversation_parts(nav_data, Some(metadata), history_model)
 }
 
 fn entry_for_conversation_parts(
     nav_data: ConversationNavigationData,
     conversation_metadata: Option<&AIConversationMetadata>,
     history_model: &BlocklistAIHistoryModel,
-    app: &AppContext,
 ) -> AgentConversationEntry {
     let metadata = ConversationMetadata { nav_data };
     let conversation_id = metadata.nav_data.id;
@@ -395,18 +272,15 @@ fn entry_for_conversation_parts(
             created_at: metadata.nav_data.last_updated.into(),
             last_updated: metadata.nav_data.last_updated.into(),
             status: status.clone(),
-            creator: conversation_creator(app),
             executor: None,
             request_usage: conversation_request_usage(&metadata, history_model),
             run_time: None,
             session_status: None,
-            source: Some(AgentSource::Interactive),
             working_directory: metadata
                 .nav_data
                 .latest_working_directory
                 .clone()
                 .or_else(|| metadata.nav_data.initial_working_directory.clone()),
-            environment_id: None,
             harness: Some(Harness::Oz),
             artifacts: conversation_artifacts(&metadata, history_model),
         },

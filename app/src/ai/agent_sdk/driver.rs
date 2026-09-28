@@ -204,9 +204,7 @@ fn idle_window_for_cli_session_status(
     idle_on_complete: Option<Duration>,
 ) -> Option<Duration> {
     match status {
-        CLIAgentSessionStatus::Success
-        | CLIAgentSessionStatus::Blocked { .. }
-        | CLIAgentSessionStatus::Cancelled => idle_on_complete,
+        CLIAgentSessionStatus::Success | CLIAgentSessionStatus::Blocked { .. } => idle_on_complete,
         CLIAgentSessionStatus::Failed { .. } | CLIAgentSessionStatus::InProgress => None,
     }
 }
@@ -224,9 +222,9 @@ fn terminal_status_log_outcome(status: &SDKConversationOutputStatus) -> &'static
 /// [`terminal_status_log_outcome`] for a third-party CLI harness session.
 fn cli_session_status_log_outcome(status: &CLIAgentSessionStatus) -> &'static str {
     match status {
-        CLIAgentSessionStatus::Success
-        | CLIAgentSessionStatus::Blocked { .. }
-        | CLIAgentSessionStatus::Cancelled => "non_error_completion",
+        CLIAgentSessionStatus::Success | CLIAgentSessionStatus::Blocked { .. } => {
+            "non_error_completion"
+        }
         CLIAgentSessionStatus::Failed { .. } => "error",
         CLIAgentSessionStatus::InProgress => "in_progress",
     }
@@ -2004,8 +2002,7 @@ impl AgentDriver {
                     match status {
                         CLIAgentSessionStatus::Success
                         | CLIAgentSessionStatus::Failed { .. }
-                        | CLIAgentSessionStatus::Blocked { .. }
-                        | CLIAgentSessionStatus::Cancelled => {
+                        | CLIAgentSessionStatus::Blocked { .. } => {
                             let idle_window =
                                 idle_window_for_cli_session_status(status, me.idle_on_complete);
                             let outcome = cli_session_status_log_outcome(status);

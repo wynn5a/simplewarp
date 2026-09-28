@@ -434,8 +434,7 @@ impl CompletionContext for SessionAgnosticContext {
     }
 }
 
-/// Empty `CompletionContext` used in places without a live shell session
-/// (i.e. shared session viewers without a real terminal instance).
+/// Empty `CompletionContext` used in places without a live shell session.
 #[derive(Clone)]
 pub struct EmptyCompletionContext;
 impl EmptyCompletionContext {

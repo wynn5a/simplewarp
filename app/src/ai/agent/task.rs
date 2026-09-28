@@ -1,7 +1,7 @@
 pub mod helper;
 pub mod transaction;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::ops::Deref;
 
@@ -18,10 +18,7 @@ use warp_multi_agent_api::message::Message;
 use warp_multi_agent_api::message::tool_call::subagent::Metadata;
 use warp_multi_agent_api::{self as api};
 
-use super::api::convert_conversation::convert_tool_call_result_to_input;
-use super::api::{
-    ConversionParams, ConvertAPIMessageToClientOutputMessage, user_inputs_from_messages,
-};
+use super::api::{ConversionParams, ConvertAPIMessageToClientOutputMessage};
 use super::comment::CodeReview;
 use super::conversation::{context_in_exchanges, update_todo_list_from_todo_op};
 use super::{
@@ -30,7 +27,6 @@ use super::{
     Shared,
 };
 use crate::AIAgentTodoList;
-use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::terminal::model::block::BlockId;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -251,7 +247,6 @@ impl Task {
                     active_code_review,
                     skill_path_origin,
                 },
-                false,
             )
             .context(
                 "Failed to update last exchange from messages upon converting to a server created task",
@@ -285,7 +280,6 @@ impl Task {
         current_todo_list: Option<&AIAgentTodoList>,
         active_code_review: Option<&CodeReview>,
         skill_path_origin: &SkillPathOrigin,
-        should_convert_input_messages: bool,
     ) -> Self {
         let subagent_call_and_id = parent_task.messages.iter().find_map(|message| {
             let tool_call = message.tool_call()?;
@@ -341,7 +335,6 @@ impl Task {
                 active_code_review,
                 skill_path_origin,
             },
-            should_convert_input_messages,
         )
         .expect("Exchange exists and output is in 'streaming' state.");
         me
@@ -661,17 +654,11 @@ impl Task {
         messages: Vec<api::Message>,
         exchange_id: AIAgentExchangeId,
         message_context: TaskMessageContext<'_>,
-        should_convert_input_messages: bool,
     ) -> Result<(), UpdateTaskError> {
         if self.source().is_none() {
             return Err(UpdateTaskError::TaskNotInitialized);
         }
-        self.update_exchange_from_messages(
-            messages.clone(),
-            exchange_id,
-            message_context,
-            should_convert_input_messages,
-        )?;
+        self.update_exchange_from_messages(messages.clone(), exchange_id, message_context)?;
         self.try_get_source_mut()?.messages.extend(messages);
         Ok(())
     }
@@ -682,7 +669,6 @@ impl Task {
         exchange_id: AIAgentExchangeId,
         message_context: TaskMessageContext<'_>,
         mask: FieldMask,
-        should_convert_input_messages: bool,
     ) -> Result<&api::Message, UpdateTaskError> {
         let Some((idx, existing_message)) = self
             .try_get_source()?
@@ -691,12 +677,7 @@ impl Task {
             .enumerate()
             .find(|(_, m)| message.id == m.id)
         else {
-            self.add_messages(
-                vec![message.clone()],
-                exchange_id,
-                message_context,
-                should_convert_input_messages,
-            )?;
+            self.add_messages(vec![message.clone()], exchange_id, message_context)?;
             return self
                 .try_get_source()?
                 .messages
@@ -721,37 +702,6 @@ impl Task {
                 skill_path_origin: message_context.skill_path_origin,
             },
         )?;
-
-        // Task message updates can carry tool call result updates with them,
-        // so we need to convert any tool call results and update the exchange accordingly
-        // (this is necessary for session sharing, where the tool call input has not already been
-        // optimistically inserted into the exchange)
-        if should_convert_input_messages && let Some(tool_call_result) = message.tool_call_result()
-        {
-            let mut document_versions: HashMap<AIDocumentId, AIDocumentVersion> = HashMap::new();
-            if let Some(input) = convert_tool_call_result_to_input(
-                &id,
-                tool_call_result,
-                &HashMap::new(),
-                &mut document_versions,
-            ) {
-                if let Some(action_result) = input.action_result() {
-                    if let Some(existing_result) =
-                        exchange_to_update.input.iter_mut().find(|existing_input| {
-                            existing_input
-                                .action_result()
-                                .is_some_and(|existing_result| {
-                                    existing_result.id == action_result.id
-                                })
-                        })
-                    {
-                        *existing_result = input;
-                    }
-                } else {
-                    exchange_to_update.input.push(input)
-                }
-            }
-        }
 
         let source = self.try_get_source_mut()?;
         source.messages[idx] = updated_message;
@@ -917,7 +867,6 @@ impl Task {
         messages: Vec<api::Message>,
         exchange_id: AIAgentExchangeId,
         message_context: TaskMessageContext<'_>,
-        should_convert_input_messages: bool,
     ) -> Result<(), UpdateTaskError> {
         let exchange = self
             .exchange_mut(exchange_id)
@@ -925,30 +874,6 @@ impl Task {
         exchange
             .added_message_ids
             .extend(messages.iter().map(|m| MessageId::new(m.id.clone())));
-
-        if should_convert_input_messages {
-            let user_inputs = user_inputs_from_messages(&messages);
-
-            for input in user_inputs.into_iter() {
-                // If the input is an ActionResult with an action ID that already exists,
-                // replace the existing one (to handle updates to long-running commands).
-                if let Some(action_result) = input.action_result()
-                    && let Some(existing_result) =
-                        exchange.input.iter_mut().find(|existing_input| {
-                            existing_input
-                                .action_result()
-                                .is_some_and(|existing_result| {
-                                    existing_result.id == action_result.id
-                                })
-                        })
-                {
-                    *existing_result = input;
-                    continue;
-                }
-
-                exchange.input.push(input);
-            }
-        }
 
         let output = exchange.get_streaming_output()?;
         let output_messages: Result<Vec<AIAgentOutputMessage>, MessageToAIAgentOutputMessageError> =

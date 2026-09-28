@@ -639,100 +639,6 @@ fn focus_reporting_writes_focus_events_in_normal_screen() {
         );
     })
 }
-#[test]
-fn ctrl_c_from_shared_viewer_forwards_and_arms_cancel_window() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _flag = FeatureFlag::CtrlCCancelsThirdPartyHarness.override_enabled(true);
-        let terminal = add_window_with_terminal(&mut app, None);
-        let view_id = terminal.id();
-        let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
-        let writes = pty_writes.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&terminal, move |_, event, _| {
-                if let Event::WriteBytesToPty { bytes } = event {
-                    writes.borrow_mut().push(bytes.to_vec());
-                }
-            });
-        });
-
-        register_armable_cli_agent_session(&mut app, view_id);
-        terminal.update(&mut app, |view, ctx| {
-            view.model.lock().simulate_long_running_block("claude", "");
-            view.write_viewer_bytes_to_pty(vec![0x03], ctx);
-        });
-
-        assert_eq!(
-            *pty_writes.borrow(),
-            vec![vec![0x03]],
-            "Ctrl-C must still be forwarded to the pty unchanged"
-        );
-        let armed = CLIAgentSessionsModel::handle(&app).read(&app, |sessions, _| {
-            sessions.has_pending_or_resolved_ctrl_c_cancel(view_id)
-        });
-        assert!(
-            armed,
-            "a forwarded Ctrl-C to a working rich-status session should arm the cancel window"
-        );
-    })
-}
-
-#[test]
-fn ctrl_c_from_shared_viewer_rejected_by_agent_in_control_does_not_arm_cancel_window() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _flag = FeatureFlag::CtrlCCancelsThirdPartyHarness.override_enabled(true);
-        let terminal = add_window_with_terminal(&mut app, None);
-        let view_id = terminal.id();
-        let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
-        let writes = pty_writes.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&terminal, move |_, event, _| {
-                if let Event::WriteBytesToPty { bytes } = event {
-                    writes.borrow_mut().push(bytes.to_vec());
-                }
-            });
-        });
-
-        register_armable_cli_agent_session(&mut app, view_id);
-        terminal.update(&mut app, |view, ctx| {
-            {
-                let mut model = view.model.lock();
-                model.simulate_long_running_block("claude", "");
-                let task_id = TaskId::new("test-task".to_owned());
-                model
-                    .block_list_mut()
-                    .active_block_mut()
-                    .set_agent_interaction_mode_for_agent_monitored_command(
-                        &task_id,
-                        AIConversationId::new(),
-                    )
-                    .expect("user-mode block should become agent-monitored");
-                assert!(
-                    model.block_list().active_block().is_agent_in_control(),
-                    "active block should be agent-controlled for this test"
-                );
-            }
-
-            // `write_user_bytes_to_pty` rejects writes while the agent is in
-            // control of the command, so this Ctrl-C never reaches the pty.
-            view.write_viewer_bytes_to_pty(vec![0x03], ctx);
-        });
-
-        assert!(
-            pty_writes.borrow().is_empty(),
-            "a rejected write must not reach the pty"
-        );
-        let armed = CLIAgentSessionsModel::handle(&app).read(&app, |sessions, _| {
-            sessions.has_pending_or_resolved_ctrl_c_cancel(view_id)
-        });
-        assert!(
-            !armed,
-            "a Ctrl-C that never reached the pty must not arm the cancel window"
-        );
-    })
-}
-
 fn exchange_with_inputs(inputs: Vec<AIAgentInput>) -> AIAgentExchange {
     AIAgentExchange {
         id: AIAgentExchangeId::new(),
@@ -778,7 +684,7 @@ fn append_exchange_with_inputs_and_handle_event(
     let (conversation_id, task_id, exchange_id, response_stream_id) =
         history_model.update(ctx, |history_model, ctx| {
             let conversation_id =
-                history_model.start_new_conversation(view.view_id, false, false, false, ctx);
+                history_model.start_new_conversation(view.view_id, false, false, ctx);
             let task_id = history_model
                 .conversation(&conversation_id)
                 .expect("conversation should exist")
@@ -1032,7 +938,7 @@ fn is_passive_conversation_is_recomputed_on_conversation_reassignment() {
             let history_model = BlocklistAIHistoryModel::handle(ctx);
             history_model.update(ctx, |history_model, ctx| {
                 let new_conversation_id =
-                    history_model.start_new_conversation(view.view_id, false, false, false, ctx);
+                    history_model.start_new_conversation(view.view_id, false, false, ctx);
                 let exchange = history_model
                     .conversation_mut(&old_conversation_id)
                     .expect("old conversation should exist")
@@ -4537,9 +4443,7 @@ fn test_prompt_context_menu_items_for_context_chips() {
         terminal.update(&mut app, |view, ctx| {
             let model = view.model.lock();
             view.current_prompt.update(ctx, |prompt, ctx| {
-                let PromptType::Dynamic { prompt } = prompt else {
-                    return;
-                };
+                let prompt = prompt.current_prompt().clone();
                 prompt.update(ctx, |prompt, ctx| {
                     prompt.update_context(model.block_list().active_block(), ctx)
                 });
@@ -4598,9 +4502,7 @@ fn test_prompt_context_menu_items_for_no_context_chips() {
         terminal.update(&mut app, |view, ctx| {
             let model = view.model.lock();
             view.current_prompt.update(ctx, |prompt, ctx| {
-                let PromptType::Dynamic { prompt } = prompt else {
-                    return;
-                };
+                let prompt = prompt.current_prompt().clone();
                 prompt.update(ctx, |prompt, ctx| {
                     prompt.update_context(model.block_list().active_block(), ctx)
                 });
@@ -4702,9 +4604,7 @@ fn agent_footer_updates_chip_groups_when_side_assignment_changes() {
         terminal.update(&mut app, |view, ctx| {
             let model = view.model.lock();
             view.current_prompt.update(ctx, |prompt, ctx| {
-                let PromptType::Dynamic { prompt } = prompt else {
-                    return;
-                };
+                let prompt = prompt.current_prompt().clone();
                 prompt.update(ctx, |prompt, ctx| {
                     prompt.update_context(model.block_list().active_block(), ctx);
                 });
@@ -4952,9 +4852,9 @@ fn ctrl_c_after_stop_takeover_cancels_conversation() {
         });
 
         let conversation_id = terminal.update(&mut app, |view, ctx| {
-            let conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                    history.start_new_conversation(view.view_id, false, false, false, ctx)
+            let conversation_id = BlocklistAIHistoryModel::handle(ctx)
+                .update(ctx, |history, ctx| {
+                    history.start_new_conversation(view.view_id, false, false, ctx)
                 });
 
             view.model
@@ -5012,9 +4912,9 @@ fn ctrl_c_after_transfer_takeover_does_not_cancel_conversation() {
         });
 
         let conversation_id = terminal.update(&mut app, |view, ctx| {
-            let conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                    history.start_new_conversation(view.view_id, false, false, false, ctx)
+            let conversation_id = BlocklistAIHistoryModel::handle(ctx)
+                .update(ctx, |history, ctx| {
+                    history.start_new_conversation(view.view_id, false, false, ctx)
                 });
 
             view.model
@@ -5065,9 +4965,9 @@ fn completed_user_controlled_lrc_resumes_when_not_suppressed() {
 
         let terminal = add_window_with_terminal(&mut app, None);
         terminal.update(&mut app, |view, ctx| {
-            let conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                    history.start_new_conversation(view.view_id, false, false, false, ctx)
+            let conversation_id = BlocklistAIHistoryModel::handle(ctx)
+                .update(ctx, |history, ctx| {
+                    history.start_new_conversation(view.view_id, false, false, ctx)
                 });
 
             view.model
@@ -5124,9 +5024,9 @@ fn completed_user_controlled_lrc_skips_resume_when_suppressed() {
 
         let terminal = add_window_with_terminal(&mut app, None);
         terminal.update(&mut app, |view, ctx| {
-            let conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                    history.start_new_conversation(view.view_id, false, false, false, ctx)
+            let conversation_id = BlocklistAIHistoryModel::handle(ctx)
+                .update(ctx, |history, ctx| {
+                    history.start_new_conversation(view.view_id, false, false, ctx)
                 });
 
             view.model
@@ -5979,9 +5879,9 @@ fn cmd_k_does_not_clear_buffer_when_agent_is_driving_command() {
         terminal.update(&mut app, |view, ctx| {
             bootstrap_with_long_running_block(view);
 
-            let conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                    history.start_new_conversation(view.view_id, false, false, false, ctx)
+            let conversation_id = BlocklistAIHistoryModel::handle(ctx)
+                .update(ctx, |history, ctx| {
+                    history.start_new_conversation(view.view_id, false, false, ctx)
                 });
             set_active_block_agent_driving(view, conversation_id);
 
@@ -6319,8 +6219,7 @@ fn back_button_label_names_the_direct_parent_at_depth() {
         let terminal_view_id = EntityId::new();
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let (root_id, mid_id, grandchild_id) = history_model.update(&mut app, |history, ctx| {
-            let root_id =
-                history.start_new_conversation(terminal_view_id, false, false, false, ctx);
+            let root_id = history.start_new_conversation(terminal_view_id, false, false, ctx);
             let mid_id = history.start_new_child_conversation(
                 terminal_view_id,
                 "api-refactor".to_string(),
@@ -6396,12 +6295,10 @@ fn back_button_label_resolves_token_only_parent_linkage() {
         let terminal_view_id = EntityId::new();
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let child_id = history_model.update(&mut app, |history, ctx| {
-            let root_id =
-                history.start_new_conversation(terminal_view_id, false, false, false, ctx);
+            let root_id = history.start_new_conversation(terminal_view_id, false, false, ctx);
             history
                 .set_server_conversation_token_for_conversation(root_id, "root-token".to_string());
-            let child_id =
-                history.start_new_conversation(terminal_view_id, false, false, false, ctx);
+            let child_id = history.start_new_conversation(terminal_view_id, false, false, ctx);
             history
                 .conversation_mut(&child_id)
                 .expect("child conversation exists")
@@ -6415,44 +6312,6 @@ fn back_button_label_resolves_token_only_parent_linkage() {
                 "for Orchestrator",
             );
         });
-    });
-}
-
-/// Registers a rich-status-capable, `InProgress` CLI agent session that has
-/// already observed a `prompt_submit` -- the state a real working third-party
-/// harness turn is in -- so `observe_ctrl_c_write` is able to arm.
-fn register_armable_cli_agent_session(app: &mut App, view_id: EntityId) {
-    let cli_sessions = CLIAgentSessionsModel::handle(app);
-    cli_sessions.update(app, |sessions, ctx| {
-        sessions.set_session(
-            view_id,
-            CLIAgentSession {
-                agent: CLIAgent::Claude,
-                status: CLIAgentSessionStatus::InProgress,
-                session_context: CLIAgentSessionContext::default(),
-                listener: None,
-                plugin_version: None,
-                remote_host: None,
-                received_rich_notification: true,
-            },
-            ctx,
-        );
-    });
-    cli_sessions.update(app, |sessions, ctx| {
-        sessions.update_from_event(
-            view_id,
-            &CLIAgentEvent {
-                v: 1,
-                agent: CLIAgent::Claude,
-                event: CLIAgentEventType::PromptSubmit,
-                session_id: None,
-                cwd: None,
-                project: None,
-                payload: CLIAgentEventPayload::default(),
-                source: CLIAgentEventSource::RichPlugin,
-            },
-            ctx,
-        );
     });
 }
 
@@ -6638,7 +6497,7 @@ fn cli_session_status_updates_active_child_conversation() {
         let child_conversation_id = terminal.update(&mut app, |view, ctx| {
             let parent_conversation_id =
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_conversation(view.view_id, false, false, false, ctx)
+                    history_model.start_new_conversation(view.view_id, false, false, ctx)
                 });
             let child_conversation_id =
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
@@ -6786,7 +6645,7 @@ fn cli_session_status_updates_single_child_conversation_without_agent_view() {
         let child_conversation_id = terminal.update(&mut app, |view, ctx| {
             let parent_conversation_id =
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_conversation(view.view_id, false, false, false, ctx)
+                    history_model.start_new_conversation(view.view_id, false, false, ctx)
                 });
             let child_conversation_id =
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {

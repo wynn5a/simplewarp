@@ -5,7 +5,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use chrono::{Duration, Utc};
 use parking_lot::Mutex;
 use persistence::model::AgentConversationData;
-use warp_cli::agent::Harness;
 use warp_core::features::FeatureFlag;
 use warpui::{App, EntityId, ModelHandle, SingletonEntity};
 
@@ -14,9 +13,8 @@ use super::entry::{
 };
 use super::query::{DEFAULT_RESULT_COUNT, MAX_SEARCH_RESULTS};
 use super::{
-    AgentConversationsModel, AgentConversationsModelEvent, AgentManagementFilters,
-    ConversationMetadata, ConversationUpdateKind, HarnessFilter, OwnerFilter, StatusFilter,
-    query_conversation_entries,
+    AgentConversationsModel, AgentConversationsModelEvent, ConversationMetadata,
+    ConversationUpdateKind, StatusFilter, query_conversation_entries,
 };
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::api::ServerConversationToken;
@@ -172,7 +170,7 @@ fn conversation_query_caps_recent_entries_and_places_newest_last() {
         }
 
         app.update(|ctx| {
-            let entries = model.get_entries(&all_owner_filters(), ctx);
+            let entries = model.get_entries(ctx);
             let results = query_conversation_entries(entries, "");
 
             assert_eq!(results.len(), DEFAULT_RESULT_COUNT);
@@ -214,7 +212,7 @@ fn conversation_query_filters_titles_and_caps_best_fuzzy_results() {
         }
 
         app.update(|ctx| {
-            let entries = model.get_entries(&all_owner_filters(), ctx);
+            let entries = model.get_entries(ctx);
             let results = query_conversation_entries(entries, "deploy");
 
             assert_eq!(results.len(), MAX_SEARCH_RESULTS);
@@ -244,7 +242,7 @@ fn conversation_query_orders_equal_fuzzy_scores_by_recency() {
         }
 
         app.update(|ctx| {
-            let entries = model.get_entries(&all_owner_filters(), ctx);
+            let entries = model.get_entries(ctx);
             let results = query_conversation_entries(entries, "deploy");
 
             assert!(results.windows(2).all(|window| {
@@ -294,13 +292,6 @@ fn create_restored_conversation(
         .expect("restored conversation should build")
 }
 
-fn all_owner_filters() -> AgentManagementFilters {
-    AgentManagementFilters {
-        owners: OwnerFilter::All,
-        ..Default::default()
-    }
-}
-
 fn add_entry_projection_test_models(app: &mut App) {
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
@@ -321,7 +312,7 @@ fn test_get_entries_includes_local_only_entry() {
         );
 
         app.update(|ctx| {
-            let entries = model.get_entries(&all_owner_filters(), ctx);
+            let entries = model.get_entries(ctx);
 
             assert_eq!(entries.len(), 1);
             let entry = &entries[0];
@@ -345,7 +336,7 @@ fn test_conversation_metadata_child_predicate_matches_conversation() {
     use crate::ai::blocklist::history_model::AIConversationMetadata;
 
     // Non-child conversation: neither representation reports a child.
-    let plain = AIConversation::new(false, false);
+    let plain = AIConversation::new(false);
     let plain_metadata = AIConversationMetadata::from(&plain);
     assert!(!plain.is_child_agent_conversation());
     assert_eq!(
@@ -354,7 +345,7 @@ fn test_conversation_metadata_child_predicate_matches_conversation() {
     );
 
     // Child conversation: the metadata predicate matches the conversation's.
-    let mut child = AIConversation::new(false, false);
+    let mut child = AIConversation::new(false);
     child.set_parent_conversation_id(AIConversationId::new());
     let child_metadata = AIConversationMetadata::from(&child);
     assert!(child.is_child_agent_conversation());
@@ -459,64 +450,4 @@ fn test_server_token_assignment_emits_conversation_updated() {
             assert!(saw_conversation_updated.load(Ordering::SeqCst));
         });
     });
-}
-
-#[test]
-fn test_harness_filter_is_filtering_and_reset() {
-    // Default is All → not filtering, and after toggling reset_all_but_owner returns to default.
-    let mut filters = AgentManagementFilters::default();
-    assert!(!filters.is_filtering());
-
-    filters.harness = HarnessFilter::Specific(Harness::Claude);
-    assert!(
-        filters.is_filtering(),
-        "harness != All should report filtering"
-    );
-
-    filters.reset_all_but_owner();
-    assert_eq!(filters.harness, HarnessFilter::default());
-    assert!(!filters.is_filtering());
-}
-
-#[test]
-fn test_agent_management_filters_serde_backwards_compat() {
-    // Persisted state from older clients has no `harness` key → deserializes to All; their
-    // `artifact` key (filter removed) is ignored.
-    let legacy = r#"{
-        "owners": "PersonalOnly",
-        "status": "All",
-        "source": "All",
-        "created_on": "All",
-        "creator": "All",
-        "artifact": "All"
-    }"#;
-    let decoded: AgentManagementFilters =
-        serde_json::from_str(legacy).expect("legacy payload without harness must deserialize");
-    assert_eq!(decoded.harness, HarnessFilter::All);
-
-    // Round trip a Specific(Claude) value.
-    let original = AgentManagementFilters {
-        harness: HarnessFilter::Specific(Harness::Claude),
-        ..Default::default()
-    };
-    let encoded = serde_json::to_string(&original).unwrap();
-    assert!(
-        encoded.contains("\"harness\":\"claude\""),
-        "expected serialized form to contain \"harness\":\"claude\", got {encoded}"
-    );
-    let decoded: AgentManagementFilters = serde_json::from_str(&encoded).unwrap();
-    assert_eq!(decoded, original);
-
-    // Unknown harness strings deserialize to All (forward compat).
-    let forward = r#"{
-        "owners": "PersonalOnly",
-        "status": "All",
-        "source": "All",
-        "created_on": "All",
-        "creator": "All",
-        "artifact": "All",
-        "harness": "some-future-harness"
-    }"#;
-    let decoded: AgentManagementFilters = serde_json::from_str(forward).unwrap();
-    assert_eq!(decoded.harness, HarnessFilter::All);
 }

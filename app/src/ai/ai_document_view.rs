@@ -171,27 +171,10 @@ impl AIDocumentView {
                                 me.document_version = *version;
                                 me.refresh(ctx);
                             }
-                            // Restoration is used for both persisted restore and
-                            // shared-session viewer mirroring.
+                            // Only refresh when restoration targets the version this pane was
+                            // opened for.
                             AIDocumentUpdateSource::Restoration => {
-                                let is_shared_session_view = AIDocumentModel::as_ref(ctx)
-                                    .get_conversation_id_for_document_id(document_id)
-                                    .and_then(|conv_id| {
-                                        BlocklistAIHistoryModel::as_ref(ctx)
-                                            .conversation(&conv_id)
-                                            .map(|c| c.is_viewing_shared_session())
-                                    })
-                                    .unwrap_or(false);
-
-                                if is_shared_session_view {
-                                    // For shared-session viewers mirrored updates represent the live truth,
-                                    // so we always follow the latest version.
-                                    me.document_version = *version;
-                                    me.refresh(ctx);
-                                } else if *version == me.document_version {
-                                    // For normal persisted restoration, only refresh when restoration
-                                    // targets the version this pane was opened for.
-                                    me.document_version = *version;
+                                if *version == me.document_version {
                                     me.refresh(ctx);
                                 }
                             }

@@ -3,8 +3,7 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::ai::agent_conversations_model::{
     AgentConversationEntry, AgentConversationEntryId, AgentConversationsModel,
-    AgentConversationsModelEvent, AgentManagementFilters, ConversationUpdateKind, CreatedOnFilter,
-    CreatorFilter, OwnerFilter, SourceFilter, StatusFilter,
+    AgentConversationsModelEvent, ConversationUpdateKind,
 };
 
 pub struct ConversationListViewModelEvent;
@@ -75,18 +74,7 @@ impl ConversationListViewModel {
     fn refresh_cached_items(&mut self, ctx: &mut ModelContext<Self>) {
         let model = self.conversations_model.as_ref(ctx);
         self.cached_entry_ids = model
-            .get_entries(
-                &AgentManagementFilters {
-                    owners: OwnerFilter::PersonalOnly,
-                    status: StatusFilter::All,
-                    source: SourceFilter::All,
-                    created_on: CreatedOnFilter::All,
-                    creator: CreatorFilter::All,
-                    environment: Default::default(),
-                    harness: Default::default(),
-                },
-                ctx,
-            )
+            .get_entries(ctx)
             .into_iter()
             .filter(|entry| entry.capabilities.can_open)
             .map(|entry| entry.id)

@@ -1,5 +1,4 @@
 //! Conversions from MAA API types to application types.
-use std::collections::HashMap;
 use std::time::Duration;
 
 use ai::agent::UnknownCitationTypeError;
@@ -12,22 +11,18 @@ use api::ask_user_question::question::QuestionType;
 use warp_core::channel::ChannelState;
 use warp_multi_agent_api as api;
 
-use crate::ai::agent::api::convert_conversation::{
-    convert_input_context, convert_tool_call_result_to_input,
-};
 use crate::ai::agent::comment::CodeReview;
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::todos::AIAgentTodoList;
 use crate::ai::agent::util::parse_markdown_into_text_and_code_sections;
 use crate::ai::agent::{
-    AIAgentAction, AIAgentActionType, AIAgentAttachment, AIAgentCitation, AIAgentInput,
-    AIAgentOutputMessage, AIAgentText, AIAgentTodo, ArtifactCreatedData, CloneRepositoryURL,
-    MessageId, RunAgentsAgentRunConfig, RunAgentsExecutionMode, RunAgentsRequest, SubagentCall,
-    SubagentType, SuggestedAgentModeWorkflow, SuggestedRule, Suggestions, SummarizationType,
-    TodoOperation, UserQueryMode, WebFetchStatus, WebSearchStatus,
+    AIAgentAction, AIAgentActionType, AIAgentAttachment, AIAgentCitation, AIAgentOutputMessage,
+    AIAgentText, AIAgentTodo, ArtifactCreatedData, MessageId, RunAgentsAgentRunConfig,
+    RunAgentsExecutionMode, RunAgentsRequest, SubagentCall, SubagentType,
+    SuggestedAgentModeWorkflow, SuggestedRule, Suggestions, SummarizationType, TodoOperation,
+    UserQueryMode, WebFetchStatus, WebSearchStatus,
 };
 use crate::ai::artifact_download::sanitized_basename;
-use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 
 impl TryFrom<api::Attachment> for AIAgentAttachment {
     type Error = anyhow::Error;
@@ -827,79 +822,6 @@ impl From<api::TodoItem> for AIAgentTodo {
             description: value.description,
         }
     }
-}
-
-/// Reconstruct user inputs from the provided server messages
-/// (for use in shared agent exchanges where the input was not provided in this session)
-pub fn user_inputs_from_messages(messages: &[api::Message]) -> Vec<AIAgentInput> {
-    let mut inputs = Vec::new();
-    let mut document_versions: HashMap<AIDocumentId, AIDocumentVersion> = HashMap::new();
-    for m in messages {
-        let Some(inner) = &m.message else { continue };
-        match inner {
-            api::message::Message::UserQuery(uq) => {
-                let context = convert_input_context(uq.context.as_ref());
-                let referenced_attachments = uq
-                    .referenced_attachments
-                    .iter()
-                    .filter_map(|(key, attachment)| {
-                        AIAgentAttachment::try_from(attachment.clone())
-                            .ok()
-                            .map(|a| (key.clone(), a))
-                    })
-                    .collect();
-                inputs.push(AIAgentInput::UserQuery {
-                    query: uq.query.clone(),
-                    context,
-                    static_query_type: None,
-                    referenced_attachments,
-                    user_query_mode: convert_user_query_mode(uq.mode.as_ref()),
-                    running_command: None,
-                    intended_agent: Some(uq.intended_agent()),
-                });
-            }
-            api::message::Message::SystemQuery(sq) => {
-                let ctx = convert_input_context(sq.context.as_ref());
-                if let Some(t) = &sq.r#type {
-                    // These system queries appear as user inputs in ai blocks.
-                    match t {
-                        api::message::system_query::Type::CreateNewProject(p) => {
-                            inputs.push(AIAgentInput::CreateNewProject {
-                                query: p.query.clone(),
-                                context: ctx,
-                            });
-                        }
-                        api::message::system_query::Type::CloneRepository(p) => {
-                            inputs.push(AIAgentInput::CloneRepository {
-                                clone_repo_url: CloneRepositoryURL::new(p.url.clone()),
-                                context: ctx,
-                            });
-                        }
-                        api::message::system_query::Type::AutoCodeDiff(p) => {
-                            inputs.push(AIAgentInput::AutoCodeDiffQuery {
-                                query: p.query.clone(),
-                                context: ctx,
-                            });
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            api::message::Message::ToolCallResult(tcr) => {
-                let task_id = TaskId::new(m.task_id.clone());
-                if let Some(input) = convert_tool_call_result_to_input(
-                    &task_id,
-                    tcr,
-                    &HashMap::new(),
-                    &mut document_versions,
-                ) {
-                    inputs.push(input);
-                }
-            }
-            _ => {}
-        }
-    }
-    inputs
 }
 
 fn convert_api_question(

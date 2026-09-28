@@ -95,7 +95,7 @@ fn gui_selection_delegates_to_agent_view() {
             )) as Box<dyn ConversationSelection>
         });
         let conversation_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_surface_id, false, false, false, ctx)
+            history.start_new_conversation(terminal_surface_id, false, false, ctx)
         });
 
         selection.update(&mut app, |selection, ctx| {

@@ -231,7 +231,7 @@ fn start_parent_conversation_for_terminal_view(
     ctx: &mut ViewContext<PaneGroup>,
 ) -> AIConversationId {
     BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-        history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+        history_model.start_new_conversation(terminal_view_id, false, false, ctx)
     })
 }
 fn restore_conversation_for_terminal_view(
@@ -253,7 +253,7 @@ fn restore_child_conversation_for_terminal_view(
     parent_conversation_id: AIConversationId,
     ctx: &mut ViewContext<PaneGroup>,
 ) -> AIConversationId {
-    let mut child_conversation = AIConversation::new(false, false);
+    let mut child_conversation = AIConversation::new(false);
     child_conversation.set_parent_conversation_id(parent_conversation_id);
     restore_conversation_for_terminal_view(terminal_view_id, child_conversation, ctx)
 }
@@ -264,7 +264,7 @@ fn restore_child_conversation_with_task_context_for_terminal_view(
     task_id: AmbientAgentTaskId,
     ctx: &mut ViewContext<PaneGroup>,
 ) -> AIConversationId {
-    let mut child_conversation = AIConversation::new(false, false);
+    let mut child_conversation = AIConversation::new(false);
     child_conversation.set_parent_conversation_id(parent_conversation_id);
     child_conversation.set_task_id(task_id);
     restore_conversation_for_terminal_view(terminal_view_id, child_conversation, ctx)
@@ -619,7 +619,7 @@ fn test_restored_hidden_child_pane_reapplies_ambient_task_id_to_controller() {
             let parent_conversation_id = start_parent_conversation(panes, parent_pane_id, ctx);
             let task_id = new_ambient_agent_task_id();
 
-            let mut child_conversation = AIConversation::new(false, false);
+            let mut child_conversation = AIConversation::new(false);
             child_conversation.set_parent_conversation_id(parent_conversation_id);
             child_conversation.set_task_id(task_id);
             let child_conversation_id = child_conversation.id();
@@ -698,7 +698,7 @@ fn test_pane_group_restore_loop_keeps_orchestration_topology_and_materializes_ch
             // feeds into during pane restoration. Fix C ensures the equivalent
             // wiring happens earlier (at history-model construction) so the data
             // is also available before any terminal view materializes the parent.
-            let mut child_conversation = AIConversation::new(false, false);
+            let mut child_conversation = AIConversation::new(false);
             child_conversation.set_parent_conversation_id(parent_conversation_id);
             child_conversation.set_agent_name(child_agent_name.clone());
             let child_conversation_id = child_conversation.id();

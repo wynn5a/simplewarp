@@ -122,7 +122,6 @@ impl AtContextMenuDisabledReason {
         if AIContextMenu::get_categories_for_mode(
             input_config.input_type.is_ai() || !input_config.is_locked,
             false,
-            false,
             false, /* is_cli_agent_input */
             ctx,
         )

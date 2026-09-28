@@ -11,7 +11,7 @@ pub use ai::agent::convert::ConvertToAPITypeError;
 use ai::api_keys::ApiKeyManager;
 pub use convert_from::{
     ConversionParams, ConvertAPIMessageToClientOutputMessage, MaybeAIAgentOutputMessage,
-    MessageToAIAgentOutputMessageError, user_inputs_from_messages,
+    MessageToAIAgentOutputMessageError,
 };
 use futures_lite::Stream;
 pub use r#impl::generate_multi_agent_output;

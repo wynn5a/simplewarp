@@ -440,7 +440,7 @@ impl BlocklistAIHistoryModel {
 
         let auto_execute = true; // Child auto-executes by default.
         let conversation_id =
-            self.start_new_conversation(terminal_surface_id, auto_execute, false, false, ctx);
+            self.start_new_conversation(terminal_surface_id, auto_execute, false, ctx);
         {
             let conversation = self
                 .conversation_mut(&conversation_id)
@@ -999,12 +999,10 @@ impl BlocklistAIHistoryModel {
         &mut self,
         terminal_surface_id: EntityId,
         is_autoexecute_override: bool,
-        is_viewing_shared_session: bool,
         is_cli_agent_transcript: bool,
         ctx: &mut ModelContext<Self>,
     ) -> AIConversationId {
-        let mut new_conversation =
-            AIConversation::new(is_viewing_shared_session, is_cli_agent_transcript);
+        let mut new_conversation = AIConversation::new(is_cli_agent_transcript);
         if is_autoexecute_override {
             new_conversation.toggle_autoexecute_override();
         }
@@ -1228,7 +1226,7 @@ impl BlocklistAIHistoryModel {
         );
 
         let new_conversation_id =
-            self.start_new_conversation(terminal_surface_id, false, false, false, ctx);
+            self.start_new_conversation(terminal_surface_id, false, false, ctx);
         for exchange_id in exchange_ids_to_transfer {
             let old_conversation = self
                 .conversations_by_id
@@ -2088,16 +2086,6 @@ impl BlocklistAIHistoryModel {
             return;
         };
         conversation.set_is_exchange_hidden(exchange_id, is_hidden, terminal_surface_id, ctx);
-    }
-
-    pub fn set_viewing_shared_session_for_conversation(
-        &mut self,
-        conversation_id: AIConversationId,
-        is_viewing_shared_session: bool,
-    ) {
-        if let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) {
-            conversation.set_is_viewing_shared_session(is_viewing_shared_session);
-        }
     }
 
     pub fn set_has_code_review_opened_to_true(&mut self, conversation_id: AIConversationId) {

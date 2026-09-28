@@ -619,10 +619,10 @@ fn delete_conversation_drops_only_that_conversation_state() {
         let history = BlocklistAIHistoryModel::handle(&app);
         let terminal_view_id = warpui::EntityId::new();
         let conv_a = history.update(&mut app, |h, ctx| {
-            h.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            h.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let conv_b = history.update(&mut app, |h, ctx| {
-            h.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            h.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         append_user(&model, &mut app, conv_a, "a1");
         append_user(&model, &mut app, conv_b, "b1");
@@ -793,7 +793,7 @@ fn delete_conversation_clears_in_flight_command() {
         let history = BlocklistAIHistoryModel::handle(&app);
         let terminal_view_id = warpui::EntityId::new();
         let conv = history.update(&mut app, |h, ctx| {
-            h.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            h.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         model.update(&mut app, |m, _| m.arm_command_in_flight(conv));
         model.read(&app, |m, _| assert!(m.has_command_in_flight(conv)));
@@ -812,10 +812,10 @@ fn clear_conversations_for_terminal_surface_drops_every_listed_conversation() {
         let history = BlocklistAIHistoryModel::handle(&app);
         let terminal_view_id = warpui::EntityId::new();
         let conv_a = history.update(&mut app, |h, ctx| {
-            h.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            h.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         let conv_b = history.update(&mut app, |h, ctx| {
-            h.start_new_conversation(terminal_view_id, false, false, false, ctx)
+            h.start_new_conversation(terminal_view_id, false, false, ctx)
         });
         append_user(&model, &mut app, conv_a, "a1");
         append_user(&model, &mut app, conv_b, "b1");

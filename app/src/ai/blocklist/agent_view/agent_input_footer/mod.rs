@@ -85,9 +85,7 @@ fn is_conversation_transcript_context(
     terminal_model.is_conversation_transcript_viewer()
         || BlocklistAIHistoryModel::as_ref(app)
             .active_conversation(terminal_view_id)
-            .is_some_and(|conversation| {
-                conversation.is_viewing_shared_session() || conversation.is_cli_agent_transcript()
-            })
+            .is_some_and(|conversation| conversation.is_cli_agent_transcript())
 }
 
 /// Footer control bar at the bottom of the agent input.

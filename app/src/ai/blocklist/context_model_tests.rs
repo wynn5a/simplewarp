@@ -119,7 +119,7 @@ impl ConversationSelection for TestConversationSelection {
         ctx: &mut warpui::ModelContext<Box<dyn ConversationSelection>>,
     ) -> Result<AIConversationId, EnterAgentViewError> {
         let conversation_id = BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-            history.start_new_conversation(self.terminal_surface_id, false, false, false, ctx)
+            history.start_new_conversation(self.terminal_surface_id, false, false, ctx)
         });
         self.select_existing_conversation(conversation_id, AgentViewEntryOrigin::Cli, ctx);
         Ok(conversation_id)

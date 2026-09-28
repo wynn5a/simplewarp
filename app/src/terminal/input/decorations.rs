@@ -233,7 +233,7 @@ impl Input {
             }
             CompletionSessionContext::Empty(detection_ctx) => {
                 if mode.ai_input_detection {
-                    // No session context available (e.g., shared session viewer).
+                    // No session context available.
                     // Use a dedicated detection context that does not expose top-level commands.
                     let buffer_text = self.editor.as_ref(ctx).buffer_text(ctx);
                     let ai_input_model = self.ai_input_model.clone();
