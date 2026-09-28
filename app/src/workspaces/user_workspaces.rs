@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use regex::Regex;
 use warp_core::features::FeatureFlag;
-#[cfg(test)]
-use warp_core::settings::ChangeEventReason;
 use warp_core::settings::Setting as _;
 use warpui::{
     AppContext, Entity, ModelContext, SingletonEntity, Tracked, ViewContext, WeakViewHandle,
@@ -586,7 +584,6 @@ impl UserWorkspaces {
             settings.set_enterprise_secret_redaction_settings(
                 self.is_enterprise_secret_redaction_enabled(),
                 self.get_enterprise_secret_redaction_regex_list(),
-                ChangeEventReason::CloudSync,
                 ctx,
             );
         });

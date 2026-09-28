@@ -1,5 +1,5 @@
+use settings::SupportedPlatforms;
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 use warpui::{AppContext, WindowId};
 
 define_settings_group!(WindowSettings, settings: [
@@ -7,7 +7,6 @@ define_settings_group!(WindowSettings, settings: [
         type: u8,
         default: 1,
         supported_platforms: SupportedPlatforms::MAC,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         storage_key: "OverrideBlur",
@@ -18,7 +17,6 @@ define_settings_group!(WindowSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::WINDOWS,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         storage_key: "OverrideBlurTexture",
@@ -29,7 +27,6 @@ define_settings_group!(WindowSettings, settings: [
         type: u8,
         default: 100,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         storage_key: "OverrideOpacity",
@@ -40,7 +37,6 @@ define_settings_group!(WindowSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "appearance.window.open_windows_at_custom_size",
@@ -50,7 +46,6 @@ define_settings_group!(WindowSettings, settings: [
         type: u16,
         default: 80,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "appearance.window.new_windows_num_columns",
@@ -60,7 +55,6 @@ define_settings_group!(WindowSettings, settings: [
         type: u16,
         default: 40,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "appearance.window.new_windows_num_rows",
@@ -70,7 +64,6 @@ define_settings_group!(WindowSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "appearance.window.left_panel_visibility_across_tabs",
@@ -80,7 +73,6 @@ define_settings_group!(WindowSettings, settings: [
         type: u16,
         default: 100,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "appearance.window.zoom_level",

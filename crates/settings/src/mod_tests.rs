@@ -1,174 +1,14 @@
-use warpui_core::SingletonEntity;
-
-use crate::manager::SettingsManager;
-use crate::{Setting, SupportedPlatforms, SyncToCloud, *};
-
-define_settings_group!(TestSettings, settings: [
-    never_sync_setting: SimpleSetting {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
-        surface: crate::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "test.simple_setting",
-    },
-    global_setting: GlobalSetting {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: crate::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "test.global_setting",
-    },
-    global_setting_no_respect: GlobalSettingNoRespect {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
-        surface: crate::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "test.global_setting_no_respect",
-    },
-    per_platform_setting: PerPlatformSetting {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::MAC,
-        sync_to_cloud: SyncToCloud::PerPlatform(RespectUserSyncSetting::Yes),
-        surface: crate::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "test.per_platform_setting",
-    },
-    per_platform_setting_no_respect: PerPlatformSettingNoRespect {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::MAC,
-        sync_to_cloud: SyncToCloud::PerPlatform(RespectUserSyncSetting::No),
-        surface: crate::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "test.per_platform_setting_no_respect",
-    },
-]);
-
-pub fn init_and_register_user_preferences(ctx: &mut AppContext) {
-    ctx.add_singleton_model(move |_| {
-        crate::PublicPreferences::new(Box::<
-            warpui_extras::user_preferences::in_memory::InMemoryPreferences,
-        >::default())
-    });
-    ctx.add_singleton_model(move |_| {
-        crate::PrivatePreferences::new(Box::<
-            warpui_extras::user_preferences::in_memory::InMemoryPreferences,
-        >::default())
-    });
-}
-
-#[test]
-fn test_is_setting_syncable_on_current_platform() {
-    warpui_core::App::test((), |mut app| async move {
-        app.update(init_and_register_user_preferences);
-        app.add_singleton_model(|_| SettingsManager::default());
-
-        // Register our TestSettings settings group with the app.
-        TestSettings::register(&mut app);
-
-        app.read(|app| {
-            let settings = TestSettings::as_ref(app);
-            assert!(
-                !settings
-                    .never_sync_setting
-                    .is_setting_syncable_on_current_platform(true)
-            );
-            assert!(
-                !settings
-                    .never_sync_setting
-                    .is_setting_syncable_on_current_platform(false)
-            );
-
-            assert!(
-                settings
-                    .global_setting
-                    .is_setting_syncable_on_current_platform(true)
-            );
-            assert!(
-                !settings
-                    .global_setting
-                    .is_setting_syncable_on_current_platform(false)
-            );
-
-            assert!(
-                settings
-                    .global_setting_no_respect
-                    .is_setting_syncable_on_current_platform(true)
-            );
-            assert!(
-                settings
-                    .global_setting_no_respect
-                    .is_setting_syncable_on_current_platform(false)
-            );
-
-            if cfg!(target_os = "macos") {
-                assert!(
-                    settings
-                        .per_platform_setting
-                        .is_setting_syncable_on_current_platform(true)
-                );
-                assert!(
-                    !settings
-                        .per_platform_setting
-                        .is_setting_syncable_on_current_platform(false)
-                );
-
-                assert!(
-                    settings
-                        .per_platform_setting_no_respect
-                        .is_setting_syncable_on_current_platform(true)
-                );
-                assert!(
-                    settings
-                        .per_platform_setting_no_respect
-                        .is_setting_syncable_on_current_platform(false)
-                );
-            } else {
-                assert!(
-                    !settings
-                        .per_platform_setting
-                        .is_setting_syncable_on_current_platform(true)
-                );
-                assert!(
-                    !settings
-                        .per_platform_setting
-                        .is_setting_syncable_on_current_platform(false)
-                );
-
-                assert!(
-                    !settings
-                        .per_platform_setting_no_respect
-                        .is_setting_syncable_on_current_platform(true)
-                );
-                assert!(
-                    !settings
-                        .per_platform_setting_no_respect
-                        .is_setting_syncable_on_current_platform(false)
-                );
-            }
-        });
-    });
-}
-
 mod reload_all_public_settings_tests {
     use warpui_core::SingletonEntity;
 
     use crate::manager::SettingsManager;
-    use crate::{Setting, SupportedPlatforms, SyncToCloud, *};
+    use crate::{Setting, SupportedPlatforms, *};
 
     define_settings_group!(ReloadTestSettings, settings: [
         public_flag: PublicFlag {
             type: bool,
             default: false,
             supported_platforms: SupportedPlatforms::ALL,
-            sync_to_cloud: SyncToCloud::Never,
             surface: crate::SettingSurfaces::GUI,
             private: false,
             toml_path: "test.public_flag",
@@ -177,7 +17,6 @@ mod reload_all_public_settings_tests {
             type: bool,
             default: false,
             supported_platforms: SupportedPlatforms::ALL,
-            sync_to_cloud: SyncToCloud::Never,
             surface: crate::SettingSurfaces::GUI,
             private: true,
         },
@@ -498,7 +337,6 @@ mod write_to_preferences_tests {
             type: StructWithOptionals,
             default: StructWithOptionals::default(),
             supported_platforms: SupportedPlatforms::ALL,
-            sync_to_cloud: SyncToCloud::Never,
             surface: crate::SettingSurfaces::GUI,
             private: false,
             toml_path: "test.struct_setting",
@@ -581,7 +419,6 @@ mod write_to_preferences_tests {
                 type: QuakeLike,
                 default: QuakeLike::default(),
                 supported_platforms: SupportedPlatforms::ALL,
-                sync_to_cloud: SyncToCloud::Never,
                 surface: crate::SettingSurfaces::GUI,
                 private: false,
                 toml_path: "test.quake_like_setting",

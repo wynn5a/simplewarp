@@ -1,12 +1,11 @@
+use settings::SupportedPlatforms;
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 
 define_settings_group!(AltScreenReporting, settings: [
     mouse_reporting_enabled: MouseReportingEnabled {
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.mouse_reporting_enabled",
@@ -16,7 +15,6 @@ define_settings_group!(AltScreenReporting, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.scroll_reporting_enabled",
@@ -26,7 +24,6 @@ define_settings_group!(AltScreenReporting, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.focus_reporting_enabled",

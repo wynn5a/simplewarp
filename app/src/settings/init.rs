@@ -394,7 +394,7 @@ fn migrate_native_settings_to_settings_file(ctx: &mut AppContext) {
     // and the TOML file are both updated correctly.
     SettingsManager::handle(ctx).update(ctx, |manager, ctx| {
         for (key, value) in values_to_migrate {
-            match manager.update_setting_with_storage_key(&key, value, false, ctx) {
+            match manager.update_setting_with_storage_key(&key, value, ctx) {
                 Ok(()) => migrated_count += 1,
                 Err(err) => {
                     log::warn!("Failed to migrate setting {key}: {err}");

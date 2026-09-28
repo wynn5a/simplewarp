@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use enum_iterator::{Sequence, all};
 use serde::{Deserialize, Serialize};
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, Setting as _, SupportedPlatforms, SyncToCloud};
+use settings::{Setting as _, SupportedPlatforms};
 use warpui::ModelContext;
 
 #[derive(
@@ -183,7 +183,6 @@ define_settings_group!(AppEditorSettings, settings: [
         type: CursorBlink,
         default: CursorBlink::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         storage_key: "CursorBlink",
@@ -194,7 +193,6 @@ define_settings_group!(AppEditorSettings, settings: [
         type: CursorDisplayType,
         default: CursorDisplayType::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         storage_key: "CursorDisplayType",
@@ -205,7 +203,6 @@ define_settings_group!(AppEditorSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::ALL,
         private: false,
         toml_path: "text_editing.vim_mode_enabled",
@@ -215,7 +212,6 @@ define_settings_group!(AppEditorSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "text_editing.vim_unnamed_system_clipboard",
@@ -225,7 +221,6 @@ define_settings_group!(AppEditorSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "text_editing.vim_status_bar",
@@ -235,7 +230,6 @@ define_settings_group!(AppEditorSettings, settings: [
         type: CodeEditorLineNumberMode,
         default: CodeEditorLineNumberMode::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "text_editing.code_editor_line_number_mode",
@@ -245,7 +239,6 @@ define_settings_group!(AppEditorSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "text_editing.autocomplete_symbols",
@@ -255,7 +248,6 @@ define_settings_group!(AppEditorSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         storage_key: "Autosuggestions",
@@ -266,7 +258,6 @@ define_settings_group!(AppEditorSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.input.autosuggestions.keybinding_hint",
@@ -276,7 +267,6 @@ define_settings_group!(AppEditorSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.input.autosuggestions.show_ignore_button",

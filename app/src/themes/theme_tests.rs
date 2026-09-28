@@ -19,12 +19,49 @@ fn custom_theme_from_file_value_path(path: &str) -> CustomTheme {
     CustomTheme::from_file_value(&custom_theme_json(path)).unwrap()
 }
 
-fn assert_custom_theme_is_syncable(custom_theme: CustomTheme) {
-    assert!(ThemeKind::Custom(custom_theme).is_custom_theme_reference_syncable());
+fn path_is_absolute_or_foreign_absolute(path: &Path) -> bool {
+    path.has_root() || path_looks_like_foreign_windows_absolute(path)
 }
 
-fn assert_custom_theme_is_not_syncable(custom_theme: CustomTheme) {
-    assert!(!ThemeKind::Custom(custom_theme).is_custom_theme_reference_syncable());
+fn path_looks_like_foreign_windows_absolute(path: &Path) -> bool {
+    if path.has_root() {
+        return false;
+    }
+
+    let Some(path) = path.as_os_str().to_str() else {
+        return false;
+    };
+
+    let bytes = path.as_bytes();
+    let starts_with_drive_root = bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'\\' | b'/');
+
+    starts_with_drive_root || path.starts_with(r"\\")
+}
+
+fn custom_theme_path_is_portable(path: &Path, theme_root: &Path) -> bool {
+    if path_is_absolute_or_foreign_absolute(path) {
+        return portable_custom_theme_storage_string(path, theme_root).is_some();
+    }
+
+    path.to_str()
+        .is_some_and(|path| portable_stored_raw_components(path).is_some())
+}
+
+fn assert_custom_theme_is_portable(custom_theme: CustomTheme) {
+    assert!(custom_theme_path_is_portable(
+        &custom_theme.path,
+        &user_config::themes_dir()
+    ));
+}
+
+fn assert_custom_theme_is_not_portable(custom_theme: CustomTheme) {
+    assert!(!custom_theme_path_is_portable(
+        &custom_theme.path,
+        &user_config::themes_dir()
+    ));
 }
 
 fn custom_theme_path_for_storage(path: &Path, theme_root: &Path) -> PathBuf {
@@ -222,7 +259,7 @@ fn custom_theme_serde_reads_portable_raw_path_under_theme_root() {
             .join("catppuccin")
             .join("mocha.yml")
     );
-    assert_custom_theme_is_syncable(custom);
+    assert_custom_theme_is_portable(custom);
 }
 
 #[test]
@@ -240,7 +277,7 @@ fn custom_theme_serde_preserves_unportable_raw_paths() {
         let custom = custom_theme_from_serde_path(raw_path);
 
         assert_eq!(custom.path(), PathBuf::from(raw_path));
-        assert_custom_theme_is_not_syncable(custom);
+        assert_custom_theme_is_not_portable(custom);
     }
 }
 
@@ -254,7 +291,7 @@ fn custom_theme_settings_value_reads_portable_raw_path_under_theme_root() {
             .join("catppuccin")
             .join("mocha.yml")
     );
-    assert_custom_theme_is_syncable(custom);
+    assert_custom_theme_is_portable(custom);
 }
 
 #[test]
@@ -272,7 +309,7 @@ fn custom_theme_settings_value_preserves_unportable_raw_paths() {
         let custom = custom_theme_from_file_value_path(raw_path);
 
         assert_eq!(custom.path(), PathBuf::from(raw_path));
-        assert_custom_theme_is_not_syncable(custom);
+        assert_custom_theme_is_not_portable(custom);
     }
 }
 

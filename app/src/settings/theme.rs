@@ -1,5 +1,5 @@
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
+use settings::{Setting, SupportedPlatforms};
 use warpui::AppContext;
 use warpui::platform::SystemTheme;
 
@@ -16,7 +16,6 @@ define_settings_group!(ThemeSettings, settings: [
         type: ThemeKind,
         default: ThemeKind::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "appearance.themes.theme",
@@ -27,7 +26,6 @@ define_settings_group!(ThemeSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         storage_key: "SystemTheme",
@@ -38,7 +36,6 @@ define_settings_group!(ThemeSettings, settings: [
         type: SelectedSystemThemes,
         default: SelectedSystemThemes::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         storage_key: "SelectedSystemThemes",
@@ -47,20 +44,6 @@ define_settings_group!(ThemeSettings, settings: [
         description: "The themes to use for system light and dark modes.",
     },
 ]);
-
-impl Theme {
-    fn current_value_is_syncable(&self) -> bool {
-        self.value().is_custom_theme_reference_syncable()
-    }
-}
-
-impl SystemThemes {
-    fn current_value_is_syncable(&self) -> bool {
-        let selected = self.value();
-        selected.light.is_custom_theme_reference_syncable()
-            && selected.dark.is_custom_theme_reference_syncable()
-    }
-}
 
 /// Returns a derived value for whether to respect the system theme based on
 /// the current theme settings.
@@ -88,7 +71,3 @@ pub fn derived_theme_kind(theme_settings: &ThemeSettings, system_theme: SystemTh
 pub fn active_theme_kind(theme_settings: &ThemeSettings, app: &AppContext) -> ThemeKind {
     derived_theme_kind(theme_settings, app.system_theme())
 }
-
-#[cfg(test)]
-#[path = "theme_tests.rs"]
-mod tests;

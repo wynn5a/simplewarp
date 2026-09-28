@@ -5,8 +5,8 @@
 
 use std::collections::HashMap;
 
+use settings::SupportedPlatforms;
 use settings::macros::define_settings_group;
-use settings::{SupportedPlatforms, SyncToCloud};
 
 use crate::server::ids::SyncId;
 
@@ -15,7 +15,6 @@ define_settings_group!(CloudAgentSettings, settings: [
         type: Option<SyncId>,
         default: None,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -23,7 +22,6 @@ define_settings_group!(CloudAgentSettings, settings: [
         type: HashMap<String, bool>,
         default: HashMap::new(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -31,7 +29,6 @@ define_settings_group!(CloudAgentSettings, settings: [
         type: Option<String>,
         default: None,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -39,7 +36,6 @@ define_settings_group!(CloudAgentSettings, settings: [
         type: Option<String>,
         default: None,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -47,7 +43,6 @@ define_settings_group!(CloudAgentSettings, settings: [
         type: HashMap<String, String>,
         default: HashMap::new(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -59,7 +54,6 @@ define_settings_group!(CloudAgentSettings, settings: [
         type: HashMap<String, bool>,
         default: HashMap::new(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }

@@ -14,9 +14,7 @@ use indexmap::IndexMap;
 use regex::Regex;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
-use settings::{
-    RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud, define_settings_group,
-};
+use settings::{Setting, SupportedPlatforms, define_settings_group};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use warp_core::execution_mode::AppExecutionMode;
@@ -139,9 +137,6 @@ settings::macros::implement_setting_for_enum!(
     VoiceInputToggleKey,
     AISettings,
     SupportedPlatforms::DESKTOP,
-    // Never sync to cloud to allow users to use different toggle keys on different devices,
-    // especially given platform differences.
-    SyncToCloud::Never,
     surface: settings::SettingSurfaces::GUI,
     private: false,
     toml_path: "agents.voice.voice_input_toggle_key",
@@ -504,7 +499,6 @@ settings::macros::implement_setting_for_enum!(
     DefaultSessionMode,
     AISettings,
     SupportedPlatforms::ALL,
-    SyncToCloud::Globally(RespectUserSyncSetting::Yes),
     surface: settings::SettingSurfaces::GUI,
     private: false,
     toml_path: "general.default_session_mode",
@@ -555,7 +549,6 @@ settings::macros::implement_setting_for_enum!(
     ThinkingDisplayMode,
     AISettings,
     SupportedPlatforms::ALL,
-    SyncToCloud::Globally(RespectUserSyncSetting::Yes),
     surface: settings::SettingSurfaces::GUI,
     private: false,
     toml_path: "agents.warp_agent.other.thinking_display_mode",
@@ -620,7 +613,6 @@ settings::macros::implement_setting_for_enum!(
     OrchestrationMessageDisplayMode,
     AISettings,
     SupportedPlatforms::ALL,
-    SyncToCloud::Globally(RespectUserSyncSetting::Yes),
     surface: settings::SettingSurfaces::GUI,
     private: false,
     toml_path: "agents.warp_agent.other.orchestration_message_display_mode",
@@ -701,7 +693,6 @@ settings::macros::implement_setting_for_enum!(
     PromptSubmissionMode,
     AISettings,
     SupportedPlatforms::ALL,
-    SyncToCloud::Globally(RespectUserSyncSetting::Yes),
     surface: settings::SettingSurfaces::GUI,
     private: false,
     toml_path: "agents.warp_agent.other.default_prompt_submission_mode",
@@ -763,7 +754,6 @@ settings::macros::implement_setting_for_enum!(
     LongRunningCommandSubmissionMode,
     AISettings,
     SupportedPlatforms::ALL,
-    SyncToCloud::Globally(RespectUserSyncSetting::Yes),
     surface: settings::SettingSurfaces::GUI,
     private: false,
     toml_path: "agents.warp_agent.other.long_running_command_submission_mode",
@@ -910,7 +900,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.is_any_ai_enabled",
@@ -922,7 +911,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.active_ai.enabled",
@@ -934,7 +922,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::ALL,
         private: false,
         toml_path: "agents.warp_agent.input.ai_auto_detection_enabled",
@@ -949,7 +936,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.input.nld_in_terminal_enabled",
@@ -959,7 +945,6 @@ define_settings_group!(AISettings, settings: [
         type: String,
         default: String::new(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.input.ai_command_denylist",
@@ -971,7 +956,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true, // TODO(roland): revisit this when launched to stable
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.active_ai.intelligent_autosuggestions_enabled",
@@ -986,7 +970,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true, // TODO(advait): revisit this when launched to stable
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.active_ai.agent_mode_query_suggestions_enabled",
@@ -999,7 +982,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.active_ai.code_suggestions_enabled",
@@ -1011,7 +993,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.active_ai.git_operations_autogen_enabled",
@@ -1023,7 +1004,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.active_ai.rule_suggestions_enabled",
@@ -1036,7 +1016,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.voice.voice_input_enabled",
@@ -1049,7 +1028,6 @@ define_settings_group!(AISettings, settings: [
         type: usize,
         default: 0,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -1058,7 +1036,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -1072,7 +1049,6 @@ define_settings_group!(AISettings, settings: [
         type: String,
         default: String::new(),
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.voice.voice_input_language",
@@ -1085,8 +1061,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        // Never sync to cloud to keep state separate across devices, since microphone access is per-device.
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -1099,7 +1073,6 @@ define_settings_group!(AISettings, settings: [
         type: Vec<AgentModeCommandExecutionPredicate>,
         default: DEFAULT_COMMAND_EXECUTION_ALLOWLIST.clone(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::ALL,
         private: false,
         toml_path: "agents.profiles.agent_mode_command_execution_allowlist",
@@ -1114,7 +1087,6 @@ define_settings_group!(AISettings, settings: [
         type: Vec<AgentModeCommandExecutionPredicate>,
         default: DEFAULT_COMMAND_EXECUTION_DENYLIST.clone(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::ALL,
         private: false,
         toml_path: "agents.profiles.agent_mode_command_execution_denylist",
@@ -1128,7 +1100,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::ALL,
         private: false,
         toml_path: "agents.profiles.agent_mode_execute_readonly_commands",
@@ -1144,7 +1115,6 @@ define_settings_group!(AISettings, settings: [
         type: AgentModeCodingPermissionsType,
         default: AgentModeCodingPermissionsType::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::ALL,
         private: false,
         toml_path: "agents.profiles.agent_mode_coding_permissions",
@@ -1153,28 +1123,23 @@ define_settings_group!(AISettings, settings: [
     // Specific filepaths that Agent Mode can read without asking for additional permissions.
     // These should be persisted as absolute filepaths to avoid ambiguity.
     //
-    // This is used in conjunction with [`AgentModeCodingPermissionsType::AllowReadingSpecificFiles`]
-    // but modelled as a separate setting because it is not cloud-synced.
+    // This is used in conjunction with [`AgentModeCodingPermissionsType::AllowReadingSpecificFiles`].
     //
     // Prefer [`BlocklistAIPermissions::can_read_file`] to interpret this setting.
     agent_mode_coding_file_read_allowlist: AgentModeCodingFileReadAllowlist {
         type: Vec<PathBuf>,
         default: vec![],
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::ALL,
         private: false,
         toml_path: "agents.profiles.agent_mode_coding_file_read_allowlist",
         description: "File paths the agent can read without asking for permission.",
     }
-    // The complete execution-profile collection shared by GUI and TUI.
-    // GUI cloud synchronization respects the user's settings-sync preference;
-    // TUI settings mode keeps this value local.
+    // The complete execution-profile collection.
     execution_profiles: ExecutionProfiles {
         type: ExecutionProfilesConfig,
         default: ExecutionProfilesConfig::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::ALL,
         private: false,
         toml_path: "agents.execution_profiles",
@@ -1189,7 +1154,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
@@ -1201,7 +1165,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
@@ -1213,7 +1176,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
@@ -1225,21 +1187,16 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
     // Whether or not we should show the one-shot speedbump on Ask-User-Question cards.
     //
     // Not a user-visible setting - we model it as a setting so we can track state.
-    // Intentionally NOT cloud-synced: we want users to see the first-time nudge on
-    // each fresh device, and we avoid a cloud-sync race that would make the flag
-    // silently stay `false` on new devices after being consumed once elsewhere.
     should_show_agent_mode_ask_user_question_speedbump: ShouldShowAgentModeAskUserQuestionSpeedbump {
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
@@ -1248,7 +1205,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "cloud_platform.third_party_api_keys.aws_bedrock_credentials_enabled",
@@ -1262,7 +1218,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "cloud_platform.third_party_api_keys.aws_bedrock_auto_login",
@@ -1273,7 +1228,6 @@ define_settings_group!(AISettings, settings: [
         type: String,
         default: "aws login".to_string(),
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "cloud_platform.third_party_api_keys.aws_bedrock_auth_refresh_command",
@@ -1284,7 +1238,6 @@ define_settings_group!(AISettings, settings: [
         type: String,
         default: "default".to_string(),
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "cloud_platform.third_party_api_keys.aws_bedrock_profile",
@@ -1297,7 +1250,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
@@ -1310,7 +1262,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "cloud_platform.third_party_api_keys.gemini_enterprise_credentials_enabled",
@@ -1321,7 +1272,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.knowledge.rules_enabled",
@@ -1335,7 +1285,6 @@ define_settings_group!(AISettings, settings: [
         type: Vec<PathBuf>,
         default: vec![],
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
@@ -1348,7 +1297,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
@@ -1357,7 +1305,6 @@ define_settings_group!(AISettings, settings: [
         type: Option<String>,
         default: None,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -1366,7 +1313,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.other.should_render_use_agent_toolbar_for_user_commands",
@@ -1379,7 +1325,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.third_party.should_render_cli_agent_toolbar",
@@ -1394,7 +1339,6 @@ define_settings_group!(AISettings, settings: [
         type: ToolbarCommandMap,
         default: ToolbarCommandMap::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.third_party.cli_agent_toolbar_enabled_commands",
@@ -1412,7 +1356,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
@@ -1424,7 +1367,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
@@ -1440,7 +1382,6 @@ define_settings_group!(AISettings, settings: [
         type: String,
         default: String::new(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "general.default_tab_config_path",
@@ -1452,7 +1393,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: warp_core::channel::ChannelState::channel().is_dogfood(),
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.other.cloud_agent_computer_use_enabled",
@@ -1467,7 +1407,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.mcp_servers.file_based_mcp_enabled",
@@ -1497,7 +1436,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.input.include_agent_commands_in_history",
@@ -1509,7 +1447,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::ALL,
         private: false,
         toml_path: "agents.warp_agent.other.auto_approve_bypasses_command_denylist",
@@ -1521,7 +1458,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.other.show_conversation_history",
@@ -1534,7 +1470,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.other.show_agent_notifications",
@@ -1548,7 +1483,6 @@ define_settings_group!(AISettings, settings: [
         type: HashMap<String, bool>,
         default: HashMap::default(),
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
@@ -1561,7 +1495,6 @@ define_settings_group!(AISettings, settings: [
         type: HashMap<String, String>,
         default: HashMap::default(),
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
@@ -1574,7 +1507,6 @@ define_settings_group!(AISettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.other.agent_attribution_enabled",
@@ -1592,7 +1524,6 @@ define_settings_group!(AISettings, settings: [
         type: HashMap<String, bool>,
         default: HashMap::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }

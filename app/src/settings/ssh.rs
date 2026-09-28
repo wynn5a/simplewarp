@@ -1,5 +1,5 @@
+use settings::SupportedPlatforms;
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 
 define_settings_group!(SshSettings,
     settings: [
@@ -7,7 +7,6 @@ define_settings_group!(SshSettings,
             type: bool,
             default: false,
             supported_platforms: SupportedPlatforms::ALL,
-            sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
             surface: settings::SettingSurfaces::GUI,
             private: false,
             storage_key: "ReuseExistingSshControlMaster",

@@ -161,7 +161,7 @@ impl TipsCompleted {
     }
 }
 
-/// Marks the welcome tip as used, writes their current state to a cloud synced preference.
+/// Marks the welcome tip as used and persists the updated tip state.
 pub fn mark_feature_used_and_write_to_user_defaults(
     feature: Tip,
     tips_completed: &mut TipsCompleted,

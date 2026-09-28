@@ -1,5 +1,5 @@
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
+use settings::{Setting, SupportedPlatforms};
 use warp_errors::{report_error, report_if_error};
 use warpui::keymap::Keystroke;
 use warpui::{AppContext, DisplayIdx, ModelContext};
@@ -15,7 +15,6 @@ define_settings_group!(KeysSettings, settings: [
         type: crate::settings::QuakeModeSettings,
         default: crate::settings::QuakeModeSettings::default(),
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "global_hotkey.dedicated_window.settings",
@@ -26,7 +25,6 @@ define_settings_group!(KeysSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "global_hotkey.dedicated_window.enabled",
@@ -36,7 +34,6 @@ define_settings_group!(KeysSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "global_hotkey.toggle_all_windows.enabled",
@@ -46,7 +43,6 @@ define_settings_group!(KeysSettings, settings: [
         type: Option<Keystroke>,
         default: None,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "global_hotkey.toggle_all_windows.keybinding",
@@ -56,7 +52,6 @@ define_settings_group!(KeysSettings, settings: [
         type: ExtraMetaKeysEnum,
         default: ExtraMetaKeysEnum::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.input.extra_meta_keys",
@@ -66,7 +61,6 @@ define_settings_group!(KeysSettings, settings: [
         type: CtrlTabBehavior,
         default: CtrlTabBehavior::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "keys.ctrl_tab_behavior_setting",

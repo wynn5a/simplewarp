@@ -1,5 +1,5 @@
 use settings::macros::define_settings_group;
-use settings::{Setting, SupportedPlatforms, SyncToCloud};
+use settings::{Setting, SupportedPlatforms};
 
 // Debug mode settings.
 //
@@ -24,7 +24,6 @@ define_settings_group!(DebugSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -32,7 +31,6 @@ define_settings_group!(DebugSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -40,7 +38,6 @@ define_settings_group!(DebugSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
         storage_key: "DisableInBandCommands",
@@ -49,7 +46,6 @@ define_settings_group!(DebugSettings, settings: [
         type: bool,
         default: cfg!(feature = "recording_mode"),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
@@ -57,7 +53,6 @@ define_settings_group!(DebugSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }

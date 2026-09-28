@@ -1,5 +1,5 @@
+use settings::SupportedPlatforms;
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 
 // Settings for controlling the behavior of the block list.
 define_settings_group!(BlockListSettings, settings: [
@@ -7,7 +7,6 @@ define_settings_group!(BlockListSettings, settings: [
        type: bool,
        default: true,
        supported_platforms: SupportedPlatforms::ALL,
-       sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
        surface: settings::SettingSurfaces::GUI,
        private: false,
        toml_path: "appearance.blocks.show_jump_to_bottom_of_block_button",
@@ -17,7 +16,6 @@ define_settings_group!(BlockListSettings, settings: [
        type: bool,
        default: true,
        supported_platforms: SupportedPlatforms::ALL,
-       sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
        surface: settings::SettingSurfaces::GUI,
        private: false,
        toml_path: "general.snackbar_enabled",
@@ -30,7 +28,6 @@ define_settings_group!(BlockListSettings, settings: [
        type: bool,
        default: false,
        supported_platforms: SupportedPlatforms::ALL,
-       sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
        surface: settings::SettingSurfaces::GUI,
        private: false,
        toml_path: "general.preserve_input_focus_on_block_selection",
@@ -40,7 +37,6 @@ define_settings_group!(BlockListSettings, settings: [
        type: bool,
        default: true,
        supported_platforms: SupportedPlatforms::ALL,
-       sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
        surface: settings::SettingSurfaces::GUI,
        private: false,
        toml_path: "appearance.blocks.show_block_dividers",

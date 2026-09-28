@@ -1,5 +1,5 @@
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
+use settings::{Setting, SupportedPlatforms};
 use warpui::{AppContext, SingletonEntity};
 
 use crate::terminal::model::ObfuscateSecrets;
@@ -75,7 +75,6 @@ define_settings_group!(SafeModeSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "privacy.secret_redaction.enabled",
@@ -85,7 +84,6 @@ define_settings_group!(SafeModeSettings, settings: [
         type: SecretDisplayMode,
         default: SecretDisplayMode::Strikethrough,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "privacy.secret_redaction.secret_display_mode_setting",
@@ -96,7 +94,6 @@ define_settings_group!(SafeModeSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "privacy.secret_redaction.hide_secrets_in_block_list",

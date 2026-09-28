@@ -1,4 +1,4 @@
-use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
+use settings::SupportedPlatforms;
 use warp_core::define_settings_group;
 
 use crate::banner::BannerState;
@@ -15,7 +15,6 @@ define_settings_group!(VimBannerSettings, settings: [
         type: BannerState,
         default: BannerState::NotDismissed,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },

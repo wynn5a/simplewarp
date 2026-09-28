@@ -8,7 +8,7 @@
 //! implementation delegates to serde, so types without custom file formatting
 //! need only an empty `impl SettingsValue for T {}`.
 //!
-//! Cloud sync and platform-native stores (UserDefaults, registry) continue
+//! Platform-native stores (UserDefaults, registry) continue
 //! using serde directly — this trait is only consulted when writing to or
 //! reading from the settings file.
 

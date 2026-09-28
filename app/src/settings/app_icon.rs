@@ -1,8 +1,8 @@
 use enum_iterator::Sequence;
 use serde::{Deserialize, Serialize};
 use warp_core::channel::{Channel, ChannelState};
+use warp_core::settings::SupportedPlatforms;
 use warp_core::settings::macros::define_settings_group;
-use warp_core::settings::{SupportedPlatforms, SyncToCloud};
 
 /// The app icon to use (mac-only).
 ///
@@ -126,7 +126,6 @@ define_settings_group!(AppIconSettings, settings: [
         type: AppIcon,
         default: AppIcon::Default,
         supported_platforms: SupportedPlatforms::MAC,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: false,
         storage_key: "AppIcon",
@@ -137,7 +136,6 @@ define_settings_group!(AppIconSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::MAC,
-        sync_to_cloud: SyncToCloud::Never,
         surface: settings::SettingSurfaces::GUI,
         private: false,
         storage_key: "ShowDockIcon",

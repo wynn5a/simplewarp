@@ -5,7 +5,7 @@ use cloud_objects::drive::CloudObjectTypeAndId;
 use serde::{Deserialize, Serialize};
 use settings_value::SettingsValue;
 use warp_core::define_settings_group;
-use warp_core::settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
+use warp_core::settings::{Setting, SupportedPlatforms};
 use warp_errors::report_error;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
@@ -18,7 +18,6 @@ define_settings_group!(WorkflowAliases, settings: [
         type: Vec<WorkflowAlias>,
         default: vec![],
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
         storage_key: "WorkflowAliases",

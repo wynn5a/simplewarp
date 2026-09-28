@@ -230,6 +230,35 @@ Queue, in order:
    workspace/team settings layer (every workspace loads with default settings; `TeamSettings` is
    written only by the gone server fetch).
 
+7. ~~Settings cloud-sync machinery~~ — **4gv done (2026-09-28).** −1.3k lines in 62 files. The
+   `sync_to_cloud:` marker is gone from all 258 declarations (scripted; `define_setting!` /
+   `maybe_define_setting!` / `define_settings_group!` / `implement_setting_for_enum!` arms and the
+   crate doc examples), with `SyncToCloud`, `RespectUserSyncSetting`, `Setting::sync_to_cloud` /
+   `current_value_is_syncable` / `is_setting_syncable_on_current_platform` /
+   `set_value_from_cloud_sync`, `ChangeEventReason::CloudSync`, `SettingsMode::should_sync_to_cloud`.
+   No storage key, TOML path or serde shape changed. SettingsManager loses everything only the
+   syncer read: `SettingsEvent` (event type now `()`) and its per-group subscription, `clear_fns` /
+   `clear_cloud_settings_local_state`, `is_syncable_fns`, `sync_regardless_of_users_syncing_setting`,
+   `cloud_syncing_mode_for_storage_key`, `are_equal_settings`, `all_storage_keys`,
+   `supported_platforms_for_storage_key`, `is_private_for_storage_key`, `read_local_setting_value`,
+   and `update_setting_with_storage_key`'s `from_cloud_sync` flag. `equals_fns` had one local reader
+   (`validate_all_public_settings`, the startup settings-file check, which called it as
+   `equals(v, v)`), so it became `validate_fns` (`Fn(&str) -> Result<()>`). Also gone: the theme
+   settings' inherent `current_value_is_syncable` and `ThemeKind::is_custom_theme_reference_syncable`
+   (+ `settings/theme_tests.rs`, 6 tests; the portable-path check moved into `themes/theme_tests.rs`
+   as a test helper since only tests use it now), the #13228 "not synced" test, sync comments on
+   ~10 declarations, and cloud_object_models' `settings` dep (`Preference::new` takes a `Platform`
+   instead of a sync mode; the persisted `Preference` shape is unchanged). The settings-schema
+   generator never emitted the flag; nothing regenerated. Kept, being local: `public_storage_keys`,
+   `update_setting_with_storage_key` (settings-file import), `default_values` (app menu),
+   `load_setting` / `reload_all_public_settings` (hot reload), `ChangeEventReason` (`LocalChange` /
+   `Clear`; the field is never read, left for a separate cleanup). Tests 4,376 default / 4,377
+   simplewarp (−7: the theme syncability file and the #13228 sync test), settings + settings_value +
+   cloud_object_models + warpui_core 417 passed (−6 in `settings`: syncability, cloud-sync
+   explicit-set, manager is-private, 3 read-local), settings doc tests 4 (−1 sync example), schema bin 1, 0 failed. Follow-ups: the unread
+   `change_event_reason` field on every settings event; the rest of the legacy execution-profile
+   cloud backend; the workspace/team settings layer (see 4gu).
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

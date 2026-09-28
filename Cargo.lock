@@ -2578,7 +2578,6 @@ dependencies = [
  "serde_json",
  "serde_regex",
  "session-sharing-protocol",
- "settings",
  "settings_value",
  "uuid",
  "warp-workflows",

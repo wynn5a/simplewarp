@@ -3,7 +3,7 @@ use std::fmt::Display;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use settings::macros::{maybe_define_setting, register_settings_events};
-use settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
+use settings::{Setting, SupportedPlatforms};
 use warp_core::settings::ChangeEventReason;
 use warp_errors::report_error;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity, UpdateModel};
@@ -74,7 +74,6 @@ maybe_define_setting!(CustomSecretRegexList, group: PrivacySettings, {
     type: Vec<CustomSecretRegex>,
     default: Vec::new(),
     supported_platforms: SupportedPlatforms::ALL,
-    sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
     surface: settings::SettingSurfaces::GUI,
     private: false,
     toml_path: "privacy.custom_secret_regex_list",
@@ -85,7 +84,6 @@ maybe_define_setting!(HasInitializedDefaultSecretRegexes, group: PrivacySettings
     type: bool,
     default: false,
     supported_platforms: SupportedPlatforms::ALL,
-    sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
     surface: settings::SettingSurfaces::GUI,
     private: true,
 });
@@ -147,7 +145,6 @@ impl PrivacySettings {
         &mut self,
         enabled: bool,
         enterprise_regexes: Vec<EnterpriseSecretRegex>,
-        change_event_reason: ChangeEventReason,
         ctx: &mut ModelContext<Self>,
     ) {
         if enabled {
@@ -186,7 +183,7 @@ impl PrivacySettings {
         self.is_enterprise_secret_redaction_enabled = enabled;
 
         ctx.emit(PrivacySettingsChangedEvent::CustomSecretRegexList {
-            change_event_reason,
+            change_event_reason: ChangeEventReason::LocalChange,
         });
         ctx.notify();
     }

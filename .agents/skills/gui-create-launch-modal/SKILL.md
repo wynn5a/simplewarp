@@ -67,19 +67,16 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
 ## Step 2 – Settings field
 
 Add to `app/src/settings/ai.rs` inside `define_settings_group!(AISettings, ...)`.
-Pattern: one boolean field per modal, globally synced (not respecting user sync), private.
+Pattern: one private boolean field per modal.
 
 ```rust
 // This is not a user-visible setting - it's merely a one-time flag to track if the
 // <name> launch modal has been shown to the user.
-//
-// We model it as a setting so it's only shown once to a given user regardless of the number of
-// devices they use.
 did_check_to_trigger_<name>_launch_modal: DidShow<Name>LaunchModal {
     type: bool,
     default: false,
     supported_platforms: SupportedPlatforms::ALL,
-    sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
+    surface: settings::SettingSurfaces::GUI,
     private: true,
 }
 ```

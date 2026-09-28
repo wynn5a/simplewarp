@@ -1,4 +1,3 @@
-use settings::{RespectUserSyncSetting, SyncToCloud};
 use warp::features::FeatureFlag;
 use warp::integration_testing::notebook::{
     assert_cloud_preference_exists, assert_notebook_contents, assert_notebook_metadata_revision,
@@ -11,7 +10,7 @@ use warp::integration_testing::terminal::wait_until_bootstrapped_single_pane_for
 use warp::integration_testing::view_getters::single_terminal_view_for_tab;
 use warp::integration_testing::workflow::assert_workflow_metadata_revision;
 use warp::integration_testing::{self};
-use warp::settings::Preference;
+use warp::settings::{Platform, Preference};
 use warp::settings_view::{SettingsSection, SettingsView};
 use warp::sqlite_testing::set_user_and_hostname_for_blocks;
 use warp::terminal::model::session::get_local_hostname;
@@ -388,12 +387,8 @@ pub fn test_restore_snapshot_with_test_json_object() -> Builder {
         .with_step(
             TestStep::new("Verify json object contents").add_assertion(
                 assert_cloud_preference_exists(
-                    Preference::new(
-                        "HonorPS1".to_string(),
-                        "false",
-                        SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-                    )
-                    .expect("error creating preference"),
+                    Preference::new("HonorPS1".to_string(), "false", Platform::Global)
+                        .expect("error creating preference"),
                 ),
             ),
         )

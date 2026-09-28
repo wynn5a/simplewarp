@@ -1,7 +1,7 @@
 use std::ops::Not;
 
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
+use settings::{Setting, SupportedPlatforms};
 use warpui::AppContext;
 use warpui::clipboard::ClipboardContent;
 
@@ -10,7 +10,6 @@ define_settings_group!(SelectionSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.copy_on_select",
@@ -20,7 +19,6 @@ define_settings_group!(SelectionSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::LINUX,
-        sync_to_cloud: SyncToCloud::PerPlatform(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "system.linux_selection_clipboard",
@@ -33,7 +31,6 @@ define_settings_group!(SelectionSettings, settings: [
             SupportedPlatforms::WINDOWS.into(),
             SupportedPlatforms::MAC.into()
         ),
-        sync_to_cloud: SyncToCloud::PerPlatform(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.input.middle_click_paste_enabled",

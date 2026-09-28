@@ -701,9 +701,8 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     #[cfg(windows)]
     command::windows::init();
 
-    // Establish the settings surface (GUI vs TUI) before initializing
-    // preferences so the settings infra selects the right file name and
-    // cloud-sync behavior for this launch mode.
+    // Establish the settings surface before initializing preferences so the
+    // settings infra selects the right file name for this launch mode.
     ::settings::set_settings_mode(launch_mode.settings_mode());
 
     let private_preferences = settings::init_private_user_preferences();

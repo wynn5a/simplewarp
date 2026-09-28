@@ -1,5 +1,5 @@
+use settings::SupportedPlatforms;
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 
 use crate::banner::BannerState;
 
@@ -15,7 +15,6 @@ define_settings_group!(EmacsBindingsSettings, settings: [
         type: BannerState,
         default: BannerState::NotDismissed,
         supported_platforms: SupportedPlatforms::LINUX,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },

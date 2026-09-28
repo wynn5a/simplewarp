@@ -330,7 +330,7 @@ pub struct Keystroke {
 /// In the user-visible settings schema (and in the TOML settings file), a
 /// `Keystroke` is represented as a compact string like `"cmd-shift-a"`, not
 /// as an object with per-modifier booleans. Serde continues to use the
-/// default struct form for cloud sync and other in-memory consumers.
+/// default struct form for platform-native stores and in-memory consumers.
 #[cfg(feature = "schema_gen")]
 impl schemars::JsonSchema for Keystroke {
     fn schema_name() -> std::borrow::Cow<'static, str> {

@@ -2,14 +2,13 @@ use anyhow::Result;
 use warpui_core::{AppContext, SingletonEntity};
 
 use crate::manager::SettingsManager;
-use crate::{Setting, SupportedPlatforms, SyncToCloud, *};
+use crate::{Setting, SupportedPlatforms, *};
 
 define_settings_group!(TestSettings, settings: [
     simple_setting: SimpleSetting {
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: crate::SettingSurfaces::GUI,
         private: false,
         toml_path: "test.simple_setting",
@@ -18,7 +17,6 @@ define_settings_group!(TestSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: crate::SettingSurfaces::GUI,
         private: true,
         storage_key: "KeyIsOverridden",
@@ -27,7 +25,6 @@ define_settings_group!(TestSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         surface: crate::SettingSurfaces::GUI,
         private: false,
         toml_path: "test_section.hierarchy_flag",
@@ -568,39 +565,6 @@ fn test_load_value_resets_explicitly_set_flag() {
     });
 }
 
-#[test]
-fn test_explicit_value_tracking_cloud_sync() {
-    warpui_core::App::test((), |mut app| async move {
-        app.update(init_and_register_preferences);
-        app.add_singleton_model(|_| SettingsManager::default());
-
-        // Register our TestSettings settings group with the app.
-        TestSettings::register(&mut app);
-
-        // Initially not explicitly set
-        app.read(|ctx| {
-            let settings = TestSettings::as_ref(ctx);
-            assert!(!settings.simple_setting.is_value_explicitly_set());
-        });
-
-        // Set value from cloud sync
-        app.update(|ctx| {
-            TestSettings::handle(ctx).update(ctx, |test_settings, ctx| {
-                let _ = test_settings
-                    .simple_setting
-                    .set_value_from_cloud_sync(true, ctx);
-            });
-        });
-
-        // Should now be marked as explicitly set
-        app.read(|ctx| {
-            let settings = TestSettings::as_ref(ctx);
-            assert!(settings.simple_setting.is_value_explicitly_set());
-            assert!(*settings.simple_setting.value());
-        });
-    });
-}
-
 mod file_transform_tests {
     use settings_value::SettingsValue;
 
@@ -929,31 +893,6 @@ fn test_new_from_storage_reads_from_private_backend_when_flag_disabled() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_manager_is_private_for_storage_key() {
-    warpui_core::App::test((), |mut app| async move {
-        app.update(init_and_register_preferences);
-        app.add_singleton_model(|_| SettingsManager::default());
-        TestSettings::register(&mut app);
-
-        app.read(|ctx| {
-            let manager = SettingsManager::as_ref(ctx);
-            assert!(
-                !manager.is_private_for_storage_key("SimpleSetting"),
-                "SimpleSetting should not be private"
-            );
-            assert!(
-                manager.is_private_for_storage_key("KeyIsOverridden"),
-                "KeyIsOverridden should be private"
-            );
-            assert!(
-                !manager.is_private_for_storage_key("UnknownKey"),
-                "unknown key should default to not private"
-            );
-        });
-    });
-}
-
-#[test]
 fn test_manager_default_values_for_settings_file_excludes_private() {
     warpui_core::App::test((), |mut app| async move {
         app.update(init_and_register_preferences);
@@ -977,154 +916,6 @@ fn test_manager_default_values_for_settings_file_excludes_private() {
             assert!(
                 !keys.contains(&"KeyIsOverridden"),
                 "private setting should not appear in settings file defaults"
-            );
-        });
-    });
-}
-
-#[test]
-fn test_manager_read_local_setting_value_routes_when_flag_enabled() {
-    let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(true);
-    warpui_core::App::test((), |mut app| async move {
-        app.update(init_and_register_preferences);
-        app.add_singleton_model(|_| SettingsManager::default());
-        TestSettings::register(&mut app);
-
-        // Write directly to the correct backends.
-        app.update(|ctx| {
-            let public = <crate::PublicPreferences as SingletonEntity>::as_ref(ctx);
-            public
-                .as_preferences()
-                .write_value("SimpleSetting", "true".to_string())
-                .unwrap();
-
-            let private = <crate::PrivatePreferences as SingletonEntity>::as_ref(ctx);
-            private
-                .0
-                .write_value("KeyIsOverridden", "false".to_string())
-                .unwrap();
-        });
-
-        app.read(|ctx| {
-            let manager = SettingsManager::as_ref(ctx);
-
-            let public_val = manager
-                .read_local_setting_value("SimpleSetting", ctx)
-                .unwrap();
-            assert_eq!(
-                public_val,
-                Some("true".to_string()),
-                "manager should read public setting from public backend"
-            );
-
-            let private_val = manager
-                .read_local_setting_value("KeyIsOverridden", ctx)
-                .unwrap();
-            assert_eq!(
-                private_val,
-                Some("false".to_string()),
-                "manager should read private setting from private backend"
-            );
-        });
-    });
-}
-
-#[test]
-fn test_manager_read_local_setting_value_falls_back_when_flag_disabled() {
-    let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(false);
-    warpui_core::App::test((), |mut app| async move {
-        app.update(init_and_register_preferences);
-        app.add_singleton_model(|_| SettingsManager::default());
-        TestSettings::register(&mut app);
-
-        // Write both values to the private backend.
-        app.update(|ctx| {
-            let private = <crate::PrivatePreferences as SingletonEntity>::as_ref(ctx);
-            private
-                .0
-                .write_value("SimpleSetting", "true".to_string())
-                .unwrap();
-            private
-                .0
-                .write_value("KeyIsOverridden", "false".to_string())
-                .unwrap();
-        });
-
-        app.read(|ctx| {
-            let manager = SettingsManager::as_ref(ctx);
-
-            let public_val = manager
-                .read_local_setting_value("SimpleSetting", ctx)
-                .unwrap();
-            assert_eq!(
-                public_val,
-                Some("true".to_string()),
-                "public setting should fall back to private backend"
-            );
-
-            let private_val = manager
-                .read_local_setting_value("KeyIsOverridden", ctx)
-                .unwrap();
-            assert_eq!(
-                private_val,
-                Some("false".to_string()),
-                "private setting should read from private backend"
-            );
-        });
-    });
-}
-
-/// Regression test for the settings sync disappearing on restart bug: when
-/// the TOML settings file is enabled, `read_local_setting_value` must
-/// forward the setting's hierarchy, otherwise values stored under a
-/// section like `[account]` are invisible to the SettingsManager and the
-/// cloud preferences syncer clobbers them with stale cloud state.
-#[test]
-fn test_manager_read_local_setting_value_respects_hierarchy_with_settings_file() {
-    use warpui_extras::user_preferences::toml_backed::TomlBackedUserPreferences;
-
-    let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(true);
-    let dir = tempfile::tempdir().unwrap();
-    let file_path = dir.path().join("settings.toml");
-
-    warpui_core::App::test((), |mut app| async move {
-        // Use the TOML-backed store for public preferences so the hierarchy
-        // routing actually matters; in-memory preferences ignore hierarchy
-        // entirely and would hide this bug.
-        let file_path_for_public = file_path.clone();
-        app.add_singleton_model(move |_| {
-            let (prefs, _) = TomlBackedUserPreferences::new(file_path_for_public);
-            crate::PublicPreferences::new(Box::new(prefs))
-        });
-        app.add_singleton_model(|_| {
-            crate::PrivatePreferences::new(Box::<
-                warpui_extras::user_preferences::in_memory::InMemoryPreferences,
-            >::default())
-        });
-        app.add_singleton_model(|_| SettingsManager::default());
-        TestSettings::register(&mut app);
-
-        // Toggle a public, hierarchy-scoped setting via the normal write
-        // path. `set_value` writes to the TOML under `[test_section]`.
-        app.update(|ctx| {
-            TestSettings::handle(ctx).update(ctx, |test_settings, ctx| {
-                test_settings.hierarchy_flag.set_value(true, ctx).unwrap();
-            });
-        });
-
-        // The SettingsManager should see the value we just wrote. Without
-        // the fix, this returned None because the read path looked at the
-        // root table instead of `[test_section]`.
-        app.read(|ctx| {
-            let manager = SettingsManager::as_ref(ctx);
-            let value = manager
-                .read_local_setting_value("HierarchyFlag", ctx)
-                .unwrap();
-            assert_eq!(
-                value,
-                Some("true".to_string()),
-                "SettingsManager must forward hierarchy when reading from \
-                 the TOML-backed store"
             );
         });
     });

@@ -1,5 +1,4 @@
 use lazy_static::lazy_static;
-use settings::{RespectUserSyncSetting, SyncToCloud};
 use warpui::{App, ModelHandle};
 
 use super::*;
@@ -10,7 +9,7 @@ use crate::cloud_object::{
 };
 use crate::notebooks::CloudNotebookModel;
 use crate::server::ids::{ClientId, ServerId};
-use crate::settings::{CloudPreference, Preference};
+use crate::settings::{CloudPreference, Platform, Preference};
 use crate::workspaces::team::Team;
 use crate::workspaces::workspace::{Workspace, WorkspaceUid};
 
@@ -127,7 +126,7 @@ fn test_create_json_object() {
             Preference::new(
                 "test_storage_key".to_owned(),
                 "{\"test_key\": \"test_value\"}",
-                SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+                Platform::Global,
             )
             .expect("error creating preference"),
         ),

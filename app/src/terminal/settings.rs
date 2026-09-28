@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
+use settings::SupportedPlatforms;
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 use warp_core::features::FeatureFlag;
 use warpui::units::Pixels;
 use warpui::{AppContext, SingletonEntity};
@@ -126,7 +126,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP, /* Audible bell is not supported on web */
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.use_audible_bell",
@@ -136,7 +135,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: SpacingMode,
         default: SpacingMode::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "appearance.spacing",
@@ -146,7 +144,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: usize,
         default: 50_000,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.maximum_grid_size",
@@ -156,7 +153,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: AltScreenPaddingMode,
         default: AltScreenPaddingMode::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "appearance.full_screen_apps.alt_screen_padding",
@@ -169,7 +165,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.show_terminal_zero_state_block",
@@ -179,7 +174,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: Osc52ClipboardAccess,
         default: Osc52ClipboardAccess::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "terminal.osc52_clipboard_access",
@@ -192,7 +186,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "experimental.async_find_enabled",
