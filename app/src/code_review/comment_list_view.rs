@@ -289,7 +289,7 @@ impl CommentListView {
 
     pub fn debug_state(&self, ctx: &AppContext) -> CommentListDebugState {
         let ai_available = AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx);
-        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let sendable_comments = self
             .comments_by_id
             .values()
@@ -911,7 +911,7 @@ impl CommentListView {
     /// destination / comment / AI-availability state.
     fn sync_send_button(&mut self, ctx: &mut ViewContext<Self>) {
         let ai_available = AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx);
-        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let enabled = self.can_send(ctx);
         let tooltip = Self::send_button_tooltip_text(
             &self.review_destination,

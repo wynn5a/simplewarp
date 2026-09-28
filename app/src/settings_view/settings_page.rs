@@ -775,85 +775,13 @@ pub(crate) fn render_filterable_dropdown_item<T: DropdownItemAction>(
     .finish()
 }
 
-pub(crate) fn render_settings_info_banner(
-    text: &str,
-    subtext: Option<&str>,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    let icon = Container::new(
-        ConstrainedBox::new(
-            Icon::AlertCircle
-                .to_warpui_icon(appearance.theme().active_ui_text_color())
-                .finish(),
-        )
-        .with_width(16.)
-        .with_height(16.)
-        .finish(),
-    )
-    .with_margin_right(8.)
-    .finish();
-
-    let text = {
-        let mut children = vec![
-            Container::new(
-                Text::new(
-                    text.to_string(),
-                    appearance.ui_font_family(),
-                    appearance.ui_font_size(),
-                )
-                .with_color(appearance.theme().active_ui_text_color().into())
-                .finish(),
-            )
-            .finish(),
-        ];
-
-        if let Some(subtext) = subtext {
-            children.push(
-                Container::new(
-                    Text::new(
-                        subtext.to_string(),
-                        appearance.ui_font_family(),
-                        appearance.ui_font_size() - 1.,
-                    )
-                    .with_color(
-                        appearance
-                            .theme()
-                            .sub_text_color(appearance.theme().background())
-                            .into(),
-                    )
-                    .finish(),
-                )
-                .with_margin_top(4.)
-                .finish(),
-            );
-        }
-
-        Shrinkable::new(1.0, Flex::column().with_children(children).finish()).finish()
-    };
-
-    Container::new(
-        Flex::row()
-            .with_children(vec![icon, text])
-            .with_main_axis_size(MainAxisSize::Max)
-            .finish(),
-    )
-    .with_background_color(appearance.theme().accent_overlay().into())
-    .with_uniform_padding(12.)
-    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-    .finish()
-}
-
-const WORKSPACE_OVERRIDE_TOOLTIP_TEXT: &str =
-    "This option is enforced by your organization's settings and cannot be customized.";
-
 pub struct InputListItem<SettingsPageAction: Action + Clone> {
     pub item: String,
     pub mouse_state_handle: MouseStateHandle,
     pub on_remove_action: SettingsPageAction,
     pub is_disabled: bool,
-    /// Must be pre-created (not inline during render) to preserve mouse tracking.
-    pub tooltip_mouse_state: Option<MouseStateHandle>,
 }
+
 /// Renders a title, an input field to add new items and a list of already
 /// added items.
 ///
@@ -896,11 +824,6 @@ pub fn render_input_list<SettingsPageAction: Action + Clone>(
             disabled,
             appearance,
         );
-        let row_element = if let Some(tooltip_mouse_state) = item.tooltip_mouse_state {
-            render_workspace_override_row_tooltip(row_element, tooltip_mouse_state, appearance)
-        } else {
-            row_element
-        };
         let container = Container::new(row_element).with_margin_bottom(4.);
         column.add_child(container.finish());
     }
@@ -941,34 +864,6 @@ pub fn render_alternating_color_list<
             appearance,
         ));
     }
-}
-
-fn render_workspace_override_row_tooltip(
-    child: Box<dyn Element>,
-    mouse_state: MouseStateHandle,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    Hoverable::new(mouse_state, |state| {
-        let mut stack = Stack::new().with_child(child);
-        if state.is_hovered() {
-            let tooltip = appearance
-                .ui_builder()
-                .tool_tip(WORKSPACE_OVERRIDE_TOOLTIP_TEXT.to_string())
-                .build()
-                .finish();
-            stack.add_positioned_child(
-                tooltip,
-                OffsetPositioning::offset_from_parent(
-                    vec2f(0., -4.),
-                    ParentOffsetBounds::Unbounded,
-                    ParentAnchor::TopLeft,
-                    ChildAnchor::BottomLeft,
-                ),
-            );
-        }
-        stack.finish()
-    })
-    .finish()
 }
 
 fn render_alternating_color_list_item<SettingsPageAction: Action + Clone>(

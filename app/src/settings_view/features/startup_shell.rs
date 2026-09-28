@@ -47,10 +47,7 @@ impl StartupShellView {
         });
 
         ctx.subscribe_to_model(&SessionSettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(
-                event,
-                SessionSettingsChangedEvent::StartupShellOverride { .. }
-            ) {
+            if matches!(event, SessionSettingsChangedEvent::StartupShellOverride) {
                 Self::update_dropdown_state(me.shell_dropdown.clone(), ctx);
                 me.maybe_update_editor_state(ctx);
             }

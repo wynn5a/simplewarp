@@ -56,7 +56,7 @@ impl EventListener {
         ctx.subscribe_to_model(&test_settings, |me, _, event, _ctx| {
             // Update our internal state if we get a change event for
             // SimpleSetting.
-            if matches!(event, TestSettingsChangedEvent::SimpleSetting { .. }) {
+            if matches!(event, TestSettingsChangedEvent::SimpleSetting) {
                 me.got_event = true;
             }
         });

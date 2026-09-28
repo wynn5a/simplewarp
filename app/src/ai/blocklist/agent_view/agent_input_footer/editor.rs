@@ -169,10 +169,10 @@ impl AgentToolbarInlineEditor {
                 (me.mode, event),
                 (
                     AgentToolbarEditorMode::AgentView,
-                    SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting { .. },
+                    SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting,
                 ) | (
                     AgentToolbarEditorMode::CLIAgent,
-                    SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting { .. },
+                    SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting,
                 )
             );
 

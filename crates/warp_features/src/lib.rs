@@ -73,11 +73,6 @@ pub enum FeatureFlag {
     /// Enables the settings file feature.
     SettingsFile,
 
-    /// Stores GUI execution profiles in the shared settings collection.
-    ///
-    /// TUI builds use the collection on every channel independently of this flag.
-    FileBackedExecutionProfiles,
-
     /// Enables rect selection.
     RectSelection,
 
@@ -554,10 +549,6 @@ pub enum FeatureFlag {
     /// and whole tab groups so they stay at the front of the tab list and
     /// are protected from reordering.
     PinnedTabs,
-
-    /// Gates Gemini Enterprise (GEAP) BYOLLM, which lets users
-    /// route eliglible models to GEAP instead of Warp-managed inference.
-    GeminiEnterprise,
 
     /// Gates NLD input classification matching the buffer against agent
     /// prompt history (in addition to shell command history). Still in

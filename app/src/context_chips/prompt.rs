@@ -270,8 +270,8 @@ impl Prompt {
     ) {
         if matches!(
             event,
-            SessionSettingsChangedEvent::SavedPrompt { .. }
-                | SessionSettingsChangedEvent::GithubPrChipDefaultValidation { .. }
+            SessionSettingsChangedEvent::SavedPrompt
+                | SessionSettingsChangedEvent::GithubPrChipDefaultValidation
         ) {
             log::debug!("Loading new prompt configuration");
             self.config = Self::from_user_settings(ctx);
@@ -285,7 +285,7 @@ impl Prompt {
         event: &InputSettingsChangedEvent,
         ctx: &mut ModelContext<Self>,
     ) {
-        if matches!(event, InputSettingsChangedEvent::InputBoxTypeSetting { .. }) {
+        if matches!(event, InputSettingsChangedEvent::InputBoxTypeSetting) {
             self.config = Self::from_user_settings(ctx);
             ctx.emit(PromptEvent::Changed);
         }
@@ -298,7 +298,7 @@ impl Prompt {
         event: &AISettingsChangedEvent,
         ctx: &mut ModelContext<Self>,
     ) {
-        if let AISettingsChangedEvent::IsAnyAIEnabled { .. } = event {
+        if let AISettingsChangedEvent::IsAnyAIEnabled = event {
             log::debug!("Loading new prompt configuration");
             self.config = Self::from_user_settings(ctx);
             ctx.emit(PromptEvent::Changed);

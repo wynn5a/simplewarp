@@ -130,7 +130,7 @@ pub(super) fn create_terminal_model(
     let sizes = compute_block_size(initial_size, &block_spacing, ctx);
 
     let obfuscate_secrets = get_secret_obfuscation_mode(ctx);
-    let is_ai_ugc_telemetry_enabled = should_collect_ai_ugc_telemetry(ctx);
+    let is_ai_ugc_telemetry_enabled = should_collect_ai_ugc_telemetry();
 
     TerminalModel::new(
         restored_blocks.map(|v| v.as_slice()),

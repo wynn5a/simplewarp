@@ -78,7 +78,7 @@ impl DirectoryColorAddPicker {
         });
 
         ctx.subscribe_to_model(&TabSettings::handle(ctx), |me, _, event, ctx| {
-            if let TabSettingsChangedEvent::DirectoryTabColors { .. } = event {
+            if let TabSettingsChangedEvent::DirectoryTabColors = event {
                 me.refresh_items(ctx);
             }
         });

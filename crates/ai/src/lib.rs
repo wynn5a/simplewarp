@@ -1,7 +1,6 @@
 pub mod agent;
 pub mod api_keys;
 pub mod aws_credentials;
-pub mod geap_credentials;
 pub mod llm_id;
 pub mod llm_provider;
 

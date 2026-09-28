@@ -13,7 +13,6 @@ use crate::ai::cloud_environments::CloudEnvironmentCatalog;
 use crate::ai::harness_availability::{AuthSecretFetchState, HarnessAvailabilityModel};
 use crate::ai::llms::LLMInfo;
 use crate::ai::orchestration::config_state::AuthSecretSelection;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 /// Env var override for the workspace default host (developer testing).
 /// Mirrors the single-agent ambient flow.
@@ -82,20 +81,13 @@ pub fn first_filtered_model_id(harness_type: &str, ctx: &AppContext) -> Option<S
     }
 }
 
-/// Resolves the workspace-configured default host slug, honoring the
-/// `WARP_CLOUD_MODE_DEFAULT_HOST` env var override for developer
-/// testing. Mirrors the single-agent ambient flow.
-pub fn resolve_default_host_slug(ctx: &AppContext) -> Option<String> {
-    if let Ok(slug) = std::env::var(DEFAULT_HOST_ENV_VAR) {
-        let trimmed = slug.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
-    }
-    UserWorkspaces::as_ref(ctx)
-        .default_host_slug()
-        .map(str::to_string)
-        .filter(|s| !s.trim().is_empty())
+/// Resolves the default host slug from the `WARP_CLOUD_MODE_DEFAULT_HOST` env var override for
+/// developer testing. Mirrors the single-agent ambient flow.
+pub fn resolve_default_host_slug() -> Option<String> {
+    std::env::var(DEFAULT_HOST_ENV_VAR)
+        .ok()
+        .map(|slug| slug.trim().to_string())
+        .filter(|slug| !slug.is_empty())
 }
 
 /// Returns the user's last-selected custom host slug from
@@ -110,7 +102,7 @@ pub fn resolve_recent_host_slug(ctx: &AppContext) -> Option<String> {
     if last.eq_ignore_ascii_case(ORCHESTRATION_WARP_WORKER_HOST) {
         return None;
     }
-    if resolve_default_host_slug(ctx).as_deref() == Some(last.as_str()) {
+    if resolve_default_host_slug().as_deref() == Some(last.as_str()) {
         return None;
     }
     Some(last)

@@ -281,10 +281,7 @@ impl CurrentPrompt {
             },
         );
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(
-                event,
-                AISettingsChangedEvent::ShouldRenderCLIAgentToolbar { .. }
-            ) {
+            if matches!(event, AISettingsChangedEvent::ShouldRenderCLIAgentToolbar) {
                 me.update_states_with_new_context(ctx);
             }
         });
@@ -1211,7 +1208,7 @@ impl CurrentPrompt {
         event: &SessionSettingsChangedEvent,
         ctx: &mut ModelContext<Self>,
     ) {
-        if let SessionSettingsChangedEvent::HonorPS1 { .. } = event {
+        if let SessionSettingsChangedEvent::HonorPS1 = event {
             if self.active(ctx) {
                 // If switching from PS1 to context chips, we'll need to restart the chip-updating
                 // loops. Any previous async updates will have been cancelled.
@@ -1224,7 +1221,7 @@ impl CurrentPrompt {
             }
         }
 
-        if let SessionSettingsChangedEvent::SavedPrompt { .. } = event {
+        if let SessionSettingsChangedEvent::SavedPrompt = event {
             let session_settings = SessionSettings::as_ref(ctx);
 
             self.same_line_prompt_enabled =
@@ -1232,18 +1229,18 @@ impl CurrentPrompt {
             self.separator = session_settings.saved_prompt.separator();
         }
 
-        if let SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting { .. } = event {
+        if let SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting = event {
             // Recompute which chips to run when the agent footer config changes.
             self.update_states_with_new_context(ctx);
         }
-        if let SessionSettingsChangedEvent::GithubPrChipDefaultValidation { .. } = event {
+        if let SessionSettingsChangedEvent::GithubPrChipDefaultValidation = event {
             // Re-resolve the default prompt's chip list (which gates the
             // PR chip on `is_suppressed()`) and re-run chips with the new
             // suppression state.
             self.update_states_with_new_context(ctx);
         }
 
-        if let SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting { .. } = event {
+        if let SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting = event {
             self.update_states_with_new_context(ctx);
         }
     }

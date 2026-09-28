@@ -182,9 +182,9 @@ impl AwsCredentialRefresher for ApiKeyManager {
         ctx.subscribe_to_model(&AISettings::handle(ctx), |manager, _, event, ctx| {
             if matches!(
                 event,
-                AISettingsChangedEvent::AwsBedrockProfile { .. }
-                    | AISettingsChangedEvent::AwsBedrockAuthRefreshCommand { .. }
-                    | AISettingsChangedEvent::AwsBedrockCredentialsEnabled { .. }
+                AISettingsChangedEvent::AwsBedrockProfile
+                    | AISettingsChangedEvent::AwsBedrockAuthRefreshCommand
+                    | AISettingsChangedEvent::AwsBedrockCredentialsEnabled
             ) {
                 drop(refresh_aws_credentials(manager, ctx));
             }
@@ -200,7 +200,7 @@ pub(crate) fn refresh_aws_credentials(
     manager: &mut ApiKeyManager,
     ctx: &mut ModelContext<ApiKeyManager>,
 ) -> BoxFuture<'static, Result<(), String>> {
-    let is_available = UserWorkspaces::as_ref(ctx).is_aws_bedrock_credentials_enabled(ctx);
+    let is_available = UserWorkspaces::as_ref(ctx).is_aws_bedrock_credentials_enabled();
 
     if !is_available {
         manager.set_aws_credentials_state(AwsCredentialsState::Disabled, ctx);

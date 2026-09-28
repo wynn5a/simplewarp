@@ -36,7 +36,7 @@ use super::settings_page::{
     CONTENT_FONT_SIZE, HEADER_PADDING, InputListItem, MatchData, PageType, SettingsPageMeta,
     SettingsPageViewHandle, SettingsWidget, ToggleState, build_sub_header, render_body_item_label,
     render_body_item_label_with_icon, render_custom_size_header, render_dropdown_item,
-    render_dropdown_item_label, render_input_list, render_separator, render_settings_info_banner,
+    render_dropdown_item_label, render_input_list, render_separator,
 };
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
 use crate::UserWorkspaces;
@@ -71,7 +71,6 @@ use crate::view_components::{
     Dropdown, DropdownItem, FilterableDropdown, SubmittableTextInput, SubmittableTextInputEvent,
     render_warning_box,
 };
-use crate::workspaces::user_workspaces::UserWorkspacesEvent;
 
 const AI_SETTINGS_DROPDOWN_WIDTH: f32 = 250.;
 const AI_SETTINGS_DROPDOWN_MAX_HEIGHT: f32 = 250.;
@@ -105,7 +104,6 @@ pub struct AgentProfilesPageView {
     command_allowlist_editor: ViewHandle<SubmittableTextInput>,
 
     command_denylist_mouse_state_handles: Vec<MouseStateHandle>,
-    command_denylist_tooltip_mouse_state_handles: Vec<MouseStateHandle>,
     command_denylist_editor: ViewHandle<SubmittableTextInput>,
 
     mcp_allowlist_mouse_state_handles: Vec<MouseStateHandle>,
@@ -128,41 +126,7 @@ pub struct AgentProfilesPageView {
 
 impl AgentProfilesPageView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
-
-        let workspace = UserWorkspaces::handle(ctx);
-        let ai_autonomy_settings = workspace.as_ref(ctx).ai_autonomy_settings();
-        ctx.subscribe_to_model(&workspace, |me, workspace, event, ctx| {
-            if let UserWorkspacesEvent::TeamsChanged = event {
-                me.refresh_all_execution_profile_ui(ctx);
-                me.reset_execution_profile_mouse_state_handles(ctx);
-
-                let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
-                let ai_autonomy_settings = workspace.as_ref(ctx).ai_autonomy_settings();
-
-                update_editor_interaction_state(
-                    me.command_denylist_editor.as_ref(ctx).editor().clone(),
-                    is_any_ai_enabled,
-                    ctx,
-                );
-
-                update_editor_interaction_state(
-                    me.command_allowlist_editor.as_ref(ctx).editor().clone(),
-                    is_any_ai_enabled
-                        && !ai_autonomy_settings.has_override_for_execute_commands_allowlist(),
-                    ctx,
-                );
-
-                update_editor_interaction_state(
-                    me.directory_allowlist_editor.as_ref(ctx).editor().clone(),
-                    is_any_ai_enabled
-                        && !ai_autonomy_settings.has_override_for_read_files_allowlist(),
-                    ctx,
-                );
-
-                ctx.notify();
-            }
-        });
+        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
 
         let coding_model_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
@@ -393,9 +357,8 @@ impl AgentProfilesPageView {
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
             match event {
-                AISettingsChangedEvent::IsAnyAIEnabled { .. } => {
-                    let is_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
-                    let ai_autonomy_settings = UserWorkspaces::as_ref(ctx).ai_autonomy_settings();
+                AISettingsChangedEvent::IsAnyAIEnabled => {
+                    let is_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
 
                     update_editor_interaction_state(
                         me.command_execution_allowlist_editor
@@ -421,7 +384,7 @@ impl AgentProfilesPageView {
 
                     update_editor_interaction_state(
                         me.directory_allowlist_editor.as_ref(ctx).editor().clone(),
-                        is_enabled && !ai_autonomy_settings.has_override_for_read_files_allowlist(),
+                        is_enabled,
                         ctx,
                     );
 
@@ -433,8 +396,7 @@ impl AgentProfilesPageView {
 
                     update_editor_interaction_state(
                         me.command_allowlist_editor.as_ref(ctx).editor().clone(),
-                        is_enabled
-                            && !ai_autonomy_settings.has_override_for_execute_commands_allowlist(),
+                        is_enabled,
                         ctx,
                     );
 
@@ -452,20 +414,20 @@ impl AgentProfilesPageView {
                     Self::refresh_mcp_denylist_dropdown(&me.mcp_denylist_dropdown, ctx);
                     me.sync_context_window_editor(ctx, true);
                 }
-                AISettingsChangedEvent::AgentModeExecuteReadonlyCommands { .. } => {
+                AISettingsChangedEvent::AgentModeExecuteReadonlyCommands => {
                     Self::refresh_autonomy_dropdown_menu(&me.autonomy_dropdown_menu, ctx);
                     Self::refresh_code_read_autonomy_dropdown_menu(
                         &me.code_read_autonomy_dropdown_menu,
                         ctx,
                     );
                 }
-                AISettingsChangedEvent::AgentModeCodingPermissions { .. } => {
+                AISettingsChangedEvent::AgentModeCodingPermissions => {
                     Self::refresh_code_read_autonomy_dropdown_menu(
                         &me.code_read_autonomy_dropdown_menu,
                         ctx,
                     );
                 }
-                AISettingsChangedEvent::AgentModeCommandExecutionAllowlist { .. } => {
+                AISettingsChangedEvent::AgentModeCommandExecutionAllowlist => {
                     me.command_execution_allowlist_mouse_state_handles = AISettings::as_ref(ctx)
                         .agent_mode_command_execution_allowlist
                         .value()
@@ -473,7 +435,7 @@ impl AgentProfilesPageView {
                         .map(|_| Default::default())
                         .collect();
                 }
-                AISettingsChangedEvent::AgentModeCommandExecutionDenylist { .. } => {
+                AISettingsChangedEvent::AgentModeCommandExecutionDenylist => {
                     me.command_execution_denylist_mouse_state_handles = AISettings::as_ref(ctx)
                         .agent_mode_command_execution_denylist
                         .value()
@@ -481,7 +443,7 @@ impl AgentProfilesPageView {
                         .map(|_| Default::default())
                         .collect();
                 }
-                AISettingsChangedEvent::AgentModeCodingFileReadAllowlist { .. } => {
+                AISettingsChangedEvent::AgentModeCodingFileReadAllowlist => {
                     me.code_read_allowlist_mouse_state_handles = AISettings::as_ref(ctx)
                         .agent_mode_coding_file_read_allowlist
                         .value()
@@ -495,7 +457,7 @@ impl AgentProfilesPageView {
         });
 
         ctx.subscribe_to_model(&SessionSettings::handle(ctx), |_, _, event, ctx| {
-            if let SessionSettingsChangedEvent::ShowModelSelectorsInPrompt { .. } = event {
+            if let SessionSettingsChangedEvent::ShowModelSelectorsInPrompt = event {
                 ctx.notify();
             }
         });
@@ -530,7 +492,7 @@ impl AgentProfilesPageView {
         Self::refresh_execution_profile_dropdown_menu(
             &apply_code_diffs_dropdown_menu,
             current_permission.apply_code_diffs,
-            !AISettings::as_ref(ctx).is_code_diffs_permissions_editable(ctx),
+            !AISettings::as_ref(ctx).is_code_diffs_permissions_editable(),
             ctx,
         );
 
@@ -560,7 +522,7 @@ impl AgentProfilesPageView {
         Self::refresh_execution_profile_dropdown_menu(
             &read_files_dropdown_menu,
             current_permission.read_files,
-            !AISettings::as_ref(ctx).is_read_files_permissions_editable(ctx),
+            !AISettings::as_ref(ctx).is_read_files_permissions_editable(),
             ctx,
         );
 
@@ -590,7 +552,7 @@ impl AgentProfilesPageView {
         Self::refresh_execution_profile_dropdown_menu(
             &execute_commands_dropdown_menu,
             current_permission.execute_commands,
-            !AISettings::as_ref(ctx).is_execute_commands_permissions_editable(ctx),
+            !AISettings::as_ref(ctx).is_execute_commands_permissions_editable(),
             ctx,
         );
 
@@ -622,7 +584,7 @@ impl AgentProfilesPageView {
         Self::refresh_write_to_pty_dropdown_menu(
             &write_to_pty_autonomy_dropdown_menu,
             current_permission.write_to_pty,
-            !AISettings::as_ref(ctx).is_write_to_pty_permissions_editable(ctx),
+            !AISettings::as_ref(ctx).is_write_to_pty_permissions_editable(),
             ctx,
         );
 
@@ -652,7 +614,7 @@ impl AgentProfilesPageView {
         Self::refresh_execution_profile_dropdown_menu(
             &mcp_permissions_dropdown_menu,
             current_permission.mcp_permissions,
-            !AISettings::as_ref(ctx).is_mcp_permission_editable(ctx),
+            !AISettings::as_ref(ctx).is_mcp_permission_editable(),
             ctx,
         );
 
@@ -738,14 +700,11 @@ impl AgentProfilesPageView {
             }
         });
 
-        let org_denylist = BlocklistAIPermissions::get_org_execute_commands_denylist(ctx);
         let command_denylist_mouse_state_handles = current_permission
             .command_denylist
             .iter()
             .map(|_| Default::default())
             .collect();
-        let command_denylist_tooltip_mouse_state_handles: Vec<MouseStateHandle> =
-            org_denylist.iter().map(|_| Default::default()).collect();
 
         let command_denylist_editor = ctx.add_typed_action_view(|ctx| {
             let mut input =
@@ -755,7 +714,7 @@ impl AgentProfilesPageView {
         });
         update_editor_interaction_state(
             command_denylist_editor.as_ref(ctx).editor().clone(),
-            is_any_ai_enabled && !ai_autonomy_settings.has_override_for_execute_commands_denylist(),
+            is_any_ai_enabled,
             ctx,
         );
 
@@ -793,8 +752,7 @@ impl AgentProfilesPageView {
         });
         update_editor_interaction_state(
             command_allowlist_editor.as_ref(ctx).editor().clone(),
-            is_any_ai_enabled
-                && !ai_autonomy_settings.has_override_for_execute_commands_allowlist(),
+            is_any_ai_enabled,
             ctx,
         );
 
@@ -863,7 +821,6 @@ impl AgentProfilesPageView {
             directory_allowlist_mouse_state_handles,
             directory_allowlist_editor,
             command_denylist_mouse_state_handles,
-            command_denylist_tooltip_mouse_state_handles,
             command_denylist_editor,
             command_allowlist_mouse_state_handles,
             command_allowlist_editor,
@@ -892,7 +849,7 @@ impl AgentProfilesPageView {
     ) {
         match event {
             EditorEvent::Blurred | EditorEvent::Enter => {
-                if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+                if !AISettings::as_ref(ctx).is_any_ai_enabled() {
                     self.sync_context_window_editor(ctx, true);
                     return;
                 }
@@ -994,7 +951,7 @@ impl AgentProfilesPageView {
         ctx: &mut ViewContext<Self>,
     ) {
         menu.update(ctx, |menu, ctx| {
-            let disabled_by_ai_toggle = !AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+            let disabled_by_ai_toggle = !AISettings::as_ref(ctx).is_any_ai_enabled();
 
             if disabled_by_ai_toggle {
                 menu.set_disabled(ctx);
@@ -1036,7 +993,7 @@ impl AgentProfilesPageView {
         ctx: &mut ViewContext<Self>,
     ) {
         menu.update(ctx, |menu, ctx| {
-            let disabled_by_ai_toggle = !AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+            let disabled_by_ai_toggle = !AISettings::as_ref(ctx).is_any_ai_enabled();
 
             if disabled_by_ai_toggle {
                 menu.set_disabled(ctx);
@@ -1078,7 +1035,7 @@ impl AgentProfilesPageView {
         ctx: &mut ViewContext<Self>,
     ) {
         menu.update(ctx, |menu, ctx| {
-            if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+            if AISettings::as_ref(ctx).is_any_ai_enabled() {
                 menu.set_enabled(ctx);
             } else {
                 menu.set_disabled(ctx);
@@ -1117,7 +1074,7 @@ impl AgentProfilesPageView {
         Self::refresh_execution_profile_dropdown_menu(
             &self.apply_code_diffs_dropdown_menu,
             apply_code_diffs_setting,
-            !AISettings::as_ref(ctx).is_code_diffs_permissions_editable(ctx),
+            !AISettings::as_ref(ctx).is_code_diffs_permissions_editable(),
             ctx,
         );
 
@@ -1125,7 +1082,7 @@ impl AgentProfilesPageView {
         Self::refresh_execution_profile_dropdown_menu(
             &self.read_files_dropdown_menu,
             read_files_setting,
-            !AISettings::as_ref(ctx).is_read_files_permissions_editable(ctx),
+            !AISettings::as_ref(ctx).is_read_files_permissions_editable(),
             ctx,
         );
 
@@ -1135,7 +1092,7 @@ impl AgentProfilesPageView {
         Self::refresh_execution_profile_dropdown_menu(
             &self.execute_commands_dropdown_menu,
             execute_commands_setting,
-            !AISettings::as_ref(ctx).is_execute_commands_permissions_editable(ctx),
+            !AISettings::as_ref(ctx).is_execute_commands_permissions_editable(),
             ctx,
         );
 
@@ -1144,7 +1101,7 @@ impl AgentProfilesPageView {
         Self::refresh_write_to_pty_dropdown_menu(
             &self.write_to_pty_autonomy_dropdown_menu,
             write_to_pty_setting,
-            !AISettings::as_ref(ctx).is_write_to_pty_permissions_editable(ctx),
+            !AISettings::as_ref(ctx).is_write_to_pty_permissions_editable(),
             ctx,
         );
 
@@ -1154,13 +1111,13 @@ impl AgentProfilesPageView {
         Self::refresh_execution_profile_dropdown_menu(
             &self.mcp_permissions_dropdown_menu,
             mcp_permissions_setting,
-            !AISettings::as_ref(ctx).is_mcp_permission_editable(ctx),
+            !AISettings::as_ref(ctx).is_mcp_permission_editable(),
             ctx,
         );
         Self::refresh_mcp_allowlist_dropdown(&self.mcp_allowlist_dropdown, ctx);
         Self::refresh_mcp_denylist_dropdown(&self.mcp_denylist_dropdown, ctx);
 
-        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         self.add_profile_button.update(ctx, |button, ctx| {
             button.set_disabled(!is_any_ai_enabled, ctx);
         });
@@ -1180,10 +1137,6 @@ impl AgentProfilesPageView {
             .iter()
             .map(|_| Default::default())
             .collect();
-
-        let org_denylist = BlocklistAIPermissions::get_org_execute_commands_denylist(ctx);
-        self.command_denylist_tooltip_mouse_state_handles =
-            org_denylist.iter().map(|_| Default::default()).collect();
 
         self.command_allowlist_mouse_state_handles = blocklist_permissions
             .get_execute_commands_allowlist(ctx, None)
@@ -1260,7 +1213,7 @@ impl AgentProfilesPageView {
         ctx: &mut ViewContext<Self>,
     ) {
         menu.update(ctx, |menu, ctx| {
-            if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+            if AISettings::as_ref(ctx).is_any_ai_enabled() {
                 menu.set_enabled(ctx);
             } else {
                 menu.set_disabled(ctx);
@@ -1323,7 +1276,7 @@ impl AgentProfilesPageView {
     {
         let mcps_in_dropdown = Self::get_non_allowlisted_or_denylisted_mcp_servers(ctx);
         menu.update(ctx, |menu, ctx| {
-            if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+            if AISettings::as_ref(ctx).is_any_ai_enabled() {
                 menu.set_enabled(ctx);
             } else {
                 menu.set_disabled(ctx);
@@ -1492,7 +1445,7 @@ impl TypedActionView for AgentProfilesPageView {
                 });
             }
             AgentProfilesPageAction::ContextWindowSliderDragged(value) => {
-                if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+                if !AISettings::as_ref(ctx).is_any_ai_enabled() {
                     self.sync_context_window_editor(ctx, true);
                     return;
                 }
@@ -1507,7 +1460,7 @@ impl TypedActionView for AgentProfilesPageView {
             }
             AgentProfilesPageAction::SetContextWindowSize(value) => {
                 self.dragged_context_window_value = None;
-                if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+                if !AISettings::as_ref(ctx).is_any_ai_enabled() {
                     self.sync_context_window_editor(ctx, true);
                     return;
                 }
@@ -1747,11 +1700,11 @@ fn render_ai_list(
     app: &AppContext,
 ) -> Box<dyn Element> {
     let setting_header =
-        render_ai_setting_label(header.to_string(), ai_settings.is_any_ai_enabled(app), app);
+        render_ai_setting_label(header.to_string(), ai_settings.is_any_ai_enabled(), app);
 
     let description = render_ai_setting_description(
         description.to_string(),
-        ai_settings.is_any_ai_enabled(app),
+        ai_settings.is_any_ai_enabled(),
         app,
     );
 
@@ -1787,7 +1740,7 @@ impl SettingsWidget for AgentsWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let ai_settings = AISettings::as_ref(app);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
 
         let mut column = Flex::column();
 
@@ -1811,7 +1764,7 @@ impl SettingsWidget for AgentsWidget {
             );
             agents_header.add_child(render_ai_setting_description(
                 "Set the boundaries for how your Agent operates. Choose what it can access, how much autonomy it has, and when it must ask for your approval. You can also fine-tune behavior around natural language input, codebase awareness, and more.",
-                ai_settings.is_any_ai_enabled(app),
+                ai_settings.is_any_ai_enabled(),
                 app,
             ));
             let agents_header = agents_header.finish();
@@ -1843,7 +1796,7 @@ impl AgentsWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
 
         let header_and_description = Flex::column()
             .with_child(
@@ -1904,7 +1857,7 @@ impl AgentsWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
         let model_subheader = Container::new(render_custom_size_header(
             appearance,
             "Models",
@@ -1943,7 +1896,7 @@ impl AgentsWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
-        if !ai_settings.is_any_ai_enabled(app) {
+        if !ai_settings.is_any_ai_enabled() {
             return None;
         }
         let cw = AgentProfilesPageView::configurable_context_window(app)?;
@@ -2066,7 +2019,7 @@ impl AgentsWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
         let permissions_subheader = Container::new(render_custom_size_header(
             appearance,
             "Permissions",
@@ -2163,24 +2116,12 @@ impl AgentsWidget {
         }
         let execute_commands = execute_commands_flex.finish();
 
-        let mut widget_children = vec![permissions_subheader];
-
-        if UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_any_overrides()
-        {
-            widget_children.push(
-                Container::new(render_settings_info_banner(
-                    "Some of your permissions are managed by your workspace.",
-                    None,
-                    appearance,
-                ))
-                .with_margin_bottom(12.0)
-                .finish(),
-            );
-        }
-
-        widget_children.extend([code_diffs, read_files, execute_commands]);
+        let mut widget_children = vec![
+            permissions_subheader,
+            code_diffs,
+            read_files,
+            execute_commands,
+        ];
 
         let write_to_pty_setting =
             BlocklistAIPermissions::as_ref(app).get_write_to_pty_setting(app, None);
@@ -2228,7 +2169,7 @@ impl AgentsWidget {
             header_text.into(),
             header_icon,
             Some(styles::header_font_color(
-                ai_settings.is_any_ai_enabled(app),
+                ai_settings.is_any_ai_enabled(),
                 app,
             )),
             None,
@@ -2283,36 +2224,20 @@ impl AgentsWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let ai_disabled = !ai_settings.is_any_ai_enabled(app);
-        let org_denylist = BlocklistAIPermissions::get_org_execute_commands_denylist(app);
-        let mut tooltip_idx = 0usize;
+        let ai_disabled = !ai_settings.is_any_ai_enabled();
         let list = render_input_list(
             None,
             command_denylist
                 .into_iter()
                 .zip(view.command_denylist_mouse_state_handles.clone())
                 .rev()
-                .map(|(cmd, mouse_state_handle)| {
-                    let is_org = org_denylist.contains(&cmd);
-                    let tooltip_mouse_state = if is_org {
-                        let handle = view
-                            .command_denylist_tooltip_mouse_state_handles
-                            .get(tooltip_idx)
-                            .cloned();
-                        tooltip_idx += 1;
-                        handle
-                    } else {
-                        None
-                    };
-                    InputListItem {
-                        item: cmd.to_string(),
-                        mouse_state_handle,
-                        on_remove_action: AgentProfilesPageAction::RemoveFromProfileCommandDenylist(
-                            cmd,
-                        ),
-                        is_disabled: is_org || ai_disabled,
-                        tooltip_mouse_state,
-                    }
+                .map(|(cmd, mouse_state_handle)| InputListItem {
+                    item: cmd.to_string(),
+                    mouse_state_handle,
+                    on_remove_action: AgentProfilesPageAction::RemoveFromProfileCommandDenylist(
+                        cmd,
+                    ),
+                    is_disabled: ai_disabled,
                 }),
             Some(&view.command_denylist_editor),
             appearance,
@@ -2334,7 +2259,7 @@ impl AgentsWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let disabled = !ai_settings.is_command_allowlist_editable(app);
+        let disabled = !ai_settings.is_command_allowlist_editable();
         let list = render_input_list(
             None,
             command_allowlist
@@ -2348,7 +2273,6 @@ impl AgentsWidget {
                         cmd,
                     ),
                     is_disabled: disabled,
-                    tooltip_mouse_state: None,
                 }),
             Some(&view.command_allowlist_editor),
             appearance,
@@ -2371,7 +2295,7 @@ impl AgentsWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let disabled = !ai_settings.is_directory_allowlist_editable(app);
+        let disabled = !ai_settings.is_directory_allowlist_editable();
         let list = render_input_list(
             None,
             directory_allowlist
@@ -2386,7 +2310,6 @@ impl AgentsWidget {
                         path,
                     ),
                     is_disabled: disabled,
-                    tooltip_mouse_state: None,
                 }),
             Some(&view.directory_allowlist_editor),
             appearance,
@@ -2418,7 +2341,7 @@ impl AgentsWidget {
                 .checkbox(self.show_in_prompt_checkbox.clone(), None)
                 .check(is_checked);
 
-            if !ai_settings.is_any_ai_enabled(app) {
+            if !ai_settings.is_any_ai_enabled() {
                 checkbox = checkbox.disabled();
             }
 
@@ -2461,8 +2384,7 @@ impl AgentsWidget {
                 "This model serves as the primary engine behind the Warp Agent. It powers most interactions and invokes other models for tasks like planning or code generation when necessary. Warp may automatically switch to alternate models based on model availability or for auxiliary tasks such as conversation summarization.",
             ),
             Some(show_in_prompt_checkbox),
-            (!ai_settings.is_any_ai_enabled(app))
-                .then(|| appearance.theme().disabled_ui_text_color()),
+            (!ai_settings.is_any_ai_enabled()).then(|| appearance.theme().disabled_ui_text_color()),
             &view.base_model_dropdown,
         )
     }
@@ -2480,7 +2402,7 @@ impl AgentsWidget {
             "Codebase Context",
             AgentProfilesPageAction::ToggleCodebaseContext,
             *code_settings.codebase_context_enabled,
-            ai_settings.is_any_ai_enabled(app),
+            ai_settings.is_any_ai_enabled(),
             codebase_context_toggle,
             app,
         );
@@ -2500,7 +2422,7 @@ impl AgentsWidget {
                 CONTENT_FONT_SIZE,
                 appearance.ui_font_family(),
                 appearance.ui_font_family(),
-                styles::description_font_color(ai_settings.is_any_ai_enabled(app), app).into(),
+                styles::description_font_color(ai_settings.is_any_ai_enabled(), app).into(),
                 codebase_context_link_index,
             )
             .with_hyperlink_font_color(appearance.theme().accent().into_solid())
@@ -2546,7 +2468,7 @@ impl AgentsWidget {
             "Call MCP servers".into(),
             Icon::Dataflow,
             Some(styles::header_font_color(
-                ai_settings.is_any_ai_enabled(app),
+                ai_settings.is_any_ai_enabled(),
                 app,
             )),
             None,
@@ -2578,7 +2500,7 @@ impl AgentsWidget {
                     CONTENT_FONT_SIZE,
                     appearance.ui_font_family(),
                     appearance.ui_font_family(),
-                    styles::description_font_color(ai_settings.is_any_ai_enabled(app), app).into(),
+                    styles::description_font_color(ai_settings.is_any_ai_enabled(), app).into(),
                     HighlightedHyperlink::default(),
                 )
                 .with_hyperlink_font_color(appearance.theme().accent().into_solid())
@@ -2696,7 +2618,7 @@ impl AgentsWidget {
                         Container::new(render_dropdown_item_label(
                             title.to_string(),
                             Some(description.to_string()),
-                            (!ai_settings.is_any_ai_enabled(app))
+                            (!ai_settings.is_any_ai_enabled())
                                 .then(|| appearance.theme().disabled_ui_text_color()),
                             appearance,
                         ))
@@ -2711,7 +2633,7 @@ impl AgentsWidget {
         .with_margin_bottom(2.)
         .finish();
 
-        let disabled = !ai_settings.is_any_ai_enabled(app);
+        let disabled = !ai_settings.is_any_ai_enabled();
         let items = render_input_list(
             None,
             items
@@ -2725,7 +2647,6 @@ impl AgentsWidget {
                         mouse_state_handle,
                         on_remove_action: action(uuid),
                         is_disabled: disabled,
-                        tooltip_mouse_state: None,
                     })
                 }),
             None,

@@ -1,6 +1,3 @@
-use std::time::SystemTime;
-
-use futures::channel::oneshot;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp_errors::report_error;
@@ -10,10 +7,6 @@ use warpui_extras::secure_storage::{self, AppContextExt};
 
 use crate::LLMProvider;
 pub use crate::aws_credentials::{AwsCredentials, AwsCredentialsState};
-pub use crate::geap_credentials::{
-    GEAP_MINT_FAILURE_COOLDOWN, GEAP_REFRESH_LEAD_TIME, GeapCredentials, GeapCredentialsState,
-    GeapFederation, GeapMintBinding, GeapRefreshOutcome, LoadGeapCredentialsError,
-};
 
 const SECURE_STORAGE_KEY: &str = "AiApiKeys";
 
@@ -145,19 +138,7 @@ impl ApiKeys {
 /// A structure that manages API keys for AI providers.
 pub struct ApiKeyManager {
     keys: ApiKeys,
-    /// Coordinates request-time GEAP refreshes. Installed by the mint kickoff
-    /// itself (see `install_geap_refresh_waiter`) immediately before the state
-    /// transitions to `Refreshing`, and taken when the mint completes, so
-    /// `Some` means a mint is in flight *by construction* rather than by
-    /// convention. Holds the completion senders for requests blocked on it;
-    /// may be empty for a proactive mint with no waiters.
-    pub(crate) geap_refresh_waiters: Option<Vec<oneshot::Sender<GeapRefreshOutcome>>>,
-    /// When the last GEAP mint failed, if one has. The timestamp is what
-    /// suppresses repeated request-time waits.
-    pub(crate) geap_last_mint_failure: Option<SystemTime>,
     pub(crate) aws_credentials_state: AwsCredentialsState,
-    /// In-memory Gemini Enterprise (GEAP) credential state.
-    pub(crate) geap_credentials_state: GeapCredentialsState,
     secure_storage_write_version: u64,
 }
 
@@ -173,10 +154,7 @@ impl ApiKeyManager {
         let keys = Self::load_keys_from_secure_storage(ctx);
         Self {
             keys,
-            geap_refresh_waiters: None,
-            geap_last_mint_failure: None,
             aws_credentials_state: AwsCredentialsState::Missing,
-            geap_credentials_state: GeapCredentialsState::Missing,
             secure_storage_write_version: 0,
         }
     }
@@ -399,7 +377,6 @@ impl ApiKeyManager {
         &self,
         include_byo_keys: bool,
         include_aws_bedrock_credentials: bool,
-        geap_binding: Option<GeapMintBinding>,
     ) -> Option<api::request::settings::ApiKeys> {
         let anthropic = include_byo_keys
             .then(|| self.keys.anthropic.clone())
@@ -427,20 +404,11 @@ impl ApiKeyManager {
             })
             .flatten();
 
-        // Gemini Enterprise (GEAP) credentials attach only when the caller's
-        // gate is on AND the stored token was minted for that same
-        // (user, audience, SA) binding. `geap_credentials_for_request` is the
-        // single source of truth for that rule (see `crate::geap_credentials`).
-        let google_cloud_credentials = geap_binding
-            .as_ref()
-            .and_then(|binding| self.geap_credentials_for_request(binding));
-
         if anthropic.is_empty()
             && openai.is_empty()
             && google.is_empty()
             && open_router.is_empty()
             && aws_credentials.is_none()
-            && google_cloud_credentials.is_none()
         {
             None
         } else {
@@ -453,7 +421,7 @@ impl ApiKeyManager {
                 grok_oauth_access_token: String::new(),
                 allow_use_of_warp_credits: false,
                 aws_credentials,
-                google_cloud_credentials,
+                google_cloud_credentials: None,
             })
         }
     }

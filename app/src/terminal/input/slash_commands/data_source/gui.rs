@@ -55,7 +55,7 @@ impl GuiSlashCommandDataSource {
         ctx.subscribe_to_model(&InputSettings::handle(ctx), |me, _, event, ctx| {
             if matches!(
                 event,
-                InputSettingsChangedEvent::EnableSlashCommandsInTerminal { .. }
+                InputSettingsChangedEvent::EnableSlashCommandsInTerminal
             ) {
                 me.recompute_active_commands(ctx);
             }

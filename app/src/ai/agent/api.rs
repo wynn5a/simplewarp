@@ -192,7 +192,7 @@ impl RequestParams {
         app: &AppContext,
     ) -> Self {
         let ai_settings = AISettings::as_ref(app);
-        let is_memory_enabled = ai_settings.is_memory_enabled(app);
+        let is_memory_enabled = ai_settings.is_memory_enabled();
 
         // Build MCP context - either grouped by server or flat lists based on feature flag
         let mcp_context = if FeatureFlag::MCPGroupedServerContext.is_enabled() {
@@ -265,11 +265,9 @@ impl RequestParams {
         let user_workspaces = UserWorkspaces::as_ref(app);
         let api_key_manager = ApiKeyManager::as_ref(app);
         let is_byo_enabled = user_workspaces.is_byo_api_key_enabled(app);
-        let geap_binding = crate::ai::geap_credentials::current_geap_policy(app).mint_binding();
         let api_keys = api_key_manager.api_keys_for_request(
             is_byo_enabled,
-            user_workspaces.is_aws_bedrock_credentials_enabled(app),
-            geap_binding,
+            user_workspaces.is_aws_bedrock_credentials_enabled(),
         );
         let is_custom_inference_enabled = user_workspaces.is_custom_inference_enabled(app);
         let custom_model_providers =
@@ -313,7 +311,7 @@ impl RequestParams {
             .get_ask_user_question_setting(app, terminal_view_id)
             != crate::ai::execution_profiles::AskUserQuestionPermission::Never;
 
-        let orchestration_enabled = ai_settings.is_orchestration_enabled(app)
+        let orchestration_enabled = ai_settings.is_orchestration_enabled()
             && BlocklistAIPermissions::as_ref(app)
                 .get_run_agents_setting(app, terminal_view_id)
                 .is_enabled()

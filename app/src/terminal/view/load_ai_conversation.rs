@@ -772,7 +772,7 @@ impl TerminalView {
             .map(|b| Arc::new(SerializedBlock::from(b)))
             .for_each(|block| {
                 ctx.emit(Event::BlockCompleted {
-                    is_local: self.is_block_considered_remote(block.session_id, None, ctx),
+                    is_local: self.is_block_considered_remote(block.session_id, ctx),
                     block,
                 });
             });

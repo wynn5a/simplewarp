@@ -259,6 +259,50 @@ Queue, in order:
    `change_event_reason` field on every settings event; the rest of the legacy execution-profile
    cloud backend; the workspace/team settings layer (see 4gu).
 
+8. ~~Legacy profile cloud backend and workspace/team settings layer~~ — **4gw done (2026-09-28).**
+   −9.7k lines in 149 files. Execution profiles: the logged-in-only Warp Drive backend is gone
+   (`LegacyCloudObjects`, `DefaultProfileState`, personal-drive ownership, the `CloudModel`
+   subscriptions, `reconcile_with_cloud_state_after_initial_load`, `maybe_inherit_from_legacy_settings`,
+   `reset`, sync ids on `AIExecutionProfileInfo`, `get_profile_id_by_sync_id`,
+   `ExecutionProfileId::from_legacy_server_id`, UpdateManager's profile update/delete, the
+   `FileBackedExecutionProfiles` flag + cargo feature). `ProfileSource` is now `Settings` /
+   `PendingSettings` (implicit default from legacy settings until the first edit materializes the
+   collection) / `Cli` (fixed, uneditable); local create/edit/delete/select unchanged. Workspace/team
+   settings: `WorkspaceSettings`, `TeamSettings` and every sub-type are gone (workspaces always loaded
+   with defaults; the `team_settings` sqlite table is kept, no longer read), with the dead writers
+   (`ModelEvent::UpsertWorkspace(s)` / `SetCurrentWorkspace`, `save_workspace(s)`,
+   `set_current_workspace`; never emitted). Every reader collapsed to its default: org autonomy /
+   sandboxed-agent overrides and the "managed by your workspace" banner + "enforced by your
+   organization" tooltips (permissions getters now read the profile; `get_org_execute_commands_denylist`
+   gone), enterprise secret redaction (PrivacySettings fields, Enterprise tab on the privacy page),
+   UGC collection, org remote-session AI policy (`FocusedTerminalInfo`, the remote-block flags and
+   command regex check; `is_any_ai_enabled` and 21 other AISettings getters lost their unused ctx),
+   codebase-context and agent-attribution org gates, team-provided BYO keys/endpoints
+   (`ByoKeySource::TeamProvided`), `default_host_slug`, the cloud-agent computer-use org lock, and the
+   Bedrock/Gemini settings widgets. Gemini Enterprise (GEAP) is deleted outright (it needed the
+   workspace federation config and a Warp login): app + `crates/ai` credential modules, request-time
+   refresh, error view, `RenderableAIError` variant, `FeatureFlag::GeminiEnterprise` + feature,
+   `GeminiEnterpriseCredentialsEnabled` setting (key orphaned). Server-only `Workspace` / `Team` fields
+   and billing types nothing read are gone (members/invites/usage history/overages/service
+   agreements, `TeamVisibility`, `TeamDeleteDisabledReason`, 16 `BillingMetadata` helpers; orphaned
+   `teams_page_tests.rs`). `change_event_reason` / `ChangeEventReason` removed: settings events are
+   unit variants now. Kept, being persisted shapes: `BillingMetadata` / `Tier` JSON (incl.
+   `UgcCollectionEnablementSetting`), the workspace sqlite tables, `TerminalPaneSnapshot.active_profile_id`
+   (always written `None`), `CloudAIExecutionProfile` rows loading into CloudModel,
+   `LLMModelHost::GeminiEnterprise`. Stale-cache nuance: a workspace cached by upstream Warp used to
+   block AI in remote sessions (placeholder default `allow_ai_in_remote_sessions = false`); it no longer
+   does. Tests 4,306 default / 4,307 simplewarp (−70, all deleted with their code: 17 GEAP, 18
+   workspace host/codebase/attribution, 10 workspace billing, 6 attribution toggle, 6 org-permission,
+   5 FocusedTerminalInfo, 3 GEAP refresh, 2+2 profile/MCP-secret rewrites, 1 remote-flag), `ai` +
+   `settings` + `warp_features` 277 passed (−29 GEAP in `ai`), settings doc tests 4, 0 failed.
+   Follow-ups: the AWS Bedrock vertical (credential refresh + AWS SDK deps, login/CLI banners, the
+   Bedrock credentials error view, model-picker Bedrock icon, `aws_bedrock_*` settings), now gated off
+   by a constant-false `UserWorkspaces::is_aws_bedrock_credentials_enabled`; `UserWorkspaces` itself
+   (workspaces only come from a sqlite cache this client never writes — billing-tier gates, team
+   windows/spaces, `TeamsChanged` only fires in tests); the terminal secret model's always-empty
+   enterprise tier (`SecretLevel::Enterprise`); `agent run --profile` (always errors now) and the
+   "Unsynced" ids of `agent profile list`; single-variant `ByoKeySource`.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

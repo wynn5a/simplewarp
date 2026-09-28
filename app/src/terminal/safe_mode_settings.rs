@@ -3,7 +3,6 @@ use settings::{Setting, SupportedPlatforms};
 use warpui::{AppContext, SingletonEntity};
 
 use crate::terminal::model::ObfuscateSecrets;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 /// How secrets should be displayed in the block list
 #[derive(
@@ -104,10 +103,7 @@ define_settings_group!(SafeModeSettings, settings: [
 /// Returns whether the rendering should obfuscate secrets given the current safe mode settings.
 pub fn get_secret_obfuscation_mode(app: &AppContext) -> ObfuscateSecrets {
     let safe_mode_settings = SafeModeSettings::as_ref(app);
-    let is_enterprise_secret_redaction_enabled =
-        UserWorkspaces::as_ref(app).is_enterprise_secret_redaction_enabled();
-
-    if !is_enterprise_secret_redaction_enabled && !*safe_mode_settings.safe_mode_enabled.value() {
+    if !*safe_mode_settings.safe_mode_enabled.value() {
         ObfuscateSecrets::No
     } else {
         let mode = get_effective_secret_display_mode(safe_mode_settings);

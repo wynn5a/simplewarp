@@ -4,12 +4,8 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use settings::macros::{maybe_define_setting, register_settings_events};
 use settings::{Setting, SupportedPlatforms};
-use warp_core::settings::ChangeEventReason;
 use warp_errors::report_error;
-use warpui::{AppContext, Entity, ModelContext, SingletonEntity, UpdateModel};
-
-use crate::terminal::safe_mode_settings::SafeModeSettings;
-use crate::workspaces::workspace::EnterpriseSecretRegex;
+use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 pub trait RegexDisplayInfo {
     fn pattern(&self) -> &str;
@@ -36,16 +32,6 @@ impl CustomSecretRegex {
 impl RegexDisplayInfo for CustomSecretRegex {
     fn pattern(&self) -> &str {
         self.pattern.as_str()
-    }
-
-    fn name(&self) -> Option<&str> {
-        self.name.as_deref()
-    }
-}
-
-impl RegexDisplayInfo for EnterpriseSecretRegex {
-    fn pattern(&self) -> &str {
-        &self.pattern
     }
 
     fn name(&self) -> Option<&str> {
@@ -92,16 +78,8 @@ maybe_define_setting!(HasInitializedDefaultSecretRegexes, group: PrivacySettings
 pub struct PrivacySettings {
     pub has_initialized_default_secret_regexes: HasInitializedDefaultSecretRegexes,
     /// List of user defined secret regexes.
-    /// Enterprise-level secret regexes will always take precedence over user-level secrets,
-    /// but they both used to support additive behavior.
     /// It's a [Vec<CustomSecretRegex>], but also a user setting.
     pub user_secret_regex_list: CustomSecretRegexList,
-    /// List of enterprise-level secret regexes provided by the organization.
-    /// These are kept separate from user-level secrets to support additive behavior.
-    pub enterprise_secret_regex_list: Vec<CustomSecretRegex>,
-    /// Whether or not the user's organization has enabled enterprise secret redaction.
-    /// This is populated by the server when teams data is fetched.
-    pub is_enterprise_secret_redaction_enabled: bool,
 }
 
 impl PrivacySettings {
@@ -132,60 +110,7 @@ impl PrivacySettings {
         Self {
             user_secret_regex_list,
             has_initialized_default_secret_regexes,
-            is_enterprise_secret_redaction_enabled: false,
-            enterprise_secret_regex_list: Vec::new(),
         }
-    }
-
-    pub fn is_enterprise_secret_redaction_enabled(&self) -> bool {
-        self.is_enterprise_secret_redaction_enabled
-    }
-
-    pub fn set_enterprise_secret_redaction_settings(
-        &mut self,
-        enabled: bool,
-        enterprise_regexes: Vec<EnterpriseSecretRegex>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if enabled {
-            // First time: Force enable secret redaction setting (safe mode).
-            if !self.is_enterprise_secret_redaction_enabled {
-                let safe_mode_settings = SafeModeSettings::handle(ctx);
-                ctx.update_model(&safe_mode_settings, |safe_mode_settings, ctx| {
-                    let _ = safe_mode_settings.safe_mode_enabled.set_value(true, ctx);
-                });
-            }
-
-            // Convert EnterpriseSecretRegex to CustomSecretRegex for internal use
-            let mut enterprise_secrets = Vec::new();
-            for enterprise_regex in enterprise_regexes {
-                match Regex::new(&enterprise_regex.pattern) {
-                    Ok(regex) => {
-                        enterprise_secrets.push(CustomSecretRegex {
-                            pattern: regex,
-                            name: enterprise_regex.name,
-                        });
-                    }
-                    _ => {
-                        report_error!(
-                            "Invalid enterprise secret regex pattern",
-                            extra: { "pattern" => %enterprise_regex.pattern }
-                        );
-                    }
-                }
-            }
-            self.enterprise_secret_regex_list = enterprise_secrets;
-        } else {
-            // Clear enterprise secrets when disabled
-            self.enterprise_secret_regex_list.clear();
-        }
-
-        self.is_enterprise_secret_redaction_enabled = enabled;
-
-        ctx.emit(PrivacySettingsChangedEvent::CustomSecretRegexList {
-            change_event_reason: ChangeEventReason::LocalChange,
-        });
-        ctx.notify();
     }
 
     /// Constructor for tests only.
@@ -194,8 +119,6 @@ impl PrivacySettings {
         Self {
             user_secret_regex_list: CustomSecretRegexList::new(None),
             has_initialized_default_secret_regexes: HasInitializedDefaultSecretRegexes::new(None),
-            is_enterprise_secret_redaction_enabled: false,
-            enterprise_secret_regex_list: Vec::new(),
         }
     }
 
@@ -276,12 +199,8 @@ impl PrivacySettings {
 /// Events emitted when PrivacySettings is updated.
 #[derive(Clone, Copy)]
 pub enum PrivacySettingsChangedEvent {
-    CustomSecretRegexList {
-        change_event_reason: ChangeEventReason,
-    },
-    HasInitializedDefaultSecretRegexes {
-        change_event_reason: ChangeEventReason,
-    },
+    CustomSecretRegexList,
+    HasInitializedDefaultSecretRegexes,
 }
 
 impl Entity for PrivacySettings {

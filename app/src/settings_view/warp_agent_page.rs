@@ -1,16 +1,15 @@
 //! The "Warp Agent" settings page, shown under the Agents umbrella.
 //!
 //! Covers Warp's own AI: the global toggle, Active AI suggestions, agent
-//! input behavior, voice input, credentials (BYO keys, Bedrock, Gemini
-//! Enterprise, custom endpoints, custom routers) and the miscellaneous
-//! agent display settings.
+//! input behavior, voice input, credentials (BYO keys, custom endpoints,
+//! custom routers) and the miscellaneous agent display settings.
 
 use std::ops::Not;
 #[cfg(feature = "local_fs")]
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
-use ::ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent, ApiKeys, CustomEndpointParams};
+use ::ai::api_keys::{ApiKeyManager, ApiKeys, CustomEndpointParams};
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_geometry::vector::vec2f;
 use settings::{Setting, ToggleableSetting};
@@ -24,7 +23,7 @@ use warp_editor::editor::NavigationKey;
 use warp_errors::report_if_error;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    Empty, Expanded, Flex, FormattedTextElement, HighlightedHyperlink, Hoverable, HyperlinkUrl,
+    Empty, Flex, FormattedTextElement, HighlightedHyperlink, Hoverable, HyperlinkUrl,
     MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
     ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack, Text,
 };
@@ -32,7 +31,7 @@ use warpui::fonts::{Properties, Weight};
 use warpui::keymap::{ContextPredicate, Keystroke};
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::ui_components::switch::{SwitchStateHandle, TooltipConfig};
+use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{
     Action, AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle, id,
@@ -62,12 +61,10 @@ use super::{
 };
 use crate::UserWorkspaces;
 use crate::ai::AIRequestUsageModel;
-use crate::ai::aws_credentials::refresh_aws_credentials;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::{
     AgentToolbarEditorMode, AgentToolbarInlineEditor,
 };
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-use crate::ai::geap_credentials::force_refresh_geap_credentials;
 use crate::ai::llms::{LLMId, LLMPreferences, LLMProvider, is_using_api_key_for_provider};
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::editor::{
@@ -86,7 +83,6 @@ use crate::util::bindings;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
 use crate::view_components::{Dropdown, DropdownItem, FilterableDropdown};
 use crate::workspaces::user_workspaces::UserWorkspacesEvent;
-use crate::workspaces::workspace::AdminEnablementSetting;
 
 const PRIMARY_HEADER_FONT_SIZE: f32 = 24.;
 
@@ -498,7 +494,7 @@ pub struct WarpAgentPageView {
 
 impl WarpAgentPageView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
 
         let workspace = UserWorkspaces::handle(ctx);
         ctx.subscribe_to_model(&workspace, |me, _workspace, event, ctx| {
@@ -511,7 +507,7 @@ impl WarpAgentPageView {
         let voice_input_toggle_key_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
-            if !AISettings::as_ref(ctx).is_voice_input_enabled(ctx) {
+            if !AISettings::as_ref(ctx).is_voice_input_enabled() {
                 dropdown.set_disabled(ctx);
             }
 
@@ -548,7 +544,7 @@ impl WarpAgentPageView {
             let mut dropdown = FilterableDropdown::new(ctx);
             dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
             dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
-            if !AISettings::as_ref(ctx).is_voice_input_enabled(ctx) {
+            if !AISettings::as_ref(ctx).is_voice_input_enabled() {
                 dropdown.set_disabled(ctx);
             }
 
@@ -679,7 +675,7 @@ impl WarpAgentPageView {
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
             match event {
-                AISettingsChangedEvent::AICommandDenylist { .. } => {
+                AISettingsChangedEvent::AICommandDenylist => {
                     me.autodetection_denylist_editor.update(ctx, |editor, ctx| {
                         let denylist_value = &AISettings::as_ref(ctx)
                             .autodetection_command_denylist
@@ -688,8 +684,8 @@ impl WarpAgentPageView {
                         editor.set_buffer_text(denylist_value, ctx);
                     });
                 }
-                AISettingsChangedEvent::IsAnyAIEnabled { .. } => {
-                    let is_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+                AISettingsChangedEvent::IsAnyAIEnabled => {
+                    let is_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
 
                     update_editor_interaction_state(
                         me.autodetection_denylist_editor.clone(),
@@ -700,10 +696,10 @@ impl WarpAgentPageView {
                     me.update_voice_input_dropdown_enablement(ctx);
                     me.sync_custom_endpoint_buttons(ctx);
                 }
-                AISettingsChangedEvent::VoiceInputEnabled { .. } => {
+                AISettingsChangedEvent::VoiceInputEnabled => {
                     me.update_voice_input_dropdown_enablement(ctx);
                 }
-                AISettingsChangedEvent::VoiceInputToggleKey { .. } => {
+                AISettingsChangedEvent::VoiceInputToggleKey => {
                     let current_value = AISettings::as_ref(ctx)
                         .voice_input_toggle_key
                         .value()
@@ -713,7 +709,7 @@ impl WarpAgentPageView {
                             dropdown.set_selected_by_name(current_value, ctx)
                         });
                 }
-                AISettingsChangedEvent::VoiceInputLanguage { .. } => {
+                AISettingsChangedEvent::VoiceInputLanguage => {
                     let current_code = AISettings::as_ref(ctx)
                         .voice_input_language_code()
                         .unwrap_or("")
@@ -726,7 +722,7 @@ impl WarpAgentPageView {
                             )
                         });
                 }
-                AISettingsChangedEvent::ThinkingDisplayMode { .. } => {
+                AISettingsChangedEvent::ThinkingDisplayMode => {
                     let current_mode = *AISettings::as_ref(ctx).thinking_display_mode.value();
                     me.thinking_display_mode_dropdown
                         .update(ctx, |dropdown, ctx| {
@@ -736,7 +732,7 @@ impl WarpAgentPageView {
                             );
                         });
                 }
-                AISettingsChangedEvent::OrchestrationMessageDisplayMode { .. } => {
+                AISettingsChangedEvent::OrchestrationMessageDisplayMode => {
                     let current_mode = AISettings::as_ref(ctx).orchestration_message_display_mode;
                     me.orchestration_message_display_mode_dropdown
                         .update(ctx, |dropdown, ctx| {
@@ -748,7 +744,7 @@ impl WarpAgentPageView {
                             );
                         });
                 }
-                AISettingsChangedEvent::PromptSubmissionMode { .. } => {
+                AISettingsChangedEvent::PromptSubmissionMode => {
                     let current_mode = AISettings::as_ref(ctx).default_prompt_submission_mode;
                     me.default_prompt_submission_mode_dropdown
                         .update(ctx, |dropdown, ctx| {
@@ -758,7 +754,7 @@ impl WarpAgentPageView {
                             );
                         });
                 }
-                AISettingsChangedEvent::LongRunningCommandSubmissionMode { .. } => {
+                AISettingsChangedEvent::LongRunningCommandSubmissionMode => {
                     let current_mode = AISettings::as_ref(ctx).long_running_command_submission_mode;
                     me.lrc_submission_mode_dropdown
                         .update(ctx, |dropdown, ctx| {
@@ -949,7 +945,7 @@ impl WarpAgentPageView {
     }
 
     fn update_voice_input_dropdown_enablement(&mut self, ctx: &mut ViewContext<Self>) {
-        let is_voice_enabled = AISettings::as_ref(ctx).is_voice_input_enabled(ctx);
+        let is_voice_enabled = AISettings::as_ref(ctx).is_voice_input_enabled();
         self.voice_input_toggle_key_dropdown
             .update(ctx, |dropdown, ctx| {
                 if is_voice_enabled {
@@ -1233,7 +1229,7 @@ impl WarpAgentPageView {
             .collect()
     }
     fn can_use_custom_inference_controls(app: &AppContext) -> bool {
-        AISettings::as_ref(app).is_any_ai_enabled(app)
+        AISettings::as_ref(app).is_any_ai_enabled()
             && UserWorkspaces::as_ref(app).is_custom_inference_enabled(app)
             && UserWorkspaces::as_ref(app).are_member_byo_endpoints_allowed()
     }
@@ -1507,8 +1503,6 @@ impl WarpAgentPageView {
             widgets.push(Box::new(VoiceWidget::default()));
         }
         widgets.push(Box::new(ApiKeysWidget::new(ctx)));
-        widgets.push(Box::new(AwsBedrockWidget::new(ctx)));
-        widgets.push(Box::new(GeminiEnterpriseWidget::new(ctx)));
         if FeatureFlag::CustomModelRouters.is_enabled() {
             widgets.push(Box::new(CustomModelRoutersWidget));
         }
@@ -1640,11 +1634,6 @@ pub enum WarpAgentPageAction {
     SetOrchestrationMessageDisplayMode(OrchestrationMessageDisplayMode),
     SetPromptSubmissionMode(PromptSubmissionMode),
     SetLongRunningCommandSubmissionMode(LongRunningCommandSubmissionMode),
-    ToggleAwsBedrockAutoLogin,
-    ToggleAwsBedrockCredentialsEnabled,
-    RefreshAwsBedrockCredentials,
-    RefreshGeminiEnterpriseCredentials,
-    ToggleGeminiEnterpriseCredentialsEnabled,
     ToggleCloudAgentComputerUse,
     ToggleFileBasedMcp,
     ToggleIncludeAgentCommandsInHistory,
@@ -1878,44 +1867,6 @@ impl TypedActionView for WarpAgentPageView {
                 });
                 ctx.notify();
             }
-            WarpAgentPageAction::ToggleAwsBedrockAutoLogin => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(settings.aws_bedrock_auto_login.toggle_and_save_value(ctx));
-                });
-                ctx.notify();
-            }
-            WarpAgentPageAction::ToggleAwsBedrockCredentialsEnabled => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .aws_bedrock_credentials_enabled
-                            .toggle_and_save_value(ctx)
-                    );
-                });
-                ctx.notify();
-            }
-            WarpAgentPageAction::RefreshAwsBedrockCredentials => {
-                ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
-                    drop(refresh_aws_credentials(manager, ctx));
-                });
-                ctx.notify();
-            }
-            WarpAgentPageAction::RefreshGeminiEnterpriseCredentials => {
-                ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
-                    force_refresh_geap_credentials(manager, ctx);
-                });
-                ctx.notify();
-            }
-            WarpAgentPageAction::ToggleGeminiEnterpriseCredentialsEnabled => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .gemini_enterprise_credentials_enabled
-                            .toggle_and_save_value(ctx)
-                    );
-                });
-                ctx.notify();
-            }
             WarpAgentPageAction::ToggleCloudAgentComputerUse => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(
@@ -2034,9 +1985,6 @@ impl SettingsWidget for GlobalAIWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
-        let is_ai_disabled_due_to_remote_session_org_policy =
-            AISettings::as_ref(app).is_ai_disabled_due_to_remote_session_org_policy(app);
-
         let mut row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
@@ -2052,28 +2000,11 @@ impl SettingsWidget for GlobalAIWidget {
                 .finish(),
             );
 
-        if is_ai_disabled_due_to_remote_session_org_policy {
-            row.add_child(
-                ConstrainedBox::new(
-                    Container::new(
-                        Text::new("Your organization disallows AI when the active pane contains content from a remote session", appearance.ui_font_family(), 12.)
-                            .with_color(appearance.theme().ui_warning_color())
-                            .finish()
-                    )
-                    .with_padding_left(8.)
-                    .with_padding_right(8.)
-                    .finish()
-                )
-                .with_max_width(400.)
-                .finish()
-            );
-        }
-
         row.add_child(
             Container::new(
                 ui_builder
                     .switch(self.switch_state.clone())
-                    .check(AISettings::as_ref(app).is_any_ai_enabled(app))
+                    .check(AISettings::as_ref(app).is_any_ai_enabled())
                     .build()
                     .on_click(move |ctx, _, _| {
                         ctx.dispatch_typed_action(WarpAgentPageAction::ToggleGlobalAI);
@@ -2257,7 +2188,7 @@ impl SettingsWidget for ActiveAIWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let ai_settings = AISettings::as_ref(app);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
         let mut column = Flex::column()
             .with_child(render_separator(appearance))
             .with_child(
@@ -2335,7 +2266,7 @@ impl SettingsWidget for AIInputWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let ai_settings = AISettings::as_ref(app);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
 
         let input_header = build_sub_header(
             appearance,
@@ -2461,7 +2392,7 @@ impl AIInputWidget {
         appearance: &Appearance,
         app: &warpui::AppContext,
     ) -> Box<dyn warpui::Element> {
-        let is_toggleable = ai_settings.is_any_ai_enabled(app);
+        let is_toggleable = ai_settings.is_any_ai_enabled();
         let is_nld_enabled = *ai_settings.ai_autodetection_enabled_internal.value();
 
         let autodetection_denylist_input_field = appearance
@@ -2499,7 +2430,7 @@ impl AIInputWidget {
                 render_ai_setting_toggle(
                     "Autodetect agent prompts in terminal input",
                     WarpAgentPageAction::ToggleNLDInTerminal,
-                    ai_settings.is_nld_in_terminal_enabled(app),
+                    ai_settings.is_nld_in_terminal_enabled(),
                     is_toggleable,
                     nld_in_terminal_toggle,
                     app,
@@ -2619,7 +2550,7 @@ impl VoiceWidget {
         app: &warpui::AppContext,
     ) -> Box<dyn warpui::Element> {
         let ai_settings = AISettings::as_ref(app);
-        let is_toggleable = ai_settings.is_any_ai_enabled(app);
+        let is_toggleable = ai_settings.is_any_ai_enabled();
         let mut column = Flex::column().with_child(render_ai_setting_toggle(
             "Voice Input",
             WarpAgentPageAction::ToggleVoiceInput,
@@ -2660,7 +2591,7 @@ impl VoiceWidget {
                 .finish(),
         );
 
-        if ai_settings.is_voice_input_enabled(app) {
+        if ai_settings.is_voice_input_enabled() {
             column.add_child(render_dropdown_item(
                 appearance,
                 "Key for Activating Voice Input",
@@ -2701,7 +2632,7 @@ impl SettingsWidget for VoiceWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let ai_settings = AISettings::as_ref(app);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
         Flex::column()
             .with_child(render_separator(appearance))
             .with_child(
@@ -2828,7 +2759,7 @@ impl SettingsWidget for OtherAIWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let ai_settings = AISettings::as_ref(app);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
         let is_toggleable = is_any_ai_enabled;
 
         let mut column = Flex::column()
@@ -2900,42 +2831,6 @@ impl SettingsWidget for OtherAIWidget {
     }
 }
 
-/// The presentation state of the agent attribution toggle, derived from the
-/// org-level [`AdminEnablementSetting`], the user's stored preference, and
-/// whether AI is globally enabled.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct AgentAttributionToggleState {
-    /// Whether the toggle is rendered in the checked state.
-    pub(crate) is_enabled: bool,
-    /// Whether the org has forced the value (locking the toggle with a tooltip).
-    pub(crate) is_forced_by_org: bool,
-    /// Whether the toggle should be rendered as non-interactive overall
-    /// (forced by the org, or AI globally disabled).
-    pub(crate) is_disabled: bool,
-}
-
-/// Derive the toggle state from its three inputs.
-pub(crate) fn derive_agent_attribution_toggle_state(
-    org_setting: &AdminEnablementSetting,
-    user_pref: bool,
-    is_any_ai_enabled: bool,
-) -> AgentAttributionToggleState {
-    let is_forced_by_org = match org_setting {
-        AdminEnablementSetting::Enable | AdminEnablementSetting::Disable => true,
-        AdminEnablementSetting::RespectUserSetting => false,
-    };
-    let is_enabled = match org_setting {
-        AdminEnablementSetting::Enable => true,
-        AdminEnablementSetting::Disable => false,
-        AdminEnablementSetting::RespectUserSetting => user_pref,
-    };
-    AgentAttributionToggleState {
-        is_enabled,
-        is_forced_by_org,
-        is_disabled: is_forced_by_org || !is_any_ai_enabled,
-    }
-}
-
 #[derive(Default)]
 struct AgentAttributionWidget {
     toggle: SwitchStateHandle,
@@ -2955,38 +2850,22 @@ impl SettingsWidget for AgentAttributionWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let ai_settings = AISettings::as_ref(app);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
 
-        let org_setting = UserWorkspaces::as_ref(app).get_agent_attribution_setting();
-        let state = derive_agent_attribution_toggle_state(
-            &org_setting,
-            *ai_settings.agent_attribution_enabled,
-            is_any_ai_enabled,
-        );
+        let is_enabled = *ai_settings.agent_attribution_enabled;
 
         let ui_builder = appearance.ui_builder();
-        let toggle = if state.is_forced_by_org {
+        let toggle = if !is_any_ai_enabled {
             ui_builder
                 .switch(self.toggle.clone())
-                .check(state.is_enabled)
-                .with_tooltip(TooltipConfig {
-                    text: "This option is enforced by your organization's settings and cannot be customized.".to_string(),
-                    styles: ui_builder.default_tool_tip_styles(),
-                })
-                .disable()
-                .build()
-                .finish()
-        } else if !is_any_ai_enabled {
-            ui_builder
-                .switch(self.toggle.clone())
-                .check(state.is_enabled)
+                .check(is_enabled)
                 .with_disabled(true)
                 .build()
                 .finish()
         } else {
             ui_builder
                 .switch(self.toggle.clone())
-                .check(state.is_enabled)
+                .check(is_enabled)
                 .build()
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(WarpAgentPageAction::ToggleAgentAttribution);
@@ -2997,7 +2876,7 @@ impl SettingsWidget for AgentAttributionWidget {
         let toggle_row = build_toggle_element(
             render_body_item_label::<WarpAgentPageAction>(
                 "Enable agent attribution".to_string(),
-                Some(styles::header_font_color(!state.is_disabled, app)),
+                Some(styles::header_font_color(is_any_ai_enabled, app)),
                 None,
                 ToggleState::Enabled,
                 appearance,
@@ -3021,16 +2900,12 @@ impl SettingsWidget for AgentAttributionWidget {
             .with_child(toggle_row)
             .with_child(render_ai_setting_description(
                 "Warp Agent can add attribution to commit messages and pull requests it creates",
-                !state.is_disabled,
+                is_any_ai_enabled,
                 app,
             ))
             .finish()
     }
 }
-
-#[cfg(test)]
-#[path = "warp_agent_page_tests.rs"]
-mod tests;
 
 #[derive(Default)]
 struct CloudAgentComputerUseWidget {
@@ -3050,35 +2925,12 @@ impl SettingsWidget for CloudAgentComputerUseWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        use crate::ai::execution_profiles::{
-            CloudAgentComputerUseState, resolve_cloud_agent_computer_use_state,
-        };
-
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
-
-        // Determine toggle state based on workspace autonomy setting and user preference
-        let CloudAgentComputerUseState {
-            enabled: is_checked,
-            is_forced_by_org,
-        } = resolve_cloud_agent_computer_use_state(app);
-
-        // Toggle is disabled if forced by org settings OR if AI is globally disabled
-        let is_disabled = is_forced_by_org || !is_any_ai_enabled;
+        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
+        let is_checked = crate::ai::execution_profiles::is_cloud_agent_computer_use_enabled(app);
+        let is_disabled = !is_any_ai_enabled;
 
         let ui_builder = appearance.ui_builder();
-        let toggle = if is_forced_by_org {
-            // Disabled by organization setting - show tooltip on hover
-            ui_builder
-                .switch(self.toggle.clone())
-                .check(is_checked)
-                .with_tooltip(TooltipConfig {
-                    text: "This option is enforced by your organization's settings and cannot be customized.".to_string(),
-                    styles: ui_builder.default_tool_tip_styles(),
-                })
-                .disable()
-                .build()
-                .finish()
-        } else if !is_any_ai_enabled {
+        let toggle = if !is_any_ai_enabled {
             // Disabled because AI is off globally - no tooltip needed
             ui_builder
                 .switch(self.toggle.clone())
@@ -3135,7 +2987,6 @@ impl SettingsWidget for CloudAgentComputerUseWidget {
 struct ProviderApiKeyEditor {
     provider: LLMProvider,
     editor: ViewHandle<EditorView>,
-    team_key_info_tooltip: MouseStateHandle,
 }
 
 struct ApiKeysWidget {
@@ -3150,7 +3001,7 @@ impl ApiKeysWidget {
     fn new(ctx: &mut ViewContext<<Self as SettingsWidget>::View>) -> Self {
         let ai_settings = AISettings::as_ref(ctx);
         let workspace_handle = UserWorkspaces::handle(ctx);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(ctx);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
         let member_byo_keys_allowed = workspace_handle.as_ref(ctx).are_member_byo_keys_allowed();
 
         let provider_api_key_editors = LLMProvider::API_KEY_PROVIDERS
@@ -3205,7 +3056,7 @@ impl ApiKeysWidget {
                 ctx.subscribe_to_model(&workspace_handle, move |_, workspace, event, ctx| {
                     if let UserWorkspacesEvent::TeamsChanged = event {
                         let is_any_ai_enabled =
-                            AISettings::handle(ctx).as_ref(ctx).is_any_ai_enabled(ctx);
+                            AISettings::handle(ctx).as_ref(ctx).is_any_ai_enabled();
                         let member_byo_keys_allowed =
                             workspace.as_ref(ctx).are_member_byo_keys_allowed();
                         update_editor_interaction_state(
@@ -3216,11 +3067,7 @@ impl ApiKeysWidget {
                         ctx.notify();
                     }
                 });
-                ProviderApiKeyEditor {
-                    provider,
-                    editor,
-                    team_key_info_tooltip: MouseStateHandle::default(),
-                }
+                ProviderApiKeyEditor { provider, editor }
             })
             .collect::<Vec<_>>();
 
@@ -3273,90 +3120,10 @@ impl ApiKeysWidget {
             description_learn_more_index: Default::default(),
         }
     }
-    fn has_team_first_party_key(provider: &LLMProvider, app: &AppContext) -> bool {
-        UserWorkspaces::as_ref(app)
-            .current_workspace()
-            .is_some_and(|workspace| {
-                workspace.billing_metadata.is_managed_byok_byoe_enabled()
-                    && workspace
-                        .settings
-                        .team_byo
-                        .as_ref()
-                        .is_some_and(|team_byo| {
-                            team_byo.first_party_enabled
-                                && team_byo
-                                    .first_party_keys
-                                    .iter()
-                                    .any(|key| key.provider == *provider)
-                        })
-            })
-    }
-
-    fn render_team_key_info_icon(
-        &self,
-        provider: &LLMProvider,
-        mouse_state: MouseStateHandle,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        let provider_name = provider.display_name();
-        let tooltip_text = FormattedText::new([FormattedTextLine::Line(vec![
-            FormattedTextFragment::plain_text(format!(
-                "Your organization has provided an API key for {provider_name}. A key entered here takes precedence for {provider_name} requests."
-            )),
-        ])]);
-        let tooltip_background = appearance.theme().tooltip_background();
-        let icon_color = appearance.theme().active_ui_text_color();
-
-        Hoverable::new(mouse_state, move |state| {
-            let icon = ConstrainedBox::new(Icon::Info.to_warpui_icon(icon_color).finish())
-                .with_width(13.)
-                .with_height(13.)
-                .finish();
-            let mut stack = Stack::new().with_child(icon);
-            if state.is_hovered() {
-                let tooltip = ConstrainedBox::new(
-                    Container::new(
-                        FormattedTextElement::new(
-                            tooltip_text.clone(),
-                            10.,
-                            appearance.ui_font_family(),
-                            appearance.ui_font_family(),
-                            appearance.theme().background().into_solid(),
-                            HighlightedHyperlink::default(),
-                        )
-                        .finish(),
-                    )
-                    .with_background_color(tooltip_background)
-                    .with_vertical_padding(4.)
-                    .with_horizontal_padding(8.)
-                    .with_border(Border::all(1.).with_border_fill(appearance.theme().outline()))
-                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-                    .finish(),
-                )
-                .with_max_width(CUSTOM_INFERENCE_INFO_TOOLTIP_MAX_WIDTH)
-                .finish();
-                stack.add_positioned_overlay_child(
-                    tooltip,
-                    OffsetPositioning::offset_from_parent(
-                        vec2f(0., -3.),
-                        ParentOffsetBounds::WindowByPosition,
-                        ParentAnchor::TopMiddle,
-                        ChildAnchor::BottomLeft,
-                    ),
-                );
-            }
-            stack.finish()
-        })
-        .finish()
-    }
-
-    #[allow(clippy::too_many_arguments)]
     fn render_api_key_input(
         &self,
         appearance: &Appearance,
         label: String,
-        provider: LLMProvider,
-        team_key_info_tooltip: MouseStateHandle,
         editor: ViewHandle<EditorView>,
         is_enabled: bool,
         app: &AppContext,
@@ -3376,20 +3143,9 @@ impl ApiKeysWidget {
         let label = Text::new_inline(label, appearance.ui_font_family(), CONTENT_FONT_SIZE)
             .with_color(styles::header_font_color(is_enabled, app).into())
             .finish();
-        let mut label_row = Flex::row()
+        let label_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(label);
-        if Self::has_team_first_party_key(&provider, app) {
-            label_row.add_child(
-                Container::new(self.render_team_key_info_icon(
-                    &provider,
-                    team_key_info_tooltip,
-                    appearance,
-                ))
-                .with_margin_left(4.)
-                .finish(),
-            );
-        }
 
         let input = appearance
             .ui_builder()
@@ -3416,8 +3172,6 @@ impl ApiKeysWidget {
             column.add_child(self.render_api_key_input(
                 appearance,
                 format!("{} API key", provider_editor.provider.display_name()),
-                provider_editor.provider,
-                provider_editor.team_key_info_tooltip.clone(),
                 provider_editor.editor.clone(),
                 is_enabled,
                 app,
@@ -3656,7 +3410,7 @@ struct CustomInferenceVisibility {
 impl CustomInferenceVisibility {
     fn compute(app: &AppContext) -> Self {
         let workspaces = UserWorkspaces::as_ref(app);
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
+        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
         let is_custom_inference_enabled = workspaces.is_custom_inference_enabled(app);
         let member_byo_keys_allowed = workspaces.are_member_byo_keys_allowed();
         let member_byo_endpoints_allowed = workspaces.are_member_byo_endpoints_allowed();
@@ -3839,679 +3593,6 @@ impl SettingsWidget for ApiKeysWidget {
     }
 }
 
-struct AwsBedrockWidget {
-    aws_auth_refresh_command_editor: ViewHandle<EditorView>,
-    aws_auth_refresh_profile_editor: ViewHandle<EditorView>,
-    credentials_enabled_toggle: SwitchStateHandle,
-    auto_login_toggle: SwitchStateHandle,
-    refresh_credentials_button: ViewHandle<ActionButton>,
-}
-
-impl AwsBedrockWidget {
-    fn new(ctx: &mut ViewContext<<Self as SettingsWidget>::View>) -> Self {
-        let ai_settings = AISettings::as_ref(ctx);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(ctx);
-
-        let aws_auth_refresh_command = ai_settings.aws_bedrock_auth_refresh_command.value().clone();
-        let aws_auth_refresh_profile = ai_settings.aws_bedrock_profile.value().clone();
-        let is_usage_enabled = is_any_ai_enabled
-            && UserWorkspaces::as_ref(ctx).is_aws_bedrock_credentials_enabled(ctx);
-
-        let aws_auth_refresh_command_editor = ctx.add_typed_action_view(move |ctx| {
-            let appearance = Appearance::as_ref(ctx);
-            let options = SingleLineEditorOptions {
-                is_password: false,
-                text: TextOptions {
-                    font_size_override: Some(appearance.ui_font_size()),
-                    font_family_override: Some(appearance.monospace_font_family()),
-                    text_colors_override: Some(TextColors {
-                        default_color: appearance.theme().active_ui_text_color(),
-                        disabled_color: appearance.theme().disabled_ui_text_color(),
-                        hint_color: appearance.theme().disabled_ui_text_color(),
-                    }),
-                    ..Default::default()
-                },
-                ..Default::default()
-            };
-            let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("aws login", ctx);
-            editor.set_buffer_text(&aws_auth_refresh_command, ctx);
-            editor
-        });
-        update_editor_interaction_state(
-            aws_auth_refresh_command_editor.clone(),
-            is_usage_enabled,
-            ctx,
-        );
-        ctx.subscribe_to_view(&aws_auth_refresh_command_editor, |_, editor, event, ctx| {
-            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
-                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                let should_reset = buffer_text.trim().is_empty();
-                let value = if should_reset {
-                    "aws login".to_string()
-                } else {
-                    buffer_text
-                };
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    let _ = settings
-                        .aws_bedrock_auth_refresh_command
-                        .set_value(value, ctx);
-                });
-                if should_reset {
-                    editor.update(ctx, |editor, ctx| {
-                        editor.set_buffer_text("aws login", ctx);
-                    });
-                }
-            }
-        });
-
-        let aws_auth_refresh_profile_editor = ctx.add_typed_action_view(move |ctx| {
-            let appearance = Appearance::as_ref(ctx);
-            let options = SingleLineEditorOptions {
-                is_password: false,
-                text: TextOptions {
-                    font_size_override: Some(appearance.ui_font_size()),
-                    font_family_override: Some(appearance.monospace_font_family()),
-                    text_colors_override: Some(TextColors {
-                        default_color: appearance.theme().active_ui_text_color(),
-                        disabled_color: appearance.theme().disabled_ui_text_color(),
-                        hint_color: appearance.theme().disabled_ui_text_color(),
-                    }),
-                    ..Default::default()
-                },
-                ..Default::default()
-            };
-            let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("default", ctx);
-            editor.set_buffer_text(&aws_auth_refresh_profile, ctx);
-            editor
-        });
-        update_editor_interaction_state(
-            aws_auth_refresh_profile_editor.clone(),
-            is_usage_enabled,
-            ctx,
-        );
-        ctx.subscribe_to_view(&aws_auth_refresh_profile_editor, |_, editor, event, ctx| {
-            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
-                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                let should_reset = buffer_text.trim().is_empty();
-                let value = if should_reset {
-                    "default".to_string()
-                } else {
-                    buffer_text
-                };
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    let _ = settings.aws_bedrock_profile.set_value(value, ctx);
-                });
-                if should_reset {
-                    editor.update(ctx, |editor, ctx| {
-                        editor.set_buffer_text("default", ctx);
-                    });
-                }
-            }
-        });
-
-        let refresh_credentials_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Refresh", SecondaryTheme)
-                .with_icon(Icon::RefreshCw04)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(WarpAgentPageAction::RefreshAwsBedrockCredentials);
-                })
-        });
-        refresh_credentials_button.update(ctx, |button, ctx| {
-            button.set_disabled(!is_usage_enabled, ctx);
-        });
-
-        // Keep enablement in sync with the Global AI toggle.
-        let aws_auth_refresh_command_editor_clone = aws_auth_refresh_command_editor.clone();
-        let aws_auth_refresh_profile_editor_clone = aws_auth_refresh_profile_editor.clone();
-        let refresh_credentials_button_clone = refresh_credentials_button.clone();
-        ctx.subscribe_to_model(&AISettings::handle(ctx), move |_, _, event, ctx| {
-            if matches!(
-                event,
-                AISettingsChangedEvent::IsAnyAIEnabled { .. }
-                    | AISettingsChangedEvent::AwsBedrockCredentialsEnabled { .. }
-            ) {
-                let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
-                let is_usage_enabled = is_any_ai_enabled
-                    && UserWorkspaces::as_ref(ctx).is_aws_bedrock_credentials_enabled(ctx);
-
-                update_editor_interaction_state(
-                    aws_auth_refresh_command_editor_clone.clone(),
-                    is_usage_enabled,
-                    ctx,
-                );
-                update_editor_interaction_state(
-                    aws_auth_refresh_profile_editor_clone.clone(),
-                    is_usage_enabled,
-                    ctx,
-                );
-                refresh_credentials_button_clone.update(ctx, |button, ctx| {
-                    button.set_disabled(!is_usage_enabled, ctx);
-                });
-
-                ctx.notify();
-            }
-        });
-
-        let aws_auth_refresh_command_editor_clone = aws_auth_refresh_command_editor.clone();
-        let aws_auth_refresh_profile_editor_clone = aws_auth_refresh_profile_editor.clone();
-        let refresh_credentials_button_clone = refresh_credentials_button.clone();
-        ctx.subscribe_to_model(
-            &UserWorkspaces::handle(ctx),
-            move |_, workspace, event, ctx| {
-                if let UserWorkspacesEvent::TeamsChanged = event {
-                    let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
-                    let is_usage_enabled = is_any_ai_enabled
-                        && workspace
-                            .as_ref(ctx)
-                            .is_aws_bedrock_credentials_enabled(ctx);
-
-                    update_editor_interaction_state(
-                        aws_auth_refresh_command_editor_clone.clone(),
-                        is_usage_enabled,
-                        ctx,
-                    );
-                    update_editor_interaction_state(
-                        aws_auth_refresh_profile_editor_clone.clone(),
-                        is_usage_enabled,
-                        ctx,
-                    );
-                    refresh_credentials_button_clone.update(ctx, |button, ctx| {
-                        button.set_disabled(!is_usage_enabled, ctx);
-                    });
-
-                    ctx.notify();
-                }
-            },
-        );
-
-        Self {
-            aws_auth_refresh_command_editor,
-            aws_auth_refresh_profile_editor,
-            credentials_enabled_toggle: SwitchStateHandle::default(),
-            auto_login_toggle: SwitchStateHandle::default(),
-            refresh_credentials_button,
-        }
-    }
-
-    fn render_aws_bedrock_section(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-        is_bedrock_available: bool,
-    ) -> Box<dyn Element> {
-        let ai_settings = AISettings::as_ref(app);
-        let user_workspaces = UserWorkspaces::as_ref(app);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
-        let is_section_enabled = is_any_ai_enabled && is_bedrock_available;
-        let is_admin_enforced = matches!(
-            user_workspaces.aws_bedrock_host_enablement_setting(),
-            crate::workspaces::workspace::HostEnablementSetting::Enforce
-        );
-        let is_toggleable =
-            is_section_enabled && user_workspaces.is_aws_bedrock_credentials_toggleable();
-        let are_credentials_enabled = user_workspaces.is_aws_bedrock_credentials_enabled(app);
-        let is_usage_enabled = is_section_enabled && are_credentials_enabled;
-        let toggle_description = if is_admin_enforced {
-            "Warp loads and sends local AWS CLI credentials for Bedrock-supported models. This setting is managed by your organization.".to_string()
-        } else {
-            "Warp loads and sends local AWS CLI credentials for Bedrock-supported models."
-                .to_string()
-        };
-
-        let mut column = Flex::column().with_spacing(16.).with_child(
-            Flex::column()
-                .with_child(render_ai_setting_toggle(
-                    "Use AWS Bedrock credentials",
-                    WarpAgentPageAction::ToggleAwsBedrockCredentialsEnabled,
-                    are_credentials_enabled,
-                    is_toggleable,
-                    self.credentials_enabled_toggle.clone(),
-                    app,
-                ))
-                .with_child(render_ai_setting_description(
-                    toggle_description,
-                    is_section_enabled,
-                    app,
-                ))
-                .finish(),
-        );
-
-        /// Helper function to render the UI for an input field.
-        fn render_input(
-            appearance: &Appearance,
-            label: &'static str,
-            editor: ViewHandle<EditorView>,
-            is_enabled: bool,
-            app: &AppContext,
-        ) -> Box<dyn Element> {
-            let padding = Some(Coords {
-                top: 10.,
-                bottom: 10.,
-                left: 16.,
-                right: 16.,
-            });
-            let editor_style = UiComponentStyles {
-                padding,
-                background: Some(appearance.theme().surface_2().into()),
-                ..Default::default()
-            };
-
-            let label = Text::new_inline(label, appearance.ui_font_family(), CONTENT_FONT_SIZE)
-                .with_color(styles::header_font_color(is_enabled, app).into())
-                .finish();
-
-            let input = appearance
-                .ui_builder()
-                .text_input(editor)
-                .with_style(editor_style)
-                .build()
-                .finish();
-
-            Flex::column()
-                .with_spacing(8.)
-                .with_child(label)
-                .with_child(input)
-                .finish()
-        }
-
-        fn render_credential_status_card(
-            refresh_button: &ViewHandle<ActionButton>,
-            appearance: &Appearance,
-            are_credentials_enabled: bool,
-            app: &AppContext,
-        ) -> Box<dyn Element> {
-            let (title_color, detail_color) = (
-                styles::header_font_color(are_credentials_enabled, app),
-                styles::description_font_color(are_credentials_enabled, app),
-            );
-            let (title_text, detail_text, icon) = ApiKeyManager::as_ref(app)
-                .aws_credentials_state()
-                .user_facing_components();
-
-            let icon = Container::new(
-                ConstrainedBox::new(icon.to_warpui_icon(title_color).finish())
-                    .with_width(16.)
-                    .with_height(16.)
-                    .finish(),
-            )
-            .with_horizontal_padding(4.)
-            .finish();
-
-            let text_column = Flex::column()
-                .with_cross_axis_alignment(CrossAxisAlignment::Start)
-                .with_spacing(4.)
-                .with_child(
-                    Text::new_inline(title_text, appearance.ui_font_family(), CONTENT_FONT_SIZE)
-                        .with_style(Properties::default().weight(Weight::Semibold))
-                        .with_color(title_color.into())
-                        .finish(),
-                )
-                .with_child(
-                    Text::new(detail_text, appearance.ui_font_family(), CONTENT_FONT_SIZE)
-                        .with_color(detail_color.into())
-                        .soft_wrap(true)
-                        .finish(),
-                );
-
-            Container::new(
-                Flex::row()
-                    .with_main_axis_size(MainAxisSize::Max)
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_spacing(12.)
-                    .with_child(
-                        Expanded::new(
-                            1.,
-                            Flex::row()
-                                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                                .with_spacing(12.)
-                                .with_child(icon)
-                                .with_child(Expanded::new(1., text_column.finish()).finish())
-                                .finish(),
-                        )
-                        .finish(),
-                    )
-                    .with_child(ChildView::new(refresh_button).finish())
-                    .finish(),
-            )
-            .with_uniform_padding(12.)
-            .with_background(appearance.theme().surface_2())
-            .with_border(Border::all(1.).with_border_fill(appearance.theme().outline()))
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(6.)))
-            .finish()
-        }
-
-        column.add_child(
-            Container::new(render_credential_status_card(
-                &self.refresh_credentials_button,
-                appearance,
-                are_credentials_enabled,
-                app,
-            ))
-            .with_margin_top(-styles::DESCRIPTION_MARGIN_BOTTOM)
-            .finish(),
-        );
-        column.add_child(render_input(
-            appearance,
-            "Login Command",
-            self.aws_auth_refresh_command_editor.clone(),
-            is_usage_enabled,
-            app,
-        ));
-        column.add_child(render_input(
-            appearance,
-            "AWS Profile",
-            self.aws_auth_refresh_profile_editor.clone(),
-            is_usage_enabled,
-            app,
-        ));
-
-        let auto_login_enabled = *AISettings::as_ref(app).aws_bedrock_auto_login.value();
-
-        let toggle = render_ai_setting_toggle(
-            "Automatically run login command",
-            WarpAgentPageAction::ToggleAwsBedrockAutoLogin,
-            auto_login_enabled,
-            is_usage_enabled,
-            self.auto_login_toggle.clone(),
-            app,
-        );
-        let description = render_ai_setting_description(
-            "When enabled, the login command will run automatically when AWS Bedrock credentials expire.",
-            is_usage_enabled,
-            app,
-        );
-        column.add_child(
-            Flex::column()
-                .with_child(toggle)
-                .with_child(description)
-                .finish(),
-        );
-
-        column.finish()
-    }
-}
-
-impl SettingsWidget for AwsBedrockWidget {
-    type View = WarpAgentPageView;
-
-    fn search_terms(&self) -> &str {
-        "aws bedrock amazon credentials login profile"
-    }
-
-    fn should_render(&self, app: &AppContext) -> bool {
-        // Only show if admin has enabled AWS Bedrock for the workspace
-        UserWorkspaces::as_ref(app).is_aws_bedrock_available_from_workspace()
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let ai_settings = AISettings::as_ref(app);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
-        let is_bedrock_available =
-            UserWorkspaces::as_ref(app).is_aws_bedrock_available_from_workspace();
-
-        let column = Flex::column()
-            .with_child(render_separator(appearance))
-            .with_child(
-                build_sub_header(
-                    appearance,
-                    "AWS Bedrock",
-                    Some(styles::header_font_color(is_any_ai_enabled, app)),
-                )
-                .with_padding_bottom(HEADER_PADDING)
-                .finish(),
-            )
-            .with_child(self.render_aws_bedrock_section(appearance, app, is_bedrock_available));
-
-        Container::new(column.finish())
-            .with_margin_bottom(HEADER_PADDING)
-            .finish()
-    }
-}
-
-struct GeminiEnterpriseWidget {
-    credentials_enabled_toggle: SwitchStateHandle,
-    refresh_credentials_button: ViewHandle<ActionButton>,
-}
-
-impl GeminiEnterpriseWidget {
-    fn is_refresh_enabled(app: &AppContext) -> bool {
-        AISettings::as_ref(app).is_any_ai_enabled(app)
-            && UserWorkspaces::as_ref(app).is_gemini_enterprise_credentials_enabled(app)
-            && !ApiKeyManager::as_ref(app)
-                .geap_credentials_state()
-                .requires_admin_action()
-    }
-
-    fn new(ctx: &mut ViewContext<<Self as SettingsWidget>::View>) -> Self {
-        let refresh_credentials_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Refresh", SecondaryTheme)
-                .with_icon(Icon::RefreshCw04)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        WarpAgentPageAction::RefreshGeminiEnterpriseCredentials,
-                    );
-                })
-        });
-        refresh_credentials_button.update(ctx, |button, ctx| {
-            button.set_disabled(!Self::is_refresh_enabled(ctx), ctx);
-        });
-
-        let refresh_credentials_button_clone = refresh_credentials_button.clone();
-        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), move |_, _, event, ctx| {
-            if matches!(event, UserWorkspacesEvent::TeamsChanged) {
-                refresh_credentials_button_clone.update(ctx, |button, ctx| {
-                    button.set_disabled(!Self::is_refresh_enabled(ctx), ctx);
-                });
-                ctx.notify();
-            }
-        });
-
-        let refresh_credentials_button_clone = refresh_credentials_button.clone();
-        ctx.subscribe_to_model(&AISettings::handle(ctx), move |_, _, event, ctx| {
-            if matches!(
-                event,
-                AISettingsChangedEvent::GeminiEnterpriseCredentialsEnabled { .. }
-                    | AISettingsChangedEvent::IsAnyAIEnabled { .. }
-            ) {
-                refresh_credentials_button_clone.update(ctx, |button, ctx| {
-                    button.set_disabled(!Self::is_refresh_enabled(ctx), ctx);
-                });
-                ctx.notify();
-            }
-        });
-
-        let refresh_credentials_button_clone = refresh_credentials_button.clone();
-        ctx.subscribe_to_model(&ApiKeyManager::handle(ctx), move |_, _, event, ctx| {
-            if matches!(event, ApiKeyManagerEvent::KeysUpdated) {
-                refresh_credentials_button_clone.update(ctx, |button, ctx| {
-                    button.set_disabled(!Self::is_refresh_enabled(ctx), ctx);
-                });
-            }
-        });
-
-        Self {
-            credentials_enabled_toggle: SwitchStateHandle::default(),
-            refresh_credentials_button,
-        }
-    }
-
-    fn render_gemini_enterprise_section(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-        is_gemini_enterprise_available: bool,
-    ) -> Box<dyn Element> {
-        let user_workspaces = UserWorkspaces::as_ref(app);
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
-        let is_section_enabled = is_any_ai_enabled && is_gemini_enterprise_available;
-        let is_admin_enforced = matches!(
-            user_workspaces.gemini_enterprise_host_enablement_setting(),
-            crate::workspaces::workspace::HostEnablementSetting::Enforce
-        );
-        let is_toggleable =
-            is_section_enabled && user_workspaces.is_gemini_enterprise_credentials_toggleable();
-        let are_credentials_enabled = user_workspaces.is_gemini_enterprise_credentials_enabled(app);
-        let toggle_description = if is_admin_enforced {
-            "Warp routes eligible requests through your workspace's Gemini Enterprise Google Cloud \
-             project. This setting is managed by your organization."
-                .to_string()
-        } else {
-            "Warp routes eligible requests through your workspace's Gemini Enterprise Google Cloud \
-             project."
-                .to_string()
-        };
-
-        let mut column = Flex::column().with_spacing(16.).with_child(
-            Flex::column()
-                .with_child(render_ai_setting_toggle(
-                    "Use Gemini Enterprise credentials",
-                    WarpAgentPageAction::ToggleGeminiEnterpriseCredentialsEnabled,
-                    are_credentials_enabled,
-                    is_toggleable,
-                    self.credentials_enabled_toggle.clone(),
-                    app,
-                ))
-                .with_child(render_ai_setting_description(
-                    toggle_description,
-                    is_section_enabled,
-                    app,
-                ))
-                .finish(),
-        );
-
-        column.add_child(
-            Container::new(self.render_credential_status_card(
-                appearance,
-                are_credentials_enabled,
-                app,
-            ))
-            .with_margin_top(-styles::DESCRIPTION_MARGIN_BOTTOM)
-            .finish(),
-        );
-
-        column.finish()
-    }
-
-    fn render_credential_status_card(
-        &self,
-        appearance: &Appearance,
-        are_credentials_enabled: bool,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let manager = ApiKeyManager::as_ref(app);
-        let (title_text, detail_text, icon) =
-            manager.geap_credentials_state().user_facing_components();
-
-        let (title_color, detail_color) = (
-            styles::header_font_color(are_credentials_enabled, app),
-            styles::description_font_color(are_credentials_enabled, app),
-        );
-
-        let icon = Container::new(
-            ConstrainedBox::new(icon.to_warpui_icon(title_color).finish())
-                .with_width(16.)
-                .with_height(16.)
-                .finish(),
-        )
-        .with_horizontal_padding(4.)
-        .finish();
-
-        let text_column = Flex::column()
-            .with_cross_axis_alignment(CrossAxisAlignment::Start)
-            .with_spacing(4.)
-            .with_child(
-                Text::new_inline(title_text, appearance.ui_font_family(), CONTENT_FONT_SIZE)
-                    .with_style(Properties::default().weight(Weight::Semibold))
-                    .with_color(title_color.into())
-                    .finish(),
-            )
-            .with_child(
-                Text::new(detail_text, appearance.ui_font_family(), CONTENT_FONT_SIZE)
-                    .with_color(detail_color.into())
-                    .soft_wrap(true)
-                    .finish(),
-            );
-
-        let row = Flex::row()
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_spacing(12.)
-            .with_child(
-                Expanded::new(
-                    1.,
-                    Flex::row()
-                        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                        .with_spacing(12.)
-                        .with_child(icon)
-                        .with_child(Expanded::new(1., text_column.finish()).finish())
-                        .finish(),
-                )
-                .finish(),
-            )
-            .with_child(ChildView::new(&self.refresh_credentials_button).finish());
-
-        Container::new(row.finish())
-            .with_uniform_padding(12.)
-            .with_background(appearance.theme().surface_2())
-            .with_border(Border::all(1.).with_border_fill(appearance.theme().outline()))
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(6.)))
-            .finish()
-    }
-}
-
-impl SettingsWidget for GeminiEnterpriseWidget {
-    type View = WarpAgentPageView;
-
-    fn search_terms(&self) -> &str {
-        "gemini enterprise geap google vertex credentials"
-    }
-
-    fn should_render(&self, app: &AppContext) -> bool {
-        FeatureFlag::GeminiEnterprise.is_enabled()
-            && UserWorkspaces::as_ref(app).is_gemini_enterprise_available_from_workspace()
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
-        let is_gemini_enterprise_available =
-            UserWorkspaces::as_ref(app).is_gemini_enterprise_available_from_workspace();
-        let column = Flex::column()
-            .with_child(render_separator(appearance))
-            .with_child(
-                build_sub_header(
-                    appearance,
-                    "Gemini Enterprise",
-                    Some(styles::header_font_color(is_any_ai_enabled, app)),
-                )
-                .with_padding_bottom(HEADER_PADDING)
-                .finish(),
-            )
-            .with_child(self.render_gemini_enterprise_section(
-                appearance,
-                app,
-                is_gemini_enterprise_available,
-            ));
-
-        Container::new(column.finish())
-            .with_margin_bottom(HEADER_PADDING)
-            .finish()
-    }
-}
-
 /// Stable `&'static str` id for the custom model routers settings widget,
 /// exposed for the `warp://settings?widget=custom_router` deeplink (see
 /// `settings_widget_deeplink_target`).
@@ -4540,7 +3621,7 @@ impl SettingsWidget for CustomModelRoutersWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
+        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
         let header_color = styles::header_font_color(is_any_ai_enabled, app);
 
         // Header row: "Custom Model Routers" + add button

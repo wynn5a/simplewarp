@@ -80,8 +80,7 @@ pub(super) fn subscribe_to_shared_dependencies<T>(
     ctx.subscribe_to_model(&AISettings::handle(ctx), move |me, _, event, ctx| {
         if matches!(
             event,
-            AISettingsChangedEvent::IsAnyAIEnabled { .. }
-                | AISettingsChangedEvent::AIAutoDetectionEnabled { .. }
+            AISettingsChangedEvent::IsAnyAIEnabled | AISettingsChangedEvent::AIAutoDetectionEnabled
         ) {
             recompute_active_commands(me, ctx);
         }
@@ -293,7 +292,7 @@ pub trait SlashCommandDataSource {
             availability |= Availability::CODEBASE_CONTEXT;
         }
 
-        if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+        if AISettings::as_ref(ctx).is_any_ai_enabled() {
             availability |= Availability::AI_ENABLED;
         }
 
@@ -353,7 +352,7 @@ pub trait SlashCommandDataSource {
     fn common_command_gates(&self, ctx: &AppContext) -> CommonCommandGates {
         let ai_settings = AISettings::as_ref(ctx);
         CommonCommandGates {
-            is_orchestration_enabled: ai_settings.is_orchestration_enabled(ctx),
+            is_orchestration_enabled: ai_settings.is_orchestration_enabled(),
         }
     }
 
@@ -406,8 +405,7 @@ pub trait SlashCommandDataSource {
     /// vector when skills are globally unavailable. The caller decides whether skills apply for its
     /// surface (e.g. GUI hides them in cloud mode).
     fn match_skills(&self, query_text: &str, app: &AppContext) -> Vec<InlineItem> {
-        if !FeatureFlag::ListSkills.is_enabled() || !AISettings::as_ref(app).is_any_ai_enabled(app)
-        {
+        if !FeatureFlag::ListSkills.is_enabled() || !AISettings::as_ref(app).is_any_ai_enabled() {
             return Vec::new();
         }
 

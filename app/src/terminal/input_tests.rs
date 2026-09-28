@@ -7010,7 +7010,7 @@ fn run_input_mode_prefix_test(udi_enabled: bool, input_type: InputType) {
                 .ai_autodetection_enabled_internal
                 .set_value(true, ctx);
             // Make sure the autodetection is actually enabled, in practice.
-            assert!(ai_settings.is_ai_autodetection_enabled(ctx));
+            assert!(ai_settings.is_ai_autodetection_enabled());
         });
         // Set the input box type based on the test configuration.
         InputSettings::handle(&app).update(&mut app, |input_settings, ctx| {
@@ -7618,7 +7618,7 @@ fn test_agent_view_terminal_only_initial_input_config_unlocked_when_autodetectio
             let _ = ai_settings
                 .nld_in_terminal_enabled_internal
                 .set_value(true, ctx);
-            assert!(ai_settings.is_nld_in_terminal_enabled(ctx));
+            assert!(ai_settings.is_nld_in_terminal_enabled());
         });
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -7652,7 +7652,7 @@ fn test_terminal_only_ai_enter_enters_agent_view_and_clears_buffer() {
             let _ = ai_settings
                 .ai_autodetection_enabled_internal
                 .set_value(true, ctx);
-            assert!(ai_settings.is_ai_autodetection_enabled(ctx));
+            assert!(ai_settings.is_ai_autodetection_enabled());
         });
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -7711,7 +7711,7 @@ fn test_terminal_only_escape_locks_shell_mode() {
             let _ = ai_settings
                 .ai_autodetection_enabled_internal
                 .set_value(true, ctx);
-            assert!(ai_settings.is_ai_autodetection_enabled(ctx));
+            assert!(ai_settings.is_ai_autodetection_enabled());
         });
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;

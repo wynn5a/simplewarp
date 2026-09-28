@@ -46,7 +46,7 @@ impl FileBasedMCPManager {
             });
 
             ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
-                if matches!(event, AISettingsChangedEvent::FileBasedMcpEnabled { .. }) {
+                if matches!(event, AISettingsChangedEvent::FileBasedMcpEnabled) {
                     me.handle_file_based_mcp_enabled_change(ctx);
                 }
             });
@@ -366,7 +366,7 @@ impl FileBasedMCPManager {
         if servers_to_consider.is_empty() {
             return Vec::new();
         }
-        let mcp_enabled = AISettings::as_ref(ctx).is_file_based_mcp_enabled(ctx);
+        let mcp_enabled = AISettings::as_ref(ctx).is_file_based_mcp_enabled();
 
         // Partition servers into three buckets based on scope:
         // - Global Warp: always auto-spawn.
@@ -407,7 +407,7 @@ impl FileBasedMCPManager {
         repo_path: &PathBuf,
         ctx: &mut ModelContext<Self>,
     ) {
-        let mcp_enabled = AISettings::as_ref(ctx).is_file_based_mcp_enabled(ctx);
+        let mcp_enabled = AISettings::as_ref(ctx).is_file_based_mcp_enabled();
         // FileMCPWatcher emits CloudEnvMcpScanComplete only after emitting ConfigParsed
         // for every provider config in this repo scan. Each ConfigParsed call records
         // the UUIDs actually emitted through SpawnServers in
@@ -473,7 +473,7 @@ impl FileBasedMCPManager {
             })
             .map(|(_, server)| server.clone())
             .collect();
-        if !AISettings::as_ref(ctx).is_file_based_mcp_enabled(ctx) {
+        if !AISettings::as_ref(ctx).is_file_based_mcp_enabled() {
             // Toggle off: despawn global third-party servers only.
             ctx.emit(FileBasedMCPManagerEvent::DespawnServers {
                 installation_uuids: global_third_party_servers

@@ -191,26 +191,12 @@ fn auto_models_show_the_agent_glyph_instead_of_a_host_logo() {
     // destination the classifier may never pick, so auto models stay generic.
     let llm = server_llm("auto-open", None);
 
-    for flags in [
-        ModelIconFlags {
-            is_auto: true,
-            is_using_bedrock: true,
-            ..Default::default()
-        },
-        ModelIconFlags {
-            is_auto: true,
-            is_using_gemini_enterprise: true,
-            ..Default::default()
-        },
-        ModelIconFlags {
-            is_auto: true,
-            is_using_bedrock: true,
-            is_using_gemini_enterprise: true,
-            ..Default::default()
-        },
-    ] {
-        assert_eq!(model_leading_icon(&llm, flags), Icon::Agent);
-    }
+    let flags = ModelIconFlags {
+        is_auto: true,
+        is_using_bedrock: true,
+        ..Default::default()
+    };
+    assert_eq!(model_leading_icon(&llm, flags), Icon::Agent);
 }
 
 #[test]
@@ -222,29 +208,6 @@ fn non_auto_models_keep_their_host_logo() {
             &llm,
             ModelIconFlags {
                 is_using_bedrock: true,
-                ..Default::default()
-            }
-        ),
-        Icon::Aws
-    );
-    assert_eq!(
-        model_leading_icon(
-            &llm,
-            ModelIconFlags {
-                is_using_gemini_enterprise: true,
-                ..Default::default()
-            }
-        ),
-        Icon::GeminiEnterpriseAgentPlatform
-    );
-    // Bedrock wins when both hosts are available, matching the server's
-    // AWS_BEDROCK -> GEMINI_ENTERPRISE fallback priority.
-    assert_eq!(
-        model_leading_icon(
-            &llm,
-            ModelIconFlags {
-                is_using_bedrock: true,
-                is_using_gemini_enterprise: true,
                 ..Default::default()
             }
         ),
@@ -913,12 +876,8 @@ fn updating_active_profile_base_model_persists_and_updates_resolution() {
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
-        // This test exercises the settings-authoritative profile path. A
-        // file-backed launch that finds no existing collection starts in
-        // `PendingLegacyImport`, where writes are not yet authoritative, so
-        // seed an explicit collection first.
-        let _file_backed_profiles =
-            warp_core::features::FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
+        // This test exercises the settings-authoritative profile path. A launch that finds no
+        // existing collection starts pending, so seed an explicit collection first.
         app.update(|ctx| {
             let mut seeded = ExecutionProfilesConfig::default();
             seeded.insert(

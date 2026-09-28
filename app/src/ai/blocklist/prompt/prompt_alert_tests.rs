@@ -49,7 +49,7 @@ fn no_alert_even_with_a_workspace_that_would_once_have_gated_ai() {
         // Before the quota went, a workspace carrying no credit allowance and no
         // overage policy produced `RequestLimitReached`. It must not now.
         let uid = WorkspaceUid::from(crate::server::ids::ServerId::from(1_i64));
-        let workspace = Workspace::from_local_cache(uid, "Test Workspace".to_string(), None);
+        let workspace = Workspace::from_local_cache(uid, None);
         initialize_app_with_workspaces(&mut app, vec![workspace]);
 
         assert_eq!(determine_state(&mut app), PromptAlertState::NoAlert);

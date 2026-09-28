@@ -39,28 +39,9 @@ use crate::view_components::dropdown::DropdownAction;
 use crate::view_components::{
     Dropdown, DropdownItem, FilterableDropdown, SubmittableTextInput, SubmittableTextInputEvent,
 };
-use crate::workspaces::user_workspaces::UserWorkspacesEvent;
-use crate::{Appearance, TemplatableMCPServerManager, UserWorkspaces};
+use crate::{Appearance, TemplatableMCPServerManager};
 
 const MODEL_MENU_WIDTH: f32 = 250.;
-
-#[derive(Default)]
-struct TooltipMouseStateHandles {
-    // Separate mouse state handles for each permission dropdown (for workspace override tooltips)
-    apply_code_diffs_tooltip_mouse_state: MouseStateHandle,
-    read_files_tooltip_mouse_state: MouseStateHandle,
-    execute_commands_tooltip_mouse_state: MouseStateHandle,
-    write_to_pty_tooltip_mouse_state: MouseStateHandle,
-    computer_use_tooltip_mouse_state: MouseStateHandle,
-    ask_user_question_tooltip_mouse_state: MouseStateHandle,
-    run_agents_tooltip_mouse_state: MouseStateHandle,
-    call_mcp_servers_tooltip_mouse_state: MouseStateHandle,
-    // Separate mouse state handles for text input editors (for workspace override tooltips)
-    command_allowlist_editor_tooltip_mouse_state: MouseStateHandle,
-    directory_allowlist_editor_tooltip_mouse_state: MouseStateHandle,
-    mcp_allowlist_editor_tooltip_mouse_state: MouseStateHandle,
-    mcp_denylist_editor_tooltip_mouse_state: MouseStateHandle,
-}
 
 pub mod manager;
 pub use manager::*;
@@ -189,7 +170,6 @@ pub struct ExecutionProfileEditorView {
     directory_allowlist_editor: ViewHandle<SubmittableTextInput>,
     command_allowlist_mouse_state_handles: Vec<MouseStateHandle>,
     command_denylist_mouse_state_handles: Vec<MouseStateHandle>,
-    command_denylist_tooltip_mouse_state_handles: Vec<MouseStateHandle>,
     directory_allowlist_mouse_state_handles: Vec<MouseStateHandle>,
     mcp_allowlist_dropdown: ViewHandle<FilterableDropdown<ExecutionProfileEditorViewAction>>,
     mcp_allowlist_mouse_state_handles: Vec<MouseStateHandle>,
@@ -197,7 +177,6 @@ pub struct ExecutionProfileEditorView {
     mcp_denylist_mouse_state_handles: Vec<MouseStateHandle>,
     profile_name_editor: ViewHandle<EditorView>,
     delete_button: ViewHandle<ActionButton>,
-    tooltip_mouse_state_handles: TooltipMouseStateHandles,
     plan_auto_sync_switch: SwitchStateHandle,
     web_search_switch: SwitchStateHandle,
 }
@@ -594,11 +573,6 @@ impl ExecutionProfileEditorView {
             directory_allowlist_editor,
             command_allowlist_mouse_state_handles,
             command_denylist_mouse_state_handles,
-            command_denylist_tooltip_mouse_state_handles: profile_data
-                .command_denylist
-                .iter()
-                .map(|_| Default::default())
-                .collect(),
             directory_allowlist_mouse_state_handles,
             mcp_allowlist_dropdown,
             mcp_allowlist_mouse_state_handles,
@@ -606,7 +580,6 @@ impl ExecutionProfileEditorView {
             mcp_denylist_mouse_state_handles,
             profile_name_editor,
             delete_button,
-            tooltip_mouse_state_handles: Default::default(),
             plan_auto_sync_switch: Default::default(),
             web_search_switch: Default::default(),
         };
@@ -764,24 +737,15 @@ impl ExecutionProfileEditorView {
             },
         );
 
-        let workspace = UserWorkspaces::handle(ctx);
-        ctx.subscribe_to_model(&workspace, |me, workspace, event, ctx| {
-            if let UserWorkspacesEvent::TeamsChanged = event {
-                Self::update_all_editor_interaction_states(me, workspace, ctx);
-                me.update_mouse_state_handles(ctx);
-                ctx.notify();
-            }
-        });
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
-            if let AISettingsChangedEvent::IsAnyAIEnabled { .. } = event {
-                let workspace = UserWorkspaces::handle(ctx);
-                Self::update_all_editor_interaction_states(me, workspace, ctx);
+            if let AISettingsChangedEvent::IsAnyAIEnabled = event {
+                Self::update_all_editor_interaction_states(me, ctx);
                 me.sync_context_window_editor(ctx, true);
                 ctx.notify();
             }
         });
 
-        Self::update_all_editor_interaction_states(&view, workspace, ctx);
+        Self::update_all_editor_interaction_states(&view, ctx);
 
         view.refresh_profile_state(ctx);
 
@@ -811,12 +775,6 @@ impl ExecutionProfileEditorView {
             .map(|_| Default::default())
             .collect();
 
-        self.command_denylist_tooltip_mouse_state_handles = current_permissions
-            .command_denylist
-            .iter()
-            .map(|_| Default::default())
-            .collect();
-
         self.directory_allowlist_mouse_state_handles = current_permissions
             .directory_allowlist
             .iter()
@@ -841,15 +799,14 @@ impl ExecutionProfileEditorView {
         let current_permissions = permissions.permissions_profile_for_id(ctx, &self.profile_id);
         let ai_settings = AISettings::as_ref(ctx);
 
-        let apply_code_diffs_disabled = !ai_settings.is_code_diffs_permissions_editable(ctx);
-        let read_files_disabled = !ai_settings.is_read_files_permissions_editable(ctx);
-        let execute_commands_disabled = !ai_settings.is_execute_commands_permissions_editable(ctx);
-        let write_to_pty_disabled = !ai_settings.is_write_to_pty_permissions_editable(ctx);
-        let computer_use_disabled = !ai_settings.is_computer_use_permissions_editable(ctx);
-        let ask_user_question_disabled =
-            !ai_settings.is_ask_user_question_permissions_editable(ctx);
-        let run_agents_disabled = !ai_settings.is_run_agents_permissions_editable(ctx);
-        let mcp_disabled = !ai_settings.is_mcp_permission_editable(ctx);
+        let apply_code_diffs_disabled = !ai_settings.is_code_diffs_permissions_editable();
+        let read_files_disabled = !ai_settings.is_read_files_permissions_editable();
+        let execute_commands_disabled = !ai_settings.is_execute_commands_permissions_editable();
+        let write_to_pty_disabled = !ai_settings.is_write_to_pty_permissions_editable();
+        let computer_use_disabled = !ai_settings.is_computer_use_permissions_editable();
+        let ask_user_question_disabled = !ai_settings.is_ask_user_question_permissions_editable();
+        let run_agents_disabled = !ai_settings.is_run_agents_permissions_editable();
+        let mcp_disabled = !ai_settings.is_mcp_permission_editable();
 
         Self::refresh_filterable_model_dropdown(
             &self.base_model_dropdown,
@@ -1087,7 +1044,7 @@ impl ExecutionProfileEditorView {
         D: FnOnce(&LLMPreferences, &AppContext) -> LLMId,
     {
         menu.update(ctx, |dropdown, ctx| {
-            let disabled_by_ai_toggle = !AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+            let disabled_by_ai_toggle = !AISettings::as_ref(ctx).is_any_ai_enabled();
 
             if disabled_by_ai_toggle {
                 dropdown.set_disabled(ctx);
@@ -1125,7 +1082,7 @@ impl ExecutionProfileEditorView {
         ctx: &mut ViewContext<Self>,
     ) {
         menu.update(ctx, |dropdown, ctx| {
-            let disabled_by_ai_toggle = !AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+            let disabled_by_ai_toggle = !AISettings::as_ref(ctx).is_any_ai_enabled();
 
             if disabled_by_ai_toggle {
                 dropdown.set_disabled(ctx);
@@ -1254,13 +1211,8 @@ impl ExecutionProfileEditorView {
         });
     }
 
-    fn update_all_editor_interaction_states(
-        view: &Self,
-        workspace: ModelHandle<UserWorkspaces>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
-        let ai_autonomy_settings = workspace.as_ref(ctx).ai_autonomy_settings();
+    fn update_all_editor_interaction_states(view: &Self, ctx: &mut ViewContext<Self>) {
+        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
 
         Self::update_editor_interaction_state(
             view.command_denylist_editor.as_ref(ctx).editor().clone(),
@@ -1270,14 +1222,13 @@ impl ExecutionProfileEditorView {
 
         Self::update_editor_interaction_state(
             view.command_allowlist_editor.as_ref(ctx).editor().clone(),
-            is_any_ai_enabled
-                && !ai_autonomy_settings.has_override_for_execute_commands_allowlist(),
+            is_any_ai_enabled,
             ctx,
         );
 
         Self::update_editor_interaction_state(
             view.directory_allowlist_editor.as_ref(ctx).editor().clone(),
-            is_any_ai_enabled && !ai_autonomy_settings.has_override_for_read_files_allowlist(),
+            is_any_ai_enabled,
             ctx,
         );
     }
@@ -1315,7 +1266,7 @@ impl ExecutionProfileEditorView {
     ) {
         match event {
             EditorEvent::Blurred | EditorEvent::Enter => {
-                if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+                if !AISettings::as_ref(ctx).is_any_ai_enabled() {
                     self.sync_context_window_editor(ctx, true);
                     return;
                 }
@@ -1476,7 +1427,7 @@ impl TypedActionView for ExecutionProfileEditorView {
                 ctx.notify();
             }
             ExecutionProfileEditorViewAction::ContextWindowSliderDragged { value } => {
-                if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+                if !AISettings::as_ref(ctx).is_any_ai_enabled() {
                     self.sync_context_window_editor(ctx, true);
                     return;
                 }
@@ -1494,7 +1445,7 @@ impl TypedActionView for ExecutionProfileEditorView {
             }
             ExecutionProfileEditorViewAction::SetContextWindowSize { value } => {
                 self.dragged_context_window_value = None;
-                if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+                if !AISettings::as_ref(ctx).is_any_ai_enabled() {
                     self.sync_context_window_editor(ctx, true);
                     return;
                 }

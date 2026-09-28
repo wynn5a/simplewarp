@@ -258,11 +258,11 @@ impl QueuedQueryModel {
         let default_mode = AISettings::as_ref(ctx).default_prompt_submission_mode;
         let ai_settings_handle = AISettings::handle(ctx);
         ctx.subscribe_to_model(&ai_settings_handle, |this, _, event, ctx| match event {
-            AISettingsChangedEvent::PromptSubmissionMode { .. } => {
+            AISettingsChangedEvent::PromptSubmissionMode => {
                 this.default_mode = AISettings::as_ref(ctx).default_prompt_submission_mode;
                 ctx.emit(QueuedQueryEvent::DefaultModeChanged);
             }
-            AISettingsChangedEvent::LongRunningCommandSubmissionMode { .. } => {
+            AISettingsChangedEvent::LongRunningCommandSubmissionMode => {
                 ctx.emit(QueuedQueryEvent::DefaultModeChanged);
             }
             _ => {}

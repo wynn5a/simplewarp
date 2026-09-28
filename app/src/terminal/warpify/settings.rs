@@ -2,7 +2,7 @@ use anyhow::Result;
 use lazy_static::lazy_static;
 use regex::Regex;
 use settings::macros::{maybe_define_setting, register_settings_events};
-use settings::{ChangeEventReason, Setting, SupportedPlatforms};
+use settings::{Setting, SupportedPlatforms};
 use warp_errors::report_error;
 use warp_util::path::ShellFamily;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
@@ -252,22 +252,22 @@ impl WarpifySettings {
         let handle = ctx.add_singleton_model(Self::new_from_storage);
         ctx.subscribe_to_model(&handle, |settings, event, ctx| {
             settings.update(ctx, |me, _| match event {
-                WarpifySettingsChangedEvent::AddedSubshellCommands { .. } => {
+                WarpifySettingsChangedEvent::AddedSubshellCommands => {
                     me.parsed_added_subshell_commands =
                         Self::parse_added_subshell_commands(&me.added_subshell_commands)
                 }
-                WarpifySettingsChangedEvent::SubshellCommandsDenylist { .. } => {
+                WarpifySettingsChangedEvent::SubshellCommandsDenylist => {
                     me.parsed_subshell_command_denylist =
                         Self::parse_subshell_command_denylist(&me.subshell_command_denylist)
                 }
-                WarpifySettingsChangedEvent::SshHostsDenylist { .. } => {
+                WarpifySettingsChangedEvent::SshHostsDenylist => {
                     me.parsed_ssh_hosts_denylist =
                         Self::parse_ssh_hosts_denylist(&me.ssh_hosts_denylist)
                 }
-                WarpifySettingsChangedEvent::EnableSshWarpification { .. } => {}
-                WarpifySettingsChangedEvent::EnableSshWrapper { .. } => {}
-                WarpifySettingsChangedEvent::UseSshTmuxWrapper { .. } => {}
-                WarpifySettingsChangedEvent::SshTmuxDeprecationNoticePending { .. } => {}
+                WarpifySettingsChangedEvent::EnableSshWarpification => {}
+                WarpifySettingsChangedEvent::EnableSshWrapper => {}
+                WarpifySettingsChangedEvent::UseSshTmuxWrapper => {}
+                WarpifySettingsChangedEvent::SshTmuxDeprecationNoticePending => {}
             });
         });
 
@@ -369,27 +369,13 @@ impl WarpifySettings {
 /// define_settings_group!(WarpifySettings). Since we didn't use that macro we define it manually
 /// here. It's the event emitted by the setter methods when a setting value changes.
 pub enum WarpifySettingsChangedEvent {
-    AddedSubshellCommands {
-        change_event_reason: ChangeEventReason,
-    },
-    SubshellCommandsDenylist {
-        change_event_reason: ChangeEventReason,
-    },
-    SshHostsDenylist {
-        change_event_reason: ChangeEventReason,
-    },
-    EnableSshWarpification {
-        change_event_reason: ChangeEventReason,
-    },
-    EnableSshWrapper {
-        change_event_reason: ChangeEventReason,
-    },
-    UseSshTmuxWrapper {
-        change_event_reason: ChangeEventReason,
-    },
-    SshTmuxDeprecationNoticePending {
-        change_event_reason: ChangeEventReason,
-    },
+    AddedSubshellCommands,
+    SubshellCommandsDenylist,
+    SshHostsDenylist,
+    EnableSshWarpification,
+    EnableSshWrapper,
+    UseSshTmuxWrapper,
+    SshTmuxDeprecationNoticePending,
 }
 
 impl Entity for WarpifySettings {

@@ -16,7 +16,7 @@ impl CustomSecretRegexUpdater {
 
         let privacy_settings = PrivacySettings::handle(ctx);
         ctx.subscribe_to_model(&privacy_settings, |me, _, evt, ctx| {
-            if let PrivacySettingsChangedEvent::CustomSecretRegexList { .. } = evt {
+            if let PrivacySettingsChangedEvent::CustomSecretRegexList = evt {
                 me.update_custom_secret_regex_list(ctx);
             }
         });
@@ -26,18 +26,12 @@ impl CustomSecretRegexUpdater {
     fn update_custom_secret_regex_list(&self, ctx: &mut ModelContext<Self>) {
         let privacy_settings = PrivacySettings::as_ref(ctx);
 
-        // Get enterprise and user secrets separately
-        let enterprise_secrets = privacy_settings
-            .enterprise_secret_regex_list
-            .iter()
-            .map(CustomSecretRegex::pattern);
-
         let user_secrets = privacy_settings
             .user_secret_regex_list
             .iter()
             .map(CustomSecretRegex::pattern);
 
-        set_user_and_enterprise_secret_regexes(user_secrets, enterprise_secrets);
+        set_user_and_enterprise_secret_regexes(user_secrets, std::iter::empty());
     }
 }
 

@@ -58,7 +58,6 @@ fn write_settings_file(contents: &str) {
 
 fn enable_file_backed_profiles() {
     FeatureFlag::SettingsFile.set_enabled(true);
-    FeatureFlag::FileBackedExecutionProfiles.set_enabled(true);
 }
 
 pub fn test_execution_profiles_load_from_settings_file() -> Builder {

@@ -90,7 +90,7 @@ impl CLIAgentsPageView {
             // Adding or removing a command changes the length of the command
             // list, so both the per-row mouse states and the per-row agent
             // dropdowns have to be rebuilt to stay index-aligned with it.
-            if let AISettingsChangedEvent::CLIAgentToolbarEnabledCommands { .. } = event {
+            if let AISettingsChangedEvent::CLIAgentToolbarEnabledCommands = event {
                 me.cli_agent_footer_command_mouse_state_handles = AISettings::as_ref(ctx)
                     .cli_agent_footer_enabled_commands
                     .value()

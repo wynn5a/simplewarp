@@ -160,7 +160,7 @@ impl AgentInputFooter {
         let button_size = ButtonSize::AgentInputButton;
 
         let nld_button = ctx.add_typed_action_view(|ctx| {
-            let is_nld_enabled = AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx);
+            let is_nld_enabled = AISettings::as_ref(ctx).is_ai_autodetection_enabled();
             let mut button = ActionButton::new("", NLDButtonTheme)
                 .with_icon(Icon::NLD)
                 .with_size(button_size)
@@ -180,10 +180,10 @@ impl AgentInputFooter {
             button
         });
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, settings, event, ctx| {
-            let AISettingsChangedEvent::AIAutoDetectionEnabled { .. } = event else {
+            let AISettingsChangedEvent::AIAutoDetectionEnabled = event else {
                 return;
             };
-            let is_nld_enabled = settings.as_ref(ctx).is_ai_autodetection_enabled(ctx);
+            let is_nld_enabled = settings.as_ref(ctx).is_ai_autodetection_enabled();
             me.nld_button.update(ctx, |button, ctx| {
                 button.set_active(is_nld_enabled, ctx);
                 button.set_tooltip(
@@ -221,7 +221,7 @@ impl AgentInputFooter {
             });
 
             ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
-                if let AISettingsChangedEvent::VoiceInputToggleKey { .. } = event {
+                if let AISettingsChangedEvent::VoiceInputToggleKey = event {
                     let tooltip = AISettings::as_ref(ctx)
                         .voice_input_toggle_key
                         .value()
@@ -339,14 +339,14 @@ impl AgentInputFooter {
             ctx.notify()
         });
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
-            if matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled { .. }) {
+            if matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled) {
                 ctx.notify()
             }
         });
         // The File explorer item's availability follows this setting, so the footer has to
         // repaint when it is toggled rather than waiting for an unrelated re-render.
         ctx.subscribe_to_model(&CodeSettings::handle(ctx), |_, _, event, ctx| {
-            if matches!(event, CodeSettingsChangedEvent::ShowProjectExplorer { .. }) {
+            if matches!(event, CodeSettingsChangedEvent::ShowProjectExplorer) {
                 ctx.notify()
             }
         });
@@ -362,12 +362,12 @@ impl AgentInputFooter {
         ctx.subscribe_to_model(
             &SessionSettings::handle(ctx),
             move |me, _, event, ctx| match event {
-                SessionSettingsChangedEvent::ShowModelSelectorsInPrompt { .. } => {
+                SessionSettingsChangedEvent::ShowModelSelectorsInPrompt => {
                     ctx.notify();
                 }
-                SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting { .. }
-                | SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting { .. }
-                | SessionSettingsChangedEvent::GithubPrChipDefaultValidation { .. } => {
+                SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting
+                | SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting
+                | SessionSettingsChangedEvent::GithubPrChipDefaultValidation => {
                     me.update_display_chips(&prompt_for_session_settings, ctx);
                     ctx.notify();
                 }
@@ -558,7 +558,7 @@ impl AgentInputFooter {
             AgentToolbarItemKind::VoiceInput => {
                 #[cfg(feature = "voice_input")]
                 {
-                    let enabled = AISettings::as_ref(app).is_voice_input_enabled(app);
+                    let enabled = AISettings::as_ref(app).is_voice_input_enabled();
                     enabled.then(|| ChildView::new(&self.mic_button).finish())
                 }
                 #[cfg(not(feature = "voice_input"))]
@@ -755,7 +755,7 @@ impl AgentInputFooter {
             return;
         }
 
-        if !AISettings::as_ref(ctx).is_voice_input_enabled(ctx) {
+        if !AISettings::as_ref(ctx).is_voice_input_enabled() {
             return;
         }
 
@@ -1031,8 +1031,7 @@ impl AgentInputFooter {
             AgentToolbarItemKind::VoiceInput => {
                 #[cfg(feature = "voice_input")]
                 {
-                    let enabled =
-                        crate::settings::AISettings::as_ref(app).is_voice_input_enabled(app);
+                    let enabled = crate::settings::AISettings::as_ref(app).is_voice_input_enabled();
                     enabled.then(|| ChildView::new(&self.mic_button).finish())
                 }
                 #[cfg(not(feature = "voice_input"))]

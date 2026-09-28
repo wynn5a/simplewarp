@@ -376,7 +376,7 @@ impl UniversalDeveloperInputButtonBar {
 
         // Create segmented control options based on auto-detection setting
         let ai_settings = AISettings::as_ref(ctx);
-        let is_autodetection_enabled = ai_settings.is_ai_autodetection_enabled(ctx);
+        let is_autodetection_enabled = ai_settings.is_ai_autodetection_enabled();
 
         let mut options = vec![InputToggleMode::Terminal, InputToggleMode::AgentMode];
 
@@ -442,9 +442,8 @@ impl UniversalDeveloperInputButtonBar {
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, ai_settings, event, ctx| {
             // Re-render when AI settings change (like voice input enabled/disabled)
             // Also update segmented control options when auto-detection setting changes
-            if let AISettingsChangedEvent::AIAutoDetectionEnabled { .. } = event {
-                let is_autodection_enabled =
-                    ai_settings.as_ref(ctx).is_ai_autodetection_enabled(ctx);
+            if let AISettingsChangedEvent::AIAutoDetectionEnabled = event {
+                let is_autodection_enabled = ai_settings.as_ref(ctx).is_ai_autodetection_enabled();
                 me.segmented_control.update(ctx, |segmented_control, ctx| {
                     if is_autodection_enabled {
                         segmented_control.update_options(
@@ -479,7 +478,7 @@ impl UniversalDeveloperInputButtonBar {
         });
 
         ctx.subscribe_to_model(&SessionSettings::handle(ctx), |_, _, event, ctx| {
-            if let SessionSettingsChangedEvent::ShowModelSelectorsInPrompt { .. } = event {
+            if let SessionSettingsChangedEvent::ShowModelSelectorsInPrompt = event {
                 ctx.notify();
             }
         });
@@ -724,7 +723,7 @@ impl View for UniversalDeveloperInputButtonBar {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
         #[cfg(feature = "voice_input")]
-        let is_voice_input_enabled = AISettings::as_ref(app).is_voice_input_enabled(app);
+        let is_voice_input_enabled = AISettings::as_ref(app).is_voice_input_enabled();
 
         // Helper function to create a 1px vertical divider
         let create_divider = || {

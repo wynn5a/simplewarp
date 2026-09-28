@@ -43,8 +43,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::RichTextMultiselect,
         #[cfg(feature = "settings_file")]
         FeatureFlag::SettingsFile,
-        #[cfg(feature = "file_backed_execution_profiles")]
-        FeatureFlag::FileBackedExecutionProfiles,
         #[cfg(feature = "rect_selection")]
         FeatureFlag::RectSelection,
         #[cfg(feature = "alacritty_settings_import")]
@@ -331,8 +329,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::TrimTrailingBlankLines,
         #[cfg(feature = "custom_model_routers")]
         FeatureFlag::CustomModelRouters,
-        #[cfg(feature = "gemini_enterprise")]
-        FeatureFlag::GeminiEnterprise,
         #[cfg(feature = "nld_prompt_history_match")]
         FeatureFlag::NldPromptHistoryMatch,
         #[cfg(feature = "prompt_cache_expiry_warning")]

@@ -1166,6 +1166,11 @@ fn updated_conversation_metadata_refreshes_selected_conversation_pane_title() {
     })
 }
 
+fn active_block_is_remote(view: &TerminalView, ctx: &AppContext) -> bool {
+    let session_id = view.model.lock().block_list().active_block().session_id();
+    view.is_block_considered_remote(session_id, ctx)
+}
+
 /// Test to verify that blocks created through normal execution
 /// have the correct local status set
 #[test]
@@ -1191,22 +1196,8 @@ fn test_create_new_block_with_local_status() {
         });
 
         assert_eventually!(
-            terminal.read(&app, |view, ctx| !view
-                .active_block_is_considered_remote(ctx)),
+            terminal.read(&app, |view, ctx| !active_block_is_remote(view, ctx)),
             "Block should be local"
-        );
-
-        // No remote blocks should exist
-        assert_eventually!(
-            terminal.read(&app, |view, _ctx| !view.contains_restored_remote_blocks()),
-            "No remote blocks should exist"
-        );
-
-        // Update the view's flags
-        // view.update_focused_terminal_info(ctx);
-        assert_eventually!(
-            terminal.read(&app, |view, _ctx| !view.any_session_contains_remote_blocks),
-            "No remote blocks should exist"
         );
 
         // Now test with a remote session
@@ -1232,15 +1223,8 @@ fn test_create_new_block_with_local_status() {
 
         // Verify block is non-local (remote)
         assert_eventually!(
-            terminal.read(&app, |view, ctx| view
-                .active_block_is_considered_remote(ctx)),
+            terminal.read(&app, active_block_is_remote),
             "Block should be non-local (remote)"
-        );
-
-        // Remote blocks should be detected
-        assert_eventually!(
-            terminal.read(&app, |view, _ctx| view.any_session_contains_remote_blocks),
-            "Remote blocks should be detected"
         );
     })
 }
@@ -2110,79 +2094,6 @@ fn cmd_enter_from_active_non_empty_agent_view_requires_confirmation() {
             );
         });
     });
-}
-
-/// Test clearing of session flag state when terminal is cleared
-#[test]
-fn test_clear_session_flag_state() {
-    use warp_terminal::shell::ShellType;
-
-    use crate::ai::blocklist::SerializedBlockListItem;
-    use crate::terminal::ShellHost;
-    use crate::terminal::model::block::SerializedBlock;
-
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-
-        // Create a remote restored block
-        let mut remote_block =
-            SerializedBlock::new_for_test("echo remote".into(), "remote output".into());
-        remote_block.is_local = Some(false); // Mark it as a remote block
-        remote_block.shell_host = Some(ShellHost {
-            shell_type: ShellType::Bash,
-            user: "user".to_string(),
-            hostname: "remote".to_string(), // Remote hostname indicates a remote session
-        });
-
-        // Convert to SerializedBlockListItem
-        let restored_blocks = [SerializedBlockListItem::Command {
-            block: Box::new(remote_block),
-        }];
-
-        // Create terminal with the restored remote block
-        let terminal = add_window_with_terminal(&mut app, Some(&restored_blocks));
-
-        terminal.update(&mut app, |view, ctx| {
-            // Verify initial state - block was created as remote and restored
-            assert!(
-                !view.any_session_contains_remote_blocks,
-                "Terminal should not have remote blocks"
-            );
-            assert!(
-                view.any_session_contains_restored_remote_blocks,
-                "Terminal should have restored remote blocks"
-            );
-
-            {
-                // Verify the block was properly created with correct properties
-                let model = view.model.lock();
-                let blocks = model.block_list().blocks();
-
-                // The first block should be our restored remote block
-                assert!(!blocks.is_empty(), "At least one block should exist");
-                if let Some(first_block) = blocks.first() {
-                    assert_eq!(
-                        first_block.restored_block_was_local(),
-                        Some(false),
-                        "First block should be marked as a remote restored block"
-                    );
-                }
-            }
-
-            // Now clear the terminal
-            view.clear_buffer_for_testing(ctx);
-
-            // Flags should be reset
-            assert!(
-                !view.any_session_contains_remote_blocks,
-                "Terminal should not have remote blocks after clearing"
-            );
-            assert!(
-                !view.any_session_contains_restored_remote_blocks,
-                "Terminal should not have restored remote blocks after clearing"
-            );
-        });
-    })
 }
 
 fn assert_block_has_find_match(find_model: &TerminalFindModel, block_index: BlockIndex) {

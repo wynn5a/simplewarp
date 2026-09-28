@@ -1,16 +1,9 @@
-use std::time::{Duration, SystemTime};
-
-use warpui_core::App;
-
 use super::*;
 
 fn make_manager(keys: ApiKeys) -> ApiKeyManager {
     ApiKeyManager {
         keys,
-        geap_refresh_waiters: None,
-        geap_last_mint_failure: None,
         aws_credentials_state: AwsCredentialsState::Missing,
-        geap_credentials_state: GeapCredentialsState::Missing,
         secure_storage_write_version: 0,
     }
 }
@@ -35,7 +28,7 @@ fn persisted_provider_api_key_updates_request_state() {
 
         manager.read(&app, |manager, _| {
             let request_keys = manager
-                .api_keys_for_request(true, false, None)
+                .api_keys_for_request(true, false)
                 .expect("persisted provider key should be available to requests");
             assert_eq!(request_keys.anthropic, "sk-ant-test");
         });
@@ -88,45 +81,6 @@ fn custom_model_providers_preserves_configured_schema() {
         provider.schema,
         CustomEndpointSchema::AnthropicMessages as i32
     );
-}
-
-fn make_manager_with_geap(geap_credentials_state: GeapCredentialsState) -> ApiKeyManager {
-    let mut manager = make_manager(ApiKeys::default());
-    manager.geap_credentials_state = geap_credentials_state;
-    manager
-}
-
-fn geap_credentials(access_token: &str, expires_in: Option<u64>) -> GeapCredentials {
-    GeapCredentials::new(
-        access_token.into(),
-        expires_in.map(|secs| SystemTime::now() + Duration::from_secs(secs)),
-    )
-}
-
-fn geap_binding() -> GeapMintBinding {
-    GeapMintBinding {
-        user_uid: "user-1".into(),
-        audience:
-            "//iam.googleapis.com/projects/1/locations/global/workloadIdentityPools/p/providers/q"
-                .into(),
-        federation: GeapFederation::ServiceAccount {
-            email: "sa@proj.iam.gserviceaccount.com".into(),
-        },
-    }
-}
-
-// The expected binding the request build site passes in is the same type as
-// the stored `minted_for`, so the attach check is a plain `==`.
-fn geap_gate() -> GeapMintBinding {
-    geap_binding()
-}
-
-fn geap_loaded(access_token: &str, expires_in: Option<u64>) -> GeapCredentialsState {
-    GeapCredentialsState::Loaded {
-        credentials: geap_credentials(access_token, expires_in),
-        loaded_at: SystemTime::now(),
-        minted_for: geap_binding(),
-    }
 }
 
 fn endpoint(
@@ -447,7 +401,7 @@ fn display_label_falls_back_to_name_when_alias_is_whitespace() {
 #[test]
 fn api_keys_for_request_none_when_empty() {
     let mgr = make_manager(ApiKeys::default());
-    assert!(mgr.api_keys_for_request(true, false, None).is_none());
+    assert!(mgr.api_keys_for_request(true, false).is_none());
 }
 
 #[test]
@@ -457,7 +411,7 @@ fn api_keys_for_request_populates_provider_keys() {
         anthropic: Some("sk-a".into()),
         ..Default::default()
     });
-    let result = mgr.api_keys_for_request(true, false, None).unwrap();
+    let result = mgr.api_keys_for_request(true, false).unwrap();
     assert_eq!(result.openai, "sk-o");
     assert_eq!(result.anthropic, "sk-a");
     assert!(result.google.is_empty());
@@ -470,7 +424,7 @@ fn api_keys_for_request_omits_keys_when_byo_disabled() {
         ..Default::default()
     });
     // With BYO disabled and no other credentials, returns None.
-    assert!(mgr.api_keys_for_request(false, false, None).is_none());
+    assert!(mgr.api_keys_for_request(false, false).is_none());
 }
 
 #[test]
@@ -479,7 +433,7 @@ fn api_keys_for_request_none_for_custom_endpoints_only() {
         custom_endpoints: vec![endpoint("ep", "https://a.io", "k", &[("m", None)])],
         ..Default::default()
     });
-    assert!(mgr.api_keys_for_request(true, false, None).is_none());
+    assert!(mgr.api_keys_for_request(true, false).is_none());
 }
 
 // ── ApiKeyManager::has_any_key ──────────────────
@@ -497,237 +451,4 @@ fn manager_has_any_key_true_for_pasted_key() {
         ..Default::default()
     });
     assert!(mgr.has_any_key());
-}
-
-// ── geap credentials ────────────────────────────────────────────
-
-#[test]
-fn geap_access_token_present_without_expiry() {
-    let credentials = GeapCredentials::new("tok".into(), None);
-    assert_eq!(credentials.access_token_for_request(), Some("tok"));
-}
-
-#[test]
-fn geap_access_token_blank_is_none() {
-    let credentials = GeapCredentials::new("   ".into(), None);
-    assert_eq!(credentials.access_token_for_request(), None);
-}
-
-#[test]
-fn geap_access_token_near_expiry_still_sent() {
-    // Expired tokens are still sent; Google is the authority on validity.
-    let credentials = geap_credentials("tok", Some(0));
-    assert_eq!(credentials.access_token_for_request(), Some("tok"));
-}
-
-#[test]
-fn geap_needs_refresh_lead_time_boundaries() {
-    // Within the 5-minute lead window.
-    assert!(geap_credentials("tok", Some(30)).needs_refresh());
-    // Comfortably fresh.
-    assert!(!geap_credentials("tok", Some(3600)).needs_refresh());
-    // Already expired -> still needs a refresh.
-    assert!(geap_credentials("tok", Some(0)).needs_refresh());
-    // Unknown expiry never reports as needing a refresh.
-    assert!(!geap_credentials("tok", None).needs_refresh());
-}
-
-#[test]
-fn api_keys_for_request_includes_geap_token_when_gate_and_binding_match() {
-    let mgr = make_manager_with_geap(geap_loaded("geap-abc", Some(3600)));
-    let result = mgr
-        .api_keys_for_request(false, false, Some(geap_gate()))
-        .unwrap();
-    let credentials = result.google_cloud_credentials.unwrap();
-    assert_eq!(credentials.access_token, "geap-abc");
-    // The GEAP token is independent of the BYO key gate.
-    assert!(result.anthropic.is_empty());
-}
-
-#[test]
-fn api_keys_for_request_includes_expired_geap_token() {
-    // Expired tokens are still attached — never silently dropped. Google
-    // rejects truly invalid ones, which surfaces a recoverable error instead
-    // of a silent fallback to another route.
-    let mgr = make_manager_with_geap(geap_loaded("geap-abc", Some(0)));
-    let result = mgr
-        .api_keys_for_request(false, false, Some(geap_gate()))
-        .unwrap();
-    assert_eq!(
-        result.google_cloud_credentials.unwrap().access_token,
-        "geap-abc"
-    );
-}
-
-#[test]
-fn api_keys_for_request_omits_geap_token_without_gate() {
-    // No gate (policy off at the call site) ⇒ no GEAP credentials, even when
-    // a token is loaded.
-    let mgr = make_manager_with_geap(geap_loaded("geap-abc", Some(3600)));
-    assert!(mgr.api_keys_for_request(false, false, None).is_none());
-}
-
-#[test]
-fn api_keys_for_request_omits_geap_token_on_binding_mismatch() {
-    let mgr = make_manager_with_geap(geap_loaded("geap-abc", Some(3600)));
-
-    // A different user (sign-out/account switch).
-    let mut gate = geap_gate();
-    gate.user_uid = "someone-else".into();
-    assert!(mgr.api_keys_for_request(false, false, Some(gate)).is_none());
-
-    // A different audience (admin changed the pool/provider).
-    let mut gate = geap_gate();
-    gate.audience = "//iam.googleapis.com/projects/2/locations/global/workloadIdentityPools/other/providers/other".into();
-    assert!(mgr.api_keys_for_request(false, false, Some(gate)).is_none());
-
-    // A different service account (admin changed impersonation target).
-    let mut gate = geap_gate();
-    gate.federation = GeapFederation::ServiceAccount {
-        email: "other@proj.iam.gserviceaccount.com".into(),
-    };
-    assert!(mgr.api_keys_for_request(false, false, Some(gate)).is_none());
-}
-
-#[test]
-fn api_keys_for_request_serves_previous_geap_token_while_refreshing() {
-    // A re-mint in flight keeps serving the previous token — tokens stay
-    // until replaced.
-    let mgr = make_manager_with_geap(GeapCredentialsState::Refreshing {
-        previous: Some((geap_credentials("geap-old", Some(10)), geap_binding())),
-    });
-    let result = mgr
-        .api_keys_for_request(false, false, Some(geap_gate()))
-        .unwrap();
-    assert_eq!(
-        result.google_cloud_credentials.unwrap().access_token,
-        "geap-old"
-    );
-}
-
-#[test]
-fn api_keys_for_request_omits_geap_token_during_first_mint() {
-    // The very first mint has nothing to serve yet.
-    let mgr = make_manager_with_geap(GeapCredentialsState::Refreshing { previous: None });
-    assert!(
-        mgr.api_keys_for_request(false, false, Some(geap_gate()))
-            .is_none()
-    );
-}
-
-#[test]
-fn api_keys_for_request_omits_geap_token_for_non_loaded_states() {
-    for state in [
-        GeapCredentialsState::Missing,
-        GeapCredentialsState::Disabled,
-        GeapCredentialsState::Unconfigured,
-        GeapCredentialsState::Failed {
-            error: LoadGeapCredentialsError::ExchangeToken {
-                status: None,
-                detail: "boom".into(),
-            },
-        },
-    ] {
-        let mgr = make_manager_with_geap(state);
-        assert!(
-            mgr.api_keys_for_request(false, false, Some(geap_gate()))
-                .is_none()
-        );
-    }
-}
-
-#[test]
-fn api_keys_for_request_omits_geap_token_when_previous_binding_mismatches() {
-    let mgr = make_manager_with_geap(GeapCredentialsState::Refreshing {
-        previous: Some((geap_credentials("geap-old", Some(10)), geap_binding())),
-    });
-    let mut gate = geap_gate();
-    gate.user_uid = "someone-else".into();
-    assert!(mgr.api_keys_for_request(false, false, Some(gate)).is_none());
-}
-
-#[test]
-fn geap_expired_refresh_eligibility_requires_expired_matching_binding() {
-    let binding = geap_gate();
-    let expired = make_manager_with_geap(geap_loaded("expired", Some(0)));
-    assert!(expired.geap_expired_refresh_eligibility(&binding));
-
-    let valid = make_manager_with_geap(geap_loaded("valid", Some(3600)));
-    assert!(!valid.geap_expired_refresh_eligibility(&binding));
-
-    let refreshing = make_manager_with_geap(GeapCredentialsState::Refreshing {
-        previous: Some((geap_credentials("expired", Some(0)), binding.clone())),
-    });
-    assert!(refreshing.geap_expired_refresh_eligibility(&binding));
-
-    let first_mint = make_manager_with_geap(GeapCredentialsState::Refreshing { previous: None });
-    assert!(!first_mint.geap_expired_refresh_eligibility(&binding));
-
-    let mut mismatched = binding.clone();
-    mismatched.user_uid = "different-user".into();
-    assert!(!expired.geap_expired_refresh_eligibility(&mismatched));
-}
-
-#[test]
-fn begin_expired_geap_refresh_is_single_flight() {
-    App::test((), |mut app| async move {
-        let manager = app.add_model(|_| make_manager_with_geap(geap_loaded("expired", Some(0))));
-        manager.update(&mut app, |manager, ctx| {
-            let binding = geap_gate();
-            let mut kickoff_count = 0;
-            // The kickoff stands in for the app-layer mint: committing to mint
-            // is what installs the waiter and opens the single-flight window.
-            let first = manager.begin_expired_geap_refresh(&binding, ctx, |manager, waiter, _| {
-                kickoff_count += 1;
-                manager.install_geap_refresh_waiter(Some(waiter));
-            });
-            let second = manager.begin_expired_geap_refresh(&binding, ctx, |manager, waiter, _| {
-                kickoff_count += 1;
-                manager.install_geap_refresh_waiter(Some(waiter));
-            });
-
-            assert!(first.is_some());
-            assert!(second.is_some());
-            // The second request attached to the in-flight mint instead of
-            // starting its own.
-            assert_eq!(kickoff_count, 1);
-            assert_eq!(manager.take_geap_refresh_waiters().len(), 2);
-            // Taking the waiters closes the window.
-            assert!(manager.geap_refresh_waiters.is_none());
-        });
-    });
-}
-
-#[test]
-fn declined_geap_kickoff_leaves_no_in_flight_window() {
-    App::test((), |mut app| async move {
-        let manager = app.add_model(|_| make_manager_with_geap(geap_loaded("expired", Some(0))));
-        manager.update(&mut app, |manager, ctx| {
-            let binding = geap_gate();
-            // A kickoff that hits one of its own guards returns without
-            // minting, dropping the sender rather than installing it.
-            let receiver = manager.begin_expired_geap_refresh(&binding, ctx, |_, _waiter, _| {});
-            assert!(receiver.is_some());
-            // No window was opened, so a later request starts a fresh kickoff
-            // instead of attaching to a mint that is not running. This is what
-            // makes "waiters present" mean "mint in flight".
-            assert!(manager.geap_refresh_waiters.is_none());
-        });
-    });
-}
-
-#[test]
-fn geap_mint_failure_cooldown_suppresses_the_blocking_wait() {
-    let binding = geap_gate();
-    let mut manager = make_manager_with_geap(geap_loaded("expired", Some(0)));
-    assert!(manager.geap_expired_refresh_eligibility(&binding));
-
-    // A failed mint restores the expired credential, so without the cooldown
-    // every following request would block on a mint that is failing.
-    manager.record_geap_mint_failure();
-    assert!(!manager.geap_expired_refresh_eligibility(&binding));
-
-    // A later success reopens the blocking path.
-    manager.clear_geap_mint_failure();
-    assert!(manager.geap_expired_refresh_eligibility(&binding));
 }

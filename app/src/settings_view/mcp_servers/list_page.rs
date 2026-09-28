@@ -143,7 +143,7 @@ impl MCPServersListPageView {
 
         // Re-render when the file-based MCP enabled setting changes.
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(event, AISettingsChangedEvent::FileBasedMcpEnabled { .. }) {
+            if matches!(event, AISettingsChangedEvent::FileBasedMcpEnabled) {
                 me.refresh_file_based_server_cards(ctx);
             }
         });
@@ -1053,7 +1053,7 @@ impl MCPServersListPageView {
     ) -> Box<dyn Element> {
         let ai_settings = AISettings::as_ref(app);
         let is_enabled = *ai_settings.file_based_mcp_enabled;
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
 
         let label = render_body_item_label::<MCPServersListPageViewAction>(
             "Auto-spawn servers from third-party agents".to_string(),

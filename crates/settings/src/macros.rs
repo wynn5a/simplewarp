@@ -141,7 +141,7 @@
 //!     let handle = ExampleGroup::handle(ctx);
 //!     ctx.subscribe_to_model(&handle, |me, _handle, event, _ctx| {
 //!       match event {
-//!         ExampleGroupChangedEvent::BoolSetting { .. } => {
+//!         ExampleGroupChangedEvent::BoolSetting => {
 //!           me.handle_changed_bool_setting();
 //!         }
 //!       }
@@ -288,13 +288,10 @@ macro_rules! define_setting {
                 &mut self,
                 ctx: &mut $crate::warpui_core::ModelContext<Self::Group>,
             ) -> anyhow::Result<()> {
-                use $crate::ChangeEventReason;
                 Self::clear_from_preferences(Self::preferences_for_setting(ctx))?;
                 self.inner = self.validate(Self::default_value());
                 self.is_explicitly_set = false;
-                ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name {
-                    change_event_reason: ChangeEventReason::Clear,
-                }}));
+                ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name }));
                 Ok(())
             }
 
@@ -303,15 +300,12 @@ macro_rules! define_setting {
                 new_value: Self::Value,
                 ctx: &mut $crate::warpui_core::ModelContext<Self::Group>,
             ) -> anyhow::Result<()> {
-                use $crate::ChangeEventReason;
                 let changed_in_storage =
                     Self::write_to_preferences(&new_value, Self::preferences_for_setting(ctx))?;
                 if self.value() != &new_value || changed_in_storage {
                     self.inner = self.validate(new_value);
                     self.is_explicitly_set = true;
-                    ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name {
-                        change_event_reason: ChangeEventReason::LocalChange,
-                    }}));
+                    ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name }));
                 }
                 Ok(())
             }
@@ -322,14 +316,11 @@ macro_rules! define_setting {
                 explicitly_set: bool,
                 ctx: &mut $crate::warpui_core::ModelContext<Self::Group>,
             ) -> anyhow::Result<()> {
-                use $crate::ChangeEventReason;
                 let validated = self.validate(new_value);
                 if self.value() != &validated || self.is_explicitly_set != explicitly_set {
                     self.inner = validated;
                     self.is_explicitly_set = explicitly_set;
-                    ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name {
-                        change_event_reason: ChangeEventReason::LocalChange,
-                    }}));
+                    ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name }));
                 }
                 Ok(())
             }
@@ -537,12 +528,9 @@ macro_rules! implement_setting_for_enum {
                 &mut self,
                 ctx: &mut $crate::warpui_core::ModelContext<Self::Group>,
             ) -> anyhow::Result<()> {
-                use $crate::ChangeEventReason;
                 Self::clear_from_preferences(Self::preferences_for_setting(ctx))?;
                 *self = self.validate(Self::default_value());
-                ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name {
-                    change_event_reason: ChangeEventReason::Clear,
-                }}));
+                ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name }));
                 Ok(())
             }
 
@@ -551,14 +539,11 @@ macro_rules! implement_setting_for_enum {
                 new_value: Self::Value,
                 ctx: &mut $crate::warpui_core::ModelContext<Self::Group>,
             ) -> anyhow::Result<()> {
-                use $crate::ChangeEventReason;
                 let changed_in_storage =
                     Self::write_to_preferences(&new_value, Self::preferences_for_setting(ctx))?;
                 if self.value() != &new_value || changed_in_storage {
                     *self = self.validate(new_value);
-                    ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name {
-                        change_event_reason: ChangeEventReason::LocalChange,
-                    }}));
+                    ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name }));
                 }
                 Ok(())
             }
@@ -569,13 +554,10 @@ macro_rules! implement_setting_for_enum {
                 _explicitly_set: bool,
                 ctx: &mut $crate::warpui_core::ModelContext<Self::Group>,
             ) -> anyhow::Result<()> {
-                use $crate::ChangeEventReason;
                 let validated = self.validate(new_value);
                 if self.value() != &validated {
                     *self = validated;
-                    ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name {
-                        change_event_reason: ChangeEventReason::LocalChange,
-                    }}));
+                    ctx.emit($crate::macros::concat_idents!(EventName = $group, ChangedEvent { EventName::$name }));
                 }
                 Ok(())
             }
@@ -706,15 +688,11 @@ macro_rules! define_settings_group {
         }
 
         $crate::macros::concat_idents!(EventName = $group, ChangedEvent {
-            use $crate::ChangeEventReason;
             #[derive(Debug)]
             #[allow(clippy::enum_variant_names)]
             pub enum EventName {
                 $(
-                    $setting {
-                        #[allow(dead_code)]
-                        change_event_reason: ChangeEventReason,
-                    },
+                    $setting,
                 )*
             }
 

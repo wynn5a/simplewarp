@@ -26,7 +26,6 @@ use crate::settings::{AISettings, AgentModeCommandExecutionPredicate, PrivacySet
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::test_util::settings::initialize_settings_for_tests_with_mode;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::workspaces::workspace::SandboxedAgentSettings;
 use crate::{
     AgentNotificationsModel, GlobalResourceHandles, GlobalResourceHandlesProvider, LaunchMode,
 };
@@ -36,7 +35,6 @@ struct PermissionsTestState {
     permissions: ModelHandle<BlocklistAIPermissions>,
     history: ModelHandle<BlocklistAIHistoryModel>,
     terminal_view_id: EntityId,
-    user_workspaces: ModelHandle<UserWorkspaces>,
     profile_model: ModelHandle<AIExecutionProfilesModel>,
 }
 
@@ -76,7 +74,7 @@ fn initialize_permissions_test_with_mode(
         AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
     });
     app.add_singleton_model(PrivacySettings::mock);
-    let user_workspaces = app.add_singleton_model(UserWorkspaces::default_mock);
+    app.add_singleton_model(UserWorkspaces::default_mock);
 
     let conversation_id = history.update(app, |history_model, ctx| {
         history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
@@ -87,7 +85,6 @@ fn initialize_permissions_test_with_mode(
         permissions,
         history,
         terminal_view_id,
-        user_workspaces,
         profile_model,
     }
 }
@@ -119,12 +116,11 @@ fn test_can_read_files_empty_paths() {
 }
 
 #[test]
-fn test_can_read_files_workspace_settings_override_profile() {
+fn test_can_read_files_profile_setting() {
     App::test((), |mut app| async move {
         let PermissionsTestState {
             convo_id,
             permissions,
-            user_workspaces,
             profile_model,
             terminal_view_id,
             ..
@@ -153,44 +149,15 @@ fn test_can_read_files_workspace_settings_override_profile() {
                 )
             ));
         });
-
-        // Now set the workspace to AlwaysAsk
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.read_files_setting = Some(ActionPermission::AlwaysAsk);
-                },
-                ctx,
-            );
-        });
-
-        permissions.read(&app, |model, ctx| {
-            let result = model.can_read_files_with_conversation(
-                &convo_id,
-                vec![PathBuf::from("/test/file.txt")],
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(!result.is_allowed());
-            assert!(
-                matches!(
-                    result,
-                    FileReadPermission::Denied(FileReadPermissionDeniedReason::AlwaysAskEnabled)
-                ),
-                "the workspace setting should override the profile setting"
-            );
-        });
     })
 }
 
 #[test]
-fn test_can_read_files_profile_workspace_allowlist_interaction() {
+fn test_can_read_files_profile_allowlist() {
     App::test((), |mut app| async move {
         let PermissionsTestState {
             convo_id,
             permissions,
-            user_workspaces,
             profile_model,
             terminal_view_id,
             ..
@@ -225,86 +192,6 @@ fn test_can_read_files_profile_workspace_allowlist_interaction() {
             ));
 
             // Test that files not in profile's allowlist are denied
-            let result = model.can_read_files_with_conversation(
-                &convo_id,
-                vec![PathBuf::from("/not/allowed/file.txt")],
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(!result.is_allowed());
-            assert!(matches!(
-                result,
-                FileReadPermission::Denied(FileReadPermissionDeniedReason::AlwaysAskEnabled)
-            ));
-        });
-
-        // Set up workspace with AlwaysAsk but no allowlist
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.read_files_setting = Some(ActionPermission::AlwaysAsk);
-                    settings.read_files_allowlist = None;
-                },
-                ctx,
-            );
-        });
-
-        // Test that the user's profile is respected when there's no workspace allowlist
-        permissions.read(&app, |model, ctx| {
-            let result = model.can_read_files_with_conversation(
-                &convo_id,
-                vec![PathBuf::from("/profile/allowed/file.txt")],
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(result.is_allowed());
-            assert!(matches!(
-                result,
-                FileReadPermission::Allowed(FileReadPermissionAllowedReason::ExplicitlyAllowlisted)
-            ));
-        });
-
-        // Set up workspace with AlwaysAsk and a different allowlist
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.read_files_setting = Some(ActionPermission::AlwaysAsk);
-                    settings.read_files_allowlist = Some(vec![PathBuf::from("/workspace/allowed")]);
-                },
-                ctx,
-            );
-        });
-
-        // Test that workspace allowlist takes precedence
-        permissions.read(&app, |model, ctx| {
-            // Files in workspace allowlist should be allowed
-            let result = model.can_read_files_with_conversation(
-                &convo_id,
-                vec![PathBuf::from("/workspace/allowed/file.txt")],
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(result.is_allowed());
-            assert!(matches!(
-                result,
-                FileReadPermission::Allowed(FileReadPermissionAllowedReason::ExplicitlyAllowlisted)
-            ));
-
-            // Files in profile allowlist but not workspace allowlist should be denied
-            let result = model.can_read_files_with_conversation(
-                &convo_id,
-                vec![PathBuf::from("/profile/allowed/file.txt")],
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(!result.is_allowed());
-            assert!(matches!(
-                result,
-                FileReadPermission::Denied(FileReadPermissionDeniedReason::AlwaysAskEnabled)
-            ));
-
-            // Files in neither allowlist should be denied
             let result = model.can_read_files_with_conversation(
                 &convo_id,
                 vec![PathBuf::from("/not/allowed/file.txt")],
@@ -393,62 +280,6 @@ fn test_can_write_files() {
 }
 
 #[test]
-fn test_can_write_files_workspace_settings_override_profile() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            convo_id,
-            permissions,
-            user_workspaces,
-            profile_model,
-            terminal_view_id,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        // Set profile to AlwaysAllow
-        profile_model.update(&mut app, |model, ctx| {
-            model.set_apply_code_diffs(
-                model.active_profile(Some(terminal_view_id), ctx).id(),
-                &ActionPermission::AlwaysAllow,
-                ctx,
-            );
-        });
-
-        // Test that profile setting is respected when no workspace setting
-        permissions.read(&app, |model, ctx| {
-            let result = model.can_write_files(&convo_id, &[], Some(terminal_view_id), ctx);
-            assert!(result.is_allowed());
-            assert!(matches!(
-                result,
-                FileWritePermission::Allowed(
-                    FileWritePermissionAllowedReason::AutowriteSettingEnabled
-                )
-            ));
-        });
-
-        // Set workspace to AlwaysAsk
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.apply_code_diffs_setting = Some(ActionPermission::AlwaysAsk);
-                },
-                ctx,
-            );
-        });
-
-        // Test that workspace setting overrides profile
-        permissions.read(&app, |model, ctx| {
-            let result = model.can_write_files(&convo_id, &[], Some(terminal_view_id), ctx);
-            assert!(!result.is_allowed());
-            assert!(matches!(
-                result,
-                FileWritePermission::Denied(FileWritePermissionDeniedReason::AlwaysAskEnabled)
-            ));
-        });
-    })
-}
-
-#[test]
 fn test_can_write_files_mcp_config_always_denied() {
     App::test((), |mut app| async move {
         let PermissionsTestState {
@@ -499,86 +330,11 @@ fn test_can_write_files_mcp_config_always_denied() {
 }
 
 #[test]
-fn test_can_autoexecute_command_workspace_settings_override_profile() {
+fn test_can_autoexecute_command_profile_denylist() {
     App::test((), |mut app| async move {
         let PermissionsTestState {
             convo_id,
             permissions,
-            user_workspaces,
-            profile_model,
-            terminal_view_id,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        // Set profile to AlwaysAllow
-        profile_model.update(&mut app, |model, ctx| {
-            model.set_execute_commands(
-                model.active_profile(Some(terminal_view_id), ctx).id(),
-                &ActionPermission::AlwaysAllow,
-                ctx,
-            );
-        });
-
-        // Test that profile setting is respected when no workspace setting
-        permissions.read(&app, |model, ctx| {
-            let result = model.can_autoexecute_command(
-                &convo_id,
-                "git status",
-                EscapeChar::Backslash,
-                false,
-                None,
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(result.is_allowed());
-            assert!(matches!(
-                result,
-                CommandExecutionPermission::Allowed(
-                    CommandExecutionPermissionAllowedReason::AlwaysAllowed
-                )
-            ));
-        });
-
-        // Set workspace to AlwaysAsk
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.execute_commands_setting = Some(ActionPermission::AlwaysAsk);
-                },
-                ctx,
-            );
-        });
-
-        // Test that workspace setting overrides profile
-        permissions.read(&app, |model, ctx| {
-            let result = model.can_autoexecute_command(
-                &convo_id,
-                "git status",
-                EscapeChar::Backslash,
-                false,
-                None,
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(!result.is_allowed());
-            assert!(matches!(
-                result,
-                CommandExecutionPermission::Denied(
-                    CommandExecutionPermissionDeniedReason::AlwaysAskEnabled
-                )
-            ));
-        });
-    })
-}
-
-#[test]
-fn test_can_autoexecute_command_denylist_precedence() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            convo_id,
-            permissions,
-            user_workspaces,
             profile_model,
             terminal_view_id,
             ..
@@ -611,58 +367,6 @@ fn test_can_autoexecute_command_denylist_precedence() {
                     CommandExecutionPermissionDeniedReason::ExplicitlyDenylisted
                 )
             ));
-        });
-
-        // Set workspace denylist
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.execute_commands_denylist = Some(vec![
-                        AgentModeCommandExecutionPredicate::new_regex("git .*").unwrap(),
-                    ]);
-                },
-                ctx,
-            );
-        });
-
-        // Org + user denylists are merged: both should be active
-        permissions.read(&app, |model, ctx| {
-            let result = model.can_autoexecute_command(
-                &convo_id,
-                "git status",
-                EscapeChar::Backslash,
-                false,
-                None,
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(!result.is_allowed());
-            assert!(matches!(
-                result,
-                CommandExecutionPermission::Denied(
-                    CommandExecutionPermissionDeniedReason::ExplicitlyDenylisted
-                )
-            ));
-
-            let result = model.can_autoexecute_command(
-                &convo_id,
-                "rm file.txt",
-                EscapeChar::Backslash,
-                false,
-                None,
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(
-                matches!(
-                    result,
-                    CommandExecutionPermission::Denied(
-                        CommandExecutionPermissionDeniedReason::ExplicitlyDenylisted
-                    )
-                ),
-                "user denylist entries should be merged with org denylist, not replaced"
-            );
         });
     })
 }
@@ -739,12 +443,11 @@ fn test_can_autoexecute_command_denylist_matches_env_prefixed_commands() {
 }
 
 #[test]
-fn test_can_autoexecute_command_allowlist_precedence() {
+fn test_can_autoexecute_command_profile_allowlist() {
     App::test((), |mut app| async move {
         let PermissionsTestState {
             convo_id,
             permissions,
-            user_workspaces,
             profile_model,
             terminal_view_id,
             ..
@@ -783,83 +486,11 @@ fn test_can_autoexecute_command_allowlist_precedence() {
                 )
             ));
         });
-
-        // Set workspace with AlwaysAsk and different allowlist
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.execute_commands_setting = Some(ActionPermission::AlwaysAsk);
-                    settings.execute_commands_allowlist = Some(vec![
-                        AgentModeCommandExecutionPredicate::new_regex("ls .*").unwrap(),
-                    ]);
-                },
-                ctx,
-            );
-        });
-
-        // Test that workspace allowlist overrides profile allowlist
-        permissions.read(&app, |model, ctx| {
-            // git commands should now be denied (not in workspace allowlist)
-            let result = model.can_autoexecute_command(
-                &convo_id,
-                "git status",
-                EscapeChar::Backslash,
-                false,
-                None,
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(!result.is_allowed());
-            assert!(matches!(
-                result,
-                CommandExecutionPermission::Denied(
-                    CommandExecutionPermissionDeniedReason::AlwaysAskEnabled
-                )
-            ));
-
-            // ls commands should now be allowed
-            let result = model.can_autoexecute_command(
-                &convo_id,
-                "ls -l",
-                EscapeChar::Backslash,
-                false,
-                None,
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(result.is_allowed());
-            assert!(matches!(
-                result,
-                CommandExecutionPermission::Allowed(
-                    CommandExecutionPermissionAllowedReason::ExplicitlyAllowlisted
-                )
-            ));
-
-            let result = model.can_autoexecute_command(
-                &convo_id,
-                "PATH=/tmp ls -l",
-                EscapeChar::Backslash,
-                false,
-                None,
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(
-                matches!(
-                    result,
-                    CommandExecutionPermission::Denied(
-                        CommandExecutionPermissionDeniedReason::AlwaysAskEnabled
-                    )
-                ),
-                "env-prefixed commands should not be normalized for allowlist matching"
-            );
-        });
     })
 }
 
 #[test]
-fn test_can_autoexecute_command_auto_approve_bypasses_user_denylist_but_not_workspace_denylist() {
+fn test_can_autoexecute_command_auto_approve_bypasses_user_denylist() {
     App::test((), |mut app| async move {
         let PermissionsTestState {
             convo_id,
@@ -867,7 +498,6 @@ fn test_can_autoexecute_command_auto_approve_bypasses_user_denylist_but_not_work
             history,
             profile_model,
             terminal_view_id,
-            user_workspaces,
             ..
         } = initialize_permissions_test(&mut app);
 
@@ -880,17 +510,6 @@ fn test_can_autoexecute_command_auto_approve_bypasses_user_denylist_but_not_work
             );
         });
 
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.execute_commands_denylist = Some(vec![
-                        AgentModeCommandExecutionPredicate::new_regex("git .*").unwrap(),
-                    ]);
-                },
-                ctx,
-            );
-        });
         // Enable auto-approve for this conversation.
         history.update(&mut app, |history, ctx| {
             history.toggle_autoexecute_override(&convo_id, terminal_view_id, ctx);
@@ -910,22 +529,6 @@ fn test_can_autoexecute_command_auto_approve_bypasses_user_denylist_but_not_work
                 user_denylisted,
                 CommandExecutionPermission::Allowed(
                     CommandExecutionPermissionAllowedReason::RunToCompletion
-                )
-            ));
-
-            let workspace_denylisted = model.can_autoexecute_command(
-                &convo_id,
-                "git status",
-                EscapeChar::Backslash,
-                false,
-                None,
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(matches!(
-                workspace_denylisted,
-                CommandExecutionPermission::Denied(
-                    CommandExecutionPermissionDeniedReason::ExplicitlyDenylisted
                 )
             ));
         });
@@ -1043,7 +646,6 @@ fn test_can_write_to_pty() {
         let PermissionsTestState {
             convo_id,
             permissions,
-            user_workspaces,
             profile_model,
             terminal_view_id,
             ..
@@ -1062,23 +664,6 @@ fn test_can_write_to_pty() {
         permissions.read(&app, |model, ctx| {
             let result = model.can_write_to_pty(&convo_id, Some(terminal_view_id), ctx);
             assert_eq!(result, WriteToPtyPermission::AlwaysAllow);
-        });
-
-        // Set workspace to AlwaysAsk
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.write_to_pty_setting = Some(WriteToPtyPermission::AlwaysAsk);
-                },
-                ctx,
-            );
-        });
-
-        // Test that workspace setting overrides profile
-        permissions.read(&app, |model, ctx| {
-            let result = model.can_write_to_pty(&convo_id, Some(terminal_view_id), ctx);
-            assert_eq!(result, WriteToPtyPermission::AlwaysAsk);
         });
     })
 }
@@ -1350,30 +935,15 @@ fn test_sandboxed_mode_allows_read_write_files() {
         let PermissionsTestState {
             convo_id,
             permissions,
-            user_workspaces,
             terminal_view_id,
             ..
         } = initialize_permissions_test_sandboxed(&mut app);
 
-        // Set workspace to AlwaysAsk
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.apply_code_diffs_setting = Some(ActionPermission::AlwaysAsk);
-                    settings.read_files_setting = Some(ActionPermission::AlwaysAsk);
-                },
-                ctx,
-            );
-        });
-
-        // In sandboxed mode the workspace read/write restrictions are bypassed,
-        // so the profile's AlwaysAllow setting takes effect.
         permissions.read(&app, |model, ctx| {
             let result = model.can_write_files(&convo_id, &[], Some(terminal_view_id), ctx);
             assert!(
                 result.is_allowed(),
-                "write files should be allowed in sandboxed mode (workspace restriction bypassed)"
+                "write files should be allowed in sandboxed mode"
             );
             assert!(matches!(
                 result,
@@ -1390,7 +960,7 @@ fn test_sandboxed_mode_allows_read_write_files() {
             );
             assert!(
                 result.is_allowed(),
-                "read files should be allowed in sandboxed mode (workspace restriction bypassed)"
+                "read files should be allowed in sandboxed mode"
             );
             assert!(matches!(
                 result,
@@ -1398,224 +968,6 @@ fn test_sandboxed_mode_allows_read_write_files() {
                     FileReadPermissionAllowedReason::AutoreadSettingEnabled
                 )
             ));
-        });
-    })
-}
-
-#[test]
-fn test_sandboxed_denylist_used_in_sandboxed_mode() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            convo_id,
-            history,
-            permissions,
-            user_workspaces,
-            terminal_view_id,
-            ..
-        } = initialize_permissions_test_sandboxed(&mut app);
-
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            // Regular workspace denylist blocks "git .*".
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.execute_commands_denylist = Some(vec![
-                        AgentModeCommandExecutionPredicate::new_regex("git .*").unwrap(),
-                    ]);
-                },
-                ctx,
-            );
-            // Sandboxed denylist blocks "rm .*" instead.
-            model.update_sandboxed_agent_settings(
-                |settings| {
-                    *settings = Some(SandboxedAgentSettings {
-                        execute_commands_denylist: Some(vec![
-                            AgentModeCommandExecutionPredicate::new_regex("rm .*").unwrap(),
-                        ]),
-                    });
-                },
-                ctx,
-            );
-        });
-
-        history.update(&mut app, |history, ctx| {
-            history.toggle_autoexecute_override(&convo_id, terminal_view_id, ctx);
-        });
-        app.update(|ctx| {
-            AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings
-                    .auto_approve_bypasses_command_denylist
-                    .set_value(false, ctx)
-                    .expect("setting should update");
-            });
-        });
-        permissions.read(&app, |model, ctx| {
-            // "git status" should be allowed: the regular denylist is not consulted in
-            // sandboxed mode, so only the sandboxed denylist ("rm .*") applies.
-            let result = model.can_autoexecute_command(
-                &convo_id,
-                "git status",
-                EscapeChar::Backslash,
-                false,
-                None,
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(matches!(
-                result,
-                CommandExecutionPermission::Allowed(
-                    CommandExecutionPermissionAllowedReason::RunToCompletion
-                )
-            ));
-
-            // "rm file.txt" should be denied by the sandboxed denylist.
-            let result = model.can_autoexecute_command(
-                &convo_id,
-                "rm file.txt",
-                EscapeChar::Backslash,
-                false,
-                None,
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(!result.is_allowed());
-            assert!(
-                matches!(
-                    result,
-                    CommandExecutionPermission::Denied(
-                        CommandExecutionPermissionDeniedReason::ExplicitlyDenylisted
-                    )
-                ),
-                "rm file.txt should be denied by the sandboxed denylist"
-            );
-        });
-    })
-}
-
-#[test]
-fn test_merged_denylist_deduplication() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            permissions,
-            user_workspaces,
-            profile_model,
-            terminal_view_id,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        let rm_predicate = AgentModeCommandExecutionPredicate::new_regex("rm .*").unwrap();
-
-        profile_model.update(&mut app, |model, ctx| {
-            model.add_to_command_denylist(
-                model.active_profile(Some(terminal_view_id), ctx).id(),
-                &rm_predicate,
-                ctx,
-            );
-        });
-
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.execute_commands_denylist = Some(vec![
-                        AgentModeCommandExecutionPredicate::new_regex("rm .*").unwrap(),
-                        AgentModeCommandExecutionPredicate::new_regex("git .*").unwrap(),
-                    ]);
-                },
-                ctx,
-            );
-        });
-
-        permissions.read(&app, |model, ctx| {
-            let denylist = model.get_execute_commands_denylist(ctx, Some(terminal_view_id));
-            let rm_count = denylist.iter().filter(|p| p.to_string() == "rm .*").count();
-            assert_eq!(rm_count, 1, "duplicate entries should be deduplicated");
-            assert!(
-                denylist.iter().any(|p| p.to_string() == "git .*"),
-                "org entry 'git .*' should be in merged list"
-            );
-        });
-    })
-}
-
-#[test]
-fn test_get_org_execute_commands_denylist() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            permissions,
-            user_workspaces,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        permissions.read(&app, |_, ctx| {
-            let org_list = BlocklistAIPermissions::get_org_execute_commands_denylist(ctx);
-            assert!(org_list.is_empty());
-        });
-
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.execute_commands_denylist = Some(vec![
-                        AgentModeCommandExecutionPredicate::new_regex("git .*").unwrap(),
-                    ]);
-                },
-                ctx,
-            );
-        });
-
-        permissions.read(&app, |_, ctx| {
-            let org_list = BlocklistAIPermissions::get_org_execute_commands_denylist(ctx);
-            assert_eq!(org_list.len(), 1);
-            assert_eq!(org_list[0].to_string(), "git .*");
-        });
-    })
-}
-
-#[test]
-fn test_empty_org_denylist_allows_user_entries() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            convo_id,
-            permissions,
-            user_workspaces,
-            profile_model,
-            terminal_view_id,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        profile_model.update(&mut app, |model, ctx| {
-            model.add_to_command_denylist(
-                model.active_profile(Some(terminal_view_id), ctx).id(),
-                &AgentModeCommandExecutionPredicate::new_regex("rm .*").unwrap(),
-                ctx,
-            );
-        });
-
-        user_workspaces.update(&mut app, |model, ctx| {
-            model.setup_test_workspace(ctx);
-            model.update_ai_autonomy_settings(
-                |settings| {
-                    settings.execute_commands_denylist = Some(vec![]);
-                },
-                ctx,
-            );
-        });
-
-        permissions.read(&app, |model, ctx| {
-            let result = model.can_autoexecute_command(
-                &convo_id,
-                "rm file.txt",
-                EscapeChar::Backslash,
-                false,
-                None,
-                Some(terminal_view_id),
-                ctx,
-            );
-            assert!(
-                !result.is_allowed(),
-                "user denylist entry should be active even when org denylist is empty"
-            );
         });
     })
 }

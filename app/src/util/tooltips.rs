@@ -7,12 +7,10 @@ use warpui::elements::{
     Border, Container, CornerRadius, Flex, MouseStateHandle, ParentElement, Radius, Text,
 };
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{AppContext, Element, EventContext, SingletonEntity};
+use warpui::{AppContext, Element, EventContext};
 
 use crate::appearance::Appearance;
-use crate::settings::PrivacySettings;
 use crate::terminal::model::secrets::SecretLevel;
-use crate::ui_components::blended_colors;
 
 /// A link to be shown in a tooltip
 pub struct TooltipLink<OnClick> {
@@ -62,7 +60,6 @@ pub fn render_tooltip<OnClick>(
     tooltip_links: impl IntoIterator<Item = TooltipLink<OnClick>>,
     redaction: TooltipRedaction,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element>
 where
     OnClick: 'static + Fn(&mut EventContext),
@@ -186,46 +183,10 @@ where
         }
     }
 
-    let is_secret = matches!(
-        redaction,
-        TooltipRedaction::SecretNotSentToLLMMessaging { .. }
-            | TooltipRedaction::SecretWillNotBeSentToLLMMessaging { .. }
-    );
-
-    // If enterprise secret redaction is enabled, add additional messaging and padding to the tooltip.
-    let is_enterprise_secret_redaction_enabled =
-        is_secret && PrivacySettings::as_ref(app).is_enterprise_secret_redaction_enabled();
-    let tooltip_element = if is_enterprise_secret_redaction_enabled {
-        let tooltip_column = Flex::column()
-            .with_child(tooltip.finish())
-            .with_child(
-                appearance
-                    .ui_builder()
-                    .span("*Secrets are not sent to Warp's server.")
-                    .with_style(UiComponentStyles {
-                        font_size: Some(12.),
-                        margin: Some(Coords::default().top(4.)),
-                        font_color: Some(blended_colors::text_disabled(
-                            appearance.theme(),
-                            background_color,
-                        )),
-                        ..Default::default()
-                    })
-                    .build()
-                    .finish(),
-            )
-            .finish();
-
-        Container::new(tooltip_column)
-            .with_vertical_padding(4.)
-            .with_horizontal_padding(6.)
-            .finish()
-    } else {
-        Container::new(tooltip.finish())
-            .with_vertical_padding(4.)
-            .with_horizontal_padding(6.)
-            .finish()
-    };
+    let tooltip_element = Container::new(tooltip.finish())
+        .with_vertical_padding(4.)
+        .with_horizontal_padding(6.)
+        .finish();
 
     Container::new(tooltip_element)
         .with_background(background_color)

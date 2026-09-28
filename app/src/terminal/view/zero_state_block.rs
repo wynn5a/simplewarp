@@ -93,7 +93,7 @@ impl TerminalViewZeroStateBlock {
         });
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(event, AISettingsChangedEvent::IsAnyAIEnabled { .. })
+            if matches!(event, AISettingsChangedEvent::IsAnyAIEnabled)
                 && !TerminalSettings::as_ref(ctx).should_show_zero_state_block(ctx)
             {
                 me.should_hide = true;
@@ -104,7 +104,7 @@ impl TerminalViewZeroStateBlock {
         ctx.subscribe_to_model(&TerminalSettings::handle(ctx), |me, _, event, ctx| {
             if matches!(
                 event,
-                TerminalSettingsChangedEvent::ShowTerminalZeroStateBlock { .. }
+                TerminalSettingsChangedEvent::ShowTerminalZeroStateBlock
             ) && !TerminalSettings::as_ref(ctx).should_show_zero_state_block(ctx)
             {
                 me.should_hide = true;
@@ -113,7 +113,7 @@ impl TerminalViewZeroStateBlock {
         });
 
         ctx.subscribe_to_model(&TabSettings::handle(ctx), |_, _, event, ctx| {
-            if matches!(event, TabSettingsChangedEvent::ShowCodeReviewButton { .. }) {
+            if matches!(event, TabSettingsChangedEvent::ShowCodeReviewButton) {
                 ctx.notify();
             }
         });
@@ -121,7 +121,7 @@ impl TerminalViewZeroStateBlock {
         let ai_settings = AISettings::as_ref(ctx);
         Self {
             should_hide: false,
-            should_render_nld_checkbox: ai_settings.is_any_ai_enabled(ctx),
+            should_render_nld_checkbox: ai_settings.is_any_ai_enabled(),
             state_handles: Default::default(),
         }
     }
@@ -356,7 +356,7 @@ fn render_nld_checkbox(mouse_state: MouseStateHandle, app: &AppContext) -> Box<d
     let theme = appearance.theme();
 
     let ai_settings = AISettings::as_ref(app);
-    let is_nld_enabled = ai_settings.is_nld_in_terminal_enabled(app);
+    let is_nld_enabled = ai_settings.is_nld_in_terminal_enabled();
     let styles = UiComponentStyles {
         font_color: Some(
             appearance

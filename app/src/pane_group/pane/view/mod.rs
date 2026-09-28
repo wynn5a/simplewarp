@@ -97,10 +97,7 @@ impl<P: BackingView> PaneView<P> {
         });
 
         ctx.subscribe_to_model(&PaneSettings::handle(ctx), |_, _, event, ctx| {
-            if matches!(
-                event,
-                PaneSettingsChangedEvent::ShouldDimInactivePanes { .. }
-            ) {
+            if matches!(event, PaneSettingsChangedEvent::ShouldDimInactivePanes) {
                 ctx.notify();
             }
         });

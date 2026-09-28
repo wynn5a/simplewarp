@@ -136,11 +136,11 @@ impl TerminalView {
     ) {
         let ai_settings = AISettings::handle(ctx);
         ctx.subscribe_to_model(&ai_settings, |me, _, event, ctx| match event {
-            AISettingsChangedEvent::IsAnyAIEnabled { .. }
-            | AISettingsChangedEvent::ShouldRenderCLIAgentToolbar { .. } => {
+            AISettingsChangedEvent::IsAnyAIEnabled
+            | AISettingsChangedEvent::ShouldRenderCLIAgentToolbar => {
                 me.maybe_show_use_agent_footer_in_blocklist(ctx);
             }
-            AISettingsChangedEvent::ShouldRenderUseAgentToolbarForUserCommands { .. } => {
+            AISettingsChangedEvent::ShouldRenderUseAgentToolbarForUserCommands => {
                 // When the setting is re-enabled (e.g. from the AI settings page),
                 // reset the pane-scoped dismissal so the footer can reappear.
                 if *AISettings::as_ref(ctx)
@@ -153,7 +153,7 @@ impl TerminalView {
                 }
                 me.maybe_show_use_agent_footer_in_blocklist(ctx);
             }
-            AISettingsChangedEvent::CLIAgentToolbarEnabledCommands { .. } => {
+            AISettingsChangedEvent::CLIAgentToolbarEnabledCommands => {
                 me.maybe_show_use_agent_footer_in_blocklist(ctx);
             }
             _ => (),
@@ -267,7 +267,7 @@ impl TerminalView {
         }
 
         // All other footer variants require the global AI setting to be on.
-        if !ai_settings.is_any_ai_enabled(app) {
+        if !ai_settings.is_any_ai_enabled() {
             return false;
         }
 

@@ -47,10 +47,10 @@ impl AppearanceManager {
         {
             ctx.subscribe_to_model(&AppIconSettings::handle(ctx), move |me, _, event, ctx| {
                 match event {
-                    AppIconSettingsChangedEvent::AppIconState { .. } => {
+                    AppIconSettingsChangedEvent::AppIconState => {
                         me.set_app_icon(ctx);
                     }
-                    AppIconSettingsChangedEvent::ShowDockIconState { .. } => {
+                    AppIconSettingsChangedEvent::ShowDockIconState => {
                         me.apply_dock_icon_visibility(ctx);
                     }
                 }
@@ -60,7 +60,7 @@ impl AppearanceManager {
         ctx.subscribe_to_model(
             &FontSettings::handle(ctx),
             move |_, _, event, ctx| match event {
-                FontSettingsChangedEvent::MonospaceFontName { .. } => {
+                FontSettingsChangedEvent::MonospaceFontName => {
                     let (font_name, match_fonts) = {
                         let settings = FontSettings::as_ref(ctx);
                         let font_name = settings.monospace_font_name.value().clone();
@@ -77,20 +77,20 @@ impl AppearanceManager {
                         });
                     }
                 }
-                FontSettingsChangedEvent::MonospaceFontSize { .. } => {
+                FontSettingsChangedEvent::MonospaceFontSize => {
                     let new_font_size = *FontSettings::as_ref(ctx).monospace_font_size.value();
                     Appearance::handle(ctx).update(ctx, |appearance, ctx| {
                         appearance.set_monospace_font_size(new_font_size, ctx)
                     });
                 }
 
-                FontSettingsChangedEvent::MonospaceFontWeight { .. } => {
+                FontSettingsChangedEvent::MonospaceFontWeight => {
                     let new_font_weight = *FontSettings::as_ref(ctx).monospace_font_weight.value();
                     Appearance::handle(ctx).update(ctx, |appearance, ctx| {
                         appearance.set_monospace_font_weight(new_font_weight, ctx)
                     });
                 }
-                FontSettingsChangedEvent::LineHeightRatio { .. } => {
+                FontSettingsChangedEvent::LineHeightRatio => {
                     let new_line_height_ratio =
                         *FontSettings::as_ref(ctx).line_height_ratio.value();
 
@@ -98,7 +98,7 @@ impl AppearanceManager {
                         appearance.set_line_height_ratio(new_line_height_ratio, ctx);
                     });
                 }
-                FontSettingsChangedEvent::AIFontName { .. } => {
+                FontSettingsChangedEvent::AIFontName => {
                     let font_name = FontSettings::as_ref(ctx).ai_font_name.value().clone();
                     if let Some(new_family) = get_or_load_font_family(&font_name, ctx) {
                         Appearance::handle(ctx).update(ctx, |appearance, ctx| {
@@ -106,7 +106,7 @@ impl AppearanceManager {
                         });
                     }
                 }
-                FontSettingsChangedEvent::MatchAIFontToTerminalFont { .. } => {
+                FontSettingsChangedEvent::MatchAIFontToTerminalFont => {
                     let settings = FontSettings::as_ref(ctx);
                     let match_ai_font_to_terminal_font =
                         *settings.match_ai_font_to_terminal_font.value();

@@ -173,7 +173,7 @@ pub fn init(
     });
 
     ctx.subscribe_to_model(&FontSettings::handle(ctx), |font_settings, event, ctx| {
-        if matches!(event, FontSettingsChangedEvent::UseThinStrokes { .. }) {
+        if matches!(event, FontSettingsChangedEvent::UseThinStrokes) {
             let use_thin_strokes = *font_settings.as_ref(ctx).use_thin_strokes;
             ctx.update_rendering_config(|config| {
                 config.glyphs.use_thin_strokes = use_thin_strokes;
@@ -186,7 +186,7 @@ pub fn init(
     ctx.subscribe_to_model(
         &SessionSettings::handle(ctx),
         |session_settings, event, ctx| {
-            if let SessionSettingsChangedEvent::HonorPS1 { .. } = event {
+            if let SessionSettingsChangedEvent::HonorPS1 = event {
                 let new_honor_ps1 = *session_settings.as_ref(ctx).honor_ps1;
                 let new_type = if new_honor_ps1 {
                     InputBoxType::Classic

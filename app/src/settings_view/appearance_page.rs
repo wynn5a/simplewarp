@@ -877,8 +877,8 @@ impl AppearanceSettingsPageView {
         ctx.subscribe_to_model(
             &FontSettings::handle(ctx),
             |me, font_settings, event, ctx| match event {
-                FontSettingsChangedEvent::NotebookFontSize { .. }
-                | FontSettingsChangedEvent::MatchNotebookToMonospaceFontSize { .. } => {
+                FontSettingsChangedEvent::NotebookFontSize
+                | FontSettingsChangedEvent::MatchNotebookToMonospaceFontSize => {
                     let font_settings = font_settings.as_ref(ctx);
                     let should_match_notebook_to_monospace_font_size =
                         *font_settings.match_notebook_to_monospace_font_size;
@@ -898,7 +898,7 @@ impl AppearanceSettingsPageView {
 
                     ctx.notify();
                 }
-                FontSettingsChangedEvent::EnforceMinimumContrast { .. } => {
+                FontSettingsChangedEvent::EnforceMinimumContrast => {
                     me.enforce_min_contrast_dropdown
                         .update(ctx, |dropdown, ctx| {
                             let enforce_minimum_contrast =
@@ -910,7 +910,7 @@ impl AppearanceSettingsPageView {
                         });
                     ctx.notify();
                 }
-                FontSettingsChangedEvent::UseThinStrokes { .. } => {
+                FontSettingsChangedEvent::UseThinStrokes => {
                     me.thin_strokes_dropdown.update(ctx, |dropdown, ctx| {
                         let thin_strokes = *FontSettings::as_ref(ctx).use_thin_strokes;
                         dropdown.set_selected_by_name(
@@ -945,7 +945,7 @@ impl AppearanceSettingsPageView {
         });
 
         ctx.subscribe_to_model(&InputSettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(event, InputSettingsChangedEvent::InputBoxTypeSetting { .. }) {
+            if matches!(event, InputSettingsChangedEvent::InputBoxTypeSetting) {
                 let input_type = *InputSettings::as_ref(ctx).input_box_type;
                 me.input_type_radio_state
                     .set_selected_idx(input_type as usize);
@@ -964,7 +964,7 @@ impl AppearanceSettingsPageView {
         ctx.subscribe_to_model(&BlockListSettings::handle(ctx), |_, _, _, ctx| ctx.notify());
         ctx.subscribe_to_model(&WindowSettings::handle(ctx), |me, _, evt, ctx| {
             match evt {
-                WindowSettingsChangedEvent::NewWindowsNumColumns { .. } => {
+                WindowSettingsChangedEvent::NewWindowsNumColumns => {
                     // Update the value of the columns input to match the new setting
                     me.new_window_columns_editor.update(ctx, |editor, ctx| {
                         editor.set_buffer_text(
@@ -979,7 +979,7 @@ impl AppearanceSettingsPageView {
                         );
                     });
                 }
-                WindowSettingsChangedEvent::NewWindowsNumRows { .. } => {
+                WindowSettingsChangedEvent::NewWindowsNumRows => {
                     // Update the value of the rows input to match the new setting
                     me.new_window_rows_editor.update(ctx, |editor, ctx| {
                         editor.set_buffer_text(
@@ -994,15 +994,15 @@ impl AppearanceSettingsPageView {
                         );
                     });
                 }
-                WindowSettingsChangedEvent::BackgroundOpacity { .. } => {
+                WindowSettingsChangedEvent::BackgroundOpacity => {
                     // Reset the slider state so that it uses the current opacity value on the next render.
                     me.opacity_state.reset_offset();
                 }
-                WindowSettingsChangedEvent::BackgroundBlurRadius { .. } => {
+                WindowSettingsChangedEvent::BackgroundBlurRadius => {
                     // Reset the slider state so that it uses the current opacity value on the next render.
                     me.blur_state.reset_offset();
                 }
-                WindowSettingsChangedEvent::ZoomLevel { .. } => {
+                WindowSettingsChangedEvent::ZoomLevel => {
                     let zoom_level = *WindowSettings::as_ref(ctx).zoom_level;
 
                     me.zoom_level_dropdown.update(ctx, |dropdown, ctx| {
@@ -2539,7 +2539,7 @@ impl AppearanceSettingsPageView {
         event: &TabSettingsChangedEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        if let TabSettingsChangedEvent::WorkspaceDecorationVisibility { .. } = event {
+        if let TabSettingsChangedEvent::WorkspaceDecorationVisibility = event {
             let value = TabSettings::as_ref(ctx).workspace_decoration_visibility;
             let name = Self::workspace_decoration_visibility_dropdown_item_label(value);
             self.workspace_decorations_dropdown
@@ -2547,7 +2547,7 @@ impl AppearanceSettingsPageView {
                     dropdown.set_selected_by_name(name, ctx);
                 });
         }
-        if let TabSettingsChangedEvent::DirectoryTabColors { .. } = event {
+        if let TabSettingsChangedEvent::DirectoryTabColors = event {
             let count = directory_tab_colors(ctx).len();
             self.color_picker_dot_states.resize_with(count, || {
                 (0..TAB_COLOR_OPTIONS.len() + 1)

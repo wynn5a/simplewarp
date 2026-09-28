@@ -290,7 +290,6 @@ use crate::search::slash_command_menu::static_commands::commands;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ObjectUid, SyncId};
 use crate::session_management::{CommandContext, SessionNavigationPromptElements};
-use crate::settings::ai::FocusedTerminalInfo;
 #[cfg(feature = "local_fs")]
 use crate::settings::import::model::ImportedConfigModel;
 use crate::settings::import::view::{SettingsImportEvent, SettingsImportView};
@@ -452,7 +451,7 @@ use crate::workspace::{
     CommandSearchOptions, ForkAIConversationParams, ForkFromExchange,
     ForkedConversationDestination, ToastStack, WorkspaceAction,
 };
-use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
+use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{
     AIAgentActionResultType, AIRequestUsageModel, ActiveSession as WindowActiveSession, safe_error,
     safe_warn,
@@ -2118,14 +2117,6 @@ pub struct TerminalView {
     /// navigation cursor changes.
     agent_transcript_marked_ai_block: Option<EntityId>,
 
-    // Whether any session contains blocks from a remote session. Cached to improve performance.
-    // Blocks don't necessarily need to be finished for this to be true (e.g. it's true for
-    // an empty ssh session where just the active block is remote).
-    any_session_contains_remote_blocks: bool,
-
-    // Whether any session contains restored blocks from a remote session. Cached to improve performance.
-    any_session_contains_restored_remote_blocks: bool,
-
     /// Mouse state for our block list element.
     block_list_mouse_states: BlockListMouseStates,
 
@@ -3012,13 +3003,13 @@ impl TerminalView {
         ctx.subscribe_to_model(
             &TerminalSettings::handle(ctx),
             |me, terminal_settings, event, ctx| match event {
-                TerminalSettingsChangedEvent::MaximumGridSize { .. } => {
+                TerminalSettingsChangedEvent::MaximumGridSize => {
                     let mut model = me.model.lock();
                     model.update_max_grid_size(
                         *terminal_settings.as_ref(ctx).maximum_grid_size.value(),
                     );
                 }
-                TerminalSettingsChangedEvent::Spacing { .. } => {
+                TerminalSettingsChangedEvent::Spacing => {
                     let appearance = Appearance::as_ref(ctx);
                     let terminal_spacing = terminal_settings
                         .as_ref(ctx)
@@ -3029,7 +3020,7 @@ impl TerminalView {
                     );
                     ctx.notify();
                 }
-                TerminalSettingsChangedEvent::AltScreenPadding { .. } => {
+                TerminalSettingsChangedEvent::AltScreenPadding => {
                     if me.model.lock().is_alt_screen_active() {
                         me.refresh_size(ctx);
                     }
@@ -3039,10 +3030,7 @@ impl TerminalView {
         );
 
         ctx.subscribe_to_model(&PaneSettings::handle(ctx), |_, _, event, ctx| {
-            if matches!(
-                event,
-                PaneSettingsChangedEvent::ShouldDimInactivePanes { .. }
-            ) {
+            if matches!(event, PaneSettingsChangedEvent::ShouldDimInactivePanes) {
                 ctx.notify();
             }
         });
@@ -3064,10 +3052,7 @@ impl TerminalView {
         );
 
         ctx.subscribe_to_model(&FontSettings::handle(ctx), |_, _, event, ctx| {
-            if matches!(
-                event,
-                FontSettingsChangedEvent::EnforceMinimumContrast { .. }
-            ) {
+            if matches!(event, FontSettingsChangedEvent::EnforceMinimumContrast) {
                 ctx.notify();
             }
         });
@@ -3077,7 +3062,7 @@ impl TerminalView {
         });
 
         ctx.subscribe_to_model(&InputModeSettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(event, InputModeSettingsChangedEvent::InputModeState { .. }) {
+            if matches!(event, InputModeSettingsChangedEvent::InputModeState) {
                 let current_mode = *InputModeSettings::as_ref(ctx).input_mode.value();
                 if current_mode == InputMode::Waterfall {
                     // Run the resize logic when switching into Waterfall to potentially update the gap size.
@@ -3096,19 +3081,13 @@ impl TerminalView {
         ctx.subscribe_to_model(
             &DebugSettings::handle(ctx),
             |me, debug_settings, event, ctx| {
-                if let DebugSettingsChangedEvent::ShowMemoryStats { .. } = event {
+                if let DebugSettingsChangedEvent::ShowMemoryStats = event {
                     me.model.lock().block_list_mut().set_show_memory_stats(
                         debug_settings.as_ref(ctx).should_show_memory_stats(),
                     );
                 }
             },
         );
-
-        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, _, event, ctx| {
-            if matches!(event, UserWorkspacesEvent::TeamsChanged) {
-                me.update_focused_terminal_info(ctx);
-            }
-        });
 
         let (resize_tx, resize_rx) = async_channel::unbounded();
         let (find_link_tx, find_link_rx) = async_channel::unbounded();
@@ -3429,7 +3408,7 @@ impl TerminalView {
         ctx.subscribe_to_model(
             &block_visibility_settings_handle,
             |me, block_visibility_settings_handle, event, ctx| match event {
-                BlockVisibilitySettingsChangedEvent::ShouldShowBootstrapBlock { .. } => {
+                BlockVisibilitySettingsChangedEvent::ShouldShowBootstrapBlock => {
                     let should_show_bootstrap_block = *block_visibility_settings_handle
                         .as_ref(ctx)
                         .should_show_bootstrap_block
@@ -3440,7 +3419,7 @@ impl TerminalView {
                         .set_show_bootstrap_block(should_show_bootstrap_block);
                     ctx.notify();
                 }
-                BlockVisibilitySettingsChangedEvent::ShouldShowInBandCommandBlocks { .. } => {
+                BlockVisibilitySettingsChangedEvent::ShouldShowInBandCommandBlocks => {
                     let should_show_in_band_command_blocks = *block_visibility_settings_handle
                         .as_ref(ctx)
                         .should_show_in_band_command_blocks
@@ -3451,16 +3430,16 @@ impl TerminalView {
                         .set_show_in_band_command_blocks(should_show_in_band_command_blocks);
                     ctx.notify();
                 }
-                BlockVisibilitySettingsChangedEvent::ShouldShowSSHBlock { .. } => {}
+                BlockVisibilitySettingsChangedEvent::ShouldShowSSHBlock => {}
             },
         );
 
         let block_list_settings_handle = BlockListSettings::handle(ctx);
         ctx.subscribe_to_model(&block_list_settings_handle, |me, _, evt, ctx| match evt {
-            BlockListSettingsChangedEvent::ShowJumpToBottomOfBlockButton { .. }
-            | BlockListSettingsChangedEvent::SnackbarEnabled { .. }
-            | BlockListSettingsChangedEvent::ShowBlockDividers { .. } => ctx.notify(),
-            BlockListSettingsChangedEvent::PreserveInputFocusOnBlockSelection { .. } => {
+            BlockListSettingsChangedEvent::ShowJumpToBottomOfBlockButton
+            | BlockListSettingsChangedEvent::SnackbarEnabled
+            | BlockListSettingsChangedEvent::ShowBlockDividers => ctx.notify(),
+            BlockListSettingsChangedEvent::PreserveInputFocusOnBlockSelection => {
                 // Fires for every terminal view, so use the focus-gated variant to avoid
                 // stealing focus from another pane or Settings.
                 me.redetermine_terminal_focus(ctx);
@@ -3555,8 +3534,8 @@ impl TerminalView {
         });
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, ai_settings_event, ctx| {
-            if let AISettingsChangedEvent::AwsBedrockCredentialsEnabled { .. } = ai_settings_event
-                && !UserWorkspaces::as_ref(ctx).is_aws_bedrock_credentials_enabled(ctx)
+            if let AISettingsChangedEvent::AwsBedrockCredentialsEnabled = ai_settings_event
+                && !UserWorkspaces::as_ref(ctx).is_aws_bedrock_credentials_enabled()
             {
                 me.remove_aws_bedrock_login_banner(ctx);
             }
@@ -3649,8 +3628,6 @@ impl TerminalView {
             agent_transcript_selection: None,
             agent_transcript_marked_ai_block: None,
             block_list_mouse_states,
-            any_session_contains_remote_blocks: false,
-            any_session_contains_restored_remote_blocks: false,
             mouse_down_block_index: None,
             mouse_states: Default::default(),
             open_grid_link_tool_tip: None,
@@ -3770,9 +3747,6 @@ impl TerminalView {
                 .add_model(|ctx| PtyRecorder::new(inactive_pty_reads_rx, window_id, ctx)),
         };
         terminal_view.register_subscriptions_for_use_agent_footer(ctx);
-
-        terminal_view.any_session_contains_restored_remote_blocks =
-            terminal_view.contains_restored_remote_blocks();
 
         // Restore AI conversations and create AI blocks after terminal view initialization
         if let Some(restoration) = conversation_restoration {
@@ -6611,44 +6585,6 @@ impl TerminalView {
         self.is_focused_and_active = true;
     }
 
-    fn contains_restored_remote_blocks(&self) -> bool {
-        !self
-            .model
-            .lock()
-            .block_list()
-            .blocks()
-            .iter()
-            .all(|block| block.restored_block_was_local().unwrap_or(true))
-    }
-
-    // This logic is only needed if the user has disabled AI in remote sessions.
-    // It has potential performance implications if called on every focus change,
-    // so we limit it to only when the user disables AI in remote sessions.
-    fn update_focused_terminal_info(&mut self, ctx: &mut ViewContext<Self>) {
-        if !ctx.is_self_or_child_focused() {
-            return;
-        }
-
-        let is_ai_allowed_in_remote_sessions =
-            UserWorkspaces::as_ref(ctx).is_ai_allowed_in_remote_sessions();
-
-        // Only update the FocusedTerminalInfo model if the user has disabled AI in remote sessions
-        // because it's a potentially expensive operation.
-        if !is_ai_allowed_in_remote_sessions {
-            let contains_remote_blocks = self.any_session_contains_remote_blocks;
-            let contains_restored_remote_blocks = self.any_session_contains_restored_remote_blocks;
-            let updated = FocusedTerminalInfo::handle(ctx).update(
-                ctx,
-                |model: &mut FocusedTerminalInfo, ctx| {
-                    model.update(contains_remote_blocks, contains_restored_remote_blocks, ctx)
-                },
-            );
-            if updated {
-                ctx.notify();
-            }
-        }
-    }
-
     fn maybe_report_focus_out(&mut self, ctx: &mut ViewContext<Self>) {
         if self.should_report_focus(ctx) && self.is_focused_and_active {
             self.write_to_pty(EscCodes::FOCUS_OUT, ctx);
@@ -8465,7 +8401,7 @@ impl TerminalView {
         }
 
         // Check if AWS Bedrock is available in the workspace
-        if !UserWorkspaces::as_ref(ctx).is_aws_bedrock_credentials_enabled(ctx) {
+        if !UserWorkspaces::as_ref(ctx).is_aws_bedrock_credentials_enabled() {
             return;
         }
 
@@ -8782,90 +8718,14 @@ impl TerminalView {
         }
     }
 
-    fn active_block_is_considered_remote(&self, app: &AppContext) -> bool {
-        let model = self.model.lock();
-        let active_block = model.block_list().active_block();
-        self.is_block_considered_remote(
-            active_block.session_id(),
-            Some(&active_block.command_to_string()),
-            app,
-        )
-    }
-
     /// Returns true if the block is considered remote.
     ///
     /// Note that we don't know for sure if a block is remote, because we can only detect
     /// warpified remote blocks.
-    ///
-    /// For some organizations, we accept a regex list that we run against commands to
-    /// further make the determination.
-    fn is_block_considered_remote(
-        &self,
-        session_id: Option<SessionId>,
-        command: Option<&str>,
-        app: &AppContext,
-    ) -> bool {
-        let is_warpified_remote = session_id
-            .map(|id| {
-                self.sessions
-                    .as_ref(app)
-                    .get(id)
-                    .map(|session| !session.is_local())
-                    .unwrap_or_default()
-            })
-            .unwrap_or_default();
-
-        if is_warpified_remote {
-            return true;
-        }
-
-        // If there's a command present and this user is subject to the regex list policy from their
-        // organization, check the command against the regex list.
-
-        let Some(command) = command else {
-            return false;
-        };
-
-        if UserWorkspaces::as_ref(app).is_ai_allowed_in_remote_sessions() {
-            // We don't check any regexes if the user is allowed to run AI in remote sessions.
-            return false;
-        }
-
-        let remote_session_regex_list = UserWorkspaces::as_ref(app).get_remote_session_regex_list();
-
-        // First check if the command matches any of the regexes in the list.
-        if remote_session_regex_list
-            .iter()
-            .any(|regex| regex.is_match(command))
-        {
-            return true;
-        }
-
-        // Then check if there's an alias for the top level command that matches the regex.
-        let Some(session_id) = session_id else {
-            return false;
-        };
-        let Some(session) = self.sessions.as_ref(app).get(session_id) else {
-            return false;
-        };
-        let escape_char = session.shell_family().escape_char();
-        let Some(top_level_command) =
-            warp_completer::parsers::simple::top_level_command(command, escape_char)
-        else {
-            return false;
-        };
-        let Some(alias) = session.alias_value(top_level_command.as_str()) else {
-            return false;
-        };
-
-        if remote_session_regex_list
-            .iter()
-            .any(|regex| regex.is_match(alias))
-        {
-            return true;
-        }
-
-        false
+    fn is_block_considered_remote(&self, session_id: Option<SessionId>, app: &AppContext) -> bool {
+        session_id
+            .and_then(|id| self.sessions.as_ref(app).get(id))
+            .is_some_and(|session| !session.is_local())
     }
 
     // Abort any pending prompt or code suggestions, which may now be irrelevant.
@@ -9500,15 +9360,6 @@ impl TerminalView {
                 is_for_in_band_command,
                 ..
             } => {
-                let did_any_session_contains_remote_blocks =
-                    self.any_session_contains_remote_blocks;
-                self.any_session_contains_remote_blocks |=
-                    self.active_block_is_considered_remote(ctx);
-                if self.any_session_contains_remote_blocks != did_any_session_contains_remote_blocks
-                {
-                    self.update_focused_terminal_info(ctx);
-                }
-
                 if *is_for_in_band_command {
                     return;
                 }
@@ -10022,7 +9873,6 @@ impl TerminalView {
                         block: block_completed.serialized_block.clone(),
                         is_local: !self.is_block_considered_remote(
                             block_completed.serialized_block.session_id,
-                            Some(&block_completed.command),
                             ctx,
                         ),
                     });
@@ -10031,22 +9881,16 @@ impl TerminalView {
                     // via a BlockCompleted event but don't affect focus or input.
                     ctx.emit(Event::BlockCompleted {
                         block: serialized_block.clone(),
-                        is_local: !self.is_block_considered_remote(
-                            serialized_block.session_id,
-                            None,
-                            ctx,
-                        ),
+                        is_local: !self
+                            .is_block_considered_remote(serialized_block.session_id, ctx),
                     });
                 } else if let BlockType::BootstrapVisible(serialized_block) = block_type {
                     // Re-compute the focus after the visible bootstrap block has completed.
                     self.redetermine_terminal_focus(ctx);
                     ctx.emit(Event::BlockCompleted {
                         block: serialized_block.clone(),
-                        is_local: !self.is_block_considered_remote(
-                            serialized_block.session_id,
-                            None,
-                            ctx,
-                        ),
+                        is_local: !self
+                            .is_block_considered_remote(serialized_block.session_id, ctx),
                     });
                 }
 
@@ -10754,9 +10598,6 @@ impl TerminalView {
         {
             self.show_ssh_tmux_deprecation_banner(session_id, ctx);
         }
-        self.any_session_contains_restored_remote_blocks = self.contains_restored_remote_blocks();
-        self.any_session_contains_remote_blocks |= self.active_block_is_considered_remote(ctx);
-        self.update_focused_terminal_info(ctx);
 
         // At the end of bootstrapping, set the title to the title of
         // the selected conversation. If there is no selected conversation,
@@ -11344,7 +11185,7 @@ impl TerminalView {
             .get_root_for_path(&LocalOrRemotePath::Local(directory.to_path_buf()))
             .is_some();
         let is_any_ai_enabled =
-            FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+            FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(ctx).is_any_ai_enabled();
         // Check if the current session is remote - don't show setup in remote sessions.
         let is_remote_session = !self.active_session_is_local(ctx).unwrap_or(false);
 
@@ -11543,7 +11384,7 @@ impl TerminalView {
                 AgentOnboardingVersion::UniversalInput { has_project } => {
                     let initial_natural_language_detection_enabled = AISettings::handle(ctx)
                         .as_ref(ctx)
-                        .is_nld_in_terminal_enabled(ctx);
+                        .is_nld_in_terminal_enabled();
                     OnboardingCalloutView::new_universal_input(
                         has_project,
                         initial_natural_language_detection_enabled,
@@ -11557,7 +11398,7 @@ impl TerminalView {
                 } => {
                     let initial_natural_language_detection_enabled = AISettings::handle(ctx)
                         .as_ref(ctx)
-                        .is_nld_in_terminal_enabled(ctx);
+                        .is_nld_in_terminal_enabled();
                     OnboardingCalloutView::new_agent_modality(
                         has_project,
                         intention,
@@ -13051,7 +12892,7 @@ impl TerminalView {
                         ))
                         .into_item(),
                 ];
-                if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+                if AISettings::as_ref(ctx).is_any_ai_enabled() {
                     fields.extend([
                         MenuItem::Separator,
                         MenuItemFields::new(if FeatureFlag::AgentMode.is_enabled() {
@@ -13145,7 +12986,7 @@ impl TerminalView {
                         .into_item(),
                 ];
 
-                if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+                if AISettings::as_ref(ctx).is_any_ai_enabled() {
                     if FeatureFlag::AgentMode.is_enabled() {
                         // We can only attach selected blocks if the input box is visible.
                         if self.is_input_box_visible(&model, ctx) {
@@ -13785,7 +13626,7 @@ impl TerminalView {
                 .into_item(),
         ]);
 
-        if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+        if AISettings::as_ref(ctx).is_any_ai_enabled() {
             items.push(
                 MenuItemFields::new("AI command search")
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
@@ -13948,7 +13789,7 @@ impl TerminalView {
                     .with_key_shortcut_label(Some("⌘-C"))
                     .into_item(),
             );
-            if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+            if AISettings::as_ref(ctx).is_any_ai_enabled() {
                 menu_items.extend([
                     MenuItem::Separator,
                     MenuItemFields::new(if FeatureFlag::AgentMode.is_enabled() {
@@ -15181,14 +15022,6 @@ impl TerminalView {
         BlocklistAIHistoryModel::handle(ctx).update(ctx, |ai_history_model, ctx| {
             ai_history_model.clear_conversations_for_terminal_surface(self.view_id, ctx)
         });
-
-        // No more restored blocks, since we just cleared the buffer
-        log::info!("Clearing buffer.  resetting any_session_contains_restored_remote_blocks");
-        self.any_session_contains_restored_remote_blocks = false;
-
-        // Since we just cleared blocks, we can just look at the state of the active block
-        self.any_session_contains_remote_blocks = self.active_block_is_considered_remote(ctx);
-        self.update_focused_terminal_info(ctx);
 
         ctx.notify();
 
@@ -18932,7 +18765,7 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) {
         match evt {
-            SessionSettingsChangedEvent::HonorPS1 { .. } => {
+            SessionSettingsChangedEvent::HonorPS1 => {
                 let session = self
                     .active_block_session_id()
                     .and_then(|session_id| self.sessions.as_ref(ctx).get(session_id));
@@ -18945,11 +18778,11 @@ impl TerminalView {
                 // determines if we need git status updates.
                 self.update_git_status_subscription(ctx);
             }
-            SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting { .. } => {
+            SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting => {
                 self.update_git_status_subscription(ctx);
             }
-            SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting { .. }
-            | SessionSettingsChangedEvent::GithubPrChipDefaultValidation { .. } => {
+            SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting
+            | SessionSettingsChangedEvent::GithubPrChipDefaultValidation => {
                 self.update_git_status_subscription(ctx);
             }
             _ => {}
@@ -23366,7 +23199,6 @@ impl View for TerminalView {
 
             ctx.notify();
         }
-        self.update_focused_terminal_info(ctx);
     }
 
     fn on_blur(&mut self, blur_ctx: &BlurContext, ctx: &mut ViewContext<Self>) {
@@ -23477,7 +23309,7 @@ impl View for TerminalView {
             context.set.insert(flags::HAS_PENDING_PROMPT_SUGGESTION);
         }
 
-        if AISettings::as_ref(app).is_any_ai_enabled(app) {
+        if AISettings::as_ref(app).is_any_ai_enabled() {
             context.set.insert(flags::IS_ANY_AI_ENABLED);
         }
 

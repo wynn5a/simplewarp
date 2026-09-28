@@ -257,8 +257,8 @@ impl NotebookView {
         ctx.subscribe_to_model(&FontSettings::handle(ctx), |me, _, event, ctx| {
             if matches!(
                 event,
-                FontSettingsChangedEvent::NotebookFontSize { .. }
-                    | FontSettingsChangedEvent::MatchNotebookToMonospaceFontSize { .. }
+                FontSettingsChangedEvent::NotebookFontSize
+                    | FontSettingsChangedEvent::MatchNotebookToMonospaceFontSize
             ) {
                 me.handle_appearance_change(ctx)
             }

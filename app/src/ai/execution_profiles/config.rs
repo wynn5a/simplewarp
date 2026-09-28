@@ -17,15 +17,12 @@ use super::{
     RunAgentsPermission, WriteToPtyPermission,
 };
 use crate::ai::llms::LLMId;
-use crate::server::ids::ServerId;
 use crate::settings::AgentModeCommandExecutionPredicate;
 
 /// Reserved key for the one required default profile.
 const DEFAULT_PROFILE_KEY: &str = "default";
 /// Prefix for opaque IDs assigned to newly created profiles.
 const GENERATED_PROFILE_PREFIX: &str = "profile-";
-/// Prefix for deterministic IDs assigned during legacy cloud import.
-const LEGACY_PROFILE_PREFIX: &str = "legacy-";
 
 /// Stable identifier used as a profile's key in `settings.toml`.
 ///
@@ -51,17 +48,6 @@ impl ExecutionProfileId {
         Self(format!(
             "{GENERATED_PROFILE_PREFIX}{}",
             uuid::Uuid::new_v4()
-        ))
-    }
-
-    /// Derives a deterministic file-safe ID from a legacy cloud object.
-    ///
-    /// Independent devices therefore map the same cloud profile to the same
-    /// collection entry.
-    pub fn from_legacy_server_id(server_id: ServerId) -> Self {
-        Self(format!(
-            "{LEGACY_PROFILE_PREFIX}{}",
-            hex::encode(server_id.to_string())
         ))
     }
 

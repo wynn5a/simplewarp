@@ -56,9 +56,8 @@ use super::model::{
     self, AI_DOCUMENT_PANE_KIND, AI_FACT_PANE_KIND, ActiveMCPServer, CODE_PANE_KIND,
     ENV_VAR_COLLECTION_PANE_KIND, EXECUTION_PROFILE_EDITOR_PANE_KIND, MCP_SERVER_PANE_KIND,
     MCPEnvironmentVariables, NOTEBOOK_PANE_KIND, NewActiveMCPServer, NewApp, NewCommand, NewTab,
-    NewTabGroup, NewTeam, NewWindow, NewWorkspace, NewWorkspaceMetadata, NewWorkspaceTeam, Project,
-    SETTINGS_PANE_KIND, TERMINAL_PANE_KIND, Tab, TabGroup, WORKFLOW_PANE_KIND, Window,
-    WorkspaceMetadata as WorkspaceMetadataModel,
+    NewTabGroup, NewWindow, NewWorkspaceMetadata, Project, SETTINGS_PANE_KIND, TERMINAL_PANE_KIND,
+    Tab, TabGroup, WORKFLOW_PANE_KIND, Window, WorkspaceMetadata as WorkspaceMetadataModel,
 };
 use super::{
     BlockCompleted, FinishedCommandMetadata, ModelEvent, PersistedData, StartedCommandMetadata,
@@ -90,8 +89,8 @@ use crate::persistence::block_list::{
     process_ai_queries_for_uparrow_prompt, read_recent_ai_queries,
 };
 use crate::persistence::model::{
-    CODE_REVIEW_PANE_KIND, GET_STARTED_PANE_KIND, NewPersistedObjectAction, NewTeamSettings,
-    ProjectRules, UserProfile,
+    CODE_REVIEW_PANE_KIND, GET_STARTED_PANE_KIND, NewPersistedObjectAction, ProjectRules,
+    UserProfile,
 };
 use crate::safe_info;
 use crate::server::ids::{ClientId, HashableId, ServerId, SyncId};
@@ -473,16 +472,6 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
         }
         ModelEvent::DeleteProject { path } => {
             delete_project(connection, &path).context("error deleting project")
-        }
-        ModelEvent::UpsertWorkspace { workspace } => {
-            save_workspace(connection, *workspace).context("error upserting workspace")
-        }
-        ModelEvent::UpsertWorkspaces { workspaces } => {
-            save_workspaces(connection, workspaces).context("error upserting workspaces")
-        }
-        ModelEvent::SetCurrentWorkspace { workspace_uid } => {
-            set_current_workspace(connection, workspace_uid)
-                .context("error setting current workspace")
         }
         ModelEvent::UpdateObjectMetadata { id, metadata } => {
             update_object_metadata(connection, id, metadata).context("error updating metadata")
@@ -1655,253 +1644,6 @@ fn remove_ignored_suggestion(
     Ok(())
 }
 
-fn save_workspace(conn: &mut SqliteConnection, workspace: WorkspaceMetadata) -> Result<()> {
-    // Set all existing workspaces as not selected
-    diesel::update(workspaces)
-        .set(is_selected.eq(false))
-        .execute(conn)?;
-
-    // Save new workspace and set it as current workspace
-    use schema::workspaces::dsl::*;
-    let new_workspace = NewWorkspace {
-        name: workspace.name,
-        server_uid: workspace.uid.into(),
-        is_selected: true,
-    };
-
-    diesel::insert_into(workspaces)
-        .values(&new_workspace)
-        .on_conflict(schema::workspaces::dsl::server_uid)
-        .do_update()
-        // If there's already a workspace with this server_uid, then lets just update the other values
-        .set(&new_workspace)
-        .execute(conn)?;
-
-    // Save teams for workspace
-    for team in workspace.teams {
-        use schema::teams::dsl::*;
-        use schema::workspace_teams::dsl::*;
-        let new_team = NewTeam {
-            name: team.name,
-            server_uid: team.uid.into(),
-            billing_metadata_json: serde_json::to_string(&team.billing_metadata).ok(),
-        };
-        diesel::insert_into(teams)
-            .values(&new_team)
-            .on_conflict(server_uid)
-            .do_update()
-            // If there's already a team with this server_uid, then lets just update the other values
-            .set(&new_team)
-            .execute(conn)?;
-
-        let team_db_id: i32 = schema::teams::dsl::teams
-            .filter(schema::teams::dsl::server_uid.eq::<String>(team.uid.into()))
-            .select(schema::teams::dsl::id)
-            .first(conn)?;
-
-        diesel::delete(
-            schema::team_members::dsl::team_members
-                .filter(schema::team_members::dsl::team_id.eq(team_db_id)),
-        )
-        .execute(conn)?;
-
-        for member in &team.members {
-            let new_member = model::NewTeamMember {
-                team_id: team_db_id,
-                user_uid: member.uid.as_string(),
-                email: member.email.clone(),
-                role: serde_json::to_string(&member.role).unwrap_or_default(),
-            };
-            diesel::insert_into(schema::team_members::dsl::team_members)
-                .values(&new_member)
-                .execute(conn)?;
-        }
-
-        let new_workspace_team = NewWorkspaceTeam {
-            workspace_server_uid: workspace.uid.into(),
-            team_server_uid: team.uid.into(),
-        };
-        diesel::insert_into(workspace_teams)
-            .values(&new_workspace_team)
-            .on_conflict((workspace_server_uid, team_server_uid))
-            .do_update()
-            .set(&new_workspace_team)
-            .execute(conn)?;
-    }
-
-    Ok(())
-}
-
-fn save_workspaces(
-    conn: &mut SqliteConnection,
-    workspaces_to_insert: Vec<WorkspaceMetadata>,
-) -> Result<()> {
-    use schema::team_settings::dsl::*;
-    use schema::teams::dsl::*;
-    use schema::workspace_teams::dsl::*;
-    use schema::workspaces::dsl::*;
-
-    // Get currently selected workspace uid if there is one
-    let current_workspace_uid: Option<WorkspaceUid> = workspaces
-        .filter(is_selected.eq(true))
-        .select(schema::workspaces::dsl::server_uid)
-        .first::<String>(conn)
-        .optional()?
-        .map(|uid| uid.into());
-
-    // Remove all team_members/team_settings/workspaces/teams/workspace_teams stored locally.
-    diesel::delete(schema::team_members::dsl::team_members).execute(conn)?;
-    diesel::delete(team_settings).execute(conn)?;
-    diesel::delete(workspace_teams).execute(conn)?;
-    diesel::delete(teams).execute(conn)?;
-    diesel::delete(workspaces).execute(conn)?;
-
-    // Insert workspaces returned by server (doing nothing on conflict), set is_selected
-    // to true for the current_workspace_uid if it is in the list of workspaces.
-    let new_workspace_values: Vec<NewWorkspace> = workspaces_to_insert
-        .clone()
-        .into_iter()
-        .map(|workspace| NewWorkspace {
-            server_uid: workspace.uid.into(),
-            name: workspace.name,
-            is_selected: current_workspace_uid
-                .map(|current_uid| workspace.uid == current_uid)
-                .unwrap_or(false),
-        })
-        .collect();
-    diesel::insert_or_ignore_into(workspaces)
-        .values(&new_workspace_values)
-        .execute(conn)?;
-
-    // Insert teams returned by server (doing nothing on conflict)
-    let new_team_values: Vec<NewTeam> = workspaces_to_insert
-        .clone()
-        .into_iter()
-        .flat_map(|workspace| {
-            workspace
-                .teams
-                .into_iter()
-                .map(|team| NewTeam {
-                    server_uid: team.uid.into(),
-                    name: team.name.clone(),
-                    billing_metadata_json: serde_json::to_string(&team.billing_metadata).ok(),
-                })
-                .collect::<Vec<NewTeam>>()
-        })
-        .collect();
-    diesel::insert_or_ignore_into(teams)
-        .values(&new_team_values)
-        .execute(conn)?;
-
-    // We cannot directly return the id from the insert so perform
-    // a second query for the id https://github.com/diesel-rs/diesel/issues/771.
-    let teams_with_id: Vec<(i32, String)> = schema::teams::dsl::teams
-        .select((schema::teams::dsl::id, schema::teams::dsl::server_uid))
-        .load(conn)?;
-    let teams_by_server_uid: HashMap<&String, i32> = HashMap::from_iter(
-        teams_with_id
-            .iter()
-            .map(|(table_id, table_server_uid)| (table_server_uid, *table_id)),
-    );
-
-    // Insert workspace_teams returned by server (doing nothing on conflict)
-    let workspace_teams_values: Vec<NewWorkspaceTeam> = workspaces_to_insert
-        .clone()
-        .into_iter()
-        .flat_map(|workspace| {
-            workspace
-                .teams
-                .into_iter()
-                .map(|team| NewWorkspaceTeam {
-                    workspace_server_uid: workspace.uid.into(),
-                    team_server_uid: team.uid.into(),
-                })
-                .collect::<Vec<NewWorkspaceTeam>>()
-        })
-        .collect();
-    diesel::insert_or_ignore_into(workspace_teams)
-        .values(&workspace_teams_values)
-        .execute(conn)?;
-
-    // Cache workspace settings returned by the server (overwriting any existing settings)
-    let team_settings_values: Vec<NewTeamSettings> = workspaces_to_insert
-        .clone()
-        .into_iter()
-        .flat_map(|workspace| {
-            workspace.teams.into_iter().filter_map(|team| {
-                let serialized_settings_json = serde_json::to_string(&team.settings).ok()?;
-                let team_id_match = teams_by_server_uid.get(&team.uid.uid())?;
-                Some(NewTeamSettings {
-                    team_id: *team_id_match,
-                    settings_json: serialized_settings_json,
-                })
-            })
-        })
-        .collect();
-    diesel::insert_into(schema::team_settings::dsl::team_settings)
-        .values(&team_settings_values)
-        .execute(conn)?;
-
-    // Cache team members
-    let team_member_values: Vec<model::NewTeamMember> = workspaces_to_insert
-        .clone()
-        .into_iter()
-        .flat_map(|workspace| {
-            workspace.teams.into_iter().flat_map(|team| {
-                let team_id_match = teams_by_server_uid.get(&team.uid.uid()).copied();
-                team.members.into_iter().filter_map(move |member| {
-                    Some(model::NewTeamMember {
-                        team_id: team_id_match?,
-                        user_uid: member.uid.as_string(),
-                        email: member.email,
-                        role: serde_json::to_string(&member.role).unwrap_or_default(),
-                    })
-                })
-            })
-        })
-        .collect();
-    if !team_member_values.is_empty() {
-        diesel::insert_into(schema::team_members::dsl::team_members)
-            .values(&team_member_values)
-            .execute(conn)?;
-    }
-
-    if let Some(current_workspace_uid) = current_workspace_uid
-        && !workspaces_to_insert
-            .iter()
-            .any(|workspace| workspace.uid == current_workspace_uid)
-    {
-        // If the currently selected workspace is not in the list of workspaces, set
-        // the first workspace as the current workspace.
-        if let Some(first_workspace) = workspaces_to_insert.first() {
-            diesel::update(workspaces.filter(
-                schema::workspaces::dsl::server_uid.eq::<String>(first_workspace.uid.into()),
-            ))
-            .set(is_selected.eq(true))
-            .execute(conn)?;
-        }
-    }
-
-    Ok(())
-}
-
-fn set_current_workspace(conn: &mut SqliteConnection, workspace_uid: WorkspaceUid) -> Result<()> {
-    use schema::workspaces::dsl::*;
-
-    // Set all existing workspaces as not selected
-    diesel::update(workspaces)
-        .set(is_selected.eq(false))
-        .execute(conn)?;
-
-    diesel::update(
-        workspaces.filter(schema::workspaces::dsl::server_uid.eq::<String>(workspace_uid.into())),
-    )
-    .set(is_selected.eq(true))
-    .execute(conn)?;
-
-    Ok(())
-}
-
 fn upsert_generic_string_objects(
     conn: &mut SqliteConnection,
     cloud_generic_string_objects: Vec<Box<dyn CloudStringObject>>,
@@ -2474,20 +2216,9 @@ fn read_sqlite_data(
                 acc
             });
 
-    let team_settings_rows: Vec<model::TeamSetting> =
-        schema::team_settings::dsl::team_settings.load(conn)?;
-    let settings_by_team_id: HashMap<i32, String> = team_settings_rows
-        .into_iter()
-        .map(|ts| (ts.team_id, ts.settings_json))
-        .collect();
-
     let teams: Vec<TeamMetadata> = db_teams
         .into_iter()
         .map(|team| {
-            let team_settings = settings_by_team_id
-                .get(&team.id)
-                .and_then(|json| serde_json::from_str(json).ok());
-
             let billing_metadata = team
                 .billing_metadata_json
                 .as_ref()
@@ -2498,7 +2229,6 @@ fn read_sqlite_data(
             TeamMetadata::from_local_cache(
                 ServerId::from_string_lossy(team.server_uid),
                 team.name,
-                team_settings,
                 billing_metadata,
                 members,
             )
@@ -2530,7 +2260,6 @@ fn read_sqlite_data(
                     .collect();
                 WorkspaceMetadata::from_local_cache(
                     workspace.server_uid.into(),
-                    workspace.name,
                     Some(teams_for_workspace),
                 )
             })

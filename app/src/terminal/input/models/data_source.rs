@@ -26,7 +26,7 @@ use crate::ai::execution_profiles::model_menu_items::is_auto;
 use crate::ai::llms::{
     ByoKeySource, DisableReason, LLMId, LLMInfo, LLMPreferences, LLMSpec, ModelIconFlags,
     byo_key_source_for_model, model_leading_icon, should_show_bedrock_icon_for_model,
-    should_show_gemini_enterprise_agent_platform_icon_for_model, should_show_key_icon_for_model,
+    should_show_key_icon_for_model,
 };
 use crate::features::FeatureFlag;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
@@ -297,7 +297,6 @@ struct ModelSearchItem {
     disable_reason: Option<DisableReason>,
     is_auto: bool,
     is_using_bedrock: bool,
-    is_using_gemini_enterprise_agent_platform: bool,
     name_match_result: Option<FuzzyMatchResult>,
     score: OrderedFloat<f64>,
     manage_api_key_mouse_state: MouseStateHandle,
@@ -311,8 +310,6 @@ impl ModelSearchItem {
         let is_custom_router = is_custom_router_id(llm.id.as_str());
         let is_auto = is_auto(llm);
         let is_using_bedrock = should_show_bedrock_icon_for_model(llm, app);
-        let is_using_gemini_enterprise_agent_platform =
-            should_show_gemini_enterprise_agent_platform_icon_for_model(llm, app);
         let byo_key_source = byo_key_source_for_model(llm, app);
         let leading_icon = model_leading_icon(
             llm,
@@ -320,12 +317,9 @@ impl ModelSearchItem {
                 is_custom_router,
                 is_auto,
                 is_using_bedrock,
-                is_using_gemini_enterprise: is_using_gemini_enterprise_agent_platform,
             },
         );
-        let is_using_cloud_host = is_using_bedrock || is_using_gemini_enterprise_agent_platform;
-        let credential_icon =
-            (!is_using_cloud_host && byo_key_source.is_some()).then_some(Icon::Key);
+        let credential_icon = (!is_using_bedrock && byo_key_source.is_some()).then_some(Icon::Key);
         Self {
             id: llm.id.clone(),
             spec: llm.spec.clone(),
@@ -339,7 +333,6 @@ impl ModelSearchItem {
             disable_reason: choice.disable_reason,
             is_auto,
             is_using_bedrock,
-            is_using_gemini_enterprise_agent_platform,
             name_match_result: choice.name_match_result,
             score: choice.score,
             manage_api_key_mouse_state: Default::default(),
@@ -468,9 +461,7 @@ impl SearchItem for ModelSearchItem {
 
         if should_show_discount_chip(
             self.discount_percentage,
-            self.credential_icon.is_some()
-                || self.is_using_bedrock
-                || self.is_using_gemini_enterprise_agent_platform,
+            self.credential_icon.is_some() || self.is_using_bedrock,
         ) {
             let discount_percentage = self.discount_percentage.unwrap_or(0.);
             let chip = Container::new(
@@ -540,14 +531,10 @@ impl SearchItem for ModelSearchItem {
         };
         let header = render_model_spec_header(title, description, app);
 
-        let uses_external_inference = self.is_using_bedrock
-            || self.is_using_gemini_enterprise_agent_platform
-            || self.byo_key_source.is_some();
+        let uses_external_inference = self.is_using_bedrock || self.byo_key_source.is_some();
         let cost_row = if uses_external_inference {
             let search_query = if self.is_using_bedrock {
                 "bedrock"
-            } else if self.is_using_gemini_enterprise_agent_platform {
-                "gemini enterprise"
             } else {
                 "api"
             }
@@ -579,14 +566,10 @@ impl SearchItem for ModelSearchItem {
                 })
                 .finish();
             CostRow::BilledToProvider {
-                label: if self.is_auto
-                    && (self.is_using_bedrock || self.is_using_gemini_enterprise_agent_platform)
-                {
+                label: if self.is_auto && self.is_using_bedrock {
                     AUTO_HOSTED_INFERENCE_LABEL
                 } else if self.is_using_bedrock {
                     "Inference via Bedrock"
-                } else if self.is_using_gemini_enterprise_agent_platform {
-                    "Inference via Gemini Enterprise Agent Platform"
                 } else if let Some(source) = self.byo_key_source {
                     source.inference_label()
                 } else {

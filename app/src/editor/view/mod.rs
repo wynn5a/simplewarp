@@ -3059,10 +3059,10 @@ impl EditorView {
             ctx.subscribe_to_model(
                 &AISettings::handle(ctx),
                 |editor, _, event, ctx| match event {
-                    AISettingsChangedEvent::VoiceInputEnabled { .. } => {
+                    AISettingsChangedEvent::VoiceInputEnabled => {
                         editor.update_voice_transcription_options(Self::voice_options(ctx), ctx)
                     }
-                    AISettingsChangedEvent::VoiceInputToggleKey { .. } => ctx.notify(),
+                    AISettingsChangedEvent::VoiceInputToggleKey => ctx.notify(),
                     _ => {}
                 },
             );
@@ -3447,21 +3447,21 @@ impl EditorView {
     ) {
         // Ensure our cached copy of these settings are up-to-date.
         match evt {
-            AppEditorSettingsChangedEvent::CursorDisplayState { .. } => {
+            AppEditorSettingsChangedEvent::CursorDisplayState => {
                 if self.cursor_display_override.is_some() {
                     self.cursor_display_override =
                         Some(*AppEditorSettings::as_ref(ctx).cursor_display_type);
                 }
             }
-            AppEditorSettingsChangedEvent::AutocompleteSymbols { .. } => {
+            AppEditorSettingsChangedEvent::AutocompleteSymbols => {
                 self.autocomplete_symbols_setting =
                     *AppEditorSettings::as_ref(ctx).autocomplete_symbols;
             }
-            AppEditorSettingsChangedEvent::AutosuggestionKeybindingHint { .. } => {
+            AppEditorSettingsChangedEvent::AutosuggestionKeybindingHint => {
                 self.show_autosuggestion_keybinding_hint =
                     *AppEditorSettings::as_ref(ctx).autosuggestion_keybinding_hint;
             }
-            AppEditorSettingsChangedEvent::ShowAutosuggestionIgnoreButton { .. } => {
+            AppEditorSettingsChangedEvent::ShowAutosuggestionIgnoreButton => {
                 self.show_autosuggestion_ignore_button =
                     *AppEditorSettings::as_ref(ctx).show_autosuggestion_ignore_button;
             }
@@ -8256,7 +8256,7 @@ impl EditorView {
         }
         let input_settings = InputSettings::as_ref(ctx);
         let is_universal_input_enabled = input_settings.is_universal_developer_input_enabled(ctx);
-        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let should_show_image = !FeatureFlag::AgentView.is_enabled()
             && self.image_context_options.should_show_button()
             && !is_universal_input_enabled;

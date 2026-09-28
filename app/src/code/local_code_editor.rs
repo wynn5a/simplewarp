@@ -2313,7 +2313,7 @@ impl View for LocalCodeEditorView {
         if self.selection_as_context_tooltip.is_some() {
             // When a single terminal exists in the window and the user has made a selection (but isn't currently selecting),
             // we render a tooltip that allows them to add the selected text to the terminal context.
-            let is_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
+            let is_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
             if is_ai_enabled
                 && FeatureFlag::SelectionAsContext.is_enabled()
                 && !editor.is_selecting()

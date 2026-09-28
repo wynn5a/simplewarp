@@ -898,9 +898,9 @@ fn make_new_elements_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
             move |_props: &MenuItemProperties, ctx: &mut AppContext| {
                 let mut changes = MenuItemPropertyChanges::default();
                 let is_default_session_mode_agent =
-                    AISettings::handle(ctx).read(ctx, |ai_settings, ctx| {
-                        ai_settings.is_any_ai_enabled(ctx)
-                            && ai_settings.default_session_mode(ctx) == DefaultSessionMode::Agent
+                    AISettings::handle(ctx).read(ctx, |ai_settings, _| {
+                        ai_settings.is_any_ai_enabled()
+                            && ai_settings.default_session_mode() == DefaultSessionMode::Agent
                     });
                 let trigger = if is_default_session_mode_agent {
                     Trigger::Custom(CustomAction::NewTerminalTab.into())
@@ -923,10 +923,10 @@ fn make_new_elements_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
             move |_props: &MenuItemProperties, ctx: &mut AppContext| {
                 let mut changes = MenuItemPropertyChanges::default();
                 let (is_any_ai_enabled, is_default_session_mode_agent) = AISettings::handle(ctx)
-                    .read(ctx, |ai_settings, ctx| {
-                        let enabled = ai_settings.is_any_ai_enabled(ctx);
+                    .read(ctx, |ai_settings, _| {
+                        let enabled = ai_settings.is_any_ai_enabled();
                         let agent = enabled
-                            && ai_settings.default_session_mode(ctx) == DefaultSessionMode::Agent;
+                            && ai_settings.default_session_mode() == DefaultSessionMode::Agent;
                         (enabled, agent)
                     });
                 if !is_any_ai_enabled {

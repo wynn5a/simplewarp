@@ -578,7 +578,7 @@ impl super::TerminalView {
                 .lock()
                 .block_list()
                 .block_at(inner.block_index)
-                .filter(|block| !self.is_block_considered_remote(block.session_id(), None, ctx)) // Don't scan for file links if the block is on remote sessions
+                .filter(|block| !self.is_block_considered_remote(block.session_id(), ctx)) // Don't scan for file links if the block is on remote sessions
                 .and_then(|block| block.pwd().map(String::from)),
         };
 

@@ -109,9 +109,6 @@ use crate::ai::blocklist::inline_action::aws_bedrock_credentials_error::{
 };
 use crate::ai::blocklist::inline_action::code_diff_view;
 use crate::ai::blocklist::inline_action::code_diff_view::convert_file_edits_to_file_diffs;
-use crate::ai::blocklist::inline_action::gemini_enterprise_credentials_error::{
-    GeminiEnterpriseCredentialsErrorEvent, GeminiEnterpriseCredentialsErrorView,
-};
 use crate::ai::blocklist::inline_action::requested_command::{
     self, RequestedActionViewType, RequestedCommand, RequestedCommandView,
     RequestedCommandViewEvent,
@@ -1030,9 +1027,6 @@ pub struct AIBlock {
 
     /// View for AWS Bedrock credentials error, created lazily when the error occurs.
     aws_bedrock_credentials_error_view: Option<ViewHandle<AwsBedrockCredentialsErrorView>>,
-    /// View for Gemini Enterprise credentials errors, created lazily when the error occurs.
-    gemini_enterprise_credentials_error_view:
-        Option<ViewHandle<GeminiEnterpriseCredentialsErrorView>>,
 
     imported_comments: HashMap<AIAgentActionId, ImportedCommentGroup>,
     has_imported_comments: bool,
@@ -1111,7 +1105,7 @@ impl AIBlock {
         ctx.subscribe_to_model(
             &AISettings::handle(ctx),
             move |me, settings_model, event, ctx| match event {
-                AISettingsChangedEvent::AgentModeExecuteReadonlyCommands { .. } => {
+                AISettingsChangedEvent::AgentModeExecuteReadonlyCommands => {
                     if let AutonomySettingSpeedbump::ShouldShowForAutoexecutingReadonlyCommands {
                         checked,
                         ..
@@ -1125,7 +1119,7 @@ impl AIBlock {
                     }
                     ctx.notify();
                 }
-                AISettingsChangedEvent::AgentModeCodingPermissions { .. } => {
+                AISettingsChangedEvent::AgentModeCodingPermissions => {
                     match &mut me.autonomy_setting_speedbump {
                         AutonomySettingSpeedbump::ShouldShowForFileAccess { checked, .. } => {
                             *checked = matches!(
@@ -1150,8 +1144,8 @@ impl AIBlock {
                     }
                     ctx.notify();
                 }
-                AISettingsChangedEvent::ThinkingDisplayMode { .. }
-                | AISettingsChangedEvent::OrchestrationMessageDisplayMode { .. } => {
+                AISettingsChangedEvent::ThinkingDisplayMode
+                | AISettingsChangedEvent::OrchestrationMessageDisplayMode => {
                     ctx.notify();
                 }
                 _ => {}
@@ -1189,7 +1183,7 @@ impl AIBlock {
         ctx.subscribe_to_model(
             &InputModeSettings::handle(ctx),
             |_, _, event, ctx| match event {
-                InputModeSettingsChangedEvent::InputModeState { .. } => ctx.notify(),
+                InputModeSettingsChangedEvent::InputModeState => ctx.notify(),
             },
         );
 
@@ -1439,7 +1433,6 @@ impl AIBlock {
             is_usage_footer_expanded: false,
             agent_view_controller,
             aws_bedrock_credentials_error_view: None,
-            gemini_enterprise_credentials_error_view: None,
             imported_comments: Default::default(),
             has_imported_comments: false,
             run_agents_card_views: Default::default(),
@@ -1470,7 +1463,6 @@ impl AIBlock {
             }
             AIBlockOutputStatus::Failed { error, .. } => {
                 me.maybe_create_aws_bedrock_credentials_error_view(&error, ctx);
-                me.maybe_create_gemini_enterprise_credentials_error_view(&error, ctx);
                 me.finish(FinishReason::Error, ctx);
             }
             AIBlockOutputStatus::Cancelled { .. } => {
@@ -1812,7 +1804,6 @@ impl AIBlock {
             AIBlockOutputStatus::Failed { error, .. } => {
                 let _server_output_id = self.model.server_output_id(ctx);
                 self.maybe_create_aws_bedrock_credentials_error_view(&error, ctx);
-                self.maybe_create_gemini_enterprise_credentials_error_view(&error, ctx);
                 self.notify_run_agents_card_views(ctx);
                 // There are no actions to be taken in this block, it is finished.
                 self.finish(FinishReason::Error, ctx);
@@ -2940,7 +2931,7 @@ impl AIBlock {
         let should_show_code_suggestion_speedbump =
             self.model.request_type(ctx).is_passive_code_diff()
                 && UserWorkspaces::as_ref(ctx).is_code_suggestions_toggleable()
-                && AISettings::as_ref(ctx).show_code_suggestion_speedbump(ctx);
+                && AISettings::as_ref(ctx).show_code_suggestion_speedbump();
         if should_show_code_suggestion_speedbump {
             AISettings::handle(ctx).update(ctx, |settings, ctx| {
                 if let Err(e) = settings
@@ -3894,44 +3885,6 @@ impl AIBlock {
         ctx.notify();
     }
 
-    fn maybe_create_gemini_enterprise_credentials_error_view(
-        &mut self,
-        error: &RenderableAIError,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !matches!(
-            error,
-            RenderableAIError::GeminiEnterpriseCredentialsExpiredOrInvalid
-        ) {
-            return;
-        }
-        if let Some(view) = &self.gemini_enterprise_credentials_error_view {
-            view.update(ctx, |view, ctx| view.reset(ctx));
-            return;
-        }
-
-        let view = ctx.add_typed_action_view(GeminiEnterpriseCredentialsErrorView::new);
-        ctx.subscribe_to_view(&view, |_me, _view, event, ctx| match event {
-            GeminiEnterpriseCredentialsErrorEvent::RefreshCredentials => {
-                use ai::api_keys::ApiKeyManager;
-
-                ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
-                    crate::ai::geap_credentials::force_refresh_geap_credentials(manager, ctx);
-                });
-            }
-            GeminiEnterpriseCredentialsErrorEvent::OpenSettings => {
-                // Defer so Workspace is not opened while AIBlock is still mid-subscription.
-                // Synchronous dispatch here can panic with "Circular view update".
-                ctx.dispatch_typed_action_deferred(WorkspaceAction::ShowSettingsPageWithSearch {
-                    search_query: "gemini enterprise".to_string(),
-                    section: Some(SettingsSection::WarpAgent),
-                });
-            }
-        });
-
-        self.gemini_enterprise_credentials_error_view = Some(view);
-        ctx.notify();
-    }
     pub fn accept_pending_unit_test_suggestion(&mut self, ctx: &mut ViewContext<Self>) -> bool {
         let Some(suggested_prompt) = self.pending_unit_test_suggestion(ctx) else {
             return false;
@@ -4035,7 +3988,7 @@ impl AIBlock {
             .request_type(ctx)
             .is_passive_unit_test_suggestion()
             && UserWorkspaces::as_ref(ctx).is_code_suggestions_toggleable()
-            && AISettings::as_ref(ctx).show_code_suggestion_speedbump(ctx);
+            && AISettings::as_ref(ctx).show_code_suggestion_speedbump();
         if should_show_speedbump {
             AISettings::handle(ctx).update(ctx, |settings, ctx| {
                 if let Err(e) = settings
@@ -5044,9 +4997,9 @@ impl AIBlock {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            SafeModeSettingsChangedEvent::SafeModeEnabled { .. }
-            | SafeModeSettingsChangedEvent::HideSecretsInBlockList { .. }
-            | SafeModeSettingsChangedEvent::SecretDisplayModeSetting { .. } => {
+            SafeModeSettingsChangedEvent::SafeModeEnabled
+            | SafeModeSettingsChangedEvent::HideSecretsInBlockList
+            | SafeModeSettingsChangedEvent::SecretDisplayModeSetting => {
                 ctx.notify();
             }
         }

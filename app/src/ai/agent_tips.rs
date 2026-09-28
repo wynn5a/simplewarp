@@ -362,7 +362,7 @@ pub fn get_agent_tips(ctx: &AppContext) -> Vec<AgentTip> {
 
     if cfg!(feature = "voice_input")
         && UserWorkspaces::as_ref(ctx).is_voice_enabled()
-        && AISettings::as_ref(ctx).is_voice_input_enabled(ctx)
+        && AISettings::as_ref(ctx).is_voice_input_enabled()
     {
         tips.push(AgentTip {
             description: "Hold <keybinding> to speak your prompt directly to the agent."

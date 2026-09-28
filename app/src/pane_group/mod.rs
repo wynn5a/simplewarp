@@ -45,7 +45,6 @@ use crate::ai::blocklist::suggested_rule_modal::SuggestedRuleAndId;
 use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig, SerializedBlockListItem};
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDocumentVersion};
 use crate::ai::execution_profiles::ExecutionProfileId;
-use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::LLMId;
 use crate::ai::restored_conversations::RestoredAgentConversations;
 use crate::ai_assistant::AskAIType;
@@ -1537,33 +1536,6 @@ impl PaneGroup {
                     });
                 }
 
-                if let Some(active_profile_sync_id) = &terminal_snapshot.active_profile_id {
-                    log::info!(
-                        "Attempting to restore active_profile '{active_profile_sync_id}' for terminal {terminal_view_id:?}"
-                    );
-
-                    let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
-
-                    if let Some(profile_id) =
-                        profiles_model.get_profile_id_by_sync_id(active_profile_sync_id, ctx)
-                    {
-                        AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                            profiles_model.set_active_profile(
-                                terminal_view_id,
-                                profile_id.clone(),
-                                ctx,
-                            );
-                        });
-                        log::info!(
-                            "Restored active profile {profile_id:?} for terminal {terminal_view_id:?}"
-                        );
-                    } else {
-                        log::warn!(
-                            "Failed to restore active profile for terminal {terminal_view_id:?}"
-                        );
-                    }
-                }
-
                 let focus = InitialFocus {
                     focused_pane: leaf.is_focused.then_some(pane_id),
                     active_session: terminal_snapshot.is_active.then_some(terminal_pane_id),
@@ -2387,7 +2359,7 @@ impl PaneGroup {
         ctx.subscribe_to_model(&GeneralSettings::handle(ctx), |me, _, event, ctx| {
             if matches!(
                 event,
-                GeneralSettingsChangedEvent::UserDefaultShellUnsupportedBannerState { .. }
+                GeneralSettingsChangedEvent::UserDefaultShellUnsupportedBannerState
             ) {
                 me.user_default_shell_unsupported_banner_model_handle
                     .update(ctx, |banner_state, ctx| {
@@ -4908,7 +4880,7 @@ impl PaneGroup {
             default_session_mode_behavior,
             DefaultSessionModeBehavior::Apply
         ) && conversation_restoration.is_none()
-            && AISettings::as_ref(ctx).default_session_mode(ctx) == DefaultSessionMode::Agent;
+            && AISettings::as_ref(ctx).default_session_mode() == DefaultSessionMode::Agent;
 
         let (pane_data, view) = self.create_terminal_pane_data(
             startup_directory,

@@ -520,7 +520,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         context,
         flags::SMART_SELECT_FLAG,
     ));
-    if FeatureFlag::AgentView.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled(app) {
+    if FeatureFlag::AgentView.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled() {
         toggle_binding_pairs.push(
             ToggleSettingActionPair::new(
                 "help block in new sessions",
@@ -574,7 +574,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::PRESERVE_INPUT_FOCUS_ON_BLOCK_SELECTION_FLAG,
     ));
 
-    if FeatureFlag::AgentView.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled(app) {
+    if FeatureFlag::AgentView.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled() {
         toggle_binding_pairs.push(
             ToggleSettingActionPair::new(
                 "slash commands in terminal mode",
@@ -1674,10 +1674,7 @@ impl FeaturesPageView {
             ctx.notify();
         });
         ctx.subscribe_to_model(&InputSettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(
-                event,
-                InputSettingsChangedEvent::CompletionsOpenWhileTyping { .. }
-            ) {
+            if matches!(event, InputSettingsChangedEvent::CompletionsOpenWhileTyping) {
                 me.refresh_tab_behavior_dropdown(ctx);
             }
             ctx.notify();
@@ -1685,10 +1682,7 @@ impl FeaturesPageView {
         ctx.subscribe_to_model(
             &ScrollSettings::handle(ctx),
             |me, scroll_settings, event, ctx| {
-                if matches!(
-                    event,
-                    ScrollSettingsChangedEvent::MouseScrollMultiplier { .. }
-                ) {
+                if matches!(event, ScrollSettingsChangedEvent::MouseScrollMultiplier) {
                     me.mouse_scroll_input_editor.update(ctx, |editor, ctx| {
                         editor.set_buffer_text(
                             format!("{}", *scroll_settings.as_ref(ctx).mouse_scroll_multiplier)
@@ -1706,7 +1700,7 @@ impl FeaturesPageView {
         });
         ctx.subscribe_to_model(&SessionSettings::handle(ctx), |me, _, event, ctx| {
             match event {
-                SessionSettingsChangedEvent::Notifications { .. } => {
+                SessionSettingsChangedEvent::Notifications => {
                     // Update the value of the notifications threshold input to match the new setting
                     me.notifications_long_running_threshold_editor
                         .update(ctx, |editor, ctx| {
@@ -1723,7 +1717,7 @@ impl FeaturesPageView {
                             );
                         });
                 }
-                SessionSettingsChangedEvent::NewSessionShellOverride { .. } => {
+                SessionSettingsChangedEvent::NewSessionShellOverride => {
                     #[cfg(feature = "local_tty")]
                     {
                         use super::features::startup_shell::NewSessionShellAction;
@@ -1748,7 +1742,7 @@ impl FeaturesPageView {
         ctx.subscribe_to_model(
             &TerminalSettings::handle(ctx),
             |me, terminal_settings, event, ctx| {
-                if matches!(event, TerminalSettingsChangedEvent::MaximumGridSize { .. }) {
+                if matches!(event, TerminalSettingsChangedEvent::MaximumGridSize) {
                     me.max_block_size_input_editor.update(ctx, |editor, ctx| {
                         editor.set_buffer_text(
                             &format!("{}", *terminal_settings.as_ref(ctx).maximum_grid_size),
@@ -1758,7 +1752,7 @@ impl FeaturesPageView {
                 }
                 if matches!(
                     event,
-                    TerminalSettingsChangedEvent::Osc52ClipboardAccessSetting { .. }
+                    TerminalSettingsChangedEvent::Osc52ClipboardAccessSetting
                 ) {
                     Self::update_osc52_clipboard_access_dropdown(
                         me.osc52_clipboard_access_dropdown.clone(),
@@ -1778,8 +1772,7 @@ impl FeaturesPageView {
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
             if matches!(
                 event,
-                AISettingsChangedEvent::IsAnyAIEnabled { .. }
-                    | AISettingsChangedEvent::DefaultSessionMode { .. }
+                AISettingsChangedEvent::IsAnyAIEnabled | AISettingsChangedEvent::DefaultSessionMode
             ) {
                 Self::update_default_session_mode_dropdown(
                     me.default_session_mode_dropdown.clone(),
@@ -1849,7 +1842,7 @@ impl FeaturesPageView {
         Self::update_osc52_clipboard_access_dropdown(osc52_clipboard_access_dropdown.clone(), ctx);
 
         ctx.subscribe_to_model(&TabSettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(event, TabSettingsChangedEvent::NewTabPlacement { .. }) {
+            if matches!(event, TabSettingsChangedEvent::NewTabPlacement) {
                 Self::update_new_tab_placement_dropdown(me.new_tab_placement_dropdown.clone(), ctx);
             }
             ctx.notify();
@@ -1892,10 +1885,7 @@ impl FeaturesPageView {
         );
 
         ctx.subscribe_to_model(&KeysSettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(
-                event,
-                KeysSettingsChangedEvent::CtrlTabBehaviorSetting { .. }
-            ) {
+            if matches!(event, KeysSettingsChangedEvent::CtrlTabBehaviorSetting) {
                 Self::update_ctrl_tab_behavior_dropdown(me.ctrl_tab_behavior_dropdown.clone(), ctx);
             }
             ctx.notify();
@@ -1950,10 +1940,7 @@ impl FeaturesPageView {
         });
 
         ctx.subscribe_to_model(&SemanticSelection::handle(ctx), |me, _, event, ctx| {
-            if matches!(
-                event,
-                SemanticSelectionChangedEvent::WordCharAllowlist { .. }
-            ) {
+            if matches!(event, SemanticSelectionChangedEvent::WordCharAllowlist) {
                 me.word_boundary_editor.update(ctx, |editor, ctx| {
                     let word_char_allowlist =
                         SemanticSelection::as_ref(ctx).word_char_allowlist_string();
@@ -3072,7 +3059,7 @@ impl FeaturesPageView {
         dropdown.update(
             ctx,
             |dropdown: &mut FilterableDropdown<FeaturesPageAction>, ctx| {
-                let is_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+                let is_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
 
                 if is_ai_enabled {
                     dropdown.set_enabled(ctx);
@@ -3081,7 +3068,7 @@ impl FeaturesPageView {
                 }
 
                 let ai_settings = AISettings::as_ref(ctx);
-                let current_mode = ai_settings.default_session_mode(ctx);
+                let current_mode = ai_settings.default_session_mode();
                 let current_tab_config_path = ai_settings.default_tab_config_path().to_string();
 
                 // Build items: built-in modes (skip TabConfig since configs are listed individually,
@@ -5299,7 +5286,7 @@ impl SettingsWidget for SlashCommandsInTerminalModeWidget {
     }
 
     fn should_render(&self, app: &AppContext) -> bool {
-        AISettings::as_ref(app).is_any_ai_enabled(app)
+        AISettings::as_ref(app).is_any_ai_enabled()
     }
 
     fn render(
@@ -6013,7 +6000,7 @@ impl SettingsWidget for ShowTerminalZeroStateBlockWidget {
     }
 
     fn should_render(&self, app: &AppContext) -> bool {
-        AISettings::as_ref(app).is_any_ai_enabled(app)
+        AISettings::as_ref(app).is_any_ai_enabled()
     }
 
     fn render(

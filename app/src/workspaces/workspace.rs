@@ -1,17 +1,7 @@
-use std::cmp::Ordering;
-use std::path::PathBuf;
-
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use super::team::{MembershipRole, Team};
-use crate::ai::execution_profiles::{
-    ActionPermission, ComputerUsePermission, WriteToPtyPermission,
-};
-use crate::ai::llms::{LLMModelHost, LLMProvider};
-use crate::auth::UserUid;
+use super::team::Team;
 use crate::server::ids::ServerId;
-use crate::settings::AgentModeCommandExecutionPredicate;
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
 pub struct WorkspaceUid(ServerId);
@@ -34,24 +24,12 @@ impl From<ServerId> for WorkspaceUid {
 #[derive(Clone, Debug)]
 pub struct Workspace {
     pub uid: WorkspaceUid,
-    pub name: String,
-    pub stripe_customer_id: Option<String>,
     pub teams: Vec<Team>,
     pub billing_metadata: BillingMetadata,
-    pub bonus_grants_purchased_this_month: BonusGrantsPurchased,
-    pub billing_cycle_usage: Option<BillingCycleUsageData>,
-    pub has_billing_history: bool,
-    pub settings: WorkspaceSettings,
-    pub invite_link_domain_restrictions: Vec<InviteLinkDomainRestriction>,
-    pub pending_email_invites: Vec<EmailInvite>,
-    // If the team is eligible for discovery, then show toggle for setting discoverability to the team's admin
-    pub is_eligible_for_discovery: bool,
-    pub members: Vec<WorkspaceMember>,
-    pub total_requests_used_since_last_refresh: i32,
 }
 
 impl Workspace {
-    pub fn from_local_cache(uid: WorkspaceUid, name: String, teams: Option<Vec<Team>>) -> Self {
+    pub fn from_local_cache(uid: WorkspaceUid, teams: Option<Vec<Team>>) -> Self {
         // Derive the workspace billing metadata from the first team's cached billing
         // metadata, if available. This ensures the workspace-level billing info is
         // consistent with team-level data loaded from the cache.
@@ -62,127 +40,9 @@ impl Workspace {
             .unwrap_or_default();
         Self {
             uid,
-            name,
-            stripe_customer_id: Default::default(),
             teams: teams.unwrap_or_default(),
             billing_metadata,
-            bonus_grants_purchased_this_month: Default::default(),
-            billing_cycle_usage: None,
-            has_billing_history: false,
-            settings: Default::default(), // TODO: persistence wrapper instead of default
-            invite_link_domain_restrictions: Default::default(),
-            pending_email_invites: Default::default(),
-            is_eligible_for_discovery: false,
-            members: Default::default(),
-            total_requests_used_since_last_refresh: 0,
         }
-    }
-
-    fn get_member_by_email(&self, email: &str) -> Option<&WorkspaceMember> {
-        self.members.iter().find(|member| member.email == email)
-    }
-
-    pub fn is_workspace_admin(&self, user_email: &str) -> bool {
-        self.get_member_by_email(user_email)
-            .is_some_and(|member| member.role.is_admin_or_owner())
-    }
-
-    pub fn is_native_workspaces_enabled(&self) -> bool {
-        self.billing_metadata
-            .tier
-            .native_workspaces_policy
-            .is_some_and(|policy| policy.enabled)
-    }
-
-    pub fn is_native_workspaces_admin(&self, user_email: &str) -> bool {
-        self.is_workspace_admin(user_email) && self.is_native_workspaces_enabled()
-    }
-
-    pub fn resolve_usage_visibility(&self, is_admin: bool) -> UsageVisibility {
-        let Some(policy) = self.billing_metadata.tier.usage_visibility_policy else {
-            return UsageVisibility::default();
-        };
-        UsageVisibility {
-            granularity: if is_admin {
-                policy.admin_granularity
-            } else {
-                UsageVisibilityGranularity::OwnOnly
-            },
-            max_prior_cycles: policy.max_prior_cycles,
-        }
-    }
-
-    pub fn is_custom_llm_enabled(&self) -> bool {
-        self.settings.llm_settings.enabled
-    }
-
-    pub fn are_overages_enabled(&self) -> bool {
-        self.settings.usage_based_pricing_settings.enabled
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct WorkspaceMember {
-    pub uid: UserUid,
-    pub email: String,
-    pub role: MembershipRole,
-    pub usage_info: WorkspaceMemberUsageInfo,
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct WorkspaceMemberUsageInfo {
-    pub is_unlimited: bool,
-    pub request_limit: i32,
-    pub requests_used_since_last_refresh: i32,
-    pub is_request_limit_prorated: bool,
-}
-
-impl PartialOrd for WorkspaceMember {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for WorkspaceMember {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.email.cmp(&other.email)
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct EmailInvite {
-    pub invitee_email: String,
-    pub expired: bool,
-    pub team_uid: Option<ServerId>,
-}
-
-impl PartialOrd for EmailInvite {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for EmailInvite {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.invitee_email.cmp(&other.invitee_email)
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct InviteLinkDomainRestriction {
-    pub uid: ServerId,
-    pub domain: String,
-}
-
-impl PartialOrd for InviteLinkDomainRestriction {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for InviteLinkDomainRestriction {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.domain.cmp(&other.domain)
     }
 }
 
@@ -201,24 +61,6 @@ pub enum CustomerType {
     Build,
     BuildMax,
     Unknown,
-}
-
-impl CustomerType {
-    pub fn to_display_string(self) -> String {
-        match self {
-            CustomerType::Free => "Free".to_string(),
-            CustomerType::Turbo => "Turbo".to_string(),
-            CustomerType::SelfServe => "Team".to_string(),
-            CustomerType::Prosumer => "Pro".to_string(),
-            CustomerType::Legacy => "Early adopter".to_string(),
-            CustomerType::Enterprise => "Enterprise".to_string(),
-            CustomerType::Business => "Business".to_string(),
-            CustomerType::Lightspeed => "Lightspeed".to_string(),
-            CustomerType::Build => "Build".to_string(),
-            CustomerType::BuildMax => "Max".to_string(),
-            CustomerType::Unknown => "".to_string(),
-        }
-    }
 }
 
 /// This enum is the rust representation of `DelinquencyStatus` from the GraphQL Schema.
@@ -276,6 +118,14 @@ pub struct TelemetryDataCollectionPolicy {
     pub toggleable: bool,
 }
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub enum UgcCollectionEnablementSetting {
+    Disable,
+    Enable,
+    #[default]
+    RespectUserSetting,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UgcDataCollectionPolicy {
     pub default_setting: UgcCollectionEnablementSetting,
@@ -320,25 +170,6 @@ pub struct PurchaseAddOnCreditsPolicy {
     /// the premium path (1000 bps = +10%). 0 for standard purchasing plans.
     #[serde(default)]
     pub price_premium_bps: i32,
-}
-
-impl PurchaseAddOnCreditsPolicy {
-    /// Whether this plan may purchase add-on credit packs at all, either at
-    /// list price (`enabled`) or at a premium surcharge (`premium_enabled`).
-    pub fn allows_purchases(&self) -> bool {
-        self.enabled || self.premium_enabled
-    }
-
-    /// The surcharge in basis points applied to pack list prices. 0 whenever
-    /// standard (list price) purchasing is enabled — standard purchasing
-    /// wins if the server ever sends both flags.
-    pub fn effective_premium_bps(&self) -> i32 {
-        if !self.enabled && self.premium_enabled {
-            self.price_premium_bps
-        } else {
-            0
-        }
-    }
 }
 
 #[derive(Clone, Debug, Copy, Serialize, Deserialize)]
@@ -404,24 +235,6 @@ pub struct UsageVisibilityPolicy {
     pub max_prior_cycles: MaxPriorCycles,
 }
 
-/// Effective per-viewer visibility, after combining the tier's
-/// `UsageVisibilityPolicy` with the viewer's admin status. Non-admins always
-/// collapse to `granularity == OwnOnly`; `max_prior_cycles` is plan-wide and
-/// applies to admins and non-admins alike. Built by
-/// [`Workspace::resolve_usage_visibility`].
-#[derive(Clone, Copy, Debug, Default)]
-pub struct UsageVisibility {
-    pub granularity: UsageVisibilityGranularity,
-    pub max_prior_cycles: MaxPriorCycles,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub enum HostEnablementSetting {
-    Enforce,
-    #[default]
-    RespectUserSetting,
-}
-
 /// This struct is the rust representation of `Tier` from the GraphQL Schema.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -457,185 +270,9 @@ pub struct BillingMetadata {
     pub tier: Tier,
     pub customer_type: CustomerType,
     pub delinquency_status: DelinquencyStatus,
-    #[serde(skip)]
-    pub service_agreements: Vec<ServiceAgreement>,
-    #[serde(skip)]
-    pub ai_overages: Option<AiOverages>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ServiceAgreement {
-    pub type_: ServiceAgreementType,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum ServiceAgreementType {
-    Enterprise,
-    Legacy,
-    ProTrial,
-    Prosumer,
-    SelfServe,
-    TeamTrial,
-    Turbo,
-    Business,
-    Lightspeed,
-    Other(String),
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct BonusGrantsPurchased {
-    pub total_credits_purchased: i32,
-    pub cents_spent: i32,
-}
-
-#[derive(Clone, Debug)]
-pub struct AiOverages {
-    pub current_monthly_request_cost_cents: i32,
-    pub current_monthly_requests_used: i32,
-    pub current_period_end: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AiCreditsUsageAndCostSubjectType {
-    Team,
-    User,
-    ServiceAccount,
-    Other(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AiCreditsUsageAndCostType {
-    BaseLimit,
-    BonusGrant,
-    Payg,
-    AmbientBonusGrant,
-    Aggregate,
-    Other(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AiCreditsUsageBucket {
-    Ai,
-    Compute,
-    Platform,
-    SuggestedCodeDiffs,
-    Voice,
-    Aggregate,
-    Other(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AiCreditsUsageSource {
-    Local,
-    Cloud,
-    Aggregate,
-    Other(String),
-}
-
-/// A single redacted usage entry from `Workspace.billingCycleUsageHistory`.
-///
-/// The shape of this entry depends on the viewer's resolved `UsageVisibility`:
-/// * `OwnOnly` viewers receive only their own entries with real `cost_type` /
-///   `usage_bucket` / `usage_source` values.
-/// * `TeamAggregate` viewers receive exactly one synthetic `TEAM` row per cycle
-///   carrying `Aggregate` sentinels for all three categorical fields.
-/// * `PerUserTotals` viewers receive one row per user / service account per
-///   cycle, also with `Aggregate` sentinels on the categorical fields.
-/// * `FullBreakdown` viewers receive every real row, one per
-///   `(subject, cost_type, bucket, source)` tuple. Categorical fields always
-///   carry real values — the server does **not** synthesize an aggregate team
-///   total at this granularity. Compute team-wide sums client-side if needed.
-#[derive(Clone, Debug)]
-pub struct BillingCycleUsageEntry {
-    pub subject_type: AiCreditsUsageAndCostSubjectType,
-    pub subject_uid: Option<String>,
-    pub subject_display_name: Option<String>,
-    pub cost_type: AiCreditsUsageAndCostType,
-    pub usage_bucket: AiCreditsUsageBucket,
-    pub usage_source: AiCreditsUsageSource,
-    pub credits_used: i32,
-    pub cost_cents: i32,
-    /// Uid of the team this usage is attributed to. `billingCycleUsageHistory`
-    /// is workspace-wide, so this is what scopes an entry to a single team.
-    /// `None` for rows written before usage attribution shipped and for the
-    /// synthetic aggregate rows the server emits below `FullBreakdown`
-    /// visibility.
-    pub attributed_team_uid: Option<String>,
-}
-
-/// Per-cycle bucket of redacted usage entries with explicit period bounds.
-/// `period_end` is exclusive (e.g. a summary covering May 2026 has
-/// `period_end = 2026-06-01T00:00:00Z`).
-#[derive(Clone, Debug)]
-pub struct BillingCycleUsageSummary {
-    pub period_start: chrono::DateTime<chrono::Utc>,
-    pub period_end: chrono::DateTime<chrono::Utc>,
-    pub entries: Vec<BillingCycleUsageEntry>,
-}
-
-/// The full per-cycle usage history for a workspace, as redacted by the
-/// server's `USAGE_VISIBILITY` policy. `current_period_start` /
-/// `current_period_end` mark the cycle that's currently active; older
-/// summaries cover prior cycles and the number of them retained is governed
-/// by the policy's `max_prior_cycles`.
-#[derive(Clone, Debug)]
-pub struct BillingCycleUsageData {
-    pub current_period_start: chrono::DateTime<chrono::Utc>,
-    pub current_period_end: chrono::DateTime<chrono::Utc>,
-    pub summaries: Vec<BillingCycleUsageSummary>,
 }
 
 impl BillingMetadata {
-    /**
-     * Returns whether customer can upgrade to the Build plan based on their current tier.
-     */
-    pub fn can_upgrade_to_build_plan(&self) -> bool {
-        match self.customer_type {
-            CustomerType::Unknown
-            | CustomerType::Business
-            | CustomerType::Enterprise
-            | CustomerType::Build
-            | CustomerType::BuildMax => false,
-            CustomerType::Free
-            | CustomerType::Legacy
-            | CustomerType::Prosumer
-            | CustomerType::Turbo
-            | CustomerType::SelfServe
-            | CustomerType::Lightspeed => true,
-        }
-    }
-
-    /**
-     * Returns whether customer can upgrade to the Build Max plan based on their current tier.
-     * Users on Build can upgrade to Build Max.
-     */
-    pub fn can_upgrade_to_build_max_plan(&self) -> bool {
-        self.can_upgrade_to_build_plan() || self.customer_type == CustomerType::Build
-    }
-
-    /**
-     * Returns whether customer can upgrade to a higher tier based on their current tier.
-     */
-    pub fn can_upgrade_to_higher_tier_plan(&self) -> bool {
-        self.can_upgrade_to_build_plan()
-    }
-
-    pub fn is_stripe_paid_plan(customer_type: CustomerType) -> bool {
-        match customer_type {
-            CustomerType::Turbo
-            | CustomerType::SelfServe
-            | CustomerType::Prosumer
-            | CustomerType::Business
-            | CustomerType::Lightspeed
-            | CustomerType::Build
-            | CustomerType::BuildMax => true,
-            CustomerType::Free
-            | CustomerType::Enterprise
-            | CustomerType::Legacy
-            | CustomerType::Unknown => false,
-        }
-    }
-
     pub fn is_user_on_paid_plan(&self) -> bool {
         match self.customer_type {
             CustomerType::Turbo
@@ -651,354 +288,9 @@ impl BillingMetadata {
         }
     }
 
-    pub fn is_on_stripe_paid_plan(&self) -> bool {
-        BillingMetadata::is_stripe_paid_plan(self.customer_type)
-    }
-
-    pub fn is_on_build_max_plan(&self) -> bool {
-        self.customer_type == CustomerType::BuildMax
-    }
-
-    pub fn is_on_build_business_plan(&self) -> bool {
-        self.customer_type == CustomerType::Business
-            && matches!(
-                self.service_agreements.first().map(|sa| &sa.type_),
-                Some(ServiceAgreementType::SelfServe)
-            )
-    }
-
-    pub fn is_on_legacy_business_plan(&self) -> bool {
-        self.customer_type == CustomerType::Business && !self.is_on_build_business_plan()
-    }
-
-    pub fn is_enterprise_plan(&self) -> bool {
-        self.customer_type == CustomerType::Enterprise
-    }
-
-    pub fn is_free_plan(&self) -> bool {
-        self.customer_type == CustomerType::Free
-    }
-
-    pub fn is_delinquent_due_to_payment_issue(&self) -> bool {
-        self.delinquency_status == DelinquencyStatus::PastDue
-            || self.delinquency_status == DelinquencyStatus::Unpaid
-    }
-
-    // Whether the enterprise customer is our Stable Warp Enterprise team (internal team of Warpers).
-    pub fn is_warp_plan(&self) -> bool {
-        self.tier.name == "Warp Plan"
-    }
-
-    pub fn is_byo_api_key_enabled(&self) -> bool {
-        self.tier
-            .byo_api_key_policy
-            .is_some_and(|policy| policy.enabled)
-    }
-
     pub fn is_managed_byok_byoe_enabled(&self) -> bool {
         self.tier
             .managed_byok_byoe_policy
             .is_some_and(|policy| policy.enabled)
     }
-
-    /// Whether this plan may purchase add-on credit packs at all, either at
-    /// list price (`enabled`) or at a premium surcharge (`premium_enabled`).
-    pub fn is_purchase_add_on_credits_policy_enabled(&self) -> bool {
-        self.tier
-            .purchase_add_on_credits_policy
-            .is_some_and(|policy| policy.allows_purchases())
-    }
-
-    /// Whether add-on credit purchases on this plan go through the premium
-    /// (surcharged) path rather than standard list-price purchasing.
-    pub fn is_premium_addon_credits_purchase(&self) -> bool {
-        self.tier
-            .purchase_add_on_credits_policy
-            .is_some_and(|policy| !policy.enabled && policy.premium_enabled)
-    }
-
-    /// The surcharge in basis points applied to add-on credit pack list
-    /// prices for this plan. 0 whenever standard purchasing is enabled.
-    pub fn addon_credits_price_premium_bps(&self) -> i32 {
-        self.tier
-            .purchase_add_on_credits_policy
-            .map_or(0, |policy| policy.effective_premium_bps())
-    }
-}
-
-#[cfg(test)]
-#[path = "workspace_tests.rs"]
-mod tests;
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct LlmHostSettings {
-    pub enabled: bool,
-    pub enablement_setting: HostEnablementSetting,
-    /// Full resource name of the GCP workload identity provider that Gemini Enterprise
-    /// (GEAP) credential minting exchanges Warp OIDC JWTs against. Only populated on the
-    /// `GeminiEnterprise` host entry; `None` for other hosts and for workspace caches
-    /// written before this field existed.
-    #[serde(default)]
-    pub gcp_audience: Option<String>,
-    /// Email of the GCP service account that Gemini Enterprise credential minting
-    /// impersonates after the STS exchange. `None` (or empty) means the federated token
-    /// is used directly.
-    #[serde(default)]
-    pub gcp_sa_email: Option<String>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct LlmSettings {
-    pub enabled: bool,
-    #[serde(default)]
-    pub host_configs: std::collections::HashMap<LLMModelHost, LlmHostSettings>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub enum UgcCollectionEnablementSetting {
-    Disable,
-    Enable,
-    #[default]
-    RespectUserSetting,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct UgcCollectionSettings {
-    pub setting: UgcCollectionEnablementSetting,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub enum AdminEnablementSetting {
-    Disable,
-    Enable,
-    #[default]
-    RespectUserSetting,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct AiPermissionsSettings {
-    pub allow_ai_in_remote_sessions: bool,
-    #[serde(with = "serde_regex")]
-    pub remote_session_regex_list: Vec<Regex>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct AiAutonomySettings {
-    pub apply_code_diffs_setting: Option<ActionPermission>,
-    pub read_files_setting: Option<ActionPermission>,
-    pub read_files_allowlist: Option<Vec<PathBuf>>,
-    pub execute_commands_setting: Option<ActionPermission>,
-    pub execute_commands_allowlist: Option<Vec<AgentModeCommandExecutionPredicate>>,
-    pub execute_commands_denylist: Option<Vec<AgentModeCommandExecutionPredicate>>,
-    pub write_to_pty_setting: Option<WriteToPtyPermission>,
-    pub computer_use_setting: Option<ComputerUsePermission>,
-}
-
-impl AiAutonomySettings {
-    pub fn has_any_overrides(&self) -> bool {
-        self.apply_code_diffs_setting.is_some()
-            || self.read_files_setting.is_some()
-            || self.read_files_allowlist.is_some()
-            || self.execute_commands_setting.is_some()
-            || self.execute_commands_allowlist.is_some()
-            || self.execute_commands_denylist.is_some()
-            || self.write_to_pty_setting.is_some()
-            || self.computer_use_setting.is_some()
-    }
-
-    pub fn has_override_for_code_diffs(&self) -> bool {
-        self.apply_code_diffs_setting.is_some()
-    }
-
-    pub fn has_override_for_read_files(&self) -> bool {
-        self.read_files_setting.is_some()
-    }
-
-    pub fn has_override_for_read_files_allowlist(&self) -> bool {
-        self.read_files_allowlist.is_some()
-    }
-
-    pub fn has_override_for_execute_commands(&self) -> bool {
-        self.execute_commands_setting.is_some()
-    }
-
-    pub fn has_override_for_execute_commands_allowlist(&self) -> bool {
-        self.execute_commands_allowlist.is_some()
-    }
-
-    pub fn has_override_for_execute_commands_denylist(&self) -> bool {
-        self.execute_commands_denylist.is_some()
-    }
-
-    pub fn has_override_for_write_to_pty(&self) -> bool {
-        self.write_to_pty_setting.is_some()
-    }
-
-    pub fn has_override_for_computer_use(&self) -> bool {
-        self.computer_use_setting.is_some()
-    }
-}
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct EnterpriseSecretRegex {
-    pub pattern: String,
-    #[serde(default)]
-    pub name: Option<String>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct SecretRedactionSettings {
-    pub enabled: bool,
-    pub regexes: Vec<EnterpriseSecretRegex>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct UsageBasedPricingSettings {
-    pub enabled: bool,
-    pub max_monthly_spend_cents: Option<u32>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct CodebaseContextSettings {
-    pub setting: AdminEnablementSetting,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct SandboxedAgentSettings {
-    pub execute_commands_denylist: Option<Vec<AgentModeCommandExecutionPredicate>>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct WorkspaceSettings {
-    pub llm_settings: LlmSettings,
-    pub team_byo: Option<TeamByoSettings>,
-    pub ugc_collection_settings: UgcCollectionSettings,
-    pub secret_redaction_settings: SecretRedactionSettings,
-    pub ai_permissions_settings: AiPermissionsSettings,
-    pub ai_autonomy_settings: AiAutonomySettings,
-    pub usage_based_pricing_settings: UsageBasedPricingSettings,
-    pub codebase_context_settings: CodebaseContextSettings,
-    pub sandboxed_agent_settings: Option<SandboxedAgentSettings>,
-    /// The team-level agent attribution setting. When `Enable` or `Disable`, the
-    /// user toggle is locked. When `RespectUserSetting` (or absent), the user can choose.
-    #[serde(default)]
-    pub enable_warp_attribution: AdminEnablementSetting,
-    #[serde(default)]
-    pub default_host_slug: Option<String>,
-}
-
-/// A workspace-governable setting carried on [`TeamSettings`]: the effective
-/// `value` plus whether the workspace layer enforces it (mirrors the server's
-/// `*SettingInfo` wrappers). The enforcement bit is preserved so future admin UI
-/// can distinguish workspace-enforced values from team-owned ones.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct EnforceableSetting<T> {
-    pub value: T,
-    #[serde(default)]
-    pub is_enforced_by_workspace: bool,
-}
-
-/// A list setting split by the layer that contributed each entry (mirrors the
-/// server's `StringListSettingInfo` / `SecretRedactionRegexListInfo`). `values`
-/// is the authoritative merged result; `workspace_entries` / `team_entries` are
-/// preserved so future admin UI can present the layers separately.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct SplitListSetting<T> {
-    pub values: Vec<T>,
-    #[serde(default)]
-    pub workspace_entries: Vec<T>,
-    #[serde(default)]
-    pub team_entries: Vec<T>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct TeamAiPermissionsSettings {
-    pub allow_ai_in_remote_sessions: EnforceableSetting<bool>,
-    pub remote_session_regex_list: SplitListSetting<String>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct TeamSecretRedactionSettings {
-    pub enabled: EnforceableSetting<bool>,
-    pub regexes: SplitListSetting<EnterpriseSecretRegex>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct TeamAiAutonomySettings {
-    pub apply_code_diffs: EnforceableSetting<Option<ActionPermission>>,
-    pub read_files: EnforceableSetting<Option<ActionPermission>>,
-    pub create_plans: EnforceableSetting<Option<ActionPermission>>,
-    pub execute_commands: EnforceableSetting<Option<ActionPermission>>,
-    pub write_to_pty: EnforceableSetting<Option<WriteToPtyPermission>>,
-    pub computer_use: EnforceableSetting<Option<ComputerUsePermission>>,
-    pub read_files_allowlist: SplitListSetting<String>,
-    pub execute_commands_allowlist: SplitListSetting<String>,
-    pub execute_commands_denylist: SplitListSetting<String>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct TeamSandboxedAgentSettings {
-    pub execute_commands_denylist: SplitListSetting<String>,
-}
-
-/// The effective settings that apply to a team, combining the workspace layer
-/// with the team's own configuration.
-///
-/// This is intentionally a distinct type from [`WorkspaceSettings`] rather than
-/// an alias: it is sourced from the server's effective `Team.settings`. Each
-/// workspace-governable group keeps both its effective value **and** the
-/// `is_enforced_by_workspace` / workspace-vs-team split metadata (via
-/// [`EnforceableSetting`] / [`SplitListSetting`]) so future admin UI can recover
-/// those details. Rows cached by older builds may still carry retired server-only groups
-/// (telemetry, cloud conversation storage, link sharing, add-on credits); serde ignores them.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct TeamSettings {
-    pub ugc_collection: EnforceableSetting<UgcCollectionEnablementSetting>,
-    pub codebase_context: EnforceableSetting<AdminEnablementSetting>,
-    pub ai_permissions: TeamAiPermissionsSettings,
-    pub secret_redaction: TeamSecretRedactionSettings,
-    pub ai_autonomy: TeamAiAutonomySettings,
-    pub sandboxed_agent: TeamSandboxedAgentSettings,
-    pub llm_settings: LlmSettings,
-    pub usage_based_pricing_settings: UsageBasedPricingSettings,
-    /// The team-level agent attribution setting. When `Enable` or `Disable`, the
-    /// user toggle is locked. When `RespectUserSetting` (or absent), the user can choose.
-    #[serde(default)]
-    pub enable_warp_attribution: AdminEnablementSetting,
-    #[serde(default)]
-    pub default_host_slug: Option<String>,
-    pub team_byo: Option<TeamByoSettings>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct TeamByoSettings {
-    pub first_party_enabled: bool,
-    pub endpoints_enabled: bool,
-    pub allow_user_keys: bool,
-    pub allow_user_endpoints: bool,
-    pub first_party_keys: Vec<ByoFirstPartyKey>,
-    pub endpoints: Vec<ByoEndpointMetadata>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ByoFirstPartyKey {
-    pub provider: LLMProvider,
-    pub credential_uid: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ByoEndpointMetadata {
-    pub uid: String,
-    pub name: String,
-    pub enabled: bool,
-    pub credential_uid: String,
-    pub models: Vec<ByoEndpointModelMetadata>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ByoEndpointModelMetadata {
-    pub config_key: String,
-    pub slug: String,
-    pub alias: Option<String>,
-    pub display_name: String,
-    pub enabled: bool,
 }

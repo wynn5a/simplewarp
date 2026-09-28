@@ -1632,17 +1632,6 @@ impl BlocklistAIController {
             &conversation_data.server_conversation_token,
         );
 
-        // Safety net: re-arm the Gemini Enterprise (GEAP) credential refresh
-        // chain if it was parked or never armed, so upcoming requests can
-        // authenticate.
-        {
-            use ::ai::api_keys::ApiKeyManager;
-
-            ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
-                crate::ai::geap_credentials::refresh_geap_credentials_if_needed(manager, ctx);
-            });
-        }
-
         let mut request_params = api::RequestParams::new(
             Some(self.terminal_surface_id),
             SessionContext::from_session(self.active_session.as_ref(ctx), ctx),
@@ -2401,18 +2390,11 @@ impl BlocklistAIController {
                     .try_into()
                     .ok()
                     .is_some_and(|p: LlmProvider| p == LlmProvider::AwsBedrock);
-                let is_gemini_enterprise = details
-                    .provider
-                    .try_into()
-                    .ok()
-                    .is_some_and(|p: LlmProvider| p == LlmProvider::GeminiEnterprise);
 
                 let error = if is_aws_bedrock {
                     RenderableAIError::AwsBedrockCredentialsExpiredOrInvalid {
                         model_name: details.model_name,
                     }
-                } else if is_gemini_enterprise {
-                    RenderableAIError::GeminiEnterpriseCredentialsExpiredOrInvalid
                 } else {
                     let provider = details.provider.try_into().ok().and_then(|provider| match provider {
                         LlmProvider::Google => Some("Google"),

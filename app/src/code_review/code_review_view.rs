@@ -6428,7 +6428,7 @@ impl CodeReviewView {
 
         let has_changes = matches!(self.state(), CodeReviewViewState::Loaded(loaded) if !loaded.to_diff_stats().has_no_changes());
 
-        let is_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let is_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         if is_ai_enabled && FeatureFlag::DiffSetAsContext.is_enabled() && has_changes {
             items.push(
                 MenuItemFields::new("Add diff set as context")

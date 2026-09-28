@@ -13,7 +13,6 @@ use super::local_harness_launch::{PreparedLocalHarnessLaunch, prepare_local_harn
 use super::{
     DetachType, PaneConfiguration, PaneContent, PaneId, PaneStackEvent, PaneView, TerminalPaneId,
 };
-use crate::AIExecutionProfilesModel;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::StartAgentExecutionMode;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
@@ -376,10 +375,6 @@ impl PaneContent for TerminalPane {
             let llm_model_override =
                 LLMPreferences::as_ref(app).get_base_llm_override(self.terminal_view(app).id());
 
-            let active_profile_id = AIExecutionProfilesModel::as_ref(app)
-                .active_profile(Some(self.terminal_view(app).id()), app)
-                .sync_id();
-
             // Collect all conversation IDs for this terminal view
             let conversation_ids_to_restore = BlocklistAIHistoryModel::as_ref(app)
                 .all_live_conversations_for_terminal_surface(self.terminal_view(app).id())
@@ -408,7 +403,7 @@ impl PaneContent for TerminalPane {
                 shell_launch_data: view.shell_launch_data_if_local(app),
                 input_config: Some(current_input_config),
                 llm_model_override,
-                active_profile_id,
+                active_profile_id: None,
                 conversation_ids_to_restore,
                 active_conversation_id,
             })

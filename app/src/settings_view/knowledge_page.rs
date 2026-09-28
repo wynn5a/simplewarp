@@ -191,7 +191,7 @@ impl SettingsWidget for RulesWidget {
             "Rules",
             KnowledgePageAction::ToggleRules,
             *ai_settings.memory_enabled,
-            ai_settings.is_any_ai_enabled(app),
+            ai_settings.is_any_ai_enabled(),
             self.rules_toggle.clone(),
             app,
         );
@@ -208,7 +208,7 @@ impl SettingsWidget for RulesWidget {
                 CONTENT_FONT_SIZE,
                 appearance.ui_font_family(),
                 appearance.ui_font_family(),
-                styles::description_font_color(ai_settings.is_any_ai_enabled(app), app).into(),
+                styles::description_font_color(ai_settings.is_any_ai_enabled(), app).into(),
                 self.rules_link_index.clone(),
             )
             .with_hyperlink_font_color(appearance.theme().accent().into_solid())
@@ -252,14 +252,14 @@ impl SettingsWidget for SuggestedRulesWidget {
             "Suggested Rules",
             KnowledgePageAction::ToggleRuleSuggestions,
             *ai_settings.rule_suggestions_enabled_internal,
-            ai_settings.is_any_ai_enabled(app),
+            ai_settings.is_any_ai_enabled(),
             self.rule_suggestions_toggle.clone(),
             app,
         );
 
         let description = render_ai_setting_description(
             "Let AI suggest rules to save based on your interactions.",
-            ai_settings.is_any_ai_enabled(app),
+            ai_settings.is_any_ai_enabled(),
             app,
         );
 
@@ -290,7 +290,7 @@ impl SettingsWidget for ManageRulesWidget {
     ) -> Box<dyn Element> {
         render_full_pane_width_ai_button(
             "Manage rules",
-            AISettings::as_ref(app).is_any_ai_enabled(app),
+            AISettings::as_ref(app).is_any_ai_enabled(),
             self.manage_rules_button.clone(),
             KnowledgePageAction::OpenAIFactCollection,
             appearance,

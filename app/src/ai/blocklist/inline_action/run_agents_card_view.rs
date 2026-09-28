@@ -258,7 +258,7 @@ fn resolve_interactive_defaults(
             // over the bare "warp" fallback so self-hosted teams see
             // their default pre-selected. Mirrors the Oz webapp's
             // `HostSelector` initial-selection behavior.
-            let default_host = oc::resolve_default_host_slug(ctx)
+            let default_host = oc::resolve_default_host_slug()
                 .unwrap_or_else(|| oc::ORCHESTRATION_WARP_WORKER_HOST.to_string());
             orchestration_config_state.set_worker_host(default_host);
         }

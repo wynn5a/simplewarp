@@ -191,10 +191,8 @@ impl HeaderToolbarInlineEditor {
         editor.reset_from_settings(ctx);
 
         ctx.subscribe_to_model(&TabSettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(
-                event,
-                TabSettingsChangedEvent::HeaderToolbarChipSelection { .. }
-            ) && me.chip_configurator.current_dragging_state.is_none()
+            if matches!(event, TabSettingsChangedEvent::HeaderToolbarChipSelection)
+                && me.chip_configurator.current_dragging_state.is_none()
             {
                 me.reset_from_settings(ctx);
                 ctx.notify();

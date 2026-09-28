@@ -318,7 +318,7 @@ impl UndoCloseStack {
         ctx: &mut ModelContext<Self>,
     ) {
         match event {
-            UndoCloseSettingsChangedEvent::UndoCloseEnabled { .. } => {
+            UndoCloseSettingsChangedEvent::UndoCloseEnabled => {
                 let settings = UndoCloseSettings::as_ref(ctx);
                 if !*settings.enabled {
                     for undo_data in self.stack.drain(..) {
@@ -326,7 +326,7 @@ impl UndoCloseStack {
                     }
                 }
             }
-            UndoCloseSettingsChangedEvent::UndoCloseGracePeriod { .. } => {}
+            UndoCloseSettingsChangedEvent::UndoCloseGracePeriod => {}
         }
     }
 

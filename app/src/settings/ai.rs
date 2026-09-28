@@ -22,70 +22,10 @@ use warp_core::features::FeatureFlag;
 use warp_errors::report_if_error;
 use warpui::platform::OperatingSystem;
 use warpui::platform::keyboard::KeyCode;
-use warpui::{AppContext, Entity, ModelContext, SingletonEntity, UpdateModel};
+use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use crate::ai::execution_profiles::ExecutionProfilesConfig;
 use crate::terminal::CLIAgent;
-use crate::workspaces::user_workspaces::UserWorkspaces;
-
-pub enum FocusedTerminalInfoEvent {
-    TerminalInfoUpdated,
-}
-
-/// Singleton model that is used to track the remote sessions in the terminal.
-/// Useful for organizations that have restrictions on using AI in sessions in
-/// remote sessions.
-#[derive(Default, Clone, Debug)]
-pub struct FocusedTerminalInfo {
-    contains_any_remote_blocks: bool,
-    contains_any_restored_remote_blocks: bool,
-}
-
-impl FocusedTerminalInfo {
-    pub fn new(_: &mut ModelContext<Self>) -> Self {
-        Self {
-            contains_any_remote_blocks: false,
-            contains_any_restored_remote_blocks: false,
-        }
-    }
-
-    pub fn contains_any_remote_blocks(&self) -> bool {
-        self.contains_any_remote_blocks
-    }
-
-    pub fn contains_any_restored_remote_blocks(&self) -> bool {
-        self.contains_any_restored_remote_blocks
-    }
-
-    /// Updates both remote blocks and restored blocks status in a single atomic operation.
-    /// Only emits a TerminalInfoUpdated event if either value changes.
-    /// Returns true if the event was emitted.
-    pub fn update(
-        &mut self,
-        contains_any_remote_blocks: bool,
-        contains_any_restored_remote_blocks: bool,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        let remote_changed = self.contains_any_remote_blocks != contains_any_remote_blocks;
-        let restored_changed =
-            self.contains_any_restored_remote_blocks != contains_any_restored_remote_blocks;
-
-        if remote_changed || restored_changed {
-            self.contains_any_remote_blocks = contains_any_remote_blocks;
-            self.contains_any_restored_remote_blocks = contains_any_restored_remote_blocks;
-            ctx.emit(FocusedTerminalInfoEvent::TerminalInfoUpdated);
-            return true;
-        }
-
-        false
-    }
-}
-
-impl Entity for FocusedTerminalInfo {
-    type Event = FocusedTerminalInfoEvent;
-}
-
-impl SingletonEntity for FocusedTerminalInfo {}
 
 #[derive(
     Default,
@@ -1253,20 +1193,6 @@ define_settings_group!(AISettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
-    // Whether to mint and attach Gemini Enterprise (GEAP) credentials to eligible agent
-    // requests, routing them through the workspace's Google Cloud project. Only consulted
-    // when the admin sets the GEAP host to RESPECT_USER_SETTING; ENFORCE bypasses it.
-    // Prefer [`UserWorkspaces::is_gemini_enterprise_credentials_enabled`] to interpret
-    // this setting.
-    gemini_enterprise_credentials_enabled: GeminiEnterpriseCredentialsEnabled {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "cloud_platform.third_party_api_keys.gemini_enterprise_credentials_enabled",
-        description: "Whether Warp should route eligible requests through your workspace's Gemini Enterprise Google Cloud project.",
-    }
     // Whether or not the user wants agent mode requests to use their saved rules.
     memory_enabled: MemoryEnabled {
         type: bool,
@@ -1500,9 +1426,6 @@ define_settings_group!(AISettings, settings: [
     }
 
     // Whether Oz should add attribution (co-author line) to commit messages and PRs.
-    // This is the user-level preference; it may be overridden by the team-level
-    // `enable_warp_attribution` AdminEnablementSetting (see
-    // `UserWorkspaces::get_agent_attribution_setting`).
     agent_attribution_enabled: AgentAttributionEnabled {
         type: bool,
         default: true,
@@ -1532,39 +1455,11 @@ define_settings_group!(AISettings, settings: [
 impl AISettings {
     pub fn register_and_subscribe_to_events(app: &mut AppContext) {
         Self::register(app);
-        app.add_singleton_model(FocusedTerminalInfo::new);
         CompiledCommandsForCodingAgentToolbar::register(app);
-
-        app.update_model(&Self::handle(app), |_me, ctx| {
-            ctx.subscribe_to_model(&FocusedTerminalInfo::handle(ctx), |_me, _, event, ctx| {
-                if matches!(event, FocusedTerminalInfoEvent::TerminalInfoUpdated) {
-                    // Pipe the event so that any view that listens for settings changes will be notified.
-                    ctx.emit(AISettingsChangedEvent::IsAnyAIEnabled {
-                        change_event_reason: ChangeEventReason::LocalChange,
-                    });
-                }
-            });
-        });
     }
 
-    pub fn is_ai_disabled_due_to_remote_session_org_policy(&self, app: &AppContext) -> bool {
-        let contains_remote_blocks = FocusedTerminalInfo::as_ref(app).contains_any_remote_blocks();
-
-        let contains_restored_remote_blocks =
-            FocusedTerminalInfo::as_ref(app).contains_any_restored_remote_blocks();
-
-        let is_ai_allowed_in_remote_sessions =
-            UserWorkspaces::as_ref(app).is_ai_allowed_in_remote_sessions();
-
-        if is_ai_allowed_in_remote_sessions {
-            return false;
-        }
-
-        contains_remote_blocks || contains_restored_remote_blocks
-    }
-
-    pub fn is_any_ai_enabled(&self, app: &AppContext) -> bool {
-        *self.is_any_ai_enabled && !self.is_ai_disabled_due_to_remote_session_org_policy(app)
+    pub fn is_any_ai_enabled(&self) -> bool {
+        *self.is_any_ai_enabled
     }
 
     /// Returns whether conversation history is available for the current
@@ -1573,24 +1468,24 @@ impl AISettings {
     /// The stored `show_conversation_history` preference is kept separately so
     /// an onboarding choice can take effect automatically after signup and AI
     /// enablement without asking the user to toggle the setting again.
-    pub fn is_conversation_history_available(&self, app: &AppContext) -> bool {
-        self.is_any_ai_enabled(app)
+    pub fn is_conversation_history_available(&self) -> bool {
+        self.is_any_ai_enabled()
     }
 
     /// Returns whether conversation history should currently appear in the
     /// tools panel.
-    pub fn is_conversation_history_enabled(&self, app: &AppContext) -> bool {
-        *self.show_conversation_history && self.is_conversation_history_available(app)
+    pub fn is_conversation_history_enabled(&self) -> bool {
+        *self.show_conversation_history && self.is_conversation_history_available()
     }
 
-    pub fn default_session_mode(&self, app: &AppContext) -> DefaultSessionMode {
+    pub fn default_session_mode(&self) -> DefaultSessionMode {
         let mode = *self.default_session_mode_internal.value();
         match mode {
             // Terminal and TabConfig don't require AI.
             DefaultSessionMode::Terminal | DefaultSessionMode::TabConfig => mode,
             // Agent requires AI to be enabled.
             DefaultSessionMode::Agent => {
-                if self.is_any_ai_enabled(app) {
+                if self.is_any_ai_enabled() {
                     mode
                 } else {
                     DefaultSessionMode::Terminal
@@ -1634,7 +1529,7 @@ impl AISettings {
     }
 
     pub fn is_active_ai_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app)
+        self.is_any_ai_enabled()
             && *self.is_active_ai_enabled_internal
             && AppExecutionMode::as_ref(app).allows_active_ai()
     }
@@ -1659,10 +1554,10 @@ impl AISettings {
         self.is_active_ai_enabled(app) && *self.intelligent_autosuggestions_enabled_internal
     }
 
-    pub fn is_voice_input_enabled(&self, app: &warpui::AppContext) -> bool {
+    pub fn is_voice_input_enabled(&self) -> bool {
         // Voice input is conditionally-compiled because it requires additional dependencies on some platforms.
         cfg!(feature = "voice_input")
-            && self.is_any_ai_enabled(app)
+            && self.is_any_ai_enabled()
             && *self.voice_input_enabled_internal
     }
 
@@ -1676,8 +1571,8 @@ impl AISettings {
     ///
     /// If `FeatureFlag::AgentView` is enabled, this specifically gates NLD enablement in the agent
     /// view only.
-    pub fn is_ai_autodetection_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.ai_autodetection_enabled_internal
+    pub fn is_ai_autodetection_enabled(&self) -> bool {
+        self.is_any_ai_enabled() && *self.ai_autodetection_enabled_internal
     }
 
     /// Returns `true` if NLD is enabled in the terminal.
@@ -1685,16 +1580,16 @@ impl AISettings {
     /// This is only used when `FeatureFlag::AgentView` is enabled.
     /// If the user has not explicitly set this setting, it defaults to the value of
     /// `ai_autodetection_enabled_internal`.
-    pub fn is_nld_in_terminal_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.nld_in_terminal_enabled_internal
+    pub fn is_nld_in_terminal_enabled(&self) -> bool {
+        self.is_any_ai_enabled() && *self.nld_in_terminal_enabled_internal
     }
 
-    pub fn is_memory_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.memory_enabled
+    pub fn is_memory_enabled(&self) -> bool {
+        self.is_any_ai_enabled() && *self.memory_enabled
     }
 
-    pub fn is_file_based_mcp_enabled(&self, app: &warpui::AppContext) -> bool {
-        if !FeatureFlag::FileBasedMcp.is_enabled() || !self.is_any_ai_enabled(app) {
+    pub fn is_file_based_mcp_enabled(&self) -> bool {
+        if !FeatureFlag::FileBasedMcp.is_enabled() || !self.is_any_ai_enabled() {
             return false;
         }
         // NOTE: we intentionally do not force-enable this in Cloud Mode. Previously
@@ -1708,83 +1603,57 @@ impl AISettings {
         *self.file_based_mcp_enabled
     }
 
-    pub fn is_orchestration_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app)
+    pub fn is_orchestration_enabled(&self) -> bool {
+        self.is_any_ai_enabled()
     }
 
-    pub fn is_command_denylist_editable(&self, app: &AppContext) -> bool {
-        self.is_any_ai_enabled(app)
+    pub fn is_command_denylist_editable(&self) -> bool {
+        self.is_any_ai_enabled()
     }
 
-    pub fn is_command_allowlist_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_execute_commands_allowlist();
-
-        self.is_any_ai_enabled(app) && !set_by_workspace
+    pub fn is_command_allowlist_editable(&self) -> bool {
+        self.is_any_ai_enabled()
     }
 
-    pub fn is_directory_allowlist_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_read_files_allowlist();
-
-        self.is_any_ai_enabled(app) && !set_by_workspace
+    pub fn is_directory_allowlist_editable(&self) -> bool {
+        self.is_any_ai_enabled()
     }
 
-    pub fn is_execute_commands_permissions_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_execute_commands();
-
-        self.is_any_ai_enabled(app) && !set_by_workspace
+    pub fn is_execute_commands_permissions_editable(&self) -> bool {
+        self.is_any_ai_enabled()
     }
 
-    pub fn is_write_to_pty_permissions_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_write_to_pty();
-        self.is_any_ai_enabled(app) && !set_by_workspace
+    pub fn is_write_to_pty_permissions_editable(&self) -> bool {
+        self.is_any_ai_enabled()
     }
 
-    pub fn is_computer_use_permissions_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_computer_use();
-        self.is_any_ai_enabled(app) && !set_by_workspace
+    pub fn is_computer_use_permissions_editable(&self) -> bool {
+        self.is_any_ai_enabled()
     }
 
-    pub fn is_read_files_permissions_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_read_files();
-
-        self.is_any_ai_enabled(app) && !set_by_workspace
+    pub fn is_read_files_permissions_editable(&self) -> bool {
+        self.is_any_ai_enabled()
     }
 
-    pub fn is_code_diffs_permissions_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_code_diffs();
-
-        self.is_any_ai_enabled(app) && !set_by_workspace
+    pub fn is_code_diffs_permissions_editable(&self) -> bool {
+        self.is_any_ai_enabled()
     }
 
-    pub fn is_ask_user_question_permissions_editable(&self, app: &AppContext) -> bool {
-        self.is_any_ai_enabled(app)
+    pub fn is_ask_user_question_permissions_editable(&self) -> bool {
+        self.is_any_ai_enabled()
     }
 
-    pub fn is_mcp_permission_editable(&self, app: &AppContext) -> bool {
+    pub fn is_mcp_permission_editable(&self) -> bool {
         // TODO: Allow workspace overrides on MCP permissions.
-        self.is_any_ai_enabled(app)
+        self.is_any_ai_enabled()
     }
 
-    pub fn is_run_agents_permissions_editable(&self, app: &AppContext) -> bool {
-        self.is_orchestration_enabled(app)
+    pub fn is_run_agents_permissions_editable(&self) -> bool {
+        self.is_orchestration_enabled()
     }
 
-    pub fn show_code_suggestion_speedbump(&self, app: &AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.show_code_suggestion_speedbump
+    pub fn show_code_suggestion_speedbump(&self) -> bool {
+        self.is_any_ai_enabled() && *self.show_code_suggestion_speedbump
     }
 
     /// Handles first-time voice input setup when user clicks the voice button.
@@ -1925,7 +1794,7 @@ impl CompiledCommandsForCodingAgentToolbar {
         app.subscribe_to_model(&ai_settings, move |_, event, ctx| {
             if matches!(
                 event,
-                AISettingsChangedEvent::CLIAgentToolbarEnabledCommands { .. }
+                AISettingsChangedEvent::CLIAgentToolbarEnabledCommands
             ) {
                 let regexes = Self::parse(ctx);
                 handle.update(ctx, |me, _| {

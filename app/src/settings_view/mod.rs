@@ -2123,7 +2123,7 @@ impl View for SettingsView {
             footer_kind,
             appearance,
             self.settings_file_error.as_ref(),
-            AISettings::as_ref(app).is_any_ai_enabled(app),
+            AISettings::as_ref(app).is_any_ai_enabled(),
             &self.footer_mouse_states,
         );
 

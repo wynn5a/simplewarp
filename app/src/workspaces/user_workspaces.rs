@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use regex::Regex;
-use warp_core::features::FeatureFlag;
 use warp_core::settings::Setting as _;
 use warpui::{
     AppContext, Entity, ModelContext, SingletonEntity, Tracked, ViewContext, WeakViewHandle,
@@ -9,26 +7,11 @@ use warpui::{
 };
 
 use super::team::Team;
-#[cfg(test)]
-use super::team::{MembershipRole, TeamVisibility};
-#[cfg(test)]
-use super::workspace::WorkspaceMemberUsageInfo;
-use super::workspace::{
-    AdminEnablementSetting, EnterpriseSecretRegex, HostEnablementSetting,
-    UgcCollectionEnablementSetting, Workspace, WorkspaceUid,
-};
-use crate::ai::llms::LLMModelHost;
+use super::workspace::{Workspace, WorkspaceUid};
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::{Owner, Space};
 use crate::server::ids::ServerId;
-#[cfg(test)]
-use crate::settings::PrivacySettings;
 use crate::settings::{AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent};
-#[cfg(test)]
-use crate::workspaces::workspace::BillingMetadata;
-use crate::workspaces::workspace::{AiAutonomySettings, SandboxedAgentSettings};
-#[cfg(test)]
-use crate::workspaces::workspace::{WorkspaceMember, WorkspaceSettings};
 
 #[derive(Debug)]
 #[allow(clippy::enum_variant_names)]
@@ -78,15 +61,14 @@ impl UserWorkspaces {
         ctx.subscribe_to_model(
             &CodeSettings::handle(ctx),
             |_, _, code_settings_event, ctx| {
-                if let CodeSettingsChangedEvent::CodebaseContextEnabled { .. } = code_settings_event
-                {
+                if let CodeSettingsChangedEvent::CodebaseContextEnabled = code_settings_event {
                     ctx.emit(UserWorkspacesEvent::CodebaseContextEnablementChanged);
                 }
             },
         );
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, ai_settings_event, ctx| {
-            if let AISettingsChangedEvent::IsAnyAIEnabled { .. } = ai_settings_event {
+            if let AISettingsChangedEvent::IsAnyAIEnabled = ai_settings_event {
                 ctx.emit(UserWorkspacesEvent::CodebaseContextEnablementChanged);
             }
         });
@@ -320,22 +302,13 @@ impl UserWorkspaces {
         true
     }
 
-    /// Whether the current workspace's managed BYOK/BYOE policy allows members
-    /// to use their own provider API keys. Users with no workspace, or
-    /// workspaces without the managed BYOK/BYOE policy, have no team-level
-    /// restriction, so this returns true and the normal BYO entitlement applies.
+    /// Whether members may use their own provider API keys. A workspace on the managed BYOK/BYOE
+    /// policy only allows team-managed keys, and no team-managed key exists locally.
     pub fn are_member_byo_keys_allowed(&self) -> bool {
-        self.current_workspace().is_none_or(|workspace| {
-            !workspace.billing_metadata.is_managed_byok_byoe_enabled()
-                || workspace
-                    .settings
-                    .team_byo
-                    .as_ref()
-                    .is_some_and(|team_byo| {
-                        team_byo.first_party_enabled && team_byo.allow_user_keys
-                    })
-        })
+        self.current_workspace()
+            .is_none_or(|workspace| !workspace.billing_metadata.is_managed_byok_byoe_enabled())
     }
+
     /// Whether custom inference endpoints are enabled for the current user.
     ///
     /// Always true, for the same reason as [`Self::is_byo_api_key_enabled`]: a custom endpoint is
@@ -345,169 +318,27 @@ impl UserWorkspaces {
         true
     }
 
-    /// Whether the current workspace's managed BYOK/BYOE policy allows members
-    /// to use their own custom endpoints. Users with no workspace, or
-    /// workspaces without the managed BYOK/BYOE policy, have no team-level
-    /// restriction, so this returns true and the normal BYO entitlement applies.
+    /// Whether members may use their own custom endpoints; see
+    /// [`Self::are_member_byo_keys_allowed`].
     pub fn are_member_byo_endpoints_allowed(&self) -> bool {
-        self.current_workspace().is_none_or(|workspace| {
-            !workspace.billing_metadata.is_managed_byok_byoe_enabled()
-                || workspace
-                    .settings
-                    .team_byo
-                    .as_ref()
-                    .is_some_and(|team_byo| {
-                        team_byo.endpoints_enabled && team_byo.allow_user_endpoints
-                    })
-        })
+        self.are_member_byo_keys_allowed()
     }
 
-    pub fn aws_bedrock_host_settings(&self) -> Option<&super::workspace::LlmHostSettings> {
-        self.current_workspace().and_then(|workspace| {
-            workspace
-                .settings
-                .llm_settings
-                .host_configs
-                .get(&LLMModelHost::AwsBedrock)
-        })
+    /// Whether AWS Bedrock credentials are attached to agent requests. Bedrock is only available
+    /// once a workspace admin enables it, which no local workspace can.
+    pub fn is_aws_bedrock_credentials_enabled(&self) -> bool {
+        false
     }
 
-    /// Did the admin enable AWS Bedrock for the current workspace?
-    pub fn is_aws_bedrock_available_from_workspace(&self) -> bool {
-        self.current_workspace().is_some_and(|workspace| {
-            workspace.settings.llm_settings.enabled
-                && self
-                    .aws_bedrock_host_settings()
-                    .is_some_and(|settings| settings.enabled)
-        })
-    }
-    pub fn aws_bedrock_host_enablement_setting(&self) -> HostEnablementSetting {
-        self.aws_bedrock_host_settings()
-            .map(|settings| settings.enablement_setting.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn is_aws_bedrock_credentials_toggleable(&self) -> bool {
-        matches!(
-            self.aws_bedrock_host_enablement_setting(),
-            HostEnablementSetting::RespectUserSetting
-        )
-    }
-
-    pub fn is_aws_bedrock_credentials_enabled(&self, app: &AppContext) -> bool {
-        // i.e. did the admin go and toggle on aws bedrock in the admin panel?
-        if !self.is_aws_bedrock_available_from_workspace() {
-            return false;
-        }
-
-        match self.aws_bedrock_host_enablement_setting() {
-            HostEnablementSetting::Enforce => true,
-            HostEnablementSetting::RespectUserSetting => *AISettings::as_ref(app)
-                .aws_bedrock_credentials_enabled
-                .value(),
-        }
-    }
-
-    pub fn gemini_enterprise_host_settings(&self) -> Option<&super::workspace::LlmHostSettings> {
-        self.current_workspace().and_then(|workspace| {
-            workspace
-                .settings
-                .llm_settings
-                .host_configs
-                .get(&LLMModelHost::GeminiEnterprise)
-        })
-    }
-
-    /// Did the admin enable Gemini Enterprise (GEAP) for the current workspace?
-    pub fn is_gemini_enterprise_available_from_workspace(&self) -> bool {
-        self.current_workspace().is_some_and(|workspace| {
-            workspace.settings.llm_settings.enabled
-                && self
-                    .gemini_enterprise_host_settings()
-                    .is_some_and(|settings| settings.enabled)
-        })
-    }
-
-    pub fn gemini_enterprise_host_enablement_setting(&self) -> HostEnablementSetting {
-        self.gemini_enterprise_host_settings()
-            .map(|settings| settings.enablement_setting.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn is_gemini_enterprise_credentials_toggleable(&self) -> bool {
-        matches!(
-            self.gemini_enterprise_host_enablement_setting(),
-            HostEnablementSetting::RespectUserSetting
-        )
-    }
-
-    /// Whether Gemini Enterprise (GEAP) credentials should be minted and attached for the
-    /// current user. Anonymous/logged-out guard from [`Self::is_byo_api_key_enabled`]:
-    /// a GEAP credential mint is rooted in the user's Warp session, so without one
-    /// there is nothing to mint from.
-    pub fn is_gemini_enterprise_credentials_enabled(&self, app: &AppContext) -> bool {
-        if !FeatureFlag::GeminiEnterprise.is_enabled() {
-            return false;
-        }
-        if AuthStateProvider::as_ref(app)
-            .get()
-            .is_anonymous_or_logged_out()
-        {
-            return false;
-        }
-        // i.e. did the admin toggle on Gemini Enterprise in the admin panel?
-        if !self.is_gemini_enterprise_available_from_workspace() {
-            return false;
-        }
-
-        match self.gemini_enterprise_host_enablement_setting() {
-            HostEnablementSetting::Enforce => true,
-            HostEnablementSetting::RespectUserSetting => *AISettings::as_ref(app)
-                .gemini_enterprise_credentials_enabled
-                .value(),
-        }
-    }
-
-    /// Returns the AI autonomy settings that are enforced by the workspace for all its members.
-    /// If a setting is `None`, the workspace doesn't enforce a particular setting.
-    pub fn ai_autonomy_settings(&self) -> AiAutonomySettings {
-        self.current_workspace()
-            .map(|workspace| workspace.settings.ai_autonomy_settings.clone())
-            .unwrap_or_default()
-    }
-
-    /// Returns the sandboxed agent settings enforced by the workspace, if any.
-    pub fn sandboxed_agent_settings(&self) -> Option<SandboxedAgentSettings> {
-        self.current_workspace()
-            .and_then(|workspace| workspace.settings.sandboxed_agent_settings.clone())
-    }
-
-    /// Returns true iff AI autonomy features are allowed for this client.
-    /// TODO: This should be deleted soon. AI autonomy settings have been moved into organization
-    /// settings (see `ai_autonomy_settings` above), but there could be an interim time where we
-    /// have not set up the org settings yet for an enterprise that previously had the entire
-    /// feature set disabled. To capture that case, we'll see if all the settings are `None`;
-    /// if so, we'll fall back to their billing metadata's value. Once we've migrated everyone
-    /// into org settings, we should remove `is_enabled` from the policy and delete this function.
+    /// Returns true iff AI autonomy features are allowed for this client by the workspace's
+    /// billing policy.
     pub fn is_ai_autonomy_allowed(&self) -> bool {
         self.current_workspace().is_none_or(|workspace| {
-            let settings = &workspace.settings.ai_autonomy_settings;
-            let all_settings_none = settings.apply_code_diffs_setting.is_none()
-                && settings.read_files_setting.is_none()
-                && settings.read_files_allowlist.is_none()
-                && settings.execute_commands_setting.is_none()
-                && settings.execute_commands_allowlist.is_none()
-                && settings.execute_commands_denylist.is_none();
-
-            if all_settings_none {
-                workspace
-                    .billing_metadata
-                    .tier
-                    .ai_autonomy_policy
-                    .is_some_and(|policy| policy.is_enabled)
-            } else {
-                true
-            }
+            workspace
+                .billing_metadata
+                .tier
+                .ai_autonomy_policy
+                .is_some_and(|policy| policy.is_enabled)
         })
     }
 
@@ -575,208 +406,16 @@ impl UserWorkspaces {
 
     #[cfg(test)]
     fn notify_and_emit_teams_changed(&self, ctx: &mut ModelContext<Self>) {
-        // Update session-sharing enablement since it depends on what teams the user
-        // is part of.
-
-        // PrivacySettings can't observe UserWorkspaces for updates, as it's initialized too early in
-        // the app initialization flow. So, we update it manually whenever teams data changes.
-        PrivacySettings::handle(ctx).update(ctx, |settings, ctx| {
-            settings.set_enterprise_secret_redaction_settings(
-                self.is_enterprise_secret_redaction_enabled(),
-                self.get_enterprise_secret_redaction_regex_list(),
-                ctx,
-            );
-        });
-
         ctx.emit(UserWorkspacesEvent::TeamsChanged);
         ctx.emit(UserWorkspacesEvent::CodebaseContextEnablementChanged);
         ctx.notify();
     }
 
-    pub fn is_enterprise_secret_redaction_enabled(&self) -> bool {
-        self.current_workspace()
-            .map(|workspace| workspace.settings.secret_redaction_settings.enabled)
-            .unwrap_or(false)
-    }
-
-    pub fn get_enterprise_secret_redaction_regex_list(&self) -> Vec<EnterpriseSecretRegex> {
-        self.current_workspace()
-            .map(|workspace| workspace.settings.secret_redaction_settings.regexes.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn get_ugc_collection_enablement_setting(&self) -> UgcCollectionEnablementSetting {
-        self.current_workspace()
-            .map(|workspace| workspace.settings.ugc_collection_settings.setting.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn is_ai_allowed_in_remote_sessions(&self) -> bool {
-        self.current_workspace()
-            .map(|workspace| {
-                workspace
-                    .settings
-                    .ai_permissions_settings
-                    .allow_ai_in_remote_sessions
-            })
-            .unwrap_or(true)
-    }
-
-    pub fn get_remote_session_regex_list(&self) -> Vec<Regex> {
-        self.current_workspace()
-            .map(|workspace| {
-                workspace
-                    .settings
-                    .ai_permissions_settings
-                    .remote_session_regex_list
-                    .clone()
-            })
-            .unwrap_or_default()
-    }
-
-    /// Returns the codebase context settings, taking into account the organization, /// global AI settings, and codebase-specific settings.
+    /// Whether codebase context is enabled, from the global AI and codebase-specific settings.
     /// Prefer this function to determine whether to show indexing-related functionality.
     pub fn is_codebase_context_enabled(&self, app: &AppContext) -> bool {
-        // If the organization has an explicit setting, respect it and make user toggle irrelevant.
-        // - Enable: forced ON by org, regardless of user preference.
-        // - Disable: forced OFF by org.
-        // - RespectUserSetting: respect the user setting.
-        let org_setting = self.team_allows_codebase_context();
-        let ai_globally_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
-
-        match org_setting {
-            AdminEnablementSetting::Enable => ai_globally_enabled,
-            AdminEnablementSetting::Disable => false,
-            AdminEnablementSetting::RespectUserSetting => {
-                ai_globally_enabled && *CodeSettings::as_ref(app).codebase_context_enabled.value()
-            }
-        }
-    }
-
-    pub fn default_host_slug(&self) -> Option<&str> {
-        self.current_workspace()
-            .and_then(|workspace| workspace.settings.default_host_slug.as_deref())
-    }
-
-    /// Returns the team-level agent attribution setting.
-    ///
-    /// Use this to decide whether the user's attribution toggle should be locked
-    /// (`Enable`/`Disable`) or editable (`RespectUserSetting`).
-    pub fn get_agent_attribution_setting(&self) -> AdminEnablementSetting {
-        self.current_workspace()
-            .map(|workspace| workspace.settings.enable_warp_attribution.clone())
-            .unwrap_or_default()
-    }
-
-    /// Returns only the organization-specific codebase context enablement setting.
-    /// Do not use this function to determine whether codebase context is generally enabled --
-    /// use `is_codebase_context_enabled` instead.
-    pub fn team_allows_codebase_context(&self) -> AdminEnablementSetting {
-        self.current_workspace()
-            .map(|workspace| workspace.settings.codebase_context_settings.setting.clone())
-            .unwrap_or_default()
-    }
-}
-
-#[cfg(test)]
-use crate::auth::UserUid;
-
-#[cfg(test)]
-impl UserWorkspaces {
-    /// Creates a test workspace with a team and sets it as the current workspace.
-    /// Returns the workspace UID and admin UID for use in tests.
-    pub fn setup_test_workspace(&mut self, ctx: &mut ModelContext<Self>) {
-        let workspace_uid = WorkspaceUid::from(ServerId::from(1));
-        let owner_uid = UserUid::new("test_owner");
-
-        let workspace_settings = WorkspaceSettings::default();
-
-        let workspace = Workspace {
-            uid: workspace_uid,
-            name: "Test Workspace".to_string(),
-            stripe_customer_id: None,
-            teams: vec![Team {
-                uid: ServerId::from(2),
-                name: "Test Team".to_string(),
-                settings: Default::default(),
-                color: None,
-                billing_metadata: BillingMetadata::default(),
-                members: vec![],
-                invite_link: None,
-                pending_email_invites: vec![],
-                invite_link_domain_restrictions: vec![],
-                stripe_customer_id: None,
-                is_eligible_for_discovery: false,
-                has_billing_history: false,
-                visibility: TeamVisibility::Open,
-            }],
-            members: vec![WorkspaceMember {
-                uid: owner_uid,
-                email: "test@example.com".to_string(),
-                role: MembershipRole::Owner,
-                usage_info: WorkspaceMemberUsageInfo {
-                    requests_used_since_last_refresh: 0,
-                    request_limit: 1000,
-                    is_unlimited: false,
-                    is_request_limit_prorated: false,
-                },
-            }],
-            billing_metadata: BillingMetadata::default(),
-            bonus_grants_purchased_this_month: Default::default(),
-            billing_cycle_usage: None,
-            has_billing_history: false,
-            settings: workspace_settings,
-            invite_link_domain_restrictions: vec![],
-            pending_email_invites: vec![],
-            is_eligible_for_discovery: false,
-            total_requests_used_since_last_refresh: 0,
-        };
-
-        self.update_workspaces(vec![workspace], ctx);
-        self.set_current_workspace_uid(workspace_uid, ctx);
-    }
-
-    /// Updates the current workspace by applying a mutation function.
-    pub fn update_current_workspace<F>(&mut self, f: F, ctx: &mut ModelContext<Self>)
-    where
-        F: FnOnce(&mut Workspace),
-    {
-        if let Some(workspace) = self.current_workspace() {
-            if workspace.teams.is_empty() {
-                panic!("No team found in current workspace. Did you call setup_test_workspace()?");
-            }
-
-            let mut new_workspace = workspace.clone();
-            f(&mut new_workspace);
-
-            self.update_workspaces(vec![new_workspace], ctx);
-        } else {
-            panic!("No workspace found. Did you call setup_test_workspace()?");
-        }
-    }
-
-    pub fn update_sandboxed_agent_settings<F>(&mut self, f: F, ctx: &mut ModelContext<Self>)
-    where
-        F: FnOnce(&mut Option<SandboxedAgentSettings>),
-    {
-        self.update_current_workspace(
-            |workspace| {
-                f(&mut workspace.settings.sandboxed_agent_settings);
-            },
-            ctx,
-        );
-    }
-
-    pub fn update_ai_autonomy_settings<F>(&mut self, f: F, ctx: &mut ModelContext<Self>)
-    where
-        F: FnOnce(&mut AiAutonomySettings),
-    {
-        self.update_current_workspace(
-            |workspace| {
-                f(&mut workspace.settings.ai_autonomy_settings);
-            },
-            ctx,
-        );
+        AISettings::as_ref(app).is_any_ai_enabled()
+            && *CodeSettings::as_ref(app).codebase_context_enabled.value()
     }
 }
 

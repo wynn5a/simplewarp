@@ -131,7 +131,7 @@ impl ReviewActionTargetProvider for RightPanelReviewActionTargetProvider {
         let right_panel = self.right_panel.upgrade(app)?;
         right_panel.read(app, |panel, app| {
             let pane_group = panel.active_pane_group.as_ref()?;
-            let ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
+            let ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
             panel
                 .find_review_terminal(pane_group, repo_path, ai_enabled, app)
                 .or_else(|| {
@@ -476,7 +476,7 @@ impl RightPanelView {
         // Recompute terminal availability when AI is toggled on or off, so the
         // send button and tooltip update immediately.
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(event, AISettingsChangedEvent::IsAnyAIEnabled { .. }) {
+            if matches!(event, AISettingsChangedEvent::IsAnyAIEnabled) {
                 me.recompute_terminal_availability(ctx);
             }
         });
@@ -1302,7 +1302,7 @@ impl RightPanelView {
             return;
         };
 
-        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let chosen = self.find_review_terminal(pane_group, repo_path, ai_enabled, ctx);
 
         let Some(terminal_view) = chosen else {
@@ -1438,7 +1438,7 @@ impl RightPanelView {
 
     pub fn log_review_comment_send_status_for_active_tab(&self, ctx: &AppContext) {
         let selected_repo_path = self.selected_repo_path().cloned();
-        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let code_review_debug_state =
             self.get_active_code_review_view(ctx)
                 .map(|code_review_view| {
@@ -1640,7 +1640,7 @@ impl RightPanelView {
             return;
         };
 
-        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let destination = self
             .find_review_terminal(pane_group, &repo_path, ai_enabled, ctx)
             .map(|_| ReviewDestination::Warp)

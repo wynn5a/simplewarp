@@ -224,11 +224,9 @@ fn test_detect_with_alias_and_env_var() {
 fn workspace_with_team_uid(uid: &str) -> Workspace {
     Workspace::from_local_cache(
         ServerId::from_string_lossy("test-workspace-uid-001").into(),
-        "Test Workspace".to_string(),
         Some(vec![Team::from_local_cache(
             ServerId::from_string_lossy(uid),
             "Test Team".to_string(),
-            None,
             None,
             None,
         )]),

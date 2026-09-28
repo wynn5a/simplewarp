@@ -32,240 +32,6 @@ fn add_ai_enablement_dependencies_for_test(app: &mut App) {
     app.add_singleton_model(UserWorkspaces::default_mock);
 }
 
-// FocusedTerminalInfo Tests
-
-#[test]
-fn test_update_both_values_changed() {
-    App::test((), |mut app| async move {
-        // Create FocusedTerminalInfo with default values (false, false)
-        let model_handle = app.add_model(|_| FocusedTerminalInfo::default());
-
-        // Setup event tracking
-        let (sender, receiver) = async_channel::unbounded();
-        app.update(|ctx| {
-            let sender = sender.clone();
-            ctx.subscribe_to_model(
-                &model_handle,
-                move |_, event: &FocusedTerminalInfoEvent, _| match event {
-                    FocusedTerminalInfoEvent::TerminalInfoUpdated => {
-                        let _ = sender.try_send(());
-                    }
-                },
-            );
-        });
-
-        // Update both values to (true, false)
-        model_handle.update(&mut app, |model, ctx| {
-            model.update(true, false, ctx);
-        });
-
-        // Verify model state
-        model_handle.read(&app, |model, _| {
-            assert!(model.contains_any_remote_blocks());
-            assert!(!model.contains_any_restored_remote_blocks());
-        });
-
-        // Verify event was emitted exactly once
-        let mut count = 0;
-        while receiver.try_recv().is_ok() {
-            count += 1;
-        }
-        assert_eq!(count, 1);
-    });
-}
-
-#[test]
-fn test_update_additional_value_changed() {
-    App::test((), |mut app| async move {
-        // Create FocusedTerminalInfo with default values (false, false)
-        let model_handle = app.add_model(|_| FocusedTerminalInfo::default());
-
-        // Setup event tracking
-        let (sender, receiver) = async_channel::unbounded();
-        app.update(|ctx| {
-            let sender = sender.clone();
-            ctx.subscribe_to_model(
-                &model_handle,
-                move |_, event: &FocusedTerminalInfoEvent, _| match event {
-                    FocusedTerminalInfoEvent::TerminalInfoUpdated => {
-                        let _ = sender.try_send(());
-                    }
-                },
-            );
-        });
-
-        // First update to (true, false)
-        model_handle.update(&mut app, |model, ctx| {
-            model.update(true, false, ctx);
-        });
-
-        // Clear events by draining the channel
-        while receiver.try_recv().is_ok() {}
-
-        // Now update to (true, true) - only changing restored blocks
-        model_handle.update(&mut app, |model, ctx| {
-            model.update(true, true, ctx);
-        });
-
-        // Verify model state
-        model_handle.read(&app, |model, _| {
-            assert!(model.contains_any_remote_blocks());
-            assert!(model.contains_any_restored_remote_blocks());
-        });
-
-        // Verify event was emitted exactly once
-        let mut count = 0;
-        while receiver.try_recv().is_ok() {
-            count += 1;
-        }
-        assert_eq!(count, 1);
-    });
-}
-
-#[test]
-fn test_update_no_change() {
-    App::test((), |mut app| async move {
-        // Create FocusedTerminalInfo with default values (false, false)
-        let model_handle = app.add_model(|_| FocusedTerminalInfo::default());
-
-        // Setup event tracking
-        let (sender, receiver) = async_channel::unbounded();
-        app.update(|ctx| {
-            let sender = sender.clone();
-            ctx.subscribe_to_model(
-                &model_handle,
-                move |_, event: &FocusedTerminalInfoEvent, _| match event {
-                    FocusedTerminalInfoEvent::TerminalInfoUpdated => {
-                        let _ = sender.try_send(());
-                    }
-                },
-            );
-        });
-
-        // First update to (true, true)
-        model_handle.update(&mut app, |model, ctx| {
-            model.update(true, true, ctx);
-        });
-
-        // Clear events by draining the channel
-        while receiver.try_recv().is_ok() {}
-
-        // Update with same values (true, true)
-        model_handle.update(&mut app, |model, ctx| {
-            model.update(true, true, ctx);
-        });
-
-        // Verify model state remains the same
-        model_handle.read(&app, |model, _| {
-            assert!(model.contains_any_remote_blocks());
-            assert!(model.contains_any_restored_remote_blocks());
-        });
-
-        // Verify no event was emitted
-        let mut count = 0;
-        while receiver.try_recv().is_ok() {
-            count += 1;
-        }
-        assert_eq!(count, 0);
-    });
-}
-
-#[test]
-fn test_update_only_remote_toggles() {
-    App::test((), |mut app| async move {
-        // Create FocusedTerminalInfo with default values (false, false)
-        let model_handle = app.add_model(|_| FocusedTerminalInfo::default());
-
-        // Setup event tracking
-        let (sender, receiver) = async_channel::unbounded();
-        app.update(|ctx| {
-            let sender = sender.clone();
-            ctx.subscribe_to_model(
-                &model_handle,
-                move |_, event: &FocusedTerminalInfoEvent, _| match event {
-                    FocusedTerminalInfoEvent::TerminalInfoUpdated => {
-                        let _ = sender.try_send(());
-                    }
-                },
-            );
-        });
-
-        // First update to (true, true)
-        model_handle.update(&mut app, |model, ctx| {
-            model.update(true, true, ctx);
-        });
-
-        // Clear events by draining the channel
-        while receiver.try_recv().is_ok() {}
-
-        // Update with (false, true) - only remote blocks changes
-        model_handle.update(&mut app, |model, ctx| {
-            model.update(false, true, ctx);
-        });
-
-        // Verify model state
-        model_handle.read(&app, |model, _| {
-            assert!(!model.contains_any_remote_blocks());
-            assert!(model.contains_any_restored_remote_blocks());
-        });
-
-        // Verify event was emitted exactly once
-        let mut count = 0;
-        while receiver.try_recv().is_ok() {
-            count += 1;
-        }
-        assert_eq!(count, 1);
-    });
-}
-
-#[test]
-fn test_update_only_restored_toggles() {
-    App::test((), |mut app| async move {
-        // Create FocusedTerminalInfo with default values (false, false)
-        let model_handle = app.add_model(|_| FocusedTerminalInfo::default());
-
-        // Setup event tracking
-        let (sender, receiver) = async_channel::unbounded();
-        app.update(|ctx| {
-            let sender = sender.clone();
-            ctx.subscribe_to_model(
-                &model_handle,
-                move |_, event: &FocusedTerminalInfoEvent, _| match event {
-                    FocusedTerminalInfoEvent::TerminalInfoUpdated => {
-                        let _ = sender.try_send(());
-                    }
-                },
-            );
-        });
-
-        // First update to (true, true)
-        model_handle.update(&mut app, |model, ctx| {
-            model.update(true, true, ctx);
-        });
-
-        // Clear events by draining the channel
-        while receiver.try_recv().is_ok() {}
-
-        // Update with (true, false) - only restored blocks changes
-        model_handle.update(&mut app, |model, ctx| {
-            model.update(true, false, ctx);
-        });
-
-        // Verify model state
-        model_handle.read(&app, |model, _| {
-            assert!(model.contains_any_remote_blocks());
-            assert!(!model.contains_any_restored_remote_blocks());
-        });
-
-        // Verify event was emitted exactly once
-        let mut count = 0;
-        while receiver.try_recv().is_ok() {
-            count += 1;
-        }
-        assert_eq!(count, 1);
-    });
-}
-
 // ToolbarCommandMap Tests
 
 #[test]
@@ -388,8 +154,8 @@ fn orchestration_is_enabled_when_ai_is_enabled() {
         initialize_settings_for_tests(&mut app);
         add_ai_enablement_dependencies_for_test(&mut app);
 
-        AISettings::handle(&app).read(&app, |settings, ctx| {
-            assert!(settings.is_orchestration_enabled(ctx));
+        AISettings::handle(&app).read(&app, |settings, _| {
+            assert!(settings.is_orchestration_enabled());
         });
     });
 }
@@ -470,14 +236,14 @@ fn ai_autodetection_defaults_to_opt_in() {
         initialize_settings_for_tests(&mut app);
         add_ai_enablement_dependencies_for_test(&mut app);
 
-        AISettings::handle(&app).read(&app, |settings, ctx| {
+        AISettings::handle(&app).read(&app, |settings, _| {
             // NLD is opt-in: a fresh user who never touched the setting has it off.
             // This fails before the default flip (default was `true`) and passes after.
             assert!(!*settings.ai_autodetection_enabled_internal.value());
             // AI is enabled by default, so the getter reflects the opt-in setting
             // rather than a disabled-AI state.
-            assert!(settings.is_any_ai_enabled(ctx));
-            assert!(!settings.is_ai_autodetection_enabled(ctx));
+            assert!(settings.is_any_ai_enabled());
+            assert!(!settings.is_ai_autodetection_enabled());
         });
     });
 }
@@ -495,9 +261,9 @@ fn ai_autodetection_setting_can_be_toggled_on_and_off() {
                 .set_value(true, ctx)
                 .unwrap();
         });
-        AISettings::handle(&app).read(&app, |settings, ctx| {
+        AISettings::handle(&app).read(&app, |settings, _| {
             assert!(*settings.ai_autodetection_enabled_internal.value());
-            assert!(settings.is_ai_autodetection_enabled(ctx));
+            assert!(settings.is_ai_autodetection_enabled());
         });
 
         // Mirrors what `/disable-natural-language-detection` does in the TUI.
@@ -507,9 +273,9 @@ fn ai_autodetection_setting_can_be_toggled_on_and_off() {
                 .set_value(false, ctx)
                 .unwrap();
         });
-        AISettings::handle(&app).read(&app, |settings, ctx| {
+        AISettings::handle(&app).read(&app, |settings, _| {
             assert!(!*settings.ai_autodetection_enabled_internal.value());
-            assert!(!settings.is_ai_autodetection_enabled(ctx));
+            assert!(!settings.is_ai_autodetection_enabled());
         });
     });
 }

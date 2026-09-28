@@ -76,7 +76,7 @@ impl AwsBedrockCredentialsErrorView {
 
         // Subscribe to AISettings changes to update checkbox state
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_me, _, event, ctx| {
-            if matches!(event, AISettingsChangedEvent::AwsBedrockAutoLogin { .. }) {
+            if matches!(event, AISettingsChangedEvent::AwsBedrockAutoLogin) {
                 ctx.notify();
             }
         });

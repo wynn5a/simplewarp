@@ -35,9 +35,9 @@ impl GuiInputModePolicy {
 impl InputModePolicy for GuiInputModePolicy {
     fn initial_config(&self, app: &AppContext) -> InputConfig {
         let is_autodetection_enabled = if FeatureFlag::AgentView.is_enabled() {
-            AISettings::as_ref(app).is_nld_in_terminal_enabled(app)
+            AISettings::as_ref(app).is_nld_in_terminal_enabled()
         } else {
-            AISettings::as_ref(app).is_ai_autodetection_enabled(app)
+            AISettings::as_ref(app).is_ai_autodetection_enabled()
         };
         InputConfig {
             input_type: InputType::Shell,
@@ -67,13 +67,13 @@ impl InputModePolicy for GuiInputModePolicy {
                 .as_ref(app)
                 .is_conversation_fullscreen(app)
             {
-                ai_settings.is_ai_autodetection_enabled(app)
+                ai_settings.is_ai_autodetection_enabled()
             } else {
-                ai_settings.is_nld_in_terminal_enabled(app)
+                ai_settings.is_nld_in_terminal_enabled()
             }
         } else {
             // AgentView not enabled: use the main autodetection setting
-            ai_settings.is_ai_autodetection_enabled(app)
+            ai_settings.is_ai_autodetection_enabled()
         }
     }
 
@@ -99,7 +99,7 @@ impl InputModePolicy for GuiInputModePolicy {
                     ))
                 } else if matches!(origin, AgentViewEntryOrigin::ClearBuffer) {
                     let is_autodetection_enabled =
-                        AISettings::as_ref(app).is_ai_autodetection_enabled(app);
+                        AISettings::as_ref(app).is_ai_autodetection_enabled();
                     Some(PolicyConfigUpdate::new(InputConfig {
                         input_type: current.input_type,
                         is_locked: !is_autodetection_enabled,
@@ -114,7 +114,7 @@ impl InputModePolicy for GuiInputModePolicy {
                     ))
                 } else {
                     let is_autodetection_enabled =
-                        AISettings::as_ref(app).is_ai_autodetection_enabled(app);
+                        AISettings::as_ref(app).is_ai_autodetection_enabled();
                     Some(PolicyConfigUpdate {
                         config: InputConfig {
                             input_type: InputType::AI,
@@ -133,7 +133,7 @@ impl InputModePolicy for GuiInputModePolicy {
                     return None;
                 }
                 let is_nld_in_terminal_enabled =
-                    AISettings::as_ref(app).is_nld_in_terminal_enabled(app);
+                    AISettings::as_ref(app).is_nld_in_terminal_enabled();
                 Some(PolicyConfigUpdate::new(InputConfig {
                     input_type: InputType::Shell,
                     is_locked: !is_nld_in_terminal_enabled,
@@ -150,7 +150,7 @@ impl InputModePolicy for GuiInputModePolicy {
         app: &AppContext,
     ) -> Option<PolicyConfigUpdate> {
         match event {
-            AISettingsChangedEvent::AIAutoDetectionEnabled { .. }
+            AISettingsChangedEvent::AIAutoDetectionEnabled
                 if FeatureFlag::AgentView.is_enabled() =>
             {
                 if self
@@ -159,7 +159,7 @@ impl InputModePolicy for GuiInputModePolicy {
                     .is_conversation_fullscreen(app)
                 {
                     // Use context-specific check to determine if autodetection should be enabled
-                    let is_nld_enabled = AISettings::as_ref(app).is_ai_autodetection_enabled(app);
+                    let is_nld_enabled = AISettings::as_ref(app).is_ai_autodetection_enabled();
 
                     // If autodetection is enabled, unlock the input.
                     Some(PolicyConfigUpdate::new(InputConfig {
@@ -170,21 +170,21 @@ impl InputModePolicy for GuiInputModePolicy {
                     None
                 }
             }
-            AISettingsChangedEvent::AIAutoDetectionEnabled { .. } => {
+            AISettingsChangedEvent::AIAutoDetectionEnabled => {
                 // If autodetection is enabled, unlock the input.
                 Some(PolicyConfigUpdate::new(InputConfig {
                     is_locked: !is_autodetection_enabled_for_current_context,
                     ..current
                 }))
             }
-            AISettingsChangedEvent::NLDInTerminalEnabled { .. }
+            AISettingsChangedEvent::NLDInTerminalEnabled
                 if FeatureFlag::AgentView.is_enabled()
                     && !self
                         .conversation_selection
                         .as_ref(app)
                         .is_conversation_active(app) =>
             {
-                let is_nld_enabled = AISettings::as_ref(app).is_nld_in_terminal_enabled(app);
+                let is_nld_enabled = AISettings::as_ref(app).is_nld_in_terminal_enabled();
                 Some(PolicyConfigUpdate::new(InputConfig {
                     is_locked: !is_nld_enabled,
                     input_type: InputType::Shell,

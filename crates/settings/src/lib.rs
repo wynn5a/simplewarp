@@ -240,16 +240,6 @@ impl SupportedPlatforms {
     }
 }
 
-/// An enum representing the reason for a change event.
-#[derive(Debug, Clone, Copy)]
-pub enum ChangeEventReason {
-    /// The change was initiated from a local setting change
-    LocalChange,
-
-    /// The change was initiated from a clear operation
-    Clear,
-}
-
 /// A representation of a setting which can be loaded from and persisted to some
 /// sort of durable storage.
 pub trait Setting {

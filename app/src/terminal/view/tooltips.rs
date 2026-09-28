@@ -312,7 +312,7 @@ impl TerminalView {
             (_, _, _) => TooltipRedaction::NoRedaction,
         };
         stack.add_positioned_overlay_child(
-            render_tooltip(links, redaction, appearance, app),
+            render_tooltip(links, redaction, appearance),
             OffsetPositioning::offset_from_save_position_element(
                 element_id,
                 // Add a small buffer between the tooltip and the top of the cell.
@@ -329,7 +329,6 @@ fn render_tooltip(
     tooltip_links: impl IntoIterator<Item = GridTooltipLink>,
     redaction: TooltipRedaction,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     // Convert GridTooltipLink to shared TooltipLink
     let shared_links = tooltip_links.into_iter().map(|link| {
@@ -345,7 +344,7 @@ fn render_tooltip(
     });
 
     let tooltip_content =
-        crate::util::tooltips::render_tooltip(shared_links, redaction, appearance, app);
+        crate::util::tooltips::render_tooltip(shared_links, redaction, appearance);
 
     Dismiss::new(tooltip_content)
         .on_dismiss(|ctx, _app| {

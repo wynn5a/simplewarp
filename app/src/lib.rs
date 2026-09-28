@@ -145,7 +145,6 @@ use watcher::HomeDirectoryWatcher;
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::aws_credentials::AwsCredentialRefresher as _;
-use crate::ai::geap_credentials::GeapCredentialRefresher as _;
 use crate::ai::mcp::{FileBasedMCPManager, FileMCPWatcher};
 pub mod workflows;
 pub mod workspace;
@@ -1032,11 +1031,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|ctx| {
         let mut manager = ::ai::api_keys::ApiKeyManager::new(ctx);
         manager.subscribe_to_settings_changes(ctx);
-        // Gemini Enterprise (GEAP) credential refresh triggers: workspace
-        // settings saves / team changes and the member's enablement toggle.
-        if FeatureFlag::GeminiEnterprise.is_enabled() {
-            manager.subscribe_to_geap_settings_changes(ctx);
-        }
         manager
     });
 
@@ -1869,7 +1863,7 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
                 use crate::terminal::general_settings::GeneralSettingsChangedEvent;
                 // Note that we put this here because it depends on settings already having been initialized.
                 ctx.subscribe_to_model(&GeneralSettings::handle(ctx), |_, event, ctx| {
-                    if matches!(event, GeneralSettingsChangedEvent::LoginItem { .. }) {
+                    if matches!(event, GeneralSettingsChangedEvent::LoginItem) {
                         maybe_register_app_as_login_item(ctx);
                     }
                 });

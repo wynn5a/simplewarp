@@ -197,15 +197,14 @@ impl CommandSearchView {
             // Add data sources in lowest->highest priority order.  If results from two
             // data sources produce the same ranking score, the data source added first
             // will show up higher in the list (i.e.: further away from the input).
-            if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+            if AISettings::as_ref(ctx).is_any_ai_enabled() {
                 mixer.add_sync_source(
                     WarpAIDataSource::new(),
                     HashSet::from([QueryFilter::NaturalLanguage]),
                 );
             }
 
-            if FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
-            {
+            if FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(ctx).is_any_ai_enabled() {
                 mixer.add_sync_source(
                     AIQueriesDataSource::new(),
                     HashSet::from([QueryFilter::PromptHistory]),

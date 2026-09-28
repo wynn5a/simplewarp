@@ -28,7 +28,7 @@ pub(super) fn should_show_terminal_input_message_bar(app: &AppContext) -> bool {
     FeatureFlag::AgentView.is_enabled()
         && !FeatureFlag::AgentViewPromptChip.is_enabled()
         && InputSettings::as_ref(app).is_terminal_input_message_bar_enabled()
-        && AISettings::as_ref(app).is_any_ai_enabled(app)
+        && AISettings::as_ref(app).is_any_ai_enabled()
 }
 
 /// Renders vim status bar

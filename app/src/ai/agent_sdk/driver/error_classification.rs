@@ -51,7 +51,6 @@ pub(crate) fn classify_renderable_error(error: &RenderableAIError) -> AgentTaskS
         | RenderableAIError::ContextWindowExceeded(_)
         | RenderableAIError::InvalidApiKey { .. }
         | RenderableAIError::AwsBedrockCredentialsExpiredOrInvalid { .. }
-        | RenderableAIError::GeminiEnterpriseCredentialsExpiredOrInvalid
         | RenderableAIError::AgentExitedShell { .. } => AgentTaskState::Failed,
         RenderableAIError::ServerOverloaded
         | RenderableAIError::InternalWarpError

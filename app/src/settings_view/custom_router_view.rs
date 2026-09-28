@@ -46,7 +46,7 @@ pub struct CustomRouterView {
 impl CustomRouterView {
     #[cfg(feature = "local_fs")]
     pub fn new(router: CustomModelRouter, ctx: &mut ViewContext<Self>) -> Self {
-        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let open_file_button = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new("Open file", SecondaryTheme)
                 .with_icon(Icon::File)
@@ -87,7 +87,7 @@ impl CustomRouterView {
         });
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, _, ctx| {
-            let enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+            let enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
             me.edit_button.update(ctx, |button, ctx| {
                 button.set_disabled(!enabled, ctx);
             });
@@ -117,7 +117,7 @@ impl View for CustomRouterView {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
+        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
 
         let text_color = if is_any_ai_enabled {
             appearance.theme().active_ui_text_color()

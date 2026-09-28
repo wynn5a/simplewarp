@@ -128,7 +128,7 @@ impl InputConfig {
     /// Create a sensible default InputConfig based on user's auto-detection setting.
     pub fn new(app: &AppContext) -> Self {
         let ai_settings = AISettings::as_ref(app);
-        let is_autodetection_enabled = ai_settings.is_ai_autodetection_enabled(app);
+        let is_autodetection_enabled = ai_settings.is_ai_autodetection_enabled();
 
         InputConfig {
             input_type: InputType::Shell,
@@ -163,9 +163,9 @@ impl InputConfig {
     ) -> Self {
         Self {
             is_locked: if !FeatureFlag::AgentView.is_enabled() || is_in_fullscreen_agent_view {
-                !AISettings::as_ref(app).is_ai_autodetection_enabled(app)
+                !AISettings::as_ref(app).is_ai_autodetection_enabled()
             } else {
-                !AISettings::as_ref(app).is_nld_in_terminal_enabled(app)
+                !AISettings::as_ref(app).is_nld_in_terminal_enabled()
             },
             ..self
         }
@@ -242,7 +242,7 @@ impl BlocklistAIInputModel {
             // lock, so only compute it for the one event whose handling can need
             // it; policies must not rely on it for any other event.
             let is_autodetection_enabled_for_current_context =
-                matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled { .. })
+                matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled)
                     && me.is_autodetection_enabled_for_current_context(ctx);
             if let Some(update) = me.policy.config_on_ai_settings_changed(
                 event,

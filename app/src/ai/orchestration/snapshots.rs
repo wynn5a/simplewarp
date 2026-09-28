@@ -458,7 +458,7 @@ fn build_api_key_snapshot(
 /// default (badged), warp, the recent custom slug (badged), then a
 /// custom-host text-entry footer.
 pub fn host_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> OptionSnapshot {
-    let default_host = resolve_default_host_slug(ctx);
+    let default_host = resolve_default_host_slug();
     let recent_host = resolve_recent_host_slug(ctx);
     let connected_hosts: Vec<String> = Vec::new();
     let current = match &state.execution_mode {

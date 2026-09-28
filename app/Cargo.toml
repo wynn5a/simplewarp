@@ -424,7 +424,6 @@ embed-resource = "3.0"
 ai_resume_button = []
 figma_detection = []
 bundled_skills = []
-gemini_enterprise = []
 agent_mode = []
 agent_mode_computer_use = []
 background_computer_use = []
@@ -568,11 +567,9 @@ default = [
     "queued_prompts_v2",
     "solo_user_byok",
     "custom_model_routers",
-    "gemini_enterprise",
     "git_operations_in_code_review",
     "terminal_lifecycle_recovery",
     "cloud_runners",
-    "file_backed_execution_profiles",
     "well_known_mcp_ids",
 ]
 
@@ -705,7 +702,6 @@ simplewarp = [
     "custom_model_routers",
     "git_operations_in_code_review",
     "terminal_lifecycle_recovery",
-    "file_backed_execution_profiles",
     "well_known_mcp_ids",
 ]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
@@ -734,7 +730,6 @@ nld_heuristic_v1 = ["input_classifier/nld_heuristic_v1"]
 nld_heuristic_v2 = ["input_classifier/nld_heuristic_v2"]
 nld_prompt_history_match = []
 msys2_shells = []
-file_backed_execution_profiles = []
 get_started_tab = []
 github_pr_prompt_chip = []
 create_project_flow = []

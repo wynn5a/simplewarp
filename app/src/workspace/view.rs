@@ -1637,7 +1637,7 @@ impl Workspace {
             RemoveTabConfigConfirmationEvent::Confirm { path } => {
                 // If the removed config was the default, revert to Terminal.
                 let ai_settings = AISettings::as_ref(ctx);
-                let is_removed_default = ai_settings.default_session_mode(ctx)
+                let is_removed_default = ai_settings.default_session_mode()
                     == DefaultSessionMode::TabConfig
                     && ai_settings.default_tab_config_path() == path.to_string_lossy();
                 if is_removed_default {
@@ -1819,7 +1819,7 @@ impl Workspace {
 
     pub(crate) fn show_session_config_modal(&mut self, ctx: &mut ViewContext<Self>) {
         // Configure the modal to hide Oz when AI is disabled.
-        let show_oz = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let show_oz = AISettings::as_ref(ctx).is_any_ai_enabled();
         self.session_config_modal.view.update(ctx, |modal, ctx| {
             modal.body().update(ctx, |body, ctx| {
                 body.configure(show_oz);
@@ -2349,7 +2349,7 @@ impl Workspace {
         // Show the Warp AI warm welcome iff the user hasn't dismissed it nor interacted with Warp AI before.
         // Also, avoid showing it in integration tests to prevent interaction with other tests.
         let mut should_show_ai_assistant_warm_welcome: bool = !FeatureFlag::AgentMode.is_enabled()
-            && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+            && AISettings::as_ref(ctx).is_any_ai_enabled()
             && !matches!(ChannelState::channel(), Channel::Integration)
             && ctx
                 .private_user_preferences()
@@ -2376,8 +2376,8 @@ impl Workspace {
         ctx.subscribe_to_model(&CodeSettings::handle(ctx), |me, _, event, ctx| {
             if matches!(
                 event,
-                CodeSettingsChangedEvent::ShowProjectExplorer { .. }
-                    | CodeSettingsChangedEvent::ShowGlobalSearch { .. }
+                CodeSettingsChangedEvent::ShowProjectExplorer
+                    | CodeSettingsChangedEvent::ShowGlobalSearch
             ) {
                 me.update_left_panel_available_views(ctx);
                 ctx.notify();
@@ -2430,15 +2430,15 @@ impl Workspace {
         let native_modal = Self::build_native_modal_view(ctx);
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| match event {
-            AISettingsChangedEvent::IsAnyAIEnabled { .. }
-            | AISettingsChangedEvent::ShowConversationHistory { .. } => {
+            AISettingsChangedEvent::IsAnyAIEnabled
+            | AISettingsChangedEvent::ShowConversationHistory => {
                 me.update_left_panel_available_views(ctx);
                 ctx.notify();
             }
-            AISettingsChangedEvent::IsActiveAIEnabled { .. }
-            | AISettingsChangedEvent::ThinkingDisplayMode { .. }
-            | AISettingsChangedEvent::PromptSubmissionMode { .. }
-            | AISettingsChangedEvent::AutoApproveBypassesCommandDenylist { .. } => {
+            AISettingsChangedEvent::IsActiveAIEnabled
+            | AISettingsChangedEvent::ThinkingDisplayMode
+            | AISettingsChangedEvent::PromptSubmissionMode
+            | AISettingsChangedEvent::AutoApproveBypassesCommandDenylist => {
                 ctx.notify();
             }
             _ => (),
@@ -2727,7 +2727,7 @@ impl Workspace {
         event: &SessionSettingsChangedEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        if let SessionSettingsChangedEvent::HonorPS1 { .. } = event {
+        if let SessionSettingsChangedEvent::HonorPS1 = event {
             let honor_ps1 = *session_settings.as_ref(ctx).honor_ps1;
             for tab in &self.tabs {
                 // Each tab has a pane group.
@@ -2738,7 +2738,7 @@ impl Workspace {
         }
 
         // When Notifications settings change, request system notification permissions if needed.
-        if let SessionSettingsChangedEvent::Notifications { .. } = event {
+        if let SessionSettingsChangedEvent::Notifications = event {
             self.request_notification_permissions_if_needed(ctx);
         }
     }
@@ -2750,18 +2750,18 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            TabSettingsChangedEvent::WorkspaceDecorationVisibility { .. } => {
+            TabSettingsChangedEvent::WorkspaceDecorationVisibility => {
                 self.sync_window_button_visibility(ctx);
                 ctx.notify();
             }
-            TabSettingsChangedEvent::ShowIndicatorsButton { .. }
-            | TabSettingsChangedEvent::NewTabPlacement { .. }
-            | TabSettingsChangedEvent::TabCloseButtonPosition { .. }
-            | TabSettingsChangedEvent::PreserveActiveTabColor { .. } => {
+            TabSettingsChangedEvent::ShowIndicatorsButton
+            | TabSettingsChangedEvent::NewTabPlacement
+            | TabSettingsChangedEvent::TabCloseButtonPosition
+            | TabSettingsChangedEvent::PreserveActiveTabColor => {
                 self.sync_window_button_visibility(ctx);
                 ctx.notify();
             }
-            TabSettingsChangedEvent::UseVerticalTabs { .. } => {
+            TabSettingsChangedEvent::UseVerticalTabs => {
                 let vertical_tabs_enabled = *TabSettings::as_ref(ctx).use_vertical_tabs;
                 self.vertical_tabs_panel_open = vertical_tabs_enabled;
 
@@ -2783,7 +2783,7 @@ impl Workspace {
                 self.sync_window_button_visibility(ctx);
                 ctx.notify();
             }
-            TabSettingsChangedEvent::ShowVerticalTabPanelInRestoredWindows { .. } => {
+            TabSettingsChangedEvent::ShowVerticalTabPanelInRestoredWindows => {
                 if FeatureFlag::VerticalTabs.is_enabled()
                     && *TabSettings::as_ref(ctx).use_vertical_tabs
                     && *TabSettings::as_ref(ctx).show_vertical_tab_panel_in_restored_windows
@@ -2792,7 +2792,7 @@ impl Workspace {
                 }
                 ctx.notify();
             }
-            TabSettingsChangedEvent::ShowCodeReviewButton { .. } => {
+            TabSettingsChangedEvent::ShowCodeReviewButton => {
                 // Close the right panel if it's open and the setting was just disabled.
                 if !*TabSettings::as_ref(ctx).show_code_review_button {
                     let pane_group = self.active_tab_pane_group().clone();
@@ -2802,10 +2802,10 @@ impl Workspace {
                 }
                 ctx.notify();
             }
-            TabSettingsChangedEvent::ShowCodeReviewDiffStats { .. } => {
+            TabSettingsChangedEvent::ShowCodeReviewDiffStats => {
                 ctx.notify();
             }
-            TabSettingsChangedEvent::DirectoryTabColors { .. } => {
+            TabSettingsChangedEvent::DirectoryTabColors => {
                 if FeatureFlag::DirectoryTabColors.is_enabled() {
                     for tab in &mut self.tabs {
                         Self::sync_codebase_tab_color(tab, ctx);
@@ -2813,25 +2813,23 @@ impl Workspace {
                 }
                 ctx.notify();
             }
-            TabSettingsChangedEvent::VerticalTabsViewMode { .. }
-            | TabSettingsChangedEvent::VerticalTabsTabItemMode { .. }
-            | TabSettingsChangedEvent::VerticalTabsPrimaryInfo { .. }
-            | TabSettingsChangedEvent::VerticalTabsCompactSubtitle { .. }
-            | TabSettingsChangedEvent::UseLatestUserPromptAsConversationTitleInTabNames {
-                ..
-            }
-            | TabSettingsChangedEvent::VerticalTabsShowPrLink { .. }
-            | TabSettingsChangedEvent::VerticalTabsShowDiffStats { .. }
-            | TabSettingsChangedEvent::HideTitleBarSearchBarInVerticalTabs { .. } => {
+            TabSettingsChangedEvent::VerticalTabsViewMode
+            | TabSettingsChangedEvent::VerticalTabsTabItemMode
+            | TabSettingsChangedEvent::VerticalTabsPrimaryInfo
+            | TabSettingsChangedEvent::VerticalTabsCompactSubtitle
+            | TabSettingsChangedEvent::UseLatestUserPromptAsConversationTitleInTabNames
+            | TabSettingsChangedEvent::VerticalTabsShowPrLink
+            | TabSettingsChangedEvent::VerticalTabsShowDiffStats
+            | TabSettingsChangedEvent::HideTitleBarSearchBarInVerticalTabs => {
                 ctx.notify();
             }
-            TabSettingsChangedEvent::VerticalTabsShowDetailsOnHover { .. } => {
+            TabSettingsChangedEvent::VerticalTabsShowDetailsOnHover => {
                 if !*TabSettings::as_ref(ctx).vertical_tabs_show_details_on_hover {
                     self.vertical_tabs_panel.clear_detail_sidecar();
                 }
                 ctx.notify();
             }
-            TabSettingsChangedEvent::VerticalTabsDisplayGranularity { .. } => {
+            TabSettingsChangedEvent::VerticalTabsDisplayGranularity => {
                 let appearance = Appearance::as_ref(ctx);
                 let font_size = Self::tab_rename_editor_font_size(ctx, appearance);
                 self.tab_rename_editor.update(ctx, |editor, ctx| {
@@ -2839,7 +2837,7 @@ impl Workspace {
                 });
                 ctx.notify();
             }
-            TabSettingsChangedEvent::HeaderToolbarChipSelection { .. } => {
+            TabSettingsChangedEvent::HeaderToolbarChipSelection => {
                 self.sync_panel_positions_from_config(ctx);
                 ctx.notify();
             }
@@ -5045,9 +5043,9 @@ impl Workspace {
     ) -> Vec<MenuItem<WorkspaceAction>> {
         let mut menu_items = vec![];
 
-        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let ai_settings = AISettings::as_ref(ctx);
-        let effective_default = ai_settings.default_session_mode(ctx);
+        let effective_default = ai_settings.default_session_mode();
         let default_tab_config_path = ai_settings.default_tab_config_path().to_string();
         let shortcut_label = keybinding_name_to_display_string(NEW_TAB_BINDING_NAME, ctx);
         let reopen_closed_session_shortcut_label =
@@ -8696,8 +8694,8 @@ impl Workspace {
             .unwrap_or_else(|| repo_path.clone());
         let config_name = format!("Worktree: {repo_display_name}");
         // Use the user's default session mode to decide pane type.
-        let pane_type = if AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
-            && AISettings::as_ref(ctx).default_session_mode(ctx) == DefaultSessionMode::Agent
+        let pane_type = if AISettings::as_ref(ctx).is_any_ai_enabled()
+            && AISettings::as_ref(ctx).default_session_mode() == DefaultSessionMode::Agent
         {
             "agent"
         } else {
@@ -9937,7 +9935,7 @@ impl Workspace {
             default_session_mode_behavior,
             DefaultSessionModeBehavior::Apply
         ) && conversation_restoration.is_none()
-            && AISettings::as_ref(ctx).default_session_mode(ctx) == DefaultSessionMode::Agent;
+            && AISettings::as_ref(ctx).default_session_mode() == DefaultSessionMode::Agent;
         #[cfg(feature = "local_tty")]
         let is_docker_sandbox = chosen_shell
             .as_ref()
@@ -13418,7 +13416,7 @@ impl Workspace {
     }
 
     fn run_tab_config_skill(&mut self, path: &Path, ctx: &mut ViewContext<Self>) {
-        if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+        if !AISettings::as_ref(ctx).is_any_ai_enabled() {
             return;
         }
 
@@ -13600,7 +13598,7 @@ impl Workspace {
                         });
                     }
                     OpenWarpAI => {
-                        if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+                        if !AISettings::as_ref(ctx).is_any_ai_enabled() {
                             return;
                         }
 
@@ -13659,17 +13657,17 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            WindowSettingsChangedEvent::BackgroundOpacity { .. } => {
+            WindowSettingsChangedEvent::BackgroundOpacity => {
                 ctx.notify();
             }
-            WindowSettingsChangedEvent::LeftPanelVisibilityAcrossTabs { .. } => {
+            WindowSettingsChangedEvent::LeftPanelVisibilityAcrossTabs => {
                 if self.left_panel_visibility_across_tabs_enabled(ctx) {
                     self.left_panel_open = self
                         .active_tab_pane_group()
                         .read(ctx, |pane_group, _| pane_group.left_panel_open);
                 }
             }
-            WindowSettingsChangedEvent::ZoomLevel { .. } => {
+            WindowSettingsChangedEvent::ZoomLevel => {
                 self.update_titlebar_height(ctx);
             }
             _ => {}
@@ -16580,7 +16578,7 @@ impl Workspace {
         let (heading, description) = error.heading_and_description();
         let secondary_button =
             AISettings::as_ref(app)
-                .is_any_ai_enabled(app)
+                .is_any_ai_enabled()
                 .then(|| WorkspaceBannerButtonDetails {
                     text: "Fix with Warp Agent".to_owned(),
                     action: WorkspaceAction::FixSettingsWithOz {
@@ -17524,10 +17522,10 @@ impl Workspace {
         }
 
         let ai_settings = AISettings::as_ref(app);
-        if ai_settings.is_ai_autodetection_enabled(app) {
+        if ai_settings.is_ai_autodetection_enabled() {
             context.set.insert(flags::AI_INPUT_AUTODETECTION_FLAG);
         }
-        if ai_settings.is_nld_in_terminal_enabled(app) {
+        if ai_settings.is_nld_in_terminal_enabled() {
             context.set.insert(flags::NLD_IN_TERMINAL_FLAG);
         }
         if ai_settings.is_intelligent_autosuggestions_enabled(app) {
@@ -18050,7 +18048,7 @@ impl TypedActionView for Workspace {
                 }
             }
             AddDefaultTab => {
-                let effective_mode = AISettings::as_ref(ctx).default_session_mode(ctx);
+                let effective_mode = AISettings::as_ref(ctx).default_session_mode();
                 match effective_mode {
                     DefaultSessionMode::TabConfig => {
                         let ai_settings = AISettings::as_ref(ctx);
@@ -19510,14 +19508,14 @@ impl View for Workspace {
             context.set.insert("IsOnline");
         }
 
-        if AISettings::as_ref(app).is_any_ai_enabled(app) {
+        if AISettings::as_ref(app).is_any_ai_enabled() {
             context.set.insert(flags::IS_ANY_AI_ENABLED);
         }
 
         if AISettings::as_ref(app).is_active_ai_enabled(app) {
             context.set.insert(flags::IS_ACTIVE_AI_ENABLED);
         }
-        if AISettings::as_ref(app).is_voice_input_enabled(app)
+        if AISettings::as_ref(app).is_voice_input_enabled()
             && UserWorkspaces::as_ref(app).is_voice_enabled()
         {
             context.set.insert(flags::IS_VOICE_INPUT_ENABLED);
@@ -19605,7 +19603,7 @@ impl View for Workspace {
             context.set.insert("Workspace_ActiveOrSelectedTabsInGroup");
         }
 
-        if AISettings::as_ref(app).is_conversation_history_enabled(app) {
+        if AISettings::as_ref(app).is_conversation_history_enabled() {
             context.set.insert(flags::SHOW_CONVERSATION_HISTORY);
         }
 
@@ -20090,7 +20088,7 @@ impl View for Workspace {
                 if let Some(anchor_label) = anchor_label {
                     let is_already_default = {
                         let ai_settings = AISettings::as_ref(app);
-                        let current_mode = ai_settings.default_session_mode(app);
+                        let current_mode = ai_settings.default_session_mode();
                         let current_path = ai_settings.default_tab_config_path();
                         match sidecar_item {
                             SidecarItemKind::BuiltIn {
@@ -20366,7 +20364,7 @@ impl View for Workspace {
         }
 
         if !FeatureFlag::AgentMode.is_enabled()
-            && AISettings::as_ref(app).is_any_ai_enabled(app)
+            && AISettings::as_ref(app).is_any_ai_enabled()
             && self.should_show_ai_assistant_warm_welcome
             && !self.current_workspace_state.is_ai_assistant_panel_open
             && tab_bar_mode.has_tab_bar()

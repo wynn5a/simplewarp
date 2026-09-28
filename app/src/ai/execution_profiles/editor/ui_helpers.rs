@@ -1,11 +1,9 @@
-use pathfinder_geometry::vector::vec2f;
 use thousands::Separable;
 use uuid::Uuid;
 use warp_core::features::FeatureFlag;
 use warpui::elements::{
-    ChildAnchor, ChildView, ConstrainedBox, Container, CrossAxisAlignment, Dismiss, Flex,
-    Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
-    ParentElement, ParentOffsetBounds, Shrinkable, Stack, Text,
+    ChildView, ConstrainedBox, Container, CrossAxisAlignment, Dismiss, Flex, MainAxisAlignment,
+    MainAxisSize, MouseStateHandle, ParentElement, Shrinkable, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -66,8 +64,6 @@ fn nice_step(raw: f64) -> f64 {
 
 use crate::settings_view::{InputListItem, render_input_list, render_separator};
 
-pub const WORKSPACE_OVERRIDE_TOOLTIP_MESSAGE: &str =
-    "This option is enforced by your organization's settings and cannot be customized.";
 pub fn render_header_section(
     appearance: &Appearance,
     profile_name_editor: &ViewHandle<EditorView>,
@@ -211,8 +207,6 @@ fn render_permission_row<T: DropdownItemAction>(
     label: &str,
     dropdown: &ViewHandle<Dropdown<T>>,
     info_text: &str,
-    show_workspace_override_tooltip: bool,
-    tooltip_mouse_state: MouseStateHandle,
 ) -> Box<dyn Element> {
     let icon_elem = Container::new(
         ConstrainedBox::new(
@@ -232,16 +226,7 @@ fn render_permission_row<T: DropdownItemAction>(
         .with_child(icon_elem)
         .with_child(label_elem)
         .finish();
-    let dropdown_element = ChildView::new(dropdown).finish();
-    let dropdown_row = if show_workspace_override_tooltip {
-        wrap_disabled_with_workspace_override_tooltip(
-            dropdown_element,
-            tooltip_mouse_state,
-            appearance,
-        )
-    } else {
-        dropdown_element
-    };
+    let dropdown_row = ChildView::new(dropdown).finish();
     let info_section = Container::new(render_info_section(info_text, None, appearance))
         .with_margin_bottom(12.)
         .finish();
@@ -300,7 +285,7 @@ fn render_context_window_row(
     view: &ExecutionProfileEditorView,
     app: &AppContext,
 ) -> Option<Box<dyn Element>> {
-    if !AISettings::as_ref(app).is_any_ai_enabled(app) {
+    if !AISettings::as_ref(app).is_any_ai_enabled() {
         return None;
     }
     let cw = view.configurable_context_window(app)?;
@@ -442,7 +427,6 @@ pub fn render_permissions_section(
     profile_data: &AIExecutionProfile,
     app: &warpui::AppContext,
 ) -> Box<dyn Element> {
-    let ai_settings = AISettings::as_ref(app);
     let mut column = Flex::column().with_children([
         render_separator(appearance),
         render_section_label("PERMISSIONS", appearance),
@@ -452,10 +436,6 @@ pub fn render_permissions_section(
             "Apply code diffs",
             &view.apply_code_diffs_dropdown,
             profile_data.apply_code_diffs.description(),
-            !ai_settings.is_code_diffs_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .apply_code_diffs_tooltip_mouse_state
-                .clone(),
         ),
         render_permission_row(
             appearance,
@@ -463,10 +443,6 @@ pub fn render_permissions_section(
             "Read files",
             &view.read_files_dropdown,
             profile_data.read_files.description(),
-            !ai_settings.is_read_files_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .read_files_tooltip_mouse_state
-                .clone(),
         ),
     ]);
 
@@ -487,10 +463,6 @@ pub fn render_permissions_section(
         "Execute commands",
         &view.execute_commands_dropdown,
         profile_data.execute_commands.description(),
-        !ai_settings.is_execute_commands_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .execute_commands_tooltip_mouse_state
-            .clone(),
     ));
 
     match profile_data.execute_commands {
@@ -524,10 +496,6 @@ pub fn render_permissions_section(
         "Interact with running commands",
         &view.write_to_pty_dropdown,
         profile_data.write_to_pty.description(),
-        !ai_settings.is_write_to_pty_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .write_to_pty_tooltip_mouse_state
-            .clone(),
     ));
 
     if FeatureFlag::LocalComputerUse.is_enabled() {
@@ -537,10 +505,6 @@ pub fn render_permissions_section(
             "Computer use",
             &view.computer_use_dropdown,
             profile_data.computer_use.description(),
-            !ai_settings.is_computer_use_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .computer_use_tooltip_mouse_state
-                .clone(),
         ));
     }
 
@@ -550,10 +514,6 @@ pub fn render_permissions_section(
         "Ask questions",
         &view.ask_user_question_dropdown,
         profile_data.ask_user_question.description(),
-        !ai_settings.is_ask_user_question_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .ask_user_question_tooltip_mouse_state
-            .clone(),
     ));
     column.add_child(render_permission_row(
         appearance,
@@ -561,10 +521,6 @@ pub fn render_permissions_section(
         "Run orchestrated agents",
         &view.run_agents_dropdown,
         profile_data.run_agents.description(),
-        !ai_settings.is_run_agents_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .run_agents_tooltip_mouse_state
-            .clone(),
     ));
 
     column.add_child(render_permission_row(
@@ -573,10 +529,6 @@ pub fn render_permissions_section(
         "Call MCP servers",
         &view.call_mcp_servers_dropdown,
         profile_data.mcp_permissions.description(),
-        !ai_settings.is_mcp_permission_editable(app), // Use MCP override for this permission
-        view.tooltip_mouse_state_handles
-            .call_mcp_servers_tooltip_mouse_state
-            .clone(),
     ));
 
     match profile_data.mcp_permissions {
@@ -663,7 +615,6 @@ fn render_list_section<T, F, D>(
     display_fn: D,
     appearance: &Appearance,
     is_editable: bool,
-    tooltip_mouse_state: MouseStateHandle,
 ) -> Box<dyn Element>
 where
     T: Clone,
@@ -680,16 +631,10 @@ where
             mouse_state_handle,
             on_remove_action: on_remove_action(item),
             is_disabled: !is_editable,
-            tooltip_mouse_state: None,
         })
         .collect();
 
-    let list = render_input_list(None, input_items, editor, appearance);
-    let list_element = if !is_editable {
-        wrap_disabled_with_workspace_override_tooltip(list, tooltip_mouse_state, appearance)
-    } else {
-        list
-    };
+    let list_element = render_input_list(None, input_items, editor, appearance);
 
     let mut column =
         Flex::column().with_child(create_section_header(label, description, appearance));
@@ -714,7 +659,7 @@ fn render_directory_allowlist_section(
     app: &warpui::AppContext,
 ) -> Box<dyn Element> {
     let ai_settings = AISettings::as_ref(app);
-    let is_editable = ai_settings.is_directory_allowlist_editable(app);
+    let is_editable = ai_settings.is_directory_allowlist_editable();
 
     render_list_section(
         "Directory allowlist",
@@ -727,9 +672,6 @@ fn render_directory_allowlist_section(
         |path| path.display().to_string(),
         appearance,
         is_editable,
-        view.tooltip_mouse_state_handles
-            .directory_allowlist_editor_tooltip_mouse_state
-            .clone(),
     )
 }
 fn render_command_allowlist_section(
@@ -739,7 +681,7 @@ fn render_command_allowlist_section(
     app: &warpui::AppContext,
 ) -> Box<dyn Element> {
     let ai_settings = AISettings::as_ref(app);
-    let is_editable = ai_settings.is_command_allowlist_editable(app);
+    let is_editable = ai_settings.is_command_allowlist_editable();
 
     render_list_section(
         "Command allowlist",
@@ -752,9 +694,6 @@ fn render_command_allowlist_section(
         |item| item.to_string(),
         appearance,
         is_editable,
-        view.tooltip_mouse_state_handles
-            .command_allowlist_editor_tooltip_mouse_state
-            .clone(),
     )
 }
 
@@ -764,11 +703,7 @@ fn render_command_denylist_section(
     appearance: &Appearance,
     app: &warpui::AppContext,
 ) -> Box<dyn Element> {
-    use crate::ai::blocklist::BlocklistAIPermissions;
-
-    let ai_disabled = !AISettings::as_ref(app).is_any_ai_enabled(app);
-    let org_denylist = BlocklistAIPermissions::get_org_execute_commands_denylist(app);
-    let mut tooltip_idx = 0usize;
+    let ai_disabled = !AISettings::as_ref(app).is_any_ai_enabled();
 
     let input_items: Vec<InputListItem<ExecutionProfileEditorViewAction>> = profile_data
         .command_denylist
@@ -776,27 +711,13 @@ fn render_command_denylist_section(
         .cloned()
         .zip(view.command_denylist_mouse_state_handles.iter().cloned())
         .rev()
-        .map(|(predicate, mouse_state_handle)| {
-            let is_org = org_denylist.contains(&predicate);
-            let tooltip_mouse_state = if is_org {
-                let handle = view
-                    .command_denylist_tooltip_mouse_state_handles
-                    .get(tooltip_idx)
-                    .cloned();
-                tooltip_idx += 1;
-                handle
-            } else {
-                None
-            };
-            InputListItem {
-                item: predicate.to_string(),
-                mouse_state_handle,
-                on_remove_action: ExecutionProfileEditorViewAction::RemoveFromCommandDenylist {
-                    predicate,
-                },
-                is_disabled: is_org || ai_disabled,
-                tooltip_mouse_state,
-            }
+        .map(|(predicate, mouse_state_handle)| InputListItem {
+            item: predicate.to_string(),
+            mouse_state_handle,
+            on_remove_action: ExecutionProfileEditorViewAction::RemoveFromCommandDenylist {
+                predicate,
+            },
+            is_disabled: ai_disabled,
         })
         .collect();
 
@@ -833,7 +754,7 @@ fn render_mcp_allowlist_section(
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let ai_settings = AISettings::as_ref(app);
-    let is_editable = ai_settings.is_mcp_permission_editable(app);
+    let is_editable = ai_settings.is_mcp_permission_editable();
 
     render_list_section(
         "MCP allowlist",
@@ -846,9 +767,6 @@ fn render_mcp_allowlist_section(
         |uuid| display_mcp_name(uuid, app),
         appearance,
         is_editable,
-        view.tooltip_mouse_state_handles
-            .mcp_allowlist_editor_tooltip_mouse_state
-            .clone(),
     )
 }
 
@@ -859,7 +777,7 @@ fn render_mcp_denylist_section(
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let ai_settings = AISettings::as_ref(app);
-    let is_editable = ai_settings.is_mcp_permission_editable(app);
+    let is_editable = ai_settings.is_mcp_permission_editable();
 
     render_list_section(
         "MCP denylist",
@@ -872,9 +790,6 @@ fn render_mcp_denylist_section(
         |uuid| display_mcp_name(uuid, app),
         appearance,
         is_editable,
-        view.tooltip_mouse_state_handles
-            .mcp_denylist_editor_tooltip_mouse_state
-            .clone(),
     )
 }
 pub fn render_plan_auto_sync_toggle(
@@ -1021,34 +936,4 @@ pub fn render_web_search_toggle(
         .with_child(Shrinkable::new(1., left_content).finish())
         .with_child(switch)
         .finish()
-}
-
-pub fn wrap_disabled_with_workspace_override_tooltip(
-    child: Box<dyn Element>,
-    mouse_state: MouseStateHandle,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    // Wrap the disabled element in a hoverable container that can show tooltips
-    Hoverable::new(mouse_state, |state| {
-        let mut stack = Stack::new().with_child(child);
-        if state.is_hovered() {
-            let tooltip = appearance
-                .ui_builder()
-                .tool_tip(WORKSPACE_OVERRIDE_TOOLTIP_MESSAGE.to_string())
-                .build()
-                .finish();
-
-            stack.add_positioned_child(
-                tooltip,
-                OffsetPositioning::offset_from_parent(
-                    vec2f(0., -4.),
-                    ParentOffsetBounds::Unbounded,
-                    ParentAnchor::TopLeft,
-                    ChildAnchor::BottomLeft,
-                ),
-            );
-        }
-        stack.finish()
-    })
-    .finish()
 }

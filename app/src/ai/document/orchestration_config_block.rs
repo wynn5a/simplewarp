@@ -365,7 +365,7 @@ impl OrchestrationConfigBlockView {
             // over the bare "warp" fallback so self-hosted teams see
             // their default pre-selected. Mirrors the Oz webapp's
             // `HostSelector` initial-selection behavior.
-            let default_host = oc::resolve_default_host_slug(ctx)
+            let default_host = oc::resolve_default_host_slug()
                 .unwrap_or_else(|| oc::ORCHESTRATION_WARP_WORKER_HOST.to_string());
             self.orchestration_edit_state
                 .orchestration_config_state

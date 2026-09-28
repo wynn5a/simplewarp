@@ -56,7 +56,6 @@ use crate::ai::blocklist::{
 use crate::ai::cloud_environments::{
     AmbientAgentEnvironment, CloudAmbientAgentEnvironment, GithubRepo, SourceRepo,
 };
-use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::ai::mcp::file_based_manager::{FileBasedMCPManager, FileBasedMCPManagerEvent};
 use crate::ai::mcp::parsing::{ParsedTemplatableMCPServerResult, normalize_mcp_json, resolve_json};
@@ -70,7 +69,6 @@ use crate::ai::skills::{
 };
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::{CloudObject, CloudObjectLookup as _};
-use crate::server::ids::{ServerId, SyncId};
 use crate::terminal::cli_agent_sessions::plugin_manager::{
     CliAgentPluginManager, plugin_manager_for,
 };
@@ -1887,10 +1885,7 @@ impl AgentDriver {
             let profile = task.profile.clone();
             setup_events
                 .record_result(SetupStep::AgentProfileConfiguration, async {
-                    foreground
-                        .spawn(move |me, ctx| me.configure_terminal(profile, ctx))
-                        .await??;
-                    Ok::<(), AgentDriverError>(())
+                    Self::configure_terminal(profile)
                 })
                 .await?;
 
@@ -2644,29 +2639,13 @@ impl AgentDriver {
         }
     }
 
-    /// Configure the active terminal session with the specified profile.
-    fn configure_terminal(
-        &self,
-        profile: Option<String>,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<(), AgentDriverError> {
-        let terminal_id = self.terminal_driver.as_ref(ctx).terminal_view().id();
-
-        if let Some(profile) = profile {
-            let server_id = ServerId::try_from(profile.as_str())
-                .map_err(|_| AgentDriverError::ProfileError(profile.clone()))?;
-            let sync_id = SyncId::ServerId(server_id);
-            AIExecutionProfilesModel::handle(ctx).update(ctx, |model, ctx| {
-                if let Some(profile_id) = model.get_profile_id_by_sync_id(&sync_id, ctx) {
-                    model.set_active_profile(terminal_id, profile_id, ctx);
-                } else {
-                    return Err(AgentDriverError::ProfileError(profile.clone()));
-                }
-                Ok(())
-            })?;
+    /// Rejects a requested profile. Profiles were only addressable by their Warp Drive sync ID,
+    /// which no local profile has.
+    fn configure_terminal(profile: Option<String>) -> Result<(), AgentDriverError> {
+        match profile {
+            Some(profile) => Err(AgentDriverError::ProfileError(profile)),
+            None => Ok(()),
         }
-
-        Ok(())
     }
 
     fn set_base_model_override(

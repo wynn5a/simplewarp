@@ -62,14 +62,14 @@ impl ExecutionProfileView {
                 })
         });
 
-        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
 
         edit_button.update(ctx, |button, ctx| {
             button.set_disabled(!is_any_ai_enabled, ctx);
         });
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, _, ctx| {
-            let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+            let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
             me.edit_button.update(ctx, |button, ctx| {
                 button.set_disabled(!is_any_ai_enabled, ctx);
             });
@@ -94,7 +94,7 @@ impl View for ExecutionProfileView {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
+        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
 
         let permissions = BlocklistAIPermissions::as_ref(app);
         let profile = permissions.permissions_profile_for_id(app, &self.profile_id);

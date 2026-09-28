@@ -30,12 +30,10 @@ lazy_static! {
         "Test Team".to_string(),
         None,
         None,
-        None,
     );
 
     static ref TEST_WORKSPACE: Workspace = Workspace::from_local_cache(
         WorkspaceUid::from(ServerId::from(1)),
-        "Test Workspace".to_string(),
         Some(vec![TEST_TEAM.clone()]),
     );
 }

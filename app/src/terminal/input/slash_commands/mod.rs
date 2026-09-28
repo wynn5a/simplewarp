@@ -409,7 +409,7 @@ impl Input {
         // globally disabled. They're normally filtered out of the slash command menu, but this
         // protects keybinding-triggered execution where a bound key may still address the command.
         if command.availability.contains(Availability::AI_ENABLED)
-            && !AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+            && !AISettings::as_ref(ctx).is_any_ai_enabled()
         {
             show_error_toast(format!("{} requires AI to be enabled", command.name), ctx);
             return true;

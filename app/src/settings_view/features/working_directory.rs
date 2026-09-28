@@ -73,10 +73,7 @@ impl WorkingDirectoryView {
             create_editor(Some(NewSessionSource::SplitPane), ctx);
 
         ctx.subscribe_to_model(&SessionSettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(
-                event,
-                SessionSettingsChangedEvent::WorkingDirectoryConfig { .. }
-            ) {
+            if matches!(event, SessionSettingsChangedEvent::WorkingDirectoryConfig) {
                 me.working_directory_dropdown.update(ctx, |dropdown, ctx| {
                     init_top_level_dropdown(dropdown, ctx);
                     ctx.notify();

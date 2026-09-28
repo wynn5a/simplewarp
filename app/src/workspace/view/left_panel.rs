@@ -90,7 +90,7 @@ impl ToolPanelView {
             // sign-in wall in front of the panel: conversation availability is
             // decided by AI state alone.
             ToolPanelView::ConversationListView => {
-                if AISettings::as_ref(app).is_conversation_history_available(app) {
+                if AISettings::as_ref(app).is_conversation_history_available() {
                     ToolPanelAvailability::Available
                 } else {
                     ToolPanelAvailability::RequiresAi

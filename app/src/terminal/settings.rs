@@ -205,7 +205,7 @@ impl TerminalSettings {
     /// Whether the terminal zero state block should be shown.
     /// Checks both the user setting and the global AI enablement.
     pub fn should_show_zero_state_block(&self, ctx: &AppContext) -> bool {
-        *self.show_terminal_zero_state_block && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+        *self.show_terminal_zero_state_block && AISettings::as_ref(ctx).is_any_ai_enabled()
     }
 
     /// Whether asynchronous terminal find should be used. On channels where

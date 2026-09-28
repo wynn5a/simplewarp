@@ -1903,7 +1903,7 @@ impl Input {
             }
         });
         ctx.subscribe_to_model(&TerminalSettings::handle(ctx), move |_, _, event, ctx| {
-            if let TerminalSettingsChangedEvent::Spacing { .. } = event {
+            if let TerminalSettingsChangedEvent::Spacing = event {
                 ctx.notify();
             }
         });
@@ -2943,7 +2943,7 @@ impl Input {
 
         let voice_transcription_options = match (
             ai_input_model.input_type(),
-            ai_settings.is_voice_input_enabled(ctx),
+            ai_settings.is_voice_input_enabled(),
         ) {
             (InputType::AI, true) => crate::editor::VoiceTranscriptionOptions::Enabled {
                 // If UDI is enabled, we show the button below the text input
@@ -4804,11 +4804,11 @@ impl Input {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            InputSettingsChangedEvent::ShowHintText { .. } => {
+            InputSettingsChangedEvent::ShowHintText => {
                 self.set_zero_state_hint_text(ctx);
                 ctx.notify();
             }
-            InputSettingsChangedEvent::SyntaxHighlighting { .. } => {
+            InputSettingsChangedEvent::SyntaxHighlighting => {
                 if !*input_settings.as_ref(ctx).syntax_highlighting.value() {
                     self.clear_decorations(ctx);
                 }
@@ -4817,7 +4817,7 @@ impl Input {
                     ctx,
                 );
             }
-            InputSettingsChangedEvent::ErrorUnderliningEnabled { .. } => {
+            InputSettingsChangedEvent::ErrorUnderliningEnabled => {
                 if !*input_settings.as_ref(ctx).error_underlining.value() {
                     self.clear_decorations(ctx);
                 }
@@ -4826,24 +4826,24 @@ impl Input {
                     ctx,
                 );
             }
-            InputSettingsChangedEvent::InputBoxTypeSetting { .. } => {
+            InputSettingsChangedEvent::InputBoxTypeSetting => {
                 // Force a re-render when switching between Universal and Classic input modes
                 // to ensure all UI elements update in real-time
                 self.set_zero_state_hint_text(ctx);
                 ctx.notify();
             }
-            InputSettingsChangedEvent::AtContextMenuInTerminalMode { .. } => {
+            InputSettingsChangedEvent::AtContextMenuInTerminalMode => {
                 self.check_and_update_ai_context_menu_disabled_state(ctx);
                 ctx.notify();
             }
-            InputSettingsChangedEvent::CompletionsMenuWidth { .. } => {
+            InputSettingsChangedEvent::CompletionsMenuWidth => {
                 let new_value = *input_settings.as_ref(ctx).completions_menu_width.value();
                 if let Ok(mut guard) = self.completions_menu_resizable_width.lock() {
                     guard.set_size(new_value);
                 }
                 ctx.notify();
             }
-            InputSettingsChangedEvent::CompletionsMenuHeight { .. } => {
+            InputSettingsChangedEvent::CompletionsMenuHeight => {
                 let new_value = *input_settings.as_ref(ctx).completions_menu_height.value();
                 if let Ok(mut guard) = self.completions_menu_resizable_height.lock() {
                     guard.set_size(new_value);
@@ -4928,13 +4928,13 @@ impl Input {
         let ai_settings = AISettings::as_ref(ctx);
         if FeatureFlag::AgentView.is_enabled() {
             if self.agent_view_controller.as_ref(ctx).is_fullscreen() {
-                if !ai_settings.is_ai_autodetection_enabled(ctx) {
+                if !ai_settings.is_ai_autodetection_enabled() {
                     return;
                 }
-            } else if !ai_settings.is_nld_in_terminal_enabled(ctx) {
+            } else if !ai_settings.is_nld_in_terminal_enabled() {
                 return;
             }
-        } else if !ai_settings.is_ai_autodetection_enabled(ctx) {
+        } else if !ai_settings.is_ai_autodetection_enabled() {
             return;
         }
 
@@ -4995,7 +4995,7 @@ impl Input {
 
                 let switch_to_auto = self.ai_input_model.update(ctx, |model, ctx| {
                     let is_autodetection_enabled =
-                        AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx);
+                        AISettings::as_ref(ctx).is_ai_autodetection_enabled();
                     let input_type = *input_type;
 
                     // If the user clicked on the button to "unlock" the current mode,
@@ -5220,7 +5220,7 @@ impl Input {
         });
 
         // Now handle the default (empty prefix) placeholder
-        if toggled_on && AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+        if toggled_on && AISettings::as_ref(ctx).is_any_ai_enabled() {
             if FeatureFlag::AgentMode.is_enabled() {
                 // agent_mode_hint_text now handles caching internally
                 let hint_text = self.agent_mode_hint_text(ctx);
@@ -5258,9 +5258,9 @@ impl Input {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            SafeModeSettingsChangedEvent::SafeModeEnabled { .. }
-            | SafeModeSettingsChangedEvent::HideSecretsInBlockList { .. }
-            | SafeModeSettingsChangedEvent::SecretDisplayModeSetting { .. } => {
+            SafeModeSettingsChangedEvent::SafeModeEnabled
+            | SafeModeSettingsChangedEvent::HideSecretsInBlockList
+            | SafeModeSettingsChangedEvent::SecretDisplayModeSetting => {
                 self.model
                     .lock()
                     .set_obfuscate_secrets(get_secret_obfuscation_mode(ctx));
@@ -5274,9 +5274,9 @@ impl Input {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            AISettingsChangedEvent::AgentModeQuerySuggestionsEnabled { .. }
-            | AISettingsChangedEvent::IsAnyAIEnabled { .. }
-            | AISettingsChangedEvent::IsActiveAIEnabled { .. } => {
+            AISettingsChangedEvent::AgentModeQuerySuggestionsEnabled
+            | AISettingsChangedEvent::IsAnyAIEnabled
+            | AISettingsChangedEvent::IsActiveAIEnabled => {
                 let ai_settings = AISettings::handle(ctx);
                 if !ai_settings
                     .as_ref(ctx)
@@ -5297,10 +5297,10 @@ impl Input {
                 }
                 self.set_zero_state_hint_text(ctx);
 
-                if let AISettingsChangedEvent::IsAnyAIEnabled { .. } = event {
+                if let AISettingsChangedEvent::IsAnyAIEnabled = event {
                     let is_input_buffer_empty = self.editor.as_ref(ctx).buffer_text(ctx).is_empty();
                     // If there is no AI enabled, ensure input is locked in command mode.
-                    if !ai_settings.as_ref(ctx).is_any_ai_enabled(ctx) {
+                    if !ai_settings.as_ref(ctx).is_any_ai_enabled() {
                         self.ai_input_model.update(ctx, |input_model, ctx| {
                             input_model.set_input_config(
                                 InputConfig {
@@ -5317,8 +5317,8 @@ impl Input {
 
                 ctx.notify();
             }
-            AISettingsChangedEvent::AIAutoDetectionEnabled { .. }
-            | AISettingsChangedEvent::NLDInTerminalEnabled { .. } => {
+            AISettingsChangedEvent::AIAutoDetectionEnabled
+            | AISettingsChangedEvent::NLDInTerminalEnabled => {
                 // The input model handles updating the lock state via its own subscription.
                 // If NLD is now enabled for the current context and the buffer is non-empty,
                 // trigger autodetection on the current buffer contents.
@@ -5335,7 +5335,7 @@ impl Input {
                 }
             }
             #[cfg(feature = "voice_input")]
-            AISettingsChangedEvent::VoiceInputEnabled { .. } => {
+            AISettingsChangedEvent::VoiceInputEnabled => {
                 self.update_voice_transcription_options(ctx);
             }
             _ => {}
@@ -5671,12 +5671,12 @@ impl Input {
         ctx: &mut ViewContext<Self>,
     ) {
         match evt {
-            SessionSettingsChangedEvent::HonorPS1 { .. } => {
+            SessionSettingsChangedEvent::HonorPS1 => {
                 let mut model = self.model.lock();
                 model.set_honor_ps1(*SessionSettings::as_ref(ctx).honor_ps1);
                 ctx.notify();
             }
-            SessionSettingsChangedEvent::SavedPrompt { .. } => {
+            SessionSettingsChangedEvent::SavedPrompt => {
                 self.notify_and_notify_children(ctx);
             }
             _ => {}
@@ -5689,7 +5689,7 @@ impl Input {
         evt: &AppEditorSettingsChangedEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        if let AppEditorSettingsChangedEvent::EnableAutosuggestions { .. } = evt {
+        if let AppEditorSettingsChangedEvent::EnableAutosuggestions = evt {
             let next_enable_autosuggestions_setting =
                 *AppEditorSettings::as_ref(ctx).enable_autosuggestions;
             if self.enable_autosuggestions_setting && !next_enable_autosuggestions_setting {
@@ -5705,17 +5705,17 @@ impl Input {
         }
 
         // The cursor and status bar may change appearance when vim mode is enabled or disabled.
-        if let AppEditorSettingsChangedEvent::VimModeEnabled { .. } = evt {
+        if let AppEditorSettingsChangedEvent::VimModeEnabled = evt {
             ctx.notify();
         }
 
-        if let AppEditorSettingsChangedEvent::CursorDisplayState { .. } = evt {
+        if let AppEditorSettingsChangedEvent::CursorDisplayState = evt {
             ctx.notify();
         }
 
         // The vim status bar should be shown and hidden immediately upon toggling.
         if settings.as_ref(ctx).vim_mode_enabled()
-            && let AppEditorSettingsChangedEvent::VimStatusBar { .. } = evt
+            && let AppEditorSettingsChangedEvent::VimStatusBar = evt
         {
             ctx.notify();
         }
@@ -7795,7 +7795,7 @@ impl Input {
                 });
 
                 // Force AI mode if buffer contains any attachment patterns (blocks, drive objects, diffs)
-                if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) && edit_origin.is_user() {
+                if AISettings::as_ref(ctx).is_any_ai_enabled() && edit_origin.is_user() {
                     let buffer_text = self.buffer_text(ctx);
                     if Self::buffer_contains_attachment_patterns(&buffer_text) {
                         self.ensure_agent_mode_for_ai_features(
@@ -7926,7 +7926,7 @@ impl Input {
                     }
                 }
 
-                if AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+                if AISettings::as_ref(ctx).is_any_ai_enabled()
                     && self.editor_starts_with_command_search_trigger(ctx)
                     && *edit_origin == EditOrigin::UserTyped
                     && !self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
@@ -7946,7 +7946,7 @@ impl Input {
                 // If the last buffer didn't start with the AI input prefix and the current buffer does, then enable AI input.
                 if FeatureFlag::AgentMode.is_enabled()
                     && !FeatureFlag::AgentView.is_enabled()
-                    && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+                    && AISettings::as_ref(ctx).is_any_ai_enabled()
                     && (!is_ai_input_enabled || !is_input_mode_locked)
                 {
                     if buffer_text.starts_with(AI_INPUT_PREFIX)
@@ -8008,13 +8008,12 @@ impl Input {
                     //   to be an agent prompt.
                     // * In terminal view, this eans the user overrode a mis-classified agent prompt
                     //   to a terminal command.
-                    let should_reenable_autodetection = (ai_settings
-                        .is_ai_autodetection_enabled(ctx)
+                    let should_reenable_autodetection = (ai_settings.is_ai_autodetection_enabled()
                         && is_fullscreen_agent_view_active
                         && current_input_config.is_ai()
                         && current_input_config.is_locked
                         && !was_shell_mode_prefix_stripped)
-                        || (ai_settings.is_nld_in_terminal_enabled(ctx)
+                        || (ai_settings.is_nld_in_terminal_enabled()
                             && !self.agent_view_controller.as_ref(ctx).is_active()
                             && current_input_config.is_shell()
                             && current_input_config.is_locked);
@@ -8290,7 +8289,7 @@ impl Input {
             EditorEvent::BufferReplaced => {
                 let ai_input_model = self.ai_input_model.as_ref(ctx);
                 if FeatureFlag::AgentMode.is_enabled()
-                    && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+                    && AISettings::as_ref(ctx).is_any_ai_enabled()
                     && !ai_input_model.is_ai_input_enabled()
                     && ai_input_model.is_input_type_locked()
                 {
@@ -8839,7 +8838,7 @@ impl Input {
         let content = ctx.clipboard().read();
 
         // If AI is disabled, attachment isn't possible
-        if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+        if !AISettings::as_ref(ctx).is_any_ai_enabled() {
             self.insert_clipboard_text_content(ctx, content);
             return;
         }
@@ -10695,7 +10694,7 @@ impl Input {
                 suggestions.confirm(ctx);
             });
         } else if FeatureFlag::AgentMode.is_enabled()
-            && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+            && AISettings::as_ref(ctx).is_any_ai_enabled()
             && self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
         {
             self.submit_ai_query_with_routing(None, ctx);
@@ -10741,7 +10740,7 @@ impl Input {
             self.emit_input_buffer_submitted_telemetry(ctx);
 
             if FeatureFlag::AgentMode.is_enabled()
-                && AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx)
+                && AISettings::as_ref(ctx).is_ai_autodetection_enabled()
             {
                 self.ai_input_model.update(ctx, |input, ctx| {
                     input.abort_in_progress_detection();
@@ -11271,7 +11270,7 @@ impl Input {
             return;
         }
 
-        let is_autodetection_enabled = AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx);
+        let is_autodetection_enabled = AISettings::as_ref(ctx).is_ai_autodetection_enabled();
 
         if !is_autodetection_enabled {
             return;
@@ -11342,7 +11341,7 @@ impl Input {
         let should_unlock = FeatureFlag::AgentView.is_enabled()
             && self.agent_view_controller.as_ref(ctx).is_fullscreen()
             && is_input_buffer_empty
-            && AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx)
+            && AISettings::as_ref(ctx).is_ai_autodetection_enabled()
             && !has_locking_attachment;
 
         if should_unlock {
@@ -12576,7 +12575,7 @@ impl View for Input {
             ctx.set.insert(flags::EMPTY_INPUT_BUFFER);
         }
 
-        if ai_settings.is_any_ai_enabled(app) {
+        if ai_settings.is_any_ai_enabled() {
             ctx.set.insert(flags::IS_ANY_AI_ENABLED);
         }
 
@@ -12587,7 +12586,7 @@ impl View for Input {
             ctx.set.insert(flags::SLASH_COMMANDS_IN_TERMINAL_FLAG);
         }
 
-        if ai_settings.is_ai_autodetection_enabled(app) {
+        if ai_settings.is_ai_autodetection_enabled() {
             ctx.set.insert(flags::AI_INPUT_AUTODETECTION_FLAG);
         }
 

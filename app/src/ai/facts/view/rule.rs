@@ -184,8 +184,7 @@ impl RuleView {
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
             if matches!(
                 event,
-                AISettingsChangedEvent::MemoryEnabled { .. }
-                    | AISettingsChangedEvent::IsAnyAIEnabled { .. }
+                AISettingsChangedEvent::MemoryEnabled | AISettingsChangedEvent::IsAnyAIEnabled
             ) {
                 ctx.notify();
             }
@@ -954,7 +953,7 @@ impl View for RuleView {
         col.add_child(self.render_scope_tabs(appearance));
 
         let ai_settings = AISettings::as_ref(app);
-        if !ai_settings.is_memory_enabled(app) {
+        if !ai_settings.is_memory_enabled() {
             col.add_child(self.render_disabled_banner(appearance));
         }
 

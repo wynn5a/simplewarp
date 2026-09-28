@@ -118,7 +118,7 @@ impl DataSourceStore {
             }
 
             // Add conversation search if AI is enabled
-            if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+            if AISettings::as_ref(ctx).is_any_ai_enabled() {
                 mixer.add_sync_source(
                     self.all_conversation_data_source.clone(),
                     HashSet::from([QueryFilter::Conversations]),

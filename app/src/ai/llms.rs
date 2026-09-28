@@ -34,56 +34,28 @@ pub fn is_using_api_key_for_provider(provider: &LLMProvider, app: &AppContext) -
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ByoKeySource {
     UserProvided,
-    TeamProvided,
 }
 
 impl ByoKeySource {
     pub fn inference_label(self) -> &'static str {
         match self {
             ByoKeySource::UserProvided => "Inference via User-provided API key",
-            ByoKeySource::TeamProvided => "Inference via Team-provided API key",
         }
     }
 }
 
 /// Returns the first-party key source that will be used for this provider.
-/// Member-provided keys win when team policy allows them; otherwise a
-/// configured team-managed key is used when available.
 pub fn first_party_key_source_for_provider(
     provider: &LLMProvider,
     app: &AppContext,
 ) -> Option<ByoKeySource> {
-    let workspaces = UserWorkspaces::as_ref(app);
-    if workspaces.are_member_byo_keys_allowed() && is_using_api_key_for_provider(provider, app) {
-        return Some(ByoKeySource::UserProvided);
-    }
-    if is_using_team_first_party_key_for_provider(provider, app) {
-        return Some(ByoKeySource::TeamProvided);
-    }
-    None
+    (UserWorkspaces::as_ref(app).are_member_byo_keys_allowed()
+        && is_using_api_key_for_provider(provider, app))
+    .then_some(ByoKeySource::UserProvided)
 }
 
 pub fn is_using_first_party_key_for_provider(provider: &LLMProvider, app: &AppContext) -> bool {
     first_party_key_source_for_provider(provider, app).is_some()
-}
-
-fn is_using_team_first_party_key_for_provider(provider: &LLMProvider, app: &AppContext) -> bool {
-    UserWorkspaces::as_ref(app)
-        .current_workspace()
-        .is_some_and(|workspace| {
-            workspace.billing_metadata.is_managed_byok_byoe_enabled()
-                && workspace
-                    .settings
-                    .team_byo
-                    .as_ref()
-                    .is_some_and(|team_byo| {
-                        team_byo.first_party_enabled
-                            && team_byo
-                                .first_party_keys
-                                .iter()
-                                .any(|key| key.provider == *provider)
-                    })
-        })
 }
 
 pub fn byo_key_source_for_model(llm: &LLMInfo, app: &AppContext) -> Option<ByoKeySource> {
@@ -93,31 +65,7 @@ pub fn byo_key_source_for_model(llm: &LLMInfo, app: &AppContext) -> Option<ByoKe
     if is_custom_endpoint && UserWorkspaces::as_ref(app).are_member_byo_endpoints_allowed() {
         return Some(ByoKeySource::UserProvided);
     }
-    if is_using_team_byo_endpoint_for_model(llm, app) {
-        return Some(ByoKeySource::TeamProvided);
-    }
     first_party_key_source_for_provider(&llm.provider, app)
-}
-
-fn is_using_team_byo_endpoint_for_model(llm: &LLMInfo, app: &AppContext) -> bool {
-    UserWorkspaces::as_ref(app)
-        .current_workspace()
-        .is_some_and(|workspace| {
-            workspace.billing_metadata.is_managed_byok_byoe_enabled()
-                && workspace
-                    .settings
-                    .team_byo
-                    .as_ref()
-                    .is_some_and(|team_byo| {
-                        team_byo.endpoints_enabled
-                            && team_byo.endpoints.iter().any(|endpoint| {
-                                endpoint.enabled
-                                    && endpoint.models.iter().any(|model| {
-                                        model.enabled && model.config_key == llm.id.as_str()
-                                    })
-                            })
-                    })
-        })
 }
 
 pub fn should_show_key_icon_for_model(llm: &LLMInfo, app: &AppContext) -> bool {
@@ -140,18 +88,7 @@ pub fn should_show_bedrock_icon_for_model(llm: &LLMInfo, app: &AppContext) -> bo
     should_show_host_icon_for_model(
         llm,
         &LLMModelHost::AwsBedrock,
-        UserWorkspaces::as_ref(app).is_aws_bedrock_credentials_enabled(app),
-    )
-}
-
-pub fn should_show_gemini_enterprise_agent_platform_icon_for_model(
-    llm: &LLMInfo,
-    app: &AppContext,
-) -> bool {
-    should_show_host_icon_for_model(
-        llm,
-        &LLMModelHost::GeminiEnterprise,
-        UserWorkspaces::as_ref(app).is_gemini_enterprise_credentials_enabled(app),
+        UserWorkspaces::as_ref(app).is_aws_bedrock_credentials_enabled(),
     )
 }
 
@@ -160,7 +97,6 @@ pub struct ModelIconFlags {
     pub is_custom_router: bool,
     pub is_auto: bool,
     pub is_using_bedrock: bool,
-    pub is_using_gemini_enterprise: bool,
 }
 
 /// The leading icon shown next to a model in the model picker and model menus.
@@ -174,8 +110,6 @@ pub fn model_leading_icon(llm: &LLMInfo, flags: ModelIconFlags) -> Icon {
         Icon::Agent
     } else if flags.is_using_bedrock {
         Icon::Aws
-    } else if flags.is_using_gemini_enterprise {
-        Icon::GeminiEnterpriseAgentPlatform
     } else {
         llm.provider.icon().unwrap_or(Icon::Agent)
     }

@@ -136,7 +136,7 @@ impl EditorView {
 
     pub(super) fn voice_options(ctx: &mut ViewContext<Self>) -> VoiceTranscriptionOptions {
         let ai_settings_handle = AISettings::handle(ctx);
-        if ai_settings_handle.as_ref(ctx).is_voice_input_enabled(ctx) {
+        if ai_settings_handle.as_ref(ctx).is_voice_input_enabled() {
             VoiceTranscriptionOptions::Enabled { show_button: false }
         } else {
             VoiceTranscriptionOptions::Disabled

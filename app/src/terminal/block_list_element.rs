@@ -1085,7 +1085,7 @@ impl BlockListElement {
             .finish(),
         );
 
-        if AISettings::as_ref(app).is_any_ai_enabled(app) {
+        if AISettings::as_ref(app).is_any_ai_enabled() {
             let icon = Container::new(
                 ConstrainedBox::new(if FeatureFlag::AgentView.is_enabled() {
                     UIIcon::Icon::Paperclip

@@ -10,7 +10,6 @@ use regex::Regex;
 use warp_errors::report_error;
 use warpui::{AppContext, Entity, ModelContext, RetryOption, SingletonEntity};
 
-use crate::ai::execution_profiles::{AIExecutionProfile, CloudAIExecutionProfileModel};
 use crate::ai::facts::{AIFact, CloudAIFactModel};
 use crate::ai::mcp::templatable::{CloudTemplatableMCPServerModel, TemplatableMCPServer};
 use crate::auth::AuthStateProvider;
@@ -400,33 +399,6 @@ impl UpdateManager {
             client_id,
             false,
             None,
-            ctx,
-        );
-    }
-
-    pub fn update_ai_execution_profile(
-        &mut self,
-        ai_execution_profile: AIExecutionProfile,
-        ai_execution_profile_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.update_object(
-            CloudAIExecutionProfileModel::new(ai_execution_profile),
-            ai_execution_profile_id,
-            ctx,
-        );
-    }
-
-    pub fn delete_ai_execution_profile(
-        &mut self,
-        ai_execution_profile_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.delete_object_by_user(
-            CloudObjectTypeAndId::GenericStringObject {
-                object_type: GenericStringObjectFormat::Json(JsonObjectType::AIExecutionProfile),
-                id: ai_execution_profile_id,
-            },
             ctx,
         );
     }

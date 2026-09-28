@@ -237,15 +237,6 @@ pub enum ModelEvent {
     DeleteObjects {
         ids: Vec<(SyncId, ObjectIdType)>,
     },
-    UpsertWorkspace {
-        workspace: Box<WorkspaceMetadata>,
-    },
-    UpsertWorkspaces {
-        workspaces: Vec<WorkspaceMetadata>,
-    },
-    SetCurrentWorkspace {
-        workspace_uid: WorkspaceUid,
-    },
     UpdateObjectMetadata {
         id: String,
         metadata: CloudObjectMetadata,

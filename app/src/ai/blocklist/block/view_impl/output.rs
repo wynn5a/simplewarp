@@ -81,7 +81,6 @@ use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 use crate::ai::blocklist::inline_action::ask_user_question_view::AskUserQuestionView;
 use crate::ai::blocklist::inline_action::aws_bedrock_credentials_error::AwsBedrockCredentialsErrorView;
 use crate::ai::blocklist::inline_action::create_or_edit_document::CreateOrEditDocumentAction;
-use crate::ai::blocklist::inline_action::gemini_enterprise_credentials_error::GeminiEnterpriseCredentialsErrorView;
 use crate::ai::blocklist::inline_action::inline_action_header::{
     HeaderConfig, INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
     InteractionMode,
@@ -180,8 +179,6 @@ pub(crate) struct Props<'a> {
     pub(super) is_conversation_transcript_viewer: bool,
     pub(super) aws_bedrock_credentials_error_view:
         Option<&'a ViewHandle<AwsBedrockCredentialsErrorView>>,
-    pub(super) gemini_enterprise_credentials_error_view:
-        Option<&'a ViewHandle<GeminiEnterpriseCredentialsErrorView>>,
     pub(super) imported_comments: &'a HashMap<AIAgentActionId, ImportedCommentGroup>,
     /// Per-orchestrate-action card view. Each `RunAgentsCardView` owns
     /// its own edit state, button + picker handles, and in-flight
@@ -1171,8 +1168,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             .invalid_api_key_button_handle,
                         aws_bedrock_credentials_error_view: props
                             .aws_bedrock_credentials_error_view,
-                        gemini_enterprise_credentials_error_view: props
-                            .gemini_enterprise_credentials_error_view,
                         icon_right_margin: 16.,
                     },
                     app,

@@ -70,7 +70,7 @@ impl NativeModal {
         event: &GeneralSettingsChangedEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        if let GeneralSettingsChangedEvent::ShowWarningBeforeQuitting { .. } = event {
+        if let GeneralSettingsChangedEvent::ShowWarningBeforeQuitting = event {
             self.dont_show_again = !general_settings.read(ctx, |settings, _| {
                 *settings.show_warning_before_quitting.value()
             });

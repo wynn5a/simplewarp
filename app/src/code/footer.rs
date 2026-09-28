@@ -304,7 +304,7 @@ impl CodeFooterView {
             return;
         };
 
-        let is_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let is_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         button.update(ctx, |button, ctx| {
             button.set_disabled(!is_ai_enabled, ctx);
             button.set_tooltip(

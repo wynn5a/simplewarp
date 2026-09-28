@@ -2548,7 +2548,7 @@ impl RichTextEditorView {
             });
         }
 
-        let tooltip_content = render_tooltip(links, TooltipRedaction::NoRedaction, appearance, ctx);
+        let tooltip_content = render_tooltip(links, TooltipRedaction::NoRedaction, appearance);
 
         let hoverable = Hoverable::new(Default::default(), move |_| tooltip_content)
             .with_cursor(Cursor::PointingHand)

@@ -649,7 +649,7 @@ impl FileTreeView {
 
     fn subscribe_to_code_settings(&self, ctx: &mut ViewContext<Self>) {
         ctx.subscribe_to_model(&CodeSettings::handle(ctx), |me, _, event, ctx| {
-            if let CodeSettingsChangedEvent::ShowHiddenFiles { .. } = event {
+            if let CodeSettingsChangedEvent::ShowHiddenFiles = event {
                 me.show_hidden_files = *CodeSettings::as_ref(ctx).show_hidden_files;
                 me.rebuild_flattened_items();
                 ctx.notify();
