@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
@@ -7,7 +6,6 @@ use std::time::Duration;
 use futures::channel::oneshot;
 use futures::executor::block_on;
 use tempfile::TempDir;
-use warp_cli::OZ_CLI_ENV;
 use warp_cli::mcp::MCPSpec;
 use warpui::{App, SingletonEntity as _};
 
@@ -20,7 +18,6 @@ use crate::ai::agent::{
     AIAgentOutput, AIAgentOutputMessage, ArtifactCreatedData, CancellationReason, MessageId,
     RenderableAIError,
 };
-use crate::ai::agent_sdk::driver::harness::oz_cli_env_var;
 use crate::ai::mcp::parsing::normalize_mcp_json;
 use crate::ai::skills::SkillManager;
 use crate::test_util::terminal::{add_window_with_terminal, initialize_app_for_terminal_view};
@@ -373,14 +370,6 @@ fn terminal_status_log_outcome_labels_are_low_cardinality() {
         "non_error_completion"
     );
     assert_eq!(terminal_status_log_outcome(&error_status()), "error");
-}
-
-#[test]
-fn oz_cli_env_var_points_at_a_binary() {
-    let (key, value) = oz_cli_env_var();
-
-    assert_eq!(key, OsString::from(OZ_CLI_ENV));
-    assert!(!value.is_empty());
 }
 
 #[test]

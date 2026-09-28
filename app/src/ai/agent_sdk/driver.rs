@@ -30,7 +30,7 @@ use crate::ai::agent::{
     FinishedAIAgentOutput, RenderableAIError, TransientNetworkErrorKind,
 };
 use crate::ai::agent_sdk::driver::harness::{
-    HarnessKind, HarnessRunner, ThirdPartyHarness, harness_model_env_vars, oz_cli_env_var,
+    HarnessKind, HarnessRunner, ThirdPartyHarness, harness_model_env_vars,
 };
 use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
 use crate::ai::ambient_agents::task::HarnessModelConfig;
@@ -418,11 +418,8 @@ impl AgentDriver {
 
         log::info!("Initializing agent driver: idle_on_complete={idle_on_complete:?}");
 
-        let mut env_vars = HashMap::from([oz_cli_env_var()]);
-        env_vars.extend(harness_model_env_vars(
-            selected_harness,
-            third_party_harness_model_config.as_ref(),
-        ));
+        let mut env_vars =
+            harness_model_env_vars(selected_harness, third_party_harness_model_config.as_ref());
 
         // Signal to third-party harnesses (e.g. Claude Code) that we're in a sandbox
         // so they allow root execution with permissive flags.
@@ -1301,7 +1298,7 @@ impl AgentDriver {
     }
 
     /// Sets up the third-party harness by subscribing to CLI session events and
-    /// installing the Warp plugin and platform plugin, if applicable.
+    /// installing the Warp notification plugin, if applicable.
     ///
     /// Returns a oneshot receiver that fires when the harness should exit
     /// (either immediately on completion or after the idle-on-complete timeout).
@@ -1319,8 +1316,8 @@ impl AgentDriver {
             .spawn(move |me, ctx| me.subscribe_to_cli_agent_session_events(harness_exit, ctx))
             .await?;
 
-        // Install plugins before running the harness command.
-        Self::setup_harness_plugins(harness, events).await?;
+        // The notification plugin's hooks report the session status that drives the exit signal.
+        Self::setup_harness_plugins(harness, events).await;
 
         Ok(exit_rx)
     }
@@ -1328,27 +1325,11 @@ impl AgentDriver {
     async fn setup_harness_plugins(
         harness: &dyn ThirdPartyHarness,
         events: &SetupClientEventReporter,
-    ) -> Result<(), AgentDriverError> {
-        let harness_name = harness.cli_agent().command_prefix();
-        let requires_platform_plugin = harness.requires_verified_platform_plugin();
+    ) {
         let Some(manager) = plugin_manager_for(harness.cli_agent()) else {
-            if requires_platform_plugin {
-                return Err(Self::required_platform_plugin_error(
-                    harness_name,
-                    "Required platform plugin manager is unavailable",
-                ));
-            }
-            return Ok(());
+            return;
         };
-
         Self::setup_notification_plugin(manager.as_ref(), events).await;
-        Self::setup_platform_plugin(
-            harness_name,
-            manager.as_ref(),
-            requires_platform_plugin,
-            events,
-        )
-        .await
     }
 
     async fn setup_notification_plugin(
@@ -1377,80 +1358,6 @@ impl AgentDriver {
                 .await
         {
             log::warn!("Plugin installation failed (continuing): {e}");
-        }
-    }
-
-    async fn setup_platform_plugin(
-        harness_name: &str,
-        manager: &dyn CliAgentPluginManager,
-        required: bool,
-        events: &SetupClientEventReporter,
-    ) -> Result<(), AgentDriverError> {
-        if manager.platform_plugin_needs_update() {
-            if let Err(e) = events
-                .record_result(
-                    SetupStep::ThirdPartyHarnessPreparationPlatformPluginUpdate,
-                    manager.update_platform_plugin(),
-                )
-                .await
-            {
-                if required {
-                    return Err(Self::required_platform_plugin_error(
-                        harness_name,
-                        format!("Required platform plugin update failed: {e}"),
-                    ));
-                }
-                log::warn!("Platform plugin update failed (continuing): {e}");
-            }
-        } else if !manager.is_platform_plugin_installed()
-            && let Err(e) = events
-                .record_result(
-                    SetupStep::ThirdPartyHarnessPreparationPlatformPluginInstall,
-                    manager.install_platform_plugin(),
-                )
-                .await
-        {
-            if required {
-                return Err(Self::required_platform_plugin_error(
-                    harness_name,
-                    format!("Required platform plugin installation failed: {e}"),
-                ));
-            }
-            log::warn!("Platform plugin installation failed (continuing): {e}");
-        }
-
-        if required {
-            Self::verify_required_platform_plugin(harness_name, manager)?;
-        }
-        Ok(())
-    }
-
-    fn verify_required_platform_plugin(
-        harness_name: &str,
-        manager: &dyn CliAgentPluginManager,
-    ) -> Result<(), AgentDriverError> {
-        if !manager.is_platform_plugin_installed() {
-            return Err(Self::required_platform_plugin_error(
-                harness_name,
-                "Required platform plugin is not installed",
-            ));
-        }
-        if manager.platform_plugin_needs_update() {
-            return Err(Self::required_platform_plugin_error(
-                harness_name,
-                "Required platform plugin is below the minimum supported version",
-            ));
-        }
-        Ok(())
-    }
-
-    fn required_platform_plugin_error(
-        harness: &str,
-        reason: impl Into<String>,
-    ) -> AgentDriverError {
-        AgentDriverError::HarnessSetupFailed {
-            harness: harness.to_owned(),
-            reason: reason.into(),
         }
     }
 

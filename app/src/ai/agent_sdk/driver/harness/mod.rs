@@ -7,9 +7,7 @@ use std::path::Path;
 use anyhow::Result;
 use async_trait::async_trait;
 use tempfile::NamedTempFile;
-use warp_cli::OZ_CLI_ENV;
 use warp_cli::agent::Harness;
-use warp_core::channel::ChannelState;
 use warpui::{ModelHandle, ModelSpawner};
 
 use super::terminal::{CommandHandle, TerminalDriver};
@@ -65,14 +63,6 @@ pub(crate) trait ThirdPartyHarness: Send + Sync {
     /// machinery used by the find feature.
     fn runtime_error_patterns(&self) -> &'static [&'static str] {
         &[]
-    }
-
-    /// Whether this harness must verify its Oz platform plugin before launch.
-    /// Codex opts into this because its unattended launch command bypasses hook
-    /// trust globally, so we should fail setup instead of running without the
-    /// Warp-installed orchestration hooks at the required version.
-    fn requires_verified_platform_plugin(&self) -> bool {
-        false
     }
 
     /// Build a runner for executing this harness with the given prompt.
@@ -158,16 +148,6 @@ pub(crate) fn validate_cli_installed(
         });
     }
     Ok(())
-}
-
-/// Points a third-party harness's Warp platform plugin at this binary.
-pub(crate) fn oz_cli_env_var() -> (OsString, OsString) {
-    (
-        OsString::from(OZ_CLI_ENV),
-        OsString::from(
-            std::env::current_exe().unwrap_or_else(|_| ChannelState::cli_command_name().into()),
-        ),
-    )
 }
 
 /// Returns environment variables that configure the model for a third-party harness.

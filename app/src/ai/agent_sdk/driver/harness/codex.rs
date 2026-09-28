@@ -24,8 +24,7 @@ pub(crate) struct CodexHarness;
 
 /// Slash command Codex's TUI recognises as a graceful shutdown.
 const CODEX_EXIT_COMMAND: &str = "/exit";
-/// Allow the Warp-installed Codex plugin hooks to run in vetted driver sessions
-/// without requiring an unattended `/hooks` review step.
+/// Lets configured Codex hooks run in unattended driver sessions without a `/hooks` review step.
 const CODEX_BYPASS_HOOK_TRUST_FLAG: &str = "--dangerously-bypass-hook-trust";
 
 #[async_trait]
@@ -124,9 +123,8 @@ impl ThirdPartyHarness for CodexHarness {
 ///
 /// `--dangerously-bypass-approvals-and-sandbox` disables both the sandbox and approval
 /// prompts so the agent can run autonomously.
-/// `--dangerously-bypass-hook-trust` allows the orchestration plugin hooks installed by
-/// Warp to run without a manual hook review in unattended driver sessions. Driver setup
-/// verifies the Codex platform plugin before launching commands with this flag.
+/// `--dangerously-bypass-hook-trust` skips the manual hook review an unattended session
+/// cannot answer.
 /// `Some(session_id)` indicates that we want to resume that prior session. Unlike claude,
 /// codex does not support assigning a session_id to a new conversation.
 fn codex_command(cli_name: &str, session_id: Option<&Uuid>, prompt_path: &str) -> String {

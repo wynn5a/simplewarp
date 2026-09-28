@@ -252,7 +252,7 @@ fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {
     }
 
     if params.orchestration_enabled {
-        supported_tools.extend([api::ToolType::RunAgents, api::ToolType::SendMessageToAgent]);
+        supported_tools.push(api::ToolType::RunAgents);
         // Declare client-handled wait_for_events so the server doesn't
         // fall back to the legacy server-handled form.
         supported_tools.push(api::ToolType::WaitForEvents);

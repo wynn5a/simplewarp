@@ -129,17 +129,6 @@ pub(crate) trait CliAgentPluginManager: Send + Sync {
         false
     }
 
-    /// Whether this agent's Oz platform plugin is already installed.
-    /// Default returns `true` because most agents do not have a platform plugin.
-    fn is_platform_plugin_installed(&self) -> bool {
-        true
-    }
-    /// Whether this agent's Oz platform plugin is below the minimum required version.
-    /// Default returns `false` because most agents do not have a platform plugin.
-    fn platform_plugin_needs_update(&self) -> bool {
-        false
-    }
-
     /// Whether the agent's plugin marketplace is currently overridden to a
     /// local filesystem path. This is used by local test flows to avoid
     /// clobbering a developer's marketplace override while still preserving
@@ -163,21 +152,6 @@ pub(crate) trait CliAgentPluginManager: Send + Sync {
             message: "Auto-update not supported for this agent".to_owned(),
             log: String::new(),
         })
-    }
-
-    /// Install the Oz platform plugin for this CLI agent, if one exists,
-    /// which provides skills that third-party harnesses can use to interact with
-    /// the Oz platform.
-    /// Default is a no-op — only agents with a platform plugin should override.
-    async fn install_platform_plugin(&self) -> Result<(), PluginInstallError> {
-        Ok(())
-    }
-
-    /// Update the Oz platform plugin for this CLI agent, if one exists.
-    /// Default reuses the install path because most agents do not have a
-    /// platform plugin or need distinct update behavior.
-    async fn update_platform_plugin(&self) -> Result<(), PluginInstallError> {
-        self.install_platform_plugin().await
     }
 }
 

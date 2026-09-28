@@ -32,7 +32,7 @@ async fn ensure_local_claude_child_notification_plugin(manager: &dyn CliAgentPlu
     // Claude sessions. The exception is local marketplace override testing:
     // installing/updating the notification plugin re-adds the public
     // claude-code-warp marketplace, which clobbers a developer's local
-    // claude-code-warp-internal override used for oz-harness-support testing.
+    // marketplace checkout.
     if manager.has_local_marketplace_override() {
         return;
     }

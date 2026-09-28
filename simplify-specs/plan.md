@@ -36,7 +36,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | DONE through 4hv: the 4hp remote-only queue (R1–R7) is empty; what remains under Next is product decisions and small follow-ups |
+| 4 — Delete the dead cloud code and the TUI | DONE through 4hw: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
@@ -93,7 +93,21 @@ The queue is empty.
 Product decisions, not deletions: the Oz branding of the local CLI install and ~23 user-visible
 "Oz" strings (rebrand); the Help menu / `JoinSlack` / feedback / ~69 `docs.warp.dev` links (repoint
 or drop; the preview-program Slack, the typeform feedback link and the cloud-agents tip are the
-ones actually wrong for this fork). The local Claude/Codex child-harness `oz run message` bug is fixed (4hv).
+ones actually wrong for this fork). The local Claude/Codex child-harness `oz run message` bug is fixed (4hv);
+`agent run --harness claude` no longer needs the Oz platform plugin (4hw).
+
+Outstanding product decisions:
+- **Orchestration.** `RunAgents` / `StartAgent` (and the child-harness launch) are live code that the
+  local adapter never offers (`local_inference::tools::SUPPORTED`). Offer `run_agents` (children can't
+  be messaged; `SendMessageToAgent` always errors), or delete the vertical.
+- **Onboarding tutorial.** `crates/onboarding`'s local tutorial has no entry point in simplewarp.
+  Wire one up or delete it.
+- **Provider 429.** It renders as the generic error with the provider's body, and
+  `RenderableAIError::QuotaLimit` is never produced. Map a 429 to `QuotaLimit`, or leave it.
+- **Enable-candidates** (see Status): EditableMarkdownMermaid, ImeMarkedText, ITermImages,
+  LocalDockerSandbox, computer use.
+- **Claude notification plugin.** `agent run --harness claude` and local Claude children install
+  `warp@claude-code-warp` from GitHub. Bundle it, or keep the one-time fetch.
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
 `CloudAgent` / `ScheduledAmbientAgent` shapes, `crates/isolation_platform` (local detection) and
@@ -1151,6 +1165,35 @@ Queue, in order:
    adapter, or delete the RunAgents / StartAgent / SendMessageToAgent vertical); the `agent run
    --harness claude` driver still requires the `oz-harness-support` plugin whose skills call the
    deleted `harness-support` CLI.
+
+34. ~~`agent run` third-party harness's Warp platform plugin~~ — **4hw done (2026-09-29).**
+   **Findings:** `warpdotdev/claude-code-warp` is a Claude Code plugin marketplace on GitHub with two
+   plugins. `oz-harness-support` (the "platform plugin") is Oz-cloud-only: parent-message delivery
+   hooks and the `oz-child-agent-orchestration` / `oz-finish-task` / `oz-notify-user` /
+   `oz-report-pr` / `oz-upload-file` / `factory-files` skills, all calling `$OZ_CLI` subcommands or
+   Warp's server. The driver installed it with `claude plugin marketplace add
+   warpdotdev/claude-code-warp` + `claude plugin install` (network), and for Claude
+   (`requires_verified_platform_plugin() == true`) failed setup with `HarnessSetupFailed` if install
+   or the ≥1.1.2 version check failed, so `agent run --harness claude` hard-errored offline or
+   without the plugin. Codex/Gemini had no plugin manager and never needed it. The run itself is
+   local: the runner types `claude --session-id … < prompt` into the driver's terminal; completion
+   comes from the command's exit code, plus `/exit` sent when the session status turns
+   Success/Failed/Blocked. That status comes from the other plugin, `warp@claude-code-warp` (the
+   notification plugin): its hooks write OSC 777 `warp://cli-agent` payloads to the local terminal and
+   never talk to Warp. **Removed:** the platform-plugin install/update/verify path in the driver
+   (`setup_platform_plugin`, `verify_required_platform_plugin`, `required_platform_plugin_error`),
+   `ThirdPartyHarness::requires_verified_platform_plugin`, the trait's four platform-plugin methods,
+   Claude's `PLATFORM_PLUGIN_KEY` / `MINIMUM_PLATFORM_PLUGIN_VERSION` and helpers, the two
+   `SetupStep::…PlatformPlugin*` spans, the `OZ_CLI` export (`oz_cli_env_var`, `warp_cli::OZ_CLI_ENV`;
+   only the platform plugin read it), and 7 tests. Plugin setup no longer returns an error. Also
+   removed: `SendMessageToAgentExecutor` (the action is handled inline with the same error result, and
+   `SendMessageToAgent` is no longer in `get_supported_tools`; the action/result shapes stay, so
+   restored conversations still load). **Kept:** the notification-plugin install/update (the local
+   completion signal; the install still clones the public GitHub marketplace once, which is the only
+   non-provider network use left in `agent run --harness claude`) and Codex's
+   `--dangerously-bypass-hook-trust` (it now only lets the user's own hooks run unattended).
+   −0.5k lines in 15 source files. Tests 4,092 default / 4,093 simplewarp (−7), warp_cli 55, 0
+   failed. Not run: a real `claude`/`codex` CLI.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

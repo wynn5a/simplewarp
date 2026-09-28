@@ -55,8 +55,6 @@ pub(crate) enum SetupStep {
     /// install/update latency and reliability individually.
     ThirdPartyHarnessPreparationNotificationPluginInstall,
     ThirdPartyHarnessPreparationNotificationPluginUpdate,
-    ThirdPartyHarnessPreparationPlatformPluginInstall,
-    ThirdPartyHarnessPreparationPlatformPluginUpdate,
 }
 
 macro_rules! span_and_name {
@@ -94,12 +92,6 @@ impl SetupStep {
             }
             Self::ThirdPartyHarnessPreparationNotificationPluginUpdate => {
                 span_and_name!("setup_third_party_harness_preparation_notification_plugin_update")
-            }
-            Self::ThirdPartyHarnessPreparationPlatformPluginInstall => {
-                span_and_name!("setup_third_party_harness_preparation_platform_plugin_install")
-            }
-            Self::ThirdPartyHarnessPreparationPlatformPluginUpdate => {
-                span_and_name!("setup_third_party_harness_preparation_platform_plugin_update")
             }
         }
     }

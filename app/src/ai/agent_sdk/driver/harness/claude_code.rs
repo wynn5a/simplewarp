@@ -109,10 +109,6 @@ impl ThirdPartyHarness for ClaudeHarness {
             resolved_mcp_servers,
         )?))
     }
-
-    fn requires_verified_platform_plugin(&self) -> bool {
-        true
-    }
 }
 
 /// Command used to exit claude.

@@ -110,7 +110,7 @@ fn supported_tools_include_orchestration_tools_when_orchestration_enabled() {
     let supported_tools = get_supported_tools(&params);
 
     assert!(supported_tools.contains(&api::ToolType::RunAgents));
-    assert!(supported_tools.contains(&api::ToolType::SendMessageToAgent));
+    assert!(!supported_tools.contains(&api::ToolType::SendMessageToAgent));
 }
 
 #[test]

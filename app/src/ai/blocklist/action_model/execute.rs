@@ -13,7 +13,6 @@ pub(super) mod request_computer_use;
 pub(super) mod request_file_edits;
 pub(super) mod run_agents;
 pub(super) mod search_codebase;
-pub(super) mod send_message;
 pub(super) mod shell_command;
 pub(super) mod start_agent;
 pub(super) mod suggest_new_conversation;
@@ -51,7 +50,6 @@ pub use request_file_edits::RequestFileEditsExecutor;
 pub use run_agents::{RunAgentsExecutor, RunAgentsExecutorEvent, RunAgentsSpawningSnapshot};
 #[cfg(test)]
 pub use run_agents::{compose_run_agents_child_prompt, run_agents_to_start_agent_mode};
-pub use send_message::SendMessageToAgentExecutor;
 use serde::{Deserialize, Serialize};
 pub use shell_command::{ShellCommandExecutor, ShellCommandExecutorEvent};
 pub use start_agent::{
@@ -76,7 +74,7 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
     AIAgentActionType, AIAgentActionTypeDiscriminants, AnyFileContent, CancellationReason,
-    FileContext, FileLocations, ReadFilesFailedFile, ServerOutputId,
+    FileContext, FileLocations, ReadFilesFailedFile, SendMessageToAgentResult, ServerOutputId,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
@@ -249,7 +247,6 @@ pub struct BlocklistAIActionExecutor {
     fetch_conversation_executor: ModelHandle<FetchConversationExecutor>,
     start_agent_executor: ModelHandle<StartAgentExecutor>,
     run_agents_executor: ModelHandle<RunAgentsExecutor>,
-    send_message_executor: ModelHandle<SendMessageToAgentExecutor>,
     ask_user_question_executor: ModelHandle<AskUserQuestionExecutor>,
     wait_for_events_executor: ModelHandle<WaitForEventsExecutor>,
     /// The actions currently executing asynchronously, keyed by action ID.
@@ -312,7 +309,6 @@ impl BlocklistAIActionExecutor {
         let start_agent_executor = ctx.add_model(StartAgentExecutor::new);
         let run_agents_executor = ctx
             .add_model(|_| RunAgentsExecutor::new(start_agent_executor.clone(), terminal_view_id));
-        let send_message_executor = ctx.add_model(|_| SendMessageToAgentExecutor::new());
         let ask_user_question_executor =
             ctx.add_model(|_| AskUserQuestionExecutor::new(terminal_view_id));
         let wait_for_events_executor =
@@ -338,7 +334,6 @@ impl BlocklistAIActionExecutor {
             fetch_conversation_executor,
             start_agent_executor,
             run_agents_executor,
-            send_message_executor,
             ask_user_question_executor,
             wait_for_events_executor,
         }
@@ -436,9 +431,6 @@ impl BlocklistAIActionExecutor {
         id: Option<AmbientAgentTaskId>,
         ctx: &mut ModelContext<Self>,
     ) {
-        self.send_message_executor.update(ctx, |executor, _| {
-            executor.set_ambient_agent_task_id(id);
-        });
         self.request_computer_use_executor
             .update(ctx, |executor, _| {
                 executor.set_ambient_agent_task_id(id);
@@ -517,9 +509,7 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::FetchConversation { .. } => self
                 .fetch_conversation_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::SendMessageToAgent { .. } => self
-                .send_message_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
+            AIAgentActionType::SendMessageToAgent { .. } => futures::future::ready(()).boxed(),
             AIAgentActionType::AskUserQuestion { .. } => self
                 .ask_user_question_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
@@ -702,9 +692,14 @@ impl BlocklistAIActionExecutor {
                 .fetch_conversation_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
-            AIAgentActionType::SendMessageToAgent { .. } => self
-                .send_message_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx)),
+            // No local channel reaches a child agent; the action only appears in restored
+            // conversations.
+            AIAgentActionType::SendMessageToAgent { .. } => ActionExecution::<()>::Sync(
+                AIAgentActionResultType::SendMessageToAgent(SendMessageToAgentResult::Error(
+                    "SimpleWarp cannot send messages to child agents".to_owned(),
+                )),
+            )
+            .into(),
             AIAgentActionType::AskUserQuestion { .. } => self
                 .ask_user_question_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
@@ -941,9 +936,7 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::FetchConversation { .. } => self
                 .fetch_conversation_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::SendMessageToAgent { .. } => self
-                .send_message_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
+            AIAgentActionType::SendMessageToAgent { .. } => true,
             AIAgentActionType::AskUserQuestion { .. } => self
                 .ask_user_question_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
