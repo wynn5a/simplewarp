@@ -156,15 +156,6 @@ impl OrchestrationConfigState {
         }
     }
 
-    pub fn set_environment_id(&mut self, environment_id: String) {
-        if let RunAgentsExecutionMode::Remote {
-            environment_id: id, ..
-        } = &mut self.execution_mode
-        {
-            *id = environment_id;
-        }
-    }
-
     pub fn set_worker_host(&mut self, worker_host: String) {
         if let RunAgentsExecutionMode::Remote {
             worker_host: wh, ..

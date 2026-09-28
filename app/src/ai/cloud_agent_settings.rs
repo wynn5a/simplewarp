@@ -1,23 +1,14 @@
 //! Settings for cloud agent functionality.
 //!
 //! This module contains user-specific settings for cloud agent features,
-//! such as remembering the last selected environment.
+//! such as remembering the last selected host.
 
 use std::collections::HashMap;
 
 use settings::SupportedPlatforms;
 use settings::macros::define_settings_group;
 
-use crate::server::ids::SyncId;
-
 define_settings_group!(CloudAgentSettings, settings: [
-    last_selected_environment_id: LastSelectedEnvironmentId {
-        type: Option<SyncId>,
-        default: None,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    },
     harness_auth_ftux_completed: HarnessAuthFtuxCompleted {
         type: HashMap<String, bool>,
         default: HashMap::new(),

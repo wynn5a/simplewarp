@@ -713,7 +713,7 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
                 create_standard_action(request_computer_use.into())
             }
             api::message::tool_call::Tool::StartRecording(start_recording) => {
-                create_standard_action(start_recording.try_into()?)
+                create_standard_action(start_recording.into())
             }
             api::message::tool_call::Tool::StopRecording(stop_recording) => {
                 create_standard_action(stop_recording.into())

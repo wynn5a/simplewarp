@@ -728,7 +728,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             output_items.add_child(render_use_computer(props, id, request, app));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::StartRecording { summary, .. },
+                            action: AIAgentActionType::StartRecording { summary },
                             id,
                             ..
                         }) => {

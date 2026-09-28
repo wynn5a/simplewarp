@@ -9,7 +9,6 @@ use warpui::{AppContext, SingletonEntity};
 
 use crate::LLMPreferences;
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
-use crate::ai::cloud_environments::CloudEnvironmentCatalog;
 use crate::ai::harness_availability::{AuthSecretFetchState, HarnessAvailabilityModel};
 use crate::ai::llms::LLMInfo;
 use crate::ai::orchestration::config_state::AuthSecretSelection;
@@ -19,7 +18,6 @@ use crate::ai::orchestration::config_state::AuthSecretSelection;
 const DEFAULT_HOST_ENV_VAR: &str = "WARP_CLOUD_MODE_DEFAULT_HOST";
 
 pub const ORCHESTRATION_WARP_WORKER_HOST: &str = "warp";
-pub const ORCHESTRATION_ENV_NONE_LABEL: &str = "Empty environment";
 pub const ORCHESTRATION_RUNNER_NONE_LABEL: &str = "Use default";
 
 /// Returns Warp base-model choices for orchestration.
@@ -128,35 +126,6 @@ pub fn harness_save_key(harness_type: &str) -> &str {
         "oz"
     } else {
         harness_type
-    }
-}
-
-/// Resolves the orchestration GUI's default environment: first tries the
-/// user's last-selected environment, then preserves its existing
-/// most-recent-use and case-sensitive-name fallback.
-pub fn resolve_default_environment_id(ctx: &AppContext) -> Option<String> {
-    CloudEnvironmentCatalog::as_ref(ctx)
-        .orchestration_default_environment_id(ctx)
-        .map(|id| id.uid())
-}
-
-/// Persists the user's environment selection to settings so it can
-/// be restored as the default next time. Shared by both the plan
-/// card and confirmation card `EnvironmentChanged` handlers.
-pub fn persist_environment_selection(environment_id: &str, ctx: &mut AppContext) {
-    if environment_id.is_empty() {
-        return;
-    }
-    let catalog = CloudEnvironmentCatalog::handle(ctx);
-    let environment_id = catalog
-        .as_ref(ctx)
-        .environments()
-        .iter()
-        .find_map(|environment| (environment.id.uid() == environment_id).then_some(environment.id));
-    if let Some(environment_id) = environment_id {
-        catalog.update(ctx, |catalog, ctx| {
-            catalog.persist_selection(environment_id, ctx);
-        });
     }
 }
 

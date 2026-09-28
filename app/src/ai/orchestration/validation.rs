@@ -5,12 +5,9 @@ use warp_cli::agent::Harness;
 use warpui::AppContext;
 
 use super::config_state::{AuthSecretSelection, OrchestrationConfigState};
-use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::local_harness_setup::{
     LocalHarnessSetupState, local_harness_is_product_enabled, local_harness_setup_state,
 };
-use crate::ai::orchestration::providers::ORCHESTRATION_WARP_WORKER_HOST;
-use crate::cloud_object::CloudObjectLookup as _;
 
 /// Whether a harness's local setup allows selecting it: always true for
 /// Cloud, otherwise requires the local CLI to be installed and the
@@ -98,34 +95,6 @@ pub fn accept_disabled_reason_with_auth(
         return Some("Select an API key for this harness to continue.".to_string());
     }
     None
-}
-
-/// Soft recommendation copy shown when a Warp-hosted Cloud run has no
-/// environment selected. `None` when not applicable.
-pub fn empty_env_recommendation_message(
-    execution_mode: &RunAgentsExecutionMode,
-    app: &AppContext,
-) -> Option<String> {
-    let RunAgentsExecutionMode::Remote {
-        environment_id,
-        worker_host,
-        ..
-    } = execution_mode
-    else {
-        return None;
-    };
-    if !environment_id.trim().is_empty() {
-        return None;
-    }
-    if !worker_host.eq_ignore_ascii_case(ORCHESTRATION_WARP_WORKER_HOST) {
-        return None;
-    }
-    let env_count = CloudAmbientAgentEnvironment::get_all(app).len();
-    Some(if env_count > 0 {
-        "We recommend selecting an environment for cloud agents.".to_string()
-    } else {
-        "We recommend creating an environment for cloud agents.".to_string()
-    })
 }
 
 #[cfg(test)]

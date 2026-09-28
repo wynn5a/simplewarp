@@ -1,5 +1,5 @@
 //! Plain-data option lists for the orchestration configuration fields:
-//! location, harness, model, API key, host, and environment. One builder
+//! location, harness, model, API key, host, and runner. One builder
 //! per field turns the live catalogs into an [`OptionSnapshot`] — rows,
 //! ordering, badges, disabled reasons, load state, and selection — and
 //! both frontends render their pickers/pages from that snapshot, so the
@@ -11,17 +11,15 @@ use warpui::{AppContext, SingletonEntity};
 
 use super::config_state::{AuthSecretSelection, OrchestrationConfigState};
 use super::providers::{
-    ORCHESTRATION_ENV_NONE_LABEL, ORCHESTRATION_RUNNER_NONE_LABEL, ORCHESTRATION_WARP_WORKER_HOST,
-    get_base_model_choices, resolve_default_host_slug, resolve_recent_host_slug,
+    ORCHESTRATION_RUNNER_NONE_LABEL, ORCHESTRATION_WARP_WORKER_HOST, get_base_model_choices,
+    resolve_default_host_slug, resolve_recent_host_slug,
 };
 use crate::LLMPreferences;
-use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::harness_availability::{AuthSecretFetchState, HarnessAvailabilityModel};
 use crate::ai::harness_display;
 use crate::ai::local_harness_setup::{
     LocalHarnessSetupState, local_harness_is_product_enabled, local_harness_setup_state,
 };
-use crate::cloud_object::CloudObjectLookup as _;
 
 const DEFAULT_MODEL_LABEL: &str = "Default model";
 /// Label shown in the auth secret picker when no secret is selected
@@ -528,38 +526,6 @@ fn build_host_snapshot(
             label: CUSTOM_HOST_LABEL.to_string(),
         }),
     }
-}
-
-// ── Environment ─────────────────────────────────────────────────────
-
-/// Builds the environment options: "Empty environment" plus existing
-/// environments sorted by name, mirroring the GUI environment picker.
-pub fn environment_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> OptionSnapshot {
-    let all_envs = CloudAmbientAgentEnvironment::get_all(ctx);
-    let mut sorted_envs: Vec<(String, String)> = all_envs
-        .iter()
-        .map(|env| (env.id.uid(), env.model().string_model.name.clone()))
-        .collect();
-    sorted_envs.sort_by(|a, b| a.1.cmp(&b.1));
-    let current = match &state.execution_mode {
-        RunAgentsExecutionMode::Remote { environment_id, .. } => environment_id.clone(),
-        RunAgentsExecutionMode::Local => String::new(),
-    };
-    build_environment_snapshot(sorted_envs, &current)
-}
-
-/// Pure core of [`environment_snapshot`]; `envs` must already be sorted
-/// by display name.
-fn build_environment_snapshot(envs: Vec<(String, String)>, current: &str) -> OptionSnapshot {
-    let mut rows = vec![OptionRow::new(String::new(), ORCHESTRATION_ENV_NONE_LABEL)];
-    let mut selected_id = current.is_empty().then(String::new);
-    for (env_id, env_name) in envs {
-        if env_id == current {
-            selected_id = Some(env_id.clone());
-        }
-        rows.push(OptionRow::new(env_id, env_name));
-    }
-    OptionSnapshot::ready(rows, selected_id)
 }
 
 // ── Runner ──────────────────────────────────────────────────────────

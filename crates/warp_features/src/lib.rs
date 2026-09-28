@@ -304,9 +304,6 @@ pub enum FeatureFlag {
     /// Enables inline code review functionality
     InlineCodeReview,
 
-    /// Enables cloud environments management via CLI.
-    CloudEnvironments,
-
     /// Enables the local docker sandbox entrypoints in the client.
     LocalDockerSandbox,
 
@@ -732,9 +729,6 @@ impl FeatureFlag {
             CodeReviewFind => Some("Enables the find bar in the code review pane."),
             BlocklistMarkdownImages => {
                 Some("Enables rendering markdown images inline in AI block list responses.")
-            }
-            CloudEnvironments => {
-                Some("Enables creating and managing Warp Environments via the CLI.")
             }
             GlobalSearch => Some("Enables global search in the left panel"),
             BlocklistMarkdownTableRendering => {

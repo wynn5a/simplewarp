@@ -155,9 +155,6 @@ impl OrchestrationControlAction for RunAgentsCardViewAction {
     fn harness_changed(harness_type: String) -> Self {
         Self::HarnessChanged { harness_type }
     }
-    fn environment_changed(environment_id: String) -> Self {
-        Self::EnvironmentChanged { environment_id }
-    }
     fn runner_changed(runner_id: String) -> Self {
         Self::RunnerChanged { runner_id }
     }
@@ -183,7 +180,6 @@ pub enum RunAgentsCardViewAction {
     ExecutionModeToggled { is_remote: bool },
     ModelChanged { model_id: String },
     HarnessChanged { harness_type: String },
-    EnvironmentChanged { environment_id: String },
     RunnerChanged { runner_id: String },
     WorkerHostChanged { worker_host: String },
     AuthSecretChanged { auth_secret_name: Option<String> },
@@ -229,7 +225,6 @@ pub struct RunAgentsCardView {
 ///
 /// 1. Defaults the Oz model to the conversation's base model.
 /// 2. Defaults Remote worker_host to "warp".
-/// 3. Defaults a Remote environment from settings / recency.
 fn resolve_interactive_defaults(
     orchestration_config_state: &mut OrchestrationConfigState,
     block_model: &dyn AIBlockModel<View = AIBlock>,
@@ -245,26 +240,17 @@ fn resolve_interactive_defaults(
             orchestration_config_state.model_id = base;
         }
     }
-    if let RunAgentsExecutionMode::Remote {
-        environment_id,
-        worker_host,
-        ..
-    } = &orchestration_config_state.execution_mode
+    if let RunAgentsExecutionMode::Remote { worker_host, .. } =
+        &orchestration_config_state.execution_mode
+        && worker_host.is_empty()
     {
-        let needs_host = worker_host.is_empty();
-        let needs_env = environment_id.is_empty();
-        if needs_host {
-            // Prefer the workspace default (or the dev env-var override)
-            // over the bare "warp" fallback so self-hosted teams see
-            // their default pre-selected. Mirrors the Oz webapp's
-            // `HostSelector` initial-selection behavior.
-            let default_host = oc::resolve_default_host_slug()
-                .unwrap_or_else(|| oc::ORCHESTRATION_WARP_WORKER_HOST.to_string());
-            orchestration_config_state.set_worker_host(default_host);
-        }
-        if needs_env && let Some(default_env) = oc::resolve_default_environment_id(ctx) {
-            orchestration_config_state.set_environment_id(default_env);
-        }
+        // Prefer the workspace default (or the dev env-var override)
+        // over the bare "warp" fallback so self-hosted teams see
+        // their default pre-selected. Mirrors the Oz webapp's
+        // `HostSelector` initial-selection behavior.
+        let default_host = oc::resolve_default_host_slug()
+            .unwrap_or_else(|| oc::ORCHESTRATION_WARP_WORKER_HOST.to_string());
+        orchestration_config_state.set_worker_host(default_host);
     }
 }
 impl RunAgentsCardView {
@@ -719,24 +705,6 @@ impl RunAgentsCardView {
             self.handles.pickers.harness_picker = Some(handle);
         }
 
-        let state = &self.orchestration_edit_state.orchestration_config_state;
-        if self.handles.pickers.environment_picker.is_none() {
-            let initial_env = match &state.execution_mode {
-                RunAgentsExecutionMode::Remote { environment_id, .. } => environment_id.as_str(),
-                RunAgentsExecutionMode::Local => "",
-            };
-            let handle = oc::create_environment_picker(initial_env, &styles, ctx);
-            handle.update(ctx, |d, _| {
-                d.set_orientation(FilterableDropdownOrientation::Up)
-            });
-            ctx.subscribe_to_view(&handle, |me, _, event, ctx| {
-                if let FilterableDropdownEvent::Close = event {
-                    me.refocus_after_picker_close(ctx);
-                }
-            });
-            self.handles.pickers.environment_picker = Some(handle);
-        }
-
         self.ensure_runner_picker(ctx);
 
         let state = &self.orchestration_edit_state.orchestration_config_state;
@@ -1116,14 +1084,6 @@ impl TypedActionView for RunAgentsCardView {
                 self.maybe_auto_open_create_modal(ctx);
                 ctx.notify();
             }
-            RunAgentsCardViewAction::EnvironmentChanged { environment_id } => {
-                self.orchestration_edit_state
-                    .orchestration_config_state
-                    .set_environment_id(environment_id.clone());
-                oc::persist_environment_selection(environment_id, ctx);
-                self.refresh_accept_button_state(ctx);
-                ctx.notify();
-            }
             RunAgentsCardViewAction::RunnerChanged { runner_id } => {
                 self.orchestration_edit_state
                     .orchestration_config_state
@@ -1497,14 +1457,6 @@ fn render_editor(
         column.add_child(oc::render_validation_error(
             reason,
             theme.ui_error_color(),
-            appearance,
-        ));
-    } else if let Some(message) =
-        oc::empty_env_recommendation_message(&orchestration_config_state.execution_mode, app)
-    {
-        column.add_child(oc::render_validation_error(
-            message,
-            theme.ui_warning_color(),
             appearance,
         ));
     }

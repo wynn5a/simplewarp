@@ -215,41 +215,6 @@ fn cloud_with_env_and_non_opencode_harness_allows_accept() {
 }
 
 #[test]
-fn set_environment_id_no_op_in_local_mode() {
-    let mut state =
-        RunAgentsEditState::from_request(&make_request("oz", RunAgentsExecutionMode::Local));
-    state
-        .orchestration_config_state
-        .set_environment_id("env-1".to_string());
-    assert!(matches!(
-        state.orchestration_config_state.execution_mode,
-        RunAgentsExecutionMode::Local
-    ));
-}
-
-#[test]
-fn set_environment_id_updates_remote() {
-    let mut state = RunAgentsEditState::from_request(&make_request(
-        "oz",
-        RunAgentsExecutionMode::Remote {
-            environment_id: "old".to_string(),
-            worker_host: "warp".to_string(),
-            computer_use_enabled: false,
-            runner_id: String::new(),
-        },
-    ));
-    state
-        .orchestration_config_state
-        .set_environment_id("new-env".to_string());
-    let RunAgentsExecutionMode::Remote { environment_id, .. } =
-        state.orchestration_config_state.execution_mode
-    else {
-        panic!("expected Remote");
-    };
-    assert_eq!(environment_id, "new-env");
-}
-
-#[test]
 fn set_runner_id_updates_remote_and_round_trips() {
     let mut state = RunAgentsEditState::from_request(&make_request(
         "oz",

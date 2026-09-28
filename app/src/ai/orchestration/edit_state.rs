@@ -1,8 +1,8 @@
 //! [`OrchestrationEditState`] and the logic for applying user edits to
 //! the orchestration config, shared by the GUI pickers and the TUI
 //! configuration pages. Changing one field (harness, execution mode,
-//! auth secret) cascades into dependent fields — model fallback,
-//! environment pre-fill, auth re-resolution — so those updates live here
+//! auth secret) cascades into dependent fields — model fallback, auth
+//! re-resolution — so those updates live here
 //! as `apply_*` methods rather than in each frontend. Each public method
 //! takes an `AppContext` for catalog/persistence access; the cores are
 //! parameterized over catalog callbacks so they can be unit-tested
@@ -10,7 +10,6 @@
 
 use std::collections::HashMap;
 
-use ai::agent::action::RunAgentsExecutionMode;
 use warp_cli::agent::Harness;
 use warpui::{AppContext, SingletonEntity};
 
@@ -18,29 +17,21 @@ use super::config_state::{AuthSecretSelection, OrchestrationConfigState};
 use super::providers::{
     first_filtered_model_id, harness_save_key, is_model_in_filtered_choices,
     persist_auth_secret_selection, resolve_auth_secret_selection_for_harness,
-    resolve_default_environment_id,
 };
 use crate::ai::harness_availability::{AuthSecretFetchState, HarnessAvailabilityModel};
 
 impl OrchestrationConfigState {
-    /// Toggles Local ↔ Cloud, pre-fills the default environment when
-    /// switching to Cloud with no environment selected, and revalidates
-    /// the model against the new mode's catalog.
+    /// Toggles Local ↔ Cloud and revalidates the model against the new
+    /// mode's catalog.
     pub fn apply_execution_mode_change(
         &mut self,
         is_remote: bool,
         fallback_base_model_id: Option<String>,
         ctx: &AppContext,
     ) {
-        let default_environment_id = if is_remote {
-            resolve_default_environment_id(ctx)
-        } else {
-            None
-        };
         self.apply_execution_mode_change_core(
             is_remote,
             fallback_base_model_id,
-            default_environment_id,
             &|id, harness, is_local| is_model_in_filtered_choices(id, harness, is_local, ctx),
             &|harness| first_filtered_model_id(harness, ctx),
         );
@@ -86,21 +77,11 @@ impl OrchestrationConfigState {
         &mut self,
         is_remote: bool,
         fallback_base_model_id: Option<String>,
-        default_environment_id: Option<String>,
         model_is_valid: &dyn Fn(&str, &str, bool) -> bool,
         default_model_id: &dyn Fn(&str) -> Option<String>,
     ) {
         self.toggle_execution_mode_to_remote(is_remote);
         let is_local = !self.execution_mode.is_remote();
-        // Pre-fill environment with the last-selected one when switching
-        // to Cloud.
-        if is_remote
-            && let RunAgentsExecutionMode::Remote { environment_id, .. } = &self.execution_mode
-            && environment_id.is_empty()
-            && let Some(default_env) = default_environment_id
-        {
-            self.set_environment_id(default_env);
-        }
         self.reset_model_if_invalid(
             fallback_base_model_id,
             is_local,

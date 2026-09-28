@@ -618,7 +618,6 @@ fn warp_skill_dirs_env_loads_skills_as_home_tier() {
         unsafe { std::env::remove_var("WARP_SKILL_DIRS") };
 
         // Skills from WARP_SKILL_DIRS are home-tier, so they appear for any working directory.
-        // Use None cwd — home skills are included regardless of is_cloud_environment.
         let skill_names = SkillManager::handle(&app).read(&app, |manager: &SkillManager, ctx| {
             manager
                 .get_skills_for_working_directory(None, ctx)

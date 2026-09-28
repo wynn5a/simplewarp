@@ -1,13 +1,8 @@
 use std::path::Path;
 
-use ui_components::lightbox::{LightboxImage, LightboxImageSource};
 use warp_multi_agent_api as api;
-use warpui::SingletonEntity;
 
-use crate::ai::artifact_download::sanitized_basename;
 use crate::notebooks::NotebookId;
-use crate::view_components::DismissibleToast;
-use crate::workspace::{ToastStack, WorkspaceAction};
 
 pub mod buttons;
 pub use buttons::{ArtifactButtonsRow, ArtifactButtonsRowEvent};
@@ -235,60 +230,6 @@ pub fn parse_github_pr_url(url: &str) -> Option<(String, u32)> {
         }
         Some((w[0].to_string(), w[2].parse().ok()?))
     })
-}
-
-pub fn file_button_label(filename: &str, filepath: &str) -> String {
-    if let Some(filename) = non_empty_trimmed(filename) {
-        return filename.to_string();
-    }
-    if let Some(filepath_basename) = sanitized_basename(filepath)
-        .as_deref()
-        .and_then(non_empty_trimmed)
-    {
-        return filepath_basename.to_string();
-    }
-    "File".to_string()
-}
-
-pub fn open_screenshot_lightbox<V: warpui::View>(
-    artifact_uids: &[String],
-    ctx: &mut warpui::ViewContext<V>,
-) {
-    // The signed-URL fetch behind this lightbox is always unavailable, so the
-    // images open directly in their failure state.
-    let images: Vec<LightboxImage> = artifact_uids
-        .iter()
-        .map(|_| LightboxImage {
-            source: LightboxImageSource::Loading,
-            description: Some("Failed to load".to_string()),
-        })
-        .collect();
-    ctx.dispatch_typed_action(&WorkspaceAction::OpenLightbox {
-        images,
-        initial_index: 0,
-    });
-}
-
-pub fn download_file_artifact<V: warpui::View>(
-    artifact_uid: &str,
-    ctx: &mut warpui::ViewContext<V>,
-) {
-    log::warn!("Artifact download is unavailable for {artifact_uid}");
-    let toast_id = format!("artifact_download:{artifact_uid}");
-    let window_id = ctx.window_id();
-    ToastStack::handle(ctx).update(ctx, move |toast_stack, ctx| {
-        toast_stack.add_ephemeral_toast(
-            DismissibleToast::error("Failed to prepare file download.".to_string())
-                .with_object_id(toast_id),
-            window_id,
-            ctx,
-        );
-    });
-}
-
-fn non_empty_trimmed(value: &str) -> Option<&str> {
-    let trimmed = value.trim();
-    (!trimmed.is_empty()).then_some(trimmed)
 }
 
 #[cfg(test)]

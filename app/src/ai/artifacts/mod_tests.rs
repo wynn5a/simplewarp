@@ -19,24 +19,6 @@ fn test_parse_github_pr_url() {
 }
 
 #[test]
-fn file_button_label_prefers_filename() {
-    assert_eq!(
-        file_button_label("report.txt", "outputs/other.txt"),
-        "report.txt"
-    );
-}
-
-#[test]
-fn file_button_label_falls_back_to_filepath_basename() {
-    assert_eq!(file_button_label("", "outputs/report.txt"), "report.txt");
-}
-
-#[test]
-fn file_button_label_falls_back_to_generic_label() {
-    assert_eq!(file_button_label("", ""), "File");
-}
-
-#[test]
 fn test_deserialize_plan_artifact() {
     let json = r#"{
         "created_at": "2024-01-15T10:30:00Z",

@@ -12,11 +12,10 @@ use diesel::result::Error;
 
 use crate::{
     CloudAIExecutionProfile, CloudAIExecutionProfileModel, CloudAIFact, CloudAIFactModel,
-    CloudAmbientAgentEnvironment, CloudAmbientAgentEnvironmentModel, CloudEnvVarCollection,
-    CloudEnvVarCollectionModel, CloudMCPServer, CloudMCPServerModel, CloudPreference,
-    CloudPreferenceModel, CloudScheduledAmbientAgent, CloudScheduledAmbientAgentModel,
-    CloudTemplatableMCPServer, CloudTemplatableMCPServerModel, CloudWorkflowEnum,
-    CloudWorkflowEnumModel,
+    CloudEnvVarCollection, CloudEnvVarCollectionModel, CloudMCPServer, CloudMCPServerModel,
+    CloudPreference, CloudPreferenceModel, CloudScheduledAmbientAgent,
+    CloudScheduledAmbientAgentModel, CloudTemplatableMCPServer, CloudTemplatableMCPServerModel,
+    CloudWorkflowEnum, CloudWorkflowEnumModel,
 };
 
 pub enum PersistedGenericStringObject {
@@ -27,7 +26,6 @@ pub enum PersistedGenericStringObject {
     MCPServer(CloudMCPServer),
     TemplatableMCPServer(CloudTemplatableMCPServer),
     AIExecutionProfile(CloudAIExecutionProfile),
-    CloudEnvironment(CloudAmbientAgentEnvironment),
     ScheduledAmbientAgent(CloudScheduledAmbientAgent),
 }
 
@@ -135,19 +133,6 @@ pub fn read_generic_string_objects(
                         )
                     })
                 }
-                JsonObjectType::CloudEnvironment => {
-                    let model = CloudAmbientAgentEnvironmentModel::deserialize_owned(&object.data);
-                    model.ok().map(|model| {
-                        PersistedGenericStringObject::CloudEnvironment(
-                            CloudAmbientAgentEnvironment::new(
-                                object_id,
-                                model,
-                                to_cloud_object_metadata(metadata),
-                                cloud_object_permissions,
-                            ),
-                        )
-                    })
-                }
                 JsonObjectType::ScheduledAmbientAgent => {
                     let model = CloudScheduledAmbientAgentModel::deserialize_owned(&object.data);
                     model.ok().map(|model| {
@@ -163,6 +148,8 @@ pub fn read_generic_string_objects(
                 }
                 // TODO: Implement CloudAgentConfig model when full sync support is added
                 JsonObjectType::CloudAgentConfig => None,
+                // Environments were only ever synced from the server; stale rows are skipped.
+                JsonObjectType::CloudEnvironment => None,
             }
         })
         .collect())

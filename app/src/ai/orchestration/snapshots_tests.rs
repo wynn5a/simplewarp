@@ -2,9 +2,9 @@ use warp_cli::agent::Harness;
 
 use super::{
     AuthSecretNamesInput, DEFAULT_MODEL_LABEL, HarnessEntryInput, ModelChoiceInput, OptionBadge,
-    OptionFooter, OptionSourceStatus, build_api_key_snapshot, build_environment_snapshot,
-    build_harness_snapshot, build_host_snapshot, build_non_oz_model_snapshot,
-    build_oz_model_snapshot, build_runner_snapshot,
+    OptionFooter, OptionSourceStatus, build_api_key_snapshot, build_harness_snapshot,
+    build_host_snapshot, build_non_oz_model_snapshot, build_oz_model_snapshot,
+    build_runner_snapshot,
 };
 use crate::ai::local_harness_setup::LocalHarnessSetupState;
 use crate::ai::orchestration::config_state::AuthSecretSelection;
@@ -239,23 +239,6 @@ fn host_snapshot_dedupes_connected_and_recent_against_known_rows() {
 
     let ids: Vec<&str> = snapshot.rows.iter().map(|r| r.id.as_str()).collect();
     assert_eq!(ids, vec!["team-default", "warp"]);
-}
-
-// ── Environment ─────────────────────────────────────────────────────
-
-#[test]
-fn environment_snapshot_puts_empty_option_first() {
-    let snapshot = build_environment_snapshot(
-        vec![
-            ("env-a".to_string(), "Alpha".to_string()),
-            ("env-b".to_string(), "Beta".to_string()),
-        ],
-        "env-b",
-    );
-
-    assert_eq!(snapshot.rows[0].id, "");
-    assert_eq!(snapshot.rows[0].label, super::ORCHESTRATION_ENV_NONE_LABEL);
-    assert_eq!(snapshot.selected_id.as_deref(), Some("env-b"));
 }
 
 // ── Runner ──────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ fn execution_mode_change_to_local_forces_oz_and_strips_cloud_fields() {
         &remote_mode(),
     );
 
-    state.apply_execution_mode_change_core(false, None, None, &model_valid_among(&[""]), &|_| {
+    state.apply_execution_mode_change_core(false, None, &model_valid_among(&[""]), &|_| {
         Some(String::new())
     });
 
@@ -36,29 +36,6 @@ fn execution_mode_change_to_local_forces_oz_and_strips_cloud_fields() {
         state.execution_mode,
         RunAgentsExecutionMode::Local
     ));
-}
-
-#[test]
-fn execution_mode_change_to_cloud_prefills_default_environment() {
-    let mut state = OrchestrationConfigState::from_run_agents_fields(
-        Some("auto"),
-        Some("oz"),
-        &RunAgentsExecutionMode::Local,
-    );
-
-    state.apply_execution_mode_change_core(
-        true,
-        None,
-        Some("env-42".to_string()),
-        &model_valid_among(&["auto"]),
-        &|_| Some("auto".to_string()),
-    );
-
-    assert!(matches!(
-        &state.execution_mode,
-        RunAgentsExecutionMode::Remote { environment_id, .. } if environment_id == "env-42"
-    ));
-    assert_eq!(state.model_id, "auto");
 }
 
 #[test]
@@ -72,7 +49,6 @@ fn execution_mode_change_prefers_valid_fallback_over_default_model() {
     state.apply_execution_mode_change_core(
         true,
         Some("fallback".to_string()),
-        None,
         &model_valid_among(&["fallback", "first"]),
         &|_| Some("first".to_string()),
     );
@@ -114,7 +90,6 @@ fn forcing_oz_before_local_preserves_codex_model_memory() {
         .apply_execution_mode_change_core(
             false,
             Some("auto".to_string()),
-            None,
             &model_is_valid,
             &default_model_id,
         );

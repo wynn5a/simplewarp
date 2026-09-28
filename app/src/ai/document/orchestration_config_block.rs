@@ -43,7 +43,6 @@ pub enum OrchestrationConfigBlockAction {
     ExecutionModeToggled { is_remote: bool },
     ModelChanged { model_id: String },
     HarnessChanged { harness_type: String },
-    EnvironmentChanged { environment_id: String },
     RunnerChanged { runner_id: String },
     WorkerHostChanged { worker_host: String },
     AuthSecretChanged { auth_secret_name: Option<String> },
@@ -58,9 +57,6 @@ impl OrchestrationControlAction for OrchestrationConfigBlockAction {
     }
     fn harness_changed(harness_type: String) -> Self {
         Self::HarnessChanged { harness_type }
-    }
-    fn environment_changed(environment_id: String) -> Self {
-        Self::EnvironmentChanged { environment_id }
     }
     fn runner_changed(runner_id: String) -> Self {
         Self::RunnerChanged { runner_id }
@@ -343,23 +339,18 @@ impl OrchestrationConfigBlockView {
         );
         self.pickers.harness_picker = Some(harness_handle);
 
-        // When restoring a Remote config with empty host or
-        // environment, fill defaults so the pickers aren't blank.
-        // If the config is approved, persist the defaults so the
-        // stored config used by auto-launch has concrete values.
-        let (needs_host, needs_env) = match &self
+        // When restoring a Remote config with an empty host, fill the
+        // default so the picker isn't blank. If the config is approved,
+        // persist the default so the stored config used by auto-launch
+        // has a concrete value.
+        let needs_host = match &self
             .orchestration_edit_state
             .orchestration_config_state
             .execution_mode
         {
-            RunAgentsExecutionMode::Remote {
-                worker_host,
-                environment_id,
-                ..
-            } => (worker_host.is_empty(), environment_id.is_empty()),
-            RunAgentsExecutionMode::Local => (false, false),
+            RunAgentsExecutionMode::Remote { worker_host, .. } => worker_host.is_empty(),
+            RunAgentsExecutionMode::Local => false,
         };
-        let mut filled_defaults = false;
         if needs_host {
             // Prefer the workspace default (or the dev env-var override)
             // over the bare "warp" fallback so self-hosted teams see
@@ -370,28 +361,10 @@ impl OrchestrationConfigBlockView {
             self.orchestration_edit_state
                 .orchestration_config_state
                 .set_worker_host(default_host);
-            filled_defaults = true;
+            if self.is_approved {
+                self.apply_field_change(ctx);
+            }
         }
-        if needs_env && let Some(default_env) = oc::resolve_default_environment_id(ctx) {
-            self.orchestration_edit_state
-                .orchestration_config_state
-                .set_environment_id(default_env);
-            filled_defaults = true;
-        }
-        if filled_defaults && self.is_approved {
-            self.apply_field_change(ctx);
-        }
-        let initial_env = match &self
-            .orchestration_edit_state
-            .orchestration_config_state
-            .execution_mode
-        {
-            RunAgentsExecutionMode::Remote { environment_id, .. } => environment_id.as_str(),
-            RunAgentsExecutionMode::Local => "",
-        };
-        let env_handle = oc::create_environment_picker(initial_env, &styles, ctx);
-        env_handle.update(ctx, |d, c| d.set_use_overlay_layer(true, c));
-        self.pickers.environment_picker = Some(env_handle);
 
         self.ensure_runner_picker(ctx);
 
@@ -693,18 +666,6 @@ impl View for OrchestrationConfigBlockView {
                         theme.ui_error_color(),
                         appearance,
                     ));
-                } else if let Some(message) = oc::empty_env_recommendation_message(
-                    &self
-                        .orchestration_edit_state
-                        .orchestration_config_state
-                        .execution_mode,
-                    app,
-                ) {
-                    column.add_child(oc::render_validation_error(
-                        message,
-                        theme.ui_warning_color(),
-                        appearance,
-                    ));
                 }
             }
         }
@@ -793,14 +754,6 @@ impl TypedActionView for OrchestrationConfigBlockView {
                 self.user_has_interacted = true;
                 self.has_auto_opened_create_modal = false;
                 self.maybe_auto_open_create_modal(ctx);
-                ctx.notify();
-            }
-            OrchestrationConfigBlockAction::EnvironmentChanged { environment_id } => {
-                self.orchestration_edit_state
-                    .orchestration_config_state
-                    .set_environment_id(environment_id.clone());
-                oc::persist_environment_selection(environment_id, ctx);
-                self.apply_field_change(ctx);
                 ctx.notify();
             }
             OrchestrationConfigBlockAction::RunnerChanged { runner_id } => {

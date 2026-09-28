@@ -32,15 +32,13 @@ use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
 use crate::ai::orchestration::{
     AUTH_SECRET_INHERIT_LABEL, OptionBadge, OptionRow, OptionSnapshot, OptionSourceStatus,
-    api_key_snapshot, build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot,
-    model_snapshot,
+    api_key_snapshot, build_runner_snapshot, harness_snapshot, host_snapshot, model_snapshot,
 };
 pub use crate::ai::orchestration::{
     AuthSecretSelection, ORCHESTRATION_WARP_WORKER_HOST, OrchestrationConfigState,
-    OrchestrationEditState, accept_disabled_reason_with_auth, empty_env_recommendation_message,
-    persist_environment_selection, persist_host_selection,
-    resolve_auth_secret_selection_for_harness, resolve_default_environment_id,
-    resolve_default_host_slug, should_show_auth_secret_picker,
+    OrchestrationEditState, accept_disabled_reason_with_auth, persist_host_selection,
+    resolve_auth_secret_selection_for_harness, resolve_default_host_slug,
+    should_show_auth_secret_picker,
 };
 use crate::appearance::Appearance;
 use crate::menu::{MenuItem, MenuItemFields};
@@ -83,7 +81,6 @@ pub trait OrchestrationControlAction: DropdownItemAction + Clone {
     fn execution_mode_toggled(is_remote: bool) -> Self;
     fn model_changed(model_id: String) -> Self;
     fn harness_changed(harness_type: String) -> Self;
-    fn environment_changed(environment_id: String) -> Self;
     /// Runner UID selected in the Runner dropdown; empty clears the
     /// override ("Use environment default").
     fn runner_changed(runner_id: String) -> Self;
@@ -99,7 +96,6 @@ pub trait OrchestrationControlAction: DropdownItemAction + Clone {
 pub struct OrchestrationPickerHandles<A: OrchestrationControlAction> {
     pub model_picker: Option<ViewHandle<FilterableDropdown<A>>>,
     pub harness_picker: Option<ViewHandle<Dropdown<A>>>,
-    pub environment_picker: Option<ViewHandle<FilterableDropdown<A>>>,
     /// Runner picker for the Cloud variant. `None` until built; runners are
     /// fetched via `FactoryClient::get_runners`.
     pub runner_picker: Option<ViewHandle<FilterableDropdown<A>>>,
@@ -118,7 +114,6 @@ impl<A: OrchestrationControlAction> Default for OrchestrationPickerHandles<A> {
         Self {
             model_picker: None,
             harness_picker: None,
-            environment_picker: None,
             runner_picker: None,
             host_picker: None,
             auth_secret_picker: None,
@@ -371,67 +366,9 @@ pub fn populate_harness_picker<A: OrchestrationControlAction, V: View>(
     });
 }
 
-pub fn create_environment_picker<A: OrchestrationControlAction, V: View>(
-    initial_env_id: &str,
-    styles: &UiComponentStyles,
-    ctx: &mut ViewContext<V>,
-) -> ViewHandle<FilterableDropdown<A>> {
-    let initial_env = initial_env_id.to_string();
-    let styles = *styles;
-    let dropdown_handle = ctx.add_typed_action_view(move |ctx_dropdown| {
-        let mut dropdown = FilterableDropdown::<A>::new(ctx_dropdown);
-        dropdown.set_use_overlay_layer(false, ctx_dropdown);
-        dropdown.set_match_menu_width_to_top_bar(true, ctx_dropdown);
-        dropdown.set_main_axis_size(MainAxisSize::Max, ctx_dropdown);
-        dropdown.set_button_variant(ButtonVariant::Secondary);
-        dropdown.set_style(styles);
-        dropdown.set_top_bar_height(ORCHESTRATION_PICKER_HEIGHT, ctx_dropdown);
-        dropdown.set_top_bar_max_width(f32::INFINITY);
-        dropdown
-    });
-    populate_environment_picker(&dropdown_handle, &initial_env, ctx);
-    dropdown_handle
-}
-
-/// Populates the environment picker from [`environment_snapshot`]
-/// ("Empty environment" plus existing environments sorted by name).
-pub fn populate_environment_picker<A: OrchestrationControlAction, V: View>(
-    dropdown_handle: &ViewHandle<FilterableDropdown<A>>,
-    initial_env_id: &str,
-    ctx: &mut ViewContext<V>,
-) {
-    let state = OrchestrationConfigState::from_run_agents_fields(
-        None,
-        None,
-        &RunAgentsExecutionMode::Remote {
-            environment_id: initial_env_id.to_string(),
-            worker_host: String::new(),
-            computer_use_enabled: false,
-            runner_id: String::new(),
-        },
-    );
-    dropdown_handle.update(ctx, |dropdown, ctx_dropdown| {
-        let snapshot = environment_snapshot(&state, ctx_dropdown);
-        let selected_label = selected_row_label(&snapshot);
-        let items = snapshot
-            .rows
-            .into_iter()
-            .map(|row| {
-                MenuItem::Item(MenuItemFields::new(&row.label).with_on_select_action(
-                    DropdownAction::select_action_and_close(A::environment_changed(row.id)),
-                ))
-            })
-            .collect();
-        dropdown.set_rich_items(items, ctx_dropdown);
-        if let Some(label) = &selected_label {
-            dropdown.set_selected_by_name(label, ctx_dropdown);
-        }
-    });
-}
-
 /// Creates the Runner picker dropdown with the shared orchestration
 /// chrome, then populates it from the supplied runners list. Runners are
-/// not cached client-side (unlike environments), so the owning view
+/// not cached client-side, so the owning view
 /// fetches them via `FactoryClient::get_runners` and passes them in;
 /// `loading` renders the picker in its loading state until they arrive.
 pub fn create_runner_picker<A: OrchestrationControlAction, V: View>(
@@ -735,14 +672,6 @@ pub fn sync_picker_selections<A: OrchestrationControlAction, V: View>(
             dropdown.set_selected_by_name(&display, ctx_dropdown);
         });
     }
-    if let Some(environment_picker) = handles.environment_picker.clone() {
-        let snapshot = environment_snapshot(state, ctx);
-        if let Some(label) = selected_row_label(&snapshot) {
-            environment_picker.update(ctx, |dropdown, ctx_dropdown| {
-                dropdown.set_selected_by_name(&label, ctx_dropdown);
-            });
-        }
-    }
     if let Some(host_picker) = handles.host_picker.clone() {
         let worker_host = current_worker_host(state).to_string();
         host_picker.update(ctx, |picker, picker_ctx| {
@@ -1040,7 +969,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         };
 
         // Plan-card ordering groups harness-scoped pickers (harness + API
-        // key) before host/environment/model so the API key sits directly
+        // key) before host/model so the API key sits directly
         // under the harness selector and does not split the model picker
         // from the "Primary model…" subtext that follows the picker row.
         add(
@@ -1067,14 +996,6 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
                 "Host",
                 handles
                     .host_picker
-                    .as_ref()
-                    .map(|p| ChildView::new(p).finish()),
-            );
-            add(
-                &mut column,
-                "Environment",
-                handles
-                    .environment_picker
                     .as_ref()
                     .map(|p| ChildView::new(p).finish()),
             );
@@ -1124,14 +1045,6 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
                 "Host",
                 handles
                     .host_picker
-                    .as_ref()
-                    .map(|p| ChildView::new(p).finish()),
-            );
-            add_picker(
-                &mut row,
-                "Environment",
-                handles
-                    .environment_picker
                     .as_ref()
                     .map(|p| ChildView::new(p).finish()),
             );

@@ -1,5 +1,5 @@
 use super::*;
-use crate::cloud_environment::CodeForge;
+use crate::source_repo::CodeForge;
 
 #[test]
 fn additional_source_repos_round_trip_and_is_optional() {

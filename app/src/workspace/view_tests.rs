@@ -25,7 +25,6 @@ use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::agent_tips::AITipModel;
 use crate::ai::blocklist::agent_view::orchestration_pill_bar_model::OrchestrationPillBarModel;
 use crate::ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};
-use crate::ai::cloud_environments::CloudEnvironmentCatalog;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::facts::manager::AIFactManager;
@@ -84,7 +83,6 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(CloudEnvironmentCatalog::new);
     app.add_singleton_model(|_| UpdateManager::mock());
     app.add_singleton_model(|_| MCPGalleryManager::new());
     app.add_singleton_model(|_| Appearance::mock());

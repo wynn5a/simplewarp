@@ -5,7 +5,7 @@ use cloud_objects::ids::GenericStringObjectId;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use warp_cli::agent::Harness;
 
-use crate::cloud_environment::SourceRepo;
+use crate::source_repo::SourceRepo;
 use crate::{JsonModel, JsonSerializer};
 
 /// Runtime configuration snapshot for agent execution.

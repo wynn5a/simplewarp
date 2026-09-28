@@ -1318,8 +1318,6 @@ pub(crate) fn initialize_app(
     // SkillManager is used to cache SKILL.md files for all active terminal views and their working directories
     ctx.add_singleton_model(SkillManager::new);
 
-    ctx.add_singleton_model(ai::cloud_environments::CloudEnvironmentCatalog::new);
-
     // AIDocumentModel subscribes to UpdateManager so that it can be notified when notebooks are created on the server.
     ctx.add_singleton_model(AIDocumentModel::new);
 

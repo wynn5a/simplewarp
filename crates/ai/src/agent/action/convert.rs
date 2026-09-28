@@ -499,34 +499,11 @@ impl From<api::message::tool_call::RequestComputerUse> for AIAgentActionType {
     }
 }
 
-impl TryFrom<api::message::tool_call::StartRecording> for AIAgentActionType {
-    type Error = ToolToAIAgentActionError;
-
-    fn try_from(value: api::message::tool_call::StartRecording) -> Result<Self, Self::Error> {
-        let limits = value.limits;
-        // Only carry values > 1 (0 means unset; 1 means real-time).
-        let playback_speed_multiplier =
-            (value.playback_speed_multiplier > 1).then_some(value.playback_speed_multiplier);
-        let window = match convert_recording_target(value.target)? {
-            Some(target @ computer_use::Target::Window { .. }) => Some(target),
-            Some(computer_use::Target::Screen) | None => None,
-        };
-        Ok(AIAgentActionType::StartRecording {
-            frame_rate: value.frame_rate.max(0) as u32,
-            max_duration: limits
-                .as_ref()
-                .and_then(|l| l.max_duration.as_ref())
-                .map(|d| Duration::new(d.seconds.max(0) as u64, d.nanos.max(0) as u32)),
-            max_size_bytes: limits
-                .as_ref()
-                .map(|l| l.max_size_bytes)
-                .filter(|&bytes| bytes > 0)
-                .map(|bytes| bytes as u64),
+impl From<api::message::tool_call::StartRecording> for AIAgentActionType {
+    fn from(value: api::message::tool_call::StartRecording) -> Self {
+        AIAgentActionType::StartRecording {
             summary: (!value.summary.trim().is_empty()).then_some(value.summary),
-            description: (!value.description.trim().is_empty()).then_some(value.description),
-            playback_speed_multiplier,
-            window,
-        })
+        }
     }
 }
 
@@ -534,9 +511,6 @@ impl From<api::message::tool_call::StopRecording> for AIAgentActionType {
     fn from(value: api::message::tool_call::StopRecording) -> Self {
         AIAgentActionType::StopRecording {
             recording_id: value.recording_id,
-            // Normalize the wire's `discard` polarity to the internal
-            // `should_persist`; unset `discard` defaults to persist.
-            should_persist: !value.discard,
         }
     }
 }
@@ -589,25 +563,6 @@ fn convert_computer_use_target(
             Err(_) => computer_use::Target::Screen,
         },
         Some(ApiTarget::Screen(_)) | None => computer_use::Target::Screen,
-    }
-}
-
-fn convert_recording_target(
-    target: Option<api::message::tool_call::ComputerUseTarget>,
-) -> Result<Option<computer_use::Target>, ToolToAIAgentActionError> {
-    use api::message::tool_call::computer_use_target::Target as ApiTarget;
-    match target.and_then(|t| t.target) {
-        Some(ApiTarget::Window(window)) => {
-            let window_id = window.window_id.parse::<u32>().map_err(|_| {
-                ToolToAIAgentActionError::InvalidRecordingWindowId(window.window_id.clone())
-            })?;
-            Ok(Some(computer_use::Target::Window {
-                window_id,
-                pid: window.pid,
-            }))
-        }
-        Some(ApiTarget::Screen(_)) => Ok(Some(computer_use::Target::Screen)),
-        None => Ok(None),
     }
 }
 

@@ -1418,54 +1418,13 @@ impl TryFrom<WaitForEventsResult> for api::request::input::tool_call_result::Res
     }
 }
 
-fn system_time_to_timestamp(time: std::time::SystemTime) -> prost_types::Timestamp {
-    match time.duration_since(std::time::SystemTime::UNIX_EPOCH) {
-        Ok(elapsed) => prost_types::Timestamp {
-            seconds: elapsed.as_secs() as i64,
-            nanos: elapsed.subsec_nanos() as i32,
-        },
-        Err(_) => prost_types::Timestamp::default(),
-    }
-}
-
-fn duration_to_proto(duration: std::time::Duration) -> prost_types::Duration {
-    prost_types::Duration {
-        seconds: duration.as_secs() as i64,
-        nanos: duration.subsec_nanos() as i32,
-    }
-}
-
-fn convert_completion_status(
-    status: computer_use::RecordingCompletionStatus,
-) -> api::stop_recording_result::CompletionStatus {
-    use api::stop_recording_result::CompletionStatus;
-    match status {
-        computer_use::RecordingCompletionStatus::Completed => CompletionStatus::Complete,
-        computer_use::RecordingCompletionStatus::StoppedEarly => CompletionStatus::Incomplete,
-    }
-}
-
+/// Recording is unavailable in this build, so only the error result is ever produced for a live
+/// tool call; the other variants exist for persisted conversations and are never sent back.
 impl TryFrom<StartRecordingResult> for api::request::input::tool_call_result::Result {
     type Error = ConvertToAPITypeError;
 
     fn try_from(result: StartRecordingResult) -> Result<Self, Self::Error> {
         match result {
-            StartRecordingResult::Success(started) => Ok(
-                api::request::input::tool_call_result::Result::StartRecording(
-                    api::StartRecordingResult {
-                        result: Some(api::start_recording_result::Result::Success(
-                            api::start_recording_result::Success {
-                                recording_id: started.recording_id,
-                                started_at: Some(system_time_to_timestamp(started.started_at)),
-                                settings: Some(api::start_recording_result::CaptureSettings {
-                                    width_px: started.width_px,
-                                    height_px: started.height_px,
-                                }),
-                            },
-                        )),
-                    },
-                ),
-            ),
             StartRecordingResult::Error(message) => Ok(
                 api::request::input::tool_call_result::Result::StartRecording(
                     api::StartRecordingResult {
@@ -1475,35 +1434,19 @@ impl TryFrom<StartRecordingResult> for api::request::input::tool_call_result::Re
                     },
                 ),
             ),
-            StartRecordingResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
+            StartRecordingResult::Success(_) | StartRecordingResult::Cancelled => {
+                Err(ConvertToAPITypeError::Ignore)
+            }
         }
     }
 }
 
+/// See the `StartRecordingResult` conversion: only the error result is ever sent.
 impl TryFrom<StopRecordingResult> for api::request::input::tool_call_result::Result {
     type Error = ConvertToAPITypeError;
 
     fn try_from(result: StopRecordingResult) -> Result<Self, Self::Error> {
         match result {
-            StopRecordingResult::Success(stopped) => Ok(
-                api::request::input::tool_call_result::Result::StopRecording(
-                    api::StopRecordingResult {
-                        result: Some(api::stop_recording_result::Result::Success(
-                            api::stop_recording_result::Success {
-                                artifact_uid: stopped.artifact_uid,
-                                duration: Some(duration_to_proto(stopped.duration)),
-                                width_px: stopped.width_px,
-                                height_px: stopped.height_px,
-                                size_bytes: stopped.size_bytes,
-                                completion_status: convert_completion_status(
-                                    stopped.completion_status,
-                                ) as i32,
-                                termination_reason: stopped.termination_reason,
-                            },
-                        )),
-                    },
-                ),
-            ),
             StopRecordingResult::Error(message) => Ok(
                 api::request::input::tool_call_result::Result::StopRecording(
                     api::StopRecordingResult {
@@ -1513,16 +1456,9 @@ impl TryFrom<StopRecordingResult> for api::request::input::tool_call_result::Res
                     },
                 ),
             ),
-            StopRecordingResult::Discarded => Ok(
-                api::request::input::tool_call_result::Result::StopRecording(
-                    api::StopRecordingResult {
-                        result: Some(api::stop_recording_result::Result::Discarded(
-                            api::stop_recording_result::Discarded {},
-                        )),
-                    },
-                ),
-            ),
-            StopRecordingResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
+            StopRecordingResult::Success(_)
+            | StopRecordingResult::Discarded
+            | StopRecordingResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
         }
     }
 }

@@ -18,7 +18,6 @@ use crate::ai::blocklist::agent_view::orchestration_pill_bar_model::Orchestratio
 use crate::ai::blocklist::{
     BlocklistAIHistoryModel, BlocklistAIPermissions, QueuedQueryModel, SerializedBlockListItem,
 };
-use crate::ai::cloud_environments::CloudEnvironmentCatalog;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
@@ -63,7 +62,6 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(CloudEnvironmentCatalog::new);
     app.add_singleton_model(|_| UpdateManager::mock());
     app.add_singleton_model(|_| MCPGalleryManager::new());
     app.add_singleton_model(|_| Appearance::mock());

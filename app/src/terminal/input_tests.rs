@@ -209,7 +209,6 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(crate::ai::cloud_environments::CloudEnvironmentCatalog::new);
     app.add_singleton_model(ImportedConfigModel::new);
     app.add_singleton_model(|_| UpdateManager::mock());
     app.add_singleton_model(|_| MCPGalleryManager::new());
