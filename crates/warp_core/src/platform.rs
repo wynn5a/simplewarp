@@ -20,3 +20,34 @@ impl SessionPlatform {
         }
     }
 }
+
+/// An operating system a shell can run on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetOS {
+    MacOS,
+    Linux,
+    Windows,
+}
+
+impl TargetOS {
+    /// Returns the operating system this binary was built for, or `None` if it is not supported.
+    pub fn current() -> Option<Self> {
+        if cfg!(target_os = "macos") {
+            Some(TargetOS::MacOS)
+        } else if cfg!(any(target_os = "linux", target_os = "freebsd")) {
+            Some(TargetOS::Linux)
+        } else if cfg!(target_os = "windows") {
+            Some(TargetOS::Windows)
+        } else {
+            None
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            TargetOS::MacOS => "MacOS",
+            TargetOS::Linux => "Linux",
+            TargetOS::Windows => "Windows",
+        }
+    }
+}

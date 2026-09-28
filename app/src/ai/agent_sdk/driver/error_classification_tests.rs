@@ -82,7 +82,7 @@ fn renderable_error_classification_splits_user_from_internal() {
         AgentTaskState::Failed
     );
     assert_eq!(
-        super::classify_renderable_error(&RenderableAIError::ServerOverloaded),
+        super::classify_renderable_error(&RenderableAIError::InternalWarpError),
         AgentTaskState::Error
     );
     assert_eq!(

@@ -5,7 +5,6 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use channel_versions::overrides::TargetOS;
 use enum_iterator::Sequence;
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -16,7 +15,7 @@ use version_compare::{Cmp, Version};
 use warp_completer::completer::{CommandExitStatus, CommandOutput};
 #[cfg(windows)]
 use warp_core::paths::base_config_dir;
-use warp_core::platform::SessionPlatform;
+use warp_core::platform::{SessionPlatform, TargetOS};
 use warp_errors::report_error;
 use warp_util::path::{
     convert_msys2_to_windows_native_path, convert_wsl_to_windows_host_path, msys2_exe_to_root,

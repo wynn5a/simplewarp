@@ -3,7 +3,7 @@ pub mod settings;
 pub mod success_block;
 pub mod trigger_state;
 
-use channel_versions::overrides::TargetOS;
+use warp_core::platform::TargetOS;
 use warpui::AssetProvider;
 
 use crate::ASSETS;

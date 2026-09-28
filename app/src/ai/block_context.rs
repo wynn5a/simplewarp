@@ -1,7 +1,7 @@
-use channel_versions::overrides::TargetOS;
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use warp_core::command::ExitCode;
+use warp_core::platform::TargetOS;
 
 use crate::terminal::event::UserBlockCompleted;
 use crate::terminal::model::block::BlockId;
@@ -89,7 +89,7 @@ impl BlockContext {
                 .as_ref()
                 .map(|sh| sh.hostname.clone()),
             git_branch: block_completed.serialized_block.git_head.clone(),
-            os: TargetOS::current().and_then(|os| os.name()),
+            os: TargetOS::current().map(|os| os.name().to_owned()),
             session_id: block_completed
                 .serialized_block
                 .session_id

@@ -88,9 +88,6 @@ pub fn failed_output_presentation(
             });
             FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{message}"))
         }
-        RenderableAIError::ServerOverloaded => FailedOutputPresentation::Message(
-            "Warp is currently overloaded. Please try again later.".to_string(),
-        ),
         RenderableAIError::InternalWarpError => FailedOutputPresentation::Message(format!(
             "{ERROR_APOLOGY_TEXT}\n\n{INTERNAL_WARP_ERROR}"
         )),

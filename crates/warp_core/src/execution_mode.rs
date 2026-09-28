@@ -1,9 +1,4 @@
-use std::sync::OnceLock;
-
 use warpui_core::{Entity, ModelContext, SingletonEntity};
-
-// Global execution mode, for logic that runs outside the UI framework.
-static GLOBAL_EXECUTION_MODE: OnceLock<ExecutionMode> = OnceLock::new();
 
 /// Execution mode that Warp is running under.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -12,17 +7,6 @@ pub enum ExecutionMode {
     App,
     /// Warp is running as a CLI.
     Sdk,
-}
-
-impl ExecutionMode {
-    /// Returns the client ID to report to the server.
-    /// This must stay in sync with the util/client.go constants on the server.
-    pub fn client_id(&self) -> &'static str {
-        match self {
-            ExecutionMode::App => "warp-app",
-            ExecutionMode::Sdk => "warp-cli",
-        }
-    }
 }
 
 /// Model tracking the mode that Warp is running in.
@@ -37,7 +21,6 @@ pub struct AppExecutionMode {
 impl AppExecutionMode {
     /// Create an `AppExecutionMode` model with the execution mode set.
     pub fn new(mode: ExecutionMode, is_sandboxed: bool, _ctx: &mut ModelContext<Self>) -> Self {
-        let _ = GLOBAL_EXECUTION_MODE.set(mode);
         Self { mode, is_sandboxed }
     }
 
@@ -83,11 +66,6 @@ impl AppExecutionMode {
         matches!(self.mode, ExecutionMode::Sdk)
     }
 
-    /// Returns the client ID to report to the server.
-    pub fn client_id(&self) -> &'static str {
-        self.mode.client_id()
-    }
-
     /// If true, Warp is running in a sandbox like a Docker container or VM, rather than directly
     /// on a user machine.
     pub fn is_sandboxed(&self) -> bool {
@@ -100,10 +78,3 @@ impl Entity for AppExecutionMode {
 }
 
 impl SingletonEntity for AppExecutionMode {}
-
-/// Returns the current global client ID string.
-/// This is set when AppExecutionMode is constructed during application start.
-/// Returns None if the execution mode has not been set yet.
-pub fn current_client_id() -> Option<&'static str> {
-    GLOBAL_EXECUTION_MODE.get().map(|mode| mode.client_id())
-}

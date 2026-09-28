@@ -62,7 +62,6 @@ bytecount = "0.6.9"
 bytes.workspace = true
 byte-unit = "5.1.4"
 cfg-if.workspace = true
-channel_versions.workspace = true
 chrono.workspace = true
 clap.workspace = true
 cloud_object_models.workspace = true

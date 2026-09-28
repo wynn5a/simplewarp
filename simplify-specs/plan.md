@@ -36,7 +36,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | Rounds done through 4hs; the remaining remote-only residue (R5–R7, from the 4hp survey) is queued under Next |
+| 4 — Delete the dead cloud code and the TUI | Rounds done through 4ht; the remaining remote-only residue (R7, from the 4hp survey) is queued under Next |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
@@ -46,7 +46,7 @@ actor crate; local-capable, but the local adapter does not offer the tools).
 
 ## Phase 4 progress
 
-Workspace is down to 63 packages (`cargo metadata`). Gone, in rough order:
+Workspace is down to 62 packages (`cargo metadata`). Gone, in rough order:
 
 - **TUI** (1–1c): the front-end, its rendering engine, `ratatui`, every surface marker (~120k lines).
 - **Server-only features** (2–3aa): billing, experiments, referrals, resource center, changelog,
@@ -83,11 +83,9 @@ Workspace is down to 63 packages (`cargo metadata`). Gone, in rough order:
 - ~~**R2 — local-to-cloud handoff stubs**~~ — **4hr done (2026-09-29).**
 - ~~**R3 — dead cloud-agent context in the agent view**~~ — **4hr done (2026-09-29).**
 - ~~**R4 — always-logged-out `AuthState` walls**~~ — **4hs done (2026-09-29).**
-- **R5 — `channel_versions` crate** (799 lines, 2 bins): Warp's release/autoupdate manifest; only
-  `overrides::TargetOS` is used (4 importers) — move it, delete the rest.
-- **R6 — Warp server error shapes**: `server_api.rs`'s `X-Warp-Error-Code` / `OUT_OF_CREDITS` and
-  `AIApiError::QuotaLimit` / `ServerOverloaded` 429 mapping (check the local path first);
-  `warp_errors/src/reqwest.rs`'s `staging.warp.dev` 403 special case.
+- ~~**R5 — `channel_versions` crate**~~ — **4ht done (2026-09-29).**
+- ~~**R6 — Warp server error shapes**~~ — **4ht done (2026-09-29)**, with the `X-Warp-*` request
+  headers.
 - **R7 — scripts / test infra**: `script/linux/bundle_rpm`'s rpmsign + `releases.warp.dev` key
   import; `/opt/warpdotdev` / `REPO_NAME=warpdotdev` package paths (branding); the
   `setup_gcloud_sdk` integration steps (Warp's GCP) in `crates/integration/src/test/{ssh,subshell}.rs`.
@@ -1047,6 +1045,40 @@ Queue, in order:
    (`StartAgentOnboardingTutorial` is never dispatched, `pending_onboarding_intention` is never set):
    product decision to wire it up or delete it; `get_shell_starter_internal`'s unused
    `_background_executor`; `avatar_color` in `render_user_avatar` is always `None`.
+
+31. ~~R5 + R6: Warp server protocol residue~~ — **4ht done (2026-09-29).** −1.3k net lines in 32
+   files. **Headers:** `http_client::Client` added Warp's client metadata to every request it
+   built (`include_warp_http_headers` always returned `true`): `X-Warp-Client-ID` (`warp-app` /
+   `warp-cli`), `X-Warp-Client-Version` (when an app version is set), `X-Warp-OS-Category`,
+   `X-Warp-OS-Name`, `X-Warp-OS-Version`, `X-Warp-OS-Linux-Kernel-Version` (Linux), plus
+   `WARP_EXTRA_HTTP_HEADERS` pairs on integration builds. That client carries the LSP server
+   downloads (GitHub releases), the Node/npm install (`node_runtime`) and the OAuth2 adapter, so
+   those third parties received it. `local_inference` (BYOK provider calls and model listing) and
+   `mcp` build their own `reqwest::Client`, so provider and MCP traffic never carried the headers
+   and needs nothing. All of it is gone: the `headers` module, the injection, the env var, the
+   now-unused `ExecutionMode::client_id` / `current_client_id` global, and
+   `warp_core::operating_system_info` (its only reader; `sysinfo` dropped from `warp_core`).
+   No User-Agent was ever set by `http_client`, so none is added; requests go out with reqwest's
+   defaults. **R6:** `server_api.rs`'s `X-Warp-Error-Code` / `OUT_OF_CREDITS` 429 mapping, the
+   `From<http_client::ResponseError> for AIApiError` it lived in (no caller: the agent path
+   converts `local_inference::Error`), `AIApiError::QuotaLimit` / `ServerOverloaded` and
+   `RenderableAIError::ServerOverloaded` ("Warp is currently overloaded"), and with them
+   `http_client::ResponseError` + the `Response::error_for_status*` methods (no other caller); `warp_errors`'
+   `staging.warp.dev` 403 case. A provider 429 is unchanged: `ProviderStatus` becomes
+   `AIApiError::ErrorStatus(429, body)`, recoverable (auto-resume), rendered with the provider's
+   body; generic 429/5xx "not actionable" handling in `warp_errors` stays. **R5:** the
+   `channel_versions` crate (release manifest, overrides, `apply_overrides` / `version_compare`
+   bins) is deleted; `TargetOS` moved to `warp_core::platform` as a plain `Copy` enum
+   (`MacOS` / `Linux` / `Windows`; the never-constructed `Web` / `Unknown` and the serde/clap
+   derives went, it was never persisted); the `channel_versions_test.json` ignore lines too.
+   **Kept:** `RenderableAIError::QuotaLimit` (provider-worded copy; still produced by the
+   `stream_finished::Reason::QuotaLimit` arm, which `local_inference` never emits); the Linux
+   secure-storage key seed string that mentions `channel_versions.json` (changing it would break
+   stored keys). No behavior change for the user beyond the headers. Tests 4,100 default / 4,101
+   simplewarp, http_client + warp_core + warp_terminal + warp_errors + ai + lsp + node_runtime 366,
+   local_inference 97,
+   0 failed. **Follow-ups:** `RenderableAIError::QuotaLimit`'s `user_display_message` is always
+   `None` now (could map a provider 429 to it instead of the generic error, a product call).
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

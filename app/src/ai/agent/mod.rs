@@ -685,7 +685,6 @@ pub enum RenderableAIError {
     QuotaLimit {
         user_display_message: Option<String>,
     },
-    ServerOverloaded,
     InternalWarpError,
     ContextWindowExceeded(String),
     InvalidApiKey {
@@ -812,12 +811,6 @@ impl From<&Arc<AIApiError>> for RenderableAIError {
         // state rather than ERROR state.
         let is_user_error = !value.is_recoverable();
         match value.as_ref() {
-            AIApiError::QuotaLimit {
-                user_display_message,
-            } => Self::QuotaLimit {
-                user_display_message: user_display_message.clone(),
-            },
-            AIApiError::ServerOverloaded => Self::ServerOverloaded,
             AIApiError::Transport(error)
             | AIApiError::Deserialization(DeserializationError::Transport(error)) => {
                 // A transport error with no HTTP status is a lost-connection failure; one that
@@ -866,9 +859,6 @@ impl Display for RenderableAIError {
                 } else {
                     write!(f, "Quota limit reached.")
                 }
-            }
-            Self::ServerOverloaded => {
-                write!(f, "Warp is currently overloaded. Please try again later.")
             }
             Self::InternalWarpError => write!(f, "Internal Warp error."),
             Self::ContextWindowExceeded(message) => {

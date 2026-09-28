@@ -285,16 +285,16 @@ fn test_should_add_command_to_history() {
 fn test_rc_file_paths_use_target_os_separator() {
     for os in [TargetOS::Linux, TargetOS::MacOS] {
         assert_eq!(
-            ShellType::Zsh.rc_file_paths(os.clone()),
+            ShellType::Zsh.rc_file_paths(os),
             vec![TypedPathBuf::from_unix("~/.zshrc")],
             "Zsh rc path on {os:?} should use forward slash regardless of host",
         );
         assert_eq!(
-            ShellType::Bash.rc_file_paths(os.clone()),
+            ShellType::Bash.rc_file_paths(os),
             vec![TypedPathBuf::from_unix("~/.bashrc")],
         );
         assert_eq!(
-            ShellType::Fish.rc_file_paths(os.clone()),
+            ShellType::Fish.rc_file_paths(os),
             vec![TypedPathBuf::from_unix("~/.config/fish/config.fish")],
         );
         assert_eq!(

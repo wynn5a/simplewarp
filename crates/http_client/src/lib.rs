@@ -15,36 +15,7 @@ use reqwest::IntoUrl;
 use reqwest_eventsource::RequestBuilderExt;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use warp_core::channel::{Channel, ChannelState};
-use warp_core::execution_mode;
-use warp_core::operating_system_info::OperatingSystemInfo;
 use warp_errors::report_error;
-
-pub mod headers {
-    /// Custom Warp header indicating the version of the Warp app.
-    pub const CLIENT_RELEASE_VERSION_HEADER_KEY: &str = "X-Warp-Client-Version";
-
-    /// Custom Warp header indicating the OS category the request was sent from.
-    pub(crate) const WARP_OS_CATEGORY: &str = "X-Warp-OS-Category";
-    /// Custom Warp header indicating the OS name the request was sent from. On Linux this is the
-    /// name of the distribution. On all other platforms it should be equivalent to
-    /// `WARP_OS_CATEGORY`.
-    pub(crate) const WARP_OS_NAME: &str = "X-Warp-OS-Name";
-    /// Custom Warp header indicating the version of the operating system. On Linux this is the
-    /// version of the distribution, not the Linux kernel version.
-    pub(crate) const WARP_OS_VERSION: &str = "X-Warp-OS-Version";
-
-    /// Custom Warp header indicating the linux kernel version. This is only sent from Linux.
-    pub(crate) const WARP_OS_LINUX_KERNEL_VERSION: &str = "X-Warp-OS-Linux-Kernel-Version";
-
-    /// Custom Warp header indicating the client role.
-    pub(crate) const WARP_CLIENT_ID: &str = "X-Warp-Client-ID";
-}
-
-/// The environment variable containing extra HTTP headers to attach to requests.
-/// Only read when the channel is `Channel::Integration`. The value is a newline-separated
-/// list of `Name:Value` pairs, where each pair is split on the first colon.
-const EXTRA_HTTP_HEADERS_ENV_VAR: &str = "WARP_EXTRA_HTTP_HEADERS";
 
 /// A wrapper around a `reqwest::Client` to execute requests. Returns a custom `RequestBuilder` type
 /// that ensures any call to the underlying `reqwest::Client` are properly adapted so that they can
@@ -150,127 +121,33 @@ impl Client {
         self.after_response_received = Some(hook_fn);
     }
 
-    fn builder(
-        &self,
-        wrapped: reqwest::RequestBuilder,
-        include_warp_headers: bool,
-    ) -> RequestBuilder<'_> {
-        let mut builder = RequestBuilder {
+    fn builder(&self, wrapped: reqwest::RequestBuilder) -> RequestBuilder<'_> {
+        RequestBuilder {
             wrapped,
             client: self,
             serialized_payload: None,
             prevent_sleep_reason: None,
-        };
-
-        if include_warp_headers {
-            builder = Self::add_warp_http_headers(builder);
         }
-
-        builder
     }
 
-    pub fn get<U: IntoUrl + Clone>(&self, url: U) -> RequestBuilder<'_> {
-        let include_warp_headers = Self::include_warp_http_headers(url.clone());
-        self.builder(self.wrapped.get(url), include_warp_headers)
+    pub fn get<U: IntoUrl>(&self, url: U) -> RequestBuilder<'_> {
+        self.builder(self.wrapped.get(url))
     }
 
-    pub fn post<U: IntoUrl + Clone>(&self, url: U) -> RequestBuilder<'_> {
-        let include_warp_headers = Self::include_warp_http_headers(url.clone());
-        self.builder(self.wrapped.post(url), include_warp_headers)
+    pub fn post<U: IntoUrl>(&self, url: U) -> RequestBuilder<'_> {
+        self.builder(self.wrapped.post(url))
     }
 
-    pub fn put<U: IntoUrl + Clone>(&self, url: U) -> RequestBuilder<'_> {
-        let include_warp_headers = Self::include_warp_http_headers(url.clone());
-        self.builder(self.wrapped.put(url), include_warp_headers)
+    pub fn put<U: IntoUrl>(&self, url: U) -> RequestBuilder<'_> {
+        self.builder(self.wrapped.put(url))
     }
 
-    pub fn patch<U: IntoUrl + Clone>(&self, url: U) -> RequestBuilder<'_> {
-        let include_warp_headers = Self::include_warp_http_headers(url.clone());
-        self.builder(self.wrapped.patch(url), include_warp_headers)
+    pub fn patch<U: IntoUrl>(&self, url: U) -> RequestBuilder<'_> {
+        self.builder(self.wrapped.patch(url))
     }
 
-    pub fn delete<U: IntoUrl + Clone>(&self, url: U) -> RequestBuilder<'_> {
-        let include_warp_headers = Self::include_warp_http_headers(url.clone());
-        self.builder(self.wrapped.delete(url), include_warp_headers)
-    }
-
-    fn include_warp_http_headers<U: IntoUrl + Clone>(_url: U) -> bool {
-        true
-    }
-
-    fn add_warp_http_headers(mut builder: RequestBuilder) -> RequestBuilder {
-        // Include the client ID header.
-        if let Some(client_id) = execution_mode::current_client_id() {
-            builder = builder.header(headers::WARP_CLIENT_ID, client_id);
-        }
-
-        // If there's an app version, include it as an HTTP request header.
-        if let Some(app_version) = ChannelState::app_version() {
-            builder = builder.header(headers::CLIENT_RELEASE_VERSION_HEADER_KEY, app_version);
-        }
-
-        // On integration builds, attach any extra headers from the environment.
-        if ChannelState::channel() == Channel::Integration
-            && let Ok(raw) = std::env::var(EXTRA_HTTP_HEADERS_ENV_VAR)
-        {
-            for line in raw.lines() {
-                let Some((name, value)) = line.split_once(':') else {
-                    continue;
-                };
-                let name = name.trim();
-                let value = value.trim();
-                if name.is_empty() {
-                    continue;
-                }
-                match (
-                    HeaderName::from_bytes(name.as_bytes()),
-                    HeaderValue::from_str(value),
-                ) {
-                    (Ok(name), Ok(value)) => {
-                        builder = builder.header(name, value);
-                    }
-                    _ => {
-                        log::warn!(
-                            "Ignoring invalid entry in {EXTRA_HTTP_HEADERS_ENV_VAR}: {line}"
-                        );
-                    }
-                }
-            }
-        }
-
-        // Headers indicating the details of the client's operating system, if available here at runtime.
-        if let Ok(os_system_info) = OperatingSystemInfo::get() {
-            // Operating system category.
-            let category = os_system_info.category().to_string();
-            if let Ok(category) = HeaderValue::from_str(&category) {
-                builder = builder.header(headers::WARP_OS_CATEGORY, category);
-            }
-
-            // Operating system name.
-            builder = builder.header(
-                headers::WARP_OS_NAME,
-                HeaderValue::from_static(os_system_info.name()),
-            );
-
-            // Operating system version.
-            if let Some(version) = os_system_info
-                .version()
-                .and_then(|version| HeaderValue::from_str(version).ok())
-            {
-                builder = builder.header(headers::WARP_OS_VERSION, version);
-            }
-
-            // Linux kernel version.
-            if let Some(linux_kernel_version) = os_system_info
-                .linux_kernel_version()
-                .and_then(|kernel_version| HeaderValue::from_str(kernel_version).ok())
-            {
-                builder =
-                    builder.header(headers::WARP_OS_LINUX_KERNEL_VERSION, linux_kernel_version);
-            }
-        }
-
-        builder
+    pub fn delete<U: IntoUrl>(&self, url: U) -> RequestBuilder<'_> {
+        self.builder(self.wrapped.delete(url))
     }
 
     pub async fn execute(&self, request: Request) -> reqwest::Result<Response> {
@@ -482,28 +359,6 @@ impl<'a> RequestBuilder<'a> {
     }
 }
 
-/// An error returned from `Response::error_for_status` that includes response metadata.
-/// This allows callers to inspect headers (like X-Warp-Error-Code) and the response body when
-/// handling errors.
-#[derive(Debug)]
-pub struct ResponseError {
-    pub source: reqwest::Error,
-    pub headers: Box<HeaderMap>,
-    pub body: Option<String>,
-}
-
-impl std::fmt::Display for ResponseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.source.fmt(f)
-    }
-}
-
-impl std::error::Error for ResponseError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.source)
-    }
-}
-
 impl Response {
     pub async fn text(self) -> reqwest::Result<String> {
         Compat::new(async { self.0.text().compat().await }).await
@@ -515,52 +370,6 @@ impl Response {
 
     pub async fn json<T: DeserializeOwned>(self) -> reqwest::Result<T> {
         Compat::new(async { self.0.json().compat().await }).await
-    }
-
-    /// Checks the response status and returns an error if it's not successful.
-    /// Unlike `reqwest::Response::error_for_status`, this returns a `ResponseError`
-    /// that includes the response headers, allowing callers to inspect them.
-    pub fn error_for_status(self) -> Result<Self, ResponseError> {
-        let headers = self.0.headers().clone();
-        match self.0.error_for_status() {
-            Ok(response) => Ok(Self(response)),
-            Err(source) => Err(ResponseError {
-                source,
-                headers: Box::new(headers),
-                body: None,
-            }),
-        }
-    }
-
-    /// Checks the response status and returns an error if it's not successful.
-    /// Unlike `error_for_status`, this also reads and preserves the response body on errors.
-    pub async fn error_for_status_with_body(self) -> Result<Self, ResponseError> {
-        let headers = self.0.headers().clone();
-        match self.0.error_for_status_ref() {
-            Ok(_) => Ok(self),
-            Err(source) => {
-                let body = self.text().await.ok();
-                Err(ResponseError {
-                    source,
-                    headers: Box::new(headers),
-                    body,
-                })
-            }
-        }
-    }
-
-    /// Returns a reference to the underlying response if the status is successful,
-    /// otherwise returns an error with headers preserved.
-    pub fn error_for_status_ref(&self) -> Result<&reqwest::Response, ResponseError> {
-        let headers = self.0.headers().clone();
-        match self.0.error_for_status_ref() {
-            Ok(response) => Ok(response),
-            Err(source) => Err(ResponseError {
-                source,
-                headers: Box::new(headers),
-                body: None,
-            }),
-        }
     }
 
     pub async fn bytes(self) -> reqwest::Result<Bytes> {
@@ -590,18 +399,12 @@ impl<'c> oauth2::AsyncHttpClient<'c> for Client {
 
     fn call(&'c self, request: oauth2::HttpRequest) -> Self::Future {
         Box::pin(async move {
-            let uri = request.uri().to_string();
-            let include_warp_headers = Self::include_warp_http_headers(uri);
             let builder = reqwest::RequestBuilder::from_parts(
                 self.wrapped.clone(),
                 request.try_into().map_err(Box::new)?,
             );
 
-            let response = self
-                .builder(builder, include_warp_headers)
-                .send()
-                .await
-                .map_err(Box::new)?;
+            let response = self.builder(builder).send().await.map_err(Box::new)?;
 
             let mut builder = ::http::Response::builder().status(response.status());
 

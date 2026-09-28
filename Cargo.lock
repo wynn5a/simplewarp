@@ -1987,20 +1987,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "channel_versions"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "lazy_static",
- "memo-map",
- "regex",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "chrono"
 version = "0.4.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4983,7 +4969,6 @@ dependencies = [
  "async-compat",
  "async-stream",
  "bytes",
- "cfg-if",
  "futures",
  "http",
  "log",
@@ -4994,7 +4979,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "warp_core",
  "warp_errors",
 ]
 
@@ -12169,7 +12153,6 @@ dependencies = [
  "cc",
  "cfg-if",
  "cfg_aliases 0.2.1",
- "channel_versions",
  "chrono",
  "clap",
  "cloud_object_models",
@@ -12549,7 +12532,6 @@ dependencies = [
  "string-offset",
  "strum",
  "strum_macros",
- "sysinfo",
  "tempfile",
  "thiserror 2.0.17",
  "tokio",
@@ -12761,7 +12743,6 @@ dependencies = [
  "bitflags 2.13.0",
  "bitflags-serde-legacy",
  "cfg-if",
- "channel_versions",
  "command-corrections",
  "enum-iterator",
  "get-size",

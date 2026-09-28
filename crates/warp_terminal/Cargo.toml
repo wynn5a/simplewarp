@@ -10,7 +10,6 @@ anyhow.workspace = true
 bitflags.workspace = true
 bitflags-serde-legacy.workspace = true
 cfg-if.workspace = true
-channel_versions.workspace = true
 command-corrections.workspace = true
 enum-iterator.workspace = true
 get-size.workspace = true

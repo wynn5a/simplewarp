@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use channel_versions::overrides::TargetOS;
 use parking_lot::RwLock;
+use warp_core::platform::TargetOS;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_core::ui::theme::WarpTheme;
 use warpui::elements::{
