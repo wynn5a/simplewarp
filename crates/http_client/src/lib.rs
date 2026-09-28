@@ -39,12 +39,6 @@ pub mod headers {
 
     /// Custom Warp header indicating the client role.
     pub(crate) const WARP_CLIENT_ID: &str = "X-Warp-Client-ID";
-
-    /// Custom Warp header carrying the client's current OTEL span context in W3C
-    /// `traceparent` wire format. It is deliberately distinct from the standard
-    /// `traceparent` header so the server links its request span to the client
-    /// span rather than reparenting the server span under the client trace.
-    pub(crate) const TRACE_LINK_HEADER: &str = "X-Warp-Traceparent";
 }
 
 /// The environment variable containing extra HTTP headers to attach to requests.
@@ -276,13 +270,6 @@ impl Client {
             }
         }
 
-        // Forward the current trace context so the server can attach a span link
-        // back to this client (cloud-agent) span. Only present when a valid OTEL
-        // span context exists; omitted otherwise (e.g. non-cloud-agent).
-        if let Some(trace_link) = current_trace_link_header() {
-            builder = builder.header(headers::TRACE_LINK_HEADER, trace_link);
-        }
-
         builder
     }
 
@@ -316,32 +303,6 @@ impl Client {
 
         Ok(Response(result))
     }
-}
-
-/// Returns the current OTEL span context formatted as a W3C `traceparent` value
-/// (`00-<trace-id>-<span-id>-<flags>`) for the [`headers::TRACE_LINK_HEADER`]
-/// header, or `None` when there is no valid active span context.
-///
-/// A valid span context only exists in processes where the OpenTelemetry
-/// subscriber is installed — i.e. cloud-agent processes (see
-/// `app/src/tracing/native.rs`). Everywhere else, this returns
-/// `None` so the header is omitted rather than sent empty or malformed.
-fn current_trace_link_header() -> Option<String> {
-    use opentelemetry::trace::TraceContextExt as _;
-    use tracing_opentelemetry::OpenTelemetrySpanExt as _;
-
-    let context = tracing::Span::current().context();
-    let span = context.span();
-    let span_context = span.span_context();
-    if !span_context.is_valid() {
-        return None;
-    }
-    Some(format!(
-        "00-{}-{}-{:02x}",
-        span_context.trace_id(),
-        span_context.span_id(),
-        span_context.trace_flags().to_u8(),
-    ))
 }
 
 impl<'a> RequestBuilder<'a> {
@@ -657,7 +618,3 @@ impl<'c> oauth2::AsyncHttpClient<'c> for Client {
         })
     }
 }
-
-#[cfg(test)]
-#[path = "lib_tests.rs"]
-mod tests;

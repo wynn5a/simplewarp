@@ -420,7 +420,6 @@ impl From<warpui::ModelDropped> for AgentDriverError {
 
 impl AgentDriver {
     #[tracing::instrument(name = "AgentDriver::new", skip_all, err, fields(
-        tags.cloud_agent = true,
         is_sandbox = tracing::field::Empty,
     ))]
     pub fn new(
@@ -1045,14 +1044,14 @@ impl AgentDriver {
     /// Driving the agent mostly requires main-thread UI framework updates, but using `async` and
     /// a `ModelSpawner` lets us express the high-level process linearly rather than in a
     /// series of callbacks and state machine updates.
-    #[tracing::instrument(name = "AgentDriver::run_internal", skip_all, err, fields(tags.cloud_agent = true))]
+    #[tracing::instrument(name = "AgentDriver::run_internal", skip_all, err)]
     async fn run_internal(
         task: Task,
         foreground: ModelSpawner<Self>,
     ) -> Result<(), AgentDriverError> {
         log::debug!("Running agent driver");
 
-        let setup_span = tracing::info_span!("agent_run_setup", tags.cloud_agent = true);
+        let setup_span = tracing::info_span!("agent_run_setup");
         let setup_events = async {
             let setup_events = foreground
                 .spawn(|_me, _ctx| SetupClientEventReporter::new())
@@ -2026,11 +2025,7 @@ impl AgentDriver {
     ) {
         match event {
             TerminalDriverEvent::SlowBootstrap => {
-                tracing::event!(
-                    tracing::Level::WARN,
-                    tags.cloud_agent = true,
-                    "slow bootstrap"
-                );
+                tracing::event!(tracing::Level::WARN, "slow bootstrap");
                 eprintln!(
                     "Warning: Terminal session is slow to bootstrap. See https://docs.warp.dev/support-and-community/troubleshooting-and-support/known-issues#shells to troubleshoot."
                 );

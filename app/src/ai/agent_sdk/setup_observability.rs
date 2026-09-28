@@ -61,7 +61,7 @@ pub(crate) enum SetupStep {
 
 macro_rules! span_and_name {
     ($name:literal) => {
-        ($name, tracing::info_span!($name, tags.cloud_agent = true))
+        ($name, tracing::info_span!($name))
     };
 }
 

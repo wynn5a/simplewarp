@@ -62,7 +62,6 @@ mod tab;
 mod test_util;
 mod throttle;
 mod tips;
-mod tracing;
 mod ui_components;
 mod undo_close;
 mod uri;
@@ -450,7 +449,7 @@ fn apply_scroll_multiplier(event: &mut Event, app: &AppContext) {
 ///
 /// Oz subcommands are part of the normal parser and therefore do not require a
 /// separate mode flag.
-#[::tracing::instrument(skip_all, fields(tags.cloud_agent = true))]
+#[::tracing::instrument(skip_all)]
 pub fn run() -> Result<()> {
     // Perform any necessary platform-specific initialization.
     platform::init();
@@ -571,16 +570,13 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     // for other entrypoints.
     features::init_feature_flags();
 
-    let mut tracing_initialization = launch_mode
-        .needs_profiling()
-        .then(tracing::init)
-        .transpose()?;
+    if launch_mode.needs_profiling() {
+        // Keeps the `tracing` crate from writing out log lines for spans and events.
+        ::tracing::subscriber::set_global_default(::tracing::subscriber::NoSubscriber::new())?;
+    }
 
-    // Start the `run_internal` span here - we can't do it before this point
-    // because we need the tracing initialization to be complete first.
     let span = ::tracing::info_span!(
         "run_internal",
-        tags.cloud_agent = true,
         launch_mode = launch_mode.as_str_for_tracing()
     );
     let _enter = span.enter();
@@ -607,9 +603,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         }
     }
 
-    if let Some(initialization) = tracing_initialization.as_mut() {
-        initialization.log_initialization_warning();
-    }
     timer.mark_interval_end("LOG_FILE_SETUP_COMPLETE");
 
     // Claim a background-only process type before anything else can reach
@@ -716,10 +709,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     let pty_spawner =
         terminal::local_tty::spawner::PtySpawner::new().context("Failed to create pty spawner")?;
 
-    let callbacks = app_callbacks(
-        launch_mode.is_integration_test(),
-        tracing_initialization.take(),
-    );
+    let callbacks = app_callbacks(launch_mode.is_integration_test());
     let mut app_builder = if launch_mode.is_headless() {
         warpui::platform::AppBuilder::new_headless(
             callbacks,
@@ -851,7 +841,7 @@ pub struct UpdateQuakeModeEventArg {
     active_window_id: Option<WindowId>,
 }
 
-#[::tracing::instrument(skip_all, fields(tags.cloud_agent = true))]
+#[::tracing::instrument(skip_all)]
 pub(crate) fn initialize_app(
     launch_mode: &LaunchMode,
     mut timer: IntervalTimer,
@@ -1393,10 +1383,7 @@ pub(crate) fn initialize_app(
     app_state
 }
 
-pub(crate) fn app_callbacks(
-    is_integration_test: bool,
-    mut tracing_initialization: Option<tracing::Initialization>,
-) -> warpui::platform::AppCallbacks {
+pub(crate) fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
     warpui::platform::AppCallbacks {
         on_internet_reachability_changed: Some(Box::new(move |reachable, ctx| {
             NetworkStatus::handle(ctx)
@@ -1491,9 +1478,6 @@ pub(crate) fn app_callbacks(
             crash_recovery::CrashRecovery::handle(ctx).update(ctx, |crash_recovery, _ctx| {
                 crash_recovery.teardown();
             });
-            if let Some(initialization) = tracing_initialization.as_mut() {
-                initialization.shutdown();
-            }
         })),
         on_should_close_window: Some(Box::new(move |window_id, ctx| {
             let general_settings = GeneralSettings::as_ref(ctx);
@@ -1743,7 +1727,7 @@ fn on_close_window_cancelled(
     }
 }
 
-#[::tracing::instrument(skip_all, fields(tags.cloud_agent = true))]
+#[::tracing::instrument(skip_all)]
 fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode: LaunchMode) {
     IntervalTimer::handle(ctx).update(ctx, |timer, _ctx| {
         timer.mark_interval_end("APP_LAUNCHED");

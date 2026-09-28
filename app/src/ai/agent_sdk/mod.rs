@@ -40,7 +40,7 @@ mod profiles;
 pub(crate) mod setup_observability;
 
 /// Run a Warp CLI command.
-#[tracing::instrument(name = "agent_sdk::run", skip_all, err, fields(tags.cloud_agent = true))]
+#[tracing::instrument(name = "agent_sdk::run", skip_all, err)]
 pub fn run(
     ctx: &mut AppContext,
     command: CliCommand,
@@ -282,7 +282,6 @@ impl warpui::SingletonEntity for AgentDriverRunner {}
 
 impl AgentDriverRunner {
     #[tracing::instrument(skip_all, err, fields(
-        tags.cloud_agent = true,
         args.sandboxed = args.sandboxed,
         args.computer_use = args.computer_use.computer_use,
         args.no_computer_use = args.computer_use.no_computer_use
@@ -431,7 +430,7 @@ impl AgentDriverRunner {
     }
 
     /// Create the AgentDriver and start running the task.
-    #[tracing::instrument(skip_all, fields(tags.cloud_agent = true))]
+    #[tracing::instrument(skip_all)]
     fn create_and_run_driver(
         ctx: &mut AppContext,
         driver_options: driver::AgentDriverOptions,
@@ -446,11 +445,8 @@ impl AgentDriverRunner {
 
         driver.update(ctx, |driver, ctx| {
             driver.set_output_format(output_format);
-            let span =
-                tracing::info_span!("AgentDriver::run", tags.cloud_agent = true, ?task.model, ?task.harness);
-            let agent_future = span
-                .in_scope(|| driver.run(task, ctx))
-                .instrument(span);
+            let span = tracing::info_span!("AgentDriver::run", ?task.model, ?task.harness);
+            let agent_future = span.in_scope(|| driver.run(task, ctx)).instrument(span);
 
             ctx.spawn(agent_future, |_, result, ctx| match result {
                 Ok(()) => {
@@ -471,7 +467,7 @@ fn report_fatal_error(err: anyhow::Error, ctx: &mut AppContext) {
         let _ = write!(&mut message, "\n=> {cause}");
     }
 
-    tracing::event!(tracing::Level::ERROR, tags.cloud_agent = true, message);
+    tracing::event!(tracing::Level::ERROR, message);
 
     {
         if let Ok(path) = log_file_path() {

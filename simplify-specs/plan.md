@@ -36,7 +36,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | Rounds done through 4hp; the remaining remote-only residue (R1–R7, from the 4hp survey) is queued under Next |
+| 4 — Delete the dead cloud code and the TUI | Rounds done through 4hq; the remaining remote-only residue (R2–R7, from the 4hp survey) is queued under Next |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
@@ -79,11 +79,7 @@ Workspace is down to 63 packages (`cargo metadata`). Gone, in rough order:
 **Remaining queue (4hp survey, 2026-09-29).** No Warp server URL, GraphQL/websocket client or
 `.invalid` host is left in Rust. What still assumes a Warp service, in rough order:
 
-- **R1 — cloud-agent OTLP tracing export** (~890 lines + the 5 `opentelemetry*` /
-  `tracing-opentelemetry` deps): `app/src/tracing/{native,cloud_agent_auth}.rs`, armed only by the
-  server-dispatch env vars `WARP_CLOUD_AGENT_OTLP_ENDPOINT` / `_TOKEN(_EXPIRES_AT)`. Only live
-  dependent: `lib.rs`'s `.then(tracing::init)` (swap for the no-subscriber path); the ~15
-  `tags.cloud_agent = true` span fields become inert.
+- ~~**R1 — cloud-agent OTLP tracing export**~~ — **4hq done (2026-09-29).**
 - **R2 — local-to-cloud handoff stubs** (~150 lines): `AUTO_CLOUD_HANDOFF_PROMPT`,
   `LocalToCloudHandoffIntent`, the no-op `start_local_to_cloud_handoff*` /
   `record_automatic_handoff_failed`, the never-dispatched `OpenLocalToCloudHandoffPane` /
@@ -982,6 +978,22 @@ Queue, in order:
    4,104 simplewarp (−2: the ambient circle-colour and ambient-Claude summary tests), warp_core +
    completer + warp_cli + editor + ai + repo_metadata + vim + warp_errors + watcher 1,152,
    completer v2 123, 0 failed.
+
+28. ~~R1: cloud-agent OTLP tracing export~~ — **4hq done (2026-09-29).** −1.2k lines in 15 files.
+   **Evidence:** export was armed only when `WARP_CLOUD_AGENT_OTLP_ENDPOINT` *and* a currently valid
+   `WARP_CLOUD_AGENT_OTLP_TOKEN` + `_TOKEN_EXPIRES_AT` (RFC3339 UTC, bearer auth, token scrubbed from
+   env) were set at dispatch; no setting, CLI flag or doc exposes it, the exporter only shipped spans
+   carrying the `tags.cloud_agent` routing marker under a fixed `warp-cloud-agent` service name, so
+   it was Warp's server-dispatch plumbing, not a user-facing OTLP export. Deleted `app/src/tracing{.rs,/}`
+   (native exporter, shutdown-aware tracer/span registry, cloud-agent auth + its 4 tests), the
+   `X-Warp-Traceparent` trace-link header in `http_client` (only valid under that subscriber; its 3
+   tests, so `http_client` now has none, and its `tracing`/OTel deps), every `tags.cloud_agent = true`
+   span field (15 sites), and the `opentelemetry`, `opentelemetry-http`, `opentelemetry-otlp`,
+   `opentelemetry_sdk`, `tracing-opentelemetry` and `tracing-subscriber` deps (−135 Cargo.lock lines).
+   **Kept:** behavior without the env vars: `run_internal` still installs the global `tracing`
+   `NoSubscriber` (so `tracing` never writes log lines), local logging via `warp_logging` is
+   untouched, and the `tracing` spans/`instrument` attributes stay (inert, cheap). Tests 4,099 default /
+   4,100 simplewarp (−4), 0 failed.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

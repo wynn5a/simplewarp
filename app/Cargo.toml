@@ -255,14 +255,8 @@ http_server.workspace = true
 hyper.workspace = true
 libsqlite3-sys = { version = "0.33.0", features = ["bundled"] }
 mio = { version = "1.1.1", features = ["os-poll", "os-ext"] }
-opentelemetry.workspace = true
-opentelemetry-http.workspace = true
-opentelemetry-otlp.workspace = true
-opentelemetry_sdk.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
-tracing-opentelemetry.workspace = true
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 notify-debouncer-full.workspace = true
 rquickjs = { workspace = true, optional = true }
