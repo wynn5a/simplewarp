@@ -37,11 +37,7 @@ fn terminal_unavailable_is_error() {
 // --- User-side errors → FAILED ---
 
 #[test]
-fn environment_and_config_failures_are_failed() {
-    assert_state(
-        AgentDriverError::EnvironmentSetupFailed("pip install exploded".to_string()),
-        AgentTaskState::Failed,
-    );
+fn config_failures_are_failed() {
     assert_state(
         AgentDriverError::SkillResolutionFailed("missing".to_string()),
         AgentTaskState::Failed,

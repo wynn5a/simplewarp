@@ -687,9 +687,10 @@ pub enum FileBasedMCPManagerEvent {
     PurgeCredentials {
         installation_hashes: Vec<u64>,
     },
+    /// Only asserted by tests since the agent driver stopped preparing cloud environments.
+    #[allow(dead_code)]
     CloudEnvMcpScanComplete {
         repo_path: PathBuf,
-        #[allow(dead_code)]
         detected_servers: Vec<CloudEnvMcpScanServer>,
         wait_server_uuids: Vec<Uuid>,
     },

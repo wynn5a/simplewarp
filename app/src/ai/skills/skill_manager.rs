@@ -4,9 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use ai::skills::{ParsedSkill, SkillPathOrigin, SkillReference, SkillScope};
-pub use file_watchers::{
-    SkillWatcher, SkillWatcherEvent, extract_skill_parent_directory, read_skills_from_directories,
-};
+pub use file_watchers::{SkillWatcher, SkillWatcherEvent, extract_skill_parent_directory};
 use warp_core::features::FeatureFlag;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
@@ -36,11 +34,6 @@ pub struct SkillManager {
     skills_by_name: HashMap<String, HashSet<LocalOrRemotePath>>,
     /// Skills bundled into Warp for the local host.
     bundled_skills: BundledSkills,
-    /// When true, all skills in `directory_skills` are in scope regardless of
-    /// the current working directory. Set by `AgentDriver` when a cloud
-    /// environment with configured repos is active, so the agent sees every
-    /// skill from every cloned repo.
-    is_cloud_environment: bool,
     #[allow(dead_code)]
     skill_watcher: ModelHandle<SkillWatcher>, // Can't remove this or it'll get cleaned up after new()
 }
@@ -71,15 +64,8 @@ impl SkillManager {
             skills_by_path: HashMap::new(),
             skills_by_name: HashMap::new(),
             bundled_skills: BundledSkills::default(),
-            is_cloud_environment: false,
             skill_watcher,
         }
-    }
-
-    /// Marks this manager as running in a cloud environment, enabling all
-    /// directory skills to be in scope regardless of the current working directory.
-    pub fn set_cloud_environment(&mut self, value: bool) {
-        self.is_cloud_environment = value;
     }
 
     /// Returns skills available for the given working directory.
@@ -108,17 +94,6 @@ impl SkillManager {
         // the home directory as their dir_path; project skills use their owning directory.
         let mut skill_paths = Vec::new();
         let mut deduplicator = SkillDeduplicator::default();
-        let path_matches_location = |path: &LocalOrRemotePath| match (working_directory, path) {
-            (Some(LocalOrRemotePath::Local(_)), LocalOrRemotePath::Local(_)) => true,
-            (
-                Some(LocalOrRemotePath::Remote(working_directory)),
-                LocalOrRemotePath::Remote(path),
-            ) => working_directory.host_id == path.host_id,
-            (None, LocalOrRemotePath::Local(_)) => self.is_cloud_environment,
-            (Some(LocalOrRemotePath::Local(_)), LocalOrRemotePath::Remote(_))
-            | (Some(LocalOrRemotePath::Remote(_)), LocalOrRemotePath::Local(_))
-            | (None, LocalOrRemotePath::Remote(_)) => false,
-        };
 
         if let Some(home_dir) = self.home_directory_for_origin(path_origin)
             && let Some(home_skill_paths) = self.directory_skills.get(&home_dir)
@@ -131,18 +106,7 @@ impl SkillManager {
             );
         }
 
-        if self.is_cloud_environment {
-            // In cloud environments, all skills in the working directory's location are in scope
-            // regardless of cwd.
-            for (dir, dir_skill_paths) in &self.directory_skills {
-                if self.is_home_directory(dir) || !path_matches_location(dir) {
-                    continue;
-                }
-                for path in dir_skill_paths {
-                    skill_paths.push((dir.clone(), path.clone()));
-                }
-            }
-        } else if let Some(working_directory) = working_directory {
+        if let Some(working_directory) = working_directory {
             let repo_root = repo_metadata::repositories::DetectedRepositories::as_ref(ctx)
                 .get_root_for_path(working_directory);
 

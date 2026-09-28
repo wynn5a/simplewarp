@@ -51,8 +51,6 @@ pub struct User {
     /// Type of principal (user or service account). Fetched fresh from the server
     /// on each login/refresh.
     pub principal_type: PrincipalType,
-    /// Skill specs that should be available to this principal in every agent run.
-    pub global_skills: Vec<String>,
 }
 
 /// This struct holds extra information about the user. Most of this information comes directly
@@ -99,7 +97,6 @@ impl User {
             is_on_work_domain: false,
             personal_object_limits: None,
             principal_type: PrincipalType::User,
-            global_skills: Vec::new(),
         }
     }
 
@@ -115,7 +112,3 @@ impl User {
         self.personal_object_limits
     }
 }
-
-#[cfg(test)]
-#[path = "user_tests.rs"]
-mod tests;

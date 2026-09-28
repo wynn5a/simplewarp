@@ -4,7 +4,6 @@ use std::{env, fmt};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use url::Url;
 use warp_core::channel::ChannelState;
-use warp_core::features::FeatureFlag;
 
 use crate::agent::OutputFormat;
 
@@ -17,7 +16,6 @@ pub mod skill;
 pub mod agent;
 pub mod completions;
 pub mod config_file;
-pub mod environment;
 pub mod mcp;
 pub mod model;
 pub const OZ_RUN_ID_ENV: &str = "OZ_RUN_ID";
@@ -84,7 +82,6 @@ pub struct GlobalOptions {
 The Oz CLI is a tool for running, managing, and orchestrating coding agents at scale.
 Use the CLI to:
 * Launch and inspect cloud agents
-* Manage the environments that cloud agents run in
 * Upload secrets to Oz's secure storage"#
 )]
 #[clap(subcommand_precedence_over_arg = true)]
@@ -146,18 +143,6 @@ impl Args {
     /// IMPORTANT: use this instead of [`CommandFactory::command`], since we customize the command at runtime.
     pub fn clap_command() -> clap::Command {
         let mut command = <Args as CommandFactory>::command();
-
-        // The `warp environment` subcommand is gone with cloud environments. The
-        // `--environment` flag on `agent run` stays (the command still accepts an
-        // environment id) but is hidden from help, since nothing in this build can list or
-        // create one.
-        if !FeatureFlag::CloudEnvironments.is_enabled() {
-            command = command.mut_subcommand("agent", |agent_cmd| {
-                agent_cmd.mut_subcommand("run", |run_cmd| {
-                    run_cmd.mut_arg("environment", |arg| arg.hide(true))
-                })
-            });
-        }
 
         // Wire up `--version` / `-V` using the same version metadata used elsewhere in the
         // app, so the CLI reports the build's release tag.

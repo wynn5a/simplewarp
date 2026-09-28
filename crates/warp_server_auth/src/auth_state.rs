@@ -228,15 +228,6 @@ impl AuthState {
     pub fn is_service_account(&self) -> bool {
         matches!(self.principal_type(), Some(PrincipalType::ServiceAccount))
     }
-
-    /// Returns the cached global skill specs for the current user.
-    pub fn global_skills(&self) -> Vec<String> {
-        self.user
-            .read()
-            .as_ref()
-            .map(|user| user.global_skills.clone())
-            .unwrap_or_default()
-    }
 }
 
 /// AuthStateProvider is a singleton model which provides a reference to the global AuthState.

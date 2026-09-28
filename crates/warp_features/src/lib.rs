@@ -388,9 +388,6 @@ pub enum FeatureFlag {
     /// raising it or moving the cursor.  Currently only supported on macOS.
     BackgroundComputerUse,
 
-    /// Enables video recording of computer-use sessions for cloud agents.
-    VideoRecording,
-
     /// Enables the "New agent" prompt chip in terminal mode when AgentView is enabled.
     ///
     /// When disabled (the default), the terminal message bar is shown instead.
@@ -634,7 +631,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::FileGlobV2Warnings,
     FeatureFlag::SummarizationViaMessageReplacement,
     FeatureFlag::LocalComputerUse,
-    FeatureFlag::VideoRecording,
     // These are enabled via 100% experiment on prod warp-server,
     // but we need to enable here for dogfood builds.
     FeatureFlag::CrossRepoContext,
@@ -663,7 +659,6 @@ pub const PREVIEW_FLAGS: &[FeatureFlag] = &[];
 /// NOTE: if you are promoting a feature from Preview to launch, you'll likely
 /// want to enable the feature by default in app/Cargo.toml, rather than add it to RELEASE_FLAGS.
 pub const RELEASE_FLAGS: &[FeatureFlag] = &[
-    FeatureFlag::VideoRecording,
     // Marked text is currently only supported on MacOS.
     #[cfg(target_os = "macos")]
     FeatureFlag::ImeMarkedText,

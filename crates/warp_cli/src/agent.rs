@@ -328,10 +328,6 @@ pub struct RunAgentArgs {
     /// Maximum time to wait for requested MCP servers to start (e.g. `30s`, `1m`).
     #[arg(long = "mcp-startup-timeout", value_name = "DURATION")]
     pub mcp_startup_timeout: Option<humantime::Duration>,
-    /// Cloud environment to use, identified by ID.
-    #[arg(long = "environment", short = 'e', value_name = "ID")]
-    pub environment: Option<String>,
-
     /// Keep the agent process running after the conversation completes, so a follow-up can
     /// resume the conversation. The process exits once the window passes with no activity.
     ///
@@ -344,9 +340,6 @@ pub struct RunAgentArgs {
         hide = true
     )]
     pub idle_on_complete: Option<humantime::Duration>,
-
-    #[command(flatten)]
-    pub snapshot: SnapshotArgs,
 
     /// Whether we are running the agent in a sandboxed environment.
     #[arg(long = "sandboxed", hide = true)]
@@ -374,19 +367,4 @@ impl RunAgentArgs {
         specs.extend(self.mcp_servers.iter().cloned().map(MCPSpec::Uuid));
         specs
     }
-}
-
-#[derive(Debug, Clone, Args)]
-pub struct SnapshotArgs {
-    /// Disable the end-of-run workspace snapshot upload.
-    #[arg(long = "no-snapshot")]
-    pub no_snapshot: bool,
-
-    /// Maximum time to wait for the end-of-run snapshot upload.
-    #[arg(long = "snapshot-upload-timeout", value_name = "DURATION")]
-    pub snapshot_upload_timeout: Option<humantime::Duration>,
-
-    /// Maximum time to wait for the declarations script before uploading the snapshot.
-    #[arg(long = "snapshot-script-timeout", value_name = "DURATION")]
-    pub snapshot_script_timeout: Option<humantime::Duration>,
 }

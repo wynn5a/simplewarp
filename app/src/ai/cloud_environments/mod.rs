@@ -3,7 +3,7 @@ pub use catalog::CloudEnvironmentCatalog;
 #[cfg_attr(not(test), expect(unused_imports))]
 pub use cloud_object_models::{
     AmbientAgentEnvironment, CloudAmbientAgentEnvironment, CloudAmbientAgentEnvironmentModel,
-    CodeForge, GithubRepo, SourceRepo,
+    CodeForge, SourceRepo,
 };
 
 use crate::cloud_object::model::generic_string_model::StringModel;

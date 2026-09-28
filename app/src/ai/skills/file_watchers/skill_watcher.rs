@@ -15,7 +15,7 @@ use repo_metadata::{
     RepositoryWatchMode,
 };
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
+use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 use watcher::{BulkFilesystemWatcherEvent, HomeDirectoryWatcher, HomeDirectoryWatcherEvent};
 
 use super::subscribers::{
@@ -24,7 +24,6 @@ use super::subscribers::{
 use super::utils::{
     find_local_project_skill_files_on_filesystem, find_project_skill_files_in_tree,
     is_home_provider_path, is_home_skill_directory, is_skill_file, read_skills_from_directories,
-    read_skills_from_files,
 };
 use crate::warp_managed_paths_watcher::{
     WarpManagedPathsWatcher, WarpManagedPathsWatcherEvent, filter_repository_update_by_prefix,
@@ -74,24 +73,6 @@ pub struct SkillWatcher {
 }
 
 impl SkillWatcher {
-    /// Synchronously reads skills from the given local repo paths.
-    /// Requires file trees to already be built (i.e. `RepositoryUpdated` has fired).
-    /// Returns the parsed skills; the caller is responsible for feeding them into
-    /// `SkillManager::handle_skills_added`.
-    pub fn read_local_skills_for_repos(
-        repo_paths: &[PathBuf],
-        ctx: &AppContext,
-    ) -> Vec<ParsedSkill> {
-        let repo_metadata = RepoMetadataModel::as_ref(ctx);
-        let skill_files: Vec<PathBuf> = repo_paths
-            .iter()
-            .filter_map(|repo_path| RepositoryIdentifier::try_local(repo_path))
-            .flat_map(|repo_id| find_project_skill_files_in_tree(&repo_id, repo_metadata, ctx))
-            .filter_map(|path| path.to_local_path().map(Path::to_path_buf))
-            .collect();
-        read_skills_from_files(skill_files)
-    }
-
     pub fn new(ctx: &mut ModelContext<Self>, watcher_event_tx: Sender<SkillWatcherEvent>) -> Self {
         Self::new_internal(ctx, watcher_event_tx, dirs::home_dir())
     }

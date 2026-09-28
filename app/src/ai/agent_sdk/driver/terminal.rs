@@ -16,8 +16,6 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, ViewHandle};
 
 use super::AgentDriverError;
 use crate::ai::agent::redaction::redact_secrets;
-use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::ai::attachment_utils::attachments_download_dir;
 use crate::pane_group::NewTerminalOptions;
 use crate::root_view::{NewWorkspaceSource, open_new_with_workspace_source};
 use crate::terminal::TerminalView;
@@ -77,7 +75,6 @@ const TERMINAL_SESSION_BOOTSTRAP_TIMEOUT: Duration = Duration::from_secs(60);
 pub(crate) struct TerminalDriverOptions {
     pub working_dir: PathBuf,
     pub env_vars: HashMap<OsString, OsString>,
-    pub task_id: Option<AmbientAgentTaskId>,
 }
 
 /// Events emitted by [`TerminalDriver`] for [`super::AgentDriver`] to react to.
@@ -170,44 +167,23 @@ impl TerminalDriver {
         options: TerminalDriverOptions,
         ctx: &mut AppContext,
     ) -> Result<ModelHandle<Self>, AgentDriverError> {
-        let task_id = options.task_id;
-        let working_dir = options.working_dir.clone();
         let terminal_view = create_terminal_view(options, ctx)?;
-        Ok(ctx.add_model(|ctx| Self::new(terminal_view, task_id, working_dir, ctx)))
+        Ok(ctx.add_model(|ctx| Self::new(terminal_view, ctx)))
     }
 
     /// Wrap an already-created terminal view in a new `TerminalDriver` model.
     ///
     /// Unlike [`Self::create`], this does not open a new window — it reuses an
-    /// existing view (e.g. a docker sandbox pane). No task ID is associated.
+    /// existing view (e.g. a docker sandbox pane).
     pub(crate) fn create_from_existing_view(
         terminal_view: ViewHandle<TerminalView>,
         ctx: &mut AppContext,
     ) -> ModelHandle<Self> {
-        ctx.add_model(|ctx| Self::new(terminal_view, None, PathBuf::default(), ctx))
+        ctx.add_model(|ctx| Self::new(terminal_view, ctx))
     }
 
     /// Set up event subscriptions for an already-created terminal view.
-    fn new(
-        terminal_view: ViewHandle<TerminalView>,
-        task_id: Option<AmbientAgentTaskId>,
-        working_dir: PathBuf,
-        ctx: &mut ModelContext<Self>,
-    ) -> Self {
-        // Set the task_id and attachments download dir on the AI controller right away
-        // so they're available for file downloads.
-        // Only set the download dir when a task_id is present (cloud mode),
-        // since attachments require a task to fetch presigned URLs.
-        if let Some(tid) = task_id {
-            let attachments_dir = attachments_download_dir(&working_dir);
-            terminal_view.update(ctx, |terminal, ctx| {
-                terminal.ai_controller().update(ctx, |controller, ctx| {
-                    controller.set_ambient_agent_task_id(Some(tid), ctx);
-                    controller.set_attachments_download_dir(attachments_dir);
-                });
-            });
-        }
-
+    fn new(terminal_view: ViewHandle<TerminalView>, ctx: &mut ModelContext<Self>) -> Self {
         ctx.subscribe_to_view(&terminal_view, move |me, _, event, ctx| {
             me.handle_terminal_view_event(event, ctx);
         });

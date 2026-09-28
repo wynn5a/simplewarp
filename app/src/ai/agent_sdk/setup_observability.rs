@@ -44,20 +44,13 @@ impl SetupClientEventReporter {
 
 #[derive(Clone, Copy)]
 pub(crate) enum SetupStep {
-    EnvironmentResolution,
     SkillRepoClone,
     TerminalBootstrap,
     McpServerStartup,
     AgentProfileConfiguration,
     ProfileMcpServerStartup,
-    GlobalSkillResolution,
-    GlobalSkillRepoClone,
     EnvironmentRepoClone,
     EnvironmentSetupCommands,
-    FileBasedMcpDiscovery,
-    FileBasedMcpReadiness,
-    EnvironmentSkillLoading,
-    GlobalSkillLoading,
     SkillsDirsLoading,
     ThirdPartyHarnessPreparation,
     /// Sub-steps of [`SetupStep::ThirdPartyHarnessPreparation`] that track plugin
@@ -77,9 +70,6 @@ macro_rules! span_and_name {
 impl SetupStep {
     fn to_event_name_and_span(self) -> (&'static str, tracing::Span) {
         match self {
-            Self::EnvironmentResolution => {
-                span_and_name!("setup_environment_resolution")
-            }
             Self::SkillRepoClone => {
                 span_and_name!("setup_skill_repo_clone")
             }
@@ -95,29 +85,11 @@ impl SetupStep {
             Self::ProfileMcpServerStartup => {
                 span_and_name!("setup_profile_mcp_server_startup")
             }
-            Self::GlobalSkillResolution => {
-                span_and_name!("setup_global_skill_resolution")
-            }
-            Self::GlobalSkillRepoClone => {
-                span_and_name!("setup_global_skill_repo_clone")
-            }
             Self::EnvironmentRepoClone => {
                 span_and_name!("setup_environment_repo_clone")
             }
             Self::EnvironmentSetupCommands => {
                 span_and_name!("setup_environment_setup_commands")
-            }
-            Self::FileBasedMcpDiscovery => {
-                span_and_name!("setup_file_based_mcp_discovery")
-            }
-            Self::FileBasedMcpReadiness => {
-                span_and_name!("setup_file_based_mcp_readiness")
-            }
-            Self::EnvironmentSkillLoading => {
-                span_and_name!("setup_environment_skill_loading")
-            }
-            Self::GlobalSkillLoading => {
-                span_and_name!("setup_global_skill_loading")
             }
             Self::SkillsDirsLoading => {
                 span_and_name!("setup_skills_dirs_loading")

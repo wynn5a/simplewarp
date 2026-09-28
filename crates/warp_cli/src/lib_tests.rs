@@ -166,42 +166,24 @@ fn agent_run_accepts_idle_on_complete_duration() {
 }
 
 #[test]
-fn agent_run_accepts_snapshot_flags() {
-    let args = Args::try_parse_from([
-        "warp",
-        "agent",
-        "run",
-        "--prompt",
-        "hello",
-        "--no-snapshot",
-        "--snapshot-upload-timeout",
-        "90s",
-        "--snapshot-script-timeout",
-        "45s",
-    ])
-    .unwrap();
-
-    let Some(Command::CommandLine(boxed_cmd)) = args.command else {
-        panic!("Expected `warp agent run` command");
-    };
-    let CliCommand::Agent(AgentCommand::Run(run_args)) = boxed_cmd.as_ref() else {
-        panic!("Expected `warp agent run` command");
-    };
-
-    assert!(run_args.snapshot.no_snapshot);
-    assert_eq!(
-        run_args.snapshot.snapshot_upload_timeout,
-        Some(humantime::Duration::from(std::time::Duration::from_secs(
-            90
-        )))
-    );
-    assert_eq!(
-        run_args.snapshot.snapshot_script_timeout,
-        Some(humantime::Duration::from(std::time::Duration::from_secs(
-            45
-        )))
-    );
+fn agent_run_rejects_removed_server_flags() {
+    for flag in [
+        ["--environment", "env-123"].as_slice(),
+        ["--no-snapshot"].as_slice(),
+        ["--snapshot-upload-timeout", "90s"].as_slice(),
+        ["--snapshot-script-timeout", "45s"].as_slice(),
+    ] {
+        let mut argv = vec!["warp", "agent", "run", "--prompt", "hello"];
+        argv.extend_from_slice(flag);
+        let err = Args::try_parse_from(argv).unwrap_err();
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::UnknownArgument,
+            "{flag:?} should be an unknown argument"
+        );
+    }
 }
+
 #[test]
 fn agent_run_requires_a_prompt() {
     let result = Args::try_parse_from(["warp", "agent", "run", "--model", "gpt-4o"]);

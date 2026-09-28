@@ -10,31 +10,22 @@ use std::thread;
 use std::time::Duration;
 
 use ai::agent::AgentTaskState;
-use ai::skills::{
-    SKILL_PROVIDER_DEFINITIONS, parse_skills_dirs_env, read_skills_for_skills_dirs,
-    resolve_skills_dirs,
-};
+use ai::skills::{parse_skills_dirs_env, read_skills_for_skills_dirs, resolve_skills_dirs};
 use anyhow::Context as _;
 use futures::FutureExt as _;
 use futures::channel::oneshot;
-use futures::future::{self, Either, join_all};
-use itertools::Itertools as _;
+use futures::future::{self, Either};
 use oneshot::{Canceled, Receiver};
-use repo_metadata::local_model::IndexedRepoState;
-use repo_metadata::{RepoMetadataModel, RepositoryIdentifier};
 use tracing::Instrument as _;
 use uuid::Uuid;
 use warp_cli::agent::{Harness, OutputFormat};
 use warp_cli::mcp::MCPSpec;
-use warp_cli::skill::SkillSpec;
 use warp_core::features::FeatureFlag;
 use warp_core::{safe_debug, safe_error, safe_info};
 use warp_errors::{ErrorExt, register_error, report_error, report_if_error};
-use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warpui::r#async::{FutureExt, TimeoutError, Timer};
-use warpui::{AppContext, Entity, ModelContext, ModelHandle, ModelSpawner, SingletonEntity};
+use warpui::r#async::{FutureExt, TimeoutError};
+use warpui::{Entity, ModelContext, ModelHandle, ModelSpawner, SingletonEntity};
 
-use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentExchange, AIAgentInput, AIAgentOutput, AIAgentOutputStatus, CancellationReason,
     FinishedAIAgentOutput, RenderableAIError, TransientNetworkErrorKind,
@@ -45,31 +36,21 @@ use crate::ai::agent_sdk::driver::harness::{
 use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
 use crate::ai::ambient_agents::task::HarnessModelConfig;
 use crate::ai::ambient_agents::{
-    AmbientAgentTaskId, AmbientConversationStatus, conversation_output_status_from_conversation,
+    AmbientConversationStatus, conversation_output_status_from_conversation,
 };
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::{
-    BlocklistAIHistoryEvent, BlocklistAIHistoryModel, BlocklistAIPermissions, FinalizeReason,
-    finalize_recording_for_conversation,
-};
-use crate::ai::cloud_environments::{
-    AmbientAgentEnvironment, CloudAmbientAgentEnvironment, GithubRepo, SourceRepo,
+    BlocklistAIHistoryEvent, BlocklistAIHistoryModel, BlocklistAIPermissions,
 };
 use crate::ai::execution_profiles::ProfileLookupError;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::{LLMId, LLMPreferences};
-use crate::ai::mcp::file_based_manager::{FileBasedMCPManager, FileBasedMCPManagerEvent};
 use crate::ai::mcp::parsing::{ParsedTemplatableMCPServerResult, normalize_mcp_json, resolve_json};
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManagerEvent;
 use crate::ai::mcp::{
     JSONMCPServer, MCPServerState, TemplatableMCPServerInstallation, TemplatableMCPServerManager,
 };
-use crate::ai::skills::{
-    SkillManager, SkillWatcher, filter_skills_by_spec, read_skills_from_directories,
-    resolve_skill_repos,
-};
-use crate::auth::AuthStateProvider;
-use crate::cloud_object::{CloudObject, CloudObjectLookup as _};
+use crate::ai::skills::SkillManager;
 use crate::terminal::cli_agent_sessions::plugin_manager::{
     CliAgentPluginManager, plugin_manager_for,
 };
@@ -85,7 +66,6 @@ mod harness_output_monitor;
 pub(super) mod output;
 pub(crate) mod terminal;
 
-use environment::PrepareEnvironmentError;
 use terminal::TerminalDriverEvent;
 
 const MCP_SERVER_STARTUP_TIMEOUT: Duration = Duration::from_secs(20);
@@ -257,14 +237,8 @@ fn cli_session_status_log_outcome(status: &CLIAgentSessionStatus) -> &'static st
 pub struct AgentDriverOptions {
     /// Initial working directory for the agent's terminal session.
     pub working_dir: PathBuf,
-    /// ID of the task being executed.
-    pub task_id: Option<AmbientAgentTaskId>,
-    /// Parent run ID for child orchestration flows, if this task was spawned by another run.
-    pub parent_run_id: Option<String>,
     /// How long to keep the session alive after the agent run completes, if at all.
     pub idle_on_complete: Option<Duration>,
-    /// Resolved environment configuration, if any.
-    pub environment: Option<AmbientAgentEnvironment>,
     /// Selected execution harness for this run.
     pub selected_harness: Harness,
     /// Model config for the selected harness. Only used for non-Oz harnesses.
@@ -290,9 +264,6 @@ pub struct AgentDriver {
 
     output_format: OutputFormat,
 
-    // The associated task ID for this agent run, if any.
-    task_id: Option<AmbientAgentTaskId>,
-
     /// Harness adapter for the running agent. This is only set if:
     /// - The harness has started successfully.
     /// - We're using a third-party harness.
@@ -303,19 +274,6 @@ pub struct AgentDriver {
     // and exit after this period of inactivity.
     idle_on_complete: Option<Duration>,
 
-    /// Resolved environment configuration.
-    environment: Option<AmbientAgentEnvironment>,
-
-    /// Conversation ID this driver is running. Set at construction for
-    /// resumed runs and on `ConversationServerTokenAssigned` for fresh
-    /// runs; consumed by `unregister_streamer_consumer` at end of run.
-    run_conversation_id: Option<AIConversationId>,
-
-    /// Parent agent run's `run_id` from the server task metadata, when
-    /// this driver run was spawned by another agent. Stamped onto the
-    /// conversation's `parent_agent_id` field at register time so the
-    /// streamer recognizes the child role in driver-hosted processes.
-    parent_run_id: Option<String>,
     third_party_harness_model_config: Option<HarnessModelConfig>,
 
     /// Whether MCP server startup failures are fatal for the run.
@@ -365,11 +323,6 @@ pub struct Task {
     pub harness: HarnessKind,
 }
 
-struct GlobalSkillResolution {
-    specs: Vec<SkillSpec>,
-    repos: Vec<GithubRepo>,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum AgentDriverError {
     #[error("Terminal session is not available.")]
@@ -399,10 +352,6 @@ pub enum AgentDriverError {
         #[source]
         error: terminal::BootstrapError,
     },
-    #[error("Requested environment not found: {0}")]
-    EnvironmentNotFound(String),
-    #[error("Environment setup failed: {0}")]
-    EnvironmentSetupFailed(String),
     #[error("Could not resolve working directory {}", path.display())]
     InvalidWorkingDirectory {
         path: PathBuf,
@@ -473,21 +422,9 @@ impl From<warpui::ModelDropped> for AgentDriverError {
     }
 }
 
-impl From<PrepareEnvironmentError> for AgentDriverError {
-    fn from(error: PrepareEnvironmentError) -> Self {
-        match error {
-            PrepareEnvironmentError::InvalidRuntimeState => AgentDriverError::InvalidRuntimeState,
-            PrepareEnvironmentError::TerminalDriver { source } => source,
-            error => AgentDriverError::EnvironmentSetupFailed(error.to_string()),
-        }
-    }
-}
-
 impl AgentDriver {
     #[tracing::instrument(name = "AgentDriver::new", skip_all, err, fields(
         tags.cloud_agent = true,
-        task_id = ?options.task_id,
-        parent_run_id = ?options.parent_run_id,
         is_sandbox = tracing::field::Empty,
     ))]
     pub fn new(
@@ -496,10 +433,7 @@ impl AgentDriver {
     ) -> Result<Self, AgentDriverError> {
         let AgentDriverOptions {
             working_dir,
-            task_id,
-            parent_run_id,
             idle_on_complete,
-            environment,
             selected_harness,
             third_party_harness_model_config,
             strict_mcp_startup,
@@ -516,14 +450,7 @@ impl AgentDriver {
 
         let mut env_vars = HashMap::new();
 
-        // Clone before consuming for env vars; the field on `Self` is
-        // also needed at register time.
-        let parent_run_id_for_self = parent_run_id.clone();
-        env_vars.extend(task_env_vars(
-            task_id.as_ref(),
-            parent_run_id.as_deref(),
-            selected_harness,
-        ));
+        env_vars.extend(task_env_vars(None, None, selected_harness));
         env_vars.extend(harness_model_env_vars(
             selected_harness,
             third_party_harness_model_config.as_ref(),
@@ -542,7 +469,6 @@ impl AgentDriver {
             terminal::TerminalDriverOptions {
                 working_dir: working_dir.clone(),
                 env_vars: HashMap::clone(&resolved_env_vars),
-                task_id,
             },
             ctx,
         )?;
@@ -552,19 +478,13 @@ impl AgentDriver {
             me.handle_terminal_driver_event(event, ctx);
         });
 
-        let run_conversation_id: Option<AIConversationId> = None;
-
         Ok(Self {
             terminal_driver,
             working_dir,
             resolved_env_vars,
             output_format: OutputFormat::default(),
-            task_id,
             harness: None,
             idle_on_complete,
-            environment,
-            run_conversation_id,
-            parent_run_id: parent_run_id_for_self,
             third_party_harness_model_config,
             strict_mcp_startup,
             mcp_startup_timeout: mcp_startup_timeout.unwrap_or(MCP_SERVER_STARTUP_TIMEOUT),
@@ -572,7 +492,7 @@ impl AgentDriver {
     }
 
     /// Minimal constructor for unit tests that need a live `AgentDriver` model to call
-    /// methods on (e.g. `load_environment_skills`, `load_global_skills`) without
+    /// methods on (e.g. `load_skills_dirs`) without
     /// bootstrapping a full agent run.
     ///
     /// The caller is responsible for creating the `TerminalDriver` handle beforehand
@@ -592,12 +512,8 @@ impl AgentDriver {
             working_dir,
             resolved_env_vars: Arc::new(HashMap::new()),
             output_format: OutputFormat::default(),
-            task_id: None,
             harness: None,
             idle_on_complete: None,
-            environment: None,
-            run_conversation_id: None,
-            parent_run_id: None,
             third_party_harness_model_config: None,
             strict_mcp_startup: false,
             mcp_startup_timeout: MCP_SERVER_STARTUP_TIMEOUT,
@@ -615,93 +531,21 @@ impl AgentDriver {
     ) -> impl Future<Output = Result<(), AgentDriverError>> + use<> {
         let (tx, rx) = oneshot::channel();
         let foreground = ctx.spawner();
-        let task_id = self.task_id;
 
         ctx.spawn(
             async move {
-                // A SIGTERM aborts `run_internal` so the teardown below (recording finalization,
-                // cleanup) still runs; the handler is unregistered afterwards to restore the
-                // default terminate disposition.
-                let result = {
-                    #[cfg(unix)]
-                    let (sigterm_fut, sigterm_sig_id) = {
-                        use std::sync::atomic::{AtomicBool, Ordering};
-                        let flag = std::sync::Arc::new(AtomicBool::new(false));
-                        let sig_id = signal_hook::flag::register(
-                            signal_hook::consts::SIGTERM,
-                            std::sync::Arc::clone(&flag),
-                        )
-                        .ok();
-                        let flag_clone = flag.clone();
-                        let fut = async move {
-                            loop {
-                                if flag_clone.load(Ordering::Acquire) {
-                                    break;
-                                }
-                                Timer::after(Duration::from_millis(100)).await;
-                            }
-                        };
-                        (fut, sig_id)
-                    };
-                    #[cfg(not(unix))]
-                    let sigterm_fut = future::pending::<()>();
-
-                    let result = futures::select! {
-                        r = Self::run_internal(task, foreground.clone()).fuse() => r,
-                        _ = sigterm_fut.fuse() => {
-                            log::warn!(
-                                "SIGTERM received; aborting run_internal to allow recording finalization"
-                            );
-                            Ok(())
-                        }
-                    };
-                    #[cfg(unix)]
-                    if let Some(sig_id) = sigterm_sig_id {
-                        signal_hook::low_level::unregister(sig_id);
-                    }
-                    result
-                };
-
-                // The caller may terminate the process as soon as it receives
-                // `result`, so all durable artifact work must finish before the
-                // send below. First start or join finalization for this
-                // conversation and wait for ffmpeg stop plus upload to finish.
-                // This also waits for work already started by an early exit or
-                // cancellation path.
-                if let Ok(Some(finalization)) = foreground
-                    .spawn(|me, ctx| {
-                        me.run_conversation_id.and_then(|conversation_id| {
-                            finalize_recording_for_conversation(
-                                conversation_id,
-                                FinalizeReason::RunEnded,
-                                true,
-                                ctx,
-                            )
-                        })
-                    })
-                    .await
-                {
-                    let (finalization_result, actual_reason) = finalization.resolve().await;
-                    log::info!(
-                        "Recording finalization completed before agent driver exit \
-                         (reason={actual_reason:?}): {finalization_result:?}"
-                    );
-                }
-
+                let result = Self::run_internal(task, foreground).await;
                 if tx.send(result).is_err() {
                     report_error!("Caller did not wait for agent driver to finish");
                 }
-
-                Self::cleanup(foreground).await;
+                log::info!(
+                    "Ambient agent lifecycle: event=driver_cleanup_started next=terminal_process_exit"
+                );
             },
             |_, _, _| {},
         );
 
         async move {
-            if let Some(ref task_id) = task_id {
-                log::info!("Executing task {task_id}");
-            }
-
             let result = match rx.await {
                 Ok(result) => result,
                 Err(Canceled) => {
@@ -715,19 +559,6 @@ impl AgentDriver {
             }
 
             result
-        }
-    }
-
-    /// Log all valid environment IDs for the user.
-    pub(super) fn log_valid_environments(app: &AppContext) {
-        let environments = CloudAmbientAgentEnvironment::get_all(app);
-        if environments.is_empty() {
-            log::error!("No environments available for this user.");
-        } else {
-            log::error!("Valid environment IDs:");
-            for env in environments {
-                log::error!("  - {} ({})", env.sync_id(), env.model().string_model.name);
-            }
         }
     }
 
@@ -1182,464 +1013,12 @@ impl AgentDriver {
         Either::Left(wait)
     }
 
-    /// Subscribe to [`FileBasedMCPManagerEvent::CloudEnvMcpScanComplete`]
-    /// paths and return a receiver that fires with auto-start-requested server UUIDs once every repo
-    /// reports in. Must be called **before** `prepare_environment` so no events are missed.
-    fn setup_file_based_mcp_discovery(
-        &self,
-        expected_repos: Vec<PathBuf>,
-        ctx: &mut ModelContext<Self>,
-    ) -> Receiver<Vec<Uuid>> {
-        let (tx, rx) = oneshot::channel::<Vec<Uuid>>();
-
-        if expected_repos.is_empty() {
-            let _ = tx.send(vec![]);
-            return rx;
-        }
-
-        log::info!(
-            "Waiting for {} cloud environment repo(s) to report back file-based MCP server UUIDs...",
-            expected_repos.len()
-        );
-
-        let mut tx = Some(tx);
-        let mut pending_repos: HashSet<PathBuf> = HashSet::from_iter(expected_repos);
-        let mut collected_wait_uuids = Vec::<Uuid>::new();
-
-        let file_based_mcp_manager = FileBasedMCPManager::handle(ctx);
-
-        ctx.subscribe_to_model(&file_based_mcp_manager, move |_me, manager, event, ctx| {
-            if let FileBasedMCPManagerEvent::CloudEnvMcpScanComplete {
-                repo_path,
-                wait_server_uuids,
-                ..
-            } = event
-                && pending_repos.remove(repo_path) {
-                    collected_wait_uuids.extend(wait_server_uuids.iter().copied());
-                    // If we've received all scan results from all cloud environment repos, send
-                    // back the auto-start-requested UUIDs and begin waiting for initialization.
-                    if pending_repos.is_empty() {
-                        let uuids = collected_wait_uuids.clone();
-                        if let Some(sender) = tx.take() {
-                            log::info!(
-                                "Collected {} auto-started file-based MCP server(s) from cloud environment repos",
-                                uuids.len()
-                            );
-                            let _ = sender.send(uuids);
-                        }
-                        ctx.unsubscribe_from_model(&manager);
-                    }
-                }
-        });
-
-        rx
-    }
-
-    /// Wait for auto-start-requested file-based MCP servers to reach a terminal state
-    /// (`Running` or `FailedToStart`). Non-fatal: always completes without returning an error.
-    ///
-    /// **Sequencing note:** `AgentDriver` supports only one active subscription to
-    /// [`TemplatableMCPServerManager`] at a time. This function, [`Self::start_mcp_servers`],
-    /// and [`Self::start_ephemeral_mcp_servers`] must therefore run sequentially, never
-    /// concurrently.
-    fn wait_for_file_based_mcps_running(
-        &self,
-        uuids: Vec<Uuid>,
-        ctx: &mut ModelContext<Self>,
-    ) -> impl Future<Output = ()> + use<> {
-        // Filter out UUIDs that have already reached a terminal state.
-        let mut pending_uuids: HashSet<Uuid> = {
-            let templatable_manager = TemplatableMCPServerManager::as_ref(ctx);
-            uuids
-                .into_iter()
-                .filter(|uuid| {
-                    !matches!(
-                        templatable_manager.get_server_state(*uuid),
-                        Some(MCPServerState::Running) | Some(MCPServerState::FailedToStart)
-                    )
-                })
-                .collect()
-        };
-
-        if pending_uuids.is_empty() {
-            log::info!("All file-based MCP servers have reached a terminal state; proceeding");
-            return Either::Right(future::ready(()));
-        }
-
-        let pending_state_details = {
-            let templatable_manager = TemplatableMCPServerManager::as_ref(ctx);
-            let file_based_manager = FileBasedMCPManager::as_ref(ctx);
-            Arc::new(Mutex::new(
-                pending_uuids
-                    .iter()
-                    .map(|uuid| {
-                        let server_name = file_based_manager
-                            .get_installation_by_uuid(*uuid)
-                            .map(|installation| installation.templatable_mcp_server().name.clone())
-                            .unwrap_or_else(|| "<unknown>".to_string());
-                        let state = templatable_manager
-                            .get_server_state(*uuid)
-                            .map(|state| format!("{state:?}"))
-                            .unwrap_or_else(|| "no state".to_string());
-                        let error = templatable_manager
-                            .get_server_error_message(*uuid)
-                            .map(|message| format!(", error={message}"))
-                            .unwrap_or_default();
-                        (*uuid, format!("{server_name} ({uuid}): {state}{error}"))
-                    })
-                    .collect::<HashMap<_, _>>(),
-            ))
-        };
-        let file_based_mcp_names = {
-            let file_based_manager = FileBasedMCPManager::as_ref(ctx);
-            pending_uuids
-                .iter()
-                .map(|uuid| {
-                    let server_name = file_based_manager
-                        .get_installation_by_uuid(*uuid)
-                        .map(|installation| installation.templatable_mcp_server().name.clone())
-                        .unwrap_or_else(|| "<unknown>".to_string());
-                    (*uuid, server_name)
-                })
-                .collect::<HashMap<_, _>>()
-        };
-        log::info!(
-            "Waiting for {} file-based MCP server(s) to reach a terminal state",
-            pending_uuids.len()
-        );
-
-        let (tx, rx) = oneshot::channel::<()>();
-        let mut tx = Some(tx);
-
-        let templatable_manager_handle = TemplatableMCPServerManager::handle(ctx);
-        let pending_state_details_for_subscription = Arc::clone(&pending_state_details);
-
-        ctx.subscribe_to_model(
-            &templatable_manager_handle,
-            move |_me, manager, event, ctx| {
-                if let TemplatableMCPServerManagerEvent::StateChanged { uuid, state } = event {
-                    if !pending_uuids.contains(uuid) {
-                        return;
-                    }
-                    let server_name = file_based_mcp_names
-                        .get(uuid)
-                        .map(String::as_str)
-                        .unwrap_or("<unknown>");
-                    let error = TemplatableMCPServerManager::as_ref(ctx)
-                        .get_server_error_message(*uuid)
-                        .map(|message| format!(", error={message}"))
-                        .unwrap_or_default();
-                    if let Ok(mut details) = pending_state_details_for_subscription.lock() {
-                        details.insert(*uuid, format!("{server_name} ({uuid}): {state:?}{error}"));
-                    }
-                    match state {
-                        MCPServerState::Running | MCPServerState::FailedToStart => {
-                            pending_uuids.remove(uuid);
-                            if let Ok(mut details) = pending_state_details_for_subscription.lock() {
-                                details.remove(uuid);
-                            }
-                        }
-                        _ => {
-                            return;
-                        }
-                    }
-                    if pending_uuids.is_empty() {
-                        log::info!(
-                            "All file-based MCP servers reached a terminal state; proceeding"
-                        );
-                        if let Some(sender) = tx.take() {
-                            let _ = sender.send(());
-                        }
-                        ctx.unsubscribe_from_model(&manager);
-                    }
-                }
-            },
-        );
-
-        Either::Left(async move {
-            match rx.with_timeout(MCP_SERVER_STARTUP_TIMEOUT).await {
-                Ok(Ok(())) => {}
-                Ok(Err(Canceled)) => {
-                    log::warn!(
-                        "File-based MCP server readiness subscription dropped early; proceeding"
-                    );
-                }
-                Err(TimeoutError) => {
-                    let pending_details = pending_state_details
-                        .lock()
-                        .map(|details| details.values().cloned().join("; "))
-                        .unwrap_or_else(|_| "<unable to read pending state>".to_string());
-                    log::warn!(
-                        "Timed out waiting for file-based MCP servers to reach a terminal state; proceeding without. Still pending: {pending_details}"
-                    );
-                }
-            }
-        })
-    }
-
-    /// Resolve global skill specs and the GitHub repositories that should be cloned for them.
-    async fn resolve_global_skills(
-        foreground: &ModelSpawner<Self>,
-    ) -> Result<GlobalSkillResolution, AgentDriverError> {
-        if !FeatureFlag::OzPlatformSkills.is_enabled() {
-            return Ok(GlobalSkillResolution {
-                specs: Vec::new(),
-                repos: Vec::new(),
-            });
-        }
-
-        let raw_global_specs = foreground
-            .spawn(|_, ctx| AuthStateProvider::as_ref(ctx).get().global_skills())
-            .await?;
-        let (global_specs, global_repos) = resolve_skill_repos(&raw_global_specs);
-        if !global_repos.is_empty() {
-            log::info!("Resolving {} global skill repo(s)", global_repos.len());
-        }
-        Ok(GlobalSkillResolution {
-            specs: global_specs,
-            repos: global_repos,
-        })
-    }
-
-    /// Clone all passed-in global skill repositories.
-    ///
-    /// These repositories are not registered with the `DetectedRepositories`
-    /// model, so that we don't automatically detect *all* skills they contain.
-    /// This is important when using registry-like skill repos where loading all
-    /// skills would bloat the context window.
-    async fn clone_global_skill_repos(
-        foreground: &ModelSpawner<Self>,
-        global_skill_repos: &[GithubRepo],
-    ) -> Result<(), AgentDriverError> {
-        if global_skill_repos.is_empty() {
-            return Ok(());
-        }
-
-        // Global skill specs are still GitHub-only, while the shared environment clone
-        // helper accepts provider-neutral repositories. Adapt them only at the clone boundary.
-        let global_skill_repos = global_skill_repos
-            .iter()
-            .map(SourceRepo::from)
-            .collect::<Vec<_>>();
-        let clone_future = foreground
-            .spawn(move |me, ctx| {
-                let working_dir = me.working_dir.clone();
-                me.terminal_driver.update(ctx, |_, ctx| {
-                    let spawner = ctx.spawner();
-                    async move {
-                        environment::clone_repos(&global_skill_repos, &working_dir, &spawner).await
-                    }
-                })
-            })
-            .await?;
-
-        if let Err(err) = clone_future.await {
-            log::warn!("Failed to clone one or more global-skill repos: {err}");
-        }
-
-        Ok(())
-    }
-
-    /// Load skills from environment repositories.
-    ///
-    /// It's assumed that `prepare_environment` registers all cloned repositories
-    /// with the `DetectedRepositories` model, so that we can scan for skills
-    // here.
-    async fn load_environment_skills(foreground: &ModelSpawner<Self>, repos: Vec<SourceRepo>) {
-        if repos.is_empty() {
-            log::info!("No environment repositories for skill loading");
-            return;
-        }
-        safe_info!(
-            safe: ("Loading skills from {} environment repositories", repos.len()),
-            full: (
-                "Loading environment skills from repositories: {}",
-                repos.iter().join(", ")
-            )
-        );
-
-        // Skill-scanning depends on the in-memory RepoMetadataModel index, so wait for
-        // initial indexing of all repos to complete.
-        let repo_index_waits = foreground
-            .spawn(move |me, ctx| {
-                let repo_paths: Vec<PathBuf> = repos
-                    .iter()
-                    .map(|repo| me.working_dir.join(&repo.repo))
-                    .collect();
-                let repo_metadata = RepoMetadataModel::handle(ctx);
-                let mut repo_index_waits = Vec::new();
-                for repo_path in &repo_paths {
-                    let Some(id) = RepositoryIdentifier::try_local(repo_path) else {
-                        log::warn!(
-                            "Cannot wait for repository metadata indexing for non-local path {}",
-                            repo_path.display()
-                        );
-                        continue;
-                    };
-                    let wait = repo_metadata.update(ctx, |repo_metadata, ctx| {
-                        repo_metadata.repository_indexed(&id, ctx)
-                    });
-                    repo_index_waits.push((repo_path.clone(), id, wait));
-                }
-                (repo_paths, repo_index_waits)
-            })
-            .await;
-
-        let (repo_paths, repo_index_waits) = match repo_index_waits {
-            Ok(result) => result,
-            Err(err) => {
-                log::warn!("Failed to prepare environment skill loading: {err}");
-                return;
-            }
-        };
-
-        if !repo_index_waits.is_empty() {
-            log::info!(
-                "Waiting for repository metadata indexing before loading skills from {} repo(s)",
-                repo_index_waits.len()
-            );
-            let (repo_index_targets, wait_futures): (Vec<_>, Vec<_>) = repo_index_waits
-                .into_iter()
-                .map(|(repo_path, id, wait)| ((repo_path, id), wait))
-                .unzip();
-            join_all(wait_futures).await;
-            let repo_index_statuses = foreground
-                .spawn(move |_, ctx| {
-                    let repo_metadata = RepoMetadataModel::handle(ctx);
-                    repo_index_targets
-                        .into_iter()
-                        .filter_map(|(repo_path, id)| {
-                            let RepositoryIdentifier::Local(repo_id_path) = &id else {
-                                return None;
-                            };
-                            let error = match repo_metadata.as_ref(ctx).repository_state(&id, ctx) {
-                                Some(IndexedRepoState::Indexed(_)) => None,
-                                Some(IndexedRepoState::Pending(_)) => Some(format!(
-                                    "Repository indexing is still pending: {repo_id_path}"
-                                )),
-                                Some(IndexedRepoState::Failed(error)) => {
-                                    Some(format!("Repository indexing failed: {error}"))
-                                }
-                                None => Some(format!("Repository not found: {repo_id_path}")),
-                            };
-                            Some((repo_path, error))
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .await;
-
-            let repo_index_statuses = match repo_index_statuses {
-                Ok(repo_index_statuses) => repo_index_statuses,
-                Err(err) => {
-                    log::warn!("Failed to check repository indexing status: {err}");
-                    Vec::new()
-                }
-            };
-            for (repo_path, error) in repo_index_statuses {
-                if let Some(err) = error {
-                    log::warn!(
-                        "Repository metadata indexing was not ready for skill loading in {}: {err}",
-                        repo_path.display()
-                    );
-                }
-            }
-        }
-
-        let load_skills_result = foreground
-            .spawn(move |_, ctx| {
-                let skills = SkillWatcher::read_local_skills_for_repos(&repo_paths, ctx);
-                if !skills.is_empty() {
-                    log::info!("Loaded {} environment skill(s)", skills.len());
-                } else {
-                    log::info!("No environment skills found");
-                }
-                SkillManager::handle(ctx).update(ctx, |manager, _| {
-                    manager.set_cloud_environment(true);
-                    manager.handle_skills_added(skills);
-                });
-            })
-            .await;
-
-        if let Err(err) = load_skills_result {
-            log::warn!("Failed to load environment skills: {err}");
-        }
-    }
-
-    /// Load explicitly requested global skills by reading directly from disk.
-    async fn load_global_skills(
-        foreground: &ModelSpawner<Self>,
-        specs: Vec<SkillSpec>,
-        repos: Vec<GithubRepo>,
-    ) {
-        if specs.is_empty() || repos.is_empty() {
-            return;
-        }
-        safe_info!(
-            safe: ("Loading {} global skill(s) from {} repo(s)", specs.len(), repos.len()),
-            full: (
-                "Loading global skills {} from repos: {}",
-                specs.iter().map(|s| &s.skill_identifier).join(", "),
-                repos.iter().join(", ")
-            )
-        );
-
-        let load_result = foreground
-            .spawn(move |me, _| {
-                let mut all_skills = Vec::new();
-                for repo in &repos {
-                    let repo_path = me.working_dir.join(&repo.repo);
-                    // Read skills from all known provider directories on disk,
-                    // without depending on RepoMetadataModel.
-                    let skill_dirs = SKILL_PROVIDER_DEFINITIONS
-                        .iter()
-                        .map(|def| repo_path.join(&def.skills_path));
-                    let repo_skills = read_skills_from_directories(skill_dirs);
-                    let filtered = filter_skills_by_spec(
-                        &LocalOrRemotePath::Local(repo_path),
-                        repo_skills,
-                        &specs,
-                    );
-                    all_skills.extend(filtered);
-                }
-                all_skills
-            })
-            .await;
-
-        let skills = match load_result {
-            Ok(skills) => skills,
-            Err(err) => {
-                log::warn!("Failed to load global skills: {err}");
-                return;
-            }
-        };
-
-        if skills.is_empty() {
-            log::info!("No global skills matched the requested specs");
-            return;
-        }
-
-        log::info!("Loaded {} global skill(s)", skills.len());
-        let add_result = foreground
-            .spawn(move |_, ctx| {
-                SkillManager::handle(ctx).update(ctx, |manager, _| {
-                    manager.set_cloud_environment(true);
-                    manager.handle_skills_added(skills);
-                });
-            })
-            .await;
-
-        if let Err(err) = add_result {
-            log::warn!("Failed to add global skills to SkillManager: {err}");
-        }
-    }
-
     /// Load skills from the `WARP_SKILL_DIRS` environment variable as personal (home) tier skills.
     ///
     /// `WARP_SKILL_DIRS` is a comma-separated list of paths; each entry is itself a skills directory
     /// whose **direct children** are expected to be skill folders containing `SKILL.md`. Relative
-    /// entries are resolved against the driver's working directory — not the process's current
-    /// working directory, which environment preparation may have changed (e.g. by cd-ing into a
-    /// cloned repo). Skills loaded this way behave identically to `~/.agents/skills` personal
+    /// entries are resolved against the driver's working directory, not the process's current
+    /// working directory. Skills loaded this way behave identically to `~/.agents/skills` personal
     /// skills—always in scope, regardless of the current working directory.
     ///
     /// Invalid, missing, or unreadable entries are skipped with a warning; an unset or empty
@@ -1689,262 +1068,118 @@ impl AgentDriver {
         let setup_span = tracing::info_span!("agent_run_setup", tags.cloud_agent = true);
         let setup_events = async {
             let setup_events = foreground
-            .spawn(|_me, _ctx| SetupClientEventReporter::new())
-            .await?;
+                .spawn(|_me, _ctx| SetupClientEventReporter::new())
+                .await?;
 
-        foreground
-            .spawn(|me, _| me.check_working_dir())
-            .await?
-            .await?;
+            foreground
+                .spawn(|me, _| me.check_working_dir())
+                .await?
+                .await?;
 
-        // IMPORTANT: Wait for the terminal session to bootstrap before starting MCP servers.
-        // Some of the initializations are necessary for the MCP servers to start correctly.
-        //
-        // Why: MCP server startup can happen before we actually execute the agent prompt. For
-        // `TransportType::CLIServer` MCPs we currently depend on `AISettings.mcp_execution_path`,
-        // which is populated as part of terminal bootstrap. Waiting for the session bootstrap
-        // here avoids a subtle race where MCP spawn runs with an unset PATH and then the driver
-        // only fails via a timeout.
-        setup_events
-            .record_result(SetupStep::TerminalBootstrap, async {
-                foreground
-                    .spawn(|me, ctx| {
-                        me.terminal_driver
-                            .update(ctx, |driver, _| driver.wait_for_session_bootstrapped())
-                    })
-                    .await?
-                    .await
-                    .map_err(|error| AgentDriverError::BootstrapFailed { error })
-            })
-            .await?;
-
-        // For the Oz harness only: set up MCP servers, model overrides, and profile information.
-        if matches!(&task.harness, HarnessKind::Oz) {
-            let mcp_specs = task.mcp_specs.clone();
-
-            let mcp_startup_result = setup_events
-                .record_result(SetupStep::McpServerStartup, async {
-                    let resolved_mcp_specs =
-                        Self::resolve_mcp_specs(&mcp_specs, &foreground).await?;
-                    let existing_uuids = resolved_mcp_specs.local_uuids;
-                    let ephemeral_installations = resolved_mcp_specs.ephemeral_installations;
-
-                    log::info!(
-                        "Starting {} existing and {} ephemeral MCP servers",
-                        existing_uuids.len(),
-                        ephemeral_installations.len()
-                    );
-
-                    // Run both startup phases even when one degrades, collecting
-                    // degradation details so non-strict runs can continue with
-                    // whichever servers did start.
-                    let mut degraded = Vec::new();
-                    if !existing_uuids.is_empty() {
-                        let result = foreground
-                            .spawn(move |me, ctx| me.start_mcp_servers(&existing_uuids, ctx))
-                            .await?
-                            .await;
-                        Self::collect_mcp_degradation(result, &mut degraded)?;
-                    }
-                    // Start ephemeral MCP servers from inline JSON specs.
-                    if !ephemeral_installations.is_empty() {
-                        let result = foreground
-                            .spawn(move |me, ctx| {
-                                me.start_ephemeral_mcp_servers(ephemeral_installations, ctx)
-                            })
-                            .await?
-                            .await;
-                        Self::collect_mcp_degradation(result, &mut degraded)?;
-                    }
-                    if degraded.is_empty() {
-                        Ok(())
-                    } else {
-                        Err(AgentDriverError::MCPStartupFailed { details: degraded })
-                    }
-                })
-                .await;
-            let strict = foreground.spawn(|me, _| me.strict_mcp_startup).await?;
-            Self::handle_mcp_startup_result(mcp_startup_result, strict)?;
-            let profile = task.profile.clone();
+            // IMPORTANT: Wait for the terminal session to bootstrap before starting MCP servers.
+            // Some of the initializations are necessary for the MCP servers to start correctly.
+            //
+            // Why: MCP server startup can happen before we actually execute the agent prompt. For
+            // `TransportType::CLIServer` MCPs we currently depend on `AISettings.mcp_execution_path`,
+            // which is populated as part of terminal bootstrap. Waiting for the session bootstrap
+            // here avoids a subtle race where MCP spawn runs with an unset PATH and then the driver
+            // only fails via a timeout.
             setup_events
-                .record_result(SetupStep::AgentProfileConfiguration, async {
+                .record_result(SetupStep::TerminalBootstrap, async {
                     foreground
-                        .spawn(move |me, ctx| me.configure_terminal(profile, ctx))
+                        .spawn(|me, ctx| {
+                            me.terminal_driver
+                                .update(ctx, |driver, _| driver.wait_for_session_bootstrapped())
+                        })
                         .await?
+                        .await
+                        .map_err(|error| AgentDriverError::BootstrapFailed { error })
                 })
                 .await?;
 
-            if let Some(model_id) = task.model.clone() {
-                foreground
-                    .spawn(move |me, ctx| me.set_base_model_override(model_id, ctx))
-                    .await??;
-            }
+            // For the Oz harness only: set up MCP servers, model overrides, and profile information.
+            if matches!(&task.harness, HarnessKind::Oz) {
+                let mcp_specs = task.mcp_specs.clone();
 
-            let profile_mcp_startup_result = setup_events
-                .record_result(SetupStep::ProfileMcpServerStartup, async {
-                    foreground
-                        .spawn(|me, ctx| me.start_profile_mcp_servers(ctx))
-                        .await?
-                        .await
-                })
-                .await;
-            let strict = foreground.spawn(|me, _| me.strict_mcp_startup).await?;
-            Self::handle_mcp_startup_result(profile_mcp_startup_result, strict)?;
-        }
+                let mcp_startup_result = setup_events
+                    .record_result(SetupStep::McpServerStartup, async {
+                        let resolved_mcp_specs =
+                            Self::resolve_mcp_specs(&mcp_specs, &foreground).await?;
+                        let existing_uuids = resolved_mcp_specs.local_uuids;
+                        let ephemeral_installations = resolved_mcp_specs.ephemeral_installations;
 
-        // For all harnesses: prepare the environment.
-        let global_skill_resolution = setup_events
-            .record_result(
-                SetupStep::GlobalSkillResolution,
-                Self::resolve_global_skills(&foreground),
-            )
-            .await?;
-        // Clone global skill repos before environment prep can change the
-        // terminal's cwd into a single environment repo.
-        // We do this for all harnesses, so that the skills *may* be discovered by third-party
-        // harnesses if appropriate.
-        setup_events
-            .record_result(
-                SetupStep::GlobalSkillRepoClone,
-                Self::clone_global_skill_repos(&foreground, &global_skill_resolution.repos),
-            )
-            .await?;
-        let mut environment_skill_repos = Vec::new();
+                        log::info!(
+                            "Starting {} existing and {} ephemeral MCP servers",
+                            existing_uuids.len(),
+                            ephemeral_installations.len()
+                        );
 
-        let environment_opt = foreground.spawn(|me, _| me.environment.clone()).await?;
-        let setup_commands = environment_opt
-            .as_ref()
-            .map(|environment| environment.setup_commands.clone())
-            .unwrap_or_default();
-        let source_repos = environment::dedupe_repos(
-            environment_opt
-                .as_ref()
-                .map(AmbientAgentEnvironment::effective_repos)
-                .unwrap_or_default(),
-        )?;
-
-        if environment_opt.is_some() || !source_repos.is_empty() || !setup_commands.is_empty() {
-            log::info!("Loading environment...");
-            environment_skill_repos = source_repos.clone();
-
-            // Subscribe to file-based MCP discovery BEFORE prepare_environment triggers the
-            // pipeline so no CloudEnvMcpScanComplete events are missed.
-            //
-            // File-based MCP discovery is Oz-only.
-            // TODO(REMOTE-1345): handle MCP setup for third-party harnesses.
-            let file_based_discovery_rx = match &task.harness {
-                HarnessKind::Oz => {
-                    let source_repos = source_repos.clone();
-                    Some(
-                        foreground
-                            .spawn(move |me, ctx| {
-                                let expected_repo_paths: Vec<PathBuf> = source_repos
-                                    .iter()
-                                    .map(|repo| me.working_dir.join(&repo.repo))
-                                    .collect();
-                                me.setup_file_based_mcp_discovery(expected_repo_paths, ctx)
-                            })
-                            .await?,
-                    )
-                }
-                HarnessKind::ThirdParty(_) | HarnessKind::Unsupported(_) => None,
-            };
-
-            let setup_events_for_environment = setup_events.clone();
-            let source_repos_for_prepare = source_repos;
-            let prepare_outcome = foreground
-                .spawn(move |me, ctx| {
-                    let working_dir = me.working_dir.clone();
-                    me.terminal_driver.update(ctx, |_, ctx| {
-                        environment::prepare_environment(
-                            source_repos_for_prepare,
-                            setup_commands,
-                            working_dir,
-                            false, /* is_sandbox */
-                            setup_events_for_environment,
-                            ctx,
-                        )
-                    })
-                })
-                .await?
-                .await
-                .map_err(AgentDriverError::from);
-            prepare_outcome?;
-
-            if let Some(file_based_discovery_rx) = file_based_discovery_rx {
-                // Await discovery: collect UUIDs of file-based MCP servers that were auto-started
-                // while scanning cloned repos.
-                let wait_uuids = setup_events
-                    .record_value(SetupStep::FileBasedMcpDiscovery, async {
-                        match file_based_discovery_rx
-                            .with_timeout(MCP_SERVER_STARTUP_TIMEOUT)
-                            .await
-                        {
-                            Ok(Ok(uuids)) => uuids,
-                            Ok(Err(Canceled)) => {
-                                log::warn!(
-                                    "File-based MCP discovery subscription dropped early; proceeding without"
-                                );
-                                vec![]
-                            }
-                            Err(TimeoutError) => {
-                                log::warn!(
-                                    "Timed out waiting for file-based MCP servers to be parsed; proceeding without"
-                                );
-                                vec![]
-                            }
+                        // Run both startup phases even when one degrades, collecting
+                        // degradation details so non-strict runs can continue with
+                        // whichever servers did start.
+                        let mut degraded = Vec::new();
+                        if !existing_uuids.is_empty() {
+                            let result = foreground
+                                .spawn(move |me, ctx| me.start_mcp_servers(&existing_uuids, ctx))
+                                .await?
+                                .await;
+                            Self::collect_mcp_degradation(result, &mut degraded)?;
                         }
-                    })
-                    .await;
-
-                // Wait for auto-started servers to reach Running (non-fatal: always unblocks).
-                if !wait_uuids.is_empty() {
-                    log::info!(
-                        "Checking readiness for {} auto-started file-based MCP server(s)",
-                        wait_uuids.len()
-                    );
-                    setup_events
-                        .record_result(SetupStep::FileBasedMcpReadiness, async {
-                            foreground
+                        // Start ephemeral MCP servers from inline JSON specs.
+                        if !ephemeral_installations.is_empty() {
+                            let result = foreground
                                 .spawn(move |me, ctx| {
-                                    me.wait_for_file_based_mcps_running(wait_uuids, ctx)
+                                    me.start_ephemeral_mcp_servers(ephemeral_installations, ctx)
                                 })
                                 .await?
                                 .await;
-                            Ok::<(), AgentDriverError>(())
-                        })
-                        .await?;
-                }
-            }
-        }
+                            Self::collect_mcp_degradation(result, &mut degraded)?;
+                        }
+                        if degraded.is_empty() {
+                            Ok(())
+                        } else {
+                            Err(AgentDriverError::MCPStartupFailed { details: degraded })
+                        }
+                    })
+                    .await;
+                let strict = foreground.spawn(|me, _| me.strict_mcp_startup).await?;
+                Self::handle_mcp_startup_result(mcp_startup_result, strict)?;
+                let profile = task.profile.clone();
+                setup_events
+                    .record_result(SetupStep::AgentProfileConfiguration, async {
+                        foreground
+                            .spawn(move |me, ctx| me.configure_terminal(profile, ctx))
+                            .await?
+                    })
+                    .await?;
 
-        // Skill loading is Oz-only; third-party harnesses have their own skill systems.
-        if matches!(&task.harness, HarnessKind::Oz) {
-            // Load skills from repos synchronously so the initial message includes them.
-            // File trees are ready after prepare_environment and global skill repo cloning above.
-            let GlobalSkillResolution {
-                specs: global_skill_specs,
-                repos: global_skill_repos,
-            } = global_skill_resolution;
-            setup_events
-                .record_value(
-                    SetupStep::EnvironmentSkillLoading,
-                    Self::load_environment_skills(&foreground, environment_skill_repos),
-                )
-                .await;
-            setup_events
-                .record_value(
-                    SetupStep::GlobalSkillLoading,
-                    Self::load_global_skills(&foreground, global_skill_specs, global_skill_repos),
-                )
-                .await;
-            setup_events
-                .record_value(
-                    SetupStep::SkillsDirsLoading,
-                    Self::load_skills_dirs(&foreground),
-                )
-                .await;
-        }
+                if let Some(model_id) = task.model.clone() {
+                    foreground
+                        .spawn(move |me, ctx| me.set_base_model_override(model_id, ctx))
+                        .await??;
+                }
+
+                let profile_mcp_startup_result = setup_events
+                    .record_result(SetupStep::ProfileMcpServerStartup, async {
+                        foreground
+                            .spawn(|me, ctx| me.start_profile_mcp_servers(ctx))
+                            .await?
+                            .await
+                    })
+                    .await;
+                let strict = foreground.spawn(|me, _| me.strict_mcp_startup).await?;
+                Self::handle_mcp_startup_result(profile_mcp_startup_result, strict)?;
+            }
+
+            // Skill loading is Oz-only; third-party harnesses have their own skill systems.
+            if matches!(&task.harness, HarnessKind::Oz) {
+                setup_events
+                    .record_value(
+                        SetupStep::SkillsDirsLoading,
+                        Self::load_skills_dirs(&foreground),
+                    )
+                    .await;
+            }
 
             Ok::<_, AgentDriverError>(setup_events)
         }
@@ -2500,22 +1735,6 @@ impl AgentDriver {
                 return;
             }
 
-            // Fresh runs learn their conversation_id via
-            // `ConversationServerTokenAssigned`.
-            if me.run_conversation_id.is_none()
-                && let BlocklistAIHistoryEvent::ConversationServerTokenAssigned {
-                    conversation_id,
-                    ..
-                } = event
-                {
-                    me.run_conversation_id = Some(*conversation_id);
-                    stamp_parent_agent_id_if_some(
-                        *conversation_id,
-                        me.parent_run_id.as_deref(),
-                        ctx,
-                    );
-                }
-
             match event {
                 BlocklistAIHistoryEvent::UpdatedTodoList { .. } => {
                     // TODO: Log TODO list updates.
@@ -2597,8 +1816,7 @@ impl AgentDriver {
                         // Conversation resumed or a new one started; cancel any
                         // pending idle timeout.
                         log::info!(
-                            "Ambient agent idle lifecycle: event=idle_timeout_cancel_requested task_id={:?} terminal_view_id={terminal_id:?} trigger=conversation_in_progress",
-                            me.task_id
+                            "Ambient agent idle lifecycle: event=idle_timeout_cancel_requested terminal_view_id={terminal_id:?} trigger=conversation_in_progress",
                         );
                         run_exit.cancel_idle_timeout();
                         return;
@@ -2616,8 +1834,7 @@ impl AgentDriver {
                         // the wait so the CLI doesn't hang if it never completes; a successful
                         // recovery returns to InProgress, which cancels this deadline.
                         log::info!(
-                            "Ambient agent idle lifecycle: event=idle_timeout_scheduled task_id={:?} terminal_view_id={terminal_id:?} timeout={AUTO_RESUME_TIMEOUT:?} outcome=automatic_resume_pending",
-                            me.task_id
+                            "Ambient agent idle lifecycle: event=idle_timeout_scheduled terminal_view_id={terminal_id:?} timeout={AUTO_RESUME_TIMEOUT:?} outcome=automatic_resume_pending",
                         );
                         let error = conversation
                             .root_task_exchanges()
@@ -2668,13 +1885,11 @@ impl AgentDriver {
                         let outcome = terminal_status_log_outcome(&output_status);
                         if let Some(idle_timeout) = idle_window {
                             log::info!(
-                                "Ambient agent idle lifecycle: event=idle_timeout_scheduled task_id={:?} terminal_view_id={terminal_id:?} timeout={idle_timeout:?} outcome={outcome}",
-                                me.task_id
+                                "Ambient agent idle lifecycle: event=idle_timeout_scheduled terminal_view_id={terminal_id:?} timeout={idle_timeout:?} outcome={outcome}",
                             );
                         } else {
                             log::info!(
-                                "Ambient agent idle lifecycle: event=run_completion_immediate task_id={:?} terminal_view_id={terminal_id:?} outcome={outcome}",
-                                me.task_id
+                                "Ambient agent idle lifecycle: event=run_completion_immediate terminal_view_id={terminal_id:?} outcome={outcome}",
                             );
                         }
                         run_exit.complete_with_optional_idle(idle_window, output_status);
@@ -2797,21 +2012,18 @@ impl AgentDriver {
                             let outcome = cli_session_status_log_outcome(status);
                             if let Some(idle_timeout) = idle_window {
                                 log::info!(
-                                    "Ambient agent CLI lifecycle: event=idle_timeout_scheduled task_id={:?} terminal_view_id={terminal_view_id:?} timeout={idle_timeout:?} outcome={outcome}",
-                                    me.task_id
+                                    "Ambient agent CLI lifecycle: event=idle_timeout_scheduled terminal_view_id={terminal_view_id:?} timeout={idle_timeout:?} outcome={outcome}",
                                 );
                             } else {
                                 log::info!(
-                                    "Ambient agent CLI lifecycle: event=run_completion_immediate task_id={:?} terminal_view_id={terminal_view_id:?} outcome={outcome}",
-                                    me.task_id
+                                    "Ambient agent CLI lifecycle: event=run_completion_immediate terminal_view_id={terminal_view_id:?} outcome={outcome}",
                                 );
                             }
                             harness_exit.complete_with_optional_idle(idle_window, ());
                         }
                         CLIAgentSessionStatus::InProgress => {
                             log::info!(
-                                "Ambient agent CLI lifecycle: event=idle_timeout_cancel_requested task_id={:?} terminal_view_id={terminal_view_id:?} trigger=session_in_progress",
-                                me.task_id
+                                "Ambient agent CLI lifecycle: event=idle_timeout_cancel_requested terminal_view_id={terminal_view_id:?} trigger=session_in_progress",
                             );
                             harness_exit.cancel_idle_timeout();
                         }
@@ -2842,18 +2054,6 @@ impl AgentDriver {
             }
         }
     }
-
-    /// Perform cleanup after the agent has finished running.
-    async fn cleanup(spawner: ModelSpawner<Self>) {
-        let Ok(task_id) = spawner.spawn(|me, _| me.task_id).await else {
-            report_error!("Unable to retrieve task ID for cleanup");
-            return;
-        };
-
-        log::info!(
-            "Ambient agent lifecycle: event=driver_cleanup_started task_id={task_id:?} next=terminal_process_exit"
-        );
-    }
 }
 
 impl Entity for AgentDriver {
@@ -2863,25 +2063,6 @@ impl Entity for AgentDriver {
 /// The only reason that `AgentDriver` is a singleton entity is to ensure the UI framework
 /// doesn't drop it. Generally, we should not assume there's only one running agent.
 impl SingletonEntity for AgentDriver {}
-
-/// Stamps `parent_agent_id` (= parent's `run_id` under v2) onto the
-/// driver-hosted conversation so the streamer's child-role check
-/// succeeds. No-op when `parent_run_id` is `None` (a top-level run).
-fn stamp_parent_agent_id_if_some(
-    conv_id: AIConversationId,
-    parent_run_id: Option<&str>,
-    ctx: &mut ModelContext<AgentDriver>,
-) {
-    let Some(parent_run_id) = parent_run_id else {
-        return;
-    };
-    let parent_run_id = parent_run_id.to_owned();
-    BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, _| {
-        if let Some(conv) = history.conversation_mut(&conv_id) {
-            conv.set_parent_agent_id(parent_run_id);
-        }
-    });
-}
 
 #[cfg(test)]
 #[path = "driver_tests.rs"]

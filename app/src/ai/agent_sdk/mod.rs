@@ -12,7 +12,6 @@ use tracing::Instrument as _;
 use warp_cli::agent::{AgentCommand, Harness, OutputFormat, Prompt, RunAgentArgs};
 use warp_cli::{CliCommand, GlobalOptions};
 use warp_core::features::FeatureFlag;
-use warp_errors::report_error;
 use warp_logging::log_file_path;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelSpawner, SingletonEntity};
@@ -23,14 +22,11 @@ use crate::ai::agent_sdk::mcp_config::build_mcp_servers_from_specs;
 use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
 use crate::ai::ambient_agents::AgentConfigSnapshot;
 use crate::ai::ambient_agents::task::HarnessConfig;
-use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::llms::LLMId;
 use crate::ai::skills::{
     ResolveSkillError, ResolvedSkill, clone_repo_for_skill, resolve_skill_spec,
 };
-use crate::cloud_object::CloudObjectLookup as _;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::server::ids::{ServerId, SyncId};
 use crate::workflows::workflow::Workflow;
 
 mod common;
@@ -107,9 +103,6 @@ fn run_agent(
 ) -> anyhow::Result<()> {
     match command {
         AgentCommand::Run(args) => {
-            if args.environment.is_some() && !FeatureFlag::CloudEnvironments.is_enabled() {
-                return Err(anyhow::anyhow!("unexpected argument '--environment' found"));
-            }
             if args.skill.is_some() && !FeatureFlag::OzPlatformSkills.is_enabled() {
                 return Err(anyhow::anyhow!("unexpected argument '--skill' found"));
             }
@@ -200,7 +193,7 @@ fn build_merged_config_and_task(
     let mut merged_config = AgentConfigSnapshot {
         // CLI name > skill name > file name
         name: args.name.clone().or(skill_name).or(file_merged.name),
-        environment_id: args.environment.clone().or(file_merged.environment_id),
+        environment_id: file_merged.environment_id,
         runner_id: file_merged.runner_id,
         model_id: oz_model,
         // Skill base_prompt takes precedence over file base_prompt
@@ -405,7 +398,7 @@ impl AgentDriverRunner {
 
         // Build the AgentConfigSnapshot, Task, and AgentDriverOptions
         let prompt_clone = prompt.clone();
-        let (merged_config, task, mut driver_options) = foreground
+        let (merged_config, task, driver_options) = foreground
             .spawn(move |_, ctx| -> anyhow::Result<_> {
                 let (merged_config, task) =
                     build_merged_config_and_task(&args, &resolved_skill, &prompt_clone, ctx)?;
@@ -416,10 +409,7 @@ impl AgentDriverRunner {
                     .and_then(|h| h.model_config());
                 let driver_options = driver::AgentDriverOptions {
                     working_dir: working_dir.clone(),
-                    task_id: None,
-                    parent_run_id: None,
                     idle_on_complete: args.idle_on_complete.map(|d| d.into()),
-                    environment: None,
                     selected_harness: args.harness,
                     third_party_harness_model_config,
                     strict_mcp_startup: args.strict_mcp_startup,
@@ -431,57 +421,13 @@ impl AgentDriverRunner {
             .await?
             .map_err(AgentDriverError::ConfigBuildFailed)?;
 
-        let environment_id = merged_config.environment_id.clone();
-
-        // Resolve environment and cloud providers.
-        setup_events
-            .record_result(
-                SetupStep::EnvironmentResolution,
-                Self::resolve_environment(foreground, environment_id, &mut driver_options),
-            )
-            .await?;
+        if merged_config.environment_id.is_some() {
+            log::warn!(
+                "Ignoring the config file's environment_id: cloud environments are not available"
+            );
+        }
 
         Ok((driver_options, task))
-    }
-
-    /// Resolve the environment and store into `driver_options`.
-    #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true, ?environment_id))]
-    async fn resolve_environment(
-        foreground: &ModelSpawner<Self>,
-        environment_id: Option<String>,
-        driver_options: &mut AgentDriverOptions,
-    ) -> Result<(), AgentDriverError> {
-        let Some(environment_id) = environment_id else {
-            return Ok(());
-        };
-
-        let environment = foreground
-            .spawn(move |_, ctx| -> Result<_, AgentDriverError> {
-                let server_id = ServerId::try_from(environment_id.as_str()).map_err(|_| {
-                    report_error!(
-                        "Invalid environment ID",
-                        extra: { "environment_id" => %environment_id }
-                    );
-                    AgentDriver::log_valid_environments(ctx);
-                    AgentDriverError::EnvironmentNotFound(environment_id.clone())
-                })?;
-                let sync_id = SyncId::ServerId(server_id);
-
-                CloudAmbientAgentEnvironment::get_by_id(&sync_id, ctx)
-                    .ok_or_else(|| {
-                        report_error!(
-                            "Environment not found with ID",
-                            extra: { "environment_id" => %environment_id }
-                        );
-                        AgentDriver::log_valid_environments(ctx);
-                        AgentDriverError::EnvironmentNotFound(environment_id)
-                    })
-                    .map(|env| env.model().string_model.clone())
-            })
-            .await??;
-
-        driver_options.environment = Some(environment);
-        Ok(())
     }
 
     /// Create the AgentDriver and start running the task.

@@ -22,8 +22,6 @@ pub fn classify_driver_error(error: &AgentDriverError) -> AgentTaskState {
         | AgentDriverError::MCPMissingVariables
         | AgentDriverError::ProfileError(_)
         | AgentDriverError::AIWorkflowNotFound(_)
-        | AgentDriverError::EnvironmentNotFound(_)
-        | AgentDriverError::EnvironmentSetupFailed(_)
         | AgentDriverError::SetupCommandExitedShell { .. }
         | AgentDriverError::InvalidWorkingDirectory { .. } => AgentTaskState::Failed,
         // --- Conversation errors ---

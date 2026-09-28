@@ -527,6 +527,35 @@ Queue, in order:
    only resolves `ServerId`s, which no local environment has; `--snapshot-upload-timeout` and the
    rest of the snapshot args (check where snapshots go); recording finalization/upload.
 
+16. ~~Agent-driver server residue~~ — **4he done (2026-09-28).** −3.5k lines in 40 files. Global
+   skills (server-assigned per user; no user is ever set): `resolve_global_skills`,
+   `clone_global_skill_repos`, `load_global_skills`, `ai/skills/global_skills.rs`,
+   `User::global_skills`, `AuthState::global_skills()`. `AgentDriverOptions::task_id` /
+   `parent_run_id` (only server-dispatched runs set them; local children launch through
+   `local_harness_launch`, which keeps `task_env_vars` with its own ids), the driver's
+   `parent_agent_id` stamping, `TerminalDriverOptions::task_id`. `--environment`: environments exist
+   only as server-synced objects (no local creation path; the orchestration picker is for cloud
+   runs), so the flag, `warp_cli::environment`, `resolve_environment`, the driver's environment prep,
+   file-based MCP discovery/readiness wait, environment-skill loading, `EnvironmentNotFound` /
+   `EnvironmentSetupFailed`, `SkillManager::is_cloud_environment` are gone; a config file's
+   `environment_id` still parses (`deny_unknown_fields`) and is ignored with a warning;
+   `prepare_environment` now dedupes its repos itself. Snapshot args (`--no-snapshot`,
+   `--snapshot-*-timeout`): parsed, never read — deleted. Recording: publishing was an upload to
+   server artifacts and the local adapter never offers the tools, so `RecordingController`,
+   `recording_finalize`, the start/stop executors, the shell-command/use-computer action-group hooks,
+   the driver's teardown finalization and its SIGTERM handler (existed only to let finalization run;
+   SIGTERM now terminates with the default disposition), `FeatureFlag::VideoRecording`; persisted
+   `StartRecording` / `StopRecording` actions stay and fail at once with "not available". Tests
+   4,246 default / 4,247 simplewarp (−33, deleted with their code: 11 global-skills, 16 recording
+   controller, 3 recording finalize, 2 env/global skill loading, 1 cloud-environment skill scope),
+   `warp_cli` + `warp_server_auth` + `warp_features` 56 passed (snapshot parser test re-pinned to
+   "removed server flags are unknown", −1 user test), 0 failed. Follow-ups: the docker sandbox pane
+   looks up a hardcoded `ServerId` environment that cannot exist locally, so its env init always
+   fails — with it `prepare_environment`, `register_cloned_repo(CloudEnvironmentPrep)` and the
+   `CloudEnvMcpScanComplete` chain (now `#[allow(dead_code)]`, test-only) are dead; conversation
+   `recording_spans_by_action_id` (reads only stale results); `computer_use`'s recorder / pointer
+   sink; `UseComputer` / `RequestComputerUse` are also never offered by the local adapter.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

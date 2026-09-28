@@ -43,7 +43,7 @@ pub enum PrepareEnvironmentError {
 }
 
 /// Prepare a cloud agent environment within a terminal session. This will:
-/// 1. Clone all repositories, skipping any that are already cloned.
+/// 1. Clone all repositories (de-duplicated), skipping any that are already cloned.
 /// 2. Run any setup commands.
 /// 3. If there is only one repository, navigate into it.
 ///
@@ -63,6 +63,7 @@ pub(crate) fn prepare_environment(
 ) -> impl Future<Output = Result<(), PrepareEnvironmentError>> + use<> {
     let spawner = ctx.spawner();
     async move {
+        let source_repos = dedupe_repos(source_repos)?;
         prepare_environment_impl(
             &spawner,
             working_dir.as_path(),
@@ -77,9 +78,7 @@ pub(crate) fn prepare_environment(
 
 /// De-duplicate environment repositories by forge plus case-insensitive owner and repository
 /// names, preserving order.
-pub(super) fn dedupe_repos(
-    repos: Vec<SourceRepo>,
-) -> Result<Vec<SourceRepo>, PrepareEnvironmentError> {
+fn dedupe_repos(repos: Vec<SourceRepo>) -> Result<Vec<SourceRepo>, PrepareEnvironmentError> {
     let mut seen = HashSet::new();
     let mut names = HashMap::<String, (String, CodeForge)>::new();
     let mut deduped = Vec::with_capacity(repos.len());
