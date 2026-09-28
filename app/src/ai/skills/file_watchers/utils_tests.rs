@@ -1,17 +1,12 @@
 use repo_metadata::entry::{DirectoryEntry, Entry, FileMetadata};
 use repo_metadata::file_tree_store::FileTreeState;
-use repo_metadata::file_tree_update::{
-    DirectoryNodeMetadata, FileNodeMetadata, FileTreeEntryUpdate, RepoNodeMetadata,
-};
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::{
-    DirectoryWatcher, RepoMetadataModel, RepoMetadataUpdate, RepositoryIdentifier,
-    StandingQueryContent, StandingQueryResults, StandingQueryResultsDelta,
+    DirectoryWatcher, RepoMetadataModel, RepositoryIdentifier, StandingQueryContent,
+    StandingQueryResults,
 };
 use virtual_fs::{Stub, VirtualFS};
-use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warp_util::remote_path::RemotePath;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::App;
 
@@ -751,69 +746,6 @@ fn find_skill_files_in_tree_finds_subdirectory_skills() {
                 assert!(names.contains(&"root-skill"));
                 assert!(names.contains(&"frontend-skill"));
             });
-        });
-    });
-}
-
-#[test]
-fn find_skill_files_in_tree_returns_remote_skill_paths_for_remote_repos() {
-    App::test((), |mut app| async move {
-        app.add_singleton_model(|_| DetectedRepositories::default());
-        let model_handle = app.add_singleton_model(RepoMetadataModel::new);
-        let host_id = HostId::new("test-host".to_string());
-        let repo_path = StandardizedPath::try_new("/repo").unwrap();
-        let skill_path =
-            StandardizedPath::try_new("/repo/.agents/skills/remote-skill/SKILL.md").unwrap();
-        let repo_id =
-            RepositoryIdentifier::Remote(RemotePath::new(host_id.clone(), repo_path.clone()));
-
-        let update = RepoMetadataUpdate {
-            repo_path: repo_path.clone(),
-            remove_entries: vec![],
-            update_entries: vec![FileTreeEntryUpdate {
-                parent_path_to_replace: repo_path.clone(),
-                subtree_metadata: vec![
-                    RepoNodeMetadata::Directory(DirectoryNodeMetadata {
-                        path: StandardizedPath::try_new("/repo/.agents").unwrap(),
-                        ignored: false,
-                        loaded: true,
-                    }),
-                    RepoNodeMetadata::Directory(DirectoryNodeMetadata {
-                        path: StandardizedPath::try_new("/repo/.agents/skills").unwrap(),
-                        ignored: false,
-                        loaded: true,
-                    }),
-                    RepoNodeMetadata::Directory(DirectoryNodeMetadata {
-                        path: StandardizedPath::try_new("/repo/.agents/skills/remote-skill")
-                            .unwrap(),
-                        ignored: false,
-                        loaded: true,
-                    }),
-                    RepoNodeMetadata::File(FileNodeMetadata {
-                        path: skill_path.clone(),
-                        extension: Some("md".to_string()),
-                        ignored: false,
-                    }),
-                ],
-            }],
-            standing_results_delta: StandingQueryResultsDelta {
-                upserted_project_skills: vec![StandingQueryContent::file(skill_path.clone())],
-                ..Default::default()
-            },
-        };
-
-        model_handle.update(&mut app, |model, ctx| {
-            model.insert_remote_snapshot(host_id.clone(), &update, ctx);
-        });
-
-        model_handle.read(&app, |model, ctx| {
-            let skill_files = find_project_skill_files_in_tree(&repo_id, model, ctx);
-            assert_eq!(
-                skill_files,
-                vec![LocalOrRemotePath::Remote(RemotePath::new(
-                    host_id, skill_path
-                ))]
-            );
         });
     });
 }

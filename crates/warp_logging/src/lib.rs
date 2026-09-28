@@ -15,7 +15,7 @@ pub enum LogFrontend {
     Gui,
     /// The headless terminal frontend.
     Tui,
-    /// CLI and remote server processes.
+    /// CLI processes.
     Cli,
 }
 

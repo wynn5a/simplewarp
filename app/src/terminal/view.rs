@@ -35,7 +35,6 @@ mod pending_user_query;
 pub mod rich_content;
 mod shell_terminated_banner;
 pub mod ssh_file_upload;
-pub(crate) mod ssh_tmux_deprecation_banner;
 mod tab_metadata;
 #[cfg(any(test, feature = "integration_tests"))]
 mod testing;
@@ -250,7 +249,7 @@ use crate::code_review::context::{
     convert_file_diffs_to_diffset_hunks, create_attachment_reference_and_key,
     register_diffset_attachment,
 };
-use crate::code_review::diff_state::{DiffMode, GitDeltaPreference, LocalDiffStateModel};
+use crate::code_review::diff_state::{DiffMode, DiffStateModel, GitDeltaPreference};
 use crate::code_review::git_repo_model::{GitRepoModels, GitRepoStatusModel, GitStatusMetadata};
 use crate::code_review::github_repo_model::GitHubRepoModel;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
@@ -355,9 +354,7 @@ use crate::terminal::model::index::{Point, Side};
 use crate::terminal::model::mouse::MouseState;
 use crate::terminal::model::selection::{SelectAction, SelectionDirection};
 use crate::terminal::model::session::active_session::ActiveSession;
-use crate::terminal::model::session::{
-    BootstrapSessionType, Session, SessionId, SessionType, Sessions, SessionsEvent,
-};
+use crate::terminal::model::session::{Session, SessionId, SessionType, Sessions, SessionsEvent};
 use crate::terminal::model::terminal_model::{
     BlockIndex, BlockSelectionCardinality, SelectedBlocks, TerminalInputState, WithinModel,
 };
@@ -382,9 +379,6 @@ pub use crate::terminal::view::rich_content::{
     RichContentMetadata,
 };
 use crate::terminal::view::ssh_file_upload::FileUploadId;
-use crate::terminal::view::ssh_tmux_deprecation_banner::{
-    SshTmuxDeprecationBanner, SshTmuxDeprecationBannerEvent,
-};
 use crate::terminal::view::zero_state_block::TerminalViewZeroStateBlock;
 use crate::terminal::warpify::SubshellSource;
 use crate::terminal::warpify::render::render_subshell_separator;
@@ -2456,8 +2450,7 @@ impl TerminalView {
         self.current_repo_path.as_ref()
     }
 
-    /// Returns the local repo path, if the current repo is local.
-    /// Remote repo paths return None — full remote support is a follow-up.
+    /// Returns the current repo path as a local path.
     pub fn current_local_repo_path(&self) -> Option<&Path> {
         self.current_repo_path
             .as_ref()
@@ -3890,7 +3883,7 @@ impl TerminalView {
     fn git_status_metadata<'a>(&'a self, ctx: &'a AppContext) -> Option<&'a GitStatusMetadata> {
         self.git_repo_status
             .as_ref()
-            .and_then(|h| h.as_ref(ctx).metadata(ctx))
+            .and_then(|h| h.as_ref(ctx).metadata())
     }
 
     fn uses_git_status_chips(chips: Vec<ContextChipKind>) -> bool {
@@ -5581,35 +5574,21 @@ impl TerminalView {
                 ctx.emit(event_constructor(arg));
             }
             GitDeltaPreference::OnlyDirty => {
-                // For remote repos, skip the dirty check — there's no local
-                // GitRepoStatusModel, so the deferred open would never resolve.
-                // The diff chip only appears when the remote shell reports changes,
-                // so the user intent is clear.
-                if self
-                    .current_repo_path
-                    .as_ref()
-                    .is_some_and(|p| p.is_remote())
-                {
-                    ctx.emit(event_constructor(arg));
-                } else {
-                    // Check if repo has uncommitted changes via the per-repo sub-model.
-                    {
-                        let is_dirty = self
-                            .git_status_metadata(ctx)
-                            .map(|m| !m.stats_against_head.has_no_changes());
-                        match is_dirty {
-                            Some(true) => ctx.emit(event_constructor(arg)),
-                            // Metadata not loaded yet — defer until the next
-                            // git repo status update delivers it.
-                            None => {
-                                self.deferred_code_review_open = Some(DeferredCodeReviewOpen {
-                                    git_delta_preference: delta_pref,
-                                    focus_new_pane,
-                                });
-                            }
-                            Some(false) => {}
-                        }
+                // Check if repo has uncommitted changes via the per-repo sub-model.
+                let is_dirty = self
+                    .git_status_metadata(ctx)
+                    .map(|m| !m.stats_against_head.has_no_changes());
+                match is_dirty {
+                    Some(true) => ctx.emit(event_constructor(arg)),
+                    // Metadata not loaded yet — defer until the next
+                    // git repo status update delivers it.
+                    None => {
+                        self.deferred_code_review_open = Some(DeferredCodeReviewOpen {
+                            git_delta_preference: delta_pref,
+                            focus_new_pane,
+                        });
                     }
+                    Some(false) => {}
                 }
             }
         }
@@ -5693,7 +5672,7 @@ impl TerminalView {
         let diff_mode_clone = diff_mode.clone();
         let repo_path_clone = repo_path.clone();
         let future = async move {
-            LocalDiffStateModel::load_diff_data_for_mode(diff_mode_clone, repo_path_clone).await
+            DiffStateModel::load_diff_data_for_mode(diff_mode_clone, repo_path_clone).await
         };
 
         ctx.spawn(future, move |_me, git_diff_data_opt, ctx| {
@@ -7663,8 +7642,8 @@ impl TerminalView {
         }
 
         let warpification_source = match session_type {
-            BootstrapSessionType::WarpifiedRemote => WarpificationSource::Ssh,
-            BootstrapSessionType::Local => WarpificationSource::Subshell,
+            SessionType::WarpifiedRemote => WarpificationSource::Ssh,
+            SessionType::Local => WarpificationSource::Subshell,
         };
         let ssh_success_block_handle = ctx.add_typed_action_view(|ctx| {
             WarpifySuccessBlock::new(
@@ -8779,8 +8758,7 @@ impl TerminalView {
 
                                     me.update_repo_banner_state(repo_path.clone(), ctx);
                                 }
-                                // Repo detection never resolves remote repositories.
-                                Some(LocalOrRemotePath::Remote(_)) | None => {
+                                None => {
                                     me.clear_git_repo_status(ctx);
                                     ctx.notify();
                                 }
@@ -9832,80 +9810,6 @@ impl TerminalView {
         }
     }
 
-    /// Shows the one-time banner informing users who had opted into the deprecated tmux SSH
-    /// wrapper that it has been turned off in favor of the remote-server SSH extension. The
-    /// pending flag is cleared immediately so the banner is shown at most once.
-    fn show_ssh_tmux_deprecation_banner(
-        &mut self,
-        session_id: SessionId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let already_present = self.rich_content_views.iter().any(|view| {
-            matches!(
-                view.metadata(),
-                Some(RichContentMetadata::SshTmuxDeprecationBanner { handle })
-                if handle.as_ref(ctx).session_id() == session_id
-            )
-        });
-        if already_present {
-            return;
-        }
-
-        // Clear the pending flag up front so the notice is shown at most once, even if the
-        // banner is dismissed without interaction or the session ends early.
-        WarpifySettings::handle(ctx).update(ctx, |settings, ctx| {
-            settings.mark_tmux_deprecation_notice_shown(ctx);
-        });
-
-        let banner = ctx.add_typed_action_view(|_| SshTmuxDeprecationBanner::new(session_id));
-
-        ctx.subscribe_to_view(&banner, move |me, _, event, ctx| match event {
-            SshTmuxDeprecationBannerEvent::Dismissed => {
-                me.remove_ssh_tmux_deprecation_banner(session_id, ctx);
-            }
-        });
-
-        self.insert_rich_content(
-            None,
-            banner.clone(),
-            Some(RichContentMetadata::SshTmuxDeprecationBanner { handle: banner }),
-            RichContentInsertionPosition::Append {
-                insert_below_long_running_block: true,
-            },
-            ctx,
-        );
-    }
-
-    /// Removes the tmux deprecation banner for the given session, if present.
-    fn remove_ssh_tmux_deprecation_banner(
-        &mut self,
-        session_id: SessionId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let mut view_ids_to_remove = Vec::new();
-        for rich_content in self.rich_content_views.iter() {
-            if let Some(RichContentMetadata::SshTmuxDeprecationBanner { handle }) =
-                rich_content.metadata()
-                && handle.as_ref(ctx).session_id() == session_id
-            {
-                view_ids_to_remove.push(rich_content.view_id());
-            }
-        }
-
-        if view_ids_to_remove.is_empty() {
-            return;
-        }
-
-        let mut model = self.model.lock();
-        for view_id in &view_ids_to_remove {
-            model.block_list_mut().remove_rich_content(*view_id);
-        }
-        drop(model);
-        self.rich_content_views
-            .retain(|rich_content| !view_ids_to_remove.contains(&rich_content.view_id()));
-        ctx.notify();
-    }
-
     /// Handles an OSC 777 event with the `warp://cli-agent` sentinel title.
     /// On `session_start`, creates a `CLIAgentSessionListener` that subscribes
     /// to subsequent events from this terminal's PTY.
@@ -10242,21 +10146,8 @@ impl TerminalView {
         // If we were waiting for a successful warpification, it's come. Stop the timeout.
         self.warpify_state.abort_ssh_warpify_timeout();
 
-        let is_warpified_remote = matches!(
-            bootstrap_event.session_type,
-            BootstrapSessionType::WarpifiedRemote
-        );
         if bootstrap_event.subshell_info.is_some() {
             self.add_bootstrap_success_block(bootstrap_event, ctx);
-        }
-
-        // Show the one-time tmux deprecation notice when an SSH session successfully
-        // warpifies. The end-of-ssh-login path (`handle_detected_end_of_ssh_login`) only
-        // fires for sessions that stay unwarpified, since warpification replaces the
-        // original ssh block before login detection can confirm completion.
-        if is_warpified_remote && WarpifySettings::as_ref(ctx).should_show_tmux_deprecation_notice()
-        {
-            self.show_ssh_tmux_deprecation_banner(session_id, ctx);
         }
 
         // At the end of bootstrapping, set the title to the title of
@@ -18526,11 +18417,8 @@ impl TerminalView {
 
     /// Returns the active session's CWD as a `LocalOrRemotePath`.
     ///
-    /// For local sessions the CWD is canonicalized via `dunce::canonicalize`
-    /// and wrapped as `Local`. For remote sessions the CWD is read from
-    /// `active_block_metadata` and paired with the session's `host_id` to
-    /// form a `Remote` path. Returns `None` when no CWD is available or
-    /// (for remote sessions) the `host_id` has not been established yet.
+    /// The CWD is canonicalized via `dunce::canonicalize`. Returns `None` when no CWD is
+    /// available or the session is remote.
     pub fn pwd_as_local_or_remote(&self, ctx: &AppContext) -> Option<LocalOrRemotePath> {
         let session_id = self.active_block_session_id()?;
         let session = self.sessions.as_ref(ctx).get(session_id)?;
@@ -20764,16 +20652,7 @@ impl TerminalView {
                     },
                 );
             }
-            SshLoginStatus::ReadyToWarpify => {
-                // The tmux-based SSH warpification flow has been removed in favor of the
-                // remote-server SSH extension. If this user had previously opted into the tmux
-                // wrapper, show them a one-time deprecation notice on their next SSH session.
-                if WarpifySettings::as_ref(ctx).should_show_tmux_deprecation_notice()
-                    && let Some(session_id) = self.active_block_session_id()
-                {
-                    self.show_ssh_tmux_deprecation_banner(session_id, ctx);
-                }
-            }
+            SshLoginStatus::ReadyToWarpify => {}
         }
     }
 

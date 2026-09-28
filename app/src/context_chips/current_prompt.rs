@@ -1501,7 +1501,7 @@ impl CurrentPrompt {
             // have completed before we subscribed). If it hasn't finished
             // yet, the subscription above will catch the `MetadataChanged`
             // event when it does.
-            if strong.as_ref(ctx).metadata(ctx).is_some() {
+            if strong.as_ref(ctx).metadata().is_some() {
                 self.apply_git_repo_metadata(ctx);
             }
         }
@@ -1556,7 +1556,7 @@ impl CurrentPrompt {
             .git_repo_status
             .as_ref()
             .and_then(|w| w.upgrade(ctx))
-            .and_then(|h| h.as_ref(ctx).metadata(ctx).cloned());
+            .and_then(|h| h.as_ref(ctx).metadata().cloned());
 
         let Some(metadata) = metadata else {
             return;
@@ -1612,7 +1612,7 @@ impl CurrentPrompt {
             .and_then(|w| w.upgrade(ctx))
             .and_then(|h| {
                 h.as_ref(ctx)
-                    .pr_info(ctx)
+                    .pr_info()
                     .map(|info| ChipValue::Text(info.url.clone()))
             });
         let current_pr = self

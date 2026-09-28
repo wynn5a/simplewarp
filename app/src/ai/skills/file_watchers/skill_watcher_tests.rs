@@ -11,14 +11,12 @@ use repo_metadata::{
     StandingQueryContent, StandingQueryResults, StandingQueryResultsDelta, TargetFile,
 };
 use tempfile::TempDir;
-use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warp_util::remote_path::RemotePath;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::App;
 
 use super::super::subscribers::SkillRepositoryMessage;
-use super::{SkillWatcher, parse_project_skill_contents};
+use super::SkillWatcher;
 use crate::ai::skills::skill_manager::SkillWatcherEvent;
 
 /// Helper function for creating a single skill file
@@ -63,62 +61,6 @@ description: {}
 fn skill_local_path(skill: &ParsedSkill) -> PathBuf {
     skill.path.to_local_path().unwrap().to_path_buf()
 }
-fn remote_skill_path(host_id: &HostId, name: &str) -> LocalOrRemotePath {
-    LocalOrRemotePath::Remote(RemotePath::new(
-        host_id.clone(),
-        StandardizedPath::try_new(format!("/repo/.agents/skills/{name}/SKILL.md").as_str())
-            .unwrap(),
-    ))
-}
-
-fn remote_skill_content(name: &str, description: &str, body: &str) -> String {
-    format!(
-        r#"---
-name: {name}
-description: {description}
----
-{body}
-"#
-    )
-}
-
-#[test]
-fn parse_project_skill_contents_preserves_remote_paths() {
-    let host = HostId::new("test-host".to_string());
-    let first_path = remote_skill_path(&host, "first");
-    let second_path = remote_skill_path(&host, "second");
-    let first_content = remote_skill_content("first", "First skill", "First body");
-    let second_content = remote_skill_content("second", "Second skill", "Second body");
-
-    let skills = parse_project_skill_contents(vec![
-        (first_path.clone(), first_content.clone()),
-        (second_path.clone(), second_content.clone()),
-    ]);
-
-    assert_eq!(skills.len(), 2);
-    assert_eq!(skills[0].path, first_path);
-    assert_eq!(skills[0].name, "first");
-    assert_eq!(skills[0].content, first_content);
-    assert_eq!(skills[0].provider, SkillProvider::Agents);
-    assert_eq!(skills[1].path, second_path);
-    assert_eq!(skills[1].name, "second");
-    assert_eq!(skills[1].content, second_content);
-}
-
-#[test]
-fn parse_project_skill_contents_classifies_foreign_encoded_provider_path() {
-    let path = LocalOrRemotePath::Remote(RemotePath::new(
-        HostId::new("test-host".to_string()),
-        StandardizedPath::try_new(r"C:\repo\.codex\skills\windows-skill\SKILL.md").unwrap(),
-    ));
-    let content = remote_skill_content("windows-skill", "Windows skill", "Windows body");
-
-    let skills = parse_project_skill_contents(vec![(path.clone(), content)]);
-
-    assert_eq!(skills.len(), 1);
-    assert_eq!(skills[0].path, path);
-    assert_eq!(skills[0].provider, SkillProvider::Codex);
-}
 
 // ============================================================================
 // Tests for handle_repository_update
@@ -158,46 +100,6 @@ fn test_handle_repository_update_single_skill_added() {
                 skills: vec![skill]
             }
         );
-    });
-}
-
-#[test]
-fn test_removing_remote_project_repo_deletes_shared_cached_skill_paths() {
-    let (tx, rx) = async_channel::unbounded();
-
-    App::test((), |mut app| async move {
-        app.add_singleton_model(DirectoryWatcher::new_for_testing);
-        app.add_singleton_model(|_| DetectedRepositories::default());
-        app.add_singleton_model(RepoMetadataModel::new);
-        let skill_watcher_handle = app.add_model(|ctx| SkillWatcher::new_for_testing(ctx, tx));
-
-        let host = HostId::new("test-host".to_string());
-        let repo_id = RepositoryIdentifier::Remote(RemotePath::new(
-            host.clone(),
-            StandardizedPath::try_new("/repo").unwrap(),
-        ));
-        let first_path = remote_skill_path(&host, "first");
-        let second_path = remote_skill_path(&host, "second");
-
-        skill_watcher_handle.update(&mut app, |watcher, _| {
-            watcher.project_skill_files_by_repo.insert(
-                repo_id.clone(),
-                HashSet::from([first_path.clone(), second_path.clone()]),
-            );
-            watcher.remove_project_skills_for_repo(&repo_id);
-        });
-
-        let SkillWatcherEvent::SkillsDeleted { mut paths } = rx.recv().await.unwrap() else {
-            panic!("Expected SkillsDeleted event");
-        };
-        paths.sort_by_key(LocalOrRemotePath::display_path);
-        let mut expected = vec![first_path, second_path];
-        expected.sort_by_key(LocalOrRemotePath::display_path);
-        assert_eq!(paths, expected);
-
-        skill_watcher_handle.read(&app, |watcher, _| {
-            assert!(!watcher.project_skill_files_by_repo.contains_key(&repo_id));
-        });
     });
 }
 

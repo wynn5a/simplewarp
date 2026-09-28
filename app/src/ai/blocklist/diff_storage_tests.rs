@@ -99,9 +99,7 @@ fn accept_reports_save_failure_for_the_whole_edit() {
         let surface = add_surface(
             &mut app,
             vec![updated_file("/tmp/x.rs", "content\n")],
-            vec![Err(Arc::new(FileSaveError::RemoteError(
-                "disk full".to_owned(),
-            )))],
+            vec![Err(Arc::new(FileSaveError::Other("disk full".to_owned())))],
         );
         let future = surface.update(&mut app, |surface, ctx| surface.accept_and_save(ctx));
 

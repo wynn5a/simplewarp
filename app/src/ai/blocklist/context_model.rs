@@ -322,7 +322,6 @@ impl BlocklistAIContextModel {
         current_working_directory_location: Option<&LocalOrRemotePath>,
     ) -> Vec<AIAgentContext> {
         // `pwd` is the shell-reported path used for directory context and local indexing.
-        // The location is passed separately because it preserves remote host identity for rules.
         let pwd = self.current_pwd();
         let is_pwd_indexed = if cfg!(feature = "agent_mode_evals") {
             // In evals, we want to disable file outline based search. Full
@@ -798,7 +797,7 @@ impl BlocklistAIContextModel {
     /// Builds an `AIAgentContext::Repository` from cached git remote metadata, if available.
     fn repository_context(&self, app: &AppContext) -> Option<AIAgentContext> {
         let handle = self.github_repo_model.as_ref()?.upgrade(app)?;
-        let repository_info = handle.as_ref(app).repository_info(app)?;
+        let repository_info = handle.as_ref(app).repository_info()?;
         Some(Self::repository_context_from_repository_info(
             repository_info,
         ))
@@ -813,7 +812,7 @@ impl BlocklistAIContextModel {
 
     fn pull_request_context(&self, app: &AppContext) -> Option<AIAgentContext> {
         let handle = self.github_repo_model.as_ref()?.upgrade(app)?;
-        let pr_info = handle.as_ref(app).pr_info(app)?;
+        let pr_info = handle.as_ref(app).pr_info()?;
         Self::pull_request_context_from_pr_info(pr_info)
     }
     fn pull_request_context_from_pr_info(pr_info: &PrInfo) -> Option<AIAgentContext> {

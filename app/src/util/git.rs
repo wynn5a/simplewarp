@@ -433,8 +433,7 @@ pub async fn compute_unpushed_state(repo_path: &Path) -> (Vec<Commit>, Option<St
 /// probing the sentinel files git writes under `.git/`. Code-review git
 /// mutations are blocked in these states because they would behave
 /// surprisingly (e.g. a commit would complete an in-progress merge) or fail.
-/// Shared by the local pre-emptive guard (`is_git_operation_blocked`) and the
-/// daemon-side execution-time check.
+/// Backs the pre-emptive guard (`is_git_operation_blocked`).
 pub fn git_operation_in_progress(repo_path: &Path) -> bool {
     let git_dir = repo_path.join(".git");
     git_dir.join("MERGE_HEAD").exists()

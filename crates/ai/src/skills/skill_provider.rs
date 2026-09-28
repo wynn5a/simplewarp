@@ -175,8 +175,8 @@ pub fn home_skills_path(provider: SkillProvider) -> Option<PathBuf> {
 
 /// Returns the skill provider for a location, if it matches a known skill provider directory.
 ///
-/// Local locations retain home-directory-aware matching. All other locations are
-/// classified by provider-directory structure using their standardized path representation.
+/// Home-directory skill roots are matched first; otherwise the location is classified by
+/// provider-directory structure.
 pub fn get_provider_for_path(path: &LocalOrRemotePath) -> Option<SkillProvider> {
     path.to_local_path()
         .and_then(get_home_provider_for_local_path)
@@ -195,10 +195,9 @@ fn get_home_provider_for_local_path(path: &Path) -> Option<SkillProvider> {
 }
 
 /// Returns the directory containing a provider's skills root when `skills_root` has a known
-/// provider directory suffix, preserving the original local or remote location encoding.
+/// provider directory suffix.
 ///
-/// For example, `/repo/.agents/skills` resolves to `/repo`, regardless of whether the location
-/// is encoded with Unix or Windows path separators.
+/// For example, `/repo/.agents/skills` resolves to `/repo`.
 pub fn provider_parent_directory_for_skills_root(
     skills_root: &LocalOrRemotePath,
 ) -> Option<LocalOrRemotePath> {

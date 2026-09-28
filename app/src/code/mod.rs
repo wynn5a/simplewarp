@@ -30,8 +30,6 @@ pub enum ImmediateSaveError {
     FailedToSave(#[from] FileSaveError),
     #[error("There is no file tab currently selected")]
     NoActiveFileTab,
-    #[error("Remote session disconnected")]
-    RemoteDisconnected,
 }
 
 impl ErrorExt for ImmediateSaveError {
@@ -39,7 +37,6 @@ impl ErrorExt for ImmediateSaveError {
         match self {
             ImmediateSaveError::NoFileId | ImmediateSaveError::NoActiveFileTab => true,
             ImmediateSaveError::FailedToSave(err) => err.is_actionable(),
-            ImmediateSaveError::RemoteDisconnected => false,
         }
     }
 }

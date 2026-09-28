@@ -7,7 +7,7 @@ use rand::Rng;
 use warp_core::session_id::SessionId;
 use warpui::{AppContext, AssetProvider, SingletonEntity};
 
-use super::model::session::{BootstrapSessionType, SessionInfo};
+use super::model::session::{SessionInfo, SessionType};
 use super::warpify::settings::{PIPENV_SUBSHELL_COMMAND_REGEX, POETRY_SUBSHELL_COMMAND_REGEX};
 use crate::env_vars::{EnvVar, EnvVarExt};
 use crate::terminal::session_settings::SessionSettings;
@@ -72,7 +72,7 @@ pub fn should_use_rc_file_bootstrap_method(
 
     let session_type = &session_info.session_type;
     match session_type {
-        BootstrapSessionType::Local => {
+        SessionType::Local => {
             let subshell_initialization_info = session_info.subshell_info.as_ref();
             let is_poetry_subshell = subshell_initialization_info
                 .as_ref()
@@ -94,7 +94,7 @@ pub fn should_use_rc_file_bootstrap_method(
                     && shell_type == ShellType::Zsh)
                 || is_msys2
         }
-        BootstrapSessionType::WarpifiedRemote => false,
+        SessionType::WarpifiedRemote => false,
     }
 }
 

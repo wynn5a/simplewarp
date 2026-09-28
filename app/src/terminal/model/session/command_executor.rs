@@ -115,7 +115,7 @@ fn new_command_executor_for_local_tty_session(
     use crate::features::FeatureFlag;
     use crate::settings::DebugSettings;
     use crate::terminal::available_shells::AvailableShells;
-    use crate::terminal::model::session::{BootstrapSessionType, ShellLaunchData};
+    use crate::terminal::model::session::{SessionType, ShellLaunchData};
     use crate::terminal::shell::ShellType;
 
     let debug_settings = DebugSettings::as_ref(ctx);
@@ -154,7 +154,7 @@ fn new_command_executor_for_local_tty_session(
         || *are_in_band_generators_for_all_sessions_enabled_debug_setting;
 
     match &session_info.session_type {
-        BootstrapSessionType::Local if !force_use_in_band_generators => {
+        SessionType::Local if !force_use_in_band_generators => {
             let shell_type = session_info.shell.shell_type();
 
             log::info!("creating a local executor!");
@@ -218,7 +218,7 @@ fn new_command_executor_for_local_tty_session(
                 }
             }
         }
-        BootstrapSessionType::WarpifiedRemote
+        SessionType::WarpifiedRemote
             if is_ssh_wrapper_session
                 && !FeatureFlag::InBandGeneratorsForSSH.is_enabled()
                 && !force_use_in_band_generators =>

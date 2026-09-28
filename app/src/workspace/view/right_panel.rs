@@ -47,7 +47,7 @@ use crate::ui_components::buttons::icon_button_with_color;
 use crate::ui_components::icons;
 use crate::util::bindings::{CustomAction, keybinding_name_to_display_string};
 use crate::util::openable_file_type::FileTarget;
-use crate::util::path::{display_name_with_host, display_path_with_host};
+use crate::util::path::display_location_path;
 use crate::view_components::action_button::{
     ActionButton, NakedTheme, PaneHeaderTheme, TooltipAlignment,
 };
@@ -293,9 +293,6 @@ impl CodeReviewState {
         update_dropdown: bool,
         ctx: &mut ViewContext<RightPanelView>,
     ) {
-        if repo_path.is_remote() {
-            return;
-        }
         if self.selected_repo_path.as_ref() == Some(&repo_path) {
             return;
         }
@@ -312,7 +309,7 @@ impl CodeReviewState {
     }
 
     fn get_repo_display_name(&self, repo_path: &LocalOrRemotePath) -> Option<String> {
-        let name = display_name_with_host(repo_path);
+        let name = repo_path.display_name().to_string();
         (!name.is_empty()).then_some(name)
     }
 
@@ -660,9 +657,6 @@ impl RightPanelView {
         else {
             return;
         };
-        if repo_path.is_remote() {
-            return;
-        }
         let pane_group_id = active_pane_group.id();
 
         if repo_dropdown_state.selected_repo_path.is_none() {
@@ -818,9 +812,10 @@ impl RightPanelView {
                 .finish();
         };
 
-        let selected_repo_path = state.selected_repo_path.as_ref().filter(|repo_path| {
-            !repo_path.is_remote() && state.available_repos.contains(repo_path)
-        });
+        let selected_repo_path = state
+            .selected_repo_path
+            .as_ref()
+            .filter(|repo_path| state.available_repos.contains(repo_path));
 
         let Some(selected_repo_path) = selected_repo_path else {
             let simple_header = self.render_simple_header(close_button);
@@ -901,11 +896,11 @@ impl RightPanelView {
         let repo_path = crv.repo_path();
         let branch_name = crv
             .diff_state_model()
-            .read(app, |model, ctx| model.get_current_branch_name(ctx));
+            .read(app, |model, _| model.get_current_branch_name());
         let diff_stats = crv.loaded_diff_stats();
 
         let repo_path_element = repo_path.map(|repo_path| {
-            let display_path = display_path_with_host(repo_path, true);
+            let display_path = display_location_path(repo_path, true);
             Container::new(
                 Text::new_inline(
                     format!("{display_path}:"),
@@ -1143,14 +1138,12 @@ impl RightPanelView {
         pane_group_id: EntityId,
         ctx: &mut ViewContext<Self>,
     ) -> Option<ViewHandle<CodeReviewView>> {
-        // Early check: if pane group has no active repositories, don't create a view. Remote
-        // repos have no code review.
-        let has_active_repos = !repo_path.is_remote()
-            && self
-                .working_directories_model
-                .as_ref(ctx)
-                .most_recent_repositories_for_pane_group(pane_group_id)
-                .is_some_and(|mut repos| repos.any(|r| &r == repo_path));
+        // Early check: if pane group has no active repositories, don't create a view.
+        let has_active_repos = self
+            .working_directories_model
+            .as_ref(ctx)
+            .most_recent_repositories_for_pane_group(pane_group_id)
+            .is_some_and(|mut repos| repos.any(|r| &r == repo_path));
 
         if !has_active_repos {
             return None;
@@ -1326,25 +1319,15 @@ impl RightPanelView {
             let mut unavailable_reasons = Vec::new();
 
             match repo_path {
-                Some(repo_path) => match (repo_path, t.current_repo_path()) {
-                    (LocalOrRemotePath::Local(repo_path), _) => {
-                        match active_session_path.as_ref() {
-                            Some(cwd)
-                                if canonicalize(cwd)
-                                    .as_deref()
-                                    .unwrap_or(cwd)
-                                    .starts_with(repo_path) => {}
-                            Some(_) => unavailable_reasons
-                                .push(ReviewTerminalUnavailableReason::SessionOutsideSelectedRepo),
-                            None => unavailable_reasons
-                                .push(ReviewTerminalUnavailableReason::SessionPathUnavailable),
-                        }
-                    }
-                    (repo_path @ LocalOrRemotePath::Remote(_), Some(current_repo_path))
-                        if repo_path.strip_repo_prefix(current_repo_path).is_some() => {}
-                    (LocalOrRemotePath::Remote(_), Some(_)) => unavailable_reasons
+                Some(LocalOrRemotePath::Local(repo_path)) => match active_session_path.as_ref() {
+                    Some(cwd)
+                        if canonicalize(cwd)
+                            .as_deref()
+                            .unwrap_or(cwd)
+                            .starts_with(repo_path) => {}
+                    Some(_) => unavailable_reasons
                         .push(ReviewTerminalUnavailableReason::SessionOutsideSelectedRepo),
-                    (LocalOrRemotePath::Remote(_), None) => unavailable_reasons
+                    None => unavailable_reasons
                         .push(ReviewTerminalUnavailableReason::SessionPathUnavailable),
                 },
                 None => unavailable_reasons.push(ReviewTerminalUnavailableReason::NoSelectedRepo),
@@ -1606,9 +1589,6 @@ impl RightPanelView {
         repo_path: &LocalOrRemotePath,
         ctx: &mut ViewContext<Self>,
     ) {
-        if repo_path.is_remote() {
-            return;
-        }
         let Some(pane_group) = &self.active_pane_group else {
             return;
         };
@@ -1658,8 +1638,7 @@ impl RightPanelView {
                 ctx.view_with_id::<TerminalView>(ctx.window_id(), terminal_view_id)
                     .is_some()
             } else {
-                // For repos not yet tracked (e.g. remote repos from direct open),
-                // fall back to the active session.
+                // For repos not yet tracked, fall back to the active session.
                 pane_group
                     .read(ctx, |pane_group, ctx| pane_group.active_session_view(ctx))
                     .is_some()

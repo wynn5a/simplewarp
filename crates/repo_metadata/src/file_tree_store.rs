@@ -194,80 +194,6 @@ impl FileTreeEntry {
             }
         }
     }
-
-    /// Applies a [`RepoMetadataUpdate`] to this file tree entry.
-    ///
-    /// Removals are processed first, then subtree patches are applied.
-    /// This is the core mutation path used by the remote client to apply
-    /// incremental updates received from the server.
-    pub fn apply_repo_metadata_update(
-        &mut self,
-        update: &crate::file_tree_update::RepoMetadataUpdate,
-    ) {
-        // 1. Process removals
-        for path in &update.remove_entries {
-            self.remove(path);
-        }
-
-        // 2. Process subtree patches
-        for entry_update in &update.update_entries {
-            self.apply_entry_update(entry_update);
-        }
-    }
-
-    fn apply_entry_update(&mut self, update: &crate::file_tree_update::FileTreeEntryUpdate) {
-        use crate::file_tree_update::RepoNodeMetadata;
-
-        // Ensure parent directories exist up to parent_path_to_replace
-        self.ensure_parent_directories_exist(&update.parent_path_to_replace);
-
-        // `subtree_metadata` is in depth-first pre-order: each directory
-        // appears before its children.  A single pass is sufficient because
-        // by the time we encounter a file, its parent directory has already
-        // been inserted.  `insert_child_state` also registers the child in
-        // `parent_to_child_map`, so no separate wiring step is needed.
-        for node in &update.subtree_metadata {
-            match node {
-                RepoNodeMetadata::Directory(dir) => {
-                    let state = FileTreeEntryState::Directory(FileTreeDirectoryEntryState {
-                        path: Arc::new(dir.path.clone()),
-                        ignored: dir.ignored,
-                        loaded: dir.loaded,
-                    });
-                    if let Some(parent) = self.find_parent_directory(&dir.path) {
-                        self.insert_child_state(&parent, state);
-                    } else {
-                        log::warn!(
-                            "Could not find parent directory for node during incremental update: {:?}",
-                            dir.path
-                        );
-                    }
-                }
-                RepoNodeMetadata::File(file) => {
-                    // If the file already exists, preserve its FileId and just
-                    // update metadata (mirrors the local apply path).
-                    if let Some(existing) = self.get_mut(&file.path) {
-                        existing.set_ignored(file.ignored);
-                    } else {
-                        let state = FileTreeEntryState::File(FileTreeFileMetadata {
-                            path: Arc::new(file.path.clone()),
-                            file_id: FileId::new(),
-                            extension: file.extension.clone(),
-                            ignored: file.ignored,
-                        });
-                        if let Some(parent) = self.find_parent_directory(&file.path) {
-                            self.insert_child_state(&parent, state);
-                        } else {
-                            log::warn!(
-                                "Could not find parent directory for node during incremental update: {:?}",
-                                file.path
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -393,18 +319,6 @@ impl FileTreeState {
     pub fn new_lazy_loaded(entry: Entry) -> Self {
         Self {
             entry: entry.into(),
-            gitignores: Arc::new(vec![]),
-            repository: None,
-        }
-    }
-
-    /// Creates a new FileTreeState from a pre-built [`FileTreeEntry`].
-    ///
-    /// Used by the remote model where the entry is constructed via
-    /// `apply_repo_metadata_update` rather than from a local `Entry`.
-    pub fn from_file_tree_entry(entry: FileTreeEntry) -> Self {
-        Self {
-            entry,
             gitignores: Arc::new(vec![]),
             repository: None,
         }

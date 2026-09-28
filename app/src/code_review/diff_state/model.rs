@@ -39,8 +39,8 @@ use crate::features::FeatureFlag;
 use crate::terminal::local_shell::LocalShellState;
 use crate::throttle::throttle;
 use crate::util::git::{
-    Commit, FileChangeEntry, detect_current_branch, detect_main_branch, get_all_branches,
-    get_unpushed_commits, git_operation_in_progress, parse_unified_diff_header,
+    Commit, detect_current_branch, detect_main_branch, get_all_branches, get_unpushed_commits,
+    git_operation_in_progress, parse_unified_diff_header,
 };
 
 // Unicode bidirectional characters that should be flagged
@@ -161,7 +161,7 @@ impl PendingFileUpdate {
 ///
 /// This is the local-only implementation. Consumers should use [`DiffStateModel`] (the wrapper)
 /// rather than this type directly.
-pub struct LocalDiffStateModel {
+pub struct DiffStateModel {
     repository: Option<ModelHandle<Repository>>,
     subscriber_id: Option<SubscriberId>,
     state: InternalDiffState,
@@ -188,7 +188,7 @@ struct GitNumStatMetadata {
     is_binary_file: bool,
 }
 
-impl LocalDiffStateModel {
+impl DiffStateModel {
     pub fn new(repo_path: Option<String>, ctx: &mut ModelContext<Self>) -> Self {
         // Set up file invalidation queue and subscribe to results
         // so the model can emit SingleFileUpdated events.
@@ -296,14 +296,6 @@ impl LocalDiffStateModel {
             .map(|metadata| metadata.against_head.aggregate_stats)
     }
 
-    /// Per-file entries for uncommitted-vs-HEAD changes, from cached metadata.
-    pub fn uncommitted_file_entries(&self) -> &[FileChangeEntry] {
-        self.metadata
-            .as_ref()
-            .map(|m| m.against_head.files.as_slice())
-            .unwrap_or(&[])
-    }
-
     /// Get the name of the main branch being used for comparison
     pub fn get_main_branch_name(&self) -> Option<String> {
         self.metadata
@@ -365,7 +357,7 @@ impl LocalDiffStateModel {
     }
 
     /// Returns `true` once the repository has at least one commit.
-    pub(super) fn has_head(&self) -> bool {
+    pub(crate) fn has_head(&self) -> bool {
         self.metadata
             .as_ref()
             .is_some_and(|metadata| metadata.has_head_commit)
@@ -401,7 +393,7 @@ impl LocalDiffStateModel {
                 let branches = match branches_result {
                     Ok(branches) => branches,
                     Err(err) => {
-                        log::warn!("LocalDiffStateModel: failed to fetch branches: {err}");
+                        log::warn!("DiffStateModel: failed to fetch branches: {err}");
                         vec![]
                     }
                 };
@@ -843,7 +835,7 @@ impl LocalDiffStateModel {
         let start = new_repository.update(ctx, |new_repository, ctx| {
             new_repository.start_watching(
                 RepositoryWatchMode::GitRepository,
-                Box::new(LocalDiffStateModelRepositorySubscriber {
+                Box::new(DiffStateModelRepositorySubscriber {
                     repository_update_tx,
                 }),
                 ctx,
@@ -1964,7 +1956,6 @@ impl LocalDiffStateModel {
 
         let mut total_additions = 0;
         let mut total_deletions = 0;
-        let mut files = Vec::with_capacity(changed_files.len());
 
         for (file_path, status) in &changed_files {
             let (additions, deletions) = if let Some(metadata) = num_stat_metadata.get(file_path) {
@@ -1985,11 +1976,6 @@ impl LocalDiffStateModel {
             };
             total_additions += additions;
             total_deletions += deletions;
-            files.push(FileChangeEntry {
-                path: file_path.clone(),
-                additions,
-                deletions,
-            });
         }
 
         Ok(DiffMetadataAgainstBase {
@@ -1998,7 +1984,6 @@ impl LocalDiffStateModel {
                 total_additions,
                 total_deletions,
             },
-            files,
         })
     }
 
@@ -2682,13 +2667,12 @@ pub(crate) async fn diff_metadata_against_head(
     )
     .await?;
 
-    let changed_files = LocalDiffStateModel::parse_git_status(&status_output)?;
+    let changed_files = DiffStateModel::parse_git_status(&status_output)?;
     let num_stat_metadata =
-        LocalDiffStateModel::get_diff_metadata_using_numstat(repo_path, "HEAD").await?;
+        DiffStateModel::get_diff_metadata_using_numstat(repo_path, "HEAD").await?;
 
     let mut total_additions = 0;
     let mut total_deletions = 0;
-    let mut files = Vec::with_capacity(changed_files.len());
 
     for (file_path, status) in &changed_files {
         let (additions, deletions) = if let Some(metadata) = num_stat_metadata.get(file_path) {
@@ -2698,7 +2682,7 @@ pub(crate) async fn diff_metadata_against_head(
             // repo/worktree directory, or an unreadable file) contributes 0
             // lines instead of failing the whole metadata computation.
             let num_lines =
-                LocalDiffStateModel::num_lines_in_file_if_non_binary(&repo_path.join(file_path))
+                DiffStateModel::num_lines_in_file_if_non_binary(&repo_path.join(file_path))
                     .await
                     .unwrap_or_else(|err| {
                         log::debug!("Could not count lines for untracked entry {file_path}: {err}");
@@ -2710,11 +2694,6 @@ pub(crate) async fn diff_metadata_against_head(
         };
         total_additions += additions;
         total_deletions += deletions;
-        files.push(FileChangeEntry {
-            path: file_path.clone(),
-            additions,
-            deletions,
-        });
     }
 
     Ok(DiffMetadataAgainstBase {
@@ -2723,11 +2702,10 @@ pub(crate) async fn diff_metadata_against_head(
             total_additions,
             total_deletions,
         },
-        files,
     })
 }
 
-impl warpui::Entity for LocalDiffStateModel {
+impl warpui::Entity for DiffStateModel {
     type Event = DiffStateModelEvent;
 }
 
@@ -2740,11 +2718,11 @@ enum DiffStateRepositoryUpdate {
     InvalidationWithLockedIndex,
 }
 
-struct LocalDiffStateModelRepositorySubscriber {
+struct DiffStateModelRepositorySubscriber {
     repository_update_tx: Sender<DiffStateRepositoryUpdate>,
 }
 
-impl RepositorySubscriber for LocalDiffStateModelRepositorySubscriber {
+impl RepositorySubscriber for DiffStateModelRepositorySubscriber {
     fn on_scan(
         &mut self,
         _repository: &Repository,
@@ -2781,7 +2759,7 @@ impl RepositorySubscriber for LocalDiffStateModelRepositorySubscriber {
 }
 
 #[cfg(test)]
-impl LocalDiffStateModel {
+impl DiffStateModel {
     /// Test-only constructor that creates a bare model without a repository.
     pub fn new_for_test(ctx: &mut ModelContext<Self>) -> Self {
         Self {
@@ -2803,5 +2781,5 @@ impl LocalDiffStateModel {
 }
 
 #[cfg(test)]
-#[path = "local_tests.rs"]
+#[path = "model_tests.rs"]
 mod tests;

@@ -72,8 +72,7 @@ pub(super) fn new_state(base_branch_name: Option<String>) -> PrState {
 /// applied by [`apply_committed_file_changes`]. Unlike the working-tree-based
 /// `against_base_branch` metadata, this is committed-only, so the box previews
 /// exactly what `gh pr create` will include — not uncommitted or untracked
-/// changes. Called on dialog open; local computes it off-thread, remote fetches
-/// it via RPC.
+/// changes. Called on dialog open; computed off-thread.
 pub(super) fn fetch_committed_file_changes(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>) {
     me.diff_state_model().update(ctx, |model, ctx| {
         model.fetch_committed_branch_files(ctx);

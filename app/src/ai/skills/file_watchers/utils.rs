@@ -8,7 +8,6 @@ use anyhow::Error;
 use repo_metadata::{RepoMetadataModel, RepositoryIdentifier};
 use walkdir::{DirEntry, WalkDir};
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warp_util::remote_path::RemotePath;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::AppContext;
 
@@ -19,18 +18,15 @@ fn local_or_remote_path_for_repo_path(
     path: &StandardizedPath,
 ) -> LocalOrRemotePath {
     match repo_id {
-        RepositoryIdentifier::Local(_) => LocalOrRemotePath::Local(path.to_local_path_lossy()),
-        RepositoryIdentifier::Remote(remote) => {
-            LocalOrRemotePath::Remote(RemotePath::new(remote.host_id.clone(), path.clone()))
-        }
+        RepositoryIdentifier(_) => LocalOrRemotePath::Local(path.to_local_path_lossy()),
     }
 }
 
 /// Finds project skill files from stored standing results.
 ///
-/// Symlinked project skills are resolved while evaluating standing queries on the process that
-/// owns the repository. This consumer treats those results as authoritative for both local and
-/// remote repositories; direct filesystem discovery remains confined to metadata-failure fallback.
+/// Symlinked project skills are resolved while evaluating standing queries. This consumer treats
+/// those results as authoritative; direct filesystem discovery remains confined to
+/// metadata-failure fallback.
 pub(super) fn find_project_skill_files_in_tree(
     repo_id: &RepositoryIdentifier,
     repo_metadata: &RepoMetadataModel,
@@ -47,9 +43,8 @@ pub(super) fn find_project_skill_files_in_tree(
 
 /// Finds local project skill files by discovering provider directories on the filesystem.
 ///
-/// This is a local-only fallback for repositories whose repo metadata indexing fails. Successful
-/// local and remote project refreshes should use [`find_project_skill_files_in_tree`] so the
-/// normal metadata-backed path remains shared.
+/// This is a fallback for repositories whose repo metadata indexing fails. Successful project
+/// refreshes should use [`find_project_skill_files_in_tree`].
 pub(super) fn find_local_project_skill_files_on_filesystem(
     scan_root: &Path,
 ) -> Vec<LocalOrRemotePath> {

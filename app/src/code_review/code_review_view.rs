@@ -679,7 +679,6 @@ impl CodeReviewView {
         ctx.notify();
 
         // Create global LSP footer for the code review panel
-        // TODO: add support for remote repositories
         if let Some(repo_path) = self
             .repo_path()
             .and_then(LocalOrRemotePath::to_local_path)
@@ -946,7 +945,7 @@ impl CodeReviewView {
         } = event
             && self.all_editors_loaded()
         {
-            let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode(ctx);
+            let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
             self.reposition_comments_in_file(&diff_mode, ctx);
         }
     }
@@ -1408,8 +1407,8 @@ impl CodeReviewView {
             return Vec::new();
         };
 
-        let (current_mode, current_branch_name) = self.diff_state_model.read(ctx, |model, ctx| {
-            (model.diff_mode(ctx), model.get_current_branch_name(ctx))
+        let (current_mode, current_branch_name) = self.diff_state_model.read(ctx, |model, _| {
+            (model.diff_mode(), model.get_current_branch_name())
         });
 
         let mut targets = Vec::new();
@@ -1502,7 +1501,7 @@ impl CodeReviewView {
     fn apply_diff_mode(&mut self, mode: DiffMode, ctx: &mut ViewContext<Self>) {
         if self
             .diff_state_model
-            .read(ctx, |model, ctx| model.diff_mode(ctx))
+            .read(ctx, |model, _| model.diff_mode())
             == mode
         {
             return;
@@ -2195,7 +2194,7 @@ impl CodeReviewView {
                 }
             }
             DiffStateModelEvent::MetadataRefreshed(metadata) => {
-                let mode = self.diff_state_model.as_ref(ctx).diff_mode(ctx);
+                let mode = self.diff_state_model.as_ref(ctx).diff_mode();
                 if let Some(CodeReviewViewState::Loaded(loaded_state)) = self.state_mut() {
                     let stats = match mode {
                         DiffMode::Head => Some(metadata.against_head.aggregate_stats),
@@ -2394,7 +2393,7 @@ impl CodeReviewView {
 
         let file_states_vec = self.build_view_state_for_file_diffs(&diff_data.files, ctx);
         let _is_local = self.repo_is_local();
-        let _diff_mode = self.diff_state_model.as_ref(ctx).diff_mode(ctx);
+        let _diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
 
         if let Some(repo) = self.active_repo.as_mut() {
             repo.state = CodeReviewViewState::Loaded(LoadedState {
@@ -2409,7 +2408,7 @@ impl CodeReviewView {
         }
 
         if self.all_editors_loaded() {
-            let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode(ctx);
+            let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
             self.reposition_comments_in_file(&diff_mode, ctx);
         }
 
@@ -2441,11 +2440,7 @@ impl CodeReviewView {
         let mut file_states = vec![];
         for file in files {
             let editor_state = {
-                // `LocalCodeEditorView::new_with_global_buffer` natively
-                // supports both `LocalOrRemotePath::Local` and `Remote`
-                // (it sets language by extension and skips local-only
-                // wiring like LSP for remote files), so we always go
-                // through the global-buffer path when we have a repo.
+                // Always go through the global-buffer path when we have a repo.
                 if self.repo_path().is_some() {
                     self.create_code_review_model_with_global_buffer(file, ctx)
                 } else {
@@ -2656,7 +2651,7 @@ impl CodeReviewView {
     }
 
     fn diff_state(&self, app: &AppContext) -> DiffState {
-        self.diff_state_model.read(app, |model, ctx| model.get(ctx))
+        self.diff_state_model.read(app, |model, _| model.get())
     }
 
     /// Get the state of the current repo. Returns None if no repo.
@@ -2797,9 +2792,6 @@ impl CodeReviewView {
             self.create_code_review_model(file, ctx)
         } else {
             let self_handle = ctx.handle();
-            // Join host-aware: for local repos this yields a local absolute
-            // PathBuf; for remote repos this yields a `RemotePath` with the
-            // same host id as `repo_path`.
             let full_file_location = repo_path.join(&file.file_diff.file_path);
 
             let local_code_view = ctx.add_typed_action_view(|ctx| {
@@ -3153,7 +3145,7 @@ impl CodeReviewView {
         }
 
         if self.all_editors_loaded() {
-            let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode(ctx);
+            let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
             self.reposition_comments_in_file(&diff_mode, ctx);
         }
     }
@@ -5232,7 +5224,7 @@ impl CodeReviewView {
         .with_separator();
 
         // hide stash option entirely if there's no HEAD (git doesn't let you stash with no HEAD)
-        let can_stash = self.diff_state_model.as_ref(app).has_head(app);
+        let can_stash = self.diff_state_model.as_ref(app).has_head();
 
         if self
             .discard_dialog_state
@@ -5329,7 +5321,7 @@ impl CodeReviewView {
 
         let branch_name = match &self.discard_dialog_state.operation_type {
             DiscardOperationType::FileChangesAgainstBranch(None) => {
-                Some(self.diff_state_model.as_ref(ctx).get_main_branch_name(ctx))
+                Some(self.diff_state_model.as_ref(ctx).get_main_branch_name())
             }
             DiscardOperationType::FileChangesAgainstBranch(Some(branch)) => {
                 Some(Some(branch.clone()))
@@ -5355,7 +5347,7 @@ impl CodeReviewView {
 
         let branch_name = match &self.discard_dialog_state.operation_type {
             DiscardOperationType::AllChangesAgainstBranch(None) => {
-                Some(self.diff_state_model.as_ref(ctx).get_main_branch_name(ctx))
+                Some(self.diff_state_model.as_ref(ctx).get_main_branch_name())
             }
             DiscardOperationType::AllChangesAgainstBranch(Some(branch)) => {
                 Some(Some(branch.clone()))
@@ -5558,10 +5550,10 @@ impl CodeReviewView {
                 };
 
                 // Create attachment reference and key based on scope
-                let main_branch_name = self.diff_state_model.as_ref(ctx).get_main_branch_name(ctx);
+                let main_branch_name = self.diff_state_model.as_ref(ctx).get_main_branch_name();
                 let (attachment_reference, attachment_key) = create_attachment_reference_and_key(
                     &scope,
-                    &self.diff_state_model.as_ref(ctx).diff_mode(ctx),
+                    &self.diff_state_model.as_ref(ctx).diff_mode(),
                     main_branch_name.as_deref(),
                 );
 
@@ -5606,15 +5598,15 @@ impl CodeReviewView {
     fn get_current_head(&self, ctx: &ViewContext<Self>) -> Option<CurrentHead> {
         self.diff_state_model
             .as_ref(ctx)
-            .get_current_branch_name(ctx)
+            .get_current_branch_name()
             .map(CurrentHead::BranchName)
     }
 
     fn get_diff_base(&self, ctx: &ViewContext<Self>) -> anyhow::Result<DiffBase> {
-        match self.diff_state_model.as_ref(ctx).diff_mode(ctx) {
+        match self.diff_state_model.as_ref(ctx).diff_mode() {
             DiffMode::Head => Ok(DiffBase::UncommittedChanges),
             DiffMode::MainBranch => {
-                let main_branch_name = self.diff_state_model.as_ref(ctx).get_main_branch_name(ctx);
+                let main_branch_name = self.diff_state_model.as_ref(ctx).get_main_branch_name();
                 match main_branch_name {
                     Some(name) => Ok(DiffBase::BranchName(name)),
                     None => Err(anyhow::anyhow!("unable to determine main branch name")),
@@ -5699,13 +5691,13 @@ impl CodeReviewView {
                 // Determine the diff base from the current diff state
                 let diff_base = match self
                     .diff_state_model
-                    .read(ctx, |model, ctx| model.diff_mode(ctx))
+                    .read(ctx, |model, _| model.diff_mode())
                 {
                     DiffMode::Head => DiffBase::UncommittedChanges,
                     DiffMode::MainBranch => {
                         let main_branch_name = self
                             .diff_state_model
-                            .read(ctx, |model, ctx| model.get_main_branch_name(ctx));
+                            .read(ctx, |model, _| model.get_main_branch_name());
 
                         match main_branch_name {
                             Some(name) => DiffBase::BranchName(name),
@@ -5931,25 +5923,23 @@ impl CodeReviewView {
     fn has_uncommitted_changes(&self, app: &AppContext) -> bool {
         self.diff_state_model
             .as_ref(app)
-            .get_uncommitted_stats(app)
+            .get_uncommitted_stats()
             .is_some_and(|stats| !stats.has_no_changes())
     }
 
     /// Returns PR info for the current branch.
     ///
-    /// Local and remote repos both read from the per-repo `GitHubRepoModel`.
-    /// The model dispatches to a local `gh`-driven backend or a remote
-    /// GitHub PR-info push receiver.
+    /// Reads from the per-repo, `gh`-driven `GitHubRepoModel`.
     fn pr_info(&self, ctx: &AppContext) -> Option<PrInfo> {
         let github_repo_model = self.github_repo_model.as_ref()?;
-        github_repo_model.as_ref(ctx).pr_info(ctx).cloned()
+        github_repo_model.as_ref(ctx).pr_info().cloned()
     }
 
     /// Whether a `gh pr view` lookup is currently in flight.
     fn is_pr_info_refreshing(&self, ctx: &AppContext) -> bool {
         self.github_repo_model
             .as_ref()
-            .map(|h| h.as_ref(ctx).is_refreshing_pr_info(ctx))
+            .map(|h| h.as_ref(ctx).is_refreshing_pr_info())
             .unwrap_or(false)
     }
 
@@ -6044,7 +6034,7 @@ impl CodeReviewView {
         let diff_state_model = self.diff_state_model.clone();
         let branch_name = self
             .diff_state_model
-            .read(ctx, |model, ctx| model.get_current_branch_name(ctx))
+            .read(ctx, |model, _| model.get_current_branch_name())
             .unwrap_or_default();
 
         let dialog = match kind {
@@ -6057,8 +6047,8 @@ impl CodeReviewView {
                 let diff_state = self.diff_state_model.as_ref(ctx);
                 let allow_create_pr = self.pr_info(ctx).is_none()
                     && !self.is_pr_info_refreshing(ctx)
-                    && !diff_state.is_on_main_branch(ctx);
-                let has_upstream = diff_state.upstream_ref(ctx).is_some();
+                    && !diff_state.is_on_main_branch();
+                let has_upstream = diff_state.upstream_ref().is_some();
                 ctx.add_typed_action_view(|ctx| {
                     GitDialog::new_for_commit(
                         repo_path,
@@ -6073,7 +6063,7 @@ impl CodeReviewView {
             GitDialogKind::Push { publish } => {
                 let commits = self
                     .diff_state_model
-                    .read(ctx, |model, ctx| model.unpushed_commits(ctx).to_vec());
+                    .read(ctx, |model, _| model.unpushed_commits().to_vec());
                 ctx.add_typed_action_view(|ctx| {
                     GitDialog::new_for_push(
                         repo_path,
@@ -6088,7 +6078,7 @@ impl CodeReviewView {
             GitDialogKind::CreatePr => {
                 let base_branch_name = self
                     .diff_state_model
-                    .read(ctx, |model, ctx| model.get_main_branch_name(ctx));
+                    .read(ctx, |model, _| model.get_main_branch_name());
                 ctx.add_typed_action_view(|ctx| {
                     GitDialog::new_for_pr(
                         repo_path,
@@ -6122,12 +6112,12 @@ impl CodeReviewView {
     fn primary_git_action_mode(&self, app: &AppContext) -> PrimaryGitActionMode {
         let diff_state = self.diff_state_model.as_ref(app);
         let has_uncommitted_changes = self.has_uncommitted_changes(app);
-        let has_upstream = diff_state.upstream_ref(app).is_some();
-        let has_local_commits = !diff_state.unpushed_commits(app).is_empty();
+        let has_upstream = diff_state.upstream_ref().is_some();
+        let has_local_commits = !diff_state.unpushed_commits().is_empty();
         let is_pr_info_refreshing = self.is_pr_info_refreshing(app);
         // False when upstream == main (e.g. after `git checkout -b feature origin/master`),
         // which means the branch hasn't been pushed to its own remote ref yet.
-        let upstream_differs_from_main = diff_state.upstream_differs_from_main(app);
+        let upstream_differs_from_main = diff_state.upstream_differs_from_main();
 
         if has_uncommitted_changes {
             PrimaryGitActionMode::Commit
@@ -6139,7 +6129,7 @@ impl CodeReviewView {
             PrimaryGitActionMode::ViewPr
         } else if !is_pr_info_refreshing
             && has_upstream
-            && !diff_state.is_on_main_branch(app)
+            && !diff_state.is_on_main_branch()
             && upstream_differs_from_main
         {
             PrimaryGitActionMode::CreatePr
@@ -6300,9 +6290,9 @@ impl CodeReviewView {
                 .with_disabled(is_pr_info_refreshing)
                 .into_item()
         } else {
-            let is_on_main = diff_state.is_on_main_branch(app);
-            let has_upstream = diff_state.upstream_ref(app).is_some();
-            let upstream_differs_from_main = diff_state.upstream_differs_from_main(app);
+            let is_on_main = diff_state.is_on_main_branch();
+            let has_upstream = diff_state.upstream_ref().is_some();
+            let upstream_differs_from_main = diff_state.upstream_differs_from_main();
             MenuItemFields::new("Create PR")
                 .with_icon(Icon::Github)
                 .with_on_select_action(CodeReviewAction::OpenCreatePrDialog)
@@ -6322,8 +6312,8 @@ impl CodeReviewView {
     /// which are enabled.
     fn git_operations_menu_items(&self, app: &AppContext) -> Vec<MenuItem<CodeReviewAction>> {
         let diff_state = self.diff_state_model.as_ref(app);
-        let has_local_commits = !diff_state.unpushed_commits(app).is_empty();
-        let has_upstream = diff_state.upstream_ref(app).is_some();
+        let has_local_commits = !diff_state.unpushed_commits().is_empty();
+        let has_upstream = diff_state.upstream_ref().is_some();
         match self.primary_git_action_mode(app) {
             PrimaryGitActionMode::Commit => vec![
                 Self::commit_menu_item(false),
@@ -6709,12 +6699,6 @@ impl TypedActionView for CodeReviewView {
                     LocalOrRemotePath::Local(path) => {
                         self.open_code_review_file(path, *line_and_column, ctx);
                     }
-                    remote @ LocalOrRemotePath::Remote(_) => {
-                        ctx.emit(CodeReviewViewEvent::OpenFileInNewTab {
-                            path: remote,
-                            line_and_column: *line_and_column,
-                        });
-                    }
                 }
             }
             CodeReviewAction::ToggleFileExpanded(path) => {
@@ -6883,7 +6867,7 @@ impl TypedActionView for CodeReviewView {
             CodeReviewAction::ShowDiscardConfirmDialog(file_path) => {
                 self.discard_dialog_state.show_discard_confirm_dialog = true;
 
-                let current_diff_mode = self.diff_state_model.as_ref(ctx).diff_mode(ctx);
+                let current_diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
 
                 if let Some(path) = file_path {
                     // Single file remove

@@ -58,7 +58,7 @@ impl BundledSkills {
             SkillPathOrigin::Local | SkillPathOrigin::RestoredDisplayOnly => {
                 self.local.active_descriptors(ctx)
             }
-            SkillPathOrigin::Remote { .. } | SkillPathOrigin::Unavailable => Vec::new(),
+            SkillPathOrigin::Unavailable => Vec::new(),
         }
     }
 
@@ -83,7 +83,7 @@ impl BundledSkills {
     fn for_path_origin(&self, path_origin: &SkillPathOrigin) -> Option<&BundledSkill> {
         match path_origin {
             SkillPathOrigin::Local | SkillPathOrigin::RestoredDisplayOnly => Some(&self.local),
-            SkillPathOrigin::Remote { .. } | SkillPathOrigin::Unavailable => None,
+            SkillPathOrigin::Unavailable => None,
         }
     }
 

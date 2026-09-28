@@ -223,25 +223,6 @@ fn selected_review_repo_is_cleared_when_pane_group_is_removed() {
 // ── PaneGroupRepositoryRoots unit tests ──────────────────────────
 
 #[test]
-fn pane_group_repository_roots_insert_updates_both_maps() {
-    let mut roots = PaneGroupRepositoryRoots::default();
-    let pane_a = EntityId::new();
-    let path = local_str("/repos/x");
-
-    assert!(roots.insert(pane_a, path.clone()));
-    // Re-inserting the same (pane_group, path) is a no-op.
-    assert!(!roots.insert(pane_a, path.clone()));
-
-    let forward = roots.get(pane_a).expect("pane group registered");
-    assert!(forward.contains(&path), "forward map must contain the path");
-    assert_eq!(
-        roots.path_to_pane_groups.get(&path).cloned(),
-        Some(HashSet::from_iter([pane_a])),
-        "reverse map must reflect the inserted pane group"
-    );
-}
-
-#[test]
 fn pane_group_repository_roots_set_paths_returns_only_truly_orphaned_paths() {
     let mut roots = PaneGroupRepositoryRoots::default();
     let pane_a = EntityId::new();

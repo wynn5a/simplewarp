@@ -6,7 +6,6 @@ use futures::future::{Either, ready};
 #[cfg(test)]
 use virtual_fs::{Stub, VirtualFS};
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warp_util::remote_path::RemotePath;
 use warp_util::standardized_path::StandardizedPath;
 #[cfg(test)]
 use warpui_core::r#async::FutureId;
@@ -177,7 +176,7 @@ impl DetectedRepositories {
         DirectoryWatcher::as_ref(ctx).get_watched_directory_for_path(local_path)
     }
 
-    /// Given a local or remote path, return its corresponding repo root.
+    /// Given a path, return its corresponding repo root.
     ///
     /// No git detection is performed; roots are looked up in our cached
     /// path-to-root mapping. Note that for local paths this still hits the
@@ -191,11 +190,10 @@ impl DetectedRepositories {
                 let std_path = StandardizedPath::from_local_canonicalized(local_path).ok()?;
                 self.find_local_repository_root(&std_path)
             }
-            LocalOrRemotePath::Remote(remote_path) => self.find_remote_repository_root(remote_path),
         }
     }
 
-    /// Given a local or remote path, return its corresponding repo root.
+    /// Given a path, return its corresponding repo root.
     /// This does not run the check against the actual file system.
     /// Instead it checks against our cached path to root mapping.
     ///
@@ -212,7 +210,6 @@ impl DetectedRepositories {
                 let std_path = StandardizedPath::try_from_local(local_path).ok()?;
                 self.find_local_repository_root(&std_path)
             }
-            LocalOrRemotePath::Remote(remote_path) => self.find_remote_repository_root(remote_path),
         }
     }
 
@@ -227,24 +224,6 @@ impl DetectedRepositories {
             }
         }
         None
-    }
-
-    /// Find the remote repository that contains the given path, if any.
-    fn find_remote_repository_root(&self, remote_path: &RemotePath) -> Option<LocalOrRemotePath> {
-        for ancestor in remote_path.path.ancestors() {
-            let candidate =
-                LocalOrRemotePath::Remote(RemotePath::new(remote_path.host_id.clone(), ancestor));
-            if self.repository_roots.contains(&candidate) {
-                return Some(candidate);
-            }
-        }
-        None
-    }
-
-    /// Register a remote repository root discovered via the remote server.
-    pub fn register_remote_repo_root(&mut self, remote_path: RemotePath) {
-        self.repository_roots
-            .insert(LocalOrRemotePath::Remote(remote_path));
     }
 }
 

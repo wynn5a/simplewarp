@@ -44,7 +44,7 @@ use super::lifecycle::{
 };
 use super::secrets::{RespectObfuscatedSecrets, SecretAndHandle};
 use super::selection::ScrollDelta;
-use super::session::{BootstrapSessionType, InBandCommandOutputReceiver, SessionId};
+use super::session::{InBandCommandOutputReceiver, SessionId, SessionType};
 use super::{Secret, SecretHandle};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::SerializedBlockListItem;
@@ -361,7 +361,7 @@ pub struct SubshellSuccessBlockInfo {
 
     pub shell_type: ShellType,
 
-    pub session_type: BootstrapSessionType,
+    pub session_type: SessionType,
 }
 
 pub struct TerminalModel {

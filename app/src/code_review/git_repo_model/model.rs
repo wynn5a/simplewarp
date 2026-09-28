@@ -19,7 +19,7 @@ use crate::util::git::{detect_current_branch_display, detect_main_branch};
 ///
 /// When all strong handles are dropped the model (and its watcher) is
 /// automatically torn down.
-pub struct LocalGitRepoStatusModel {
+pub struct GitRepoStatusModel {
     repo_path: PathBuf,
     repository: ModelHandle<Repository>,
     subscriber_id: Option<SubscriberId>,
@@ -27,14 +27,14 @@ pub struct LocalGitRepoStatusModel {
     computing_metadata_abort_handle: Option<SpawnedFutureHandle>,
 }
 
-impl Entity for LocalGitRepoStatusModel {
+impl Entity for GitRepoStatusModel {
     type Event = GitRepoStatusEvent;
 }
 
-impl LocalGitRepoStatusModel {
+impl GitRepoStatusModel {
     /// Create a new per-repo status model, set up the filesystem watcher, and
     /// kick off the initial metadata computation.
-    pub(super) fn new(
+    pub(crate) fn new(
         repo_path: PathBuf,
         repository_model: ModelHandle<Repository>,
         ctx: &mut ModelContext<Self>,
@@ -259,7 +259,7 @@ impl LocalGitRepoStatusModel {
 }
 
 #[cfg(test)]
-impl LocalGitRepoStatusModel {
+impl GitRepoStatusModel {
     pub(crate) fn new_for_test(
         repository: ModelHandle<Repository>,
         metadata: Option<GitStatusMetadata>,
@@ -284,10 +284,10 @@ impl LocalGitRepoStatusModel {
 }
 
 #[cfg(test)]
-#[path = "local_tests.rs"]
+#[path = "model_tests.rs"]
 mod tests;
 
-impl Drop for LocalGitRepoStatusModel {
+impl Drop for GitRepoStatusModel {
     fn drop(&mut self) {
         // Note: we cannot call `repository.update()` here because `Drop` does
         // not have access to `ModelContext`.  The `Repository` model will clean

@@ -42,9 +42,9 @@ const REPOSITORY_INFO_FETCH_TIMEOUT: Duration = Duration::from_secs(5);
 ///
 /// When the last strong handle is dropped, the model is torn down and any
 /// in-flight `gh` fetch is aborted. The sibling [`GitRepoStatusModel`] is
-/// retained via a strong handle, so creating a `LocalGitHubRepoModel` keeps git
+/// retained via a strong handle, so creating a `GitHubRepoModel` keeps git
 /// status alive for as long as GitHub info is needed.
-pub struct LocalGitHubRepoModel {
+pub struct GitHubRepoModel {
     repo_path: PathBuf,
     /// Strong handle to the sibling git-status model. Keeps it alive so we
     /// always have a branch source.
@@ -70,11 +70,11 @@ pub struct LocalGitHubRepoModel {
     periodic_refresh_handle: Option<SpawnedFutureHandle>,
 }
 
-impl Entity for LocalGitHubRepoModel {
+impl Entity for GitHubRepoModel {
     type Event = GitHubRepoEvent;
 }
 
-impl LocalGitHubRepoModel {
+impl GitHubRepoModel {
     /// Create a new per-repo GitHub-info model.
     ///
     /// Subscribes to `git_status` for `MetadataChanged` events to track the
@@ -90,7 +90,7 @@ impl LocalGitHubRepoModel {
     ) -> Self {
         let branch = git_status
             .as_ref(ctx)
-            .metadata(ctx)
+            .metadata()
             .map(|m| m.current_branch_name.clone());
 
         // Track branch changes from the sibling. Only PR info depends on the
@@ -100,7 +100,7 @@ impl LocalGitHubRepoModel {
                 let new_branch = me
                     .git_status
                     .as_ref(ctx)
-                    .metadata(ctx)
+                    .metadata()
                     .map(|m| m.current_branch_name.clone());
                 if new_branch != me.branch {
                     me.branch = new_branch;
@@ -331,7 +331,7 @@ impl LocalGitHubRepoModel {
 }
 
 #[cfg(test)]
-impl LocalGitHubRepoModel {
+impl GitHubRepoModel {
     /// Inert constructor: no branch-tracking subscription, timers, or `gh`
     /// fetch, so tests stay deterministic and never spawn a real subprocess.
     /// Drive state via the `set_*_for_test` helpers.
@@ -368,10 +368,10 @@ impl LocalGitHubRepoModel {
 }
 
 #[cfg(test)]
-#[path = "local_tests.rs"]
+#[path = "model_tests.rs"]
 mod tests;
 
-impl Drop for LocalGitHubRepoModel {
+impl Drop for GitHubRepoModel {
     fn drop(&mut self) {
         if let Some(h) = self.refreshing_pr_info_abort_handle.take() {
             h.abort();

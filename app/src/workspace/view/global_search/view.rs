@@ -47,7 +47,7 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon as UiIcon;
 use crate::ui_components::item_highlight::{ImageOrIcon, ItemHighlightState};
 use crate::ui_components::render_file_search_row::{FileSearchRowOptions, render_file_search_row};
-use crate::util::path::{display_name_with_host, display_path_with_host};
+use crate::util::path::display_location_path;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
 use crate::workspace::view::global_search::model::GlobalSearch;
 use crate::workspace::view::global_search::{GlobalSearchMatch, SearchConfig};
@@ -740,8 +740,7 @@ impl GlobalSearchView {
     }
 
     /// Returns an iterator over all directory locations where the given file should appear.
-    /// A file matches a directory if the file location starts with that directory
-    /// (remote files only match directories on the same host).
+    /// A file matches a directory if the file location starts with that directory.
     fn find_matching_directories<'a>(
         &'a self,
         location: &'a LocalOrRemotePath,
@@ -987,8 +986,7 @@ impl GlobalSearchView {
     ) {
         // Ancestor-dedup search roots so we don't search the same file twice
         // when terminal directories are nested (e.g. `~/code` + `~/code/a`).
-        // Local roots share `group_roots_by_common_ancestor` with `FileTreeView` for consistency.
-        // Remote roots have no search backend.
+        // Shares `group_roots_by_common_ancestor` with `FileTreeView` for consistency.
         let local_roots: Vec<PathBuf> = roots
             .iter()
             .filter_map(|root| root.to_local_path().map(Path::to_path_buf))
@@ -1870,12 +1868,12 @@ impl GlobalSearchView {
         let directory_path = &dir_entry.path;
 
         let display_name = if directory_path.display_name().is_empty() {
-            display_path_with_host(directory_path, false)
+            display_location_path(directory_path, false)
         } else {
-            display_name_with_host(directory_path)
+            directory_path.display_name().to_string()
         };
         let directory_path_for_click = directory_path.clone();
-        let tooltip_text = display_path_with_host(directory_path, false);
+        let tooltip_text = display_location_path(directory_path, false);
 
         Hoverable::new(mouse_state, move |mouse_state| {
             let list_highlight_state = ItemHighlightState::new(is_selected, mouse_state);

@@ -107,14 +107,7 @@ impl GlobalSearch {
         let ignore_case = !search_config.use_case_sensitivity;
         let multiline = effective_pattern.contains('\n');
 
-        // Remote roots have no search backend.
-        let local_roots: Vec<PathBuf> = roots
-            .into_iter()
-            .filter_map(|root| match root {
-                LocalOrRemotePath::Local(path) => Some(path),
-                LocalOrRemotePath::Remote(_) => None,
-            })
-            .collect();
+        let local_roots: Vec<PathBuf> = roots.into_iter().map(PathBuf::from).collect();
 
         ctx.emit(GlobalSearchEvent::Started { search_id });
         let source_count = usize::from(!local_roots.is_empty());

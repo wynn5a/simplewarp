@@ -14,8 +14,6 @@ use repo_metadata::file_tree_store::{
 use repo_metadata::local_model::IndexedRepoState;
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::{FileTreeEntry, RepoMetadataModel};
-use warp_core::HostId;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
 use warp_util::path::LineAndColumnArg;
@@ -50,8 +48,8 @@ use crate::ui_components::icons::Icon;
 use crate::ui_components::item_highlight::{ImageOrIcon, ItemHighlightState};
 use crate::util::file::external_editor::EditorSettings;
 use crate::util::openable_file_type::{
-    EditorLayout, FileTarget, is_file_content_binary, is_jupyter_notebook_file, is_markdown_file,
-    resolve_file_target_to_open_in_warp, resolve_file_target_with_editor_choice,
+    EditorLayout, FileTarget, is_file_content_binary, resolve_file_target_to_open_in_warp,
+    resolve_file_target_with_editor_choice,
 };
 
 mod editing;
@@ -220,15 +218,6 @@ struct RootDirectory {
     items: Vec<FileTreeItem>,
     /// Mouse state handles and draggable state preserved across rebuilds, keyed by path
     item_states: HashMap<StandardizedPath, (MouseStateHandle, DraggableState)>,
-    /// The remote host this root belongs to, if any. `None` for local roots.
-    remote_host_id: Option<HostId>,
-}
-
-impl RootDirectory {
-    /// Returns whether this root is backed by a remote server.
-    fn is_remote(&self) -> bool {
-        self.remote_host_id.is_some()
-    }
 }
 
 pub struct FileTreeView {
@@ -304,13 +293,6 @@ impl FileTreeView {
             .is_some_and(|collapsed| collapsed.contains(path))
     }
 
-    /// Returns whether the item identified by `id` belongs to a remote root.
-    fn is_remote_item(&self, id: &FileTreeIdentifier) -> bool {
-        self.root_directories
-            .get(&id.root)
-            .is_some_and(|r| r.is_remote())
-    }
-
     fn is_active(&self) -> bool {
         self.is_active
     }
@@ -333,34 +315,8 @@ impl FileTreeView {
             self.show_hidden_files = *CodeSettings::as_ref(ctx).show_hidden_files;
 
             // Catch up on any repository/file changes that happened while inactive.
-            // Skip remote-backed roots — their data comes from server pushes,
-            // not from local DetectedRepositories / lazy-loading.
-            let local_dirs: Vec<_> = self
-                .displayed_directories
-                .iter()
-                .filter(|p| !self.root_directories.get(p).is_some_and(|r| r.is_remote()))
-                .cloned()
-                .collect();
-            self.update_directory_contents(&local_dirs, false, ctx);
-
-            // Catch up on remote roots already in root_directories whose
-            // content may have changed while inactive. We only refresh
-            // existing roots — new remote roots are managed by the
-            // workspace via `set_remote_root_directories`.
-            let existing_remote_ids: Vec<_> = self
-                .root_directories
-                .iter()
-                .filter_map(|(_, root_dir)| {
-                    let host_id = root_dir.remote_host_id.as_ref()?;
-                    Some(repo_metadata::RemoteRepositoryIdentifier::new(
-                        host_id.clone(),
-                        root_dir.entry.root_directory().as_ref().clone(),
-                    ))
-                })
-                .collect();
-            if !existing_remote_ids.is_empty() {
-                self.insert_or_update_remote_roots(&existing_remote_ids, false, ctx);
-            }
+            let dirs = self.displayed_directories.clone();
+            self.update_directory_contents(&dirs, false, ctx);
         } else {
             ctx.unsubscribe_to_model(&self.repository_metadata_model);
             self.unsubscribe_from_active_file_model(ctx);
@@ -392,84 +348,6 @@ impl FileTreeView {
         });
     }
 
-    /// Inserts or updates remote root directories. When `insert_only` is
-    /// true, roots already present in `displayed_directories` are skipped
-    /// (used for catch-up on reactivation). When false, existing roots are
-    /// updated in-place (used for live server push events).
-    ///
-    /// Performs a single `rebuild_flattened_items` / `ctx.notify` at the end
-    /// regardless of how many roots were processed.
-    fn insert_or_update_remote_roots(
-        &mut self,
-        remote_ids: &[repo_metadata::RemoteRepositoryIdentifier],
-        insert_only: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        use repo_metadata::RepositoryIdentifier;
-
-        let mut changed = false;
-
-        for remote_id in remote_ids {
-            let repo_path = remote_id.path.clone();
-
-            if insert_only && self.displayed_directories.contains(&repo_path) {
-                continue;
-            }
-
-            let id = RepositoryIdentifier::Remote(remote_id.clone());
-            let Some(state) = RepoMetadataModel::as_ref(ctx).get_repository(&id, ctx) else {
-                continue;
-            };
-
-            // Remove any existing roots that are ancestors or descendants of the
-            // new path. For example, when the user cd's from /home/user into
-            // /home/user/repo, replace the home directory root with the repo root.
-            self.displayed_directories.retain(|existing| {
-                if *existing == repo_path {
-                    return true;
-                }
-                let dominated = existing.starts_with(&repo_path) || repo_path.starts_with(existing);
-                if dominated {
-                    self.root_directories.remove(existing);
-                }
-                !dominated
-            });
-
-            let host_id = remote_id.host_id.clone();
-            self.root_directories
-                .entry(repo_path.clone())
-                .and_modify(|root_dir| {
-                    root_dir.entry = state.entry.clone();
-                    root_dir.remote_host_id = Some(host_id.clone());
-                })
-                .or_insert_with(|| RootDirectory {
-                    entry: state.entry.clone(),
-                    expanded_folders: HashSet::new(),
-                    items: Vec::new(),
-                    item_states: HashMap::new(),
-                    remote_host_id: Some(host_id),
-                });
-
-            if !self.displayed_directories.contains(&repo_path) {
-                self.displayed_directories.push(repo_path.clone());
-            }
-
-            // Auto-expand the root, respecting explicit user collapses.
-            if !self.is_explicitly_collapsed(&repo_path, &repo_path)
-                && let Some(root_dir) = self.root_directories.get_mut(&repo_path)
-            {
-                root_dir.expanded_folders.insert(repo_path);
-            }
-
-            changed = true;
-        }
-
-        if changed {
-            self.rebuild_flattened_items();
-            ctx.notify();
-        }
-    }
-
     fn handle_repository_metadata_event(
         &mut self,
         event: &repo_metadata::RepoMetadataEvent,
@@ -478,7 +356,7 @@ impl FileTreeView {
         use repo_metadata::{RepoMetadataEvent, RepositoryIdentifier};
         match event {
             RepoMetadataEvent::RepositoryUpdated {
-                id: RepositoryIdentifier::Local(std_path),
+                id: RepositoryIdentifier(std_path),
             } => {
                 // Always update when a repository finishes indexing
                 // Collect matching directories first to avoid borrow checker issues
@@ -506,7 +384,7 @@ impl FileTreeView {
                 }
             }
             RepoMetadataEvent::FileTreeEntryUpdated {
-                id: RepositoryIdentifier::Local(std_path),
+                id: RepositoryIdentifier(std_path),
                 ..
             } => {
                 // Find root directories whose backing model entry matches this path.
@@ -520,7 +398,7 @@ impl FileTreeView {
                     .collect();
 
                 if !root_paths.is_empty() {
-                    let id = RepositoryIdentifier::Local(std_path.clone());
+                    let id = RepositoryIdentifier(std_path.clone());
                     if let Some(state) = RepoMetadataModel::as_ref(ctx).get_repository(&id, ctx) {
                         for root_path in &root_paths {
                             if let Some(root_dir) = self.root_directories.get_mut(root_path) {
@@ -537,70 +415,13 @@ impl FileTreeView {
                 }
             }
             RepoMetadataEvent::UpdatingRepositoryFailed {
-                id: RepositoryIdentifier::Local(std_path),
+                id: RepositoryIdentifier(std_path),
             } => {
                 self.update_directory_contents(std::slice::from_ref(std_path), false, ctx);
             }
-            RepoMetadataEvent::RepositoryUpdated {
-                id: RepositoryIdentifier::Remote(remote_id),
-            } => {
-                // Only update existing remote roots — never add new ones.
-                // New remote roots are pushed by the workspace via
-                // `set_remote_root_directories` when `NavigatedToDirectory`
-                // resolves for a session in this pane group.
-                //
-                // Match on both path and host_id so that two different
-                // hosts that happen to share a path (e.g. /home/user/repo)
-                // don't interfere with each other.
-                let repo_path = &remote_id.path;
-                let belongs_to_this_tree =
-                    self.root_directories
-                        .get(repo_path)
-                        .is_some_and(|root_dir| {
-                            root_dir
-                                .remote_host_id
-                                .as_ref()
-                                .is_some_and(|h| *h == remote_id.host_id)
-                        });
-                if belongs_to_this_tree {
-                    self.insert_or_update_remote_roots(std::slice::from_ref(remote_id), false, ctx);
-                }
-            }
-            RepoMetadataEvent::FileTreeEntryUpdated {
-                id: RepositoryIdentifier::Remote(remote_id),
-                ..
-            } => {
-                let repo_path = remote_id.path.clone();
-                let id = RepositoryIdentifier::Remote(remote_id.clone());
-                if let Some(state) = RepoMetadataModel::as_ref(ctx).get_repository(&id, ctx) {
-                    if let Some(root_dir) = self.root_directories.get_mut(&repo_path) {
-                        root_dir.entry = state.entry.clone();
-                    }
-                    // Only rebuild the affected remote root instead of all roots.
-                    // Remote servers stream frequent incremental updates; a full
-                    // rebuild would cause unrelated local roots to re-render on
-                    // every remote filesystem change, leading to visible flicker.
-                    self.rebuild_flattened_items_for_root(&repo_path);
-                    ctx.notify();
-                }
-            }
-            RepoMetadataEvent::RepositoryRemoved {
-                id: RepositoryIdentifier::Remote(remote_id),
-            } => {
-                let repo_path = &remote_id.path;
-                self.displayed_directories.retain(|p| p != repo_path);
-                self.root_directories.remove(repo_path);
-                // The removed root is already gone from root_directories, so
-                // this is effectively a no-op rebuild that avoids touching
-                // the remaining roots' flattened items.
-                self.rebuild_flattened_items_for_root(repo_path);
-                ctx.notify();
-            }
             RepoMetadataEvent::FileTreeUpdated { .. }
             | RepoMetadataEvent::RepositoryRemoved { .. }
-            | RepoMetadataEvent::StandingQueryResultsUpdated { .. }
-            | RepoMetadataEvent::UpdatingRepositoryFailed { .. }
-            | RepoMetadataEvent::IncrementalUpdateReady { .. } => {}
+            | RepoMetadataEvent::StandingQueryResultsUpdated { .. } => {}
         }
     }
 
@@ -727,9 +548,6 @@ impl FileTreeView {
                             Ok(std_path) => std_path,
                             Err(_) => return,
                         }
-                    }
-                    crate::code::buffer_location::LocalOrRemotePath::Remote(remote) => {
-                        remote.path.clone()
                     }
                 };
                 // Prefer the currently-selected item's root if the file lives under it;
@@ -872,81 +690,7 @@ impl FileTreeView {
         ctx.notify();
     }
 
-    /// Sets the remote root directories to display in the file tree.
-    ///
-    /// This is the remote equivalent of [`set_root_directories`]. It
-    /// inserts or updates the given remote repos and removes any existing
-    /// remote roots that are NOT in `repos`. Local roots are unaffected.
-    pub fn set_remote_root_directories(
-        &mut self,
-        repos: &[repo_metadata::RemoteRepositoryIdentifier],
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Remove remote roots that are no longer in the desired set.
-        let desired_paths: HashSet<&StandardizedPath> = repos.iter().map(|id| &id.path).collect();
-        let stale_remote_paths: Vec<StandardizedPath> = self
-            .root_directories
-            .iter()
-            .filter(|(_, root_dir)| root_dir.is_remote())
-            .filter(|(path, _)| !desired_paths.contains(path))
-            .map(|(path, _)| path.clone())
-            .collect();
-        let mut changed = !stale_remote_paths.is_empty();
-        for path in &stale_remote_paths {
-            self.displayed_directories.retain(|p| p != path);
-            self.root_directories.remove(path);
-        }
-
-        // Insert or update the desired remote roots.
-        // `insert_or_update_remote_roots` skips repos whose model data
-        // hasn't arrived yet (`get_repository` returns None). For those,
-        // we still register an empty placeholder in `root_directories`
-        // and `displayed_directories` so that the subsequent
-        // `RepositoryUpdated { Remote }` event (which fires when the
-        // model data arrives) passes the `contains_key` guard and fills
-        // in the tree.
-        if !repos.is_empty() {
-            // `insert_or_update_remote_roots` already rebuilds + notifies
-            // when it mutates state. Track whether the placeholder loop
-            // below adds anything new so we only rebuild a second time
-            // when necessary.
-            self.insert_or_update_remote_roots(repos, false, ctx);
-
-            for remote_id in repos {
-                let repo_path = &remote_id.path;
-                if !self.root_directories.contains_key(repo_path) {
-                    // Model data not available yet — create a placeholder.
-                    let host_id = remote_id.host_id.clone();
-                    self.root_directories.insert(
-                        repo_path.clone(),
-                        RootDirectory {
-                            entry: Self::create_empty_entry(repo_path),
-                            expanded_folders: HashSet::new(),
-                            items: Vec::new(),
-                            item_states: HashMap::new(),
-                            remote_host_id: Some(host_id),
-                        },
-                    );
-                    changed = true;
-                }
-                if !self.displayed_directories.contains(repo_path) {
-                    self.displayed_directories.push(repo_path.clone());
-                    changed = true;
-                }
-            }
-        }
-
-        if changed {
-            self.rebuild_flattened_items();
-            ctx.notify();
-        }
-    }
-
     /// Sets the root directories to display in the file tree.
-    ///
-    /// This only manages **local** roots. Remote-backed roots (those with a
-    /// `remote_host_id`) are managed by [`set_remote_root_directories`]
-    /// and are preserved across calls to this method.
     ///
     /// When multiple input paths have an ancestor/descendant relationship
     /// among local roots, only the surviving ancestor is displayed and the
@@ -960,36 +704,12 @@ impl FileTreeView {
             .filter_map(|p| StandardizedPath::try_from_local(p).ok())
             .collect();
 
-        // Collect existing remote directories so we can preserve them.
-        // Remote CWDs are not present in `std_paths` because `normalize_cwd`
-        // in the `WorkingDirectoriesModel` drops paths that cannot be
-        // canonicalized on the local filesystem.
-        let existing_remote_dirs: Vec<StandardizedPath> = self
-            .displayed_directories
-            .iter()
-            .filter(|p| self.root_directories.get(p).is_some_and(|r| r.is_remote()))
-            .cloned()
-            .collect();
-
-        // Only local paths participate in ancestor-dedup.
-        let local_inputs: Vec<StandardizedPath> = std_paths
-            .iter()
-            .filter(|p| !self.root_directories.get(p).is_some_and(|r| r.is_remote()))
-            .cloned()
-            .collect();
-
-        // Ancestor-dedup only local inputs. Shared with `GlobalSearchView`
+        // Ancestor-dedup the inputs. Shared with `GlobalSearchView`
         // via `warp_util::path::group_roots_by_common_ancestor`.
-        let grouping = warp_util::path::group_roots_by_common_ancestor(&local_inputs);
+        let grouping = warp_util::path::group_roots_by_common_ancestor(&std_paths);
 
-        // Final displayed order: local surviving roots (in input order),
-        // followed by preserved remote roots (in their existing order).
-        let new_displayed: Vec<StandardizedPath> = grouping
-            .roots
-            .iter()
-            .cloned()
-            .chain(existing_remote_dirs.iter().cloned())
-            .collect();
+        // Final displayed order: surviving roots in input order.
+        let new_displayed: Vec<StandardizedPath> = grouping.roots.clone();
 
         // Capture the selected item's path and root before we mutate
         // per-root state, so we can remap selection across absorption.
@@ -1020,24 +740,10 @@ impl FileTreeView {
             }
         }
 
-        // Retain roots that are in `new_displayed`. Remote roots that
-        // were properly pushed by `set_remote_root_directories` are
-        // already included via the `existing_remote_dirs` chain above.
         self.root_directories
             .retain(|root, _| new_displayed.contains(root));
         self.displayed_directories = new_displayed.clone();
-        // Only update local roots — remote roots are managed by
-        // `set_remote_root_directories` and must not be passed to
-        // `update_directory_contents` which would overwrite their
-        // remote-backed entry with an empty local lazy-loaded one.
-        {
-            let local_displayed: Vec<_> = new_displayed
-                .iter()
-                .filter(|p| !self.root_directories.get(p).is_some_and(|r| r.is_remote()))
-                .cloned()
-                .collect();
-            self.update_directory_contents(&local_displayed, new_last_directory, ctx);
-        }
+        self.update_directory_contents(&new_displayed, new_last_directory, ctx);
 
         // Auto-expand the ancestor chain down to each absorbed descendant.
         // `expand_ancestors_to_path` expands the descendant's parents (and
@@ -1193,7 +899,6 @@ impl FileTreeView {
                 expanded_folders: HashSet::new(),
                 items: Vec::new(),
                 item_states: HashMap::new(),
-                remote_host_id: None,
             });
 
         for absorbed_root in absorbed {
@@ -1258,12 +963,11 @@ impl FileTreeView {
                     expanded_folders: HashSet::new(),
                     items: Vec::new(),
                     item_states: HashMap::new(),
-                    remote_host_id: None,
                 });
             let root_local = root_path.to_local_path_lossy();
             if let Some(repo_root) = DetectedRepositories::as_ref(ctx)
                 .get_root_for_path(&LocalOrRemotePath::Local(root_local))
-                .and_then(|r| PathBuf::try_from(r).ok())
+                .map(PathBuf::from)
             {
                 let repo_entry = {
                     let repo_metadata = RepoMetadataModel::as_ref(ctx);
@@ -1360,15 +1064,6 @@ impl FileTreeView {
         target_item: &FileTreeEntryState,
         ctx: &mut ViewContext<Self>,
     ) {
-        // Remote-backed roots have no directory loader.
-        if self
-            .root_directories
-            .get(root_path)
-            .is_some_and(|r| r.is_remote())
-        {
-            return;
-        }
-
         let Some(root_dir) = self.root_directories.get(root_path) else {
             return;
         };
@@ -1458,7 +1153,6 @@ impl FileTreeView {
                 expanded_folders: HashSet::new(),
                 items: Vec::new(),
                 item_states: HashMap::new(),
-                remote_host_id: None,
             });
         // When the file tree is active, index the lazy-loaded path through the
         // model so that a file watcher is started.
@@ -2138,45 +1832,10 @@ impl FileTreeView {
             return;
         };
 
-        let is_remote = root_dir.is_remote();
-
         match item {
             FileTreeItem::File { metadata, .. } => {
-                if is_remote {
-                    // Emit a remote open event if we have a host ID.
-                    if let Some(host_id) = &root_dir.remote_host_id {
-                        let remote_path = warp_util::remote_path::RemotePath::new(
-                            host_id.clone(),
-                            (*metadata.path).clone(),
-                        );
-                        let path_str = metadata.path.as_str();
-                        let remote_file_path = Path::new(path_str);
-                        let target = if is_jupyter_notebook_file(remote_file_path)
-                            && FeatureFlag::JupyterNotebookRendering.is_enabled()
-                        {
-                            FileTarget::MarkdownViewer(EditorLayout::SplitPane)
-                        } else if is_markdown_file(remote_file_path) {
-                            {
-                                let prefer_md = *EditorSettings::as_ref(ctx).prefer_markdown_viewer;
-                                if prefer_md {
-                                    FileTarget::MarkdownViewer(EditorLayout::SplitPane)
-                                } else {
-                                    FileTarget::CodeEditor(EditorLayout::SplitPane)
-                                }
-                            }
-                        } else {
-                            FileTarget::CodeEditor(EditorLayout::SplitPane)
-                        };
-                        ctx.emit(FileTreeEvent::OpenFile {
-                            path: LocalOrRemotePath::Remote(remote_path),
-                            target,
-                            line_col: None,
-                        });
-                    }
-                } else {
-                    let path = metadata.path.to_local_path_lossy();
-                    self.open_file(&path, None, ctx);
-                }
+                let path = metadata.path.to_local_path_lossy();
+                self.open_file(&path, None, ctx);
             }
             FileTreeItem::DirectoryHeader { directory, .. } => {
                 let dir_std = (*directory.path).clone();
@@ -2210,96 +1869,79 @@ impl FileTreeView {
         item: &FileTreeItem,
         id: &FileTreeIdentifier,
     ) -> Vec<MenuItem<FileTreeAction>> {
-        let is_remote = self.is_remote_item(id);
-
         let mut items = vec![];
 
-        if is_remote {
-            // Remote file trees only support a limited set of actions:
-            // copying paths and attaching as context. File opening,
-            // creation, rename, delete, cd, and reveal are unavailable
-            // because there is no local filesystem or editor support.
-        } else {
-            match item {
-                FileTreeItem::File { .. } => {
-                    let path_local = item.path().to_local_path_lossy();
-                    if !is_file_content_binary(&path_local) {
-                        items.extend([
-                            MenuItemFields::new("Open in new pane")
-                                .with_on_select_action(FileTreeAction::OpenInNewPane {
-                                    id: id.clone(),
-                                })
-                                .into_item(),
-                            MenuItemFields::new("Open in new tab")
-                                .with_on_select_action(FileTreeAction::OpenInNewTab {
-                                    id: id.clone(),
-                                })
-                                .into_item(),
-                        ]);
-                    } else {
-                        items.push(
-                            MenuItemFields::new("Open file")
-                                .with_on_select_action(FileTreeAction::ItemClicked {
-                                    id: id.clone(),
-                                })
-                                .into_item(),
-                        );
-                    }
-                }
-                FileTreeItem::DirectoryHeader { .. } => {
-                    items.push(
-                        MenuItemFields::new("New file")
-                            .with_on_select_action(FileTreeAction::NewFileBelowDirectory {
-                                id: id.clone(),
-                            })
+        match item {
+            FileTreeItem::File { .. } => {
+                let path_local = item.path().to_local_path_lossy();
+                if !is_file_content_binary(&path_local) {
+                    items.extend([
+                        MenuItemFields::new("Open in new pane")
+                            .with_on_select_action(FileTreeAction::OpenInNewPane { id: id.clone() })
                             .into_item(),
-                    );
-                    items.push(MenuItem::Separator);
-                    if self.has_terminal_session {
-                        items.push(
-                            MenuItemFields::new("cd to directory")
-                                .with_on_select_action(FileTreeAction::CDToDirectory {
-                                    id: id.clone(),
-                                })
-                                .into_item(),
-                        );
-                    }
-                    items.push(
                         MenuItemFields::new("Open in new tab")
                             .with_on_select_action(FileTreeAction::OpenInNewTab { id: id.clone() })
                             .into_item(),
+                    ]);
+                } else {
+                    items.push(
+                        MenuItemFields::new("Open file")
+                            .with_on_select_action(FileTreeAction::ItemClicked { id: id.clone() })
+                            .into_item(),
                     );
                 }
-            };
-
-            let open_text = if cfg!(target_os = "macos") {
-                "Reveal in Finder"
-            } else if cfg!(target_os = "windows") {
-                "Reveal in Explorer"
-            } else {
-                "Reveal in file manager"
-            };
-            items.push(
-                MenuItemFields::new(open_text)
-                    .with_on_select_action(FileTreeAction::OpenInFinder { id: id.clone() })
-                    .into_item(),
-            );
-
-            // For now, the root repo is always the zero index. This may not always be the case if we allow
-            // multiple repos in a project view, for instance. This disallows deletion/renaming of the root repo.
-            let is_repo_root_dir = id.index == 0;
-            if !is_repo_root_dir {
+            }
+            FileTreeItem::DirectoryHeader { .. } => {
                 items.push(
-                    MenuItemFields::new("Rename")
-                        .with_on_select_action(FileTreeAction::Rename { id: id.clone() })
+                    MenuItemFields::new("New file")
+                        .with_on_select_action(FileTreeAction::NewFileBelowDirectory {
+                            id: id.clone(),
+                        })
                         .into_item(),
                 );
+                items.push(MenuItem::Separator);
+                if self.has_terminal_session {
+                    items.push(
+                        MenuItemFields::new("cd to directory")
+                            .with_on_select_action(FileTreeAction::CDToDirectory { id: id.clone() })
+                            .into_item(),
+                    );
+                }
                 items.push(
-                    MenuItemFields::new("Delete")
-                        .with_on_select_action(FileTreeAction::Delete { id: id.clone() })
+                    MenuItemFields::new("Open in new tab")
+                        .with_on_select_action(FileTreeAction::OpenInNewTab { id: id.clone() })
                         .into_item(),
                 );
             }
+        };
+
+        let open_text = if cfg!(target_os = "macos") {
+            "Reveal in Finder"
+        } else if cfg!(target_os = "windows") {
+            "Reveal in Explorer"
+        } else {
+            "Reveal in file manager"
+        };
+        items.push(
+            MenuItemFields::new(open_text)
+                .with_on_select_action(FileTreeAction::OpenInFinder { id: id.clone() })
+                .into_item(),
+        );
+
+        // For now, the root repo is always the zero index. This may not always be the case if we allow
+        // multiple repos in a project view, for instance. This disallows deletion/renaming of the root repo.
+        let is_repo_root_dir = id.index == 0;
+        if !is_repo_root_dir {
+            items.push(
+                MenuItemFields::new("Rename")
+                    .with_on_select_action(FileTreeAction::Rename { id: id.clone() })
+                    .into_item(),
+            );
+            items.push(
+                MenuItemFields::new("Delete")
+                    .with_on_select_action(FileTreeAction::Delete { id: id.clone() })
+                    .into_item(),
+            );
         }
 
         if self.has_terminal_session {
@@ -2961,29 +2603,20 @@ impl TypedActionView for FileTreeView {
                 self.attach_as_context(id, ctx);
             }
             FileTreeAction::NewFileBelowDirectory { id } => {
-                if !self.is_remote_item(id) {
-                    self.create_new_file(id, ctx);
-                }
+                self.create_new_file(id, ctx);
             }
             FileTreeAction::OpenInNewPane { id } => {
-                if !self.is_remote_item(id) {
-                    self.open_in_new_pane(id, ctx);
-                }
+                self.open_in_new_pane(id, ctx);
             }
             FileTreeAction::OpenInNewTab { id } => {
-                if !self.is_remote_item(id) {
-                    self.open_in_new_tab(id, ctx);
-                }
+                self.open_in_new_tab(id, ctx);
             }
             FileTreeAction::CDToDirectory { id } => {
-                if !self.is_remote_item(id) {
-                    self.cd_to_directory(id, ctx);
-                }
+                self.cd_to_directory(id, ctx);
                 self.context_menu_state.take();
             }
             FileTreeAction::OpenInFinder { id } => {
-                if !self.is_remote_item(id)
-                    && let Some(root_dir) = self.root_directories.get(&id.root)
+                if let Some(root_dir) = self.root_directories.get(&id.root)
                     && let Some(item) = root_dir.items.get(id.index)
                 {
                     let path = item.path().to_local_path_lossy();
@@ -2992,15 +2625,11 @@ impl TypedActionView for FileTreeView {
                 self.context_menu_state.take();
             }
             FileTreeAction::Rename { id } => {
-                if !self.is_remote_item(id) {
-                    self.rename_item(id, ctx);
-                }
+                self.rename_item(id, ctx);
                 self.context_menu_state.take();
             }
             FileTreeAction::Delete { id } => {
-                if !self.is_remote_item(id) {
-                    self.delete_item(id, ctx);
-                }
+                self.delete_item(id, ctx);
                 self.context_menu_state.take();
             }
             FileTreeAction::DismissEditor => {

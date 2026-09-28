@@ -221,7 +221,7 @@ pub enum SettingsViewEvent {
     },
     OpenAIFactCollection,
     OpenMCPServerCollection,
-    OpenCustomRouterEditor(Option<CustomModelRouter>),
+    OpenCustomRouterEditor(Box<Option<CustomModelRouter>>),
     OpenCustomRouterFile(PathBuf),
     OpenExecutionProfileEditor(ExecutionProfileId),
 }
@@ -1542,7 +1542,9 @@ impl SettingsView {
         match event {
             WarpAgentPageEvent::FocusModal => ctx.focus(&self.search_editor),
             WarpAgentPageEvent::OpenCustomRouterEditor(router) => {
-                ctx.emit(SettingsViewEvent::OpenCustomRouterEditor(router.clone()));
+                ctx.emit(SettingsViewEvent::OpenCustomRouterEditor(Box::new(
+                    router.clone(),
+                )));
             }
             WarpAgentPageEvent::OpenCustomRouterFile(path) => {
                 ctx.emit(SettingsViewEvent::OpenCustomRouterFile(path.clone()));

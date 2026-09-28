@@ -78,8 +78,6 @@ pub enum NotebookLocation {
     PersonalCloud,
     /// A notebook backed by a local file.
     LocalFile,
-    /// A notebook backed by a remote file.
-    RemoteFile,
 }
 
 /// Initialize notebooks-related keybindings.

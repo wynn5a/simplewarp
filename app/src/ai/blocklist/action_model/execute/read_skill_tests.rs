@@ -24,7 +24,7 @@ use crate::ai::blocklist::action_model::AIConversationId;
 use crate::ai::skills::{BundledSkillActivation, SkillManager};
 use crate::settings::AISettings;
 use crate::terminal::model::session::active_session::ActiveSession;
-use crate::terminal::model::session::{BootstrapSessionType, SessionId, SessionInfo, Sessions};
+use crate::terminal::model::session::{SessionId, SessionInfo, SessionType, Sessions};
 use crate::terminal::model_events::ModelEventDispatcher;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 
@@ -152,7 +152,7 @@ fn disconnected_remote_session_does_not_fall_back_to_client_global_bundled_skill
             sessions.register_session_for_test(
                 SessionInfo::new_for_test()
                     .with_id(session_id)
-                    .with_session_type(BootstrapSessionType::WarpifiedRemote),
+                    .with_session_type(SessionType::WarpifiedRemote),
             );
         });
         let (_model_events_tx, model_events_rx) = unbounded();

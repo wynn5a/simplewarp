@@ -8,8 +8,7 @@
 //!
 //! Callers own everything *around* the action: UI (toasts, telemetry, dialog
 //! lifecycle), transport/model (applying the returned delta to a
-//! `DiffStateModel`, building wire responses), and any execution-time guards
-//! (e.g. the daemon's `git_operation_in_progress` backstop).
+//! `DiffStateModel`), and any execution-time guards.
 
 use std::path::Path;
 

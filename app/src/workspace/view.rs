@@ -4459,18 +4459,6 @@ impl Workspace {
                         ctx,
                     );
                 }
-                LocalOrRemotePath::Remote(_) => {
-                    self.open_code(
-                        CodeSource::ProjectRules {
-                            location: location.clone(),
-                        },
-                        EditorLayout::SplitPane,
-                        None,
-                        false,
-                        &[],
-                        ctx,
-                    );
-                }
             },
             AIFactViewEvent::InitializeProject(path) => {
                 let active_terminal_view = self
@@ -4644,31 +4632,6 @@ impl Workspace {
                             ctx,
                         );
                     }
-                    LocalOrRemotePath::Remote(_) => {
-                        {
-                            // Honor a notebook-viewer target (e.g. a remote
-                            // Jupyter notebook) instead of always opening remote
-                            // files as raw code in the editor.
-                            if let FileTarget::MarkdownViewer(layout) = target {
-                                self.open_file_notebook(
-                                    location.clone(),
-                                    None,
-                                    *layout,
-                                    Some(code_source),
-                                    ctx,
-                                );
-                            } else {
-                                self.open_code(
-                                    code_source,
-                                    crate::util::openable_file_type::EditorLayout::SplitPane,
-                                    *line_col,
-                                    false,
-                                    &[],
-                                    ctx,
-                                );
-                            }
-                        }
-                    }
                 }
             }
             LeftPanelEvent::NewConversationInNewTab => {
@@ -4728,16 +4691,6 @@ impl Workspace {
             } => match path {
                 LocalOrRemotePath::Local(path) => {
                     self.add_tab_for_code_file(path, line_and_column, ctx);
-                }
-                path @ LocalOrRemotePath::Remote(_) => {
-                    self.open_code(
-                        CodeSource::FileTree { location: path },
-                        EditorLayout::NewTab,
-                        line_and_column,
-                        false,
-                        &[],
-                        ctx,
-                    );
                 }
             },
             RightPanelEvent::OpenLspLogs { log_path } => {
@@ -6516,10 +6469,8 @@ impl Workspace {
             // If the tabbed editor view is enabled and there is an existing CodeView, we should group the newly opened file into this view.
             if let (Some(location), Some((pane_id, code_view))) = (source.location(), code_view) {
                 code_view.update(ctx, |code_view, ctx| {
-                    // Preview (single-click = light open, double-click = promote to
-                    // full tab) is only supported for local files because it relies
-                    // on `open_in_preview_or_promote` which takes a local `PathBuf`.
-                    // Remote files skip preview and open normally.
+                    // Preview: single-click = light open, double-click = promote to
+                    // full tab.
                     if preview {
                         if let Some(path) = location.to_local_path() {
                             code_view.open_in_preview_or_promote_and_jump(
@@ -11441,30 +11392,7 @@ impl Workspace {
                 line_and_column_arg,
             } => {
                 {
-                    // Build a LocalOrRemotePath for the file. For remote sessions
-                    // the host_id comes from the active working directory.
-                    let location = {
-                        let window_id = ctx.window_id();
-                        ActiveSession::as_ref(ctx)
-                            .working_directory(window_id)
-                            .and_then(|wd| match wd {
-                                LocalOrRemotePath::Remote(remote) => {
-                                    let std_path =
-                                        warp_util::standardized_path::StandardizedPath::try_new(
-                                            path,
-                                        )
-                                        .ok()?;
-                                    Some(LocalOrRemotePath::Remote(
-                                        warp_util::remote_path::RemotePath::new(
-                                            remote.host_id.clone(),
-                                            std_path,
-                                        ),
-                                    ))
-                                }
-                                LocalOrRemotePath::Local(_) => None,
-                            })
-                            .unwrap_or_else(|| LocalOrRemotePath::Local(PathBuf::from(path)))
-                    };
+                    let location = LocalOrRemotePath::Local(PathBuf::from(path));
 
                     let code_source = CodeSource::CommandPalette { location };
 
@@ -11529,7 +11457,7 @@ impl Workspace {
                 self.show_settings_with_section(Some(SettingsSection::AgentMCPServers), ctx);
             }
             SettingsViewEvent::OpenCustomRouterEditor(router) => {
-                self.open_custom_router_editor_pane(None, router.clone(), ctx);
+                self.open_custom_router_editor_pane(None, router.as_ref().clone(), ctx);
             }
             SettingsViewEvent::OpenExecutionProfileEditor(profile_id) => {
                 self.open_execution_profile_editor_pane(None, profile_id.clone(), ctx);

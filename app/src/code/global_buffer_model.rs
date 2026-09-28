@@ -156,10 +156,7 @@ impl GlobalBufferModel {
         // Collect paths for didClose before removing entries.
         let paths_to_close: Vec<PathBuf> = ids_to_remove
             .iter()
-            .filter_map(|id| match self.location_to_id.get_by_right(id) {
-                Some(LocalOrRemotePath::Local(path)) => Some(path.clone()),
-                Some(LocalOrRemotePath::Remote(_)) | None => None,
-            })
+            .filter_map(|id| self.location_to_id.get_by_right(id).map(PathBuf::from))
             .collect();
 
         for path in &paths_to_close {
@@ -790,7 +787,6 @@ impl GlobalBufferModel {
     ) -> BufferState {
         match location {
             LocalOrRemotePath::Local(path) => self.open_local(path, ctx),
-            LocalOrRemotePath::Remote(_) => self.open_remote_buffer(ctx),
         }
     }
 
@@ -1135,9 +1131,7 @@ impl GlobalBufferModel {
             .location_to_id
             .iter()
             .filter_map(|(location, id)| {
-                let LocalOrRemotePath::Local(path) = location else {
-                    return None;
-                };
+                let LocalOrRemotePath::Local(path) = location;
                 if !path.starts_with(workspace_path) {
                     return None;
                 }
@@ -1250,20 +1244,6 @@ impl GlobalBufferModel {
         };
 
         ctx.spawn(sync_future, |_, _, _| {});
-    }
-
-    /// Remote files cannot be read, so the returned buffer stays empty and a `FailedToLoad`
-    /// follows.
-    fn open_remote_buffer(&mut self, ctx: &mut ModelContext<Self>) -> BufferState {
-        let file_id = FileId::new();
-        let buffer = ctx.add_model(|_| Buffer::default());
-        ctx.spawn(futures::future::ready(()), move |_, _, ctx| {
-            ctx.emit(GlobalBufferModelEvent::FailedToLoad {
-                file_id,
-                error: Rc::new(FileLoadError::DoesNotExist),
-            });
-        });
-        BufferState::new(file_id, buffer)
     }
 }
 

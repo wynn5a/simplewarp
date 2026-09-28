@@ -195,7 +195,7 @@ fn test_parse_git_status_modified_file_with_spaces() {
     // Porcelain v2 output for a modified file with spaces in the name.
     // Format: 1 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path>
     let status_output = "1 .M N... 100644 100644 100644 abc1234 def5678 test file.txt";
-    let result = LocalDiffStateModel::parse_git_status(status_output).unwrap();
+    let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].0, "test file.txt");
     assert_eq!(result[0].1, GitFileStatus::Modified);
@@ -205,7 +205,7 @@ fn test_parse_git_status_modified_file_with_spaces() {
 fn test_parse_git_status_modified_file_with_multiple_spaces() {
     // Filename with multiple spaces.
     let status_output = "1 .M N... 100644 100644 100644 abc1234 def5678 path to/my test file.txt";
-    let result = LocalDiffStateModel::parse_git_status(status_output).unwrap();
+    let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].0, "path to/my test file.txt");
     assert_eq!(result[0].1, GitFileStatus::Modified);
@@ -214,7 +214,7 @@ fn test_parse_git_status_modified_file_with_multiple_spaces() {
 #[test]
 fn test_parse_git_status_new_file_with_spaces() {
     let status_output = "1 A. N... 000000 100644 100644 0000000 abc1234 new file name.rs";
-    let result = LocalDiffStateModel::parse_git_status(status_output).unwrap();
+    let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].0, "new file name.rs");
     assert_eq!(result[0].1, GitFileStatus::New);
@@ -226,7 +226,7 @@ fn test_parse_git_status_renamed_file_with_spaces() {
     // Format: 2 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path>\0<origPath>
     let status_output =
         "2 R. N... 100644 100644 100644 abc1234 def5678 R100 new name.txt\0old name.txt";
-    let result = LocalDiffStateModel::parse_git_status(status_output).unwrap();
+    let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].0, "new name.txt");
     assert!(matches!(
@@ -238,7 +238,7 @@ fn test_parse_git_status_renamed_file_with_spaces() {
 #[test]
 fn test_parse_git_status_untracked_file_with_spaces() {
     let status_output = "? my untracked file.txt";
-    let result = LocalDiffStateModel::parse_git_status(status_output).unwrap();
+    let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].0, "my untracked file.txt");
     assert_eq!(result[0].1, GitFileStatus::Untracked);
@@ -250,7 +250,7 @@ fn test_parse_git_status_unmerged_file_with_spaces() {
     // Format: u <xy> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>
     let status_output =
         "u UU N... 100644 100644 100644 100644 abc1234 def5678 ghi9012 conflict file.txt";
-    let result = LocalDiffStateModel::parse_git_status(status_output).unwrap();
+    let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].0, "conflict file.txt");
     assert_eq!(result[0].1, GitFileStatus::Conflicted);
@@ -262,7 +262,7 @@ fn test_parse_git_status_mixed_entries_with_spaces() {
     let status_output = "1 .M N... 100644 100644 100644 abc1234 def5678 test file.txt\0\
          1 .M N... 100644 100644 100644 abc1234 def5678 normal.txt\0\
          ? another file with spaces.rs";
-    let result = LocalDiffStateModel::parse_git_status(status_output).unwrap();
+    let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 3);
     assert_eq!(result[0].0, "test file.txt");
     assert_eq!(result[1].0, "normal.txt");
@@ -273,7 +273,7 @@ fn test_parse_git_status_mixed_entries_with_spaces() {
 fn test_parse_git_status_file_without_spaces_still_works() {
     // Ensure the splitn change doesn't break files without spaces.
     let status_output = "1 .M N... 100644 100644 100644 abc1234 def5678 simple.txt";
-    let result = LocalDiffStateModel::parse_git_status(status_output).unwrap();
+    let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].0, "simple.txt");
     assert_eq!(result[0].1, GitFileStatus::Modified);
@@ -289,7 +289,7 @@ async fn untracked_directory_diff_is_empty_and_non_binary() {
     // empty non-binary diff — the error fallback would otherwise mislabel it
     // as binary and the view would render "Binary file - no diff available"
     // instead of "New empty file".
-    let diff = LocalDiffStateModel::get_file_diff(
+    let diff = DiffStateModel::get_file_diff(
         repo_dir.path(),
         "nested-repo/",
         &GitFileStatus::Untracked,
@@ -311,7 +311,7 @@ async fn untracked_directory_has_no_baseline_content() {
     std::fs::write(repo_dir.path().join("new-file.txt"), "hello\n").expect("write file");
 
     // No baseline for a directory entry, so no editor is constructed for it.
-    let dir_content = LocalDiffStateModel::get_file_content_at_head(
+    let dir_content = DiffStateModel::get_file_content_at_head(
         repo_dir.path(),
         "nested-repo/",
         &GitFileStatus::Untracked,
@@ -320,7 +320,7 @@ async fn untracked_directory_has_no_baseline_content() {
     assert_eq!(dir_content, None);
 
     // Regular untracked files keep their empty baseline.
-    let file_content = LocalDiffStateModel::get_file_content_at_head(
+    let file_content = DiffStateModel::get_file_content_at_head(
         repo_dir.path(),
         "new-file.txt",
         &GitFileStatus::Untracked,
@@ -358,7 +358,7 @@ async fn renamed_file_content_at_head_reads_old_path() {
     std::fs::rename(repo_path.join("old.txt"), repo_path.join("new.txt"))
         .expect("rename old.txt to new.txt");
 
-    let content = LocalDiffStateModel::get_file_content_at_head(
+    let content = DiffStateModel::get_file_content_at_head(
         repo_path,
         "new.txt",
         &GitFileStatus::Renamed {
@@ -412,7 +412,7 @@ async fn staged_rename_and_modify_produces_non_empty_diff() {
         .await
         .expect("git add new.txt");
 
-    let diff = LocalDiffStateModel::get_file_diff(
+    let diff = DiffStateModel::get_file_diff(
         repo_path,
         "new.txt",
         &GitFileStatus::Renamed {
@@ -440,7 +440,7 @@ async fn num_lines_in_file_if_non_binary_counts_lines_in_text_file() {
     let file_path = dir.path().join("file.txt");
     std::fs::write(&file_path, "one\ntwo\nthree\n").expect("write file");
 
-    let num_lines = LocalDiffStateModel::num_lines_in_file_if_non_binary(&file_path)
+    let num_lines = DiffStateModel::num_lines_in_file_if_non_binary(&file_path)
         .await
         .expect("counting a regular file should succeed");
     assert_eq!(num_lines, Some(3));
@@ -453,6 +453,6 @@ async fn num_lines_in_file_if_non_binary_errors_for_directory() {
     // Directories aren't countable. The metadata callers degrade this error
     // to a 0-line contribution per entry instead of failing the whole
     // metadata computation.
-    let result = LocalDiffStateModel::num_lines_in_file_if_non_binary(dir.path()).await;
+    let result = DiffStateModel::num_lines_in_file_if_non_binary(dir.path()).await;
     assert!(result.is_err());
 }

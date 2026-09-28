@@ -1,8 +1,5 @@
 use warp_multi_agent_api as api;
-use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warp_util::remote_path::RemotePath;
-use warp_util::standardized_path::StandardizedPath;
 
 use super::{
     SkillConversionError, SkillPathOrigin, skill_reference_from_api_skill_ref,
@@ -34,50 +31,8 @@ fn api_project_skill(path: &str) -> api::Skill {
 }
 
 #[test]
-fn try_from_api_with_remote_origin_preserves_host_identity() {
-    let host_id = HostId::new("remote-host".to_string());
-    let parsed = ParsedSkill::try_from_api_with_origin(
-        api_project_skill("/repo/.agents/skills/deploy/SKILL.md"),
-        &SkillPathOrigin::Remote {
-            host_id: host_id.clone(),
-        },
-    )
-    .expect("remote project skill should convert");
-
-    let LocalOrRemotePath::Remote(path) = parsed.path else {
-        panic!("expected a remote skill path");
-    };
-    assert_eq!(path.host_id, host_id);
-    assert_eq!(path.path.as_str(), "/repo/.agents/skills/deploy/SKILL.md");
-}
-
-#[test]
-fn skill_ref_with_remote_origin_preserves_host_identity() {
-    let host_id = HostId::new("remote-host".to_string());
-    let skill_reference = skill_reference_from_api_skill_ref(
-        api::SkillRef {
-            skill_reference: Some(api::skill_ref::SkillReference::Path(
-                "/repo/.agents/skills/deploy/SKILL.md".to_string(),
-            )),
-        },
-        &SkillPathOrigin::Remote {
-            host_id: host_id.clone(),
-        },
-    );
-
-    let Some(SkillReference::Path(LocalOrRemotePath::Remote(path))) = skill_reference else {
-        panic!("expected a remote skill path");
-    };
-    assert_eq!(path.host_id, host_id);
-    assert_eq!(path.path.as_str(), "/repo/.agents/skills/deploy/SKILL.md");
-}
-
-#[test]
 fn parsed_skill_api_conversion_emits_plain_path_reference() {
-    let skill_path = LocalOrRemotePath::Remote(RemotePath::new(
-        HostId::new("remote-host".to_string()),
-        StandardizedPath::try_new("/repo/.agents/skills/deploy/SKILL.md").unwrap(),
-    ));
+    let skill_path = LocalOrRemotePath::Local("/repo/.agents/skills/deploy/SKILL.md".into());
     let api_skill: api::Skill = ParsedSkill {
         path: skill_path.clone(),
         name: "deploy".to_string(),
@@ -102,10 +57,7 @@ fn parsed_skill_api_conversion_emits_plain_path_reference() {
 
 #[test]
 fn skill_reference_api_conversion_emits_plain_path_reference() {
-    let skill_path = LocalOrRemotePath::Remote(RemotePath::new(
-        HostId::new("remote-host".to_string()),
-        StandardizedPath::try_new("/repo/.agents/skills/deploy/SKILL.md").unwrap(),
-    ));
+    let skill_path = LocalOrRemotePath::Local("/repo/.agents/skills/deploy/SKILL.md".into());
     let reference: api::skill_descriptor::SkillReference =
         SkillReference::Path(skill_path.clone()).into();
 
@@ -151,9 +103,7 @@ fn local_origin_normalizes_double_leading_slash() {
         .location_for_path("//workspace/common-skills/.agents/skills/deploy/SKILL.md")
         .expect("double-slash path should be accepted");
 
-    let LocalOrRemotePath::Local(path) = result else {
-        panic!("expected a local path");
-    };
+    let LocalOrRemotePath::Local(path) = result;
     assert_eq!(
         path.to_str().unwrap(),
         "/workspace/common-skills/.agents/skills/deploy/SKILL.md"
@@ -166,9 +116,7 @@ fn local_origin_normalizes_multiple_slashes() {
         .location_for_path("///workspace///skills///SKILL.md")
         .expect("multi-slash path should be accepted");
 
-    let LocalOrRemotePath::Local(path) = result else {
-        panic!("expected a local path");
-    };
+    let LocalOrRemotePath::Local(path) = result;
     assert_eq!(path.to_str().unwrap(), "/workspace/skills/SKILL.md");
 }
 
@@ -178,9 +126,7 @@ fn local_origin_preserves_normal_absolute_path() {
         .location_for_path("/workspace/.agents/skills/deploy/SKILL.md")
         .expect("normal path should be accepted");
 
-    let LocalOrRemotePath::Local(path) = result else {
-        panic!("expected a local path");
-    };
+    let LocalOrRemotePath::Local(path) = result;
     assert_eq!(
         path.to_str().unwrap(),
         "/workspace/.agents/skills/deploy/SKILL.md"
@@ -193,9 +139,7 @@ fn restored_display_origin_normalizes_double_leading_slash() {
         .location_for_path("//repo/.agents/skills/deploy/SKILL.md")
         .expect("double-slash path should be accepted");
 
-    let LocalOrRemotePath::Local(path) = result else {
-        panic!("expected a local path");
-    };
+    let LocalOrRemotePath::Local(path) = result;
     assert_eq!(
         path.to_str().unwrap(),
         "/repo/.agents/skills/deploy/SKILL.md"
@@ -219,24 +163,4 @@ fn read_skill_ref_with_local_origin_normalizes_double_slash() {
         path.to_str().unwrap(),
         "/workspace/.agents/skills/deploy/SKILL.md"
     );
-}
-
-#[test]
-fn read_skill_ref_with_remote_origin_preserves_host_identity() {
-    let host_id = HostId::new("remote-host".to_string());
-    let skill_reference = skill_reference_from_read_skill_ref(
-        api::message::tool_call::read_skill::SkillReference::SkillPath(
-            "/repo/.agents/skills/deploy/SKILL.md".to_string(),
-        ),
-        &SkillPathOrigin::Remote {
-            host_id: host_id.clone(),
-        },
-    )
-    .expect("remote read_skill skill references should convert");
-
-    let SkillReference::Path(LocalOrRemotePath::Remote(path)) = skill_reference else {
-        panic!("expected a remote skill path");
-    };
-    assert_eq!(path.host_id, host_id);
-    assert_eq!(path.path.as_str(), "/repo/.agents/skills/deploy/SKILL.md");
 }

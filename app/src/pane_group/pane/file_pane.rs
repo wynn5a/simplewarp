@@ -32,9 +32,8 @@ impl FilePane {
     }
 
     /// Create a new file notebook pane for the given path and optional target session. If `path`
-    /// is `None`, the pane is created but left empty. For local paths without a target session,
-    /// the pane waits for a local session to become active. Remote paths are loaded directly
-    /// via the remote server.
+    /// is `None`, the pane is created but left empty. Without a target session, the pane waits
+    /// for a local session to become active.
     pub fn new<V: View>(
         path: Option<LocalOrRemotePath>,
         target_session: Option<Arc<Session>>,
@@ -134,8 +133,6 @@ impl PaneContent for FilePane {
     }
 
     fn snapshot(&self, app: &AppContext) -> LeafContents {
-        // Only persist local file paths in session snapshots; remote files
-        // are not restorable across sessions.
         let path = self.file_view(app).as_ref(app).local_path();
         LeafContents::Notebook(NotebookPaneSnapshot::LocalFileNotebook { path })
     }

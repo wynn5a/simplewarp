@@ -6,7 +6,7 @@ use warpui::platform::WindowStyle;
 use warpui::{App, AppContext, Element, Entity, ModelHandle, TypedActionView, View, ViewContext};
 
 use super::command_executor::testing::TestCommandExecutor;
-use super::{BootstrapSessionType, Session, SessionId, SessionInfo, Sessions, SessionsEvent};
+use super::{Session, SessionId, SessionInfo, SessionType, Sessions, SessionsEvent};
 
 struct TestView {
     events: Vec<SessionsEvent>,
@@ -114,7 +114,7 @@ fn test_malicious_histfile_path_does_not_execute_injected_commands() {
         let malicious_histfile = format!("/tmp/x'; touch {marker}; echo '");
 
         let session_info = SessionInfo::new_for_test()
-            .with_session_type(BootstrapSessionType::WarpifiedRemote)
+            .with_session_type(SessionType::WarpifiedRemote)
             .with_histfile(Some(malicious_histfile));
         let session = Session::new(session_info, Arc::new(TestCommandExecutor::default()));
 

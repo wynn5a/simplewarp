@@ -794,6 +794,43 @@ Queue, in order:
    installers; `ci.yml` is still gated on `repository_owner == 'warpdotdev'` and Warp's
    Namespace / large runners, so it never runs on this fork.
 
+24. ~~SSH remote-server daemon residue (4gr follow-ups)~~ — **4hm done (2026-09-28).** −12.0k lines in
+   138 files (−7.3k of it upstream remote-server design docs under `specs/`). The daemon was the only
+   source of `LocalOrRemotePath::Remote` / `RemotePath` / `HostId` values (`HostId::new` had no
+   caller; `pwd_as_local_or_remote` already returned `None` for remote sessions), so gone: the
+   `Remote` variant, `warp_util::{remote_path, host_id}` and every `Remote` arm across file tree,
+   left/right panel, working directories, code review, git dialog, global search, file search,
+   notebooks, skills (`SkillPathOrigin::Remote`), project rules (remote global rules), and the
+   editor (`open_remote_buffer`, `is_remote_disconnected` + banner + toast,
+   `ImmediateSaveError::RemoteDisconnected`, `FileSaveError::RemoteError`). `LocalOrRemotePath`
+   stays a single-variant enum: its `{"Local": …}` JSON is persisted in code-pane sources and
+   skill references. `repo_metadata`: `RemoteRepoMetadataModel`, the incremental-update emitter
+   (`IncrementalUpdateReady`, `emit_incremental_updates`, `new_with_incremental_updates`) and the
+   symlink-target watches it alone enabled, the client-side apply path
+   (`apply_repo_metadata_update`, `from_file_tree_entry`), `DetectedRepositories` remote roots;
+   `RepositoryIdentifier` is now a newtype over `StandardizedPath`. File-tree remote roots
+   (`remote_host_id`, `set_remote_root_directories`, remote-item action gating). Flattened:
+   `DiffStateModel`, `GitRepoStatusModel`, `GitHubRepoModel` (the wrapper enums go; the former
+   `Local*` models take their names, files `local.rs` → `model.rs`); `DiffStateModelMap`,
+   `PaneGroupRepositoryRoots::insert`, `register_remote_repo` / `register_terminal_for_repo`, the
+   git dialog's remote Changes-box refresh and `DiffMetadataAgainstBase::files`.
+   `BootstrapSessionType` merged into `SessionType` (identical, not serde). The tmux deprecation
+   banner (pointed users at the SSH extension) and its `UseSshTmuxWrapper` /
+   `SshTmuxDeprecationNoticePending` settings: the orphaned `warpify.ssh.use_ssh_tmux_wrapper` /
+   `ssh_tmux_deprecation_notice_pending` keys still load harmlessly. `ci.yml`
+   `EXCLUDE_REMOTE_SERVER_TESTS_FILTER`; daemon wording in comments. `NotebookLocation::RemoteFile`
+   (never built). `SettingsViewEvent::OpenCustomRouterEditor` now boxes its router (clippy
+   `large_enum_variant` once `PaneEvent` shrank). **Kept** (plain SSH): `RemoteCommandExecutor`,
+   `SessionType::WarpifiedRemote`, `CodingPanelEnablementState::RemoteSession`, the plain-SSH
+   `RemoteFileOperationsUnsupported` / "Remote codebase search is not enabled" fallbacks, warpify
+   and SSH hooks. Tests 4,114 default / 4,115 simplewarp (−13, deleted with their code: 11 remote
+   skill/path, 1 wrapper variant, 1 roots `insert`); repo_metadata + ai + warp_util 404 (−24, all
+   remote model / remote path / symlink-target / client-apply tests).
+   Follow-ups: flatten `LocalOrRemotePath` itself (serde shape; `to_local_path()` is now always
+   `Some`); the `RepoMetadataModel` wrapper forwards to one sub-model; the `ExitShell` DCS hook
+   (emitted by the SSH bootstrap scripts to tear down the daemon's `remote-server-proxy`, a no-op
+   in the client now); `SessionType`'s `Local` / `WarpifiedRemote` naming.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

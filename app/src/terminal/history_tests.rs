@@ -18,7 +18,7 @@ use crate::terminal::model::block::{
 };
 use crate::terminal::model::bootstrap::BootstrapStage;
 use crate::terminal::model::session::command_executor::testing::TestCommandExecutor;
-use crate::terminal::model::session::{BootstrapSessionType, Session, SessionId, SessionInfo};
+use crate::terminal::model::session::{Session, SessionId, SessionInfo, SessionType};
 use crate::terminal::model::test_utils::TestBlockBuilder;
 use crate::terminal::shell::ShellType;
 use crate::test_util::{Stub, VirtualFS};
@@ -506,7 +506,7 @@ fn test_multiple_machines() {
             SessionInfo::new_for_test()
                 .with_id(0)
                 .with_shell_type(ShellType::Zsh)
-                .with_session_type(BootstrapSessionType::WarpifiedRemote)
+                .with_session_type(SessionType::WarpifiedRemote)
                 .with_hostname("prod".to_string())
                 .with_user("user".to_string())
                 .with_ssh_socket_path(PathBuf::from("~/.ssh/12345"))
@@ -518,7 +518,7 @@ fn test_multiple_machines() {
             SessionInfo::new_for_test()
                 .with_id(1)
                 .with_shell_type(ShellType::Zsh)
-                .with_session_type(BootstrapSessionType::WarpifiedRemote)
+                .with_session_type(SessionType::WarpifiedRemote)
                 .with_hostname("dev".to_string())
                 .with_user("user2".to_string())
                 .with_ssh_socket_path(PathBuf::from("~/.ssh/12345"))

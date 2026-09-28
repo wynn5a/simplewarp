@@ -165,7 +165,7 @@ fn user_facing_git_error(raw: &str) -> &'static str {
         // which has been vetted against real `gh` failure output.
         "GitHub CLI not authenticated. Run `gh auth login`."
     } else if lower.contains("another git operation is in progress") {
-        // Daemon-side guard for a repo mid-merge/rebase/cherry-pick or with a
+        // Guard for a repo mid-merge/rebase/cherry-pick or with a
         // held index lock (see `git_operation_in_progress`).
         "Another git operation is in progress. Finish or abort it first."
     } else {
@@ -493,7 +493,7 @@ impl GitDialog {
             has_upstream,
             ctx,
         );
-        let mut this = Self {
+        let this = Self {
             repo_location,
             diff_state_model,
             branch_name,
@@ -503,13 +503,9 @@ impl GitDialog {
             cancel_button,
             close_button,
         };
-        // Open-time AI commit-message autogen runs for both backends; the model
-        // generates it (local in-process, remote on the daemon) and the result
-        // returns via the diff-state subscription wired up just above.
+        // Open-time AI commit-message autogen; the result returns via the diff-state
+        // subscription wired up just above.
         commit::maybe_start_commit_message_autogen(&this, ctx);
-        // Remote repos source the Changes box from synced metadata (the local
-        // path loads it from the working tree in `commit::new_state`).
-        commit::refresh_remote_file_changes(&mut this, ctx);
         this.refresh_confirm_enabled(ctx);
         this
     }
@@ -563,9 +559,8 @@ impl GitDialog {
             close_button,
         };
         // Fetch the committed branch diff on open (committed-only, so the
-        // Changes box previews exactly what the PR will contain). Both backends
-        // deliver the result via `BranchCommittedFilesReceived`, applied in
-        // `handle_diff_state_event`.
+        // Changes box previews exactly what the PR will contain). The result arrives via
+        // `BranchCommittedFilesReceived`, applied in `handle_diff_state_event`.
         pr::fetch_committed_file_changes(&mut this, ctx);
         this
     }
@@ -625,13 +620,6 @@ impl GitDialog {
         // op-completion events use below.
         if let DiffStateModelEvent::CommitMessageGenerated(result) = event {
             commit::apply_generated_commit_message(self, result.clone(), ctx);
-            return;
-        }
-        // Commit mode (remote) sources its Changes box from synced metadata, so
-        // refresh it whenever metadata lands. Arrives independently of any
-        // in-flight op, so it's handled outside the `loading` gate below.
-        if let DiffStateModelEvent::MetadataRefreshed(_) = event {
-            commit::refresh_remote_file_changes(self, ctx);
             return;
         }
         // The create-PR dialog fetches its committed file list on open
@@ -893,10 +881,6 @@ impl TypedActionView for GitDialog {
                         }
                         GitDialogMode::CreatePr(_) => GitOperationKind::CreatePr,
                     };
-                    // Derive the real local/remote value rather than hardcoding
-                    // it, so cancel telemetry matches the repo the dialog acts
-                    // on (the completion paths report the same value).
-                    let _is_local = !self.repo_location.is_remote();
                     ctx.emit(GitDialogEvent::Cancelled);
                 }
             }

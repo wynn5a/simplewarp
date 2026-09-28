@@ -1,24 +1,21 @@
 //! Unified repository metadata model.
 //!
 //! [`RepoMetadataModel`] is the singleton entry point for all repository metadata
-//! queries. It holds handles to [`LocalRepoMetadataModel`] and
-//! [`RemoteRepoMetadataModel`] and dispatches operations based on
+//! queries. It holds a handle to [`LocalRepoMetadataModel`] and keys its API by
 //! [`RepositoryIdentifier`].
 
 use std::path::Path;
 
-use warp_core::HostId;
 use warp_util::standardized_path::StandardizedPath;
 use warpui_core::{AppContext, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::file_tree_store::FileTreeState;
-use crate::file_tree_update::{MetadataUpdateType, RepoMetadataUpdate};
+use crate::file_tree_update::MetadataUpdateType;
 use crate::local_model::{
     GetContentsArgs, IndexedRepoState, LocalRepoMetadataModel, RepoContents,
     RepositoryMetadataEvent,
 };
-use crate::remote_model::{RemoteRepoMetadataModel, RemoteRepositoryMetadataEvent};
-use crate::repository_identifier::{RemoteRepositoryIdentifier, RepositoryIdentifier};
+use crate::repository_identifier::RepositoryIdentifier;
 use crate::{RepoMetadataError, StandingQueryResults, StandingQueryResultsDelta};
 
 /// Unified events emitted by the [`RepoMetadataModel`] wrapper.
@@ -47,51 +44,23 @@ pub enum RepoMetadataEvent {
     },
     /// Updating a repository failed.
     UpdatingRepositoryFailed { id: RepositoryIdentifier },
-    /// An incremental file tree update is ready to be sent to the remote
-    /// client. Only emitted when the local model has
-    /// `emit_incremental_updates` enabled.
-    IncrementalUpdateReady { update: RepoMetadataUpdate },
 }
 
-/// Singleton wrapper that provides a unified API over local and remote
-/// repository metadata models.
+/// Singleton wrapper that provides the repository metadata API.
 ///
 /// All consumers should interact with this type rather than accessing the
-/// sub-models directly. The wrapper does **not** expose `.local()` or
-/// `.remote()` accessors — encapsulation ensures consumers are decoupled
-/// from the local/remote split.
+/// sub-model directly.
 pub struct RepoMetadataModel {
     local: ModelHandle<LocalRepoMetadataModel>,
-    remote: ModelHandle<RemoteRepoMetadataModel>,
 }
 
 impl RepoMetadataModel {
-    /// Creates a new `RepoMetadataModel`, instantiating both sub-models and
-    /// subscribing to their events for forwarding.
+    /// Creates a new `RepoMetadataModel`, instantiating the local sub-model and
+    /// subscribing to its events for forwarding.
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
         let local = ctx.add_model(LocalRepoMetadataModel::new);
-        let remote = ctx.add_model(RemoteRepoMetadataModel::new);
-
         ctx.subscribe_to_model(&local, Self::forward_local_event);
-        ctx.subscribe_to_model(&remote, Self::forward_remote_event);
-
-        Self { local, remote }
-    }
-
-    /// Creates a new `RepoMetadataModel` with incremental update emission
-    /// enabled on the local sub-model. Used by the remote server.
-    pub fn new_with_incremental_updates(ctx: &mut ModelContext<Self>) -> Self {
-        let local = ctx.add_model(|ctx| {
-            let mut model = LocalRepoMetadataModel::new(ctx);
-            model.set_emit_incremental_updates(true);
-            model
-        });
-        let remote = ctx.add_model(RemoteRepoMetadataModel::new);
-
-        ctx.subscribe_to_model(&local, Self::forward_local_event);
-        ctx.subscribe_to_model(&remote, Self::forward_remote_event);
-
-        Self { local, remote }
+        Self { local }
     }
 
     // ── Event forwarding ─────────────────────────────────────────────
@@ -138,53 +107,6 @@ impl RepoMetadataModel {
                     id: RepositoryIdentifier::local(path.clone()),
                 }
             }
-            RepositoryMetadataEvent::IncrementalUpdateReady { update } => {
-                RepoMetadataEvent::IncrementalUpdateReady {
-                    update: update.clone(),
-                }
-            }
-        };
-        ctx.emit(unified);
-    }
-
-    fn forward_remote_event(
-        &mut self,
-        _: ModelHandle<RemoteRepoMetadataModel>,
-        event: &RemoteRepositoryMetadataEvent,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let unified = match event {
-            RemoteRepositoryMetadataEvent::RepositoryUpdated { id } => {
-                RepoMetadataEvent::RepositoryUpdated {
-                    id: RepositoryIdentifier::Remote(id.clone()),
-                }
-            }
-            RemoteRepositoryMetadataEvent::RepositoryRemoved { id } => {
-                RepoMetadataEvent::RepositoryRemoved {
-                    id: RepositoryIdentifier::Remote(id.clone()),
-                }
-            }
-            RemoteRepositoryMetadataEvent::FileTreeUpdated { ids } => {
-                RepoMetadataEvent::FileTreeUpdated {
-                    ids: ids
-                        .iter()
-                        .cloned()
-                        .map(RepositoryIdentifier::Remote)
-                        .collect(),
-                }
-            }
-            RemoteRepositoryMetadataEvent::FileTreeEntryUpdated { id, update_type } => {
-                RepoMetadataEvent::FileTreeEntryUpdated {
-                    id: RepositoryIdentifier::Remote(id.clone()),
-                    update_type: update_type.clone(),
-                }
-            }
-            RemoteRepositoryMetadataEvent::StandingQueryResultsUpdated { id, delta } => {
-                RepoMetadataEvent::StandingQueryResultsUpdated {
-                    id: RepositoryIdentifier::Remote(id.clone()),
-                    delta: delta.clone(),
-                }
-            }
         };
         ctx.emit(unified);
     }
@@ -198,10 +120,7 @@ impl RepoMetadataModel {
         ctx: &'a AppContext,
     ) -> Option<&'a FileTreeState> {
         match id {
-            RepositoryIdentifier::Local(path) => self.local.as_ref(ctx).get_repository(path),
-            RepositoryIdentifier::Remote(remote_id) => {
-                self.remote.as_ref(ctx).get_repository(remote_id)
-            }
+            RepositoryIdentifier(path) => self.local.as_ref(ctx).get_repository(path),
         }
     }
 
@@ -211,22 +130,14 @@ impl RepoMetadataModel {
         ctx: &'a AppContext,
     ) -> Option<&'a StandingQueryResults> {
         match id {
-            RepositoryIdentifier::Local(path) => {
-                self.local.as_ref(ctx).standing_query_results(path)
-            }
-            RepositoryIdentifier::Remote(remote_id) => {
-                self.remote.as_ref(ctx).standing_query_results(remote_id)
-            }
+            RepositoryIdentifier(path) => self.local.as_ref(ctx).standing_query_results(path),
         }
     }
 
     /// Returns whether the given repository is indexed.
     pub fn has_repository(&self, id: &RepositoryIdentifier, ctx: &AppContext) -> bool {
         match id {
-            RepositoryIdentifier::Local(path) => self.local.as_ref(ctx).has_repository(path),
-            RepositoryIdentifier::Remote(remote_id) => {
-                self.remote.as_ref(ctx).has_repository(remote_id)
-            }
+            RepositoryIdentifier(path) => self.local.as_ref(ctx).has_repository(path),
         }
     }
 
@@ -237,10 +148,7 @@ impl RepoMetadataModel {
         ctx: &'a AppContext,
     ) -> Option<&'a IndexedRepoState> {
         match id {
-            RepositoryIdentifier::Local(path) => self.local.as_ref(ctx).repository_state(path),
-            RepositoryIdentifier::Remote(remote_id) => {
-                self.remote.as_ref(ctx).repository_state(remote_id)
-            }
+            RepositoryIdentifier(path) => self.local.as_ref(ctx).repository_state(path),
         }
     }
 
@@ -254,15 +162,10 @@ impl RepoMetadataModel {
         ctx: &mut ModelContext<Self>,
     ) -> futures::future::BoxFuture<'static, ()> {
         match id {
-            RepositoryIdentifier::Local(path) => {
+            RepositoryIdentifier(path) => {
                 let path = path.clone();
                 self.local
                     .update(ctx, |local, _| local.repository_indexed(&path))
-            }
-            RepositoryIdentifier::Remote(remote_id) => {
-                let remote_id = remote_id.clone();
-                self.remote
-                    .update(ctx, |remote, _| remote.repository_indexed(&remote_id))
             }
         }
     }
@@ -281,12 +184,7 @@ impl RepoMetadataModel {
         ctx: &'a AppContext,
     ) -> Result<RepoContents<'a>, RepoMetadataError> {
         match id {
-            RepositoryIdentifier::Local(path) => {
-                self.local.as_ref(ctx).get_repo_contents(path, args)
-            }
-            RepositoryIdentifier::Remote(remote_id) => {
-                self.remote.as_ref(ctx).get_repo_contents(remote_id, args)
-            }
+            RepositoryIdentifier(path) => self.local.as_ref(ctx).get_repo_contents(path, args),
         }
     }
 
@@ -298,10 +196,6 @@ impl RepoMetadataModel {
     ) -> Option<StandardizedPath> {
         self.local.as_ref(ctx).find_repository_for_path(path)
     }
-
-    // ── Local-specific operations ────────────────────────────────────
-    // These delegate to the local sub-model. Remote equivalents will be
-    // added once the remote client ↔ server sync layer is in place.
 
     /// Fully indexes a local directory identified by a standardized path.
     pub fn index_local_directory_path(
@@ -369,8 +263,7 @@ impl RepoMetadataModel {
     /// tree's size limit.
     ///
     /// This delegates to the local model because force-included path matching
-    /// happens while building local file trees. Remote repositories receive the
-    /// resulting file-tree metadata over the existing remote sync protocol.
+    /// happens while building local file trees.
     pub fn register_force_included_paths(
         &self,
         paths: impl IntoIterator<Item = std::path::PathBuf>,
@@ -400,74 +293,19 @@ impl RepoMetadataModel {
             .update(ctx, |local, ctx| local.remove_lazy_loaded_path(&path, ctx));
     }
 
-    // ── Remote-specific operations ─────────────────────────────────
-    // These delegate to the remote sub-model and are called by the
-    // RemoteServerManager event subscription in the app layer.
-
-    /// Inserts or replaces a remote repository from a snapshot push event.
-    pub fn insert_remote_snapshot(
-        &self,
-        host_id: HostId,
-        update: &RepoMetadataUpdate,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.remote.update(ctx, |remote, ctx| {
-            remote.insert_from_snapshot(host_id, update, ctx);
-        });
-    }
-
-    /// Applies an incremental remote repo metadata update.
-    pub fn apply_remote_incremental_update(
-        &self,
-        host_id: &HostId,
-        update: &RepoMetadataUpdate,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let host_id = host_id.clone();
-        self.remote.update(ctx, |remote, ctx| {
-            remote.apply_incremental_update(&host_id, update, ctx);
-        });
-    }
-
-    /// Removes all remote repositories for the given host (e.g. on disconnect).
-    pub fn remove_remote_repositories_for_host(
-        &self,
-        host_id: &HostId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let host_id = host_id.clone();
-        self.remote.update(ctx, |remote, ctx| {
-            remote.remove_repositories_for_host(&host_id, ctx);
-        });
-    }
-
-    /// Removes a repository (local or remote) from tracking.
+    /// Removes a repository from tracking.
     pub fn remove_repository(
         &self,
         id: &RepositoryIdentifier,
         ctx: &mut ModelContext<Self>,
     ) -> Result<(), RepoMetadataError> {
         match id {
-            RepositoryIdentifier::Local(path) => {
+            RepositoryIdentifier(path) => {
                 let path = path.clone();
                 self.local
                     .update(ctx, |local, ctx| local.remove_repository(&path, ctx))
             }
-            RepositoryIdentifier::Remote(remote_id) => {
-                let remote_id = remote_id.clone();
-                self.remote
-                    .update(ctx, |remote, ctx| remote.remove_repository(&remote_id, ctx));
-                Ok(())
-            }
         }
-    }
-
-    /// Returns all tracked remote repository identifiers.
-    pub fn remote_repository_ids<'a>(
-        &self,
-        ctx: &'a AppContext,
-    ) -> impl Iterator<Item = &'a RemoteRepositoryIdentifier> {
-        self.remote.as_ref(ctx).remote_repository_ids()
     }
 
     /// Returns whether the given local path is tracked as a lazily-loaded standalone path.

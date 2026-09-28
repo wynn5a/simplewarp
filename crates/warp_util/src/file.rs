@@ -14,8 +14,6 @@ pub enum FileSaveError {
         error: io::Error,
         path: PathBuf,
     },
-    #[error("Remote file operation failed: {0}")]
-    RemoteError(String),
     /// A non-IO failure with a self-describing message (e.g. content could
     /// not be derived for the write).
     #[error("{0}")]
@@ -26,7 +24,7 @@ impl ErrorExt for FileSaveError {
     fn is_actionable(&self) -> bool {
         match self {
             FileSaveError::NoFilePath(_) | FileSaveError::Other(_) => true,
-            FileSaveError::IOError { .. } | FileSaveError::RemoteError(_) => false,
+            FileSaveError::IOError { .. } => false,
         }
     }
 }

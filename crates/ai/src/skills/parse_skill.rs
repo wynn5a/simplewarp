@@ -20,10 +20,7 @@ lazy_static! {
     static ref INCOMPLETE_SENTENCE: Regex =
         Regex::new(r"[^.!?]*$").expect("Incomplete sentence regex should be valid");
 }
-/// Parse skill markdown content that was fetched outside the local filesystem.
-///
-/// This is used for remote project skills, whose SKILL.md body arrives through
-/// the remote file-read transport rather than `std::fs`.
+/// Parse skill markdown content that was already read from `path`.
 pub fn parse_skill_content_at_location(
     path: LocalOrRemotePath,
     content: &str,

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::context_chips::context_chip::GeneratorContext;
 use crate::terminal::model::block::BlockMetadata;
 use crate::terminal::model::session::command_executor::testing::TestCommandExecutor;
-use crate::terminal::model::session::{BootstrapSessionType, Session, SessionInfo};
+use crate::terminal::model::session::{Session, SessionInfo, SessionType};
 
 #[test]
 fn test_working_directory() {
@@ -43,7 +43,7 @@ fn test_remote_sessions() {
     let local_session = Session::test();
     let remote_session = Session::new(
         SessionInfo::new_for_test()
-            .with_session_type(BootstrapSessionType::WarpifiedRemote)
+            .with_session_type(SessionType::WarpifiedRemote)
             .with_hostname("remote-host".to_string())
             .with_user("remote-user".to_string()),
         Arc::new(TestCommandExecutor {}),

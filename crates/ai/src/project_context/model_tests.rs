@@ -1,33 +1,10 @@
 use std::path::PathBuf;
 
-use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warp_util::remote_path::RemotePath;
 use warp_util::standardized_path::StandardizedPath;
 
 fn local_path(path: &str) -> LocalOrRemotePath {
     LocalOrRemotePath::Local(PathBuf::from(path))
-}
-
-fn insert_remote_project_rule(
-    model: &mut ProjectContextModel,
-    host_id: &str,
-    project_root: &str,
-    rule_path: &str,
-    content: &str,
-) {
-    let rules = model
-        .path_to_rules
-        .entry(remote_path(host_id, project_root))
-        .or_default();
-    rules.upsert_rule(&remote_path(host_id, rule_path), content.to_string());
-}
-
-fn remote_path(host_id: &str, path: &str) -> LocalOrRemotePath {
-    LocalOrRemotePath::Remote(RemotePath::new(
-        HostId::new(host_id.to_string()),
-        StandardizedPath::try_new(path).unwrap(),
-    ))
 }
 
 use super::*;
@@ -355,51 +332,6 @@ fn test_rule_missing_from_standing_results_is_removed_from_cached_content() {
     assert!(rules.rule_paths().next().is_none());
 }
 
-#[test]
-fn test_reconcile_project_rules_hydrates_local_and_remote_paths() {
-    let local_rule_path = local_path("/local/WARP.md");
-    let remote_rule_path = remote_path("host-a", "/remote/AGENTS.md");
-
-    let rules = ProjectContextModel::reconcile_project_rules(
-        vec![local_rule_path.clone(), remote_rule_path.clone()],
-        vec![
-            (local_rule_path.clone(), "local content".to_string()),
-            (remote_rule_path.clone(), "remote content".to_string()),
-        ],
-        ProjectRules::default(),
-    );
-
-    let local_result = rules.find_active_or_applicable_rules(&local_path("/local/main.rs"));
-    assert_eq!(local_result.active_rules.len(), 1);
-    assert_eq!(local_result.active_rules[0].path, local_rule_path);
-    assert_eq!(local_result.active_rules[0].content, "local content");
-
-    let remote_result =
-        rules.find_active_or_applicable_rules(&remote_path("host-a", "/remote/main.rs"));
-    assert_eq!(remote_result.active_rules.len(), 1);
-    assert_eq!(remote_result.active_rules[0].path, remote_rule_path);
-    assert_eq!(remote_result.active_rules[0].content, "remote content");
-}
-
-#[test]
-fn test_remote_standing_results_preserve_host_qualified_rule_paths() {
-    let host = HostId::new("test-host".to_string());
-    let repo_id = RepositoryIdentifier::Remote(RemotePath::new(
-        host.clone(),
-        StandardizedPath::try_new("/repo").unwrap(),
-    ));
-    let rule_path = StandardizedPath::try_new("/repo/nested/WARP.md").unwrap();
-    let contents = [
-        StandingQueryContent::file(rule_path.clone()),
-        StandingQueryContent::directory(StandardizedPath::try_new("/repo/nested").unwrap()),
-    ];
-
-    assert_eq!(
-        standing_project_rule_paths(&repo_id, &contents),
-        vec![LocalOrRemotePath::Remote(RemotePath::new(host, rule_path))]
-    );
-}
-
 // Helper for global-rules tests: inserts a synthetic global rule directly into
 // the model. Bypasses the watcher infrastructure (which requires the warpui
 // runtime) so we can exercise `find_applicable_rules`'s layering logic.
@@ -427,29 +359,6 @@ fn insert_project_rule(
         &LocalOrRemotePath::Local(rule_path.to_path_buf()),
         content.to_string(),
     );
-}
-
-#[test]
-fn test_remote_project_rules_require_matching_host() {
-    let mut model = ProjectContextModel::default();
-    insert_remote_project_rule(
-        &mut model,
-        "host-a",
-        "/repo",
-        "/repo/WARP.md",
-        "remote_project_rule",
-    );
-
-    let same_host = model
-        .find_applicable_project_rules(&remote_path("host-a", "/repo/src/main.rs"))
-        .expect("same-host remote rule should apply");
-    assert_eq!(same_host.root_path, remote_path("host-a", "/repo"));
-    assert_eq!(same_host.active_rules.len(), 1);
-    assert_eq!(same_host.active_rules[0].content, "remote_project_rule");
-
-    let other_host =
-        model.find_applicable_project_rules(&remote_path("host-b", "/repo/src/main.rs"));
-    assert!(other_host.is_none());
 }
 
 #[test]
@@ -574,86 +483,6 @@ fn test_multiple_global_rules_all_contribute() {
 }
 
 #[test]
-fn test_remote_global_rules_only_layer_for_matching_remote_host() {
-    let mut model = ProjectContextModel::default();
-    insert_global_rule(
-        &mut model,
-        Path::new("/home/local/.agents/AGENTS.md"),
-        "local_global",
-    );
-    insert_remote_project_rule(
-        &mut model,
-        "host-a",
-        "/repo",
-        "/repo/WARP.md",
-        "remote_project",
-    );
-    let host_a = HostId::new("host-a".to_string());
-    model.set_remote_global_rules(
-        host_a.clone(),
-        vec![ProjectRule {
-            path: remote_path("host-a", "/home/remote/.agents/AGENTS.md"),
-            content: "remote_global".to_string(),
-        }],
-    );
-    model.set_remote_global_rules(
-        HostId::new("host-b".to_string()),
-        vec![ProjectRule {
-            path: remote_path("host-b", "/home/remote/.agents/AGENTS.md"),
-            content: "other_remote_global".to_string(),
-        }],
-    );
-
-    let matching = model
-        .find_applicable_rules(&remote_path("host-a", "/repo/src/main.rs"))
-        .unwrap();
-    assert_eq!(
-        matching
-            .active_rules
-            .iter()
-            .map(|rule| rule.content.as_str())
-            .collect::<Vec<_>>(),
-        ["local_global", "remote_global", "remote_project"]
-    );
-
-    let other_host = model
-        .find_applicable_rules(&remote_path("host-b", "/repo/src/main.rs"))
-        .unwrap();
-    assert_eq!(
-        other_host
-            .active_rules
-            .iter()
-            .map(|rule| rule.content.as_str())
-            .collect::<Vec<_>>(),
-        ["local_global", "other_remote_global"]
-    );
-
-    let local = model
-        .find_applicable_rules(&local_path("/repo/src/main.rs"))
-        .unwrap();
-    assert_eq!(local.active_rules.len(), 1);
-    assert_eq!(local.active_rules[0].content, "local_global");
-
-    assert_eq!(
-        model.global_rule_paths().collect::<Vec<_>>(),
-        [local_path("/home/local/.agents/AGENTS.md")]
-    );
-
-    model.set_remote_global_rules(host_a, Vec::new());
-    let replaced = model
-        .find_applicable_rules(&remote_path("host-a", "/repo/src/main.rs"))
-        .unwrap();
-    assert_eq!(
-        replaced
-            .active_rules
-            .iter()
-            .map(|rule| rule.content.as_str())
-            .collect::<Vec<_>>(),
-        ["local_global", "remote_project"]
-    );
-}
-
-#[test]
 fn test_superseding_refresh_coalesces_without_overlapping_reads() {
     use std::sync::OnceLock;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -723,7 +552,7 @@ fn test_superseding_refresh_coalesces_without_overlapping_reads() {
         app.add_singleton_model(|_| DetectedRepositories::default());
         app.add_singleton_model(RepoMetadataModel::new);
         let model = app.add_model(|_| ProjectContextModel::default());
-        let repo_id = RepositoryIdentifier::Local(repo_root());
+        let repo_id = RepositoryIdentifier(repo_root());
         let coordinator = coordinator();
 
         // First refresh: its read blocks on `coordinator.release` until we let it proceed

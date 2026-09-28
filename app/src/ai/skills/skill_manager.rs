@@ -74,13 +74,11 @@ impl SkillManager {
         working_directory: Option<&LocalOrRemotePath>,
         ctx: &AppContext,
     ) -> Vec<SkillDescriptor> {
-        let path_origin = match working_directory {
-            Some(LocalOrRemotePath::Remote(path)) => SkillPathOrigin::Remote {
-                host_id: path.host_id.clone(),
-            },
-            Some(LocalOrRemotePath::Local(_)) | None => SkillPathOrigin::Local,
-        };
-        self.get_skills_for_working_directory_with_origin(working_directory, &path_origin, ctx)
+        self.get_skills_for_working_directory_with_origin(
+            working_directory,
+            &SkillPathOrigin::Local,
+            ctx,
+        )
     }
 
     /// Returns skills available for the given working directory and execution host.
@@ -279,16 +277,13 @@ impl SkillManager {
     ) -> Option<LocalOrRemotePath> {
         match path_origin {
             SkillPathOrigin::Local => dirs::home_dir().map(LocalOrRemotePath::Local),
-            SkillPathOrigin::Remote { .. }
-            | SkillPathOrigin::RestoredDisplayOnly
-            | SkillPathOrigin::Unavailable => None,
+            SkillPathOrigin::RestoredDisplayOnly | SkillPathOrigin::Unavailable => None,
         }
     }
 
     fn is_home_directory(&self, path: &LocalOrRemotePath) -> bool {
         match path {
             LocalOrRemotePath::Local(path) => dirs::home_dir().as_ref() == Some(path),
-            LocalOrRemotePath::Remote(_) => false,
         }
     }
 

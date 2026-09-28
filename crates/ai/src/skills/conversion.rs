@@ -2,10 +2,7 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 use warp_multi_agent_api as api;
-use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warp_util::remote_path::RemotePath;
-use warp_util::standardized_path::StandardizedPath;
 
 use crate::agent::action_result::{AnyFileContent, FileContext};
 use crate::skills::{ParsedSkill, SkillProvider, SkillReference, SkillScope};
@@ -26,8 +23,6 @@ pub enum SkillConversionError {
     ContentInvalid,
     #[error("Skill path origin is unavailable")]
     PathOriginUnavailable,
-    #[error("Invalid remote skill path")]
-    RemotePathInvalid,
 }
 /// Identifies how a string skill path from an API payload should be interpreted.
 ///
@@ -37,15 +32,11 @@ pub enum SkillConversionError {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum SkillPathOrigin {
     Local,
-    Remote {
-        host_id: HostId,
-    },
     /// Path identity could not be restored, but the API payload already carries the skill
     /// descriptor and content needed to render a historical transcript.
     ///
     /// This intentionally uses a local path wrapper only as a display-compatible identity for
-    /// restored conversation UI. Live execution paths should use [`SkillPathOrigin::Local`] or
-    /// [`SkillPathOrigin::Remote`] so local/remote provenance is preserved.
+    /// restored conversation UI. Live execution paths should use [`SkillPathOrigin::Local`].
     RestoredDisplayOnly,
     Unavailable,
 }
@@ -65,14 +56,6 @@ impl SkillPathOrigin {
                 // on Windows) and treats leading `//` as a UNC prefix on Windows.
                 let normalized = collapse_slashes(&path);
                 Ok(LocalOrRemotePath::Local(PathBuf::from(normalized)))
-            }
-            SkillPathOrigin::Remote { host_id } => {
-                let path = StandardizedPath::try_new(&path)
-                    .map_err(|_| SkillConversionError::RemotePathInvalid)?;
-                Ok(LocalOrRemotePath::Remote(RemotePath::new(
-                    host_id.clone(),
-                    path,
-                )))
             }
             SkillPathOrigin::Unavailable => Err(SkillConversionError::PathOriginUnavailable),
         }

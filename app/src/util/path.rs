@@ -7,26 +7,11 @@ use is_executable::IsExecutable as _;
 use itertools::Itertools as _;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 
-/// Label prefixed to remote paths, whose hosts are not tracked.
-const REMOTE_HOST_LABEL: &str = "Remote host";
-
-/// Returns the display name of a local or remote path, prefixed with the
-/// host label for remote paths.
-pub fn display_name_with_host(path: &LocalOrRemotePath) -> String {
-    let name = path.display_name();
-    match path {
-        LocalOrRemotePath::Local(_) => name.to_string(),
-        LocalOrRemotePath::Remote(_) => format!("{REMOTE_HOST_LABEL}:{name}"),
-    }
-}
-
-/// Returns the display path of a local or remote path,
-/// prefixed with the host label for remote paths.
+/// Returns the display path of `path`.
 ///
-/// When `abbreviate_home` is true, local paths under the user's home directory
-/// are abbreviated with a `~/` prefix. The flag is ignored for remote paths,
-/// whose home directory lives on a different machine.
-pub fn display_path_with_host(path: &LocalOrRemotePath, abbreviate_home: bool) -> String {
+/// When `abbreviate_home` is true, paths under the user's home directory are abbreviated with a
+/// `~/` prefix.
+pub fn display_location_path(path: &LocalOrRemotePath, abbreviate_home: bool) -> String {
     match path {
         LocalOrRemotePath::Local(local_path) => {
             if abbreviate_home {
@@ -38,7 +23,6 @@ pub fn display_path_with_host(path: &LocalOrRemotePath, abbreviate_home: bool) -
                 path.display_path()
             }
         }
-        LocalOrRemotePath::Remote(_) => format!("{REMOTE_HOST_LABEL}:{}", path.display_path()),
     }
 }
 

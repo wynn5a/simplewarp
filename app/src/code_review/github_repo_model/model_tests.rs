@@ -43,12 +43,11 @@ fn test_repository_handle(
 /// model. The model never subscribes or fetches; tests drive state directly.
 fn new_github_repo_model_for_test(
     app: &mut App,
-) -> (tempfile::TempDir, ModelHandle<LocalGitHubRepoModel>) {
+) -> (tempfile::TempDir, ModelHandle<GitHubRepoModel>) {
     let temp_dir = tempfile::TempDir::new().unwrap();
     let repository = test_repository_handle(app, &temp_dir);
-    let git_status =
-        app.add_model(move |ctx| GitRepoStatusModel::new_local_for_test(repository, None, ctx));
-    let model = app.add_model(move |_| LocalGitHubRepoModel::new_for_test(git_status));
+    let git_status = app.add_model(move |_| GitRepoStatusModel::new_for_test(repository, None));
+    let model = app.add_model(move |_| GitHubRepoModel::new_for_test(git_status));
     (temp_dir, model)
 }
 

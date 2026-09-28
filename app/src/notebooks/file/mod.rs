@@ -10,7 +10,6 @@ use warp_files::{FileModel, FileModelEvent};
 use warp_util::file::FileId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warp_util::path::user_friendly_path;
-use warp_util::remote_path::RemotePath;
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
@@ -133,7 +132,6 @@ impl From<ContextMenuAction> for FileNotebookAction {
 enum SourceFile {
     FileBased {
         path: LocalOrRemotePath,
-        /// Only meaningful for local paths; remote paths carry their own host information.
         session: Option<Arc<Session>>,
     },
     /// Static content provided inline (not backed by a file on disk).
@@ -342,11 +340,10 @@ impl FileNotebookView {
         ctx.notify();
     }
 
-    /// Open a file from a local or remote path.
+    /// Open a file.
     ///
-    /// `session` resolves display names and link context for local paths; when `None` the
-    /// view falls back to the active local session once one becomes available. Remote paths
-    /// ignore it because the `RemotePath` already carries host info.
+    /// `session` resolves display names and link context; when `None` the view falls back to
+    /// the active local session once one becomes available.
     pub fn open(
         &mut self,
         path: LocalOrRemotePath,
@@ -361,9 +358,6 @@ impl FileNotebookView {
                         .filter(|s| s.is_local())
                 });
                 self.open_local(local_path, session, ctx);
-            }
-            LocalOrRemotePath::Remote(remote_path) => {
-                self.open_remote(remote_path, ctx);
             }
         }
     }
@@ -505,19 +499,6 @@ impl FileNotebookView {
             }
         };
         self.open(path, session, ctx);
-    }
-
-    /// Remote files cannot be read, so the notebook shows the error state.
-    fn open_remote(&mut self, remote_path: RemotePath, ctx: &mut ViewContext<Self>) {
-        let display_name = remote_path.path.file_name().unwrap_or_default().to_string();
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.set_title(display_name, ctx);
-        });
-        self.file_state = FileState::Error(SourceFile::FileBased {
-            path: LocalOrRemotePath::Remote(remote_path),
-            session: None,
-        });
-        ctx.notify();
     }
 
     fn open_as_code(&mut self, ctx: &mut ViewContext<Self>) {
@@ -842,12 +823,6 @@ impl TypedActionView for FileNotebookView {
                         target,
                         line_col: None,
                     });
-                } else if let Some(path) = self.file_state.path().cloned() {
-                    // For remote files, open as a code editor pane.
-                    ctx.emit(FileNotebookEvent::Pane(PaneEvent::ReplaceWithCodePane {
-                        path,
-                        source: None,
-                    }));
                 }
             }
             FileNotebookAction::OpenAsCode => self.open_as_code(ctx),

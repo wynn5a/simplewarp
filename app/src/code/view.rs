@@ -62,7 +62,7 @@ use crate::settings::CodeSettings;
 use crate::tab::TAB_BAR_BORDER_HEIGHT;
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
-use crate::util::path::{display_name_with_host, display_path_with_host};
+use crate::util::path::display_location_path;
 use crate::view_components::{DismissibleToast, MarkdownToggleEvent, MarkdownToggleView};
 use crate::workspace::{ActiveSession, TabBarDropTargetData, ToastStack, WorkspaceAction};
 
@@ -208,13 +208,13 @@ pub enum PendingSaveIntent {
 }
 
 impl TabData {
-    /// Returns the file location (local or remote), if any.
+    /// Returns the file location, if any.
     pub fn location(&self) -> Option<&LocalOrRemotePath> {
         self.location.as_ref()
     }
 
     /// Returns the local filesystem path, if this tab is backed by a local file.
-    /// Returns `None` for remote files and untitled tabs.
+    /// Returns `None` for untitled tabs.
     pub fn local_path(&self) -> Option<PathBuf> {
         self.location
             .as_ref()
@@ -352,9 +352,7 @@ impl CodeView {
 
     /// Construct an editor backed by the global shared buffer for the given location.
     ///
-    /// For local files, additional features are wired up (selection-as-context,
-    /// find-references, footer). Remote files skip these because LSP and
-    /// related tooling run on the local machine.
+    /// Also wires up selection-as-context, find-references, and the footer.
     fn construct_editor_for_location(
         &mut self,
         location: LocalOrRemotePath,
@@ -800,7 +798,7 @@ impl CodeView {
             .is_some_and(|t| t.editor_view.as_ref(ctx).is_new_file());
 
         let title = match &file_location {
-            Some(location) => display_path_with_host(location, false),
+            Some(location) => display_location_path(location, false),
             None => "Untitled".to_string(),
         };
 
@@ -841,14 +839,6 @@ impl CodeView {
             Err(ImmediateSaveError::NoFileId) => {
                 // If there's no file ID, this is a new file - trigger Save As
                 self.save_as(index, callback, ctx)
-            }
-            Err(ImmediateSaveError::RemoteDisconnected) => {
-                log::warn!("Cannot save: remote session disconnected");
-                CodeView::display_remote_disconnected_save_failure(ctx.window_id(), ctx);
-                if let Some(callback) = callback {
-                    callback(SaveOutcome::Failed, self, ctx);
-                }
-                SaveStatus::Failed(ImmediateSaveError::RemoteDisconnected)
             }
             Err(err) => {
                 log::warn!("Failed to save file. {err:?}");
@@ -910,15 +900,6 @@ impl CodeView {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             let toast = DismissibleToast::error(String::from("Failed to save file."))
                 .with_object_id("failed_to_save_file".to_string());
-            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-        });
-    }
-
-    fn display_remote_disconnected_save_failure(window_id: WindowId, ctx: &mut ViewContext<Self>) {
-        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast =
-                DismissibleToast::error(String::from("Cannot save — remote session disconnected."))
-                    .with_object_id("failed_to_save_file_remote_disconnected".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
@@ -993,11 +974,7 @@ impl CodeView {
     pub fn auto_save_all_unsaved_tabs(&mut self, ctx: &mut ViewContext<Self>) -> bool {
         let mut unsaveable_changes_remain = false;
         for index in self.unsaved_indices(ctx) {
-            // A tab can only be auto-saved if it has a backing file *and*, for
-            // remote files, its host is still connected. A disconnected remote
-            // buffer has a `file_id` but `save_local` would fail silently, so
-            // treat it as unsaveable and let the caller warn before discarding
-            // the edits.
+            // A tab can only be auto-saved if it has a backing file.
             let can_auto_save = self
                 .tab_at(index)
                 .is_some_and(|tab| tab.editor_view.as_ref(ctx).can_auto_save());
@@ -1136,7 +1113,7 @@ impl CodeView {
             let file_name = tab
                 .location
                 .as_ref()
-                .map(display_name_with_host)
+                .map(|location| location.display_name().to_string())
                 .filter(|n| !n.is_empty());
             let summary = UnsavedStateSummary::for_editor_tab(
                 file_name,
@@ -1534,7 +1511,7 @@ impl CodeView {
         let file_name = tab_data
             .location
             .as_ref()
-            .map(display_name_with_host)
+            .map(|location| location.display_name().to_string())
             .filter(|n| !n.is_empty())
             .unwrap_or_else(|| "Untitled".to_string());
         let language_icon =
@@ -1911,7 +1888,7 @@ impl CodeView {
             .and_then(|tab| {
                 tab.location
                     .as_ref()
-                    .map(display_name_with_host)
+                    .map(|location| location.display_name().to_string())
                     .filter(|n| !n.is_empty())
             })
             .unwrap_or_else(|| "Untitled".to_string());

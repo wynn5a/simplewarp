@@ -30,4 +30,3 @@ pub use app_id::AppId;
 pub use session_id::SessionId;
 #[doc(hidden)]
 pub use warp_errors as __warp_errors;
-pub use warp_util::host_id::HostId;

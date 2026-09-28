@@ -160,8 +160,7 @@ pub(super) fn new_state(
     };
 
     let include_unstaged = true;
-    // Local repos load the changes list from the working tree here; remote
-    // repos source the Changes box from synced metadata.
+    // Load the changes list from the working tree.
     if let Some(repo_path) = local_repo_path {
         let repo_path_for_load = repo_path.to_path_buf();
         ctx.spawn(
@@ -213,11 +212,7 @@ pub(super) fn is_ready_to_confirm(state: &CommitState, app: &AppContext) -> bool
 /// Confirm disabled when there's nothing to commit.
 ///
 /// Gates on `file_changes`, which already reflects the active "include
-/// unstaged" scope: local re-reads the working tree on toggle, while remote
-/// shows the full synced set (it can't re-scope client-side). The daemon-side
-/// `run_commit` is the authoritative backstop that rejects an empty commit —
-/// e.g. "exclude unstaged" with nothing staged — surfacing it as an error
-/// toast rather than a phantom success.
+/// unstaged" scope (the working tree is re-read on toggle).
 fn has_committable_changes(state: &CommitState) -> bool {
     !state.file_changes.is_empty()
 }
@@ -233,9 +228,8 @@ pub(super) fn confirm_tooltip(state: &CommitState, app: &AppContext) -> Option<&
     None
 }
 
-/// Populates the commit message editor from an AI-generated message. Shared
-/// by both backends, whose open-time autogen arrives via the
-/// `CommitMessageGenerated` model event, so both behave identically: on
+/// Populates the commit message editor from an AI-generated message, whose
+/// open-time autogen arrives via the `CommitMessageGenerated` model event: on
 /// success, fill the editor unless the user already typed; on failure, swap
 /// to the manual-type placeholder (no toast — the empty editor tells the
 /// story and the failure isn't retryable).
@@ -293,28 +287,6 @@ pub(super) fn maybe_start_commit_message_autogen(me: &GitDialog, ctx: &mut ViewC
     });
 }
 
-/// Sources the commit Changes box from synced metadata (`against_head.files`).
-/// Remote repos can't read the working tree, so the list comes from metadata
-/// instead of `get_file_change_entries`. No-op for local repos, which load it
-/// from the working tree in `new_state` (and re-scope it on the unstaged
-/// toggle). Safe to call on open and on every metadata refresh.
-pub(super) fn refresh_remote_file_changes(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>) {
-    if !me.repo_location().is_remote() {
-        return;
-    }
-    let entries = me.diff_state_model().read(ctx, |model, ctx| {
-        model.uncommitted_file_entries(ctx).to_vec()
-    });
-    {
-        let GitDialogMode::Commit(state) = me.mode_mut() else {
-            return;
-        };
-        state.file_changes = entries;
-    }
-    me.refresh_confirm_enabled(ctx);
-    ctx.notify();
-}
-
 pub(super) fn handle_sub_action(
     me: &mut GitDialog,
     action: &CommitSubAction,
@@ -338,11 +310,8 @@ pub(super) fn handle_sub_action(
             if let GitDialogMode::Commit(state) = me.mode_mut() {
                 state.include_unstaged = !state.include_unstaged;
             }
-            // Local re-reads the working tree scoped to the new toggle (its
-            // spawn callback re-evaluates Confirm when it lands). Remote can't
-            // re-scope its synced list, so it keeps showing the full set; the
-            // daemon-side commit is the backstop that rejects an empty staged
-            // set when unstaged is excluded.
+            // Re-read the working tree scoped to the new toggle (its spawn
+            // callback re-evaluates Confirm when it lands).
             reload_file_changes(me, ctx);
             me.refresh_confirm_enabled(ctx);
             ctx.notify();
@@ -383,7 +352,7 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
     });
 }
 
-/// Shared commit-chain completion for both backends: toast + telemetry + close.
+/// Commit-chain completion: toast + telemetry + close.
 /// `Ok(Some)` means create-PR ran; `Ok(None)` is a plain commit / commit-and-push.
 pub(super) fn finish_commit_chain(
     _me: &GitDialog,

@@ -5,26 +5,19 @@ use warp_util::local_or_remote_path::LocalOrRemotePath;
 pub(crate) fn read_project_rule_contents(
     rule_paths: Vec<LocalOrRemotePath>,
 ) -> BoxFuture<'static, anyhow::Result<ProjectRuleContents>> {
-    match rule_paths.first() {
-        None => futures::future::ready(Ok(Vec::new())).boxed(),
-        Some(LocalOrRemotePath::Local(_)) => async move {
-            let mut contents = Vec::new();
-            for path in rule_paths {
-                let Some(local_path) = path.to_local_path().map(std::path::Path::to_path_buf)
-                else {
-                    anyhow::bail!("Project rule paths mixed local and remote locations");
-                };
-                match async_fs::read_to_string(&local_path).await {
-                    Ok(content) => contents.push((path, content)),
-                    Err(error) => log::debug!(
-                        "Failed to read project rule file {}: {error}",
-                        local_path.display()
-                    ),
-                }
+    async move {
+        let mut contents = Vec::new();
+        for path in rule_paths {
+            let local_path = std::path::PathBuf::from(&path);
+            match async_fs::read_to_string(&local_path).await {
+                Ok(content) => contents.push((path, content)),
+                Err(error) => log::debug!(
+                    "Failed to read project rule file {}: {error}",
+                    local_path.display()
+                ),
             }
-            Ok(contents)
         }
-        .boxed(),
-        Some(LocalOrRemotePath::Remote(_)) => futures::future::ready(Ok(Vec::new())).boxed(),
+        Ok(contents)
     }
+    .boxed()
 }

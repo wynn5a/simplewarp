@@ -115,9 +115,9 @@ pub enum CodeSource {
     AIAction { id: AIAgentActionId },
     /// Opened from project rules (WARP.md) file.
     ProjectRules { location: LocalOrRemotePath },
-    /// Opened from file tree (local or remote).
+    /// Opened from file tree.
     FileTree { location: LocalOrRemotePath },
-    /// Opened from command palette file search (local or remote).
+    /// Opened from command palette file search.
     CommandPalette { location: LocalOrRemotePath },
     /// Opened from macOS Finder via "Open With".
     Finder { path: PathBuf },
@@ -149,10 +149,7 @@ impl CodeSource {
         match self {
             Self::New { .. } | Self::AIAction { .. } => None,
             Self::FileTree { location, .. } | Self::CommandPalette { location, .. } => {
-                match location {
-                    LocalOrRemotePath::Local(path) => Some(path.clone()),
-                    LocalOrRemotePath::Remote(_) => None,
-                }
+                location.to_local_path().map(Path::to_path_buf)
             }
             Self::Link { path, .. } | Self::Finder { path } => Some(path.clone()),
             Self::ProjectRules { location } | Self::Skill { location, .. } => {
@@ -171,9 +168,8 @@ impl CodeSource {
 
     /// Returns the `LocalOrRemotePath` for any source that has a backing file.
     ///
-    /// Unlike `path()` (which only returns local paths) and `file_location()`
-    /// (which only covers `FileTree`), this covers every variant that maps to
-    /// a file — local or remote.
+    /// Unlike `file_location()` (which only covers `FileTree` and `CommandPalette`), this covers
+    /// every variant that maps to a file.
     pub fn location(&self) -> Option<LocalOrRemotePath> {
         match self {
             Self::New { .. } | Self::AIAction { .. } => None,
@@ -219,13 +215,7 @@ impl CodeSource {
             Self::Link { .. } => "link",
             Self::AIAction { .. } => "ai_action",
             Self::ProjectRules { .. } => "project_rules",
-            Self::FileTree {
-                location: LocalOrRemotePath::Remote(_),
-            } => "remote_file_tree",
             Self::FileTree { .. } => "file_tree",
-            Self::CommandPalette {
-                location: LocalOrRemotePath::Remote(_),
-            } => "remote_command_palette",
             Self::CommandPalette { .. } => "command_palette",
             Self::Finder { .. } => "finder",
             Self::Skill { .. } => "skill",
@@ -237,23 +227,7 @@ impl CodeSource {
     /// `AIAction` is ephemeral (tied to a live conversation) and should not
     /// be restored.
     pub fn is_restorable(&self) -> bool {
-        !matches!(
-            self,
-            Self::AIAction { .. }
-                | Self::FileTree {
-                    location: LocalOrRemotePath::Remote(_),
-                }
-                | Self::CommandPalette {
-                    location: LocalOrRemotePath::Remote(_),
-                }
-                | Self::ProjectRules {
-                    location: LocalOrRemotePath::Remote(_),
-                }
-                | Self::Skill {
-                    location: LocalOrRemotePath::Remote(_),
-                    ..
-                }
-        )
+        !matches!(self, Self::AIAction { .. })
     }
 }
 
@@ -306,7 +280,7 @@ impl CodeManager {
     }
 
     /// Returns the locator for a code pane that already has the given `LocalOrRemotePath`
-    /// open in the given pane group. Works for both local and remote files.
+    /// open in the given pane group.
     pub fn get_locator_for_location_in_tab(
         &self,
         pane_group_id: EntityId,

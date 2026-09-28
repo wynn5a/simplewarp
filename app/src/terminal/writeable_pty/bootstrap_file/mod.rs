@@ -4,7 +4,7 @@ mod imp;
 
 pub use imp::TempBootstrapFile;
 
-use crate::terminal::model::session::{BootstrapSessionType, SessionInfo};
+use crate::terminal::model::session::{SessionInfo, SessionType};
 use crate::terminal::shell::ShellType;
 
 /// Creates a `NamedTempFile` with the given bootstrap contents
@@ -46,7 +46,7 @@ pub fn permanent_bootstrap_file(
     shell_type: ShellType,
     pending_session_info: &SessionInfo,
 ) -> Option<Vec<u8>> {
-    if pending_session_info.session_type != BootstrapSessionType::Local {
+    if pending_session_info.session_type != SessionType::Local {
         return None;
     }
 

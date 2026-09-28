@@ -36,7 +36,7 @@ use crate::server::cloud_objects::update_manager::{UpdateManager, UpdateManagerE
 use crate::server::ids::{ClientId, SyncId};
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::icons::Icon;
-use crate::util::path::display_path_with_host;
+use crate::util::path::display_location_path;
 use crate::view_components::DismissibleToast;
 use crate::view_components::action_button::{ActionButton, NakedTheme};
 use crate::workspace::ToastStack;
@@ -694,7 +694,7 @@ impl RuleView {
         project_row: FileBackedRow,
         appearance: &Appearance,
     ) -> Option<Box<dyn Element>> {
-        let row_name = display_path_with_host(&project_row.file_path, false);
+        let row_name = display_location_path(&project_row.file_path, false);
         let mut row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)

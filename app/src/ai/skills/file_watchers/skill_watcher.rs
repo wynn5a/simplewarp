@@ -123,8 +123,7 @@ impl SkillWatcher {
 
         // Subscribe to home directory skills via DirectoryWatcher.
         // TODO: Migrate home/global skill watching onto RepoMetadataModel as well.
-        // Project skills have moved there first so local and remote project
-        // behavior share one path and avoid a separate local FileWatcher. Home
+        // Project skills have moved there first to avoid a separate local FileWatcher. Home
         // provider directories and symlink target watches still use
         // DirectoryWatcher/HomeDirectoryWatcher for now, but should eventually
         // follow the same model for consistency.
@@ -159,9 +158,8 @@ impl SkillWatcher {
 
         // RepositoryMetadataEvent::RepositoryUpdated fires after the file tree is
         // built, so we can query it for skill files. Project skill updates use
-        // RepoMetadataModel for both local and remote repos when available, while
-        // local repos fall back to a direct project watcher only if metadata
-        // indexing fails.
+        // RepoMetadataModel when available and fall back to a direct project watcher only if
+        // metadata indexing fails.
         ctx.subscribe_to_model(&RepoMetadataModel::handle(ctx), |me, _, event, ctx| {
             use repo_metadata::wrapper_model::RepoMetadataEvent;
             match event {
@@ -181,8 +179,7 @@ impl SkillWatcher {
                     me.fallback_to_local_project_watcher(id, ctx);
                 }
                 RepoMetadataEvent::FileTreeUpdated { .. }
-                | RepoMetadataEvent::FileTreeEntryUpdated { .. }
-                | RepoMetadataEvent::IncrementalUpdateReady { .. } => {}
+                | RepoMetadataEvent::FileTreeEntryUpdated { .. } => {}
             }
         });
 
@@ -261,9 +258,7 @@ impl SkillWatcher {
         repo_id: &RepositoryIdentifier,
         ctx: &mut ModelContext<Self>,
     ) {
-        let RepositoryIdentifier::Local(repo_path) = repo_id else {
-            return;
-        };
+        let RepositoryIdentifier(repo_path) = repo_id;
         let Some(local_path) = repo_path.to_local_path() else {
             return;
         };
@@ -406,9 +401,7 @@ impl SkillWatcher {
         repo_id: &RepositoryIdentifier,
         ctx: &mut ModelContext<Self>,
     ) {
-        let RepositoryIdentifier::Local(repo_path) = repo_id else {
-            return;
-        };
+        let RepositoryIdentifier(repo_path) = repo_id;
         let Some(local_path) = repo_path.to_local_path() else {
             return;
         };
@@ -1034,7 +1027,6 @@ fn read_project_skill_contents(
         LocalOrRemotePath::Local(_) => Some(Box::pin(async move {
             Ok(read_local_project_skill_contents(skill_paths))
         })),
-        LocalOrRemotePath::Remote(_) => None,
     }
 }
 

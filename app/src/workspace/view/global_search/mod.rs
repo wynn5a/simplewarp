@@ -6,8 +6,7 @@ pub struct SearchConfig {
     pub use_case_sensitivity: bool,
 }
 
-/// A single global search match: one line in one file, which may live on
-/// the local filesystem or on a remote host.
+/// A single global search match: one line in one file.
 #[derive(Clone, Debug)]
 pub struct GlobalSearchMatch {
     pub location: LocalOrRemotePath,

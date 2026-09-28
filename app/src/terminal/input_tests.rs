@@ -83,7 +83,7 @@ use crate::terminal::model::block::{BlockId, SerializedBlock};
 use crate::terminal::model::blocks::{BlockListPoint, insert_block};
 use crate::terminal::model::grid::Dimensions as _;
 use crate::terminal::model::index::Side;
-use crate::terminal::model::session::{BootstrapSessionType, SessionInfo};
+use crate::terminal::model::session::{SessionInfo, SessionType};
 use crate::terminal::model::terminal_model::BlockIndex;
 use crate::terminal::model_events::ModelEvent;
 use crate::terminal::resizable_data::ResizableData;
@@ -370,7 +370,7 @@ pub async fn add_window_with_bootstrapped_terminal_and_window_id(
 
     let session_info = session_info
         .unwrap_or_else(SessionInfo::new_for_test)
-        .with_session_type(BootstrapSessionType::Local)
+        .with_session_type(SessionType::Local)
         .with_shell_type(shell_type);
     let history_file_commands = history_file_commands.unwrap_or_default();
 

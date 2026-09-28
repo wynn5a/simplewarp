@@ -1,9 +1,5 @@
-//! Serializable incremental file tree update types.
-//!
-//! These types mirror the protobuf schema for `RepoMetadataUpdate` 1:1,
-//! making encode/decode between Rust and proto trivial. They are produced
-//! by the server after processing watcher events and consumed by the client
-//! to update its [`RemoteRepoMetadataModel`](crate::remote_model::RemoteRepoMetadataModel).
+//! Incremental file tree update types, produced after processing watcher events and carried by
+//! [`MetadataUpdateType::IncrementalUpdate`] so consumers can refresh derived state precisely.
 
 use warp_util::standardized_path::StandardizedPath;
 
@@ -19,8 +15,6 @@ pub enum MetadataUpdateType {
     IncrementalUpdate(RepoMetadataUpdate),
 }
 
-/// Mirrors `RepoMetadataUpdate` proto.
-///
 /// A batch of incremental changes for a single repository. Removals are
 /// processed before additions so that "move" semantics (remove old + add new)
 /// work correctly.
@@ -36,8 +30,6 @@ pub struct RepoMetadataUpdate {
     pub standing_results_delta: StandingQueryResultsDelta,
 }
 
-/// Mirrors `FileTreeEntry` proto.
-///
 /// Describes a subtree patch rooted at a specific parent directory.
 /// Applying this inserts the described nodes under `parent_path_to_replace`.
 ///
@@ -55,14 +47,12 @@ pub struct FileTreeEntryUpdate {
     pub subtree_metadata: Vec<RepoNodeMetadata>,
 }
 
-/// Mirrors `RepoNodeMetadata` proto.
 #[derive(Debug, Clone)]
 pub enum RepoNodeMetadata {
     Directory(DirectoryNodeMetadata),
     File(FileNodeMetadata),
 }
 
-/// Mirrors `DirectoryNodeMetadata` proto.
 #[derive(Debug, Clone)]
 pub struct DirectoryNodeMetadata {
     pub path: StandardizedPath,
@@ -70,7 +60,6 @@ pub struct DirectoryNodeMetadata {
     pub loaded: bool,
 }
 
-/// Mirrors `FileNodeMetadata` proto.
 #[derive(Debug, Clone)]
 pub struct FileNodeMetadata {
     pub path: StandardizedPath,

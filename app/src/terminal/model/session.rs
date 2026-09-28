@@ -133,7 +133,7 @@ pub struct SessionBootstrappedEvent {
     pub spawning_command: String,
     pub shell: Shell,
     pub subshell_info: Option<SubshellInitializationInfo>,
-    pub session_type: BootstrapSessionType,
+    pub session_type: SessionType,
 }
 
 /// Set of events produced the [`Sessions`] model.
@@ -487,7 +487,7 @@ pub struct SessionInfo {
     pub home_dir: Option<String>,
     pub cdpath: Option<String>,
     pub editor: Option<String>,
-    pub session_type: BootstrapSessionType,
+    pub session_type: SessionType,
     pub host_info: HostInfo,
     pub wsl_name: Option<String>,
     /// If this is a subshell or remote session, e.g. ssh, store the parent session ID here.
@@ -528,13 +528,12 @@ impl SessionInfo {
             matches!(&is_ssh_wrapper_session, IsSSHWrapperSession::Yes { .. }),
         );
 
-        let spawning_session_id = if matches!(session_type, BootstrapSessionType::WarpifiedRemote)
-            || subshell_info.is_some()
-        {
-            active_block_session_id
-        } else {
-            None
-        };
+        let spawning_session_id =
+            if matches!(session_type, SessionType::WarpifiedRemote) || subshell_info.is_some() {
+                active_block_session_id
+            } else {
+                None
+            };
 
         SessionInfo {
             session_id: init_shell_value.session_id,
@@ -565,7 +564,7 @@ impl SessionInfo {
     fn determine_session_type(
         init_shell_value: &InitShellValue,
         is_ssh_session: bool,
-    ) -> BootstrapSessionType {
+    ) -> SessionType {
         match get_local_hostname() {
             Ok(local_hostname) => {
                 // Ensures subshells are treated as local
@@ -573,14 +572,14 @@ impl SessionInfo {
                 // Ensures `ssh localhost` is treated as remote
                 !is_ssh_session
                 {
-                    BootstrapSessionType::Local
+                    SessionType::Local
                 } else {
-                    BootstrapSessionType::WarpifiedRemote
+                    SessionType::WarpifiedRemote
                 }
             }
             Err(e) => {
                 log::warn!("Failed to get local hostname when determining session type: {e:#}");
-                BootstrapSessionType::Local
+                SessionType::Local
             }
         }
     }
@@ -724,15 +723,6 @@ impl SessionInfo {
 
 /// The session type determined at bootstrap time.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BootstrapSessionType {
-    /// The session host is the same host where Warp is running.
-    Local,
-
-    /// The session host is a different host from where Warp is running.
-    WarpifiedRemote,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SessionType {
     /// The session host is the same host where Warp is running.
     Local,
@@ -740,15 +730,6 @@ pub enum SessionType {
     /// The session host is a different host from where Warp is running.
     /// Note that we only know this for sure when we Warpify a block.
     WarpifiedRemote,
-}
-
-impl From<BootstrapSessionType> for SessionType {
-    fn from(bst: BootstrapSessionType) -> Self {
-        match bst {
-            BootstrapSessionType::Local => SessionType::Local,
-            BootstrapSessionType::WarpifiedRemote => SessionType::WarpifiedRemote,
-        }
-    }
 }
 
 /// Represents session state and context, mostly populated and constructed at session bootstrap
@@ -786,7 +767,7 @@ impl Session {
             .map(TopLevelCommandCaseSensitivity::from_os_category)
             .unwrap_or_else(|| OperatingSystem::get().into());
 
-        let session_type = SessionType::from(session_info.session_type.clone());
+        let session_type = session_info.session_type.clone();
         Self {
             info: session_info,
             external_commands: OnceCell::new(),
@@ -1357,11 +1338,11 @@ impl Session {
 
     pub async fn read_history(&self, is_kaspersky_running: bool) -> Vec<String> {
         match self.info.session_type {
-            BootstrapSessionType::Local => {
+            SessionType::Local => {
                 self.read_history_for_local_session(is_kaspersky_running)
                     .await
             }
-            BootstrapSessionType::WarpifiedRemote => self.read_history_for_remote_session().await,
+            SessionType::WarpifiedRemote => self.read_history_for_remote_session().await,
         }
     }
 
@@ -1520,7 +1501,7 @@ pub mod testing {
                 histfile: None,
                 user: "local:user".to_owned(),
                 hostname: "local:host".to_owned(),
-                session_type: BootstrapSessionType::Local,
+                session_type: SessionType::Local,
                 subshell_info: None,
                 path,
                 editor: None,
@@ -1569,7 +1550,7 @@ pub mod testing {
             self
         }
 
-        pub fn with_session_type(mut self, session_type: BootstrapSessionType) -> Self {
+        pub fn with_session_type(mut self, session_type: SessionType) -> Self {
             self.session_type = session_type;
             self
         }
@@ -1595,8 +1576,8 @@ pub mod testing {
         }
 
         pub fn with_ssh_socket_path(mut self, socket_path: PathBuf) -> Self {
-            if let BootstrapSessionType::Local = self.session_type {
-                self.session_type = BootstrapSessionType::WarpifiedRemote;
+            if let SessionType::Local = self.session_type {
+                self.session_type = SessionType::WarpifiedRemote;
             }
             self.is_ssh_wrapper_session = IsSSHWrapperSession::Yes {
                 socket_path,
@@ -1644,7 +1625,7 @@ pub mod testing {
     impl Session {
         pub fn test() -> Self {
             let info = SessionInfo::new_for_test();
-            let session_type = SessionType::from(info.session_type.clone());
+            let session_type = info.session_type.clone();
             Self {
                 info,
                 external_commands: Default::default(),
@@ -1661,9 +1642,9 @@ pub mod testing {
 
         pub fn test_remote() -> Self {
             let info = SessionInfo::new_for_test()
-                .with_session_type(BootstrapSessionType::WarpifiedRemote)
+                .with_session_type(SessionType::WarpifiedRemote)
                 .with_shell_type(ShellType::Bash); // We only support UNIX-based remote sessions.
-            let session_type = SessionType::from(info.session_type.clone());
+            let session_type = info.session_type.clone();
             Self {
                 info,
                 external_commands: Default::default(),

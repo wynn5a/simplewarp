@@ -1,11 +1,7 @@
-use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-use warp_util::remote_path::RemotePath;
-use warp_util::standardized_path::StandardizedPath;
 
 use super::{
     SkillProvider, SkillScope, get_provider_for_path, get_scope_for_path, home_skills_path,
-    provider_parent_directory_for_skills_root,
 };
 
 #[test]
@@ -32,16 +28,6 @@ fn warp_home_skill_path_is_home_warp_skill() {
 }
 
 #[test]
-fn remote_provider_path_is_classified_by_structure() {
-    let path = LocalOrRemotePath::Remote(RemotePath::new(
-        HostId::new("remote-host".to_string()),
-        StandardizedPath::try_new("/repo/.claude/skills/my-skill/SKILL.md").unwrap(),
-    ));
-
-    assert_eq!(get_provider_for_path(&path), Some(SkillProvider::Claude));
-}
-
-#[test]
 fn local_project_provider_path_is_classified_by_structure() {
     let path = LocalOrRemotePath::Local(
         std::env::temp_dir()
@@ -53,31 +39,4 @@ fn local_project_provider_path_is_classified_by_structure() {
     );
 
     assert_eq!(get_provider_for_path(&path), Some(SkillProvider::Claude));
-}
-
-#[test]
-fn foreign_encoded_remote_provider_path_is_classified_by_structure() {
-    let path = LocalOrRemotePath::Remote(RemotePath::new(
-        HostId::new("remote-host".to_string()),
-        StandardizedPath::try_new(r"C:\repo\.codex\skills\my-skill\SKILL.md").unwrap(),
-    ));
-
-    assert_eq!(get_provider_for_path(&path), Some(SkillProvider::Codex));
-}
-
-#[test]
-fn foreign_encoded_remote_skills_root_resolves_provider_parent_directory() {
-    let host_id = HostId::new("remote-host".to_string());
-    let skills_root = LocalOrRemotePath::Remote(RemotePath::new(
-        host_id.clone(),
-        StandardizedPath::try_new(r"C:\repo\.agents\skills").unwrap(),
-    ));
-
-    assert_eq!(
-        provider_parent_directory_for_skills_root(&skills_root),
-        Some(LocalOrRemotePath::Remote(RemotePath::new(
-            host_id,
-            StandardizedPath::try_new(r"C:\repo").unwrap(),
-        )))
-    );
 }
