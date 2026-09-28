@@ -363,15 +363,6 @@ pub fn terminal_server_subcommand() -> String {
         .to_string()
 }
 
-/// Returns the subcommand name to use for starting the installation detection server.
-pub fn installation_detection_server_subcommand() -> String {
-    <Args as CommandFactory>::command()
-        .find_subcommand("installation-detection-server")
-        .expect("installation-detection-server subcommand not found")
-        .get_name()
-        .to_string()
-}
-
 /// Returns the subcommand name to use for starting the ripgrep search worker.
 pub fn ripgrep_search_subcommand() -> String {
     <Args as CommandFactory>::command()

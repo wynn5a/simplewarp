@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use warp_core::AppId;
-use warp_core::channel::{Channel, ChannelConfig, ChannelState, OzConfig, WarpServerConfig};
+use warp_core::channel::{Channel, ChannelConfig, ChannelState};
 
 // SimpleWarp: a local-only terminal with bring-your-own-key AI.
 //
@@ -13,18 +13,14 @@ use warp_core::channel::{Channel, ChannelConfig, ChannelState, OzConfig, WarpSer
 // ambient agents, and the remote server. Startup goes straight to a terminal because
 // `skip_firebase_anonymous_user` is on and the pre-login onboarding features are off.
 //
-// The server config points at RFC 2606 `.invalid` hostnames, which can never resolve. Nothing
-// in the SimpleWarp feature set should make a request to Warp, but relying on that means
-// trusting every call site; an unresolvable host makes it structural, and names SimpleWarp in
-// the failure if one ever escapes. It also keeps Warp's Firebase API key out of the binary.
+// The channel config carries no Warp server URL or Firebase API key, so there is nothing for a
+// request to Warp to be addressed to.
 fn main() -> Result<()> {
     let mut state = ChannelState::new(
         Channel::Oss,
         ChannelConfig {
             app_id: AppId::new("dev", "simplewarp", "SimpleWarp"),
             logfile_name: "simplewarp.log".into(),
-            server_config: WarpServerConfig::local_only(),
-            oz_config: OzConfig::local_only(),
             mcp_static_config: None,
         },
     );

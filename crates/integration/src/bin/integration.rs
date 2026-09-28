@@ -7,7 +7,7 @@ use integration::Builder;
 use integration::test::*;
 use warp_cli::WorkerCommand;
 use warp_core::AppId;
-use warp_core::channel::{Channel, ChannelConfig, ChannelState, OzConfig, WarpServerConfig};
+use warp_core::channel::{Channel, ChannelConfig, ChannelState};
 
 /// The Warp integration test runner.
 #[derive(Debug, Default, Parser, Clone)]
@@ -37,15 +37,6 @@ pub fn main() -> Result<()> {
                 },
             ),
             logfile_name: "warp_integration.log".into(),
-            server_config: WarpServerConfig {
-                firebase_auth_api_key: "".into(),
-                // Use an IP in the IANA testing range, with the TCP discard port, to
-                // black-hole server traffic.
-                server_root_url: "http://192.0.2.0:9".into(),
-            },
-            oz_config: OzConfig {
-                workload_audience_url: None,
-            },
             mcp_static_config: None,
         },
     ));

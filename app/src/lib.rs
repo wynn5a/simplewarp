@@ -364,9 +364,9 @@ impl LaunchMode {
     }
 
     /// Whether this launch mode should start the local loopback HTTP server
-    /// (`crates/http_server`), which serves app-installation detection and profiling on a
-    /// fixed port. Only non-headless GUI instances start it, since co-located headless
-    /// processes (CLI) would otherwise contend for the fixed port.
+    /// (`crates/http_server`), which serves profiling on a fixed port. Only non-headless GUI
+    /// instances start it, since co-located headless processes (CLI) would otherwise contend for
+    /// the fixed port.
     fn should_start_local_http_server(&self) -> bool {
         !self.is_headless()
     }
@@ -1491,11 +1491,7 @@ pub(crate) fn initialize_app(
 
     if launch_mode.should_start_local_http_server() {
         ctx.add_singleton_model(move |ctx| {
-            let routers = vec![
-                app_installation_detection::make_router(),
-                profiling::make_router(),
-            ];
-            http_server::HttpServer::new(routers, ctx)
+            http_server::HttpServer::new([profiling::make_router()], ctx)
         });
     }
     app_state

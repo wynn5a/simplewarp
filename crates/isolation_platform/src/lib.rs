@@ -1,24 +1,15 @@
-use std::io;
-use std::process::ExitStatus;
 use std::sync::OnceLock;
-use std::time::Duration;
 
-use chrono::{DateTime, Utc};
 use serde::Serialize;
 use warp_core::channel::{Channel, ChannelState};
 
 mod docker;
-mod docker_sandbox;
 mod kubernetes;
 mod namespace;
 
 /// Environment variable set by the server to identify the isolation platform.
 /// The value should match one of the `IsolationPlatformType` variants in snake_case.
 const WARP_ISOLATION_PLATFORM_ENV: &str = "WARP_ISOLATION_PLATFORM";
-
-/// Environment variable containing the generic Warp-managed workload token that we use
-/// for isolation platforms that don't issue their own tokens.
-const WARP_WORKLOAD_TOKEN_ENV: &str = "WARP_WORKLOAD_TOKEN";
 
 /// A kind of isolation platform. For our usage, isolation platforms are different ways where Warp
 /// can be sandboxed, such as VMs, containers, or cloud hosts. This may also include weaker forms
@@ -35,15 +26,6 @@ pub enum IsolationPlatformType {
     Kubernetes,
     /// Warp is running within a Namespace instance, likely as a Warp-hosted agent.
     Namespace,
-}
-
-/// A workload identity token issued by the isolation platform.
-#[derive(Debug, Clone)]
-pub struct WorkloadToken {
-    /// The token string.
-    pub token: String,
-    /// The expiration time of the token. On some platforms, workload tokens do not expire.
-    pub expires_at: Option<DateTime<Utc>>,
 }
 
 /// Detect the current isolation platform, if any.
@@ -95,41 +77,6 @@ pub fn detect() -> Option<IsolationPlatformType> {
     })
 }
 
-/// Issue a workload identity token for the current isolation platform.
-///
-/// This will fail if no isolation platform is detected and no platform-agnostic workload token
-/// is available.
-pub async fn issue_workload_token(
-    duration: Option<Duration>,
-) -> Result<WorkloadToken, IsolationPlatformError> {
-    match detect() {
-        Some(IsolationPlatformType::DockerSandbox) => {
-            docker_sandbox::issue_workload_token(duration).await
-        }
-        Some(IsolationPlatformType::Namespace) => namespace::issue_workload_token(duration).await,
-        // Check for a platform-agnostic workload token if there's no
-        // isolation platform or if the detected platform doesn't have
-        // its own workload token mechanism.
-        _ => read_generic_workload_token()
-            .inspect_err(|err| log::debug!("No platform-agnostic workload token: {err}"))
-            .map_err(|_| IsolationPlatformError::NoIsolationPlatformDetected),
-    }
-}
-
-/// Read a platform-agnostic workload token from the `WARP_WORKLOAD_TOKEN` environment variable.
-/// Returns a `WorkloadToken` with no expiration, or an error if the variable is missing/empty.
-fn read_generic_workload_token() -> Result<WorkloadToken, IsolationPlatformError> {
-    let token = std::env::var(WARP_WORKLOAD_TOKEN_ENV)
-        .map_err(|_| IsolationPlatformError::GenericWorkloadTokenMissing)?;
-    if token.is_empty() {
-        return Err(IsolationPlatformError::GenericWorkloadTokenMissing);
-    }
-    Ok(WorkloadToken {
-        token,
-        expires_at: None,
-    })
-}
-
 /// Parse the `WARP_ISOLATION_PLATFORM` environment variable into a platform type.
 fn platform_from_env() -> Option<IsolationPlatformType> {
     let value = std::env::var(WARP_ISOLATION_PLATFORM_ENV).ok()?;
@@ -143,26 +90,4 @@ fn platform_from_env() -> Option<IsolationPlatformType> {
             None
         }
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum IsolationPlatformError {
-    #[error("No isolation platform detected")]
-    NoIsolationPlatformDetected,
-
-    #[error("Workload token is missing or empty")]
-    GenericWorkloadTokenMissing,
-
-    #[error("Required command {command} is unavailable")]
-    CommandUnavailable {
-        command: String,
-        #[source]
-        source: io::Error,
-    },
-
-    #[error("Command `{command}` exited with non-zero status: {status}")]
-    CommandFailed { command: String, status: ExitStatus },
-
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
 }

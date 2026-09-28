@@ -27,7 +27,6 @@ publish = false
 [workspace.dependencies]
 # Local workspace crates. This lets us reference them in other crates without specifying a path.
 ai = { path = "crates/ai" }
-app-installation-detection = { path = "crates/app-installation-detection" }
 asset_cache = { path = "crates/asset_cache" }
 asset_macro = { path = "crates/asset_macro" }
 build_cache = { path = "crates/build_cache" }
@@ -334,7 +333,6 @@ shellexpand = "3.1.1"
 warp-command-signatures = { git = "https://github.com/warpdotdev/command-signatures.git", rev = "ac69f9b00c48d6de229ba5905056d9302da1c5c4", default-features = false }
 winit = { git = "https://github.com/warpdotdev/winit.git", rev = "a4e0ecb5f9626ccac9445a73dc28354b52423abc" }
 x11rb = "0.13.0"
-mockito = "1.7.0"
 sysinfo = { version = "0.37.0", default-features = false, features = [
   "system",
   "multithread",

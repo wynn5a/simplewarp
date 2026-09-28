@@ -44,7 +44,7 @@ EditableMarkdownMermaid, ImeMarkedText, ITermImages.
 
 ## Phase 4 progress
 
-Workspace is down to 69 crates. Gone, in rough order:
+Workspace is down to 68 crates. Gone, in rough order:
 
 - **TUI** (1–1c): the front-end, its rendering engine, `ratatui`, every surface marker (~120k lines).
 - **Server-only features** (2–3aa): billing, experiments, referrals, resource center, changelog,
@@ -144,8 +144,26 @@ Queue, in order:
    `GitRepoStatusModel`, `GitHubRepoModel`) and `SessionType` ≡ `BootstrapSessionType` to
    flatten, stale "SSH extension" text (tmux deprecation banner, migration comments, `specs/`,
    `EXCLUDE_REMOTE_SERVER_TESTS_FILTER` in `ci.yml`).
-4. `server_root_url`: trace `workload_audience_url()` / `crates/isolation_platform` and remove the
-   field once nothing reads it.
+4. ~~`server_root_url`~~ — **4gs done (2026-09-28).** −594 lines in 21 files: `ChannelConfig`
+   has no server fields left — `WarpServerConfig` (`server_root_url`, `firebase_auth_api_key`) and
+   `OzConfig` (`workload_audience_url`) are gone with `ChannelState::server_root_url` /
+   `workload_audience_url` / `firebase_api_key`, the test-util mockito `MOCK_SERVER` behind
+   `server_root_url` (and the now-unused `mockito` dep in warp_core, app, integration and the
+   workspace). Channel configs are still loadable: serde ignores the old keys. The workload-token
+   half of `crates/isolation_platform` (`issue_workload_token`, the Namespace `nsc` token call and
+   its JWT parsing + 5 tests, `docker_sandbox`, `WorkloadToken`, `IsolationPlatformError`,
+   `WARP_WORKLOAD_TOKEN`) had zero callers and only fed Warp's workload-identity service. The
+   `app-installation-detection` crate (`/install_detection` for warp.dev's website) and the
+   dangling `installation_detection_server_subcommand` are gone; `http_server` now serves only the
+   local profiling router (app gains `tracing-subscriber/env-filter`, which it had been getting via
+   that crate). Kept, being local: `isolation_platform::detect()` (Docker/Kubernetes/Namespace
+   sandbox detection; drives the pty child's OOM-score bump on Linux and the agent driver's
+   `IS_SANDBOX` / harness config), `mcp_static_config`. Tests unchanged (4,392 / 4,393).
+   Follow-ups: the internal channel bins (`dev`/`local`/`preview`/`stable`) and
+   `crates/warp_channel_config`, which shell out to Warp's internal `warp-channel-config`
+   generator; `agent_sdk/driver/cache_setup` + `crates/build_cache` (runs only on Warp-hosted
+   Namespace instances with source repos from a cloud environment); `DockerSandbox` isolation
+   variant (only via a server-set env var); orphaned `app/src/sharing/qr_code_tests.rs` (no module).
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, WarpDrivePrivacySettings, `autosync_plans_to_warp_drive`,

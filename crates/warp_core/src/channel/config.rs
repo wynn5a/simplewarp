@@ -12,66 +12,8 @@ pub struct ChannelConfig {
     /// The name of the file to which logs should be written.
     pub logfile_name: Cow<'static, str>,
 
-    /// Configuration for talking to Warp's servers.
-    pub server_config: WarpServerConfig,
-    /// Configuration for Oz/ambient agents.
-    pub oz_config: OzConfig,
     /// Configuration for statically-bundled MCP OAuth credentials.
     pub mcp_static_config: Option<McpStaticConfig>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct WarpServerConfig {
-    /// The root URL for the standard server pool.
-    pub server_root_url: Cow<'static, str>,
-    /// The API key to use when making requests to Firebase Authentication endpoints.
-    pub firebase_auth_api_key: Cow<'static, str>,
-}
-
-impl WarpServerConfig {
-    /// The configuration for a build that must never reach Warp's servers.
-    ///
-    /// The URLs are syntactically valid — callers parse them, and some `expect`
-    /// that the parse succeeds — but `.invalid` is reserved by RFC 2606 and can
-    /// never resolve. So a request that escapes a deleted guard fails in DNS
-    /// with SimpleWarp's own name in the error, instead of quietly reaching
-    /// Warp. There is no Firebase key to ship.
-    pub fn local_only() -> Self {
-        Self {
-            server_root_url: "https://server.simplewarp.invalid".into(),
-            firebase_auth_api_key: "".into(),
-        }
-    }
-
-    pub fn production() -> Self {
-        Self {
-            server_root_url: "https://app.warp.dev".into(),
-            firebase_auth_api_key: "AIzaSyBdy3O3S9hrdayLJxJ7mriBR4qgUaUygAs".into(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct OzConfig {
-    /// URL to use as the audience when issuing workload identity tokens. If [`None`], falls back
-    /// to [`WarpServerConfig::server_root_url`]. This exists so the audience is not overridden
-    /// when a custom server root URL is provided (e.g. an ngrok URL for local development).
-    pub workload_audience_url: Option<Cow<'static, str>>,
-}
-
-impl OzConfig {
-    /// See [`WarpServerConfig::local_only`].
-    pub fn local_only() -> Self {
-        Self {
-            workload_audience_url: None,
-        }
-    }
-
-    pub fn production() -> Self {
-        Self {
-            workload_audience_url: None,
-        }
-    }
 }
 
 /// Configuration for statically-bundled MCP OAuth credentials.

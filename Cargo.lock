@@ -365,23 +365,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "080e9890a082662b09c1ad45f567faeeb47f22b5fb23895fbe1e651e718e25ca"
 
 [[package]]
-name = "app-installation-detection"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "axum-extra",
- "command",
- "nix 0.26.4",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "win32job",
-]
-
-[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -982,16 +965,6 @@ dependencies = [
  "serde_repr",
  "url",
  "zbus",
-]
-
-[[package]]
-name = "assert-json-diff"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47e4f2b81832e72834d7518d8487a0396a28cc408186a2e8854c0f98011faf12"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1759,28 +1732,6 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
-]
-
-[[package]]
-name = "axum-extra"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45bf463831f5131b7d3c756525b305d40f1185b688565648a92e1392ca35713d"
-dependencies = [
- "axum",
- "axum-core",
- "bytes",
- "futures-util",
- "http 1.4.0",
- "http-body 1.0.1",
- "http-body-util",
- "mime",
- "pin-project-lite",
- "rustversion",
- "serde",
- "tower",
- "tower-layer",
- "tower-service",
 ]
 
 [[package]]
@@ -2794,15 +2745,6 @@ name = "colorchoice"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
-
-[[package]]
-name = "colored"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fde0e0ec90c9dfb3b4b1a0891a7dcd0e2bffde2f7efed5fe7c9bb00e5bfb915e"
-dependencies = [
- "windows-sys 0.59.0",
-]
 
 [[package]]
 name = "combine"
@@ -6140,7 +6082,6 @@ name = "integration"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "app-installation-detection",
  "backtrace",
  "cfg-if",
  "chrono",
@@ -6153,7 +6094,6 @@ dependencies = [
  "itertools 0.14.0",
  "lazy_static",
  "log",
- "mockito",
  "nix 0.26.4",
  "parking_lot",
  "pathfinder_geometry",
@@ -7305,31 +7245,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mockito"
-version = "1.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e0603425789b4a70fcc4ac4f5a46a566c116ee3e2a6b768dc623f7719c611de"
-dependencies = [
- "assert-json-diff",
- "bytes",
- "colored",
- "futures-core",
- "http 1.4.0",
- "http-body 1.0.1",
- "http-body-util",
- "hyper",
- "hyper-util",
- "log",
- "pin-project-lite",
- "rand 0.9.4",
- "regex",
- "serde_json",
- "serde_urlencoded",
- "similar",
- "tokio",
-]
-
-[[package]]
 name = "monostate"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7659,15 +7574,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8a3895c6391c39d7fe7ebc444a87eb2991b2a0bc718fdabd071eec617fc68e4"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "nu-ansi-term"
-version = "0.50.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
-dependencies = [
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -12153,7 +12059,6 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
- "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2 0.6.0",
@@ -12426,17 +12331,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-log"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
-dependencies = [
- "log",
- "once_cell",
- "tracing-core",
-]
-
-[[package]]
 name = "tracing-opentelemetry"
 version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12457,15 +12351,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
 dependencies = [
  "matchers",
- "nu-ansi-term",
  "once_cell",
  "regex-automata",
  "sharded-slab",
- "smallvec 1.15.1",
  "thread_local",
  "tracing",
  "tracing-core",
- "tracing-log",
 ]
 
 [[package]]
@@ -13083,7 +12974,6 @@ dependencies = [
  "ai",
  "alphanumeric-sort",
  "anyhow",
- "app-installation-detection",
  "arrayvec",
  "asset_cache",
  "asset_macro",
@@ -13207,7 +13097,6 @@ dependencies = [
  "mime_guess",
  "mio",
  "mockall",
- "mockito",
  "natural_language_detection",
  "nix 0.26.4",
  "notify-debouncer-full",
@@ -13503,7 +13392,6 @@ dependencies = [
  "lazy_static",
  "line-ending",
  "log",
- "mockito",
  "objc2-foundation 0.3.2",
  "parking_lot",
  "pin-project",
@@ -13631,14 +13519,8 @@ dependencies = [
 name = "warp_isolation_platform"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "base64 0.22.1",
- "chrono",
- "command",
  "log",
  "serde",
- "serde_json",
- "thiserror 2.0.17",
  "warp_core",
 ]
 
