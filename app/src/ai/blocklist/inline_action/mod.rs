@@ -1,5 +1,4 @@
 pub(crate) mod ask_user_question_view;
-pub(super) mod aws_bedrock_credentials_error;
 pub(crate) mod code_diff_view;
 pub(crate) mod create_or_edit_document;
 pub(crate) mod host_picker;

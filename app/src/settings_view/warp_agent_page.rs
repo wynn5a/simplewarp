@@ -3688,9 +3688,8 @@ impl SettingsWidget for CustomModelRoutersWidget {
             c
         };
 
-        // Add trailing space beneath this section (matching sibling sections
-        // like AWS Bedrock) so the following section's title isn't crowded
-        // against the router cards.
+        // Add trailing space beneath this section (matching sibling sections) so the following
+        // section's title isn't crowded against the router cards.
         Container::new(column.finish())
             .with_margin_bottom(HEADER_PADDING)
             .finish()

@@ -62,7 +62,6 @@ pub enum FailedOutputPresentation {
     Message(String),
     InvalidApiKey { title: &'static str, detail: String },
     ContextWindowExceeded { message: String },
-    AwsBedrockCredentialsExpiredOrInvalid { fallback_message: String },
 }
 
 /// Returns the user-facing presentation for an Agent Mode request failure.
@@ -110,14 +109,6 @@ pub fn failed_output_presentation(
                  Double-check that your API key is correct."
             ),
         },
-        RenderableAIError::AwsBedrockCredentialsExpiredOrInvalid { model_name } => {
-            FailedOutputPresentation::AwsBedrockCredentialsExpiredOrInvalid {
-                fallback_message: format!(
-                    "{ERROR_APOLOGY_TEXT}\n\nAWS credentials expired or missing for {model_name}. \
-                     Please refresh your AWS credentials."
-                ),
-            }
-        }
         RenderableAIError::TransientNetworkError { .. } => {
             FailedOutputPresentation::Message(error.to_string())
         }

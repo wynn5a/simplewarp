@@ -693,9 +693,6 @@ pub enum RenderableAIError {
         provider: String,
         model_name: String,
     },
-    AwsBedrockCredentialsExpiredOrInvalid {
-        model_name: String,
-    },
     /// A transient network failure (lost connection or truncated response stream). Carries its
     /// own complete user-facing copy; `kind` preserves the structured cause (including the raw
     /// API error) so user reports can disambiguate the different causes behind the shared message.
@@ -755,10 +752,6 @@ impl RenderableAIError {
 
     pub fn is_invalid_api_key(&self) -> bool {
         matches!(self, Self::InvalidApiKey { .. })
-    }
-
-    pub fn is_aws_bedrock_credentials_error(&self) -> bool {
-        matches!(self, Self::AwsBedrockCredentialsExpiredOrInvalid { .. })
     }
 
     /// Returns true if an automatic resume will be attempted for this error.
@@ -886,12 +879,6 @@ impl Display for RenderableAIError {
             }
             Self::InvalidApiKey { provider, .. } => {
                 write!(f, "Invalid API key for {provider}")
-            }
-            Self::AwsBedrockCredentialsExpiredOrInvalid { model_name } => {
-                write!(
-                    f,
-                    "AWS Bedrock credentials expired or invalid for {model_name}"
-                )
             }
             Self::TransientNetworkError { kind, .. } => {
                 write!(

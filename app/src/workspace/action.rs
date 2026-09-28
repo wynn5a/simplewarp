@@ -606,9 +606,6 @@ pub enum WorkspaceAction {
     ToggleConversationListView,
     OpenConversationListView,
     OpenAgentManagementView,
-    /// Reset the AWS Bedrock login banner dismissed state (for debugging).
-    #[cfg(debug_assertions)]
-    DebugResetAwsBedrockLoginBannerDismissed,
     /// Open the Feature Intro Modal (for debugging)
     #[cfg(debug_assertions)]
     OpenFeatureIntroModal,
@@ -958,8 +955,7 @@ impl WorkspaceAction {
             | OpenNewWindowForTeam { .. }
             | ShowTeamSwitcherMenu => false,
             #[cfg(debug_assertions)]
-            DebugResetAwsBedrockLoginBannerDismissed
-            | OpenFeatureIntroModal
+            OpenFeatureIntroModal
             | ResetFeatureIntroModalState
             | InstallOpenCodeWarpPlugin
             | UseLocalOpenCodeWarpPlugin => false,

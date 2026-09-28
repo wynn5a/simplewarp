@@ -72,31 +72,10 @@ pub fn should_show_key_icon_for_model(llm: &LLMInfo, app: &AppContext) -> bool {
     byo_key_source_for_model(llm, app).is_some()
 }
 
-fn should_show_host_icon_for_model(
-    llm: &LLMInfo,
-    host: &LLMModelHost,
-    credentials_enabled: bool,
-) -> bool {
-    credentials_enabled
-        && llm
-            .host_configs
-            .get(host)
-            .is_some_and(|config| config.enabled)
-}
-
-pub fn should_show_bedrock_icon_for_model(llm: &LLMInfo, app: &AppContext) -> bool {
-    should_show_host_icon_for_model(
-        llm,
-        &LLMModelHost::AwsBedrock,
-        UserWorkspaces::as_ref(app).is_aws_bedrock_credentials_enabled(),
-    )
-}
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ModelIconFlags {
     pub is_custom_router: bool,
     pub is_auto: bool,
-    pub is_using_bedrock: bool,
 }
 
 /// The leading icon shown next to a model in the model picker and model menus.
@@ -108,8 +87,6 @@ pub fn model_leading_icon(llm: &LLMInfo, flags: ModelIconFlags) -> Icon {
         Icon::Dataflow
     } else if flags.is_auto {
         Icon::Agent
-    } else if flags.is_using_bedrock {
-        Icon::Aws
     } else {
         llm.provider.icon().unwrap_or(Icon::Agent)
     }

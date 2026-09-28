@@ -12,7 +12,7 @@ use warpui::{Action, AppContext, Element};
 use crate::ai::custom_model_routers::is_custom_router_id;
 use crate::ai::llms::{
     DisableReason, LLMId, LLMInfo, ModelIconFlags, model_leading_icon,
-    should_show_bedrock_icon_for_model, should_show_key_icon_for_model,
+    should_show_key_icon_for_model,
 };
 use crate::menu::{MenuItem, MenuItemFields, MenuTooltipPosition};
 
@@ -84,7 +84,6 @@ fn make_item_fields<A: Action + Clone>(
     } else {
         llm.menu_display_name()
     };
-    let is_using_bedrock = should_show_bedrock_icon_for_model(llm, app);
     let is_using_api_key = should_show_key_icon_for_model(llm, app);
     let is_custom_router = is_custom_router_id(llm.id.as_str());
     let leading_icon = model_leading_icon(
@@ -92,10 +91,9 @@ fn make_item_fields<A: Action + Clone>(
         ModelIconFlags {
             is_custom_router,
             is_auto: is_auto_model,
-            is_using_bedrock,
         },
     );
-    let trailing_credential_icon = (!is_using_bedrock && is_using_api_key).then_some(Icon::Key);
+    let trailing_credential_icon = is_using_api_key.then_some(Icon::Key);
 
     let mut item = if let Some(position_id_fn) = position_id_fn {
         let position_id = position_id_fn(&llm.id);

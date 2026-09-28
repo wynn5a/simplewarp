@@ -1140,59 +1140,6 @@ define_settings_group!(AISettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
-    // Whether to use locally loaded AWS credentials for Bedrock-enabled requests.
-    aws_bedrock_credentials_enabled: AwsBedrockCredentialsEnabled {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "cloud_platform.third_party_api_keys.aws_bedrock_credentials_enabled",
-        description: "Whether Warp should use your local AWS credentials for Bedrock-enabled requests.",
-    }
-    // Whether to automatically run the AWS login command when Bedrock credentials are expired.
-    //
-    // When true, the configured login command will be run automatically without asking.
-    // When false (default), a prompt will be shown asking for permission.
-    aws_bedrock_auto_login: AwsBedrockAutoLogin {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "cloud_platform.third_party_api_keys.aws_bedrock_auto_login",
-        description: "Whether to automatically run the AWS login command when Bedrock credentials expire.",
-    }
-    // Command to run to refresh AWS credentials when using Bedrock auto-login.
-    aws_bedrock_auth_refresh_command: AwsBedrockAuthRefreshCommand {
-        type: String,
-        default: "aws login".to_string(),
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "cloud_platform.third_party_api_keys.aws_bedrock_auth_refresh_command",
-        description: "The command to run to refresh AWS credentials for Bedrock.",
-    }
-    // AWS profile name to use when loading credentials from the local AWS credential/config chain.
-    aws_bedrock_profile: AwsBedrockProfile {
-        type: String,
-        default: "default".to_string(),
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "cloud_platform.third_party_api_keys.aws_bedrock_profile",
-        description: "The AWS profile name to use for Bedrock credentials.",
-    }
-    // Whether the AWS Bedrock login banner has been permanently dismissed.
-    //
-    // Not a user-visible setting - we model it as a setting so we can track state.
-    aws_bedrock_login_banner_dismissed: AwsBedrockLoginBannerDismissed {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    }
     // Whether or not the user wants agent mode requests to use their saved rules.
     memory_enabled: MemoryEnabled {
         type: bool,

@@ -1085,9 +1085,6 @@ impl View for AIBlock {
                 is_usage_footer_expanded: self.is_usage_footer_expanded,
                 terminal_view_id: self.terminal_view_id,
                 is_conversation_transcript_viewer,
-                aws_bedrock_credentials_error_view: self
-                    .aws_bedrock_credentials_error_view
-                    .as_ref(),
                 imported_comments: &self.imported_comments,
                 run_agents_card_views: &self.run_agents_card_views,
                 #[cfg(feature = "local_fs")]

@@ -144,7 +144,6 @@ use warp_cli::{CliCommand, GlobalOptions};
 use watcher::HomeDirectoryWatcher;
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
-use crate::ai::aws_credentials::AwsCredentialRefresher as _;
 use crate::ai::mcp::{FileBasedMCPManager, FileMCPWatcher};
 pub mod workflows;
 pub mod workspace;
@@ -243,7 +242,6 @@ use crate::system::SystemStats;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::terminal::resizable_data::ResizableData;
-use crate::terminal::view::inline_banner::ByoLlmAuthBannerSessionState;
 use crate::terminal::{AudibleBell, CustomSecretRegexUpdater, History};
 use crate::undo_close::UndoCloseStack;
 use crate::user_config::WarpConfig;
@@ -1027,12 +1025,7 @@ pub(crate) fn initialize_app(
         UserWorkspaces::new(cached_workspaces, current_workspace_uid, ctx)
     });
 
-    // Initialize ApiKeyManager after UserWorkspaces so it can subscribe to workspace/settings changes
-    ctx.add_singleton_model(|ctx| {
-        let mut manager = ::ai::api_keys::ApiKeyManager::new(ctx);
-        manager.subscribe_to_settings_changes(ctx);
-        manager
-    });
+    ctx.add_singleton_model(::ai::api_keys::ApiKeyManager::new);
 
     ctx.set_fallback_font_source_provider(|url| ::asset_cache::url_source(url));
 
@@ -1358,9 +1351,6 @@ pub(crate) fn initialize_app(
 
     // AgentConversationsModel subscribes to UpdateManager for RTC task updates.
     ctx.add_singleton_model(AgentConversationsModel::new);
-
-    // ByoLlmAuthBannerSessionState tracks dismissal of the BYO LLM auth banner (e.g., AWS Bedrock login).
-    ctx.add_singleton_model(ByoLlmAuthBannerSessionState::new);
 
     ctx.add_singleton_model(ExportManager::new);
     ctx.add_singleton_model(|ctx| NotebookManager::new(notebooks, ctx));

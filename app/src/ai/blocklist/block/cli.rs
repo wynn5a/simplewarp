@@ -1185,7 +1185,6 @@ impl View for CLISubagentView {
                         invalid_api_key_button_handle: &self
                             .state_handles
                             .invalid_api_key_button_handle,
-                        aws_bedrock_credentials_error_view: None,
                         icon_right_margin: AVATAR_RIGHT_MARGIN,
                     },
                     app,

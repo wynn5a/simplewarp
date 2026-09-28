@@ -324,12 +324,6 @@ impl UserWorkspaces {
         self.are_member_byo_keys_allowed()
     }
 
-    /// Whether AWS Bedrock credentials are attached to agent requests. Bedrock is only available
-    /// once a workspace admin enables it, which no local workspace can.
-    pub fn is_aws_bedrock_credentials_enabled(&self) -> bool {
-        false
-    }
-
     /// Returns true iff AI autonomy features are allowed for this client by the workspace's
     /// billing policy.
     pub fn is_ai_autonomy_allowed(&self) -> bool {

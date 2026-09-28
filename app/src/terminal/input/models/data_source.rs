@@ -25,8 +25,7 @@ use crate::ai::custom_model_routers::is_custom_router_id;
 use crate::ai::execution_profiles::model_menu_items::is_auto;
 use crate::ai::llms::{
     ByoKeySource, DisableReason, LLMId, LLMInfo, LLMPreferences, LLMSpec, ModelIconFlags,
-    byo_key_source_for_model, model_leading_icon, should_show_bedrock_icon_for_model,
-    should_show_key_icon_for_model,
+    byo_key_source_for_model, model_leading_icon, should_show_key_icon_for_model,
 };
 use crate::features::FeatureFlag;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
@@ -43,7 +42,6 @@ use crate::workspace::WorkspaceAction;
 
 /// Auto models pick their concrete model server-side, so the cost line names the
 /// class of inference rather than a host the request may never reach.
-const AUTO_HOSTED_INFERENCE_LABEL: &str = "Inference may use your hosted inference";
 
 #[derive(Clone, Debug)]
 pub struct AcceptModel {
@@ -295,8 +293,6 @@ struct ModelSearchItem {
     /// Source/routing description for custom model routers (from `LLMInfo.description`).
     description: Option<String>,
     disable_reason: Option<DisableReason>,
-    is_auto: bool,
-    is_using_bedrock: bool,
     name_match_result: Option<FuzzyMatchResult>,
     score: OrderedFloat<f64>,
     manage_api_key_mouse_state: MouseStateHandle,
@@ -309,17 +305,15 @@ impl ModelSearchItem {
         let llm = &choice.llm;
         let is_custom_router = is_custom_router_id(llm.id.as_str());
         let is_auto = is_auto(llm);
-        let is_using_bedrock = should_show_bedrock_icon_for_model(llm, app);
         let byo_key_source = byo_key_source_for_model(llm, app);
         let leading_icon = model_leading_icon(
             llm,
             ModelIconFlags {
                 is_custom_router,
                 is_auto,
-                is_using_bedrock,
             },
         );
-        let credential_icon = (!is_using_bedrock && byo_key_source.is_some()).then_some(Icon::Key);
+        let credential_icon = byo_key_source.is_some().then_some(Icon::Key);
         Self {
             id: llm.id.clone(),
             spec: llm.spec.clone(),
@@ -331,8 +325,6 @@ impl ModelSearchItem {
             is_custom_router,
             description: llm.description.clone(),
             disable_reason: choice.disable_reason,
-            is_auto,
-            is_using_bedrock,
             name_match_result: choice.name_match_result,
             score: choice.score,
             manage_api_key_mouse_state: Default::default(),
@@ -459,10 +451,7 @@ impl SearchItem for ModelSearchItem {
             row = row.with_child(Container::new(disabled_text).with_margin_left(6.).finish());
         }
 
-        if should_show_discount_chip(
-            self.discount_percentage,
-            self.credential_icon.is_some() || self.is_using_bedrock,
-        ) {
+        if should_show_discount_chip(self.discount_percentage, self.credential_icon.is_some()) {
             let discount_percentage = self.discount_percentage.unwrap_or(0.);
             let chip = Container::new(
                 Text::new_inline(
@@ -531,14 +520,7 @@ impl SearchItem for ModelSearchItem {
         };
         let header = render_model_spec_header(title, description, app);
 
-        let uses_external_inference = self.is_using_bedrock || self.byo_key_source.is_some();
-        let cost_row = if uses_external_inference {
-            let search_query = if self.is_using_bedrock {
-                "bedrock"
-            } else {
-                "api"
-            }
-            .to_string();
+        let cost_row = if let Some(source) = self.byo_key_source {
             let manage_button = appearance
                 .ui_builder()
                 .button(
@@ -560,21 +542,13 @@ impl SearchItem for ModelSearchItem {
                 .build()
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
-                        search_query: search_query.clone(),
+                        search_query: "api".to_string(),
                         section: Some(SettingsSection::WarpAgent),
                     });
                 })
                 .finish();
             CostRow::BilledToProvider {
-                label: if self.is_auto && self.is_using_bedrock {
-                    AUTO_HOSTED_INFERENCE_LABEL
-                } else if self.is_using_bedrock {
-                    "Inference via Bedrock"
-                } else if let Some(source) = self.byo_key_source {
-                    source.inference_label()
-                } else {
-                    "Inference via API key"
-                },
+                label: source.inference_label(),
                 manage_button: Container::new(manage_button).finish(),
             }
         } else {

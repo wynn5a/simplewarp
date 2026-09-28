@@ -50,7 +50,6 @@ pub(crate) fn classify_renderable_error(error: &RenderableAIError) -> AgentTaskS
         RenderableAIError::QuotaLimit { .. }
         | RenderableAIError::ContextWindowExceeded(_)
         | RenderableAIError::InvalidApiKey { .. }
-        | RenderableAIError::AwsBedrockCredentialsExpiredOrInvalid { .. }
         | RenderableAIError::AgentExitedShell { .. } => AgentTaskState::Failed,
         RenderableAIError::ServerOverloaded
         | RenderableAIError::InternalWarpError

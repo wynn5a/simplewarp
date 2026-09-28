@@ -303,6 +303,30 @@ Queue, in order:
    enterprise tier (`SecretLevel::Enterprise`); `agent run --profile` (always errors now) and the
    "Unsynced" ids of `agent profile list`; single-variant `ByoKeySource`.
 
+9. ~~AWS Bedrock (Warp-server path)~~ — **4gx done (2026-09-28).** −1.7k lines in 44 files (+Cargo.lock
+   −670). Verified first: `crates/local_inference` has no Bedrock provider and never reads
+   `ApiKeys.aws_credentials`; the whole chain only put the user's AWS credentials on the request for
+   Warp's server to call Bedrock. Gone: the app + `crates/ai` `aws_credentials` modules (SDK credential
+   refresh, `AwsCredentialRefresher`, `AwsCredentialsState`, block-completion / settings / TeamsChanged
+   subscriptions), `ApiKeyManager`'s credential state (`api_keys_for_request` takes only the BYO flag;
+   the proto `aws_credentials` field is always `None`), the AWS SDK deps (`aws-config`,
+   `aws-credential-types`, `aws-sdk-sts`, `aws-types`, ~20 transitive crates; `aws-lc-*` stay for
+   rustls), the "Use AWS Bedrock?" and "AWS CLI not installed" inline banners with
+   `ByoLlmAuthBannerSessionState`, the run-`aws login` terminal plumbing (`is_pending_aws_login`,
+   `AIBlockEvent/Action::RunAwsLoginCommand`, `ConfigureAwsLoginCommand`, `ToggleAwsBedrockAutoLogin`),
+   the credentials error view + `RenderableAIError::AwsBedrockCredentialsExpiredOrInvalid` +
+   `FailedOutputPresentation` variant (an invalid-key stream end from a Bedrock provider now renders as
+   the generic invalid-key error), the model-picker Bedrock icon / "Inference via Bedrock" cost row
+   (`should_show_bedrock_icon_for_model`, `ModelIconFlags::is_using_bedrock`, the now-unread
+   `ModelSearchItem::is_auto`), `Icon::Aws` and the orphaned `Icon::GeminiEnterpriseAgentPlatform`
+   (+ both svgs), the debug "Un-dismiss AWS login banner" action, the five `aws_bedrock_*` settings
+   (keys orphaned), and `UserWorkspaces::is_aws_bedrock_credentials_enabled`. Kept, being persisted
+   shapes: `LLMModelHost::AwsBedrock` (model-config JSON), the proto `LlmProvider::AwsBedrock` /
+   `ApiKeys.aws_credentials`. Tests 4,299 default / 4,300 simplewarp (−7, deleted with their code: 5
+   SDK error-message mapping, 2 host-icon), `ai` + `warp_core` 260 passed, 0 failed. Follow-ups:
+   `UserWorkspaces` itself; `SecretLevel::Enterprise`; `agent run --profile`; single-variant
+   `ByoKeySource` (see 4gw).
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

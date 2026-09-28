@@ -146,73 +146,14 @@ fn llm_info_round_trip_serializes_and_deserializes() {
 }
 
 #[test]
-fn host_icon_visibility_requires_enabled_credentials_and_model_host() {
-    let mut info = server_llm("gemini-test", None);
-    info.host_configs.insert(
-        LLMModelHost::GeminiEnterprise,
-        RoutingHostConfig {
-            enabled: true,
-            model_routing_host: LLMModelHost::GeminiEnterprise,
-        },
-    );
-
-    assert!(should_show_host_icon_for_model(
-        &info,
-        &LLMModelHost::GeminiEnterprise,
-        true,
-    ));
-    assert!(!should_show_host_icon_for_model(
-        &info,
-        &LLMModelHost::GeminiEnterprise,
-        false,
-    ));
-    assert!(!should_show_host_icon_for_model(
-        &info,
-        &LLMModelHost::AwsBedrock,
-        true,
-    ));
-
-    info.host_configs
-        .get_mut(&LLMModelHost::GeminiEnterprise)
-        .expect("Gemini Enterprise host should exist")
-        .enabled = false;
-    assert!(!should_show_host_icon_for_model(
-        &info,
-        &LLMModelHost::GeminiEnterprise,
-        true,
-    ));
-}
-
-#[test]
-fn auto_models_show_the_agent_glyph_instead_of_a_host_logo() {
-    // The server reports host availability for auto models from host-level org
-    // settings, without checking whether the auto variant's routing table can
-    // actually reach that host. Badging the row with a host logo would promise a
-    // destination the classifier may never pick, so auto models stay generic.
+fn auto_models_show_the_agent_glyph_instead_of_a_provider_logo() {
     let llm = server_llm("auto-open", None);
 
     let flags = ModelIconFlags {
         is_auto: true,
-        is_using_bedrock: true,
         ..Default::default()
     };
     assert_eq!(model_leading_icon(&llm, flags), Icon::Agent);
-}
-
-#[test]
-fn non_auto_models_keep_their_host_logo() {
-    let llm = server_llm("claude-test", None);
-
-    assert_eq!(
-        model_leading_icon(
-            &llm,
-            ModelIconFlags {
-                is_using_bedrock: true,
-                ..Default::default()
-            }
-        ),
-        Icon::Aws
-    );
 }
 
 #[test]
@@ -228,7 +169,6 @@ fn custom_routers_keep_the_dataflow_icon() {
             ModelIconFlags {
                 is_custom_router: true,
                 is_auto: true,
-                ..Default::default()
             }
         ),
         Icon::Dataflow

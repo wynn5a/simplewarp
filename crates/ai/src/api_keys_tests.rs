@@ -3,7 +3,6 @@ use super::*;
 fn make_manager(keys: ApiKeys) -> ApiKeyManager {
     ApiKeyManager {
         keys,
-        aws_credentials_state: AwsCredentialsState::Missing,
         secure_storage_write_version: 0,
     }
 }
@@ -28,7 +27,7 @@ fn persisted_provider_api_key_updates_request_state() {
 
         manager.read(&app, |manager, _| {
             let request_keys = manager
-                .api_keys_for_request(true, false)
+                .api_keys_for_request(true)
                 .expect("persisted provider key should be available to requests");
             assert_eq!(request_keys.anthropic, "sk-ant-test");
         });
@@ -401,7 +400,7 @@ fn display_label_falls_back_to_name_when_alias_is_whitespace() {
 #[test]
 fn api_keys_for_request_none_when_empty() {
     let mgr = make_manager(ApiKeys::default());
-    assert!(mgr.api_keys_for_request(true, false).is_none());
+    assert!(mgr.api_keys_for_request(true).is_none());
 }
 
 #[test]
@@ -411,7 +410,7 @@ fn api_keys_for_request_populates_provider_keys() {
         anthropic: Some("sk-a".into()),
         ..Default::default()
     });
-    let result = mgr.api_keys_for_request(true, false).unwrap();
+    let result = mgr.api_keys_for_request(true).unwrap();
     assert_eq!(result.openai, "sk-o");
     assert_eq!(result.anthropic, "sk-a");
     assert!(result.google.is_empty());
@@ -424,7 +423,7 @@ fn api_keys_for_request_omits_keys_when_byo_disabled() {
         ..Default::default()
     });
     // With BYO disabled and no other credentials, returns None.
-    assert!(mgr.api_keys_for_request(false, false).is_none());
+    assert!(mgr.api_keys_for_request(false).is_none());
 }
 
 #[test]
@@ -433,7 +432,7 @@ fn api_keys_for_request_none_for_custom_endpoints_only() {
         custom_endpoints: vec![endpoint("ep", "https://a.io", "k", &[("m", None)])],
         ..Default::default()
     });
-    assert!(mgr.api_keys_for_request(true, false).is_none());
+    assert!(mgr.api_keys_for_request(true).is_none());
 }
 
 // ── ApiKeyManager::has_any_key ──────────────────

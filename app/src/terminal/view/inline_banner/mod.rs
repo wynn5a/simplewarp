@@ -3,25 +3,19 @@
 //! the Blocklist (between blocks) while app banners are pinned to the top of the window.
 mod agent_mode_setup;
 mod alias_expansion;
-mod aws_bedrock_login;
-mod aws_cli_not_installed;
 mod notifications_discovery;
 mod notifications_error;
 mod open_in_warp;
 pub(crate) mod prompt_suggestions;
-mod session_state;
 mod shell_process_terminated;
 mod vim_mode;
 
 pub use agent_mode_setup::*;
 pub use alias_expansion::*;
-pub use aws_bedrock_login::*;
-pub use aws_cli_not_installed::*;
 pub use notifications_discovery::*;
 pub use notifications_error::*;
 pub use open_in_warp::*;
 use pathfinder_color::ColorU;
-pub use session_state::*;
 pub use shell_process_terminated::*;
 pub use vim_mode::*;
 use warpui::Element;
