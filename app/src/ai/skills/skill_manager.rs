@@ -14,10 +14,7 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::bundled::{BundledSkill, BundledSkills};
 #[cfg(test)]
-use super::bundled::{
-    BundledSkillActivation, activation_for_bundled_skill, build_bundled_skill_context,
-    read_bundled_skills,
-};
+use super::bundled::{BundledSkillActivation, build_bundled_skill_context, read_bundled_skills};
 use super::{ActiveSkillLookupError, SkillDescriptor, SkillManagerEvent, SkillPathQuery};
 use crate::ai::skills::skill_utils::SkillDeduplicator;
 

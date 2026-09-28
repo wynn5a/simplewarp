@@ -63,17 +63,9 @@ const USER_SECRET_REGEX_TITLE: &str = "Custom secret redaction";
 const USER_SECRET_REGEX_DESCRIPTION: &str = "Use regex to define additional secrets or data you'd like to redact. This will take effect \
     when the next command runs. You can use the inline (?i) flag as a prefix to your regex \
     to make it case-insensitive.";
-const DATA_MANAGEMENT_TITLE: &str = "Manage your data";
-const DATA_MANAGEMENT_DESCRIPTION: &str = "At any time, you may choose to delete your Warp account permanently. \
-    You will no longer be able to use Warp.";
-const DATA_MANAGEMENT_LINK_TEXT: &str = "Visit the data management page";
 
 const PRIVACY_POLICY_TITLE: &str = "Privacy policy";
 const PRIVACY_POLICY_LINK_TEXT: &str = "Read Warp's privacy policy";
-
-pub fn data_management_url() -> String {
-    format!("{}/data_management", ChannelState::server_root_url())
-}
 
 pub struct PrivacyPageView {
     page: PageType<Self>,
@@ -202,7 +194,6 @@ impl PrivacyPageView {
         if ContextFlag::NetworkLogConsole.is_enabled() {
             widgets.push(Box::new(NetworkLogWidget::default()));
         }
-        widgets.push(Box::new(DataManagementWidget::default()));
         widgets.push(Box::new(PrivacyPolicyWidget::default()));
         PageType::new_uncategorized(widgets, Some("Privacy"))
     }
@@ -456,7 +447,6 @@ pub enum PrivacyPageAction {
     ToggleCrashReporting,
     LaunchNetworkLogging,
     RemoveCustomRegex(usize),
-    OpenDataManagementWebpage,
     AddAllRecommendedRegexes,
     ShowAddRegexModal,
     AddRecommendedRegex(usize),
@@ -537,9 +527,6 @@ impl TypedActionView for PrivacyPageView {
             PrivacyPageAction::LaunchNetworkLogging => self.launch_network_logging(ctx),
             PrivacyPageAction::RemoveCustomRegex(idx) => {
                 self.queue_regex_removal(*idx, ctx);
-            }
-            PrivacyPageAction::OpenDataManagementWebpage => {
-                ctx.open_url(&data_management_url());
             }
             PrivacyPageAction::AddAllRecommendedRegexes => {
                 // First process any pending removals
@@ -1459,82 +1446,6 @@ impl SettingsWidget for NetworkLogWidget {
                             None,
                             Some(Box::new(|ctx| {
                                 ctx.dispatch_typed_action(PrivacyPageAction::LaunchNetworkLogging);
-                            })),
-                            self.link_mouse_state.clone(),
-                        )
-                        .soft_wrap(false)
-                        .build()
-                        .with_margin_bottom(styles::DESCRIPTION_MARGIN_BOTTOM)
-                        .finish(),
-                )
-                .left()
-                .finish(),
-            )
-            .finish()
-    }
-}
-
-#[derive(Default)]
-struct DataManagementWidget {
-    link_mouse_state: MouseStateHandle,
-}
-
-impl SettingsWidget for DataManagementWidget {
-    type View = PrivacyPageView;
-
-    fn search_terms(&self) -> &str {
-        "data management delete account"
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        _app: &AppContext,
-    ) -> Box<dyn Element> {
-        let ui_builder = appearance.ui_builder();
-        Flex::column()
-            .with_child(render_body_item::<PrivacyPageAction>(
-                DATA_MANAGEMENT_TITLE.into(),
-                None,
-                // Not rendering a setting, so no need to show local only icon state.
-                LocalOnlyIconState::Hidden,
-                ToggleState::Enabled,
-                appearance,
-                Empty::new().finish(),
-                None,
-            ))
-            .with_child(
-                ui_builder
-                    .paragraph(DATA_MANAGEMENT_DESCRIPTION)
-                    .with_style(UiComponentStyles {
-                        font_color: Some(
-                            appearance
-                                .theme()
-                                .sub_text_color(appearance.theme().surface_2())
-                                .into_solid(),
-                        ),
-                        margin: Some(
-                            Coords::default()
-                                .top(styles::DESCRIPTION_NEGATIVE_MARGIN_OFFSET)
-                                .bottom(styles::DESCRIPTION_LINE_MARGIN_BOTTOM),
-                        ),
-                        ..Default::default()
-                    })
-                    .build()
-                    .finish(),
-            )
-            .with_child(
-                Align::new(
-                    appearance
-                        .ui_builder()
-                        .link(
-                            DATA_MANAGEMENT_LINK_TEXT.into(),
-                            None,
-                            Some(Box::new(|ctx| {
-                                ctx.dispatch_typed_action(
-                                    PrivacyPageAction::OpenDataManagementWebpage,
-                                );
                             })),
                             self.link_mouse_state.clone(),
                         )

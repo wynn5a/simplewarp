@@ -28,7 +28,6 @@ use warp_cli::agent::{Harness, OutputFormat};
 use warp_cli::mcp::MCPSpec;
 use warp_cli::share::ShareRequest;
 use warp_cli::skill::SkillSpec;
-use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
 use warp_core::{safe_debug, safe_error, safe_info};
 use warp_errors::{ErrorExt, register_error, report_error, report_if_error};
@@ -57,7 +56,6 @@ use crate::ai::blocklist::{
 use crate::ai::cloud_environments::{
     AmbientAgentEnvironment, CloudAmbientAgentEnvironment, GithubRepo, SourceRepo,
 };
-use crate::ai::document::ai_document_model::{AIDocumentModel, AIDocumentModelEvent};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::ai::mcp::file_based_manager::{FileBasedMCPManager, FileBasedMCPManagerEvent};
@@ -65,14 +63,12 @@ use crate::ai::mcp::parsing::{ParsedTemplatableMCPServerResult, normalize_mcp_js
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManagerEvent;
 use crate::ai::mcp::{
     JSONMCPServer, MCPServerState, TemplatableMCPServerInstallation, TemplatableMCPServerManager,
-    builtin,
 };
 use crate::ai::skills::{
     SkillManager, SkillWatcher, filter_skills_by_spec, read_skills_from_directories,
     resolve_skill_repos,
 };
 use crate::auth::AuthStateProvider;
-use crate::auth::credentials::Credentials;
 use crate::cloud_object::{CloudObject, CloudObjectLookup as _};
 use crate::server::ids::{ServerId, SyncId};
 use crate::terminal::cli_agent_sessions::plugin_manager::{
@@ -981,38 +977,6 @@ impl AgentDriver {
         Ok(resolved)
     }
 
-    /// Returns the built-in Factory MCP server installation to attach to this
-    /// run, or `None` when it should not be attached.
-    ///
-    /// Interactive clients (GUI/TUI) attach built-in Warp-hosted servers via
-    /// [`TemplatableMCPServerManager::sync_builtin_servers`], which skips CLI
-    /// agent runs. The driver mirrors the same eligibility rules for its
-    /// run-scoped ephemeral startup path: the `FactoryMcp` feature flag, a
-    /// usable bearer token, and no configured server already named
-    /// `warp-factory` (an explicit configuration wins over the built-in).
-    ///
-    /// The token is pinned into the transport at spawn time and is not
-    /// refreshed mid-run, so a run that outlives its credential would see
-    /// factory tool calls start failing.
-    fn builtin_factory_mcp_for_run(
-        credentials: Option<&Credentials>,
-        taken_server_names: &HashSet<String>,
-    ) -> Option<TemplatableMCPServerInstallation> {
-        if !FeatureFlag::FactoryMcp.is_enabled() {
-            return None;
-        }
-        if taken_server_names.contains(builtin::FACTORY_MCP_SERVER_NAME) {
-            log::info!(
-                "Skipping the built-in Factory MCP server: a server named '{}' is already configured for this run",
-                builtin::FACTORY_MCP_SERVER_NAME
-            );
-            return None;
-        }
-        let token = builtin::builtin_bearer_token(credentials?)?;
-        log::info!("Attaching the built-in Factory MCP server to this agent run");
-        Some(builtin::factory_mcp_installation(&token))
-    }
-
     fn installations_from_user_mcp_json(
         json_str: &str,
     ) -> Result<Vec<TemplatableMCPServerInstallation>, AgentDriverError> {
@@ -1882,61 +1846,7 @@ impl AgentDriver {
                     let resolved_mcp_specs =
                         Self::resolve_mcp_specs(&mcp_specs, &foreground).await?;
                     let existing_uuids = resolved_mcp_specs.local_uuids;
-                    let mut ephemeral_installations = resolved_mcp_specs.ephemeral_installations;
-
-                    // Attach the built-in Factory MCP server. Interactive
-                    // clients attach built-ins via
-                    // `TemplatableMCPServerManager::sync_builtin_servers`,
-                    // which skips CLI agent runs, so the driver injects the
-                    // same code-owned installation here, scoped to this run.
-                    let local_uuids = existing_uuids.clone();
-                    let mut taken_server_names: HashSet<String> = ephemeral_installations
-                        .iter()
-                        .map(|installation| installation.templatable_mcp_server().name.clone())
-                        .collect();
-                    let credentials = foreground
-                        .spawn(move |_, ctx| {
-                            let (local_names, builtin_already_active) = {
-                                let manager = TemplatableMCPServerManager::as_ref(ctx);
-                                let local_names = local_uuids
-                                    .iter()
-                                    .filter_map(|uuid| {
-                                        manager.get_installed_server(uuid).map(|installation| {
-                                            installation.templatable_mcp_server().name.clone()
-                                        })
-                                    })
-                                    .collect::<Vec<_>>();
-                                let builtin_already_active = manager.is_server_active_or_pending(
-                                    builtin::FACTORY_MCP_INSTALLATION_UUID,
-                                );
-                                (local_names, builtin_already_active)
-                            };
-                            // Interactive clients (GUI/TUI) attach built-ins
-                            // through `sync_builtin_servers`, under the same
-                            // stable installation UUID. The driver currently
-                            // only runs in SDK mode, where that path never
-                            // spawns, but guard anyway so this injection can
-                            // never double-spawn the built-in if the driver
-                            // is ever hosted in an interactive process.
-                            let builtin_owned_by_manager = builtin_already_active
-                                || AppExecutionMode::as_ref(ctx).can_autostart_mcp_servers();
-                            let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
-                            let credentials = (!builtin_owned_by_manager
-                                && !auth_state.is_anonymous_or_logged_out())
-                            .then(|| auth_state.credentials())
-                            .flatten();
-                            (credentials, local_names)
-                        })
-                        .await
-                        .map(|(credentials, local_names)| {
-                            taken_server_names.extend(local_names);
-                            credentials
-                        })?;
-                    if let Some(installation) =
-                        Self::builtin_factory_mcp_for_run(credentials.as_ref(), &taken_server_names)
-                    {
-                        ephemeral_installations.push(installation);
-                    }
+                    let ephemeral_installations = resolved_mcp_specs.ephemeral_installations;
 
                     log::info!(
                         "Starting {} existing and {} ephemeral MCP servers",
@@ -3018,56 +2928,6 @@ impl AgentDriver {
                 | BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
                 | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. } => (),
             }
-        });
-
-        // Subscribe to document model events to emit artifact_created when plans are saved as notebooks.
-        ctx.subscribe_to_model(&AIDocumentModel::handle(ctx), move |me, _, event, ctx| {
-            let AIDocumentModelEvent::DocumentSaveStatusUpdated(document_id) = event else {
-                return;
-            };
-
-            let doc_model = AIDocumentModel::as_ref(ctx);
-
-            // Only emit when the document transitions to "Saved" (has a ServerId)
-            if !doc_model.get_document_save_status(document_id).is_saved() {
-                return;
-            }
-
-            // Get the document to extract the notebook link
-            let Some(document) = doc_model.get_current_document(document_id) else {
-                return;
-            };
-
-            // Get the notebook link from the document model
-            let Some(notebook_link) = doc_model.get_document_object_link(document_id, ctx) else {
-                return;
-            };
-
-            let document_id_str = document_id.to_string();
-
-            report_if_error!(
-                output::with_stdout_buffered(|buf| {
-                    match me.output_format {
-                        OutputFormat::Json | OutputFormat::Ndjson => {
-                            output::json::plan_artifact_created(
-                                &document_id_str,
-                                &notebook_link,
-                                &document.title,
-                                buf,
-                            )
-                        }
-                        OutputFormat::Text | OutputFormat::Pretty => {
-                            output::text::plan_artifact_created(
-                                &document_id_str,
-                                &notebook_link,
-                                &document.title,
-                                buf,
-                            )
-                        }
-                    }
-                })
-                .context("Failed to write artifact_created")
-            );
         });
 
         // Submit the AI query.

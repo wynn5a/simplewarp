@@ -4,9 +4,10 @@ use warpui::keymap::Trigger;
 use warpui::{SingletonEntity, ViewContext, ViewHandle};
 
 use super::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView, VariableRowIndex};
+use crate::AppContext;
 use crate::cloud_object::export::ExportManager;
 use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_env_var_limit;
-use crate::cloud_object::{CloudObject, CloudObjectTypeAndId, GenericStringObjectFormat, Space};
+use crate::cloud_object::{CloudObjectTypeAndId, GenericStringObjectFormat, Space};
 use crate::env_vars::active_env_var_collection_data::TrashStatus;
 use crate::external_secrets::SecretManager;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
@@ -16,7 +17,6 @@ use crate::ui_components::icons::Icon;
 use crate::util::bindings::{
     CustomAction, keybinding_name_to_display_string, trigger_to_keystroke,
 };
-use crate::{AppContext, CloudModel};
 
 const PANE_MENU_WIDTH: f32 = 200.;
 
@@ -368,16 +368,6 @@ impl EnvVarCollectionView {
             return menu_items;
         }
 
-        // Add "Copy Link" to menu
-        if let Some(link) = self.env_var_collection_link(ctx) {
-            menu_items.push(
-                MenuItemFields::new("Copy link")
-                    .with_on_select_action(EnvVarCollectionAction::CopyLink(link))
-                    .with_icon(Icon::Link)
-                    .into_item(),
-            );
-        }
-
         // Add "Duplicate" to menu
         if space != Some(Space::Shared) {
             menu_items.push(
@@ -407,12 +397,6 @@ impl EnvVarCollectionView {
         );
 
         menu_items
-    }
-
-    pub(super) fn env_var_collection_link(&self, ctx: &AppContext) -> Option<String> {
-        self.env_var_collection_id(ctx)
-            .and_then(|id| CloudModel::as_ref(ctx).get_env_var_collection(&id))
-            .map(|env_var_collection| env_var_collection.object_link())?
     }
 
     pub(super) fn untrash_env_var_collection(&self, ctx: &mut ViewContext<Self>) {

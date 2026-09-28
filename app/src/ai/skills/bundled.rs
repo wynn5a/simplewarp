@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use ai::skills::{ParsedSkill, SkillPathOrigin, SkillReference, parse_bundled_skill};
 use futures::TryStreamExt;
 use warp_core::channel::ChannelState;
-use warp_core::features::FeatureFlag;
 use warp_core::safe_warn;
 use warp_core::ui::icons::Icon;
 use warp_errors::report_error;
@@ -23,8 +22,6 @@ use crate::settings::user_preferences_toml_file_path;
 pub enum BundledSkillActivation {
     /// Always active.
     Always,
-    /// Active only when a specific Warp feature is enabled.
-    RequiresFeature(FeatureFlag),
     /// Active only when a specific MCP server is running.
     RequiresMcp(McpIntegration),
     /// Active only when a specific file exists on disk.
@@ -35,7 +32,6 @@ impl BundledSkillActivation {
     pub fn is_enabled(&self, ctx: &AppContext) -> bool {
         match self {
             Self::Always => true,
-            Self::RequiresFeature(feature) => feature.is_enabled(),
             Self::RequiresMcp(integration) => {
                 TemplatableMCPServerManager::as_ref(ctx).is_mcp_server_running(*integration)
             }
@@ -290,9 +286,9 @@ impl BundledSkill {
                 // the local figma catalog loaded from `mcp_skills/figma`.
                 let icon = match &activation {
                     BundledSkillActivation::RequiresMcp(McpIntegration::Figma) => Icon::Figma,
-                    BundledSkillActivation::Always
-                    | BundledSkillActivation::RequiresFeature(_)
-                    | BundledSkillActivation::RequiresFile(_) => icon_for_bundled_skill(&id),
+                    BundledSkillActivation::Always | BundledSkillActivation::RequiresFile(_) => {
+                        icon_for_bundled_skill(&id)
+                    }
                 };
                 (
                     id,
@@ -444,7 +440,6 @@ fn display_optional_path(path: Option<PathBuf>) -> String {
 /// Builds the context map for bundled skill variable substitution.
 ///
 /// Supported variables:
-/// - `{{warp_server_url}}` - The server root URL (e.g., `https://api.warp.dev`)
 /// - `{{warp_cli_binary_name}}` - The CLI binary name (e.g., `warp` or `warp-cli`)
 /// - `{{warp_url_scheme}}` - The URL scheme (e.g., `warp`, `warpdev`, `warppreview`)
 /// - `{{settings_schema_path}}` - Path to the bundled JSON settings schema
@@ -458,10 +453,6 @@ pub(crate) fn build_bundled_skill_context(
     skill_dir: &Path,
 ) -> HashMap<String, String> {
     [
-        (
-            "warp_server_url".to_owned(),
-            ChannelState::server_root_url().into_owned(),
-        ),
         (
             "warp_cli_binary_name".to_owned(),
             ChannelState::channel().cli_command_name().to_owned(),
@@ -515,7 +506,7 @@ pub(crate) fn icon_for_bundled_skill(skill_id: &str) -> Icon {
 /// Returns the activation condition for a bundled skill.
 ///
 /// Most skills are always active. Other skills appear only when their required
-/// feature, integration, or bundled resource is available.
+/// integration or bundled resource is available.
 pub(crate) fn activation_for_bundled_skill(
     skill_id: &str,
     resources_dir: &Path,
@@ -524,10 +515,6 @@ pub(crate) fn activation_for_bundled_skill(
         "modify-settings" => {
             BundledSkillActivation::RequiresFile(resources_dir.join("settings_schema.json"))
         }
-        // Gate the Factory MCP skill on the same flag that attaches the
-        // Factory MCP server, so the skill and the server it documents roll
-        // out together.
-        "factory-mcp" => BundledSkillActivation::RequiresFeature(FeatureFlag::FactoryMcp),
         _ => BundledSkillActivation::Always,
     }
 }

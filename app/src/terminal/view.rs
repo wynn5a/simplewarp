@@ -17341,19 +17341,8 @@ impl TerminalView {
                 AIAgentCitation::WebPage { url } => {
                     ctx.open_url(url);
                 }
-                AIAgentCitation::AgentMemory {
-                    memory_store_id,
-                    memory_id,
-                    ..
-                } => {
-                    let oz_root_url = ChannelState::oz_root_url();
-                    let url = format!(
-                        "{oz_root_url}/memory/{}/memories/{}",
-                        urlencoding::encode(memory_store_id),
-                        urlencoding::encode(memory_id)
-                    );
-                    ctx.open_url(&url);
-                }
+                // Agent memories live in Oz, which this build has no access to.
+                AIAgentCitation::AgentMemory { .. } => {}
             },
             AIBlockEvent::OpenAIFactCollection { sync_id } => {
                 ctx.emit(Event::OpenAIFactCollection { sync_id: *sync_id });

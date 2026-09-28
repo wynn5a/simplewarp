@@ -1,6 +1,5 @@
 use pathfinder_geometry::vector::{Vector2F, vec2f};
 use warp_errors::report_error;
-use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Align, AnchorPair, ChildAnchor, Clipped, ClippedScrollStateHandle, ClippedScrollable,
     ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult, EventHandler, Fill, Flex,
@@ -315,7 +314,6 @@ pub enum EnvVarCollectionAction {
     DeleteVariable(VariableRowIndex),
     // Overflow menu actions
     Untrash,
-    CopyLink(String),
     Duplicate,
     Trash,
     Export,
@@ -1381,10 +1379,6 @@ impl TypedActionView for EnvVarCollectionView {
                 self.delete_row(*index, ctx);
             }
             EnvVarCollectionAction::Untrash => self.untrash_env_var_collection(ctx),
-            EnvVarCollectionAction::CopyLink(link) => {
-                ctx.clipboard()
-                    .write(ClipboardContent::plain_text(link.to_owned()));
-            }
             EnvVarCollectionAction::Duplicate => self.duplicate_env_var_collection(ctx),
             EnvVarCollectionAction::Trash => self.trash_env_var_collection(ctx),
             EnvVarCollectionAction::Export => self.export_env_var_collection(ctx),

@@ -138,14 +138,6 @@ impl WebIntent {
     }
 }
 
-/// Attempts to rewrite a Warp web URL into a native desktop intent URL (warp://...).
-/// Returns `None` if the URL is not a recognized Warp web intent.
-pub fn maybe_rewrite_web_url_to_intent(url: &Url) -> Option<Url> {
-    WebIntent::try_from_url(url)
-        .ok()
-        .map(WebIntent::into_intent_url)
-}
-
 /// On WASM warp, fires an event to try and open the given link on the desktop app.
 #[cfg(target_family = "wasm")]
 pub fn open_url_on_desktop(url: &Url) {

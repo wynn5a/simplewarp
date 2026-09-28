@@ -6,13 +6,10 @@ use async_channel::Sender;
 use lazy_static::lazy_static;
 use regex::Regex;
 use settings::Setting as _;
-use url::Url;
-use warp_core::context_flag::ContextFlag;
 use warp_editor::editor::NavigationKey;
 use warp_editor::model::{CoreEditorModel, RichTextEditorModel};
 use warp_errors::{report_error, report_if_error};
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
-use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Align, Clipped, ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult, Empty,
     EventHandler, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
@@ -47,7 +44,7 @@ use crate::cloud_object::export::ExportManager;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
 use crate::cloud_object::model::view::{Editor, EditorState};
 use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_notebook_limit;
-use crate::cloud_object::{CloudObject, CloudObjectTypeAndId, ObjectType, Owner, Space};
+use crate::cloud_object::{CloudObjectTypeAndId, ObjectType, Owner, Space};
 use crate::cmd_or_ctrl_shift;
 use crate::editor::{
     EditOrigin, EditorView, Event as EditorEvent, InteractionState, PropagateAndNoOpNavigationKeys,
@@ -63,9 +60,6 @@ use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
-use crate::settings::app_installation_detection::{
-    UserAppInstallDetectionSettings, UserAppInstallStatus,
-};
 use crate::settings::{
     FontSettings, FontSettingsChangedEvent, NotebookFontSize, decrease_notebook_font_size,
     increase_notebook_font_size,
@@ -73,8 +67,6 @@ use crate::settings::{
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::throttle::throttle;
 use crate::ui_components::icons::{self};
-#[cfg(target_family = "wasm")]
-use crate::uri::web_intent_parser::open_url_on_desktop;
 use crate::util::bindings::{self, CustomAction};
 use crate::view_components::{DismissibleToast, ToastType};
 use crate::workflows::{WorkflowSource, WorkflowType};
@@ -236,8 +228,6 @@ pub enum NotebookAction {
     Untrash,
     CopyToPersonal,
     CopyToClipboard,
-    CopyLink(String),
-    OpenLinkOnDesktop(Url),
     Export,
     AttachPlanAsContext(AIDocumentId),
 }
@@ -1051,16 +1041,6 @@ impl NotebookView {
         });
     }
 
-    pub fn notebook_link(&self, ctx: &AppContext) -> Option<String> {
-        let id = self.notebook_id(ctx)?;
-
-        if let Some(notebook) = CloudModel::as_ref(ctx).get_notebook(&id) {
-            return notebook.object_link();
-        }
-
-        None
-    }
-
     /// Items to show in the pane header overflow menu.
     fn overflow_menu_items(&self, ctx: &AppContext) -> Vec<MenuItem<NotebookAction>> {
         let active_notebook_data = self.active_notebook_data.as_ref(ctx);
@@ -1078,33 +1058,6 @@ impl NotebookView {
                 MenuItemFields::new("Attach to active session")
                     .with_on_select_action(NotebookAction::AttachPlanAsContext(ai_document_id))
                     .with_icon(icons::Icon::Paperclip)
-                    .into_item(),
-            );
-        }
-
-        // Add "Copy Link" to menu
-        if let Some(link) = self.notebook_link(ctx) {
-            menu_items.push(
-                MenuItemFields::new("Copy link")
-                    .with_on_select_action(NotebookAction::CopyLink(link))
-                    .with_icon(icons::Icon::Link)
-                    .into_item(),
-            );
-        }
-
-        if !warpui::platform::is_mobile_device()
-            && !ContextFlag::HideOpenOnDesktopButton.is_enabled()
-            && *UserAppInstallDetectionSettings::as_ref(ctx)
-                .user_app_installation_detected
-                .value()
-                == UserAppInstallStatus::Detected
-            && let Some(link) = self.notebook_link(ctx)
-            && let Ok(url) = Url::parse(&link)
-        {
-            menu_items.push(
-                MenuItemFields::new("Open on Desktop")
-                    .with_on_select_action(NotebookAction::OpenLinkOnDesktop(url))
-                    .with_icon(icons::Icon::Laptop)
                     .into_item(),
             );
         }
@@ -1686,27 +1639,6 @@ impl TypedActionView for NotebookView {
             NotebookAction::Untrash => self.untrash_notebook(ctx),
             NotebookAction::CopyToPersonal => self.copy_to_personal(ctx),
             NotebookAction::CopyToClipboard => self.copy_notebook_contents_to_clipboard(ctx),
-            NotebookAction::CopyLink(link) => {
-                ctx.clipboard()
-                    .write(ClipboardContent::plain_text(link.to_owned()));
-
-                let window_id = ctx.window_id();
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast(
-                        DismissibleToast::success("Link copied to clipboard".to_string()),
-                        window_id,
-                        ctx,
-                    );
-                });
-            }
-            #[cfg(target_family = "wasm")]
-            NotebookAction::OpenLinkOnDesktop(url) => {
-                open_url_on_desktop(url);
-            }
-            #[cfg(not(target_family = "wasm"))]
-            NotebookAction::OpenLinkOnDesktop(_) => {
-                // No-op when not on wasm
-            }
             NotebookAction::Export => self.export(ctx),
             NotebookAction::AttachPlanAsContext(id) => {
                 ctx.emit(NotebookEvent::AttachPlanAsContext(*id))

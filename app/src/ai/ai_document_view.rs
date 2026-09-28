@@ -102,7 +102,6 @@ pub enum AIDocumentAction {
     SaveToNotebook,
     RevertToDocumentVersion,
     SendUpdatedPlan,
-    CopyLink(String),
     CopyPlanId,
     AttachToActiveSession,
 }
@@ -1145,19 +1144,6 @@ impl TypedActionView for AIDocumentView {
                 });
             }
             AIDocumentAction::SaveToNotebook => self.save_to_notebook(ctx),
-            AIDocumentAction::CopyLink(link) => {
-                ctx.clipboard()
-                    .write(ClipboardContent::plain_text(link.to_owned()));
-
-                let window_id = ctx.window_id();
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast(
-                        DismissibleToast::success("Link copied to clipboard".to_string()),
-                        window_id,
-                        ctx,
-                    );
-                });
-            }
             AIDocumentAction::CopyPlanId => {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(self.document_id.to_string()));
@@ -1294,21 +1280,9 @@ impl BackingView for AIDocumentView {
 
     fn pane_header_overflow_menu_items(
         &self,
-        ctx: &AppContext,
+        _ctx: &AppContext,
     ) -> Vec<MenuItem<Self::PaneHeaderOverflowMenuAction>> {
         let mut menu_items = vec![];
-
-        // Only show shareable link when the document is saved as a notebook
-        if let Some(link) =
-            AIDocumentModel::as_ref(ctx).get_document_object_link(&self.document_id, ctx)
-        {
-            menu_items.push(
-                MenuItemFields::new("Copy link")
-                    .with_on_select_action(AIDocumentAction::CopyLink(link))
-                    .with_icon(Icon::Link)
-                    .into_item(),
-            );
-        }
 
         menu_items.push(
             MenuItemFields::new("Copy as Markdown")

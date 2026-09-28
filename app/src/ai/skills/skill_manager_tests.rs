@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::Path;
 
 use ai::skills::{ParsedSkill, SkillProvider, SkillReference, SkillScope};
 use repo_metadata::repositories::DetectedRepositories;
@@ -531,7 +530,7 @@ name: test-skill
 description: Test skill with variables
 ---
 
-Run `{{warp_cli_binary_name}}` to connect to {{warp_server_url}}.
+Run `{{warp_cli_binary_name}}` from {{warp_url_scheme}}.
 "#,
     )
     .unwrap();
@@ -542,10 +541,12 @@ Run `{{warp_cli_binary_name}}` to connect to {{warp_server_url}}.
     let skill = skills.get("test-skill").unwrap();
 
     let expected_cli = ChannelState::channel().cli_command_name();
-    let expected_url = ChannelState::server_root_url();
-    assert!(skill.content.contains(&format!(
-        "Run `{expected_cli}` to connect to {expected_url}."
-    )));
+    let expected_scheme = ChannelState::url_scheme();
+    assert!(
+        skill
+            .content
+            .contains(&format!("Run `{expected_cli}` from {expected_scheme}."))
+    );
 }
 
 #[test]
@@ -657,8 +658,7 @@ fn test_build_bundled_skill_context() {
     let skill_dir = resources_dir.join("bundled/skills/test-skill");
     let context = build_bundled_skill_context(resources_dir, &skill_dir);
 
-    assert_eq!(context.len(), 9);
-    assert!(context.contains_key("warp_server_url"));
+    assert_eq!(context.len(), 8);
     assert!(context.contains_key("warp_cli_binary_name"));
     assert!(context.contains_key("warp_url_scheme"));
     assert!(context.contains_key("settings_file_path"));
@@ -690,10 +690,6 @@ fn test_build_bundled_skill_context() {
         &skill_dir.display().to_string()
     );
 
-    assert_eq!(
-        context.get("warp_server_url").unwrap(),
-        &ChannelState::server_root_url().to_string()
-    );
     assert_eq!(
         context.get("warp_cli_binary_name").unwrap(),
         ChannelState::channel().cli_command_name()
@@ -996,122 +992,6 @@ fn get_skills_for_working_directory_respects_location() {
     });
 }
 
-#[test]
-fn feature_gated_bundled_skill_is_listed_only_when_enabled() {
-    App::test((), |mut app| async move {
-        app.add_singleton_model(DirectoryWatcher::new);
-        app.add_singleton_model(AISettings::new_with_defaults);
-        app.add_singleton_model(|_| DetectedRepositories::default());
-        app.add_singleton_model(RepoMetadataModel::new);
-        app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
-        app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
-        let handle = app.add_singleton_model(SkillManager::new);
-        let bundled_skills_guard = FeatureFlag::BundledSkills.override_enabled(true);
-        let factory_mcp = FeatureFlag::FactoryMcp.override_enabled(false);
-
-        handle.update(&mut app, |manager, _| {
-            manager.add_bundled_skill_for_testing(
-                "factory-mcp",
-                bundled_test_skill("factory-mcp", "Factory MCP"),
-                BundledSkillActivation::RequiresFeature(FeatureFlag::FactoryMcp),
-            );
-            manager.add_bundled_skill_for_testing(
-                "always",
-                bundled_test_skill("always", "Always available"),
-                BundledSkillActivation::Always,
-            );
-        });
-
-        let disabled_names = handle.read(&app, |manager, ctx| {
-            manager
-                .get_skills_for_working_directory(None, ctx)
-                .into_iter()
-                .map(|skill| skill.name)
-                .collect::<HashSet<_>>()
-        });
-        assert!(!disabled_names.contains("factory-mcp"));
-        assert!(disabled_names.contains("always"));
-
-        drop(factory_mcp);
-        let factory_mcp_enabled = FeatureFlag::FactoryMcp.override_enabled(true);
-        let enabled_names = handle.read(&app, |manager, ctx| {
-            manager
-                .get_skills_for_working_directory(None, ctx)
-                .into_iter()
-                .map(|skill| skill.name)
-                .collect::<HashSet<_>>()
-        });
-        assert!(enabled_names.contains("factory-mcp"));
-        assert!(enabled_names.contains("always"));
-        drop(factory_mcp_enabled);
-        drop(bundled_skills_guard);
-    });
-}
-
-#[test]
-fn factory_mcp_bundled_skill_activation_tracks_factory_mcp_feature() {
-    assert!(matches!(
-        activation_for_bundled_skill("factory-mcp", Path::new("/resources")),
-        BundledSkillActivation::RequiresFeature(FeatureFlag::FactoryMcp)
-    ));
-
-    App::test((), |app| async move {
-        let settings = app.add_singleton_model(AISettings::new_with_defaults);
-        let activation = activation_for_bundled_skill("factory-mcp", Path::new("/resources"));
-
-        let factory_mcp_disabled = FeatureFlag::FactoryMcp.override_enabled(false);
-        assert!(!settings.read(&app, |_, ctx| activation.is_enabled(ctx)));
-        drop(factory_mcp_disabled);
-
-        let factory_mcp_enabled = FeatureFlag::FactoryMcp.override_enabled(true);
-        assert!(settings.read(&app, |_, ctx| activation.is_enabled(ctx)));
-        drop(factory_mcp_enabled);
-    });
-}
-
-#[test]
-fn factory_mcp_direct_read_respects_factory_mcp_feature() {
-    let reference = SkillReference::BundledSkillId("factory-mcp".to_owned());
-
-    App::test((), |mut app| async move {
-        app.add_singleton_model(DirectoryWatcher::new);
-        app.add_singleton_model(AISettings::new_with_defaults);
-        app.add_singleton_model(|_| DetectedRepositories::default());
-        app.add_singleton_model(RepoMetadataModel::new);
-        app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
-        app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
-        let handle = app.add_singleton_model(SkillManager::new);
-        let factory_mcp = FeatureFlag::FactoryMcp.override_enabled(false);
-
-        handle.update(&mut app, |manager, _| {
-            manager.add_bundled_skill_for_testing(
-                "factory-mcp",
-                bundled_test_skill("factory-mcp", "Factory MCP"),
-                BundledSkillActivation::RequiresFeature(FeatureFlag::FactoryMcp),
-            );
-        });
-
-        assert!(handle.read(&app, |manager, _| {
-            manager.skill_by_reference(&reference).is_some()
-        }));
-        assert!(handle.read(&app, |manager, ctx| {
-            manager
-                .active_skill_by_reference_with_origin(&reference, &SkillPathOrigin::Local, ctx)
-                .ok()
-                .is_none()
-        }));
-
-        drop(factory_mcp);
-        let factory_mcp_enabled = FeatureFlag::FactoryMcp.override_enabled(true);
-        assert!(handle.read(&app, |manager, ctx| {
-            manager
-                .active_skill_by_reference_with_origin(&reference, &SkillPathOrigin::Local, ctx)
-                .ok()
-                .is_some()
-        }));
-        drop(factory_mcp_enabled);
-    });
-}
 #[test]
 fn active_skill_by_reference_resolves_exact_remote_identity() {
     let remote_skill = make_remote_skill(&HostId::new("remote-host".to_string()), "deploy");

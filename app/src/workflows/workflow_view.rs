@@ -9,9 +9,7 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use string_offset::CharOffset;
 use syntax_highlightable::SyntaxHighlightable;
-use url::Url;
 use warp_core::context_flag::ContextFlag;
-use warp_core::settings::Setting;
 use warp_core::ui::theme::AnsiColorIdentifier;
 use warp_editor::editor::NavigationKey;
 use warp_errors::report_error;
@@ -67,15 +65,10 @@ use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
 use crate::server::ids::{ClientId, SyncId};
-use crate::settings::app_installation_detection::{
-    UserAppInstallDetectionSettings, UserAppInstallStatus,
-};
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::ui_components::buttons::{accent_icon_button, icon_button};
 use crate::ui_components::dialog::{Dialog, dialog_styles};
 use crate::ui_components::icons::Icon;
-#[cfg(target_family = "wasm")]
-use crate::uri::web_intent_parser::open_url_on_desktop;
 use crate::util::bindings::CustomAction;
 use crate::view_components::{DismissibleToast, ToastType};
 use crate::workflows::CloudWorkflow;
@@ -149,9 +142,6 @@ const BUTTON_HEIGHT: f32 = 32.;
 
 const ALIAS_HELP_TEXT: &str = "Aliases allow you to create short strings to execute workflows. Each alias can have different argument values and environment variables, and aliases are personal to you.";
 
-const RUN_ON_DESKTOP_BUTTON_TEXT: &str = "Run in Warp";
-const RUN_ON_DESKTOP_BUTTON_WIDTH: f32 = 108.;
-
 const UNSAVED_CHANGES_TEXT: &str = "You have unsaved changes.";
 const KEEP_EDITING_TEXT: &str = "Keep editing";
 const DISCARD_CHANGES_TEXT: &str = "Discard changes";
@@ -195,8 +185,6 @@ pub enum WorkflowAction {
     Save,
     Cancel,
     Duplicate,
-    CopyLink(String),
-    OpenLinkOnDesktop(Url),
     Trash,
     Untrash,
 }
@@ -705,16 +693,6 @@ impl WorkflowView {
         self.alias_bar.update(ctx, |alias_bar, ctx| {
             alias_bar.set_workflow_id(id, ctx);
         });
-    }
-
-    pub fn workflow_link(&self, ctx: &AppContext) -> Option<String> {
-        let id = self.workflow_id();
-
-        if let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(&id) {
-            return workflow.object_link();
-        }
-
-        None
     }
 
     pub fn pane_configuration(&self) -> &ModelHandle<PaneConfiguration> {
@@ -1600,15 +1578,6 @@ impl WorkflowView {
         NetworkStatus::as_ref(app).is_online()
     }
 
-    /// Whether or not opening links in the desktop app is supported.
-    fn can_open_on_desktop(&self, app: &AppContext) -> bool {
-        !ContextFlag::HideOpenOnDesktopButton.is_enabled()
-            && *UserAppInstallDetectionSettings::as_ref(app)
-                .user_app_installation_detected
-                .value()
-                == UserAppInstallStatus::Detected
-    }
-
     fn show_unsaved_changes_dialog(
         &mut self,
         unsave_type: UnsavedChangeType,
@@ -2185,40 +2154,6 @@ impl WorkflowView {
             button_row.add_child(render_save_button);
         }
 
-        // If on the web, then show a button to run this workflow on the desktop.
-        if !ContextFlag::RunWorkflow.is_enabled()
-            && self.can_open_on_desktop(app)
-            && let Some(url) = self
-                .workflow_link(app)
-                .and_then(|link| Url::parse(&link).ok())
-        {
-            let run_on_desktop_button = self
-                .build_footer_button(
-                    ButtonVariant::Accent,
-                    RUN_ON_DESKTOP_BUTTON_TEXT.to_string(),
-                    Some((Icon::Laptop, TextAndIconAlignment::IconFirst)),
-                    // Reuse the execute button's handle since it's only shown if running workflows is
-                    // supported.
-                    self.ui_state_handles.execute_command_mouse_state.clone(),
-                    appearance,
-                )
-                .with_style(UiComponentStyles {
-                    width: Some(RUN_ON_DESKTOP_BUTTON_WIDTH),
-                    ..Default::default()
-                })
-                .build()
-                .with_cursor(Cursor::PointingHand)
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(WorkflowAction::OpenLinkOnDesktop(url.clone()))
-                })
-                .finish();
-            button_row.add_child(
-                Container::new(run_on_desktop_button)
-                    .with_margin_left(8.)
-                    .finish(),
-            );
-        }
-
         Flex::column()
             .with_child(
                 ConstrainedBox::new(
@@ -2606,18 +2541,6 @@ impl TypedActionView for WorkflowView {
             WorkflowAction::RunWorkflow => self.copy_to_command_line(ctx),
             WorkflowAction::CopyContent => self.copy_content(ctx),
             WorkflowAction::Duplicate => self.duplicate_object(ctx),
-            WorkflowAction::CopyLink(link) => {
-                ctx.clipboard()
-                    .write(ClipboardContent::plain_text(link.to_owned()));
-            }
-            #[cfg(target_family = "wasm")]
-            WorkflowAction::OpenLinkOnDesktop(url) => {
-                open_url_on_desktop(url);
-            }
-            #[cfg(not(target_family = "wasm"))]
-            WorkflowAction::OpenLinkOnDesktop(_) => {
-                // No-op when not on wasm
-            }
             WorkflowAction::Trash => self.trash_object(ctx),
             WorkflowAction::Untrash => self.untrash_object(ctx),
             WorkflowAction::CloseEnumDialog => self.hide_enum_creation_dialog(ctx),
@@ -2640,28 +2563,6 @@ impl BackingView for WorkflowView {
 
     fn pane_header_overflow_menu_items(&self, ctx: &AppContext) -> Vec<MenuItem<WorkflowAction>> {
         let mut menu_items = Vec::new();
-
-        // Add "Copy Link" to menu
-        if let Some(link) = self.workflow_link(ctx) {
-            menu_items.push(
-                MenuItemFields::new("Copy link")
-                    .with_on_select_action(WorkflowAction::CopyLink(link))
-                    .with_icon(Icon::Link)
-                    .into_item(),
-            );
-        }
-
-        if self.can_open_on_desktop(ctx)
-            && let Some(link) = self.workflow_link(ctx)
-            && let Ok(url) = Url::parse(&link)
-        {
-            menu_items.push(
-                MenuItemFields::new("Open on Desktop")
-                    .with_on_select_action(WorkflowAction::OpenLinkOnDesktop(url))
-                    .with_icon(Icon::Laptop)
-                    .into_item(),
-            );
-        }
 
         let space = CloudViewModel::as_ref(ctx).object_space(&self.workflow_id.uid(), ctx);
 

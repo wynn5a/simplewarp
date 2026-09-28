@@ -325,9 +325,6 @@ pub enum FeatureFlag {
     /// Enables the /compact slash command.
     SummarizationConversationCommand,
 
-    /// Enables the provider command for linking third-party services.
-    ProviderCommand,
-
     /// Groups MCP tools and resources by their originating server when sending context to the AI backend.
     MCPGroupedServerContext,
 
@@ -615,12 +612,6 @@ pub enum FeatureFlag {
     /// `--mcp` arguments, resolved server-side at run setup.
     WellKnownMcpIds,
 
-    /// Automatically attaches the Warp-hosted Factory MCP server
-    /// (`/api/v1/mcp/factory`) to agents as a built-in MCP server,
-    /// authenticated with the logged-in user's session token. No manual MCP
-    /// setup or API key required.
-    FactoryMcp,
-
     /// Observes Ctrl-C (`0x03`) written on the shared-session viewer input
     /// path to a terminal with a working, rich-status-capable CLI agent
     /// session (e.g. Claude Code). Arms a short grace window; if no further
@@ -664,7 +655,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::MSYS2Shells,
     FeatureFlag::RunGeneratorsWithCmdExe,
     FeatureFlag::Projects,
-    FeatureFlag::ProviderCommand,
     FeatureFlag::FileGlobV2Warnings,
     FeatureFlag::SummarizationViaMessageReplacement,
     FeatureFlag::LocalComputerUse,

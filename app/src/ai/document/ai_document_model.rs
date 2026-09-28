@@ -843,16 +843,6 @@ impl AIDocumentModel {
         }
     }
 
-    pub fn get_document_object_link(&self, id: &AIDocumentId, ctx: &AppContext) -> Option<String> {
-        let document = self.documents.get(id)?;
-        if !self.get_document_save_status(id).is_saved() {
-            return None;
-        }
-        let sync_id = document.sync_id?;
-        let notebook = CloudModel::as_ref(ctx).get_notebook(&sync_id)?;
-        notebook.object_link()
-    }
-
     /// Get the raw markdown content of a document by id.
     pub fn get_document_content(
         &self,

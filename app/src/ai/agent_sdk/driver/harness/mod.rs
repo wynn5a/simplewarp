@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
@@ -9,10 +8,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tempfile::NamedTempFile;
 use warp_cli::agent::Harness;
-use warp_cli::{
-    OZ_CLI_ENV, OZ_HARNESS_ENV, OZ_PARENT_RUN_ID_ENV, OZ_RUN_ID_ENV, SERVER_ROOT_URL_OVERRIDE_ENV,
-    SESSION_SHARING_SERVER_URL_OVERRIDE_ENV, WS_SERVER_URL_OVERRIDE_ENV,
-};
+use warp_cli::{OZ_CLI_ENV, OZ_HARNESS_ENV, OZ_PARENT_RUN_ID_ENV, OZ_RUN_ID_ENV};
 use warp_core::channel::ChannelState;
 use warpui::{ModelHandle, ModelSpawner};
 
@@ -170,18 +166,6 @@ pub(crate) fn validate_cli_installed(
     Ok(())
 }
 
-fn insert_non_empty_task_env_var(
-    env_vars: &mut HashMap<OsString, OsString>,
-    key: &'static str,
-    value: String,
-) {
-    if value.is_empty() {
-        return;
-    }
-
-    env_vars.insert(OsString::from(key), OsString::from(value));
-}
-
 fn insert_task_env_var_aliases(
     env_vars: &mut HashMap<OsString, OsString>,
     keys: &[&'static str],
@@ -255,30 +239,6 @@ fn task_env_vars_for_harness_name(
             );
         }
     }
-    // Server URL overrides are disabled on release channels, so there's no
-    // override to propagate to child processes there.
-    if ChannelState::channel().allows_server_url_overrides() {
-        insert_non_empty_task_env_var(
-            &mut env_vars,
-            SERVER_ROOT_URL_OVERRIDE_ENV,
-            ChannelState::server_root_url().into_owned(),
-        );
-        insert_non_empty_task_env_var(
-            &mut env_vars,
-            WS_SERVER_URL_OVERRIDE_ENV,
-            ChannelState::ws_server_url().into_owned(),
-        );
-        if let Some(url) = ChannelState::session_sharing_server_url()
-            .map(Cow::into_owned)
-            .filter(|url| !url.is_empty())
-        {
-            env_vars.insert(
-                OsString::from(SESSION_SHARING_SERVER_URL_OVERRIDE_ENV),
-                OsString::from(url),
-            );
-        }
-    }
-
     env_vars
 }
 

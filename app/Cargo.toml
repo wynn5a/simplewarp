@@ -493,7 +493,6 @@ crash_reporting = [
 ]
 cross_repo_context = []
 well_known_mcp_ids = []
-factory_mcp = []
 default = [
     "agent_mode",
     "osc_hyperlinks",
@@ -628,7 +627,6 @@ default = [
     "cloud_runners",
     "file_backed_execution_profiles",
     "well_known_mcp_ids",
-    "factory_mcp",
 ]
 
 # SimpleWarp: a local-only build. No cloud, no login, no billing, and no Warp Drive.
@@ -762,7 +760,6 @@ simplewarp = [
     "terminal_lifecycle_recovery",
     "file_backed_execution_profiles",
     "well_known_mcp_ids",
-    "factory_mcp",
 ]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
 # substantially slow down program execution.

@@ -7,7 +7,6 @@ use cloud_objects::cloud_object::SerializedModel;
 use derivative::Derivative;
 use lazy_static::lazy_static;
 use regex::Regex;
-use warp_core::channel::Channel;
 use warpui::{AppContext, SingletonEntity};
 
 use self::model::generic_string_model::{
@@ -15,11 +14,10 @@ use self::model::generic_string_model::{
 };
 use self::model::persistence::CloudModel;
 use crate::auth::UserUid;
-use crate::channel::ChannelState;
 use crate::persistence::ModelEvent;
 use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, ServerId, SyncId, ToServerId};
 use crate::util::time_format::format_approx_duration_from_now_utc;
-use crate::workflows::{CloudWorkflow, WorkflowSource};
+use crate::workflows::WorkflowSource;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
@@ -125,16 +123,6 @@ pub trait CloudObject: Debug {
     fn should_show_activity_toasts(&self) -> bool {
         true
     }
-
-    /// Returns the web link of this object. Will return none if we do not support web links
-    /// for this particular object (i.e. if it's not yet sync'd to the server, or if we don't
-    /// yet support linking to that object type).
-    ///
-    /// The format of an objects link follows the pattern:
-    /// {channel}/drive/{object-type}/{object-name}-{uid}. For more information on this,
-    /// see the linkable objects PRD (https://docs.google.com/document/d/1VQZ4sgLs4M9r2NDYyecfOalLlPmcf2fd_rDdqG35Zd8/edit)
-    /// or tech doc (https://docs.google.com/document/d/1_TK19mRcD_0eLwbr5uFRabacIzfKocfahjEvoRcs5ko/edit)
-    fn object_link(&self) -> Option<String>;
 
     /// The space containing this object.
     ///
@@ -579,48 +567,6 @@ where
                 self.conflict_status = ConflictStatus::ConflictingChanges { object };
             } else {
                 self.conflict_status = ConflictStatus::NoConflicts;
-            }
-        }
-    }
-
-    fn object_link(&self) -> Option<String> {
-        if !self.model().supports_linking() {
-            return None;
-        }
-
-        let display_name = self.model().display_name();
-        // First remove all the url unsafe chars
-        let name_without_unsafe_chars = SAFE_URL_CHAR_RE.replace_all(display_name.trim(), "");
-        // Then turn all the spaces into dashes
-        let link_safe_name = SPACE_DETECT_RE.replace_all(&name_without_unsafe_chars, "-");
-        match &self.id {
-            SyncId::ClientId(_) => None,
-            SyncId::ServerId(id) => {
-                let object_type = self.object_type();
-                let object_type_for_link = if self
-                    .as_any()
-                    .downcast_ref::<CloudWorkflow>()
-                    .is_some_and(|w| w.model().data.is_agent_mode_workflow())
-                {
-                    "prompt".to_string()
-                } else {
-                    object_type.to_string()
-                };
-
-                let mut link = format!(
-                    "{}/drive/{}/{}-{}",
-                    ChannelState::server_root_url(),
-                    object_type_for_link,
-                    link_safe_name,
-                    id.uid()
-                );
-
-                // If this is a preview build, ensure the link routes to a preview build.
-                if matches!(ChannelState::channel(), Channel::Preview) {
-                    link.push_str("?preview=true");
-                }
-
-                Some(link)
             }
         }
     }

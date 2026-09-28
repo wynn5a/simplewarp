@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use url::Url;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use super::super::{DefaultSessionModeBehavior, Direction};
@@ -130,23 +129,9 @@ impl PaneContent for NotebookPane {
 
     fn shareable_link(
         &self,
-        ctx: &mut ViewContext<PaneGroup>,
+        _ctx: &mut ViewContext<PaneGroup>,
     ) -> Result<ShareableLink, ShareableLinkError> {
-        self.notebook_view(ctx).read(ctx, |view, ctx| {
-            if let Some(link) = view.notebook_link(ctx) {
-                if let Ok(parsed_url) = Url::parse(link.as_str()) {
-                    Ok(ShareableLink::Pane { url: parsed_url })
-                } else {
-                    Err(ShareableLinkError::Unexpected(String::from(
-                        "Failed to parse notebook url",
-                    )))
-                }
-            } else {
-                Err(ShareableLinkError::Unexpected(String::from(
-                    "Could not retrieve notebook url from view",
-                )))
-            }
-        })
+        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

@@ -8,7 +8,6 @@ use instant::Instant;
 use parking_lot::RwLock;
 use warp_cli::agent::Harness;
 use warp_cli::skill::SkillSpec;
-use warp_core::channel::ChannelState;
 use warp_core::ui::color::coloru_with_opacity;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::new_scrollable::{NewScrollable, SingleAxisConfig};
@@ -77,7 +76,6 @@ struct PanelMouseStates {
     close_button: MouseStateHandle,
     copy_directory: MouseStateHandle,
     copy_initial_query: MouseStateHandle,
-    skill_link: MouseStateHandle,
     skill_source_link: MouseStateHandle,
 }
 
@@ -416,21 +414,6 @@ impl ConversationDetailsPanel {
         .with_selectable(true)
         .finish();
 
-        let oz_root_url = ChannelState::oz_root_url();
-        let encoded_skill_name = urlencoding::encode(&skill_name);
-        let skill_url = format!("{oz_root_url}/skills/{encoded_skill_name}");
-
-        let oz_link = appearance
-            .ui_builder()
-            .link(
-                "Open in Oz".to_string(),
-                Some(skill_url),
-                None,
-                self.mouse_states.skill_link.clone(),
-            )
-            .build()
-            .finish();
-
         let separator = || {
             Container::new(
                 Text::new("•".to_string(), appearance.ui_font_family(), ui_font_size)
@@ -445,9 +428,7 @@ impl ConversationDetailsPanel {
         let mut row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(Container::new(icon).with_margin_right(4.).finish())
-            .with_child(Shrinkable::new(1., skill_name_text).finish())
-            .with_child(separator())
-            .with_child(Shrinkable::new(1., oz_link).finish());
+            .with_child(Shrinkable::new(1., skill_name_text).finish());
 
         // Add GitHub source link if we have enough info to construct it.
         if let (Some(org), Some(repo)) = (&skill_spec.org, &skill_spec.repo)

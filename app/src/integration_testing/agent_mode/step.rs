@@ -209,10 +209,8 @@ pub fn capture_impl_artifacts() -> TestStep {
                 );
                 if let Some(token) = conversation.server_conversation_token() {
                     super::record_pending_runtime_tag(
-                        "impl.conversation_debug_link",
-                        token
-                            .debug_link()
-                            .replace("host.docker.internal:8080", "staging.warp.dev"),
+                        "impl.conversation_token",
+                        token.as_str().to_owned(),
                     );
                 }
                 for usage in conversation.total_token_usage().iter() {
@@ -307,12 +305,7 @@ fn print_conversation_id_assertion()
             if let Some(conversation) = history_model.active_conversation(terminal_view.id())
                 && let Some(token) = conversation.server_conversation_token()
             {
-                // The debug link within the container will be using host.docker.internal, but we're opening
-                // from outside the container.
-                let debug_link = token
-                    .debug_link()
-                    .replace("host.docker.internal", "localhost");
-                println!("Conversation ID (debug link): {debug_link}");
+                println!("Conversation ID: {}", token.as_str());
                 return AssertionOutcome::Success;
             }
             // If we don't have a conversation token yet, keep polling

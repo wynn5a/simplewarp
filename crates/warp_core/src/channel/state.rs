@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
-use url::{Origin, ParseError, Url};
+use url::{Origin, Url};
 
 use super::Channel;
 use crate::AppId;
@@ -82,33 +82,6 @@ impl ChannelState {
 
     pub fn enable_debug_features() -> bool {
         cfg!(debug_assertions) || matches!(Self::channel(), Channel::Local | Channel::Dev)
-    }
-
-    pub fn override_server_root_url(url: impl Into<Cow<'static, str>>) -> Result<(), ParseError> {
-        let url = url.into();
-        Url::parse(&url)?;
-        CHANNEL_STATE.lock().config.server_config.server_root_url = url;
-        Ok(())
-    }
-
-    pub fn override_ws_server_url(url: impl Into<Cow<'static, str>>) -> Result<(), ParseError> {
-        let url = url.into();
-        Url::parse(&url)?;
-        CHANNEL_STATE.lock().config.server_config.rtc_server_url = url;
-        Ok(())
-    }
-
-    pub fn override_session_sharing_server_url(
-        url: impl Into<Cow<'static, str>>,
-    ) -> Result<(), ParseError> {
-        let url = url.into();
-        Url::parse(&url)?;
-        CHANNEL_STATE
-            .lock()
-            .config
-            .server_config
-            .session_sharing_server_url = Some(url);
-        Ok(())
     }
 
     pub fn uses_staging_server() -> bool {

@@ -22,15 +22,11 @@ pub mod config_file;
 pub mod environment;
 pub mod mcp;
 pub mod model;
-pub mod provider;
 pub mod share;
 pub const OZ_RUN_ID_ENV: &str = "OZ_RUN_ID";
 pub const OZ_PARENT_RUN_ID_ENV: &str = "OZ_PARENT_RUN_ID";
 pub const OZ_CLI_ENV: &str = "OZ_CLI";
 pub const OZ_HARNESS_ENV: &str = "OZ_HARNESS";
-pub const SERVER_ROOT_URL_OVERRIDE_ENV: &str = "WARP_SERVER_ROOT_URL";
-pub const WS_SERVER_URL_OVERRIDE_ENV: &str = "WARP_WS_SERVER_URL";
-pub const SESSION_SHARING_SERVER_URL_OVERRIDE_ENV: &str = "WARP_SESSION_SHARING_SERVER_URL";
 
 /// Options related to the parent process that spawned this Warp instance.
 #[derive(Debug, Default, Clone, clap::Args)]
@@ -112,33 +108,6 @@ pub struct Args {
     #[arg(long = "debug", global = true, help = "Enable debug logging")]
     debug: bool,
 
-    /// Override the server root URL.
-    #[arg(
-        long = "server-root-url",
-        global = true,
-        hide = true,
-        env = "WARP_SERVER_ROOT_URL"
-    )]
-    server_root_url: Option<String>,
-
-    /// Override the websocket server URL.
-    #[arg(
-        long = "ws-server-url",
-        global = true,
-        hide = true,
-        env = "WARP_WS_SERVER_URL"
-    )]
-    ws_server_url: Option<String>,
-
-    /// Override the session sharing server URL.
-    #[arg(
-        long = "session-sharing-server-url",
-        global = true,
-        hide = true,
-        env = "WARP_SESSION_SHARING_SERVER_URL"
-    )]
-    session_sharing_server_url: Option<String>,
-
     #[command(subcommand)]
     command: Option<Command>,
 
@@ -175,15 +144,6 @@ impl Args {
             } else {
                 use clap::FromArgMatches as _;
 
-                if !FeatureFlag::ProviderCommand.is_enabled() {
-                    let args: Vec<String> = env::args().collect();
-                    if args.len() > 1 && args[1] == "provider" {
-                        eprintln!("error: unrecognized subcommand 'provider'\n");
-                        eprintln!("For more information, try '--help'");
-                        std::process::exit(2);
-                    }
-                }
-
                 let command = Self::clap_command();
 
                 command.try_get_matches()
@@ -215,11 +175,6 @@ impl Args {
                     run_cmd.mut_arg("environment", |arg| arg.hide(true))
                 })
             });
-        }
-
-        // Hide the provider subcommand from help text
-        if !FeatureFlag::ProviderCommand.is_enabled() {
-            command = command.mut_subcommand("provider", |c| c.hide(true));
         }
 
         // Wire up `--version` / `-V` using the same version metadata used elsewhere in the
@@ -273,18 +228,6 @@ impl Args {
     /// Returns true if debug logging is enabled.
     pub fn debug(&self) -> bool {
         self.debug
-    }
-
-    pub fn server_root_url(&self) -> Option<&str> {
-        self.server_root_url.as_deref()
-    }
-
-    pub fn ws_server_url(&self) -> Option<&str> {
-        self.ws_server_url.as_deref()
-    }
-
-    pub fn session_sharing_server_url(&self) -> Option<&str> {
-        self.session_sharing_server_url.as_deref()
     }
 }
 
@@ -360,10 +303,6 @@ pub enum CliCommand {
     /// Manage available models.
     #[command(subcommand)]
     Model(crate::model::ModelCommand),
-
-    /// Manage providers.
-    #[command(subcommand)]
-    Provider(crate::provider::ProviderCommand),
 }
 
 impl CliCommand {
@@ -373,7 +312,6 @@ impl CliCommand {
             CliCommand::Agent(command) => command.as_str_for_tracing(),
             CliCommand::MCP(command) => command.as_str_for_tracing(),
             CliCommand::Model(command) => command.as_str_for_tracing(),
-            CliCommand::Provider(command) => command.as_str_for_tracing(),
         }
     }
 }

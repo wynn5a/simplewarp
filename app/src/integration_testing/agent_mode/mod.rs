@@ -197,19 +197,11 @@ pub fn output_conversation_debug_info(
         write_to_debug_file(&format!(
             "========Conversation Debug Info (Generated: {current_time})========"
         ));
-        let debug_link = conversation
+        let conversation_token = conversation
             .server_conversation_token()
-            .map(|token| {
-                // The debug link within the container will be using host.docker.internal, but we're opening
-                // from outside the container.
-                // The server is configured to always write debug data to GCS instead of locally when run for evals, so we replace
-                // with staging.warp.dev instead of localhost:8080.
-                token
-                    .debug_link()
-                    .replace("host.docker.internal:8080", "staging.warp.dev")
-            })
+            .map(|token| token.as_str().to_owned())
             .unwrap_or("unavailable".to_owned());
-        write_to_debug_file(&format!("Conversation Debug Link: {debug_link}"));
+        write_to_debug_file(&format!("Conversation Token: {conversation_token}"));
 
         let total_request_cost = conversation.total_request_cost();
         let total_exchanges = conversation.all_exchanges().len();

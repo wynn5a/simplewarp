@@ -611,29 +611,3 @@ fn harness_parse_local_child_harness_accepts_codex() {
         Some(Harness::Codex)
     );
 }
-#[test]
-#[serial_test::serial]
-fn hidden_server_overrides_parse_from_env() {
-    let previous_server_root = set_env_var(SERVER_ROOT_URL_OVERRIDE_ENV, "http://localhost:8080");
-    let previous_ws = set_env_var(WS_SERVER_URL_OVERRIDE_ENV, "ws://localhost:8082/graphql/v2");
-    let previous_session_sharing = set_env_var(
-        SESSION_SHARING_SERVER_URL_OVERRIDE_ENV,
-        "ws://127.0.0.1:8081",
-    );
-
-    let args = Args::try_parse_from(["warp", "model", "list"]).unwrap();
-
-    restore_env_var(SERVER_ROOT_URL_OVERRIDE_ENV, previous_server_root);
-    restore_env_var(WS_SERVER_URL_OVERRIDE_ENV, previous_ws);
-    restore_env_var(
-        SESSION_SHARING_SERVER_URL_OVERRIDE_ENV,
-        previous_session_sharing,
-    );
-
-    assert_eq!(args.server_root_url(), Some("http://localhost:8080"));
-    assert_eq!(args.ws_server_url(), Some("ws://localhost:8082/graphql/v2"));
-    assert_eq!(
-        args.session_sharing_server_url(),
-        Some("ws://127.0.0.1:8081")
-    );
-}

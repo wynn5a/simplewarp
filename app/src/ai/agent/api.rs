@@ -17,7 +17,6 @@ use futures_lite::Stream;
 pub use r#impl::generate_multi_agent_output;
 use mcp::TemplatableMCPServerInfo;
 use serde::Serialize;
-use warp_core::channel::{Channel, ChannelState};
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
 use warp_core::user_preferences::GetUserPreferences;
@@ -50,45 +49,14 @@ impl ServerConversationToken {
         &self.0
     }
 
-    pub fn debug_link(&self) -> String {
-        format!(
-            "{}/debug/maa/{}",
-            ChannelState::server_root_url(),
-            self.as_str()
-        )
-    }
-
     pub fn debugging_payload(&self, request_id: Option<&ServerOutputId>) -> String {
-        self.debugging_payload_for_channel(request_id, ChannelState::channel())
-    }
-
-    fn debugging_payload_for_channel(
-        &self,
-        request_id: Option<&ServerOutputId>,
-        channel: Channel,
-    ) -> String {
-        if channel.is_dogfood() {
-            match request_id {
-                Some(request_id) => format!("{}?request={request_id}", self.debug_link()),
-                None => self.debug_link(),
-            }
-        } else {
-            match request_id {
-                Some(request_id) => format!(
-                    "{{\"request_id\":\"{request_id}\",\"conversation_id\":\"{}\"}}",
-                    self.as_str()
-                ),
-                None => format!("{{\"conversation_id\":\"{}\"}}", self.as_str()),
-            }
+        match request_id {
+            Some(request_id) => format!(
+                "{{\"request_id\":\"{request_id}\",\"conversation_id\":\"{}\"}}",
+                self.as_str()
+            ),
+            None => format!("{{\"conversation_id\":\"{}\"}}", self.as_str()),
         }
-    }
-
-    pub fn conversation_link(&self) -> String {
-        format!(
-            "{}/conversation/{}",
-            ChannelState::server_root_url(),
-            self.as_str()
-        )
     }
 }
 
@@ -260,9 +228,6 @@ impl RequestParams {
                     .get_active_cli_spawned_servers()
                     .values(),
             );
-
-            // Include built-in Warp-hosted servers (e.g. the Factory MCP).
-            active_servers.extend(templatable_manager.get_active_builtin_servers().values());
 
             let servers: Vec<MCPServer> = active_servers
                 .into_iter()

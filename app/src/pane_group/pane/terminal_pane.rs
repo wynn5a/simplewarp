@@ -441,29 +441,9 @@ impl PaneContent for TerminalPane {
         let the_model = manager.as_ref(ctx).model();
         let lock = the_model.lock();
 
-        // Check if this is a conversation transcript viewer
+        // A conversation transcript viewer has no shareable link; Expected preserves the
+        // current browser URL.
         if lock.is_conversation_transcript_viewer() {
-            // Try to get the conversation token from the history model
-            let history_model = crate::ai::blocklist::BlocklistAIHistoryModel::handle(ctx);
-            let terminal_view_id = self.terminal_view(ctx).id();
-
-            // Find the conversation for this terminal view
-            // We're assuming the conversation transcript view only has one conversation.
-            // TODO(roland): store conversation id or server conversation token on the model ConversationTranscriptViewerStatus
-            if let Some(conversation) = history_model
-                .as_ref(ctx)
-                .all_live_conversations_for_terminal_surface(terminal_view_id)
-                .next()
-                && let Some(token) = conversation.server_conversation_token()
-            {
-                let url_string = token.conversation_link();
-                if let Ok(url) = url::Url::parse(&url_string) {
-                    return Ok(ShareableLink::Pane { url });
-                }
-            }
-
-            // If we can't get the conversation link yet (still loading or not available),
-            // return Expected error to preserve the current browser URL
             return Err(ShareableLinkError::Expected);
         }
 

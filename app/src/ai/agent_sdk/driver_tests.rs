@@ -13,12 +13,7 @@ use tempfile::TempDir;
 use warp_cli::agent::Harness;
 use warp_cli::mcp::MCPSpec;
 use warp_cli::skill::SkillSpec;
-use warp_cli::{
-    OZ_CLI_ENV, OZ_HARNESS_ENV, OZ_PARENT_RUN_ID_ENV, OZ_RUN_ID_ENV, SERVER_ROOT_URL_OVERRIDE_ENV,
-    SESSION_SHARING_SERVER_URL_OVERRIDE_ENV, WS_SERVER_URL_OVERRIDE_ENV,
-};
-use warp_core::channel::ChannelState;
-use warp_core::features::FeatureFlag;
+use warp_cli::{OZ_CLI_ENV, OZ_HARNESS_ENV, OZ_PARENT_RUN_ID_ENV, OZ_RUN_ID_ENV};
 use warp_util::standardized_path::StandardizedPath;
 use warpui::{App, SingletonEntity as _};
 
@@ -38,10 +33,8 @@ use crate::ai::agent::{
 use crate::ai::agent_sdk::task_env_vars;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::cloud_environments::{GithubRepo, SourceRepo};
-use crate::ai::mcp::builtin::{FACTORY_MCP_INSTALLATION_UUID, FACTORY_MCP_SERVER_NAME};
 use crate::ai::mcp::parsing::normalize_mcp_json;
 use crate::ai::skills::SkillManager;
-use crate::auth::credentials::Credentials;
 use crate::test_util::terminal::{add_window_with_terminal, initialize_app_for_terminal_view};
 
 #[test]
@@ -197,56 +190,6 @@ fn a_skipped_well_known_spec_does_not_drop_the_others() {
     .unwrap();
 
     assert_eq!(resolved.ephemeral_installations.len(), 1);
-}
-
-// ── Built-in Factory MCP injection tests ────────────────────────────────────
-
-fn bearer_credentials() -> Credentials {
-    Credentials::Bearer("wk-test-key".to_string())
-}
-
-#[test]
-fn builtin_factory_mcp_attaches_with_bearer_credentials() {
-    let _flag = FeatureFlag::FactoryMcp.override_enabled(true);
-
-    let installation =
-        AgentDriver::builtin_factory_mcp_for_run(Some(&bearer_credentials()), &HashSet::new())
-            .expect("built-in Factory MCP should attach when eligible");
-
-    assert_eq!(installation.uuid(), FACTORY_MCP_INSTALLATION_UUID);
-    assert_eq!(
-        installation.templatable_mcp_server().name,
-        FACTORY_MCP_SERVER_NAME
-    );
-}
-
-#[test]
-fn builtin_factory_mcp_skipped_when_flag_disabled() {
-    let _flag = FeatureFlag::FactoryMcp.override_enabled(false);
-
-    assert!(
-        AgentDriver::builtin_factory_mcp_for_run(Some(&bearer_credentials()), &HashSet::new())
-            .is_none()
-    );
-}
-
-#[test]
-fn builtin_factory_mcp_skipped_without_credentials() {
-    let _flag = FeatureFlag::FactoryMcp.override_enabled(true);
-
-    assert!(AgentDriver::builtin_factory_mcp_for_run(None, &HashSet::new()).is_none());
-}
-
-#[test]
-fn builtin_factory_mcp_skipped_on_name_collision() {
-    let _flag = FeatureFlag::FactoryMcp.override_enabled(true);
-    // A user-configured server named `warp-factory` wins over the built-in.
-    let taken_server_names = HashSet::from([FACTORY_MCP_SERVER_NAME.to_string()]);
-
-    assert!(
-        AgentDriver::builtin_factory_mcp_for_run(Some(&bearer_credentials()), &taken_server_names)
-            .is_none()
-    );
 }
 
 // ── IdleTimeoutSender tests ──────────────────────────────────────────────────────
@@ -487,7 +430,6 @@ fn terminal_status_log_outcome_labels_are_low_cardinality() {
 fn task_env_vars_include_parent_run_id_when_present() {
     let task_id: AmbientAgentTaskId = "550e8400-e29b-41d4-a716-446655440000".parse().unwrap();
     let env_vars = task_env_vars(Some(&task_id), Some("parent-run-123"), Harness::Claude);
-    let overrides_allowed = ChannelState::channel().allows_server_url_overrides();
 
     assert_eq!(
         env_vars.get(&OsString::from(OZ_RUN_ID_ENV)),
@@ -516,50 +458,12 @@ fn task_env_vars_include_parent_run_id_when_present() {
             .get(&OsString::from(OZ_CLI_ENV))
             .is_some_and(|value| !value.is_empty())
     );
-
-    let server_root_url = ChannelState::server_root_url().into_owned();
-    if overrides_allowed && !server_root_url.is_empty() {
-        assert_eq!(
-            env_vars.get(&OsString::from(SERVER_ROOT_URL_OVERRIDE_ENV)),
-            Some(&OsString::from(server_root_url))
-        );
-    } else {
-        assert!(!env_vars.contains_key(&OsString::from(SERVER_ROOT_URL_OVERRIDE_ENV)));
-    }
-
-    let ws_server_url = ChannelState::ws_server_url().into_owned();
-    if overrides_allowed && !ws_server_url.is_empty() {
-        assert_eq!(
-            env_vars.get(&OsString::from(WS_SERVER_URL_OVERRIDE_ENV)),
-            Some(&OsString::from(ws_server_url))
-        );
-    } else {
-        assert!(!env_vars.contains_key(&OsString::from(WS_SERVER_URL_OVERRIDE_ENV)));
-    }
-
-    if overrides_allowed {
-        match ChannelState::session_sharing_server_url() {
-            Some(url) if !url.is_empty() => assert_eq!(
-                env_vars.get(&OsString::from(SESSION_SHARING_SERVER_URL_OVERRIDE_ENV)),
-                Some(&OsString::from(url.into_owned()))
-            ),
-            _ => {
-                assert!(
-                    !env_vars
-                        .contains_key(&OsString::from(SESSION_SHARING_SERVER_URL_OVERRIDE_ENV))
-                )
-            }
-        }
-    } else {
-        assert!(!env_vars.contains_key(&OsString::from(SESSION_SHARING_SERVER_URL_OVERRIDE_ENV)));
-    }
 }
 
 #[test]
 fn task_env_vars_omit_parent_run_id_when_absent() {
     let task_id: AmbientAgentTaskId = "550e8400-e29b-41d4-a716-446655440001".parse().unwrap();
     let env_vars = task_env_vars(Some(&task_id), None, Harness::Oz);
-    let overrides_allowed = ChannelState::channel().allows_server_url_overrides();
 
     assert_eq!(
         env_vars.get(&OsString::from(OZ_RUN_ID_ENV)),
@@ -574,14 +478,6 @@ fn task_env_vars_omit_parent_run_id_when_absent() {
     assert!(!env_vars.contains_key(&OsString::from(
         LEGACY_OZ_PARENT_LISTENER_MANAGED_EXTERNALLY_ENV
     )));
-    assert_eq!(
-        env_vars.contains_key(&OsString::from(SERVER_ROOT_URL_OVERRIDE_ENV)),
-        overrides_allowed && !ChannelState::server_root_url().is_empty()
-    );
-    assert_eq!(
-        env_vars.contains_key(&OsString::from(WS_SERVER_URL_OVERRIDE_ENV)),
-        overrides_allowed && !ChannelState::ws_server_url().is_empty()
-    );
 }
 
 #[test]

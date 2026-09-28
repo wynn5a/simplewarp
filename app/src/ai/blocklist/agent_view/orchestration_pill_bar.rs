@@ -10,7 +10,6 @@ use std::hash::{Hash, Hasher};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warp_cli::agent::Harness;
-use warp_core::channel::ChannelState;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::blend::Blend;
 use warp_core::ui::color::coloru_with_opacity;
@@ -294,8 +293,6 @@ pub enum OrchestrationPillBarAction {
     OpenInNewPane(AIConversationId),
     /// Menu item: open this child in a new tab.
     OpenInNewTab(AIConversationId),
-    /// Menu item: open this child's run in the Oz web app.
-    ViewInOz(AIConversationId),
     /// Menu item: stop the in-progress task.
     Stop(AIConversationId),
     /// Menu item: cancel and remove from local history.
@@ -493,13 +490,6 @@ impl OrchestrationPillBar {
                 ),
             ]
         };
-        if Self::oz_run_url_for_conversation(conversation_id, ctx).is_some() {
-            items.push(item(
-                "View in Oz",
-                Icon::Oz,
-                OrchestrationPillBarAction::ViewInOz(conversation_id),
-            ));
-        }
         // Stop is shown only while the agent is in progress; Kill becomes
         // Delete once the agent's run has finished (Success / Error /
         // Cancelled). Blocked is treated as not-yet-finished (the agent
@@ -548,17 +538,6 @@ impl OrchestrationPillBar {
         }
         self.menu_open_for = None;
         ctx.notify();
-    }
-
-    fn oz_run_url_for_conversation(
-        conversation_id: AIConversationId,
-        app: &AppContext,
-    ) -> Option<String> {
-        let run_id = BlocklistAIHistoryModel::as_ref(app)
-            .conversation(&conversation_id)?
-            .run_id()?;
-        let oz_root_url = ChannelState::oz_root_url();
-        Some(format!("{oz_root_url}/runs/{run_id}"))
     }
 
     fn set_hovered_pill(
@@ -892,12 +871,6 @@ impl TypedActionView for OrchestrationPillBar {
                         },
                     ),
                 );
-            }
-            OrchestrationPillBarAction::ViewInOz(id) => {
-                self.close_menu(ctx);
-                if let Some(url) = Self::oz_run_url_for_conversation(*id, ctx) {
-                    ctx.open_url(&url);
-                }
             }
             OrchestrationPillBarAction::Stop(id) => {
                 self.close_menu(ctx);

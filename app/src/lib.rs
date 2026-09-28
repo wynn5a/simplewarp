@@ -158,7 +158,6 @@ use crate::ai::aws_credentials::AwsCredentialRefresher as _;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::geap_credentials::GeapCredentialRefresher as _;
 use crate::ai::mcp::{FileBasedMCPManager, FileMCPWatcher};
-use crate::uri::web_intent_parser::maybe_rewrite_web_url_to_intent;
 pub mod workflows;
 pub mod workspace;
 
@@ -555,30 +554,6 @@ pub fn run() -> Result<()> {
 
     // Parse command-line arguments.
     let args = warp_cli::Args::from_env();
-
-    // Server URL overrides are only honored on internal dev channels. Release channels silently
-    // ignore `--server-root-url` / `--ws-server-url` / `--session-sharing-server-url` (and their
-    // `WARP_*` env-var equivalents) so shipped builds can't be redirected away from their
-    // baked-in server URLs. See `Channel::allows_server_url_overrides`.
-    if ChannelState::channel().allows_server_url_overrides() {
-        if let Some(url) = args.server_root_url()
-            && let Err(e) = ChannelState::override_server_root_url(url.to_owned())
-        {
-            eprintln!("Error: Invalid server root URL: {e:#}");
-        }
-
-        if let Some(url) = args.ws_server_url()
-            && let Err(e) = ChannelState::override_ws_server_url(url.to_owned())
-        {
-            eprintln!("Error: Invalid websocket server URL: {e:#}");
-        }
-
-        if let Some(url) = args.session_sharing_server_url()
-            && let Err(e) = ChannelState::override_session_sharing_server_url(url.to_owned())
-        {
-            eprintln!("Error: Invalid session sharing server URL: {e:#}");
-        }
-    }
 
     if let Some(command) = args.command() {
         #[cfg(windows)]
@@ -1337,17 +1312,6 @@ pub(crate) fn initialize_app(
         let extra_meta_keys = *KeysSettings::as_ref(ctx).extra_meta_keys;
         apply_extra_meta_keys(event, extra_meta_keys);
         apply_scroll_multiplier(event, ctx);
-    });
-
-    // Rewrite recognized Warp web URLs (sessions, Drive, settings, home) into local
-    // intent URLs when possible so they open directly in the desktop app.
-    ctx.set_before_open_url(|url_str, _ctx| {
-        if let Ok(url) = Url::parse(url_str)
-            && let Some(intent) = maybe_rewrite_web_url_to_intent(&url)
-        {
-            return intent.to_string();
-        }
-        url_str.to_owned()
     });
 
     ctx.set_a11y_verbosity(*AccessibilitySettings::as_ref(ctx).a11y_verbosity);

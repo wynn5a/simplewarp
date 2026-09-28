@@ -21,7 +21,6 @@ use super::workspace::{
 };
 use crate::ai::llms::LLMModelHost;
 use crate::auth::AuthStateProvider;
-use crate::channel::ChannelState;
 use crate::cloud_object::{Owner, Space};
 use crate::server::ids::ServerId;
 #[cfg(test)]
@@ -32,8 +31,6 @@ use crate::workspaces::workspace::BillingMetadata;
 use crate::workspaces::workspace::{AiAutonomySettings, SandboxedAgentSettings};
 #[cfg(test)]
 use crate::workspaces::workspace::{WorkspaceMember, WorkspaceSettings};
-
-const STRIPE_SUBSCRIPTION_INTERVAL_PAGE_PREFIX: &str = "/upgrade";
 
 #[derive(Debug)]
 #[allow(clippy::enum_variant_names)]
@@ -101,18 +98,6 @@ impl UserWorkspaces {
             workspaces: cached_workspaces.into(),
             window_team_uids: Default::default(),
         }
-    }
-
-    // Only the retained-but-unreachable drive index calls this since the Warp
-    // Drive panel fell; the drive index slice removes both sides.
-    #[allow(dead_code)]
-    pub fn upgrade_link_for_team(team_uid: ServerId) -> String {
-        format!(
-            "{}{}/{}",
-            ChannelState::server_root_url(),
-            STRIPE_SUBSCRIPTION_INTERVAL_PAGE_PREFIX,
-            team_uid
-        )
     }
 
     pub fn team_from_uid(&self, team_uid: ServerId) -> Option<&Team> {

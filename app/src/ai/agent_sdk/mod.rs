@@ -45,7 +45,6 @@ mod mcp_config;
 mod model;
 pub mod output;
 mod profiles;
-mod provider;
 pub(crate) mod setup_observability;
 
 /// Run a Warp CLI command.
@@ -68,12 +67,6 @@ fn dispatch_command(
         CliCommand::Agent(agent_cmd) => run_agent(ctx, global_options, agent_cmd),
         CliCommand::MCP(mcp_cmd) => mcp::run(ctx, global_options, mcp_cmd),
         CliCommand::Model(model_cmd) => model::run(ctx, global_options, model_cmd),
-        CliCommand::Provider(provider_cmd) => {
-            if !FeatureFlag::ProviderCommand.is_enabled() {
-                return Err(anyhow::anyhow!("invalid value 'provider'"));
-            }
-            provider::run(ctx, global_options, provider_cmd)
-        }
     }
 }
 

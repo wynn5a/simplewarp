@@ -542,20 +542,6 @@ pub mod text {
             Err(queries) => format!("[{}]", queries.format(", ")),
         }
     }
-
-    /// Write an artifact_created message for a plan to stdout. We have a separate function for
-    /// this since we report creation on plan WD sync.
-    pub fn plan_artifact_created<W: Write>(
-        document_id: &str,
-        notebook_link: &str,
-        title: &str,
-        w: &mut W,
-    ) -> io::Result<()> {
-        writeln!(
-            w,
-            "Created plan (title: {title}, id: {document_id}, notebook: {notebook_link})"
-        )
-    }
 }
 
 pub mod json {
@@ -770,11 +756,6 @@ pub mod json {
         PullRequest {
             url: &'a str,
             branch: &'a str,
-        },
-        Plan {
-            document_id: &'a str,
-            notebook_link: &'a str,
-            title: &'a str,
         },
         Screenshot {
             artifact_uid: &'a str,
@@ -1253,21 +1234,6 @@ pub mod json {
                 },
             }
         }
-    }
-
-    /// Write an artifact_created message for a plan to stdout.
-    pub fn plan_artifact_created<W: Write>(
-        document_id: &str,
-        notebook_link: &str,
-        title: &str,
-        w: &mut W,
-    ) -> io::Result<()> {
-        let message = JsonMessage::ArtifactCreated(JsonArtifact::Plan {
-            document_id,
-            notebook_link,
-            title,
-        });
-        write_message(&message, w)
     }
 
     fn write_message<W: Write>(message: &JsonMessage, w: &mut W) -> io::Result<()> {

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Context;
-use url::Url;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use super::{
@@ -142,26 +141,11 @@ impl PaneContent for WorkflowPane {
 
     fn shareable_link(
         &self,
-        ctx: &mut ViewContext<PaneGroup>,
+        _ctx: &mut ViewContext<PaneGroup>,
     ) -> Result<ShareableLink, ShareableLinkError> {
-        self.get_view(ctx).read(ctx, |view, ctx| {
-            if let Some(link) = view.workflow_link(ctx) {
-                if let Ok(parsed_url) = Url::parse(link.as_str()) {
-                    Ok(ShareableLink::Pane { url: parsed_url })
-                } else {
-                    Err(ShareableLinkError::Unexpected(String::from(
-                        "Failed to parse workflow url",
-                    )))
-                }
-            } else {
-                Err(ShareableLinkError::Unexpected(String::from(
-                    "Could not retrieve workflow url from view",
-                )))
-            }
-        })
+        Ok(ShareableLink::Base)
     }
 
-    /// Pane-agnostic state that all panes have.
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {
         self.pane_configuration.clone()
     }
