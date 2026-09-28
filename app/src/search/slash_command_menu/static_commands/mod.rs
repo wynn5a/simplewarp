@@ -35,8 +35,6 @@ bitflags! {
         const CODEBASE_CONTEXT = 1 << 6;
         /// Requires AI to be globally enabled.
         const AI_ENABLED = 1 << 7;
-        /// Requires a non-cloud-agent context.
-        const NOT_CLOUD_AGENT = 1 << 8;
     }
 }
 /// Stable identity for a static slash command.

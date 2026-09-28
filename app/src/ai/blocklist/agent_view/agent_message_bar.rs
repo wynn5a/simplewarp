@@ -16,9 +16,7 @@ use crate::ai::agent::{
     AIAgentExchangeId, AIAgentOutputStatus, FinishedAIAgentOutput, RenderableAIError,
 };
 use crate::ai::blocklist::agent_view::shortcuts::AgentShortcutViewModel;
-use crate::ai::blocklist::agent_view::{
-    AgentViewController, AgentViewControllerEvent, is_in_cloud_context,
-};
+use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewControllerEvent};
 use crate::ai::blocklist::{
     BlocklistAIContextEvent, BlocklistAIContextModel, BlocklistAIHistoryEvent,
     BlocklistAIInputEvent, BlocklistAIInputModel,
@@ -525,7 +523,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
             .with_is_disabled(!is_buffer_empty),
         );
 
-        let is_cloud_agent = is_in_cloud_context(terminal_model);
+        let is_transcript_viewer = terminal_model.is_conversation_transcript_viewer();
 
         let plan_count = AIDocumentModel::as_ref(app)
             .get_all_documents_for_conversation(active_conversation.id())
@@ -534,7 +532,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
         let has_conversation_been_updated_since_agent_view_entry =
             *original_conversation_length != active_conversation.exchange_count();
 
-        if !is_cloud_agent
+        if !is_transcript_viewer
             && !has_conversation_been_updated_since_agent_view_entry
             && let Some(conversations_keystroke) =
                 keybinding_name_to_keystroke(commands::CONVERSATIONS.name, app)
@@ -552,7 +550,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
         }
 
         // Code review only works locally.
-        if !is_cloud_agent && *TabSettings::as_ref(app).show_code_review_button {
+        if !is_transcript_viewer && *TabSettings::as_ref(app).show_code_review_button {
             let code_review_keystroke = if OperatingSystem::get().is_mac() {
                 Keystroke::parse("cmd-shift-+").expect("keystroke should parse")
             } else {

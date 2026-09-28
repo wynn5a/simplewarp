@@ -127,13 +127,8 @@ pub enum AgentViewEntryOrigin {
     AcceptedPassiveCodeDiff,
     /// Entered agent view by starting conversation with an inline code review submission.
     InlineCodeReview,
-    /// Entered agent view by opening an existing non-Oz cloud agent run (live shared-session
-    /// viewer or transcript viewer).
-    ThirdPartyCloudAgent,
     /// Entered agent view via the CLI (e.g. `warp agent run`).
     Cli,
-    /// Entered agent view via the headless TUI frontend.
-    Tui,
     /// Entered agent view by adding an image (drag-and-drop or paste).
     ImageAdded,
     /// Entered agent view by executing a slash command that requires agent mode.
@@ -711,8 +706,7 @@ impl AgentViewController {
         ctx: &mut ModelContext<Self>,
     ) -> Result<AIConversationId, EnterAgentViewError> {
         // Block entry to fullscreen mode if there's an active long-running command. Transcript
-        // viewers and 3p cloud viewers are exempt: in those contexts the long-running block is
-        // either a restored snapshot or the harness CLI we want to wrap in agent-view chrome.
+        // viewers are exempt: there the long-running block is a restored snapshot.
         let is_long_running = {
             let terminal_model = self.terminal_model.lock();
             terminal_model
@@ -720,7 +714,6 @@ impl AgentViewController {
                 .active_block()
                 .is_active_and_long_running()
                 && !terminal_model.is_conversation_transcript_viewer()
-                && !matches!(&origin, AgentViewEntryOrigin::ThirdPartyCloudAgent)
         };
 
         if is_long_running {
@@ -787,12 +780,7 @@ impl AgentViewController {
             (conversation.id(), conversation.exchange_count())
         } else {
             let id = history_model.update(ctx, |history_model, ctx| {
-                history_model.start_new_conversation(
-                    self.terminal_view_id,
-                    false,
-                    matches!(&origin, AgentViewEntryOrigin::ThirdPartyCloudAgent),
-                    ctx,
-                )
+                history_model.start_new_conversation(self.terminal_view_id, false, false, ctx)
             });
             (id, 0)
         };
@@ -807,12 +795,10 @@ impl AgentViewController {
             original_conversation_length: exchange_count,
         };
 
-        let is_cloud = matches!(origin, AgentViewEntryOrigin::ThirdPartyCloudAgent);
-
         self.terminal_model
             .lock()
             .block_list_mut()
-            .enter_conversation_context(conversation_id, display_mode.is_inline(), is_cloud);
+            .enter_conversation_context(conversation_id, display_mode.is_inline());
 
         let is_new = exchange_count == 0;
         ctx.emit(AgentViewControllerEvent::EnteredAgentView {

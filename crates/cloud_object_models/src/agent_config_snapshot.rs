@@ -7,8 +7,6 @@ use crate::source_repo::SourceRepo;
 ///
 /// This is the merged/resolved config used when spawning or running an agent.
 /// It combines settings from config files and CLI args.
-/// Unlike `AgentConfig` (the cloud model), field names here use the runtime format
-/// (e.g. `model_id` instead of `base_model_id`).
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct AgentConfigSnapshot {
     /// Config name for searchability/traceability.

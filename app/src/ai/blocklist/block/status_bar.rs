@@ -36,7 +36,7 @@ use crate::ai::agent::{
 use crate::ai::agent_tips::AITipModel;
 use crate::ai::blocklist::agent_view::shortcuts::AgentShortcutViewModel;
 use crate::ai::blocklist::agent_view::{
-    AgentMessageBar, AgentViewController, EphemeralMessageModel, is_in_cloud_context,
+    AgentMessageBar, AgentViewController, EphemeralMessageModel,
 };
 use crate::ai::blocklist::model::AIBlockModelHelper;
 use crate::ai::blocklist::summarization_cancel_dialog::{
@@ -792,7 +792,7 @@ impl BlocklistAIStatusBar {
                             .conversation(app)
                             .map(|c| c.autoexecute_any_action())
                             .unwrap_or(false),
-                        is_locked: is_in_cloud_context(&terminal_model),
+                        is_locked: terminal_model.is_conversation_transcript_viewer(),
                     },
                 ),
                 queue_next_prompt_button: FeatureFlag::QueueSlashCommand.is_enabled().then_some(

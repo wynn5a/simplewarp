@@ -92,8 +92,8 @@ use self::vertical_tabs::{
     vtab_group_position_id,
 };
 use super::action::{
-    AutoCloudHandoffTrigger, InitContent, NewSessionMenuAnchor, RestoreConversationLayout,
-    TabContextMenuAnchor, VerticalTabsPaneContextMenuTarget, WorkspaceAction,
+    InitContent, NewSessionMenuAnchor, RestoreConversationLayout, TabContextMenuAnchor,
+    VerticalTabsPaneContextMenuTarget, WorkspaceAction,
 };
 use super::delete_conversation_confirmation_dialog::{
     DeleteConversationConfirmationDialog, DeleteConversationConfirmationEvent,
@@ -121,7 +121,6 @@ use crate::ai::agent_management::AgentManagementEvent;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEditorMode;
 use crate::ai::blocklist::agent_view::editor::{AgentToolbarEditorEvent, AgentToolbarEditorModal};
-use crate::ai::blocklist::handoff::{HandoffLaunchAttachments, PendingCloudLaunch};
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
 use crate::ai::blocklist::suggested_agent_mode_workflow_modal::{
     SuggestedAgentModeWorkflowAndId, SuggestedAgentModeWorkflowModal,
@@ -471,9 +470,6 @@ const MAX_FORK_TOAST_TITLE_LENGTH: usize = 100;
 // The max length of the window title (matching conversation title truncation).
 const MAX_WINDOW_TITLE_LENGTH: usize = 80;
 
-const AUTO_CLOUD_HANDOFF_PROMPT: &str =
-    "Continue this local Warp Agent task in the cloud from the current conversation state.";
-
 /// The default display name used for the user if they have no associated display name.
 pub const DEFAULT_USER_DISPLAY_NAME: &str = "User";
 
@@ -542,15 +538,6 @@ pub struct TabPaneGroupIdentifiers {
     pub tab_idx: usize,
     pub pane_group_id: EntityId,
     pub terminal_ids: Vec<EntityId>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum LocalToCloudHandoffIntent {
-    UserInitiated,
-    Automatic {
-        trigger: AutoCloudHandoffTrigger,
-        conversation_id: AIConversationId,
-    },
 }
 
 /// Categorization of how the tab bar should be rendered.
@@ -4074,20 +4061,6 @@ impl Workspace {
                 }
             })
             .collect::<Vec<_>>()
-    }
-
-    pub(crate) fn terminal_view(
-        &self,
-        terminal_view_id: EntityId,
-        app: &AppContext,
-    ) -> Option<ViewHandle<TerminalView>> {
-        self.tabs.iter().find_map(|tab| {
-            tab.pane_group
-                .as_ref(app)
-                .terminal_views(app)
-                .into_iter()
-                .find(|terminal_view| terminal_view.id() == terminal_view_id)
-        })
     }
 
     /// Focuses the given pane, revealing it first if it is hidden behind a
@@ -11491,69 +11464,6 @@ impl Workspace {
         });
     }
 
-    /// Opens a local-to-cloud handoff pane in place over the active local pane.
-    /// Triggered by `/handoff`, `&` compose mode, and the handoff footer chip.
-    fn start_local_to_cloud_handoff(
-        &mut self,
-        launch: Option<PendingCloudLaunch>,
-        environment_id: Option<SyncId>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(source_view) = self
-            .active_tab_pane_group()
-            .as_ref(ctx)
-            .active_session_view(ctx)
-        else {
-            let window_id = ctx.window_id();
-            WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                toast_stack.add_ephemeral_toast(
-                    DismissibleToast::error(
-                        "No active terminal session to hand off. Focus a pane and try again."
-                            .to_owned(),
-                    ),
-                    window_id,
-                    ctx,
-                );
-            });
-            return;
-        };
-
-        self.start_local_to_cloud_handoff_from_source(
-            source_view,
-            launch,
-            environment_id,
-            LocalToCloudHandoffIntent::UserInitiated,
-            ctx,
-        );
-    }
-
-    /// `AutoCloudHandoffController` (which used to record this) was removed
-    /// with `FeatureFlag::OzHandoff` (round 4an, part 1/2). Kept as a no-op so
-    /// its still-live callers (the handoff-pane stub above and the
-    /// `AutoHandoffActiveAgentToCloud` action handler) keep compiling.
-    fn record_automatic_handoff_failed(
-        _intent: LocalToCloudHandoffIntent,
-        _ctx: &mut ViewContext<Self>,
-    ) {
-    }
-
-    /// Local-to-cloud handoff pipeline (`FeatureFlag::OzHandoff`) was removed
-    /// (round 4an, part 1/2) — it required a Warp account/server, which this
-    /// build never has. This stub keeps the call sites in
-    /// `start_local_to_cloud_handoff` and `AutoHandoffActiveAgentToCloud`
-    /// compiling; it always reports the same failure the old pipeline did
-    /// once `is_cloud_handoff_enabled()` had gone permanently false.
-    fn start_local_to_cloud_handoff_from_source(
-        &mut self,
-        _source_view: ViewHandle<TerminalView>,
-        _launch: Option<PendingCloudLaunch>,
-        _environment_id: Option<SyncId>,
-        intent: LocalToCloudHandoffIntent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        Self::record_automatic_handoff_failed(intent, ctx);
-    }
-
     pub(crate) fn handle_file_tree_event(
         &mut self,
         pane_group: ViewHandle<PaneGroup>,
@@ -17657,45 +17567,6 @@ impl TypedActionView for Workspace {
             OpenSettingsFile => {
                 let path = crate::settings::user_preferences_toml_file_path();
                 self.add_tab_for_code_file(path, None, ctx);
-            }
-            OpenLocalToCloudHandoffPane {
-                launch,
-                environment_id,
-            } => {
-                self.start_local_to_cloud_handoff(launch.clone(), *environment_id, ctx);
-            }
-            AutoHandoffActiveAgentToCloud {
-                terminal_view_id,
-                conversation_id,
-                trigger,
-            } => {
-                let intent = LocalToCloudHandoffIntent::Automatic {
-                    trigger: *trigger,
-                    conversation_id: *conversation_id,
-                };
-                let launch = Some(PendingCloudLaunch {
-                    prompt: AUTO_CLOUD_HANDOFF_PROMPT.to_owned(),
-                    attachments: HandoffLaunchAttachments::default(),
-                });
-                match self.terminal_view(*terminal_view_id, ctx) {
-                    Some(source_view) => {
-                        self.start_local_to_cloud_handoff_from_source(
-                            source_view,
-                            launch,
-                            None,
-                            intent,
-                            ctx,
-                        );
-                    }
-                    _ => {
-                        log::debug!(
-                            "Skipping automatic local-to-cloud handoff via {:?}: terminal view {:?} is no longer open",
-                            trigger,
-                            terminal_view_id,
-                        );
-                        Self::record_automatic_handoff_failed(intent, ctx);
-                    }
-                }
             }
             OpenNetworkLogPane => {
                 self.open_network_log_pane(ctx);

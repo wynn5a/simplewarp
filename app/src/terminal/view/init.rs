@@ -51,7 +51,6 @@ pub const CAN_FORK_FROM_LAST_KNOWN_GOOD_STATE_KEY: &str = "CanForkFromLastKnownG
 pub const INPUT_BOX_VISIBLE_KEY: &str = "InputVisible";
 pub const KEYBOARD_PROTOCOL_ENABLED_KEY: &str = "KeyboardProtocolEnabled";
 pub const CLI_AGENT_SESSION_ACTIVE_KEY: &str = "CLIAgentSessionActive";
-pub const ROOT_CLOUD_MODE_PANE_KEY: &str = "RootCloudModePane";
 pub const CAN_SHOW_CONVERSATION_DETAILS_KEY: &str = "CanShowConversationDetails";
 
 /// Some keybindings will do different things in different contexts. We break
@@ -1003,7 +1002,6 @@ fn register_input_mode_bindings(app: &mut AppContext) {
     let agent_conversation_predicate = base_context.clone()
         & id!("Terminal")
         & !id!("Input")
-        & !id!(ROOT_CLOUD_MODE_PANE_KEY)
         & !id!(flags::HAS_PENDING_PROMPT_SUGGESTION);
 
     app.register_fixed_bindings([

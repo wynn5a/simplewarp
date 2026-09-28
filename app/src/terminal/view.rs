@@ -181,7 +181,7 @@ use crate::ai::blocklist::agent_view::{
     AgentViewHeaderDisabledTheme, AgentViewHeaderTheme, AgentViewZeroStateBlock,
     AgentViewZeroStateEvent, EphemeralMessageModel, ExitConfirmationTrigger, GuiInputModePolicy,
     InlineAgentViewHeader, OrchestrationPillBar, fork_from_last_known_good_state_exchange_id,
-    get_agent_view_entry_block_position_id, is_in_cloud_context,
+    get_agent_view_entry_block_position_id,
 };
 use crate::ai::blocklist::block::cli::{CLISubagentView, CLISubagentViewEvent};
 use crate::ai::blocklist::block::cli_controller::{
@@ -2601,7 +2601,6 @@ impl TerminalView {
                                     origin,
                                     AgentViewEntryOrigin::CreateEnvironment
                                         | AgentViewEntryOrigin::SlashInit
-                                        | AgentViewEntryOrigin::ThirdPartyCloudAgent
                                 );
                             if should_insert_zero_state_block {
                                 let mut should_show_init_callout = false;
@@ -21698,13 +21697,8 @@ impl TypedActionView for TerminalView {
                 });
             }
             ToggleAutoexecuteMode => {
-                // Cloud (ambient) agent conversations run with fast-forward conceptually
-                // always on, so toggling it from the chip or keybinding is a no-op there.
-                let is_locked = {
-                    let terminal_model = self.model.lock();
-                    is_in_cloud_context(&terminal_model)
-                };
-                if is_locked {
+                // Transcript viewers are read-only, so toggling fast-forward is a no-op there.
+                if self.model.lock().is_conversation_transcript_viewer() {
                     return;
                 }
 

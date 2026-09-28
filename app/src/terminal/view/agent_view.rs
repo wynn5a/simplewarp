@@ -47,14 +47,11 @@ impl TerminalView {
         origin: AgentViewEntryOrigin,
         ctx: &mut ViewContext<Self>,
     ) {
-        // Don't allow starting a new conversation while the agent is in control. 3p cloud
-        // viewers enter agent view to wrap an existing run's content and are not starting a
-        // new conversation, so they are exempt from this guard.
-        if !matches!(&origin, AgentViewEntryOrigin::ThirdPartyCloudAgent)
-            && !self
-                .ai_context_model
-                .as_ref(ctx)
-                .can_start_new_conversation()
+        // Don't allow starting a new conversation while the agent is in control.
+        if !self
+            .ai_context_model
+            .as_ref(ctx)
+            .can_start_new_conversation()
         {
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {

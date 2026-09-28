@@ -69,17 +69,6 @@ fn model_command_is_not_a_prompt_command() {
     assert!(commands::MODEL.argument.is_none());
 }
 
-#[test]
-fn not_cloud_agent_commands_are_only_active_outside_cloud_mode() {
-    let local_context = BASELINE_AVAILABILITY | Availability::NOT_CLOUD_AGENT;
-    assert!(commands::AGENT.is_active(local_context));
-    assert!(commands::NEW.is_active(local_context));
-
-    let cloud_context = BASELINE_AVAILABILITY;
-    assert!(!commands::AGENT.is_active(cloud_context));
-    assert!(!commands::NEW.is_active(cloud_context));
-}
-
 #[cfg(windows)]
 mod windows {
     use std::sync::Arc;

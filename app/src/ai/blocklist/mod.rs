@@ -9,7 +9,6 @@ mod controller;
 pub(crate) mod conversation_selection;
 pub(crate) mod diff_storage;
 pub(crate) mod diff_types;
-pub(crate) mod handoff;
 
 pub(crate) mod orchestration_topology;
 mod passive_suggestions;

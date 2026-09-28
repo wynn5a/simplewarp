@@ -1469,9 +1469,6 @@ impl WarpAgentPageView {
         }
         widgets.push(Box::new(AgentAttributionWidget::default()));
         widgets.push(Box::new(OtherAIWidget::default()));
-        if FeatureFlag::AgentModeComputerUse.is_enabled() {
-            widgets.push(Box::new(CloudAgentComputerUseWidget::default()));
-        }
 
         // This page is multi-section: it renders its own subheader-sized
         // section titles inside each widget, so it gets no page-level title.
@@ -1591,7 +1588,6 @@ pub enum WarpAgentPageAction {
     SetOrchestrationMessageDisplayMode(OrchestrationMessageDisplayMode),
     SetPromptSubmissionMode(PromptSubmissionMode),
     SetLongRunningCommandSubmissionMode(LongRunningCommandSubmissionMode),
-    ToggleCloudAgentComputerUse,
     ToggleFileBasedMcp,
     ToggleIncludeAgentCommandsInHistory,
     ToggleAutoApproveBypassesCommandDenylist,
@@ -1813,16 +1809,6 @@ impl TypedActionView for WarpAgentPageView {
                         settings
                             .long_running_command_submission_mode
                             .set_value(*mode, ctx)
-                    );
-                });
-                ctx.notify();
-            }
-            WarpAgentPageAction::ToggleCloudAgentComputerUse => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .cloud_agent_computer_use_enabled
-                            .toggle_and_save_value(ctx)
                     );
                 });
                 ctx.notify();
@@ -2845,83 +2831,6 @@ impl SettingsWidget for AgentAttributionWidget {
             .with_child(render_ai_setting_description(
                 "Warp Agent can add attribution to commit messages and pull requests it creates",
                 is_any_ai_enabled,
-                app,
-            ))
-            .finish()
-    }
-}
-
-#[derive(Default)]
-struct CloudAgentComputerUseWidget {
-    toggle: SwitchStateHandle,
-}
-
-impl SettingsWidget for CloudAgentComputerUseWidget {
-    type View = WarpAgentPageView;
-
-    fn search_terms(&self) -> &str {
-        "oz cloud agent computer use orchestration multi-agent"
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
-        let is_checked = crate::ai::execution_profiles::is_cloud_agent_computer_use_enabled(app);
-        let is_disabled = !is_any_ai_enabled;
-
-        let ui_builder = appearance.ui_builder();
-        let toggle = if !is_any_ai_enabled {
-            // Disabled because AI is off globally - no tooltip needed
-            ui_builder
-                .switch(self.toggle.clone())
-                .check(is_checked)
-                .with_disabled(true)
-                .build()
-                .finish()
-        } else {
-            // Enabled - allow toggling
-            ui_builder
-                .switch(self.toggle.clone())
-                .check(is_checked)
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(WarpAgentPageAction::ToggleCloudAgentComputerUse);
-                })
-                .finish()
-        };
-
-        let toggle_row = build_toggle_element(
-            render_body_item_label::<WarpAgentPageAction>(
-                "Computer use in Cloud Agents".to_string(),
-                Some(styles::header_font_color(!is_disabled, app)),
-                None,
-                ToggleState::Enabled,
-                appearance,
-            ),
-            toggle,
-            appearance,
-            None,
-        );
-
-        Flex::column()
-            .with_child(render_separator(appearance))
-            .with_child(
-                build_sub_header(
-                    appearance,
-                    "Experimental",
-                    Some(styles::header_font_color(is_any_ai_enabled, app)),
-                )
-                .with_padding_bottom(HEADER_PADDING)
-                .finish(),
-            )
-            .with_child(toggle_row)
-            .with_child(render_ai_setting_description(
-                "Enable computer use in cloud agent conversations started from the Warp app.",
-                !is_disabled,
                 app,
             ))
             .finish()

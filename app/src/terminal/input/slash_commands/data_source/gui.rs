@@ -119,7 +119,7 @@ impl GuiSlashCommandDataSource {
             availability |= Availability::ACTIVE_CONVERSATION;
         }
 
-        availability | Availability::NOT_CLOUD_AGENT
+        availability
     }
 
     /// View-related availability bits for the GUI's legacy terminal-view and agent-view

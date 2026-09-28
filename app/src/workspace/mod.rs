@@ -20,8 +20,8 @@ pub mod util;
 pub mod view;
 
 pub use action::{
-    AutoCloudHandoffTrigger, CommandSearchOptions, InitContent, RestoreConversationLayout,
-    TabContextMenuAnchor, VerticalTabsPaneContextMenuTarget, WorkspaceAction,
+    CommandSearchOptions, InitContent, RestoreConversationLayout, TabContextMenuAnchor,
+    VerticalTabsPaneContextMenuTarget, WorkspaceAction,
 };
 pub use active_session::ActiveSession;
 pub use global_actions::{

@@ -277,3 +277,29 @@ fn ai_autodetection_setting_can_be_toggled_on_and_off() {
         });
     });
 }
+
+#[test]
+fn persisted_cloud_agent_default_session_mode_loads_and_falls_back_to_terminal() {
+    use settings_value::SettingsValue;
+
+    let mode = DefaultSessionMode::from_file_value(&serde_json::json!("cloud_agent"));
+    assert_eq!(mode, Some(DefaultSessionMode::CloudAgent));
+
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        add_ai_enablement_dependencies_for_test(&mut app);
+
+        AISettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .default_session_mode_internal
+                .set_value(DefaultSessionMode::CloudAgent, ctx)
+                .unwrap();
+        });
+        AISettings::handle(&app).read(&app, |settings, _| {
+            assert_eq!(
+                settings.default_session_mode(),
+                DefaultSessionMode::Terminal
+            );
+        });
+    });
+}

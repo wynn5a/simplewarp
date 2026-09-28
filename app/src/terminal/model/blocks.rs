@@ -70,7 +70,6 @@ pub(super) enum ActiveBlockCompletion {
 #[derive(Clone, Copy, Debug)]
 struct ActiveConversationContext {
     conversation_id: AIConversationId,
-    is_cloud: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1553,12 +1552,6 @@ impl BlockList {
             .map(|context| context.conversation_id)
     }
 
-    /// Returns whether the active conversation executes in a cloud context.
-    pub fn is_cloud_conversation_context(&self) -> bool {
-        self.active_conversation_context
-            .is_some_and(|context| context.is_cloud)
-    }
-
     /// Updates the transcript membership used by the cached block-height layout.
     pub fn set_transcript_scope(&mut self, scope: TranscriptScope) {
         if self.transcript_scope == scope {
@@ -1573,13 +1566,9 @@ impl BlockList {
     pub fn set_active_conversation_context(
         &mut self,
         conversation_id: AIConversationId,
-        is_cloud: bool,
         attach_to_terminal: bool,
     ) {
-        self.active_conversation_context = Some(ActiveConversationContext {
-            conversation_id,
-            is_cloud,
-        });
+        self.active_conversation_context = Some(ActiveConversationContext { conversation_id });
         if !self.active_block().finished() {
             if attach_to_terminal {
                 self.active_block_mut()
@@ -1608,9 +1597,8 @@ impl BlockList {
         &mut self,
         conversation_id: AIConversationId,
         is_inline: bool,
-        is_cloud: bool,
     ) {
-        self.set_active_conversation_context(conversation_id, is_cloud, is_inline);
+        self.set_active_conversation_context(conversation_id, is_inline);
         let scope = if is_inline {
             TranscriptScope::Terminal
         } else {

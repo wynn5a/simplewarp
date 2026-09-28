@@ -107,12 +107,6 @@ impl VerticalTabsPaneContextMenuTarget {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AutoCloudHandoffTrigger {
-    MacOsSleep,
-    Uri,
-}
-
 #[derive(Debug, Clone)]
 pub enum WorkspaceAction {
     ActivateTab(usize),
@@ -528,25 +522,6 @@ pub enum WorkspaceAction {
     },
     /// Insert the /fork slash command into the active terminal's input.
     InsertForkSlashCommand,
-    /// Open a local-to-cloud handoff pane next to the active conversation
-    /// (REMOTE-1486). Triggered by the `/move-to-cloud` slash command
-    /// and the footer chip of the same name. The dispatch site reads the
-    /// active conversation's `server_conversation_token` and gates on
-    /// `FeatureFlag::OzHandoff && FeatureFlag::HandoffLocalCloud`.
-    /// Falls through to splitting a fresh cloud-mode pane when the active
-    /// conversation isn't handoff-able (no synced server token, empty, or no
-    /// active conversation at all).
-    OpenLocalToCloudHandoffPane {
-        launch: Option<crate::ai::blocklist::handoff::PendingCloudLaunch>,
-        environment_id: Option<crate::server::ids::SyncId>,
-    },
-    /// Automatically hand off the active running local agent conversation in the
-    /// given terminal view to Cloud Mode.
-    AutoHandoffActiveAgentToCloud {
-        terminal_view_id: EntityId,
-        conversation_id: AIConversationId,
-        trigger: AutoCloudHandoffTrigger,
-    },
     /// Summarize the active AI conversation in the focused pane.
     SummarizeAIConversation {
         prompt: Option<String>,
@@ -928,8 +903,6 @@ impl WorkspaceAction {
             | TabConfigSidecarRemoveConfig { .. }
             | OpenSettingsFile
             | FixSettingsWithOz { .. }
-            | OpenLocalToCloudHandoffPane { .. }
-            | AutoHandoffActiveAgentToCloud { .. }
             | OpenNetworkLogPane => false,
             #[cfg(debug_assertions)]
             OpenFeatureIntroModal

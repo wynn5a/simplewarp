@@ -41,12 +41,6 @@ fn effective_base_model<'a>(profile: &AIExecutionProfile, app: &'a AppContext) -
         .unwrap_or_else(|| prefs.get_default_base_model(app))
 }
 
-/// Whether cloud agents may use computer use, from the user's preference.
-pub fn is_cloud_agent_computer_use_enabled(ctx: &AppContext) -> bool {
-    FeatureFlag::AgentModeComputerUse.is_enabled()
-        && *AISettings::as_ref(ctx).cloud_agent_computer_use_enabled
-}
-
 // Eval builds always use the hard-coded eval profile, so every caller of these helpers is
 // compiled out there (see `profiles::implicit_default_profile`).
 #[cfg(not(feature = "agent_mode_evals"))]

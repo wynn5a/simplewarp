@@ -38,7 +38,6 @@ use warpui::{
 };
 
 use crate::ai::AIRequestUsageModel;
-use crate::ai::blocklist::agent_view::is_in_cloud_context;
 use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
 use crate::ai::blocklist::usage::icon_for_context_window_usage;
@@ -893,10 +892,11 @@ impl AgentInputFooter {
     }
 
     fn sync_fast_forward_button(&self, ctx: &mut ViewContext<Self>) {
-        // In cloud agent conversations fast forward is force-enabled.
-        let terminal_model = self.terminal_model.lock();
-        let is_force_enabled = is_in_cloud_context(&terminal_model);
-        drop(terminal_model);
+        // Transcript viewers are read-only, so fast forward shows as force-enabled.
+        let is_force_enabled = self
+            .terminal_model
+            .lock()
+            .is_conversation_transcript_viewer();
 
         // Read directly from the conversation, same data source as the warping
         // indicator footer's auto-approve chip.

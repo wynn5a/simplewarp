@@ -36,7 +36,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | Rounds done through 4hq; the remaining remote-only residue (R2–R7, from the 4hp survey) is queued under Next |
+| 4 — Delete the dead cloud code and the TUI | Rounds done through 4hr; the remaining remote-only residue (R4–R7, from the 4hp survey) is queued under Next |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
@@ -80,17 +80,8 @@ Workspace is down to 63 packages (`cargo metadata`). Gone, in rough order:
 `.invalid` host is left in Rust. What still assumes a Warp service, in rough order:
 
 - ~~**R1 — cloud-agent OTLP tracing export**~~ — **4hq done (2026-09-29).**
-- **R2 — local-to-cloud handoff stubs** (~150 lines): `AUTO_CLOUD_HANDOFF_PROMPT`,
-  `LocalToCloudHandoffIntent`, the no-op `start_local_to_cloud_handoff*` /
-  `record_automatic_handoff_failed`, the never-dispatched `OpenLocalToCloudHandoffPane` /
-  `AutoHandoffActiveAgentToCloud` + `AutoCloudHandoffTrigger`, `ai/blocklist/handoff`,
-  `InputLockReason::CloudHandoffEnter/Exit`. Keep the serde `AgentToolbarItemKind::HandoffToCloud`,
-  `CancellationReason::AutomaticCloudHandoff` and the `DidAddHandoffChipToToolbar` key.
-- **R3 — dead cloud-agent context in the agent view** (~100 lines):
-  `AgentViewEntryOrigin::ThirdPartyCloudAgent` (never constructed) and the always-false `is_cloud`
-  on `ActiveConversationContext`; `Availability::NOT_CLOUD_AGENT` (always OR'd in, ~14 uses);
-  `ROOT_CLOUD_MODE_PANE_KEY` (never set); `app/src/ai/cloud_agent_config` (no importer);
-  `CloudAgentComputerUseWidget` / `ToggleCloudAgentComputerUse` (key kept).
+- ~~**R2 — local-to-cloud handoff stubs**~~ — **4hr done (2026-09-29).**
+- ~~**R3 — dead cloud-agent context in the agent view**~~ — **4hr done (2026-09-29).**
 - **R4 — always-logged-out `AuthState` walls** (`crates/warp_server_auth`, 511 lines, ~25 readers):
   `set_user` / `set_credentials` / `set_is_onboarded` have no production callers, so
   `is_anonymous_or_logged_out()` is always true, avatars/display names always `None`, `is_logged_in`
@@ -994,6 +985,32 @@ Queue, in order:
    `NoSubscriber` (so `tracing` never writes log lines), local logging via `warp_logging` is
    untouched, and the `tracing` spans/`instrument` attributes stay (inert, cheap). Tests 4,099 default /
    4,100 simplewarp (−4), 0 failed.
+
+29. ~~R2 + R3: cloud handoff and cloud-agent context residue~~ — **4hr done (2026-09-29).** −0.43k net
+   lines in 29 files. **R2:** the never-dispatched `OpenLocalToCloudHandoffPane` /
+   `AutoHandoffActiveAgentToCloud` actions + `AutoCloudHandoffTrigger`, `AUTO_CLOUD_HANDOFF_PROMPT`,
+   `LocalToCloudHandoffIntent`, the no-op `start_local_to_cloud_handoff{,_from_source}` /
+   `record_automatic_handoff_failed`, `Workspace::terminal_view` (its only caller),
+   `ai/blocklist/handoff` (`PendingCloudLaunch`, `HandoffLaunchAttachments`) and the
+   `ambient_agents::task::AttachmentInput` it alone used; `InputTypeAutoDetectionSource::CloudHandoffEnter/Exit`
+   (in-memory only, never constructed). **R3:** `AgentViewEntryOrigin::ThirdPartyCloudAgent` and
+   the likewise never-constructed `Tui`; `ActiveConversationContext::is_cloud`,
+   `BlockList::is_cloud_conversation_context` and the `is_cloud` params of
+   `enter/set_active_conversation_context`; `is_in_cloud_context` (its 4 callers now read
+   `is_conversation_transcript_viewer()` directly, which was the only live half);
+   `Availability::NOT_CLOUD_AGENT` (OR'd into every GUI availability, 12 command uses);
+   `ROOT_CLOUD_MODE_PANE_KEY` (never set); `app/src/ai/cloud_agent_config` and
+   `cloud_object_models::cloud_agent_config` (`AgentConfig` / `CloudAgentConfig`, no user);
+   `CloudAgentComputerUseWidget`, `ToggleCloudAgentComputerUse` and
+   `is_cloud_agent_computer_use_enabled`. **Kept:** `AgentToolbarItemKind::HandoffToCloud`,
+   `CancellationReason::AutomaticCloudHandoff`, the `DidAddHandoffChipToToolbar` and
+   `cloud_agent_computer_use_enabled` setting keys, `JsonObjectType::CloudAgentConfig`, and
+   `DefaultSessionMode::CloudAgent` — a persisted value already degraded to Terminal; now pinned by
+   `persisted_cloud_agent_default_session_mode_loads_and_falls_back_to_terminal`. No behavior
+   change. **Follow-ups:** `terminal/input/slash_commands/mod_tests.rs` is an orphan (no `mod`
+   includes it; its NOT_CLOUD_AGENT test was deleted anyway); `slash_commands/cloud_mode_v2_view.rs`
+   (1.2k lines, `CloudModeV2SlashCommandView`) has no importer outside its re-export — check next.
+   Tests 4,100 default / 4,101 simplewarp (+1), cloud_object_models 10, 0 failed.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
