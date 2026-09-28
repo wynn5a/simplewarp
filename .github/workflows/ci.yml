@@ -44,12 +44,8 @@ jobs:
     timeout-minutes: 3
     runs-on: ubuntu-latest
     # Don't automatically run CI for draft PRs, to reduce GitHub Actions costs.
-    #
-    # Also, don't run CI for repo-sync PRs _unless_ there is a merge conflict - for those,
-    # we'll want to make sure that the conflict resolution doesn't introduce any issues.
     if: >-
       github.event.pull_request.draft == false &&
-      (!startsWith(github.event.pull_request.head.ref, 'repo-sync/') || contains(github.event.pull_request.labels.*.name, 'repo-sync:conflict')) &&
       github.repository_owner == 'warpdotdev'
     outputs:
       affects-database-schema: ${{ github.ref == 'master' || steps.filter.outputs.affects-database-schema }}
@@ -80,17 +76,8 @@ jobs:
     name: Run ${{ matrix.name }} tests
     timeout-minutes: 25
     env:
-      # When CI runs on a PR from a fork, the GCP OIDC auth used by
-      # `google-github-actions/auth` fails because our Workload Identity
-      # Federation provider is configured to only trust the base repository.
-      # We skip the auth + gcloud install steps in those runs and exclude SSH
-      # integration tests (which require gcloud to tunnel into a GCP test VM)
-      # via the filter suffix below. Tests that need gcloud either have
-      # `_ssh_` in their name or exercise the remote-server SSH path. Fork PRs
-      # lose SSH integration test coverage; those tests still run post-merge
-      # against `master`.
-      HAS_GCP_AUTH: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-      EXCLUDE_SSH_TESTS_FILTER: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && ' and not test(/(_ssh_|remote_server)/)' || '' }}
+      # SSH integration tests tunnel into a GCP test VM that only Warp's CI can reach.
+      EXCLUDE_SSH_TESTS_FILTER: " and not test(/(_ssh_|remote_server)/)"
       EXCLUDE_REMOTE_SERVER_TESTS_FILTER: " and not test(/remote_server/)"
     strategy:
       fail-fast: false
@@ -119,11 +106,8 @@ jobs:
             extra_test_args: "--exclude command-signatures-v2 --exclude warp_js"
     runs-on: ${{ matrix.runner }}
     needs: params
-    # Make sure an ID token is created with the necessary permissions to use
-    # GCP's Workload Identity Federation (for service account authentication).
     permissions:
       contents: 'read'
-      id-token: 'write'
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
@@ -215,21 +199,6 @@ jobs:
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
 
-      - name: Set up gcloud authentication for SSH tests
-        # Skipped for fork PRs - see HAS_GCP_AUTH definition above.
-        if: env.HAS_GCP_AUTH == 'true'
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: projects/63595664881/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-          service_account: github-ci-workflow@warp-ssh-integration-testing.iam.gserviceaccount.com
-
-      - name: Install gcloud CLI tool
-        # Skipped for fork PRs - see HAS_GCP_AUTH definition above.
-        if: env.HAS_GCP_AUTH == 'true'
-        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-        with:
-          version: '>= 397.0.0'
-
       - name: Install vim for richer alt-screen tests
         if: ${{ matrix.is_self_hosted == false }}
         uses: ConorMacBride/install-package@3e7ad059e07782ee54fa35f827df52aae0626f30 # v1
@@ -256,20 +225,6 @@ jobs:
           # and tends to be the most reliable.
           WARP_SHELL_PATH: ${{ steps.echo_default_shell.outputs.default_shell_path }}
 
-      - name: Upload results of unit tests to trunk.io
-        # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        uses: trunk-io/analytics-uploader@385f1ccdf345b4532dc4b6c665dd432b702b8e28 # v2.1.2
-        with:
-          junit-paths: target/nextest/ci/junit.xml
-          cli-version: 0.12.5
-          org-slug: warp
-          token: ${{ secrets.TRUNK_API_TOKEN }}
-          tags: type=unit
-          variant: ${{ matrix.os }}
-          use-cache: true
-
       - name: Run shell-agnostic integration tests
         # Run this step even if a previous test step fails
         if: matrix.os != 'windows' && (success() || failure())
@@ -281,20 +236,6 @@ jobs:
           # bootstrap times and tends to be the most reliable.
           WARP_SHELL_PATH: ${{ steps.echo_shells_unix.outputs.zsh_path }}
 
-      - name: Upload results of shell-agnostic integration tests to trunk.io
-        # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
-        continue-on-error: true
-        uses: trunk-io/analytics-uploader@385f1ccdf345b4532dc4b6c665dd432b702b8e28 # v2.1.2
-        with:
-          junit-paths: target/nextest/ci/junit.xml
-          cli-version: 0.12.5
-          org-slug: warp
-          token: ${{ secrets.TRUNK_API_TOKEN }}
-          tags: type=integration,category=shell-agnostic
-          variant: ${{ matrix.os }}
-          use-cache: true
-
       - name: Run shell integration tests against default version of bash
         # Run this step even if a previous test step fails
         if: matrix.os != 'windows' && (success() || failure())
@@ -303,20 +244,6 @@ jobs:
           run: cargo nextest run ${{ env.WORKSPACE_TEST_ARGS }} ${{ matrix.extra_test_args }} -E "package(integration) and test(shell_integration_tests)${{ env.EXCLUDE_SSH_TESTS_FILTER }}${{ env.EXCLUDE_REMOTE_SERVER_TESTS_FILTER }}"
         env:
           WARP_SHELL_PATH: ${{ steps.echo_shells_unix.outputs.default_bash_path }}
-
-      - name: Upload results of shell integration tests against default version of bash to trunk.io
-        # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
-        continue-on-error: true
-        uses: trunk-io/analytics-uploader@385f1ccdf345b4532dc4b6c665dd432b702b8e28 # v2.1.2
-        with:
-          junit-paths: target/nextest/ci/junit.xml
-          cli-version: 0.12.5
-          org-slug: warp
-          token: ${{ secrets.TRUNK_API_TOKEN }}
-          tags: type=integration,category=bash-default
-          variant: ${{ matrix.os }}
-          use-cache: true
 
       - name: Run shell integration tests against latest version of bash
         # Run this step even if a previous test step fails.
@@ -330,20 +257,6 @@ jobs:
         env:
           WARP_SHELL_PATH: ${{ steps.echo_shells_unix.outputs.latest_bash_path }}
 
-      - name: Upload results of shell integration tests against latest version of bash to trunk.io
-        # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
-        continue-on-error: true
-        uses: trunk-io/analytics-uploader@385f1ccdf345b4532dc4b6c665dd432b702b8e28 # v2.1.2
-        with:
-          junit-paths: target/nextest/ci/junit.xml
-          cli-version: 0.12.5
-          org-slug: warp
-          token: ${{ secrets.TRUNK_API_TOKEN }}
-          tags: type=integration,category=bash-latest
-          variant: ${{ matrix.os }}
-          use-cache: true
-
       - name: Run shell integration tests against fish
         # Run this step even if a previous test step fails
         if: matrix.os != 'windows' && (success() || failure())
@@ -352,20 +265,6 @@ jobs:
           run: cargo nextest run ${{ env.WORKSPACE_TEST_ARGS }} ${{ matrix.extra_test_args }} -E "package(integration) and test(shell_integration_tests)${{ env.EXCLUDE_SSH_TESTS_FILTER }}${{ env.EXCLUDE_REMOTE_SERVER_TESTS_FILTER }}"
         env:
           WARP_SHELL_PATH: ${{ steps.echo_shells_unix.outputs.fish_path }}
-
-      - name: Upload results of shell integration tests against fish to trunk.io
-        # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
-        continue-on-error: true
-        uses: trunk-io/analytics-uploader@385f1ccdf345b4532dc4b6c665dd432b702b8e28 # v2.1.2
-        with:
-          junit-paths: target/nextest/ci/junit.xml
-          cli-version: 0.12.5
-          org-slug: warp
-          token: ${{ secrets.TRUNK_API_TOKEN }}
-          tags: type=integration,category=fish
-          variant: ${{ matrix.os }}
-          use-cache: true
 
       - name: Run shell integration tests against zsh
         # Run this step even if a previous test step fails
@@ -376,20 +275,6 @@ jobs:
         env:
           WARP_SHELL_PATH: ${{ steps.echo_shells_unix.outputs.zsh_path }}
 
-      - name: Upload results of shell integration tests against zsh to trunk.io
-        # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
-        continue-on-error: true
-        uses: trunk-io/analytics-uploader@385f1ccdf345b4532dc4b6c665dd432b702b8e28 # v2.1.2
-        with:
-          junit-paths: target/nextest/ci/junit.xml
-          cli-version: 0.12.5
-          org-slug: warp
-          token: ${{ secrets.TRUNK_API_TOKEN }}
-          tags: type=integration,category=zsh
-          variant: ${{ matrix.os }}
-          use-cache: true
-
       - name: Run shell integration tests against powershell
         # Run this step even if a previous test step fails
         if: matrix.os != 'windows' && (success() || failure())
@@ -398,20 +283,6 @@ jobs:
           run: cargo nextest run ${{ env.WORKSPACE_TEST_ARGS }} ${{ matrix.extra_test_args }} -E "package(integration) and test(shell_integration_tests)${{ env.EXCLUDE_SSH_TESTS_FILTER }}${{ env.EXCLUDE_REMOTE_SERVER_TESTS_FILTER }}"
         env:
           WARP_SHELL_PATH: ${{ steps.echo_shells_unix.outputs.powershell_path }}
-
-      - name: Upload results of shell integration tests against powershell to trunk.io
-        # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
-        continue-on-error: true
-        uses: trunk-io/analytics-uploader@385f1ccdf345b4532dc4b6c665dd432b702b8e28 # v2.1.2
-        with:
-          junit-paths: target/nextest/ci/junit.xml
-          cli-version: 0.12.5
-          org-slug: warp
-          token: ${{ secrets.TRUNK_API_TOKEN }}
-          tags: type=integration,category=powershell
-          variant: ${{ matrix.os }}
-          use-cache: true
 
       # Run doctests explicitly, as nextest doesn't yet support running them.
       # See: https://github.com/nextest-rs/nextest/issues/16
@@ -582,9 +453,6 @@ jobs:
         run: ./script/lint_powershell -ci
         shell: pwsh
 
-      - name: Validate repo-sync markers
-        uses: warpdotdev/repo-sync/actions/validate-markers@main
-
       - name: Check for incorrectly named test files
         run: |
           # Test files should end in _tests.rs, not _test.rs.
@@ -645,32 +513,6 @@ jobs:
           # don't get rate limited during compilation.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # The agent-mode-evals repo (warpdotdev/agent-mode-evals) depends on this repo
-  # with the `agent_mode_evals` feature enabled. That feature is not part of any
-  # other CI job's feature set, so code behind `cfg(feature = "agent_mode_evals")`
-  # can silently stop compiling until the eval repo bumps its pinned warp rev.
-  # This job compiles that configuration to catch breakage in the PR that causes it.
-  check-eval-compilation:
-    name: Verify compilation with eval features
-    timeout-minutes: 25
-    # Match the platform used by agent-mode-evals CI.
-    runs-on: ubuntu-latest-large
-    needs: params
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - uses: ./.github/actions/prepare_environment
-        with:
-          target_os: linux
-          is_self_hosted: false
-
-      - name: Verify compilation with the agent_mode_evals feature
-        run: cargo check --locked -p warp --lib --features agent_mode_evals
-        env:
-          # Attach the GitHub auth token so that requests to the GitHub API
-          # don't get rate limited during compilation.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   # A final job that collects the results of all of the parallel CI jobs and
   # makes sure that all of them pass.
   #
@@ -691,7 +533,6 @@ jobs:
       - lints
       - general-lint
       - check-release-compilation
-      - check-eval-compilation
     steps:
       - name: Check CI results
         run: |

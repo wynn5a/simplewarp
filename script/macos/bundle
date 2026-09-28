@@ -212,8 +212,7 @@ UNIVERSAL_BINARY=true
 BUILD_BINARY=true
 TARGET_ARCH=""
 DMG_NAME_SUFFIX=""
-# By default we build dev bundles.
-RELEASE_CHANNEL="dev"
+RELEASE_CHANNEL="oss"
 FEATURES="release_bundle,extern_plist"
 REGISTER_SERVICES=true
 DEBUG=false
@@ -299,7 +298,7 @@ while (( "$#" )); do
       OPEN_AFTER_BUNDLE=true
       shift
       ;;
-    # Specify the release channel (local, dev, preview, stable, oss)
+    # Specify the release channel (only oss is buildable)
     -c|--channel)
       if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
         RELEASE_CHANNEL=$2
@@ -361,17 +360,6 @@ eval set -- "$PARAMS"
 # Infer a cargo profile from the bundle configuration.
 if [[ $DEBUG = true ]]; then
   CARGO_PROFILE="dev"
-elif [[ $RELEASE_CHANNEL = "local" || $RELEASE_CHANNEL = "dev" ]]; then
-  # For dev bundles, we want to enable debug assertions to
-  # catch violations that would otherwise silently pass in
-  # a normal release build (e.g. in stable).
-  if [[ "$ARTIFACT" == "tui" ]]; then
-    CARGO_PROFILE="release-tui-debug-assertions"
-  elif [[ "$ARTIFACT" == "cli" ]]; then
-    CARGO_PROFILE="release-cli-debug_assertions"
-  else
-    CARGO_PROFILE="release-lto-debug_assertions"
-  fi
 else
   if [[ "$ARTIFACT" == "tui" ]]; then
     CARGO_PROFILE="release-tui"
@@ -387,41 +375,14 @@ if [[ "$CARGO_PROFILE" == "dev" ]]; then
   TARGET_PROFILE_DIR="debug"
 fi
 
-if [[ $RELEASE_CHANNEL = "local" ]]; then
-    WARP_BIN="warp"
-    BUNDLE_ID="dev.warp.Warp-Local"
-    WARP_APP_NAME="WarpLocal"
-    WARP_SCHEME_NAME="warplocal"
-    FEATURES="$FEATURES,agent_mode_debug"
-elif [[ $RELEASE_CHANNEL = "dev" ]]; then
-    WARP_BIN="dev"
-    BUNDLE_ID="dev.warp.Warp-Dev"
-    WARP_APP_NAME="WarpDev"
-    WARP_SCHEME_NAME="warpdev"
-    FEATURES="$FEATURES,agent_mode_debug"
-    # Enable heap usage tracking & profiling using jemalloc through pprof.
-    FEATURES="$FEATURES,jemalloc_pprof,heap_usage_tracking"
-    export HANDLE_MARKDOWN=1
-elif [[ $RELEASE_CHANNEL = "preview" ]]; then
-    WARP_BIN="preview"
-    BUNDLE_ID="dev.warp.Warp-Preview"
-    WARP_APP_NAME="WarpPreview"
-    WARP_SCHEME_NAME="warppreview"
-    FEATURES="$FEATURES,preview_channel"
-    # Enable heap usage tracking & profiling using jemalloc through pprof.
-    FEATURES="$FEATURES,jemalloc_pprof,heap_usage_tracking"
-elif [[ $RELEASE_CHANNEL = "stable" ]]; then
-    WARP_BIN="stable"
-    BUNDLE_ID="dev.warp.Warp-Stable"
-    WARP_APP_NAME="Warp"
-    WARP_SCHEME_NAME="warp"
-    # Enable heap usage tracking & profiling using jemalloc through pprof.
-    FEATURES="$FEATURES,jemalloc_pprof,heap_usage_tracking"
-elif [[ $RELEASE_CHANNEL = "oss" ]]; then
+if [[ $RELEASE_CHANNEL = "oss" ]]; then
     WARP_BIN="warp-oss"
     BUNDLE_ID="dev.warp.WarpOss"
     WARP_APP_NAME="WarpOss"
     WARP_SCHEME_NAME="warposs"
+else
+    echo "Error: unsupported release channel '$RELEASE_CHANNEL' (only oss is buildable)" >&2
+    exit 1
 fi
 
 OUT_DIR="target/$TARGET_PROFILE_DIR/bundle/osx"
@@ -656,15 +617,8 @@ if [[ "$ARTIFACT" == "app" ]]; then
     "$WORKSPACE_ROOT_DIR/script/prepare_bundled_pprof" "$HELPERS_DIR"
   fi
 
-  # Determine CLI wrapper script path based on release channel.  Each channel's
-  # value here must match `Channel::cli_command_name` in the Rust source.
-  if [[ $RELEASE_CHANNEL = "stable" ]]; then
-    CLI_SCRIPT_PATH="$BUNDLED_RESOURCES_DIR/bin/oz"
-  elif [[ $RELEASE_CHANNEL = "oss" ]]; then
-    CLI_SCRIPT_PATH="$BUNDLED_RESOURCES_DIR/bin/warp-oss"
-  else
-    CLI_SCRIPT_PATH="$BUNDLED_RESOURCES_DIR/bin/oz-$RELEASE_CHANNEL"
-  fi
+  # Must match `Channel::cli_command_name` in the Rust source.
+  CLI_SCRIPT_PATH="$BUNDLED_RESOURCES_DIR/bin/warp-oss"
 
   echo "Creating Resources/bin directory and CLI wrapper script..."
   mkdir -p "$BUNDLED_RESOURCES_DIR/bin"

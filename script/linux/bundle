@@ -17,8 +17,7 @@ cleanup() {
 # Run cleanup() when the script terminates (whether it succeeded or failed).
 trap cleanup EXIT
 
-# By default we build dev bundles.
-RELEASE_CHANNEL="dev"
+RELEASE_CHANNEL="oss"
 FEATURES="release_bundle"
 EXTRA_FEATURES=""
 PACKAGES=( appimage )
@@ -159,15 +158,6 @@ DIST_DIR="$CARGO_TARGET_OUTPUT_ROOT/dist"
 
 if [[ $DEBUG = true ]]; then
   CARGO_PROFILE="dev"
-elif [[ $RELEASE_CHANNEL = "local" || $RELEASE_CHANNEL = "dev" ]]; then
-  # For dev bundles, we want to enable debug assertions to
-  # catch violations that would otherwise silently pass in
-  # a normal release build (e.g. in stable).
-  if [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "tui" ]]; then
-    CARGO_PROFILE="release-cli-debug_assertions"
-  else
-    CARGO_PROFILE="release-lto-debug_assertions"
-  fi
 else
   if [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "tui" ]]; then
     CARGO_PROFILE="release-cli"
@@ -181,9 +171,6 @@ if [[ "$CARGO_PROFILE" == "dev" ]]; then
 else
   CARGO_TARGET_OUTPUT_DIR="$CARGO_TARGET_OUTPUT_ROOT/$CARGO_PROFILE"
 fi
-# NOTE: if you change this path, update the "Clean stale bundle output"
-# steps in .github/workflows/create_release.yml so they continue to wipe
-# stale packages left in the shared Namespace runner cache.
 OUT_DIR="$CARGO_TARGET_OUTPUT_DIR/bundle/linux"
 mkdir -p "$OUT_DIR"
 
@@ -194,46 +181,17 @@ mkdir -p "$OUT_DIR"
 #
 # WARP_BIN is the name of the binary produced by cargo;
 # BINARY_NAME is the desired name of the binary in the final package.
-if [[ $RELEASE_CHANNEL = "local" ]]; then
-  WARP_BIN="warp"
-  BINARY_NAME="warp-local"
-  APP_NAME="WarpLocal"
-  FEATURES="$FEATURES,agent_mode_debug"
-  export HANDLE_MARKDOWN=1
-elif [[ $RELEASE_CHANNEL = "dev" ]]; then
-  WARP_BIN="dev"
-  BINARY_NAME="warp-dev"
-  APP_NAME="WarpDev"
-  FEATURES="$FEATURES,agent_mode_debug"
-  # Enable heap usage tracking & profiling using jemalloc through pprof.
-  FEATURES="$FEATURES,jemalloc_pprof,heap_usage_tracking"
-  export HANDLE_MARKDOWN=1
-elif [[ $RELEASE_CHANNEL = "preview" ]]; then
-  WARP_BIN="preview"
-  BINARY_NAME="warp-preview"
-  APP_NAME="WarpPreview"
-  FEATURES="$FEATURES,preview_channel"
-  # Enable heap usage tracking & profiling using jemalloc through pprof.
-  FEATURES="$FEATURES,jemalloc_pprof,heap_usage_tracking"
-elif [[ $RELEASE_CHANNEL = "stable" ]]; then
-  WARP_BIN="stable"
-  BINARY_NAME="warp"
-  APP_NAME="Warp"
-elif [[ $RELEASE_CHANNEL = "oss" ]]; then
+if [[ $RELEASE_CHANNEL = "oss" ]]; then
   WARP_BIN="warp-oss"
   BINARY_NAME="warp-oss"
   APP_NAME="WarpOss"
+else
+  echo "Error: unsupported release channel '$RELEASE_CHANNEL' (only oss is buildable)" >&2
+  exit 1
 fi
 
 # Artifact-specific binary naming
-if [[ "$ARTIFACT" == "cli" ]]; then
-  # For CLI artifacts, use oz instead of warp as the binary name.  The OSS
-  # channel is an exception: its CLI command name is `warp-oss`, matching
-  # `Channel::cli_command_name` in the Rust source.
-  if [[ $RELEASE_CHANNEL != "oss" ]]; then
-    BINARY_NAME="${BINARY_NAME/warp/oz}"
-  fi
-elif [[ "$ARTIFACT" == "tui" ]]; then
+if [[ "$ARTIFACT" == "tui" ]]; then
   case "$RELEASE_CHANNEL" in
     local) WARP_BIN="warp-tui" ;;
     oss) WARP_BIN="warp-tui-oss" ;;
@@ -295,21 +253,13 @@ if [[ "$BUILD" == "true" ]]; then
   cp "$EXECUTABLE_PATH" "$DEBUG_EXECUTABLE_PATH"
 
   echo "Stripping debug symbols from '$EXECUTABLE_PATH'"
-  if [[ $RELEASE_CHANNEL = "dev" ]]; then
-    # For dev builds, only strip debug symbols, as we want to keep some
-    # symbols for profiling purposes.
-    "${WARP_MUSL_STRIP:-strip}" --strip-debug "$EXECUTABLE_PATH"
-  else
-    # For production builds, strip all symbols, to keep the binary size
-    # smaller.
-    "${WARP_MUSL_STRIP:-strip}" --strip-all "$EXECUTABLE_PATH"
-  fi
+  "${WARP_MUSL_STRIP:-strip}" --strip-all "$EXECUTABLE_PATH"
 else
   echo 'Skipping `cargo build` step due to --skip-build argument'
 fi
 
 BINARY_PATH="$EXECUTABLE_PATH"
-elif [[ "$ARTIFACT" == "tui" ]]; then
+if [[ "$ARTIFACT" == "tui" ]]; then
   echo "Copying TUI binary into $OUT_DIR/$WARP_BIN"
   cp "$EXECUTABLE_PATH" "$OUT_DIR/$WARP_BIN"
   BINARY_PATH="$OUT_DIR/$WARP_BIN"

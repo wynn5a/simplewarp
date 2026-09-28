@@ -136,62 +136,7 @@ fn main() -> Result<()> {
         embed_resource_file(&target_dir);
     }
 
-    generate_channel_config_if_needed(&target_os);
-
     Ok(())
-}
-
-/// If `warp-channel-config` is available on PATH and the `release_bundle` feature is enabled,
-/// invoke the config generator binary and write the JSON output to `OUT_DIR` so it can be
-/// embedded via `include_str!` in the binary entry points.
-fn generate_channel_config_if_needed(target_os: &str) {
-    if env::var("CARGO_FEATURE_RELEASE_BUNDLE").is_err() {
-        // For non-bundled builds, config is loaded at runtime — nothing to embed.
-        return;
-    }
-
-    let config_bin = "warp-channel-config";
-
-    // Check if the config binary is available on PATH. If not, we can't generate embedded
-    // configs. This is expected for external contributors building Warp OSS.
-    if Command::new(config_bin)
-        .arg("--help")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_err()
-    {
-        return;
-    }
-
-    let out_dir = env::var("OUT_DIR").expect("OUT_DIR must be set");
-
-    // Generate config for all internal channels. The build script runs once per crate (not
-    // once per binary), so we generate all configs here and each binary's include_str! picks
-    // up its own file.
-    for channel in ["local", "dev", "stable", "preview"] {
-        let output = Command::new(config_bin)
-            .arg("--channel")
-            .arg(channel)
-            .arg("--target-family")
-            .arg("native")
-            .arg("--target-os")
-            .arg(target_os)
-            .output()
-            .unwrap_or_else(|err| {
-                panic!("Failed to execute config generator at '{config_bin}': {err}")
-            });
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            panic!("Config generator failed for channel '{channel}':\n{stderr}");
-        }
-
-        let config_path = Path::new(&out_dir).join(format!("{channel}_config.json"));
-        fs::write(&config_path, &output.stdout).unwrap_or_else(|err| {
-            panic!("Failed to write config to {}: {err}", config_path.display())
-        });
-    }
 }
 
 fn get_build_profile_name() -> String {

@@ -14,10 +14,6 @@ if [ "${GITHUB_ACTIONS}" != "true" ]; then
     cargo binstall --force -y diesel_cli
 fi
 
-# Install the internal channel config binary. This will fail gracefully for
-# external contributors who don't have access to the private configuration.
-"$PWD"/script/install_channel_config || echo "Skipping internal channel config installation (no repo access)."
-
 if [ "$(uname -s)" = "Darwin" ]; then
     "$PWD"/script/macos/install_build_deps
 fi

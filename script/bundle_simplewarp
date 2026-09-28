@@ -4,9 +4,9 @@
 # minimal .app (so it gets a Dock icon and can be Finder-launched), and compiles
 # in the real Warp icon.
 #
-# This deliberately does NOT use script/bundle: that pipeline needs the private
-# warp-channel-config repo (no SSH access in this fork) plus GCP-secret-backed
-# notarization credentials SimpleWarp doesn't have or need for local use.
+# This deliberately does NOT use script/bundle: that pipeline expects
+# GCP-secret-backed notarization credentials SimpleWarp doesn't have or need for
+# local use.
 #
 # Usage: script/bundle_simplewarp [--debug]
 

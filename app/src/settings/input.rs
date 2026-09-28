@@ -195,10 +195,9 @@ impl InputSettings {
             **stored_input_type_value
         } else {
             // User hasn't set it explicitly, use our computed default.
-            // If the user is in Preview or isn't using PS1, default to UDI.
+            // If the user isn't using PS1, default to UDI.
             // TODO(CORE-3752): migrate unit and integration tests to pass with UDI instead of Classic
-            let should_default_to_universal = (cfg!(feature = "preview_channel")
-                || !*SessionSettings::as_ref(app).honor_ps1.value())
+            let should_default_to_universal = !*SessionSettings::as_ref(app).honor_ps1.value()
                 && !cfg!(feature = "integration_tests")
                 && !cfg!(test);
 

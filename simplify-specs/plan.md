@@ -46,7 +46,7 @@ actor crate; local-capable, but the local adapter does not offer the tools).
 
 ## Phase 4 progress
 
-Workspace is down to 68 crates. Gone, in rough order:
+Workspace is down to 63 packages (`cargo metadata`). Gone, in rough order:
 
 - **TUI** (1–1c): the front-end, its rendering engine, `ratatui`, every surface marker (~120k lines).
 - **Server-only features** (2–3aa): billing, experiments, referrals, resource center, changelog,
@@ -756,6 +756,43 @@ Queue, in order:
    selections map) could go with its 25 tests; `ActiveAgentViewsModel` ambient sessions
    (registered from transcript-viewer / details-panel task ids); `EditOrigin::RemoteEdit` (only
    the test-only intake emits it).
+
+23. ~~Warp-internal channel bins, `warp_channel_config`, Warp-infra CI~~ — **4hl done (2026-09-28).**
+   −4.6k lines in 55 files. The `dev` / `warp` (local.rs) / `preview` / `stable` bins loaded their
+   `ChannelConfig` from `warp-channel-config`, a generator `cargo install`ed from the private
+   `warpdotdev/warp-channel-config` repo over SSH (or embedded by `app/build.rs` from it in
+   `release_bundle` builds); without it they panicked at startup. Gone with them: the
+   `warp_channel_config` crate, `app/build.rs` `generate_channel_config_if_needed`,
+   `script/install_channel_config` (+ calls in `script/run`, `install_cargo_build_deps`, the
+   `prepare_environment` CI action and its SSH-key step/input), their `[[bin]]` /
+   `[package.metadata.bundle.bin.*]` entries, the `preview_channel` feature (its only cfg reader,
+   the UDI default in `settings/input.rs`, folds to the non-preview branch), `LOCAL_FLAGS` + its
+   warp_features test (`LocalClaudeCodexChildHarnesses` stays: still enabled by its cargo feature).
+   `cargo run` already defaulted to `warp-oss` (`default-run`); `script/run` / `script/macos/run`
+   now always build `warp-oss` (`WarpOss.app`, `~/Library/Logs/warp-oss.log`); the dead `--host-id`
+   flag (`WARP_CLOUD_MODE_DEFAULT_HOST`, no reader) is gone. Bundle scripts
+   (`script/{macos,linux}/bundle`, `windows/bundle.ps1`) default to and only accept `--channel oss`;
+   `script/linux/bundle` also had a syntax error left by 4bp (dangling `elif`), fixed. CI: deleted the
+   Warp-infra-only workflows (`create_release` GCS/notarization/channel-config releases,
+   `cut_new_release*` / `delete_release` (channel-versions repo), `changelog_draft`,
+   `feature_flag_cleanup`, `update-*-local`, `docubot_reply_to_comment`, `close_stale_fix_prs`,
+   `warp_cleanup_fix_prs` (Oz agent / Warp API key), `repo-sync`, `sync-pr-checks`,
+   `populate_build_cache`, `publish-agent-dev-image` + `script/push-dev-image` + `docker/agent-dev`
+   (warp-internal-dev image), `notify-docs-settings-changed`), their actions (`get_channel_config`,
+   `docubot`, `bundle_arch_package`), `release_configurations.json` + README,
+   `script/create_release_tag_and_branch`. `ci.yml` kept (fmt/clippy/tests/release-check) minus
+   the gcloud SSH-test auth (SSH tests always excluded now), trunk.io uploads, repo-sync marker
+   check and the agent-mode-evals job. `.vscode` launch/tasks point at `warp-oss`. **Kept:** the
+   `Channel::{Stable,Preview,Dev,Local}` variants (paths / URL schemes / ports / icon names still
+   match on them; nothing constructs them now), `app/channels/*` icons (`bundle_simplewarp` uses
+   `stable`'s), `check_approvals` / `label_external_contributors` / `stale_requested_changes_prs`
+   (plain GitHub bots). Tests 4,127 default / 4,128 simplewarp (unchanged), warp_features +
+   warp_core 43 passed, 0 failed.
+   Follow-ups: collapse `Channel` to `Oss` / `Integration` (paths, `http_server` ports,
+   completer channel list, `preview_config_migration`, `is_dogfood`, app-icon names); the stale TUI /
+   CLI artifact paths and Warp notarization/GCP-secret signing in the bundle scripts and
+   installers; `ci.yml` is still gated on `repository_owner == 'warpdotdev'` and Warp's
+   Namespace / large runners, so it never runs on this fork.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

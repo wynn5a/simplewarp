@@ -5,10 +5,9 @@
 # like a real signed app (custom URL schemes, user notifications, etc.).
 #
 # This script is invoked by `./script/run`, which handles cross-platform
-# setup (install_channel_config, binary name detection, feature-to-env-var
-# mapping). The following env vars are expected to be set by the caller:
-#   WARP_BIN_NAME  — "warp" (internal local build) or "warp-oss"
-#   WARP_CHANNEL   — "local" or "oss"
+# setup. The following env vars are expected to be set by the caller:
+#   WARP_BIN_NAME  — "warp-oss"
+#   WARP_CHANNEL   — "oss"
 #   FEATURES       — comma-separated cargo features (already normalized)
 # Must be called from the root directory of the warp repo.
 
@@ -29,13 +28,8 @@ if [ -z "$TARGET_DIR" ] || [ "$TARGET_DIR" = "null" ]; then
     TARGET_DIR="${REPO_ROOT}/target"
 fi
 
-if [ "$WARP_CHANNEL" = "local" ]; then
-    WARP_APP_PATH="${TARGET_DIR}/debug/bundle/osx/WarpLocal.app"
-    WARP_SCHEME_NAME="warplocal"
-else
-    WARP_APP_PATH="${TARGET_DIR}/debug/bundle/osx/WarpOss.app"
-    WARP_SCHEME_NAME="warposs"
-fi
+WARP_APP_PATH="${TARGET_DIR}/debug/bundle/osx/WarpOss.app"
+WARP_SCHEME_NAME="warposs"
 DONT_OPEN=false
 # Launches the binary with "open", meaning the Warp process is
 # launched by the MacOS application launcher instead of a shell session.
@@ -63,22 +57,14 @@ while (( "$#" )); do
       ;;
     --release)
       echo "Detected release build, pointing at release bundle under ${TARGET_DIR}/release/bundle"
-      if [ "$WARP_CHANNEL" = "local" ]; then
-          WARP_APP_PATH="${TARGET_DIR}/release/bundle/osx/WarpLocal.app"
-      else
-          WARP_APP_PATH="${TARGET_DIR}/release/bundle/osx/WarpOss.app"
-      fi
+      WARP_APP_PATH="${TARGET_DIR}/release/bundle/osx/WarpOss.app"
       PARAMS="$PARAMS $1"
       shift
       ;;
     --profile)
       PROFILE="$2"
       shift 2
-      if [ "$WARP_CHANNEL" = "local" ]; then
-          WARP_APP_PATH="${TARGET_DIR}/${PROFILE}/bundle/osx/WarpLocal.app"
-      else
-          WARP_APP_PATH="${TARGET_DIR}/${PROFILE}/bundle/osx/WarpOss.app"
-      fi
+      WARP_APP_PATH="${TARGET_DIR}/${PROFILE}/bundle/osx/WarpOss.app"
       PARAMS="$PARAMS --profile $PROFILE"
       ;;
     --open_with_launchd)
@@ -132,15 +118,7 @@ if [ "$DONT_OPEN" = false ] ; then
     if  [ "$OPEN_WITH_LAUNCHD" = true ]; then
         echo "Launching with MacOS application launcher"
         PATH="" /usr/bin/open "$WARP_APP_PATH"
-        if [ "$WARP_CHANNEL" = "local" ]; then
-            LOG_FILE=~/Library/Logs/warp_local.log
-        elif [ "$WARP_CHANNEL" = "oss" ]; then
-            LOG_FILE=~/Library/Logs/warp-oss.log
-        else
-            echo "Warning: unrecognized WARP_CHANNEL '$WARP_CHANNEL', defaulting to OSS log path" >&2
-            LOG_FILE=~/Library/Logs/warp-oss.log
-        fi
-        tail -F "$LOG_FILE"
+        tail -F ~/Library/Logs/warp-oss.log
     else
         echo "Opening app at $WARP_APP_PATH/Contents/MacOS/$WARP_BIN_NAME"
         "$WARP_APP_PATH/Contents/MacOS/$WARP_BIN_NAME" "${WARP_ARGS[@]}"
