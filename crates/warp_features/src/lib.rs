@@ -464,7 +464,7 @@ pub enum FeatureFlag {
     /// Gates the unified orchestration child-tracking stack: a single
     /// `OrchestrationChildTracker` as the sole entry point for child state,
     /// one `include_self` ancestor SSE per parent family, and a single
-    /// `is_remote_child` placeholder flavor for both owner and viewer.
+    /// remote-child placeholder flavor for both owner and viewer.
     OrchestrationUnifiedStack,
 
     /// Shows a pending user query indicator during summarization when a follow-up

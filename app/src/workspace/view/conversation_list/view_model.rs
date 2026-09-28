@@ -3,8 +3,8 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::ai::agent_conversations_model::{
     AgentConversationEntry, AgentConversationEntryId, AgentConversationsModel,
-    AgentConversationsModelEvent, AgentManagementFilters, ArtifactFilter, ConversationUpdateKind,
-    CreatedOnFilter, CreatorFilter, OwnerFilter, SourceFilter, StatusFilter,
+    AgentConversationsModelEvent, AgentManagementFilters, ConversationUpdateKind, CreatedOnFilter,
+    CreatorFilter, OwnerFilter, SourceFilter, StatusFilter,
 };
 
 pub struct ConversationListViewModelEvent;
@@ -82,7 +82,6 @@ impl ConversationListViewModel {
                     source: SourceFilter::All,
                     created_on: CreatedOnFilter::All,
                     creator: CreatorFilter::All,
-                    artifact: ArtifactFilter::All,
                     environment: Default::default(),
                     harness: Default::default(),
                 },

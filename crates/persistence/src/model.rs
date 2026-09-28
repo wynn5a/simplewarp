@@ -1083,10 +1083,6 @@ pub struct AgentConversationData {
     /// The local conversation ID of the parent conversation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_conversation_id: Option<String>,
-    /// True when this conversation is a parent-side placeholder for a child
-    /// agent executing on a remote worker.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub is_remote_child: bool,
     /// Legacy marker that previously recorded whether the root task was still
     /// optimistic when this conversation was persisted. Retained on the struct
     /// for backward-compatible deserialization of rows written by older builds;

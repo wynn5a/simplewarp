@@ -1,5 +1,3 @@
-#![allow(warnings)]
-
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
@@ -208,6 +206,7 @@ impl AIDocumentModel {
     }
 
     /// Create a document from an existing notebook.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_document_from_notebook(
         &mut self,
         ai_document_id: AIDocumentId,
@@ -234,6 +233,7 @@ impl AIDocumentModel {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn create_document_internal(
         &mut self,
         id: AIDocumentId,
@@ -284,6 +284,7 @@ impl AIDocumentModel {
     ///
     /// This is keyed by (conversation_id, action_id, document_index) so that streaming updates
     /// for the same tool call map to the same document.
+    #[allow(clippy::too_many_arguments)]
     pub fn get_or_create_streaming_document_for_create_documents(
         &mut self,
         conversation_id: AIConversationId,
@@ -369,9 +370,7 @@ impl AIDocumentModel {
     ) {
         self.streaming_create_documents
             .retain(|(conv_id, act_id, _), _| conv_id != conversation_id || act_id != action_id);
-        ctx.emit(AIDocumentModelEvent::StreamingDocumentsCleared(
-            *conversation_id,
-        ));
+        ctx.emit(AIDocumentModelEvent::StreamingDocumentsCleared);
     }
 
     pub fn clear_streaming_documents_for_conversation(
@@ -381,20 +380,12 @@ impl AIDocumentModel {
     ) {
         self.streaming_create_documents
             .retain(|(conv_id, _, _), _| conv_id != conversation_id);
-        ctx.emit(AIDocumentModelEvent::StreamingDocumentsCleared(
-            *conversation_id,
-        ));
+        ctx.emit(AIDocumentModelEvent::StreamingDocumentsCleared);
     }
 
     /// Get a copy of the current document by id.
     pub fn get_current_document(&self, id: &AIDocumentId) -> Option<AIDocument> {
         self.documents.get(id).cloned()
-    }
-
-    /// Deletes the given document and its version history.
-    pub fn delete_document(&mut self, id: &AIDocumentId) {
-        self.documents.remove(id);
-        self.earlier_versions.remove(id);
     }
 
     pub fn get_document_id_by_conversation_id(&self, id: AIConversationId) -> Option<AIDocumentId> {
@@ -465,7 +456,7 @@ impl AIDocumentModel {
             doc.visible_in_pane_groups.remove(&pane_group_id)
         };
         if changed {
-            ctx.emit(AIDocumentModelEvent::DocumentVisibilityChanged(*id));
+            ctx.emit(AIDocumentModelEvent::DocumentVisibilityChanged);
         }
     }
 
@@ -479,20 +470,6 @@ impl AIDocumentModel {
             doc.conversation_id == *conversation_id
                 && doc.visible_in_pane_groups.contains(&pane_group_id)
         })
-    }
-
-    /// Check if any document for the given conversation is visible in any pane group.
-    pub fn is_document_visible_by_conversation(&self, conversation_id: &AIConversationId) -> bool {
-        self.documents.values().any(|doc| {
-            doc.conversation_id == *conversation_id && !doc.visible_in_pane_groups.is_empty()
-        })
-    }
-
-    /// Check if a specific document is visible in any pane group.
-    pub fn is_document_visible(&self, document_id: &AIDocumentId) -> bool {
-        self.documents
-            .get(document_id)
-            .is_some_and(|doc| !doc.visible_in_pane_groups.is_empty())
     }
 
     /// Get a copy of a document by id and version.
@@ -591,24 +568,6 @@ impl AIDocumentModel {
         });
     }
 
-    /// Update the title of a document.
-    pub fn update_title(
-        &mut self,
-        id: &AIDocumentId,
-        new_title: impl Into<String>,
-        source: AIDocumentUpdateSource,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(doc) = self.documents.get_mut(id) {
-            doc.title = new_title.into();
-            ctx.emit(AIDocumentModelEvent::DocumentUpdated {
-                document_id: *id,
-                version: doc.version,
-                source,
-            });
-        }
-    }
-
     /// Create a new, unbound editor model with the given content.
     fn create_editor_model(
         content: impl Into<String>,
@@ -666,7 +625,7 @@ impl AIDocumentModel {
 
         self.earlier_versions
             .entry(*id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(earlier_version);
 
         doc.version = doc.version.next();
@@ -761,16 +720,15 @@ impl AIDocumentModel {
         if let RichTextEditorModelEvent::ContentChanged(edit_origin) = event {
             self.enqueue_save(document_id);
             // Mark document as Dirty on user edit
-            if edit_origin.from_user() {
-                if let Some(doc) = self.documents.get_mut(document_id) {
-                    if !doc.user_edit_status.is_dirty() {
-                        doc.user_edit_status = AIDocumentUserEditStatus::Dirty;
-                        ctx.emit(AIDocumentModelEvent::DocumentUserEditStatusUpdated {
-                            document_id: *document_id,
-                            status: AIDocumentUserEditStatus::Dirty,
-                        });
-                    }
-                }
+            if edit_origin.from_user()
+                && let Some(doc) = self.documents.get_mut(document_id)
+                && !doc.user_edit_status.is_dirty()
+            {
+                doc.user_edit_status = AIDocumentUserEditStatus::Dirty;
+                ctx.emit(AIDocumentModelEvent::DocumentUserEditStatusUpdated {
+                    document_id: *document_id,
+                    status: AIDocumentUserEditStatus::Dirty,
+                });
             }
         }
     }
@@ -896,7 +854,6 @@ impl AIDocumentModel {
         conversation_id: AIConversationId,
         ctx: &mut ModelContext<Self>,
     ) {
-        use std::collections::HashMap;
         let configs = {
             let history = BlocklistAIHistoryModel::as_ref(ctx);
             let Some(conversation) = history.conversation(&conversation_id) else {
@@ -911,31 +868,27 @@ impl AIDocumentModel {
             for message in messages.iter().rev() {
                 if let Some(maa_api::message::Message::OrchestrationConfigSnapshot(snapshot)) =
                     &message.message
+                    && !snapshot.plan_id.is_empty()
+                    && !configs.contains_key(&snapshot.plan_id)
+                    && let Some(config) = snapshot
+                        .config
+                        .as_ref()
+                        .map(OrchestrationConfig::from_proto)
                 {
-                    if !snapshot.plan_id.is_empty() && !configs.contains_key(&snapshot.plan_id) {
-                        if let Some(config) = snapshot
-                            .config
-                            .as_ref()
-                            .map(OrchestrationConfig::from_proto)
-                        {
-                            let status =
-                                OrchestrationConfigStatus::from_proto(snapshot.status.as_ref());
-                            configs.insert(snapshot.plan_id.clone(), (config, status));
-                        }
-                    }
+                    let status = OrchestrationConfigStatus::from_proto(snapshot.status.as_ref());
+                    configs.insert(snapshot.plan_id.clone(), (config, status));
                 }
             }
             configs
         };
         if !configs.is_empty() {
             BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, hctx| {
-                if let Some(conversation) = history.conversation_mut(&conversation_id) {
-                    if conversation.set_orchestration_configs(configs) {
-                        hctx.emit(BlocklistAIHistoryEvent::OrchestrationConfigUpdated {
-                            conversation_id,
-                            from_restore: true,
-                        });
-                    }
+                if let Some(conversation) = history.conversation_mut(&conversation_id)
+                    && conversation.set_orchestration_configs(configs)
+                {
+                    hctx.emit(BlocklistAIHistoryEvent::OrchestrationConfigUpdated {
+                        conversation_id,
+                    });
                 }
             });
         }
@@ -996,10 +949,7 @@ impl AIDocumentModel {
             if let Some(conversation) = history.conversation_mut(&conversation_id) {
                 conversation.set_orchestration_config_for_plan(plan_id, config, status);
             }
-            hctx.emit(BlocklistAIHistoryEvent::OrchestrationConfigUpdated {
-                conversation_id,
-                from_restore: false,
-            });
+            hctx.emit(BlocklistAIHistoryEvent::OrchestrationConfigUpdated { conversation_id });
         });
     }
 
@@ -1052,6 +1002,7 @@ impl AIDocumentModel {
     }
 }
 
+#[cfg(test)]
 impl AIDocumentEarlierVersion {
     pub fn get_content(&self, ctx: &warpui::AppContext) -> String {
         self.editor.as_ref(ctx).markdown_unescaped(ctx)
@@ -1075,8 +1026,8 @@ pub enum AIDocumentModelEvent {
         status: AIDocumentUserEditStatus,
     },
     /// When streaming documents for a conversation are cleared
-    StreamingDocumentsCleared(AIConversationId),
-    DocumentVisibilityChanged(AIDocumentId),
+    StreamingDocumentsCleared,
+    DocumentVisibilityChanged,
 }
 
 impl Entity for AIDocumentModel {

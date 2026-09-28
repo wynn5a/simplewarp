@@ -210,7 +210,6 @@ fn start_new_child_conversation_persists_harness_metadata() {
                 "Agent 1".to_string(),
                 parent_conversation_id,
                 Some(Harness::Claude),
-                false,
                 ctx,
             );
             let child_b = history_model.start_new_child_conversation(
@@ -218,7 +217,6 @@ fn start_new_child_conversation_persists_harness_metadata() {
                 "Agent 2".to_string(),
                 parent_conversation_id,
                 Some(Harness::Codex),
-                false,
                 ctx,
             );
             (
@@ -281,7 +279,6 @@ fn test_initialize_historical_conversations_resolves_parent_agent_id_children_vi
                     agent_name: Some("Child agent".to_string()),
                     orchestration_harness_type: None,
                     parent_conversation_id: None,
-                    is_remote_child: true,
                     root_task_is_optimistic: None,
                     run_id: None,
                     autoexecute_override: None,
@@ -303,7 +300,6 @@ fn test_initialize_historical_conversations_resolves_parent_agent_id_children_vi
                     agent_name: None,
                     orchestration_harness_type: None,
                     parent_conversation_id: None,
-                    is_remote_child: false,
                     root_task_is_optimistic: None,
                     run_id: Some(parent_run_id.clone()),
                     autoexecute_override: None,
@@ -353,7 +349,6 @@ fn test_initialize_historical_conversations_uses_root_task_description_title() {
                     agent_name: None,
                     orchestration_harness_type: None,
                     parent_conversation_id: None,
-                    is_remote_child: false,
                     root_task_is_optimistic: None,
                     run_id: None,
                     autoexecute_override: None,
@@ -519,7 +514,6 @@ fn test_initialize_historical_conversations_eagerly_hydrates_orchestration_child
                     agent_name: Some("Agent 1".to_string()),
                     orchestration_harness_type: None,
                     parent_conversation_id: Some(parent_id.to_string()),
-                    is_remote_child: false,
                     root_task_is_optimistic: None,
                     run_id: Some(child_run_id.clone()),
                     autoexecute_override: None,
@@ -542,7 +536,6 @@ fn test_initialize_historical_conversations_eagerly_hydrates_orchestration_child
                     agent_name: None,
                     orchestration_harness_type: None,
                     parent_conversation_id: None,
-                    is_remote_child: false,
                     root_task_is_optimistic: None,
                     run_id: Some(parent_run_id.clone()),
                     autoexecute_override: None,
@@ -1484,7 +1477,6 @@ fn test_start_new_child_conversation_persists_child_metadata_for_restore() {
                     "Agent 1".to_string(),
                     parent_conversation_id,
                     Some(Harness::Claude),
-                    false,
                     ctx,
                 );
                 (
@@ -1514,41 +1506,6 @@ fn test_start_new_child_conversation_persists_child_metadata_for_restore() {
         );
         assert_eq!(restored.agent_name(), Some("Agent 1"));
         assert_eq!(restored.orchestration_harness(), Some(Harness::Claude));
-    });
-}
-
-#[test]
-fn test_mark_conversation_as_remote_child_persists_updated_conversation_state() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-
-        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
-        let mut global_resource_handles = GlobalResourceHandles::mock(&mut app);
-        global_resource_handles.model_event_sender = Some(sender);
-        app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resource_handles));
-
-        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
-        let terminal_view_id = EntityId::new();
-
-        let conversation_id = history_model.update(&mut app, |history_model, ctx| {
-            history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
-        });
-
-        history_model.update(&mut app, |history_model, ctx| {
-            history_model.mark_conversation_as_remote_child(conversation_id, ctx);
-        });
-
-        let persisted_conversation = persisted_agent_conversation_from_update_event(
-            receiver
-                .recv_timeout(Duration::from_secs(1))
-                .expect("remote child mutation should persist conversation state"),
-        );
-        let restored =
-            convert_persisted_conversation_to_ai_conversation_with_metadata(persisted_conversation)
-                .expect("persisted remote child conversation should be restorable");
-
-        assert_eq!(restored.id(), conversation_id);
-        assert!(restored.is_remote_child());
     });
 }
 
@@ -1582,10 +1539,8 @@ fn test_persist_with_optimistic_root_emits_event_with_no_task_rows() {
         });
 
         // Force a persist while the root is still optimistic.
-        // `mark_conversation_as_remote_child` is one of several early-persist
-        // sites; any of them would exhibit the same writer behavior.
         history_model.update(&mut app, |history_model, ctx| {
-            history_model.mark_conversation_as_remote_child(conversation_id, ctx);
+            history_model.persist_conversation_state(conversation_id, ctx);
         });
 
         let event = receiver
@@ -1649,7 +1604,7 @@ fn test_optimistic_root_upgrade_then_persist_emits_event_with_single_server_task
 
         // First persist: while the root is still Optimistic(Root).
         history_model.update(&mut app, |history_model, ctx| {
-            history_model.mark_conversation_as_remote_child(conversation_id, ctx);
+            history_model.persist_conversation_state(conversation_id, ctx);
         });
         let first_event = receiver
             .recv_timeout(Duration::from_secs(1))
@@ -1667,8 +1622,7 @@ fn test_optimistic_root_upgrade_then_persist_emits_event_with_single_server_task
         );
 
         // Drive the optimistic→server upgrade in-place and trigger another
-        // persist via mark_conversation_as_remote_child (idempotent setter +
-        // unconditional persist) to keep this test isolated from the full
+        // persist directly to keep this test isolated from the full
         // response-stream/CreateTask plumbing.
         let server_root_id = "server-root-task-id".to_string();
         history_model.update(&mut app, |history_model, ctx| {
@@ -1679,7 +1633,7 @@ fn test_optimistic_root_upgrade_then_persist_emits_event_with_single_server_task
                 &server_root_id,
                 vec![],
             ));
-            history_model.mark_conversation_as_remote_child(conversation_id, ctx);
+            history_model.persist_conversation_state(conversation_id, ctx);
         });
 
         let second_event = receiver
@@ -1758,7 +1712,6 @@ fn test_optimistic_root_restore_round_trip_yields_in_progress_optimistic_root() 
                     "Round-trip child".to_string(),
                     parent_id,
                     Some(Harness::Claude),
-                    false,
                     ctx,
                 );
                 let expected_parent_agent_id = history_model
@@ -1956,7 +1909,7 @@ fn test_two_restart_cycles_keep_exactly_one_server_root_task_row() {
 
         // Early persist while the root is still optimistic.
         history_model.update(&mut app, |history_model, ctx| {
-            history_model.mark_conversation_as_remote_child(conversation_id, ctx);
+            history_model.persist_conversation_state(conversation_id, ctx);
         });
         let early_event = receiver
             .recv_timeout(Duration::from_secs(1))
@@ -1983,7 +1936,7 @@ fn test_two_restart_cycles_keep_exactly_one_server_root_task_row() {
                 &server_root_id,
                 vec![],
             ));
-            history_model.mark_conversation_as_remote_child(conversation_id, ctx);
+            history_model.persist_conversation_state(conversation_id, ctx);
         });
         let post_upgrade_event = receiver
             .recv_timeout(Duration::from_secs(1))
@@ -2033,7 +1986,7 @@ fn test_two_restart_cycles_keep_exactly_one_server_root_task_row() {
                 vec![restored_after_restart_1],
                 ctx,
             );
-            history_model.mark_conversation_as_remote_child(conversation_id, ctx);
+            history_model.persist_conversation_state(conversation_id, ctx);
         });
 
         let post_restart_event = receiver
@@ -2404,7 +2357,6 @@ fn test_find_by_token_after_insert_forked_conversation_from_tasks() {
             agent_name: None,
             orchestration_harness_type: None,
             parent_conversation_id: None,
-            is_remote_child: false,
             root_task_is_optimistic: None,
             run_id: None,
             autoexecute_override: None,
@@ -2620,7 +2572,6 @@ fn test_fork_then_bind_handoff_token_resolves_to_forked_conversation() {
                 agent_name: None,
                 orchestration_harness_type: None,
                 parent_conversation_id: None,
-                is_remote_child: false,
                 root_task_is_optimistic: None,
                 run_id: None,
                 autoexecute_override: None,
@@ -2708,7 +2659,6 @@ fn test_fork_then_bind_handoff_token_persists_to_restored_conversation() {
                 agent_name: None,
                 orchestration_harness_type: None,
                 parent_conversation_id: None,
-                is_remote_child: false,
                 root_task_is_optimistic: None,
                 run_id: None,
                 autoexecute_override: None,
@@ -2821,7 +2771,6 @@ fn test_fork_then_bind_handoff_token_updates_cached_metadata_and_emits_refresh_e
                 agent_name: None,
                 orchestration_harness_type: None,
                 parent_conversation_id: None,
-                is_remote_child: false,
                 root_task_is_optimistic: None,
                 run_id: None,
                 autoexecute_override: None,
@@ -2950,7 +2899,6 @@ fn test_fork_conversation_preserves_task_ids_when_requested() {
                 agent_name: None,
                 orchestration_harness_type: None,
                 parent_conversation_id: None,
-                is_remote_child: false,
                 root_task_is_optimistic: None,
                 run_id: None,
                 autoexecute_override: None,
@@ -3101,7 +3049,6 @@ fn test_fork_conversation_title_override_replaces_prefix() {
                 agent_name: None,
                 orchestration_harness_type: None,
                 parent_conversation_id: None,
-                is_remote_child: false,
                 root_task_is_optimistic: None,
                 run_id: None,
                 autoexecute_override: None,
@@ -3785,7 +3732,6 @@ fn straddle_rewind_followup_requests_are_clean_and_durable() {
                 agent_name: None,
                 orchestration_harness_type: None,
                 parent_conversation_id: None,
-                is_remote_child: false,
                 root_task_is_optimistic: None,
                 run_id: None,
                 autoexecute_override: None,

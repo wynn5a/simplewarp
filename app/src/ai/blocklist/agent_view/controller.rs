@@ -794,9 +794,8 @@ impl AgentViewController {
                 (
                     conversation.id(),
                     conversation.exchange_count(),
-                    conversation.is_remote_child()
-                        || (conversation.is_viewing_shared_session()
-                            && conversation.parent_conversation_id().is_some()),
+                    conversation.is_viewing_shared_session()
+                        && conversation.parent_conversation_id().is_some(),
                 )
             } else {
                 let id = history_model.update(ctx, |history_model, ctx| {
@@ -829,8 +828,8 @@ impl AgentViewController {
             .enter_conversation_context(conversation_id, display_mode.is_inline(), is_cloud);
 
         // An empty child placeholder is still an existing run, not a brand-new
-        // cloud conversation. This applies to owner-side remote children and
-        // viewer-side shared-session children. Preserve that distinction so
+        // cloud conversation. This applies to viewer-side shared-session
+        // children. Preserve that distinction so
         // TerminalView does not insert cloud composition UI while the child is
         // restoring or waiting for its first streamed exchange.
         let is_new = exchange_count == 0

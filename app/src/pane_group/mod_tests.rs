@@ -270,18 +270,6 @@ fn restore_child_conversation_with_task_context_for_terminal_view(
     restore_conversation_for_terminal_view(terminal_view_id, child_conversation, ctx)
 }
 
-fn restore_remote_child_conversation_for_terminal_view(
-    terminal_view_id: EntityId,
-    parent_conversation_id: AIConversationId,
-    task_id: AmbientAgentTaskId,
-    ctx: &mut ViewContext<PaneGroup>,
-) -> AIConversationId {
-    let mut child_conversation = AIConversation::new(false, false);
-    child_conversation.set_parent_conversation_id(parent_conversation_id);
-    child_conversation.set_task_id(task_id);
-    child_conversation.mark_as_remote_child();
-    restore_conversation_for_terminal_view(terminal_view_id, child_conversation, ctx)
-}
 fn restore_child_conversation(
     panes: &PaneGroup,
     pane_id: PaneId,
@@ -307,25 +295,6 @@ fn restore_child_conversation_with_task_context(
         .expect("child pane should have a terminal view")
         .id();
     restore_child_conversation_with_task_context_for_terminal_view(
-        terminal_view_id,
-        parent_conversation_id,
-        task_id,
-        ctx,
-    )
-}
-
-fn restore_remote_child_conversation(
-    panes: &PaneGroup,
-    pane_id: PaneId,
-    parent_conversation_id: AIConversationId,
-    task_id: AmbientAgentTaskId,
-    ctx: &mut ViewContext<PaneGroup>,
-) -> AIConversationId {
-    let terminal_view_id = panes
-        .terminal_view_from_pane_id(pane_id, ctx)
-        .expect("child pane should have a terminal view")
-        .id();
-    restore_remote_child_conversation_for_terminal_view(
         terminal_view_id,
         parent_conversation_id,
         task_id,
@@ -898,7 +867,7 @@ fn test_entering_parent_agent_view_lazily_restores_hidden_child_pane() {
 }
 
 #[test]
-fn test_entering_remote_parent_agent_view_lazily_restores_local_hidden_child_pane() {
+fn test_entering_nested_parent_agent_view_lazily_restores_hidden_child_pane() {
     let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
     App::test((), |mut app| async move {
@@ -913,19 +882,19 @@ fn test_entering_remote_parent_agent_view_lazily_restores_local_hidden_child_pan
         ) = pane_group.update(&mut app, |panes, ctx| {
             let parent_pane_id = get_newly_created_pane_id(panes, &[]);
             let root_conversation_id = start_parent_conversation(panes, parent_pane_id, ctx);
-            let remote_parent_task_id = new_ambient_agent_task_id();
-            let remote_parent_conversation_id = restore_remote_child_conversation(
+            let nested_parent_task_id = new_ambient_agent_task_id();
+            let nested_parent_conversation_id = restore_child_conversation_with_task_context(
                 panes,
                 parent_pane_id,
                 root_conversation_id,
-                remote_parent_task_id,
+                nested_parent_task_id,
                 ctx,
             );
             let local_child_task_id = new_ambient_agent_task_id();
             let local_child_conversation_id = restore_child_conversation_with_task_context(
                 panes,
                 parent_pane_id,
-                remote_parent_conversation_id,
+                nested_parent_conversation_id,
                 local_child_task_id,
                 ctx,
             );
@@ -941,7 +910,7 @@ fn test_entering_remote_parent_agent_view_lazily_restores_local_hidden_child_pan
             enter_agent_view_for_conversation(
                 panes,
                 parent_pane_id,
-                remote_parent_conversation_id,
+                nested_parent_conversation_id,
                 ctx,
             );
             (
@@ -959,7 +928,7 @@ fn test_entering_remote_parent_agent_view_lazily_restores_local_hidden_child_pan
                 .get(&local_child_conversation_id)
                 .copied()
                 .expect(
-                    "remote parent fullscreen restore should materialize the missing local child pane",
+                    "nested parent fullscreen restore should materialize the missing child pane",
                 );
 
             assert!(panes.has_pane_id(child_pane_id));
@@ -968,11 +937,7 @@ fn test_entering_remote_parent_agent_view_lazily_restores_local_hidden_child_pan
             assert!(!panes.panes.is_pane_in_tree(child_pane_id));
             assert_eq!(panes.focused_pane_id(ctx), parent_pane_id);
             assert_eq!(
-                request_ambient_agent_task_id_for_hidden_child(
-                    panes,
-                    child_pane_id,
-                    ctx,
-                ),
+                request_ambient_agent_task_id_for_hidden_child(panes, child_pane_id, ctx,),
                 Some(local_child_task_id)
             );
         });

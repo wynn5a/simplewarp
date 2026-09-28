@@ -272,8 +272,7 @@ pub struct AIConversation {
     /// conversation, used for v2 orchestration.
     ///
     /// For local conversations, parsed from `StreamInit.run_id` on the first
-    /// response. For remote child agents spawned via `POST /agent/run`, set
-    /// from `SpawnAgentResponse.task_id`.
+    /// response.
     ///
     /// Used for messaging API, events API, poller self-filtering, lifecycle
     /// reports, parent↔child agent identity, and task status reporting.
@@ -333,7 +332,7 @@ pub struct AIConversation {
 
     // TODO(advait): Group child-agent-only fields (parent_agent_id,
     // agent_name, orchestration_harness_type, parent_conversation_id,
-    // is_remote_child, pinned) into a ChildAgentState sub-struct. See
+    // pinned) into a ChildAgentState sub-struct. See
     // PR #10777 review.
     /// Server-side identifier of the parent agent that spawned this child, if any.
     /// For current orchestration, this holds the parent's `run_id`. Persisted as
@@ -345,11 +344,6 @@ pub struct AIConversation {
     orchestration_harness_type: Option<String>,
     /// The local conversation ID of the parent that spawned this child, if any.
     parent_conversation_id: Option<AIConversationId>,
-    /// True when this conversation is a placeholder for a child agent executing
-    /// on a remote worker. The parent's client does not drive execution for
-    /// these conversations — the remote worker's own client handles status
-    /// reporting.
-    is_remote_child: bool,
 
     /// The last event sequence number observed from the v2 orchestration
     /// event log. Used on restore to resume event delivery without
@@ -415,7 +409,6 @@ impl AIConversation {
             agent_name: None,
             orchestration_harness_type: None,
             parent_conversation_id: None,
-            is_remote_child: false,
             last_event_sequence: None,
             orchestration_configs: HashMap::new(),
             pinned: false,
@@ -550,7 +543,6 @@ impl AIConversation {
             agent_name,
             orchestration_harness_type,
             parent_conversation_id,
-            is_remote_child,
             run_id,
             autoexecute_override,
             last_event_sequence,
@@ -606,7 +598,6 @@ impl AIConversation {
                 data.agent_name,
                 data.orchestration_harness_type,
                 parent_conversation_id,
-                data.is_remote_child,
                 data.run_id,
                 autoexecute_override,
                 data.last_event_sequence,
@@ -624,7 +615,6 @@ impl AIConversation {
                 None,
                 None,
                 None,
-                false,
                 None,
                 AIConversationAutoexecuteMode::default(),
                 None,
@@ -666,7 +656,6 @@ impl AIConversation {
             agent_name,
             orchestration_harness_type,
             parent_conversation_id,
-            is_remote_child,
             last_event_sequence,
             orchestration_configs: HashMap::new(),
             pinned,
@@ -1138,18 +1127,6 @@ impl AIConversation {
     /// driver-hosted processes).
     pub fn is_child_agent_conversation(&self) -> bool {
         self.parent_conversation_id.is_some() || self.parent_agent_id.is_some()
-    }
-
-    /// Returns true if this is a placeholder for a child agent executing on a
-    /// remote worker. The parent's client should not report task status for
-    /// these — the remote worker handles it.
-    pub fn is_remote_child(&self) -> bool {
-        self.is_remote_child
-    }
-
-    /// Marks this conversation as a remote child placeholder.
-    pub fn mark_as_remote_child(&mut self) {
-        self.is_remote_child = true;
     }
 
     /// Returns the orchestration config and status for a specific plan,
@@ -2672,7 +2649,6 @@ impl AIConversation {
                                         ctx.emit(
                                             BlocklistAIHistoryEvent::OrchestrationConfigUpdated {
                                                 conversation_id: self.id,
-                                                from_restore: false,
                                             },
                                         );
                                     }
@@ -2851,7 +2827,6 @@ impl AIConversation {
                     ) {
                         ctx.emit(BlocklistAIHistoryEvent::OrchestrationConfigUpdated {
                             conversation_id: self.id,
-                            from_restore: false,
                         });
                     }
                 }
@@ -3231,15 +3206,7 @@ impl AIConversation {
         ctx: &mut ModelContext<BlocklistAIHistoryModel>,
     ) {
         // Don't persist viewer conversations (e.g. shared sessions).
-        // Under the unified stack, remote child placeholder conversations are
-        // also not persisted — they are rediscovered on restore via the
-        // ancestor-list seed, so a persisted row would only risk going stale.
-        // Under the flag-off path, remote children must be persisted so they
-        // survive restarts.
-        if self.is_viewing_shared_session
-            || (self.is_remote_child
-                && crate::features::FeatureFlag::OrchestrationUnifiedStack.is_enabled())
-        {
+        if self.is_viewing_shared_session {
             return;
         }
 
@@ -3307,7 +3274,6 @@ impl AIConversation {
                 agent_name: self.agent_name.clone(),
                 orchestration_harness_type: self.orchestration_harness_type.clone(),
                 parent_conversation_id: self.parent_conversation_id.map(|id| id.to_string()),
-                is_remote_child: self.is_remote_child,
                 // Legacy field; retained for backward-compatible
                 // deserialization but no longer written. The optimistic-root
                 // case is now handled by `Task::source_for_persistence`

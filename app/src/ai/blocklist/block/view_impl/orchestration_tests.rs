@@ -81,7 +81,6 @@ fn participant_for_agent_id_uses_pill_style_child_agent_avatar() {
                 "Agent 1".to_string(),
                 parent_conversation_id,
                 Some(Harness::Claude),
-                false,
                 ctx,
             );
             history_model.set_server_conversation_token_for_conversation(
@@ -142,7 +141,6 @@ fn participant_for_restored_child_run_id_resolves_to_agent_name() {
                     agent_name: Some("Agent 1".to_string()),
                     orchestration_harness_type: None,
                     parent_conversation_id: Some(parent_id.to_string()),
-                    is_remote_child: false,
                     root_task_is_optimistic: None,
                     run_id: Some(child_run_id.clone()),
                     autoexecute_override: None,
@@ -196,7 +194,6 @@ fn participant_for_restored_child_run_id_resolves_to_agent_name() {
                     agent_name: None,
                     orchestration_harness_type: None,
                     parent_conversation_id: None,
-                    is_remote_child: false,
                     root_task_is_optimistic: None,
                     run_id: Some(parent_run_id.clone()),
                     autoexecute_override: None,

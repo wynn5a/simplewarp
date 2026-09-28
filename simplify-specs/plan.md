@@ -660,6 +660,38 @@ Queue, in order:
    agent_identity_uid` (wire field, locally always rejected); the `from_restore` flag on
    `OrchestrationConfigUpdated` (its only UI consumer, the create-key auto-open, is gone).
 
+20. ~~Stale remote-child, plan-notebook and `ai_document_model` residue, `ArtifactFilter`~~ — **4hi
+   done (2026-09-28).** −0.4k lines in 39 files. Remote children: `AIConversation::is_remote_child` /
+   `mark_as_remote_child` and every reader (pill-bar cloud badge, restoration skip, cloud-cancel
+   candidate, local-child icon check, agent-view placeholder check, swap-failure log), the
+   unified-stack persist guard, test-only `mark_conversation_as_remote_child`,
+   `start_new_child_conversation`'s `is_remote`, `AgentConversationData::is_remote_child` (stale
+   `"is_remote_child":true` rows still parse; the key is ignored). A stale remote-child row now
+   restores as an ordinary child (hidden pane with its local transcript, status derived from its
+   tasks) — pinned by `restored_stale_remote_child_loads_as_local_child` and the persistence
+   stale-row test. `RunAgentsAgentRunConfig::agent_identity_uid` gone (proto field untouched, so
+   persisted calls parse; a stale call naming an identity now runs as the caller instead of being
+   rejected). `OrchestrationConfigUpdated::from_restore` gone. Plan notebooks **kept**: a persisted
+   `Artifact::Plan.notebook_uid` opens its notebook from local sqlite (`open_warp_drive_object_in_new_pane`),
+   the notebook's "Attach plan as context" inserts `<plan:id>`, and `create_document_from_notebook`
+   + `AIDocument::sync_id` mirror edits back via `UpdateManager::update_notebook_data` — all local;
+   `DriveObjectType::Notebook { is_ai_document }` (plan icon) is reachable from those panes. Deleted:
+   the workspace duplicate-toast check for synced plans (`UpdateManager` never emits
+   `ObjectOperationComplete` for `Update`) and `PaneGroup::contains_ai_document`.
+   `ai_document_model.rs`: file-wide `#![allow(warnings)]` removed; `delete_document`,
+   `is_document_visible_by_conversation`, `is_document_visible`, `update_title` deleted,
+   `get_content` test-only, `StreamingDocumentsCleared` / `DocumentVisibilityChanged` lost their
+   unread payloads, collapsible ifs / `or_default` fixed, three `too_many_arguments` allows (repo
+   idiom). `ArtifactFilter`, `AgentManagementFilters::artifact`, `artifacts_match_filter` gone (only
+   `All` was ever set; a stale `"artifact"` key is ignored). Tests 4,149 default / 4,150 simplewarp
+   (−3, deleted with their code: mark-remote-child persist, identity-uid rejection, file artifact
+   filter; re-pinned: stale remote child loads as a local child, nested-parent lazy restore uses a
+   local mid-level child), persistence + ai + warp_features 218 passed, 0 failed.
+   Follow-ups: `OrchestrationUnifiedStack` (dogfood-only) now gates only the agent-view
+   `is_existing_child_placeholder` check (shared-session viewers); `is_viewing_shared_session`
+   readers (session sharing is gone); the other `AgentManagementFilters` fields (`creator`,
+   `environment`, `source`) and the always-`None` `agent_management_filters` snapshot write.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

@@ -14,14 +14,13 @@ use super::entry::{
 };
 use super::query::{DEFAULT_RESULT_COUNT, MAX_SEARCH_RESULTS};
 use super::{
-    AgentConversationsModel, AgentConversationsModelEvent, AgentManagementFilters, ArtifactFilter,
+    AgentConversationsModel, AgentConversationsModelEvent, AgentManagementFilters,
     ConversationMetadata, ConversationUpdateKind, HarnessFilter, OwnerFilter, StatusFilter,
     query_conversation_entries,
 };
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
-use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::history_model::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, ConversationStatusUpdate,
 };
@@ -407,7 +406,6 @@ fn test_server_token_assignment_emits_conversation_updated() {
                 agent_name: None,
                 orchestration_harness_type: None,
                 parent_conversation_id: None,
-                is_remote_child: false,
                 root_task_is_optimistic: None,
                 run_id: None,
                 autoexecute_override: None,
@@ -464,37 +462,6 @@ fn test_server_token_assignment_emits_conversation_updated() {
 }
 
 #[test]
-fn test_file_artifact_filter_matches_only_items_with_file_artifacts() {
-    let artifacts_with_file = vec![Artifact::File {
-        artifact_uid: "artifact-file-1".to_string(),
-        filepath: "outputs/report.txt".to_string(),
-        filename: "report.txt".to_string(),
-        mime_type: "text/plain".to_string(),
-        description: Some("Daily summary".to_string()),
-        size_bytes: Some(42),
-    }];
-    let artifacts_with_pr = vec![Artifact::PullRequest {
-        url: "https://github.com/org/repo/pull/1".to_string(),
-        branch: "main".to_string(),
-        repo: Some("repo".to_string()),
-        number: Some(1),
-    }];
-
-    assert!(super::artifacts_match_filter(
-        &artifacts_with_file,
-        &ArtifactFilter::File,
-    ));
-    assert!(!super::artifacts_match_filter(
-        &artifacts_with_pr,
-        &ArtifactFilter::File,
-    ));
-    assert!(super::artifacts_match_filter(
-        &artifacts_with_file,
-        &ArtifactFilter::All,
-    ));
-}
-
-#[test]
 fn test_harness_filter_is_filtering_and_reset() {
     // Default is All → not filtering, and after toggling reset_all_but_owner returns to default.
     let mut filters = AgentManagementFilters::default();
@@ -513,7 +480,8 @@ fn test_harness_filter_is_filtering_and_reset() {
 
 #[test]
 fn test_agent_management_filters_serde_backwards_compat() {
-    // Persisted state from older clients has no `harness` key → deserializes to All.
+    // Persisted state from older clients has no `harness` key → deserializes to All; their
+    // `artifact` key (filter removed) is ignored.
     let legacy = r#"{
         "owners": "PersonalOnly",
         "status": "All",

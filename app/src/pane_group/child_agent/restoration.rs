@@ -162,8 +162,6 @@ impl PaneGroup {
 
     /// Creates a hidden child agent pane for an existing child conversation,
     /// restoring the conversation and tracking it in `child_agent_panes`.
-    /// Remote children have no restorable content — their transcript lived
-    /// behind the deleted cloud conversation fetch — so they are skipped.
     pub(in crate::pane_group) fn create_hidden_child_agent_pane(
         &mut self,
         child_conversation: AIConversation,
@@ -171,13 +169,6 @@ impl PaneGroup {
         ctx: &mut ViewContext<Self>,
     ) {
         let child_id = child_conversation.id();
-
-        if child_conversation.is_remote_child() {
-            log::warn!(
-                "Skipping remote child conversation {child_id:?}: no cloud transcript fetch"
-            );
-            return;
-        }
 
         let child_task_context =
             child_conversation

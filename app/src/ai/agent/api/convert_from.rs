@@ -131,7 +131,6 @@ fn convert_run_agents(
                 name: config.name,
                 prompt: config.prompt,
                 title: config.title,
-                agent_identity_uid: config.agent_identity_uid,
                 model_id: config.model_id,
             })
             .collect(),

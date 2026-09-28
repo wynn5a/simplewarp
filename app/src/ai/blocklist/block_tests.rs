@@ -339,18 +339,8 @@ fn agent_cfg() -> RunAgentsAgentRunConfig {
         name: "child".to_string(),
         prompt: "do X".to_string(),
         title: "Child".to_string(),
-        agent_identity_uid: String::new(),
         model_id: String::new(),
     }
-}
-
-#[test]
-fn local_arm_rejects_agent_identity_uid() {
-    let mut cfg = agent_cfg();
-    cfg.agent_identity_uid = "sa-uid-1".to_string();
-    let err = run_agents_to_start_agent_mode("", "", &cfg)
-        .expect_err("Local + agent_identity_uid must be rejected");
-    assert!(err.contains("agent_identity_uid requires remote execution"));
 }
 
 #[test]

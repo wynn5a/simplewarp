@@ -181,8 +181,6 @@ struct PillSpec {
     is_selected: bool,
     kind: PillKind,
     pin_state: PillPinState,
-    /// Child running on a remote worker; drives the cloud-shaped badge variant.
-    is_remote_child: bool,
     /// Present when this child is itself an orchestrator: rolled-up state of
     /// its subtree, rendered as a trailing "group" badge on the pill.
     subtree_rollup: Option<LoadedSubtreeRollup>,
@@ -365,7 +363,7 @@ impl OrchestrationPillBar {
             | BlocklistAIHistoryEvent::AppendedExchange { .. }
             | BlocklistAIHistoryEvent::SetActiveConversation { .. }
             | BlocklistAIHistoryEvent::StartedNewConversation { .. }
-            // A remote child's run-id linkage can land after
+            // A child's run-id linkage can land after
             // StartedNewConversation; pill contents and badges keyed on run
             // linkage must refresh when it does.
             | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. } => {
@@ -638,7 +636,6 @@ impl OrchestrationPillBar {
             is_selected: anchor_id == active_id,
             kind: PillKind::Orchestrator,
             pin_state: PillPinState::Unpinned,
-            is_remote_child: anchor.is_remote_child(),
             subtree_rollup: None,
         });
 
@@ -666,7 +663,6 @@ impl OrchestrationPillBar {
                 is_selected: child.id() == active_id,
                 kind: PillKind::Child,
                 pin_state,
-                is_remote_child: child.is_remote_child(),
                 subtree_rollup,
             });
         }
@@ -1803,7 +1799,6 @@ fn render_pill(
     let avatar_color = spec.avatar_color;
     let avatar_glyph = spec.avatar_glyph;
     let status = spec.status;
-    let is_remote_child = spec.is_remote_child;
     let subtree_rollup = spec.subtree_rollup;
 
     // Per Figma: fg_overlay_2 at rest, fg_overlay_3 on hover, composed over
@@ -1906,7 +1901,6 @@ fn render_pill(
                     avatar_color,
                     avatar_glyph,
                     status.clone(),
-                    is_remote_child,
                     background,
                     theme,
                     appearance,
@@ -1931,7 +1925,6 @@ fn render_pill(
                         avatar_color,
                         avatar_glyph,
                         status.clone(),
-                        is_remote_child,
                         background,
                         theme,
                         appearance,
@@ -2256,7 +2249,6 @@ fn render_avatar_with_status_overlay(
     avatar_color: ColorU,
     glyph: AvatarGlyph,
     status: ConversationStatus,
-    is_remote_child: bool,
     pill_background: ColorU,
     theme: &WarpTheme,
     appearance: &Appearance,
@@ -2272,7 +2264,7 @@ fn render_avatar_with_status_overlay(
         IconWithStatusVariant::CustomAvatar {
             avatar,
             status: Some(status),
-            is_ambient: is_remote_child,
+            is_ambient: false,
         },
         AVATAR_WITH_STATUS_TOTAL_SIZE,
         PILL_BADGE_OVERHANG_RATIO,

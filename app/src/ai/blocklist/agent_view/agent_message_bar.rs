@@ -170,7 +170,7 @@ impl AgentMessageBar {
             }
         });
         ctx.subscribe_to_model(&AIDocumentModel::handle(ctx), |_, _, event, ctx| {
-            if matches!(event, AIDocumentModelEvent::DocumentVisibilityChanged(_)) {
+            if matches!(event, AIDocumentModelEvent::DocumentVisibilityChanged) {
                 ctx.notify();
             }
         });

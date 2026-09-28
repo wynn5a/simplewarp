@@ -4,9 +4,9 @@ use warp_cli::agent::Harness;
 use warpui::{AppContext, SingletonEntity};
 
 use super::{
-    AgentManagementFilters, AgentRunDisplayStatus, ArtifactFilter, ConversationMetadata,
-    CreatedOnFilter, CreatorFilter, EnvironmentFilter, HarnessFilter, OwnerFilter, SessionStatus,
-    SourceFilter, StatusFilter, artifacts_match_filter,
+    AgentManagementFilters, AgentRunDisplayStatus, ConversationMetadata, CreatedOnFilter,
+    CreatorFilter, EnvironmentFilter, HarnessFilter, OwnerFilter, SessionStatus, SourceFilter,
+    StatusFilter,
 };
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
@@ -156,7 +156,6 @@ impl AgentConversationEntry {
             && self.matches_status(&filters.status)
             && self.matches_source(&filters.source)
             && self.matches_created_on(&filters.created_on)
-            && self.matches_artifact(&filters.artifact)
             && self.matches_environment(&filters.environment)
             && self.matches_harness(&filters.harness)
     }
@@ -223,10 +222,6 @@ impl AgentConversationEntry {
             Some(cutoff) => self.display.created_at >= cutoff,
             None => true,
         }
-    }
-
-    fn matches_artifact(&self, artifact_filter: &ArtifactFilter) -> bool {
-        artifacts_match_filter(&self.display.artifacts, artifact_filter)
     }
 
     fn matches_environment(&self, environment_filter: &EnvironmentFilter) -> bool {

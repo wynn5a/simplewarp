@@ -6326,7 +6326,6 @@ fn back_button_label_names_the_direct_parent_at_depth() {
                 "api-refactor".to_string(),
                 root_id,
                 None,
-                false,
                 ctx,
             );
             let grandchild_id = history.start_new_child_conversation(
@@ -6334,7 +6333,6 @@ fn back_button_label_names_the_direct_parent_at_depth() {
                 "grandchild".to_string(),
                 mid_id,
                 None,
-                false,
                 ctx,
             );
             (root_id, mid_id, grandchild_id)
@@ -6349,7 +6347,6 @@ fn back_button_label_names_the_direct_parent_at_depth() {
                     String::new(),
                     root_id,
                     None,
-                    false,
                     ctx,
                 );
                 let nested_id = history.start_new_child_conversation(
@@ -6357,7 +6354,6 @@ fn back_button_label_names_the_direct_parent_at_depth() {
                     "nested".to_string(),
                     unnamed_mid_id,
                     None,
-                    false,
                     ctx,
                 );
                 (unnamed_mid_id, nested_id)
@@ -6651,7 +6647,6 @@ fn cli_session_status_updates_active_child_conversation() {
                         "Agent 2".to_string(),
                         parent_conversation_id,
                         None,
-                        false,
                         ctx,
                     )
                 });
@@ -6800,7 +6795,6 @@ fn cli_session_status_updates_single_child_conversation_without_agent_view() {
                         "Agent 2".to_string(),
                         parent_conversation_id,
                         None,
-                        false,
                         ctx,
                     )
                 });

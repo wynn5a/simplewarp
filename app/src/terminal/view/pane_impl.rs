@@ -748,15 +748,12 @@ impl TerminalView {
             .map(|conversation| self.selected_conversation_display_title_for_chrome(conversation))
     }
 
-    /// Whether the selected conversation is a local orchestration child: it was spawned by a
-    /// parent orchestrator and is not executing on a remote worker. These runs are backed by a
-    /// server task (so they carry an ambient task id) but execute locally, so their agent icon
-    /// must use the local treatment rather than the cloud/ambient one.
+    /// Whether the selected conversation is an orchestration child. These runs can carry an
+    /// ambient task id but execute locally, so their agent icon must use the local treatment
+    /// rather than the cloud/ambient one.
     pub(crate) fn selected_conversation_is_local_child(&self, ctx: &AppContext) -> bool {
         self.selected_conversation_for_user_facing_chrome(ctx)
-            .is_some_and(|conversation| {
-                conversation.is_child_agent_conversation() && !conversation.is_remote_child()
-            })
+            .is_some_and(AIConversation::is_child_agent_conversation)
     }
 
     pub fn selected_conversation_latest_user_prompt_for_tab_name(

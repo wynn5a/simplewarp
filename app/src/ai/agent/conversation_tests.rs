@@ -51,7 +51,6 @@ fn conversation_data_with_provider_cost(
         agent_name: None,
         orchestration_harness_type: None,
         parent_conversation_id: None,
-        is_remote_child: false,
         root_task_is_optimistic: None,
         run_id: None,
         autoexecute_override: None,
@@ -265,15 +264,22 @@ fn restored_conversation_uses_persisted_last_event_sequence() {
     assert_eq!(conversation.last_event_sequence(), Some(42));
 }
 
+/// Rows persisted for remote child agents restore as ordinary (finished, locally driven)
+/// children of their parent: the stale `is_remote_child` marker is ignored.
 #[test]
-fn restored_conversation_uses_persisted_remote_child_marker() {
-    let conversation_data: AgentConversationData =
-        serde_json::from_str(r#"{"server_conversation_token":null,"is_remote_child":true}"#)
-            .unwrap();
+fn restored_stale_remote_child_loads_as_local_child() {
+    let parent_id = AIConversationId::new();
+    let conversation_data: AgentConversationData = serde_json::from_str(&format!(
+        r#"{{"server_conversation_token":null,"parent_conversation_id":"{parent_id}","agent_name":"Agent 1","is_remote_child":true}}"#
+    ))
+    .unwrap();
 
     let conversation = restored_conversation(Some(conversation_data));
 
-    assert!(conversation.is_remote_child());
+    assert!(conversation.is_child_agent_conversation());
+    assert_eq!(conversation.parent_conversation_id(), Some(parent_id));
+    assert_eq!(conversation.agent_name(), Some("Agent 1"));
+    assert!(!conversation.status().is_in_progress());
 }
 
 #[test]

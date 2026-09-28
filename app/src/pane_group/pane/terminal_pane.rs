@@ -442,8 +442,7 @@ fn agent_conversation_action_state(
         owner_terminal_view_id,
         task_id: conversation.task_id(),
         is_in_progress: conversation.status().is_in_progress(),
-        is_cloud_cancel_candidate: conversation.is_remote_child()
-            || conversation.is_viewing_shared_session(),
+        is_cloud_cancel_candidate: conversation.is_viewing_shared_session(),
     })
 }
 

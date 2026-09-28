@@ -22,7 +22,6 @@ use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::ambient_agents::AgentSource;
-use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, ConversationStatusUpdate,
 };
@@ -61,16 +60,6 @@ pub enum CreatorFilter {
         name: String,
         uid: String,
     },
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum ArtifactFilter {
-    #[default]
-    All,
-    PullRequest,
-    Plan,
-    Screenshot,
-    File,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
@@ -130,7 +119,6 @@ pub struct AgentManagementFilters {
     pub source: SourceFilter,
     pub created_on: CreatedOnFilter,
     pub creator: CreatorFilter,
-    pub artifact: ArtifactFilter,
     #[serde(default)]
     pub environment: EnvironmentFilter,
     #[serde(default)]
@@ -168,7 +156,6 @@ impl AgentManagementFilters {
         self.source = SourceFilter::default();
         self.created_on = CreatedOnFilter::default();
         self.creator = CreatorFilter::default();
-        self.artifact = ArtifactFilter::default();
         self.environment = EnvironmentFilter::default();
         self.harness = HarnessFilter::default();
     }
@@ -178,7 +165,6 @@ impl AgentManagementFilters {
             || self.source != SourceFilter::default()
             || self.created_on != CreatedOnFilter::default()
             || self.creator != CreatorFilter::default() && self.owners != OwnerFilter::PersonalOnly
-            || self.artifact != ArtifactFilter::default()
             || self.environment != EnvironmentFilter::default()
             || self.harness != HarnessFilter::default()
     }
@@ -272,27 +258,6 @@ impl std::fmt::Display for AgentRunDisplayStatus {
 /// Stores conversation metadata needed for display in conversation/task views.
 pub struct ConversationMetadata {
     pub nav_data: ConversationNavigationData,
-}
-
-pub(crate) fn artifacts_match_filter(
-    artifacts: &[Artifact],
-    artifact_filter: &ArtifactFilter,
-) -> bool {
-    match artifact_filter {
-        ArtifactFilter::All => true,
-        ArtifactFilter::PullRequest => artifacts
-            .iter()
-            .any(|artifact| matches!(artifact, Artifact::PullRequest { .. })),
-        ArtifactFilter::Plan => artifacts
-            .iter()
-            .any(|artifact| matches!(artifact, Artifact::Plan { .. })),
-        ArtifactFilter::Screenshot => artifacts
-            .iter()
-            .any(|artifact| matches!(artifact, Artifact::Screenshot { .. })),
-        ArtifactFilter::File => artifacts
-            .iter()
-            .any(|artifact| matches!(artifact, Artifact::File { .. })),
-    }
 }
 
 /// This model serves as the interface for reading local agent conversations.

@@ -88,8 +88,8 @@ impl PlanAndTodoListView {
                     }
                 }
                 AIDocumentModelEvent::DocumentUpdated { .. }
-                | AIDocumentModelEvent::StreamingDocumentsCleared(..)
-                | AIDocumentModelEvent::DocumentVisibilityChanged(_) => {}
+                | AIDocumentModelEvent::StreamingDocumentsCleared
+                | AIDocumentModelEvent::DocumentVisibilityChanged => {}
             },
         );
 

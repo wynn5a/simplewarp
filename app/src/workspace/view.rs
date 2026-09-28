@@ -187,7 +187,6 @@ use crate::menu::{
 };
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::network::{NetworkStatus, NetworkStatusEvent};
-use crate::notebooks::CloudNotebook;
 use crate::notebooks::manager::{NotebookManager, NotebookSource};
 use crate::notification::NotificationContext;
 use crate::palette::PaletteMode;
@@ -13317,28 +13316,11 @@ impl Workspace {
                 &result.operation,
                 &result.success_type,
             ) {
-                let notebook: Option<&CloudNotebook> = object.into();
-                let cloned_notebook = notebook.cloned();
-
                 self.toast_stack
                     .update(ctx, |view, ctx| match result.success_type {
                         OperationSuccessType::Success => {
                             let new_toast =
                                 DismissibleToast::success(message).with_object_id(object_id);
-                            if let Some(notebook) = cloned_notebook
-                                && result.operation == ObjectOperation::Update
-                                && notebook.model().ai_document_id.is_some()
-                                && !notebook.model().ai_document_id.is_some_and(|ai_doc_id| {
-                                    self.active_tab_pane_group()
-                                        .as_ref(ctx)
-                                        .contains_ai_document(&ai_doc_id, ctx)
-                                })
-                            {
-                                // A plan synced while its document is open in another tab; the
-                                // active tab already shows its own toast, so skip the duplicate.
-                                return;
-                            }
-
                             view.add_ephemeral_toast(new_toast, ctx);
                         }
                     });

@@ -229,8 +229,11 @@ fn test_restore_document_version() {
         });
 
         // Update the title too
-        model_handle.update(&mut app, |model, ctx| {
-            model.update_title(&doc_id, "Modified Title", AIDocumentUpdateSource::User, ctx);
+        model_handle.update(&mut app, |model, _| {
+            model
+                .get_current_document_mut(&doc_id)
+                .expect("Document should exist")
+                .title = "Modified Title".to_string();
         });
 
         // Restore to the original version (v1)

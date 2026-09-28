@@ -165,7 +165,6 @@ fn pill_bar_data_layer_finds_restored_children_before_pane_creation() {
                         agent_name: Some("Agent 1".to_string()),
                         orchestration_harness_type: None,
                         parent_conversation_id: Some(parent_id.to_string()),
-                        is_remote_child: false,
                         root_task_is_optimistic: None,
                         run_id: Some(child_run_id.clone()),
                         autoexecute_override: None,
@@ -216,7 +215,6 @@ fn pill_bar_data_layer_finds_restored_children_before_pane_creation() {
                         agent_name: None,
                         orchestration_harness_type: None,
                         parent_conversation_id: None,
-                        is_remote_child: false,
                         root_task_is_optimistic: None,
                         run_id: Some(parent_run_id.clone()),
                         autoexecute_override: None,
@@ -342,7 +340,6 @@ fn build_three_level_tree(
             "mid".to_string(),
             root_id,
             None,
-            false,
             ctx,
         )
     });
@@ -352,7 +349,6 @@ fn build_three_level_tree(
             "grandchild".to_string(),
             mid_id,
             None,
-            false,
             ctx,
         )
     });
@@ -463,7 +459,6 @@ fn drill_down_anchor_matches_root_anchoring_at_depth_one() {
                 "child".to_string(),
                 root_id,
                 None,
-                false,
                 ctx,
             )
         });
@@ -544,7 +539,6 @@ fn breadcrumbs_resolve_token_only_parent_linkage_after_restore() {
             agent_name: None,
             orchestration_harness_type: None,
             parent_conversation_id: None,
-            is_remote_child: false,
             root_task_is_optimistic: None,
             run_id: None,
             autoexecute_override: None,
@@ -561,7 +555,6 @@ fn breadcrumbs_resolve_token_only_parent_linkage_after_restore() {
             agent_name: Some("child".to_string()),
             orchestration_harness_type: None,
             parent_conversation_id: None,
-            is_remote_child: false,
             root_task_is_optimistic: None,
             run_id: None,
             autoexecute_override: None,
@@ -620,7 +613,7 @@ fn breadcrumbs_resolve_token_only_parent_linkage_after_restore() {
 }
 
 /// The pill bar's history subscription must treat
-/// `ConversationServerTokenAssigned` as a re-render trigger: a remote child's
+/// `ConversationServerTokenAssigned` as a re-render trigger: a child's
 /// run-id linkage can land after `StartedNewConversation` (via
 /// `assign_run_id_for_conversation`), and pill contents keyed on run linkage
 /// would otherwise stay stale until an unrelated status event fired.
@@ -696,7 +689,6 @@ fn conversation_server_token_assignment_rerenders_the_pill_bar() {
                 "child".to_string(),
                 root_id,
                 None,
-                false,
                 ctx,
             )
         });

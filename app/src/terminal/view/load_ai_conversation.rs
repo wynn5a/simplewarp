@@ -879,7 +879,6 @@ impl TerminalView {
             agent_name: None,
             orchestration_harness_type: None,
             parent_conversation_id: None,
-            is_remote_child: false,
             root_task_is_optimistic: None,
             run_id: None,
             autoexecute_override: None,

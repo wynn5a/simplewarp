@@ -223,11 +223,6 @@ pub struct RunAgentsAgentRunConfig {
     pub name: String,
     pub prompt: String,
     pub title: String,
-    /// Optional UID of the named agent (service account) this child run
-    /// should execute as. Empty means the child runs as the caller. Only
-    /// meaningful for factory agents dispatching sibling factory agents;
-    /// requires remote execution and is enforced server-side at dispatch.
-    pub agent_identity_uid: String,
     /// Optional model override for this specific child agent. When non-empty,
     /// overrides the batch-level `model_id` for this child only. When empty,
     /// the child inherits the batch-level model.

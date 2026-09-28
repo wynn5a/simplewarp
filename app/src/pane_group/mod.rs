@@ -1957,13 +1957,6 @@ impl PaneGroup {
         }
     }
 
-    /// Checks if this pane group contains a visible AI document pane with the given document ID.
-    pub fn contains_ai_document(&self, document_id: &AIDocumentId, ctx: &AppContext) -> bool {
-        self.panes_of::<AIDocumentPane>()
-            .filter(|pane| !self.is_pane_hidden_for_close(pane.id()))
-            .any(|pane| *pane.document_view(ctx).as_ref(ctx).document_id() == *document_id)
-    }
-
     /// Closes all visible AI document panes that are *not* for `document_id`, then applies the
     /// requested `action` to the pane for `document_id`.
     ///
@@ -5533,10 +5526,6 @@ impl PaneGroup {
         let parent_id = history_model
             .conversation(&conversation_id)
             .and_then(|c| c.parent_conversation_id());
-        let is_remote_child = history_model
-            .conversation(&conversation_id)
-            .map(|c| c.is_remote_child())
-            .unwrap_or(false);
 
         let focused_view_id = self
             .terminal_view_from_pane_id(focused_pane_id, ctx)
@@ -5575,7 +5564,7 @@ impl PaneGroup {
             "swap_active_pane_to_conversation: no pane found for conversation {conversation_id:?} \
              [focused_pane={focused_pane_id:?}, focused_view={focused_view_id:?}, \
              history_owner_view={history_owner_view_id:?}, in_memory={conversation_in_memory}, \
-             parent={parent_id:?}, remote_child={is_remote_child}, \
+             parent={parent_id:?}, \
              child_agent_panes_has_entry={has_child_entry}, \
              child_agent_panes_keys={child_pane_keys:?}, panes=[{}]]",
             pane_summaries.join(", ")

@@ -30,7 +30,6 @@ fn make_request_with_skills(
             name: "child".to_string(),
             prompt: "do work".to_string(),
             title: "Child agent".to_string(),
-            agent_identity_uid: String::new(),
             model_id: String::new(),
         }],
         plan_id: String::new(),

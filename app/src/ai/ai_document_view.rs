@@ -222,10 +222,10 @@ impl AIDocumentView {
 
                     me.update_header_buttons(ctx);
                 }
-                AIDocumentModelEvent::StreamingDocumentsCleared(_) => {
+                AIDocumentModelEvent::StreamingDocumentsCleared => {
                     me.refresh(ctx);
                 }
-                AIDocumentModelEvent::DocumentVisibilityChanged(_) => {}
+                AIDocumentModelEvent::DocumentVisibilityChanged => {}
             },
         );
 

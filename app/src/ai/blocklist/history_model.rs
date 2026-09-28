@@ -420,22 +420,12 @@ impl BlocklistAIHistoryModel {
     }
 
     /// Creates a new child agent conversation.
-    ///
-    /// `is_remote` must be `true` for children executing on a remote worker.
-    /// It is applied *before* the first persist below so that, if this
-    /// conversation is ever written to disk, the very first row already
-    /// carries the correct `is_remote_child` value — remote children must
-    /// never be persisted (see `write_updated_conversation_state`), and
-    /// setting the flag only after this initial persist would write a
-    /// garbage `is_remote_child=false`/`run_id=None` row that then blocks
-    /// all later, correct persists via that same guard.
     pub fn start_new_child_conversation(
         &mut self,
         terminal_surface_id: EntityId,
         name: String,
         parent_conversation_id: AIConversationId,
         orchestration_harness: Option<Harness>,
-        is_remote: bool,
         ctx: &mut ModelContext<Self>,
     ) -> AIConversationId {
         let parent_agent_id = self
@@ -461,9 +451,6 @@ impl BlocklistAIHistoryModel {
             conversation.set_agent_name(name);
             if let Some(harness) = orchestration_harness {
                 conversation.set_orchestration_harness(harness);
-            }
-            if is_remote {
-                conversation.mark_as_remote_child();
             }
         }
         self.set_parent_for_conversation(conversation_id, parent_conversation_id);
@@ -582,20 +569,6 @@ impl BlocklistAIHistoryModel {
             title,
         });
     }
-    pub fn mark_conversation_as_remote_child(
-        &mut self,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        {
-            let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) else {
-                return;
-            };
-            conversation.mark_as_remote_child();
-        }
-        self.persist_conversation_state(conversation_id, ctx);
-    }
-
     /// Updates the persisted `last_event_sequence` for a conversation and
     /// writes the updated conversation state to SQLite. Used by the
     /// orchestration event poller after draining an event batch to keep the
@@ -1164,8 +1137,8 @@ impl BlocklistAIHistoryModel {
         }
     }
 
-    /// Assigns a `run_id` to a conversation that was spawned as a remote child
-    /// agent. Updates the `agent_id_to_conversation_id` index and emits
+    /// Assigns a `run_id` to a conversation that was spawned as a child agent
+    /// (e.g. a locally launched harness child). Updates the `agent_id_to_conversation_id` index and emits
     /// `ConversationServerTokenAssigned` so the `StartAgentExecutor` can
     /// complete the pending `start_agent` tool call.
     pub fn assign_run_id_for_conversation(
@@ -1389,7 +1362,6 @@ impl BlocklistAIHistoryModel {
             agent_name: None,
             orchestration_harness_type: None,
             parent_conversation_id: None,
-            is_remote_child: false,
             root_task_is_optimistic: None,
             run_id: None,
             autoexecute_override: Some(source_conversation.autoexecute_override().into()),
@@ -1567,7 +1539,6 @@ impl BlocklistAIHistoryModel {
             agent_name: None,
             orchestration_harness_type: None,
             parent_conversation_id: None,
-            is_remote_child: false,
             root_task_is_optimistic: None,
             run_id: None,
             autoexecute_override: Some(conversation.autoexecute_override().into()),
@@ -2553,10 +2524,8 @@ pub enum BlocklistAIHistoryEvent {
 
     /// Emitted when a conversation's orchestration config is updated
     /// (live wire snapshot, user edit, or restore-hydration).
-    /// Consumers that perform UI side effects should gate on `!from_restore`.
     OrchestrationConfigUpdated {
         conversation_id: AIConversationId,
-        from_restore: bool,
     },
 
     /// Emitted when a conversation's `conversation_usage_metadata` is updated

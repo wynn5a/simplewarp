@@ -216,7 +216,6 @@ fn run_agents_action(harness_type: &str) -> AIAgentAction {
                 name: "child".to_string(),
                 prompt: "Help".to_string(),
                 title: String::new(),
-                agent_identity_uid: String::new(),
                 model_id: String::new(),
             }],
             plan_id: String::new(),
@@ -239,7 +238,6 @@ fn local_codex_run_agents_maps_to_local_harness_mode_when_flag_enabled() {
         name: "child".to_string(),
         prompt: "Investigate the failure".to_string(),
         title: String::new(),
-        agent_identity_uid: String::new(),
         model_id: String::new(),
     };
 
@@ -460,7 +458,6 @@ fn should_autoexecute_for_child_conversation_without_plan_or_profile() {
                     "mid-tree".to_string(),
                     state.conversation_id,
                     None,
-                    false,
                     ctx,
                 )
             });
@@ -492,7 +489,6 @@ fn child_run_agents_executes_when_multi_level_orchestration_enabled() {
                     "mid-tree".to_string(),
                     state.conversation_id,
                     None,
-                    false,
                     ctx,
                 )
             });
@@ -536,7 +532,6 @@ fn execute_denies_child_run_agents_when_multi_level_orchestration_disabled() {
                     "mid-tree".to_string(),
                     state.conversation_id,
                     None,
-                    false,
                     ctx,
                 )
             });

@@ -101,7 +101,6 @@ fn test_from_conversation_populates_local_conversation_fields() {
                 run_id: None,
                 autoexecute_override: None,
                 last_event_sequence: None,
-                is_remote_child: false,
                 root_task_is_optimistic: None,
                 pinned: false,
             },

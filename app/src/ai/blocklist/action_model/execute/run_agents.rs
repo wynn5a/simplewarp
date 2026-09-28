@@ -604,21 +604,13 @@ pub fn compose_run_agents_child_prompt(base_prompt: &str, per_agent_prompt: &str
 }
 
 /// Translates run-wide config into a per-child local
-/// [`StartAgentExecutionMode`]. Returns `Err` for rejected combinations
-/// (a named-agent identity, or a product-disabled local harness).
+/// [`StartAgentExecutionMode`]. Returns `Err` for a product-disabled local
+/// harness.
 pub fn run_agents_to_start_agent_mode(
     run_harness_type: &str,
     run_model_id: &str,
     cfg: &RunAgentsAgentRunConfig,
 ) -> Result<StartAgentExecutionMode, String> {
-    // Named-agent identity required the server's public-API dispatch path.
-    if !cfg.agent_identity_uid.trim().is_empty() {
-        return Err(
-            "agent_identity_uid requires remote execution; local child agents cannot \
-             run as a different named agent."
-                .to_string(),
-        );
-    }
     let trimmed = run_harness_type.trim();
     // Per-agent model_id overrides the batch-level run_model_id when set.
     let effective_model_id = if !cfg.model_id.trim().is_empty() {
