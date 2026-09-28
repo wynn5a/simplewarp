@@ -37,6 +37,7 @@ impl ChannelState {
             additional_features: Default::default(),
             config: ChannelConfig {
                 app_id,
+                url_scheme: "warposs",
                 logfile_name: "".into(),
                 mcp_static_config: None,
             },
@@ -170,11 +171,7 @@ impl ChannelState {
     }
 
     pub fn url_scheme() -> &'static str {
-        match Self::channel() {
-            // Dummy value--integration tests shouldn't support URL schemes.
-            Channel::Integration => "warpintegration",
-            Channel::Oss => "warposs",
-        }
+        CHANNEL_STATE.lock().config.url_scheme
     }
 }
 

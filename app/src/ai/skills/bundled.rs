@@ -289,7 +289,7 @@ fn display_optional_path(path: Option<PathBuf>) -> String {
 ///
 /// Supported variables:
 /// - `{{warp_cli_binary_name}}` - The CLI binary name (e.g., `warp` or `warp-cli`)
-/// - `{{warp_url_scheme}}` - The URL scheme (e.g., `warp`, `warpdev`, `warppreview`)
+/// - `{{warp_url_scheme}}` - The URL scheme (e.g., `simplewarp`, `warposs`)
 /// - `{{settings_schema_path}}` - Path to the bundled JSON settings schema
 /// - `{{skill_dir}}` - Path to the bundled skill's directory
 /// - `{{settings_file_path}}` - Path to the user's settings TOML file

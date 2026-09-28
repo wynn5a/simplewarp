@@ -20,6 +20,7 @@ fn main() -> Result<()> {
         Channel::Oss,
         ChannelConfig {
             app_id: AppId::new("dev", "simplewarp", "SimpleWarp"),
+            url_scheme: "simplewarp",
             logfile_name: "simplewarp.log".into(),
             mcp_static_config: None,
         },

@@ -36,6 +36,8 @@ pub fn main() -> Result<()> {
                     "WarpIntegration"
                 },
             ),
+            // Dummy value--integration tests shouldn't support URL schemes.
+            url_scheme: "warpintegration",
             logfile_name: "warp_integration.log".into(),
             mcp_static_config: None,
         },

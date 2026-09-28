@@ -12,6 +12,7 @@ fn main() -> Result<()> {
         Channel::Oss,
         ChannelConfig {
             app_id: AppId::new("dev", "warp", "WarpOss"),
+            url_scheme: "warposs",
             logfile_name: "warp-oss.log".into(),
             mcp_static_config: None,
         },

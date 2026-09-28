@@ -777,3 +777,36 @@ fn test_decode_uuid_hex_rejects_wrong_length() {
 fn test_decode_uuid_hex_rejects_invalid_chars() {
     assert!(super::decode_uuid_hex("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ").is_none());
 }
+
+/// The OS only routes deep links and MCP OAuth redirects back to the app when the bin's
+/// `ChannelConfig::url_scheme` is the scheme its Info.plist registers.
+#[test]
+fn test_bin_url_schemes_match_registered_plist_schemes() {
+    let simplewarp_bin = include_str!("../bin/simplewarp.rs");
+    let oss_bin = include_str!("../bin/oss.rs");
+    let cases = [
+        (
+            "simplewarp",
+            simplewarp_bin,
+            vec![
+                simplewarp_bin,
+                include_str!("../../../script/bundle_simplewarp"),
+            ],
+        ),
+        ("warposs", oss_bin, vec![oss_bin]),
+    ];
+    for (scheme, bin_source, plists) in cases {
+        assert!(
+            bin_source.contains(&format!("url_scheme: \"{scheme}\",")),
+            "bin does not configure the {scheme} url scheme"
+        );
+        let registered =
+            format!("<key>CFBundleURLSchemes</key><array><string>{scheme}</string></array>");
+        for plist in plists {
+            assert!(
+                plist.contains(&registered),
+                "plist does not register {scheme}"
+            );
+        }
+    }
+}

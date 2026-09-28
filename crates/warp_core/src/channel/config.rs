@@ -4,10 +4,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::AppId;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug)]
 pub struct ChannelConfig {
     /// The application ID for this channel.
     pub app_id: AppId,
+
+    /// The custom URL scheme the app registers with the OS (e.g. in its Info.plist); deep links
+    /// and OAuth redirects use it, so it must match what the bundle registers.
+    pub url_scheme: &'static str,
 
     /// The name of the file to which logs should be written.
     pub logfile_name: Cow<'static, str>,
