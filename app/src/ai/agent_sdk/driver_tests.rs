@@ -657,8 +657,7 @@ fn warp_skill_dirs_env_loads_skills_as_home_tier() {
 }
 
 /// Verifies that relative `WARP_SKILL_DIRS` entries are resolved against the driver's
-/// working directory rather than the process's current working directory (which
-/// `prepare_environment` may have changed).
+/// working directory rather than the process's current working directory.
 #[test]
 #[serial_test::serial]
 fn warp_skill_dirs_env_relative_entries_resolve_against_working_dir() {

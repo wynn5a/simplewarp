@@ -1,12 +1,10 @@
 mod keysym;
-mod recording;
 mod wayland;
 mod x11;
 
 use std::sync::OnceLock;
 
 use async_trait::async_trait;
-pub use recording::{Recorder, post_process_recording};
 use warp_errors::report_error;
 
 use crate::{ActionResult, Options, TargetedAction};

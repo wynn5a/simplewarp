@@ -59,7 +59,6 @@ use crate::terminal::cli_agent_sessions::{
 };
 use crate::terminal::model::BlockId;
 
-pub(crate) mod environment;
 mod error_classification;
 pub(crate) mod harness;
 mod harness_output_monitor;

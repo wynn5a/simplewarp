@@ -318,10 +318,6 @@ impl AvailableShell {
             }),
         }
     }
-
-    pub fn is_docker_sandbox(&self) -> bool {
-        matches!(self.state.as_ref(), Config::DockerSandbox { .. })
-    }
 }
 
 impl From<AvailableShell> for NewSessionShell {

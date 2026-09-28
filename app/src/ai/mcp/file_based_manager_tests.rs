@@ -10,10 +10,7 @@ use warp_core::features::FeatureFlag;
 use warpui::{App, Entity, ModelHandle, SingletonEntity as _};
 use watcher::HomeDirectoryWatcher;
 
-use super::{
-    CloudEnvMcpScanServer, FileBasedMCPManager, FileBasedMCPManagerEvent, FileBasedMCPServerScope,
-    MCPProvider,
-};
+use super::{FileBasedMCPManager, FileBasedMCPManagerEvent, FileBasedMCPServerScope, MCPProvider};
 use crate::ai::mcp::file_mcp_watcher::{FileMCPConfigDiagnostic, FileMCPConfigDiagnosticKind};
 use crate::ai::mcp::{FileMCPWatcher, FileMCPWatcherEvent, ParsedTemplatableMCPServerResult};
 use crate::auth::AuthStateProvider;
@@ -44,14 +41,6 @@ fn parse_mcp_json(json: &str) -> Vec<ParsedTemplatableMCPServerResult> {
 struct ManagerEvents {
     spawned_uuids: Vec<Uuid>,
     despawned_uuids: Vec<Uuid>,
-    scan_completions: Vec<ScanCompletion>,
-}
-
-#[derive(Clone, Debug)]
-struct ScanCompletion {
-    repo_path: PathBuf,
-    detected_servers: Vec<CloudEnvMcpScanServer>,
-    wait_server_uuids: Vec<Uuid>,
 }
 
 impl Entity for ManagerEvents {
@@ -99,17 +88,6 @@ fn subscribe_events(
             FileBasedMCPManagerEvent::PurgeCredentials { .. }
             | FileBasedMCPManagerEvent::ServersChanged
             | FileBasedMCPManagerEvent::ConfigDiagnosticChanged => {}
-            FileBasedMCPManagerEvent::CloudEnvMcpScanComplete {
-                repo_path,
-                detected_servers,
-                wait_server_uuids,
-            } => {
-                me.scan_completions.push(ScanCompletion {
-                    repo_path: repo_path.clone(),
-                    detected_servers: detected_servers.clone(),
-                    wait_server_uuids: wait_server_uuids.clone(),
-                });
-            }
         });
     });
     events
@@ -178,7 +156,7 @@ fn test_config_error_preserves_last_known_good_servers() {
             assert_eq!(manager.file_based_servers.len(), 1);
 
             manager.handle_watcher_event(
-                &FileMCPWatcherEvent::ConfigError {
+                &FileMCPWatcherEvent::Failed {
                     diagnostic: FileMCPConfigDiagnostic {
                         config_path: config_path.clone(),
                         provider: MCPProvider::Warp,
@@ -217,7 +195,7 @@ fn all_config_diagnostics_are_owned_sorted_and_cleared_independently() {
                 (first_path.clone(), MCPProvider::Claude, "first diagnostic"),
             ] {
                 manager.handle_watcher_event(
-                    &FileMCPWatcherEvent::ConfigError {
+                    &FileMCPWatcherEvent::Failed {
                         diagnostic: FileMCPConfigDiagnostic {
                             config_path,
                             provider,
@@ -235,7 +213,7 @@ fn all_config_diagnostics_are_owned_sorted_and_cleared_independently() {
             assert_eq!(diagnostics[1].config_path, second_path);
 
             manager.handle_watcher_event(
-                &FileMCPWatcherEvent::ConfigParsed {
+                &FileMCPWatcherEvent::Parsed {
                     config_path: first_path.clone(),
                     root_path: first_root,
                     provider: MCPProvider::Claude,
@@ -578,77 +556,6 @@ fn test_project_scoped_servers_never_auto_spawn() {
                 e.despawned_uuids.is_empty(),
                 "Toggle flip must not despawn project-scoped servers, got: {:?}",
                 e.despawned_uuids
-            );
-        });
-    });
-}
-
-#[test]
-fn test_project_scoped_cloud_scan_has_detected_servers_but_empty_wait_set() {
-    let _flag_guard = FeatureFlag::FileBasedMcp.override_enabled(true);
-    let repo_path = PathBuf::from("/tmp/warp-test-cloud-repo");
-    let claude_parsed =
-        parse_mcp_json(r#"{"proj-claude": {"command": "npx", "args": ["proj-claude"]}}"#);
-    let warp_parsed = parse_mcp_json(r#"{"proj-warp": {"command": "npx", "args": ["proj-warp"]}}"#);
-
-    App::test((), |mut app| async move {
-        let manager = setup_app(&mut app);
-        let events = subscribe_events(&mut app, &manager);
-
-        manager.update(&mut app, |m, ctx| {
-            m.apply_parsed_servers(repo_path.clone(), MCPProvider::Claude, claude_parsed, ctx);
-            m.apply_parsed_servers(repo_path.clone(), MCPProvider::Warp, warp_parsed, ctx);
-            m.handle_cloud_environment_scan_complete(&repo_path, ctx);
-        });
-
-        events.update(&mut app, |e, _| {
-            assert_eq!(e.scan_completions.len(), 1);
-            let scan = &e.scan_completions[0];
-            assert_eq!(scan.repo_path, repo_path);
-            assert_eq!(scan.detected_servers.len(), 2);
-            assert!(
-                scan.wait_server_uuids.is_empty(),
-                "Project-scoped servers must not be included in the AgentDriver wait set, got: {:?}",
-                scan.wait_server_uuids
-            );
-            assert!(
-                scan.detected_servers
-                    .iter()
-                    .all(|server| !server.auto_start_eligible),
-                "Project-scoped servers should not be auto-start eligible: {:?}",
-                scan.detected_servers
-            );
-        });
-    });
-}
-
-#[test]
-fn test_auto_started_cloud_scan_uuids_are_in_wait_set() {
-    let _flag_guard = FeatureFlag::FileBasedMcp.override_enabled(true);
-    let Some(warp_mcp_config_path) = warp_managed_mcp_config_path() else {
-        return;
-    };
-    let root_path = warp_mcp_config_path.root_path;
-    let parsed = parse_mcp_json(r#"{"global-warp": {"command": "npx", "args": ["warp"]}}"#);
-
-    App::test((), |mut app| async move {
-        let manager = setup_app(&mut app);
-        let events = subscribe_events(&mut app, &manager);
-
-        manager.update(&mut app, |m, ctx| {
-            m.apply_parsed_servers(root_path.clone(), MCPProvider::Warp, parsed, ctx);
-            m.handle_cloud_environment_scan_complete(&root_path, ctx);
-        });
-
-        events.update(&mut app, |e, _| {
-            assert_eq!(e.spawned_uuids.len(), 1);
-            assert_eq!(e.scan_completions.len(), 1);
-            let scan = &e.scan_completions[0];
-            assert_eq!(scan.detected_servers.len(), 1);
-            assert_eq!(scan.wait_server_uuids, e.spawned_uuids);
-            assert!(
-                scan.detected_servers[0].auto_start_eligible,
-                "Global Warp server should be auto-start eligible"
             );
         });
     });

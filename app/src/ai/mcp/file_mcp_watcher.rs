@@ -132,9 +132,6 @@ pub struct FileMCPWatcher {
     /// Set of project repository root paths we are already watching for file-based MCP configs.
     /// Used purely for deduplication — we never tear down project watchers during the session.
     project_repo_watchers: HashSet<PathBuf>,
-    /// Tracks how many provider config files remain to be parsed for each cloud environment repo.
-    /// When the count reaches zero, a `CloudEnvironmentScanComplete` event is emitted.
-    cloud_env_pending: HashMap<PathBuf, usize>,
 }
 
 impl FileMCPWatcher {
@@ -156,11 +153,6 @@ impl FileMCPWatcher {
                 let DetectedRepositoriesEvent::DetectedGitRepo { repository, source } = event;
                 if should_watch_repository(*source, settings_mode) {
                     let repo_path = repository.as_ref(ctx).root_dir().to_local_path_lossy();
-                    if matches!(source, RepoDetectionSource::CloudEnvironmentPrep) {
-                        let count =
-                            providers_in_scope(repo_path.clone(), repo_path.clone()).count();
-                        me.cloud_env_pending.insert(repo_path.clone(), count);
-                    }
                     me.register_repo_for_file_mcp_watching(repo_path, ctx, file_mcp_tx.clone());
                 }
             }
@@ -222,7 +214,6 @@ impl FileMCPWatcher {
             parse_abort_handles: HashMap::new(),
             home_provider_watchers,
             project_repo_watchers: HashSet::new(),
-            cloud_env_pending: HashMap::new(),
         };
         for (config_path, root_path, provider) in initial_config_parses {
             watcher.update_servers_from_config_file(&config_path, root_path, provider, ctx);
@@ -408,7 +399,7 @@ impl FileMCPWatcher {
                         }
                         let config_path = home_dir.join(provider.home_config_path());
                         self.abort_config_parse(&config_path, provider);
-                        ctx.emit(FileMCPWatcherEvent::ConfigRemoved {
+                        ctx.emit(FileMCPWatcherEvent::Removed {
                             config_path,
                             root_path: home_dir.clone(),
                             provider,
@@ -531,7 +522,7 @@ impl FileMCPWatcher {
         // last-known-good servers.
         if was_deleted && !was_added {
             self.abort_config_parse(&config_path, provider);
-            ctx.emit(FileMCPWatcherEvent::ConfigRemoved {
+            ctx.emit(FileMCPWatcherEvent::Removed {
                 config_path: config_path.clone(),
                 root_path: root_path.clone(),
                 provider,
@@ -552,7 +543,7 @@ impl FileMCPWatcher {
     }
 
     /// Asynchronously reads and parses the MCP configuration file at `config_file_path`,
-    /// then emits a [`FileMCPWatcherEvent::ConfigParsed`] event.
+    /// then emits a [`FileMCPWatcherEvent::Parsed`] event.
     fn update_servers_from_config_file(
         &mut self,
         config_file_path: &Path,
@@ -568,18 +559,7 @@ impl FileMCPWatcher {
             async move { parse_mcp_config_file(&config_file_path, provider).await },
             move |me, outcome, ctx| {
                 me.parse_abort_handles.remove(&callback_key);
-                let repo_path_for_countdown = root_path.clone();
                 emit_parse_outcome(outcome, callback_key.0.clone(), root_path, provider, ctx);
-                if let Some(count) = me.cloud_env_pending.get_mut(&repo_path_for_countdown) {
-                    *count = count.saturating_sub(1);
-                    if *count == 0 {
-                        // If we've parsed all MCP config files for the cloud environment repo, emit a `CloudEnvironmentScanComplete` event.
-                        me.cloud_env_pending.remove(&repo_path_for_countdown);
-                        ctx.emit(FileMCPWatcherEvent::CloudEnvMcpScanComplete {
-                            repo_path: repo_path_for_countdown,
-                        });
-                    }
-                }
             },
         );
         self.parse_abort_handles.insert(key, parse.abort_handle());
@@ -592,9 +572,7 @@ fn should_watch_repository(
 ) -> bool {
     match settings_mode {
         settings::SettingsMode::Gui => match source {
-            RepoDetectionSource::TerminalNavigation | RepoDetectionSource::CloudEnvironmentPrep => {
-                true
-            }
+            RepoDetectionSource::TerminalNavigation => true,
             RepoDetectionSource::ProjectRulesIndexing
             | RepoDetectionSource::CodeReviewInitialization => false,
         },
@@ -684,12 +662,12 @@ fn emit_parse_outcome(
     ctx: &mut ModelContext<FileMCPWatcher>,
 ) {
     match outcome {
-        FileMCPConfigParseOutcome::Missing => ctx.emit(FileMCPWatcherEvent::ConfigRemoved {
+        FileMCPConfigParseOutcome::Missing => ctx.emit(FileMCPWatcherEvent::Removed {
             config_path,
             root_path,
             provider,
         }),
-        FileMCPConfigParseOutcome::Parsed(servers) => ctx.emit(FileMCPWatcherEvent::ConfigParsed {
+        FileMCPConfigParseOutcome::Parsed(servers) => ctx.emit(FileMCPWatcherEvent::Parsed {
             config_path,
             root_path,
             provider,
@@ -697,7 +675,7 @@ fn emit_parse_outcome(
         }),
         FileMCPConfigParseOutcome::Error(diagnostic) => {
             let _ = root_path;
-            ctx.emit(FileMCPWatcherEvent::ConfigError { diagnostic })
+            ctx.emit(FileMCPWatcherEvent::Failed { diagnostic })
         }
     }
 }
@@ -810,22 +788,20 @@ async fn parse_mcp_config_file(
 /// Events sent from [`FileMCPWatcher`] to [`FileBasedMCPManager`] via the watcher channel.
 pub enum FileMCPWatcherEvent {
     /// A config file was successfully parsed; delivers the full snapshot for `(root_path, provider)`.
-    ConfigParsed {
+    Parsed {
         config_path: PathBuf,
         root_path: PathBuf,
         provider: MCPProvider,
         servers: Vec<ParsedTemplatableMCPServerResult>,
     },
     /// A config file was deleted; all servers for `(root_path, provider)` should be removed.
-    ConfigRemoved {
+    Removed {
         config_path: PathBuf,
         root_path: PathBuf,
         provider: MCPProvider,
     },
     /// A config could not be read or parsed. Consumers should preserve the last-known-good state.
-    ConfigError { diagnostic: FileMCPConfigDiagnostic },
-    /// All provider config files for a cloud environment repo have been parsed.
-    CloudEnvMcpScanComplete { repo_path: PathBuf },
+    Failed { diagnostic: FileMCPConfigDiagnostic },
 }
 
 impl Entity for FileMCPWatcher {

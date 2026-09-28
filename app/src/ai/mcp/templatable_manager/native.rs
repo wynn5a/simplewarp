@@ -249,8 +249,7 @@ impl TemplatableMCPServerManager {
             } => {
                 me.purge_file_based_server_credentials(installation_hashes, ctx);
             }
-            FileBasedMCPManagerEvent::CloudEnvMcpScanComplete { .. }
-            | FileBasedMCPManagerEvent::ServersChanged
+            FileBasedMCPManagerEvent::ServersChanged
             | FileBasedMCPManagerEvent::ConfigDiagnosticChanged => {}
         });
 

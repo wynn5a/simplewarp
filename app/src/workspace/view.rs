@@ -9787,16 +9787,6 @@ impl Workspace {
             DefaultSessionModeBehavior::Apply
         ) && conversation_restoration.is_none()
             && AISettings::as_ref(ctx).default_session_mode() == DefaultSessionMode::Agent;
-        #[cfg(feature = "local_tty")]
-        let is_docker_sandbox = chosen_shell
-            .as_ref()
-            .is_some_and(AvailableShell::is_docker_sandbox);
-        #[cfg(not(feature = "local_tty"))]
-        let is_docker_sandbox = {
-            let _ = chosen_shell.as_ref();
-            false
-        };
-
         // If restoring a conversation, use its startup working directory if it exists.
         // For forks this is the conversation's latest working directory so the
         // fork continues where the source conversation left off.
@@ -9828,25 +9818,6 @@ impl Workspace {
             ctx,
         );
 
-        #[cfg(feature = "local_tty")]
-        if is_docker_sandbox {
-            match self
-                .active_tab_pane_group()
-                .as_ref(ctx)
-                .active_session_view(ctx)
-            {
-                Some(terminal_view) => {
-                    TerminalView::initialize_docker_sandbox_environment(&terminal_view, ctx);
-                }
-                _ => {
-                    log::warn!(
-                        "Could not find docker sandbox terminal view after creating new tab"
-                    );
-                }
-            }
-        }
-        #[cfg(not(feature = "local_tty"))]
-        let _ = is_docker_sandbox;
         // If the default session mode is Agent and AI is enabled, enter agent view
         if should_enter_agent_view {
             self.enter_agent_view_on_active_tab(ctx);

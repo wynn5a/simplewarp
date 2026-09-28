@@ -40,7 +40,9 @@ No cloud, no login, no subscription, no Warp Drive.
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
-EditableMarkdownMermaid, ImeMarkedText, ITermImages.
+EditableMarkdownMermaid, ImeMarkedText, ITermImages, LocalDockerSandbox (local `sbx` sandbox
+pane; dogfood-only), computer use (`UseComputer` / `RequestComputerUse` and the `computer_use`
+actor crate; local-capable, but the local adapter does not offer the tools).
 
 ## Phase 4 progress
 
@@ -555,6 +557,39 @@ Queue, in order:
    `CloudEnvMcpScanComplete` chain (now `#[allow(dead_code)]`, test-only) are dead; conversation
    `recording_spans_by_action_id` (reads only stale results); `computer_use`'s recorder / pointer
    sink; `UseComputer` / `RequestComputerUse` are also never offered by the local adapter.
+
+17. ~~Docker sandbox pane and cloud-environment residue~~ — **4hf done (2026-09-28).** −8.3k lines in
+   53 files. Docker sandbox pane **kept**: it runs a local `sbx run` container (Docker's sandbox
+   CLI resolved from the user's PATH), no Warp service involved; only its post-bootstrap env init
+   was server-bound (looked up hardcoded `ServerId` "SVhg783GBFQHk1OfdPfFU9" in the synced
+   environment store, always "environment not found"). Deleted: `initialize_docker_sandbox_environment`
+   and its workspace new-tab hook, `AvailableShell` / `ShellStarter::is_docker_sandbox`; with it
+   `agent_sdk/driver/environment.rs` (`prepare_environment`, clone/checkout/setup-command helpers,
+   `register_cloned_repo`), `SetupStep::EnvironmentRepoClone` / `EnvironmentSetupCommands`,
+   `TerminalDriver::execute_silent_command` / `cd` / `cd_silent` / `active_session_shell_type`
+   (`create_from_existing_view` is now test-only), `RepoDetectionSource::CloudEnvironmentPrep`,
+   the `CloudEnvMcpScanComplete` chain (watcher countdown, manager wait-set and
+   `CloudEnvMcpScanServer`; `maybe_autostart_file_based_servers` returns `()`);
+   `FileMCPWatcherEvent` variants renamed `Parsed` / `Removed` / `Failed` (clippy
+   `enum_variant_names`). Recording UI residue: conversation `recording_spans_by_action_id` and
+   `RecordingSpanInfo/Status`, the "Recording active / Captured in recording" footer, the StopRecording
+   "Open recording" button and `AIBlockAction::OpenRecordingArtifact` (always toasted a failure);
+   persisted Start/StopRecording actions and results still load and render their cards.
+   `computer_use`: `Recorder` / `create_recorder` and the mac/linux ffmpeg recorders, mock recorder,
+   `post_process_recording`, overlay burn-in (`overlay.rs`), thumbnail, video-duration probe,
+   `PointerSink` / `PointerSession` and `Options::pointer_sink`, `Action::is_no_op`,
+   `main_display_dimensions`, deps `thiserror` and mac/linux `nix`/`tokio`/`uuid` extras;
+   `RecordingCompletionStatus` stays (persisted results). Actor / control code untouched.
+   `read_skills_from_files` (test-only) inlined into its tests. CLI `about` rewritten for the local
+   agent CLI; docs.warp.dev line dropped from help. Tests 4,220 default / 4,221 simplewarp (−26,
+   deleted with their code: 18 environment prep, 5 recording span, 2 cloud-env MCP scan, 1 recorded
+   use-computer decoration); `computer_use` −78 on macOS (overlay, pointer session, recorder,
+   metadata, thumbnail; plus 7 Linux-only recorder tests), `warp_cli` + `repo_metadata` pass, 0
+   failed. Linux x11 pointer-sink removal is not compile-checked here (no Linux target). Follow-ups:
+   cloud-environment object types (`CloudAmbientAgentEnvironment`, catalog, orchestration picker,
+   context chip) only ever hold server-synced rows; the docker sandbox view's non-`local_tty`
+   mock branch is dead (function is `local_tty`-only); `ai::artifacts` screenshot/file
+   download buttons; remaining recording tool-call conversion.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

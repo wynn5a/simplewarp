@@ -282,10 +282,6 @@ impl ShellStarter {
         matches!(self, ShellStarter::MSYS2(_))
     }
 
-    pub fn is_docker_sandbox(&self) -> bool {
-        matches!(self, ShellStarter::DockerSandbox(_))
-    }
-
     fn display_name(&self) -> &str {
         match self {
             Self::Direct(starter) => starter.display_name(),

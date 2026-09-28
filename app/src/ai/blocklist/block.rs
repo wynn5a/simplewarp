@@ -953,15 +953,6 @@ pub struct AIBlock {
     /// Per-action button components for "View screenshot" buttons on UseComputer actions.
     view_screenshot_buttons: HashMap<AIAgentActionId, ui_components::button::Button>,
 
-    /// Per-action button components for "Open recording" buttons on StopRecording actions.
-    open_recording_buttons: HashMap<AIAgentActionId, ui_components::button::Button>,
-
-    /// Whether this block's output contains recording-related actions
-    /// (StartRecording/StopRecording/UseComputer). Computed on output updates so
-    /// rendering can skip the conversation-wide recording span derivation for
-    /// unrelated blocks.
-    has_recording_related_actions: bool,
-
     /// Stores the last command that was right-clicked by a child component.
     /// When set, CopyCommand will copy this specific command instead of all commands.
     last_right_clicked_command: Option<String>,
@@ -1374,8 +1365,6 @@ impl AIBlock {
             disable_rule_suggestions_button,
             rewind_button,
             view_screenshot_buttons: Default::default(),
-            open_recording_buttons: Default::default(),
-            has_recording_related_actions: false,
             last_right_clicked_command: None,
             is_usage_footer_expanded: false,
             agent_view_controller,
@@ -1722,7 +1711,6 @@ impl AIBlock {
         match status {
             AIBlockOutputStatus::Pending => {
                 self.requested_action_ids.clear();
-                self.has_recording_related_actions = false;
                 self.secret_redaction_state.reset();
             }
             AIBlockOutputStatus::PartiallyReceived { output } => {
@@ -1766,15 +1754,6 @@ impl AIBlock {
                 self.todo_list_states.entry(message.id.clone()).or_default();
             }
         }
-
-        self.has_recording_related_actions = output.actions().any(|action| {
-            matches!(
-                &action.action,
-                AIAgentActionType::StartRecording { .. }
-                    | AIAgentActionType::StopRecording { .. }
-                    | AIAgentActionType::UseComputer(_)
-            )
-        });
 
         if FeatureFlag::WebSearchUI.is_enabled() {
             // Handle WebSearch messages
@@ -1859,12 +1838,6 @@ impl AIBlock {
             // Ensure a button component exists for UseComputer actions.
             if matches!(&action.action, AIAgentActionType::UseComputer(_)) {
                 self.view_screenshot_buttons
-                    .entry(action.id.clone())
-                    .or_default();
-            }
-
-            if matches!(&action.action, AIAgentActionType::StopRecording { .. }) {
-                self.open_recording_buttons
                     .entry(action.id.clone())
                     .or_default();
             }
@@ -5813,9 +5786,6 @@ pub enum AIBlockAction {
     OpenCommentInGitHub {
         url: String,
     },
-    OpenRecordingArtifact {
-        artifact_uid: String,
-    },
 }
 
 #[cfg(feature = "local_fs")]
@@ -6329,19 +6299,6 @@ impl TypedActionView for AIBlock {
             }
             AIBlockAction::OpenCommentInGitHub { url } => {
                 ctx.open_url(url);
-            }
-            AIBlockAction::OpenRecordingArtifact { artifact_uid } => {
-                log::warn!(
-                    "Recording artifact {artifact_uid} cannot be opened: the signed download URL is unavailable"
-                );
-                let window_id = ctx.window_id();
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error("Failed to open recording.".to_string()),
-                        window_id,
-                        ctx,
-                    );
-                });
             }
             AIBlockAction::ViewScreenshot { action_id } => {
                 // Collect all UseComputer action IDs across the entire conversation

@@ -49,8 +49,6 @@ pub(crate) enum SetupStep {
     McpServerStartup,
     AgentProfileConfiguration,
     ProfileMcpServerStartup,
-    EnvironmentRepoClone,
-    EnvironmentSetupCommands,
     SkillsDirsLoading,
     ThirdPartyHarnessPreparation,
     /// Sub-steps of [`SetupStep::ThirdPartyHarnessPreparation`] that track plugin
@@ -84,12 +82,6 @@ impl SetupStep {
             }
             Self::ProfileMcpServerStartup => {
                 span_and_name!("setup_profile_mcp_server_startup")
-            }
-            Self::EnvironmentRepoClone => {
-                span_and_name!("setup_environment_repo_clone")
-            }
-            Self::EnvironmentSetupCommands => {
-                span_and_name!("setup_environment_setup_commands")
             }
             Self::SkillsDirsLoading => {
                 span_and_name!("setup_skills_dirs_loading")

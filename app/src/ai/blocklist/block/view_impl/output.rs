@@ -54,7 +54,6 @@ use super::{
 };
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::comment::ReviewComment;
-use crate::ai::agent::conversation::{RecordingSpanInfo, RecordingSpanStatus};
 use crate::ai::agent::icons::{self, gray_stop_icon, yellow_stop_icon};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
@@ -135,10 +134,6 @@ pub(crate) struct Props<'a> {
     pub(super) state_handles: &'a AIBlockStateHandles,
     pub(super) action_buttons: &'a HashMap<AIAgentActionId, ActionButtons>,
     pub(super) view_screenshot_buttons: &'a HashMap<AIAgentActionId, ui_components::button::Button>,
-    pub(super) open_recording_buttons: &'a HashMap<AIAgentActionId, ui_components::button::Button>,
-    /// Whether this block's output contains recording-related actions, so
-    /// rendering can skip deriving recording spans for unrelated blocks.
-    pub(super) has_recording_related_actions: bool,
     pub(crate) action_model: &'a ModelHandle<BlocklistAIActionModel>,
     pub(crate) active_session: &'a ModelHandle<ActiveSession>,
     pub(super) editor_views: &'a [EmbeddedCodeEditorView],
@@ -194,17 +189,6 @@ pub(crate) struct Props<'a> {
     pub(super) ask_user_question_view: Option<&'a ViewHandle<AskUserQuestionView>>,
 }
 
-/// A `UseComputer` call whose actions are all no-ops (typically a single
-/// zero-duration wait alongside screenshot params) is a screenshot-only
-/// capture rather than a user-visible interaction, so it shouldn't be labeled
-/// as captured in a recording.
-fn should_decorate_recorded_use_computer(request: &UseComputerRequest) -> bool {
-    request
-        .actions
-        .iter()
-        .any(|action| !action.action.is_no_op())
-}
-
 pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
     let mut output_items = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
     let appearance = Appearance::as_ref(app);
@@ -242,22 +226,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
         | AIBlockOutputStatus::Failed { .. } => {
             if let Some(output) = status.output_to_render() {
                 let output = output.get();
-                // TODO(vkodithala): Blocks with recording-related actions still
-                // recompute this conversation-wide map on every render. Cache
-                // spans on BlocklistAIActionModel keyed by conversation and
-                // refresh on action/result mutations instead.
-                let recording_spans_by_action_id = if props.has_recording_related_actions {
-                    props
-                        .model
-                        .conversation(app)
-                        .map(|conversation| {
-                            conversation
-                                .recording_spans_by_action_id(Some(props.action_model.as_ref(app)))
-                        })
-                        .unwrap_or_default()
-                } else {
-                    HashMap::new()
-                };
                 let is_complete = matches!(status, AIBlockOutputStatus::Complete { .. });
                 let is_output_for_static_prompt_suggestions =
                     props.model.contains_static_prompt_suggestion_input(app);
@@ -757,13 +725,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             ..
                         }) => {
                             should_render_footer = false;
-                            output_items.add_child(render_use_computer(
-                                props,
-                                id,
-                                request,
-                                recording_spans_by_action_id.get(id),
-                                app,
-                            ));
+                            output_items.add_child(render_use_computer(props, id, request, app));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::StartRecording { summary, .. },
@@ -2994,11 +2956,7 @@ fn recording_icon(app: &AppContext) -> Box<dyn Element> {
         .finish()
 }
 
-fn recording_card(
-    text: RecordingCardText,
-    action_button: Option<Box<dyn Element>>,
-    app: &AppContext,
-) -> Box<dyn Element> {
+fn recording_card(text: RecordingCardText, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
     let primary = Text::new(
@@ -3022,12 +2980,10 @@ fn recording_card(
         );
     }
 
-    let mut action =
-        RenderableAction::new_with_element(body.finish(), app).with_icon(recording_icon(app));
-    if let Some(action_button) = action_button {
-        action = action.with_action_button(action_button);
-    }
-    action.render(app).finish()
+    RenderableAction::new_with_element(body.finish(), app)
+        .with_icon(recording_icon(app))
+        .render(app)
+        .finish()
 }
 
 fn render_start_recording(
@@ -3045,29 +3001,7 @@ fn render_start_recording(
             _ => None,
         });
     let text = start_recording_card_text(&recording_summary(props, agent_summary, app), result);
-    recording_card(text, None, app)
-}
-
-fn render_recording_footer(status: RecordingSpanStatus, app: &AppContext) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-    let icon_offset =
-        icon_size(app) + crate::ai::blocklist::inline_action::inline_action_header::ICON_MARGIN;
-    let text = match status {
-        RecordingSpanStatus::Active => "Recording active",
-        RecordingSpanStatus::Captured => "Captured in recording",
-    };
-    Container::new(
-        Text::new(
-            text.to_string(),
-            appearance.ui_font_family(),
-            appearance.ui_font_size(),
-        )
-        .with_color(theme.sub_text_color(theme.surface_1()).into())
-        .finish(),
-    )
-    .with_margin_left(icon_offset)
-    .finish()
+    recording_card(text, app)
 }
 
 fn render_stop_recording(
@@ -3075,7 +3009,6 @@ fn render_stop_recording(
     action_id: &AIAgentActionId,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    let appearance = Appearance::handle(app).as_ref(app);
     let result = props
         .action_model
         .as_ref(app)
@@ -3084,46 +3017,19 @@ fn render_stop_recording(
             AIAgentActionResultType::StopRecording(result) => Some(result),
             _ => None,
         });
-    let mut action_button = None;
-    if let Some(StopRecordingResult::Success(stopped)) = result
-        && !stopped.artifact_uid.trim().is_empty()
-    {
-        let artifact_uid = stopped.artifact_uid.clone();
-        action_button = props.open_recording_buttons.get(action_id).map(|btn| {
-            render_inline_action_secondary_button(
-                appearance,
-                btn,
-                "Open recording",
-                Box::new(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(AIBlockAction::OpenRecordingArtifact {
-                        artifact_uid: artifact_uid.clone(),
-                    });
-                }),
-            )
-        });
-    }
-
-    recording_card(stop_recording_card_text(result), action_button, app)
+    recording_card(stop_recording_card_text(result), app)
 }
 
 fn render_use_computer(
     props: Props,
     action_id: &AIAgentActionId,
     request: &UseComputerRequest,
-    recording_span: Option<&RecordingSpanInfo>,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let appearance = Appearance::handle(app).as_ref(app);
 
     let mut renderable_action = RenderableAction::new(&request.action_summary, app)
         .with_icon(action_icon(action_id, props.action_model, props.model, app).finish());
-
-    if should_decorate_recorded_use_computer(request)
-        && let Some(recording_span) = recording_span
-    {
-        renderable_action =
-            renderable_action.with_footer(render_recording_footer(recording_span.status, app));
-    }
 
     // Add a "View screenshot" button if the action result contains a screenshot.
     let has_screenshot = props

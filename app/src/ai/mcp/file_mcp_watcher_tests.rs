@@ -33,7 +33,6 @@ fn abort_config_parse_cancels_and_removes_inflight_task() {
         parse_abort_handles: HashMap::from([(key.clone(), abort_handle)]),
         home_provider_watchers: HashMap::new(),
         project_repo_watchers: HashSet::new(),
-        cloud_env_pending: HashMap::new(),
     };
 
     watcher.abort_config_parse(&config_path, MCPProvider::Warp);
@@ -46,10 +45,6 @@ fn abort_config_parse_cancels_and_removes_inflight_task() {
 fn repository_discovery_is_surface_aware() {
     assert!(should_watch_repository(
         RepoDetectionSource::TerminalNavigation,
-        SettingsMode::Gui
-    ));
-    assert!(should_watch_repository(
-        RepoDetectionSource::CloudEnvironmentPrep,
         SettingsMode::Gui
     ));
     assert!(!should_watch_repository(

@@ -77,12 +77,12 @@ pub struct GlobalOptions {
 #[command(
     name = "oz",
     display_name = "Oz",
-    about = r#"The orchestration platform for cloud agents
+    about = r#"Run coding agents from the command line
 
-The Oz CLI is a tool for running, managing, and orchestrating coding agents at scale.
+The agent runs locally in a terminal session, against the AI provider you configure.
 Use the CLI to:
-* Launch and inspect cloud agents
-* Upload secrets to Oz's secure storage"#
+* Run an agent with a prompt, saved prompt, or skill
+* Manage agent profiles, MCP servers, and models"#
 )]
 #[clap(subcommand_precedence_over_arg = true)]
 pub struct Args {
@@ -160,7 +160,6 @@ impl Args {
 
 <bold><underline>Learn more:</underline></bold>
 * Use <bold>{bin_name} help</bold> to learn more about each command
-* Read the documentation at https://docs.warp.dev/reference/cli
 "#
         ));
 
@@ -237,7 +236,7 @@ pub enum WorkerCommand {
 #[derive(Debug, Clone, Subcommand)]
 #[allow(clippy::large_enum_variant)] // `Agent`'s run args are large but always parsed by value
 pub enum CliCommand {
-    /// Interact with Oz.
+    /// Run agents and manage agent profiles.
     #[command(subcommand)]
     Agent(crate::agent::AgentCommand),
 

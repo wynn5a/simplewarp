@@ -95,7 +95,6 @@ impl RequestComputerUseExecutor {
                         computer_use::Options {
                             screenshot_params,
                             background_enabled,
-                            pointer_sink: None,
                         },
                     )
                     .await;

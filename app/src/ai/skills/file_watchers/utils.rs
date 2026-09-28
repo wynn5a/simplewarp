@@ -115,15 +115,6 @@ pub fn read_skills_from_directories(
         .flat_map(|dir| read_skills(&dir))
         .collect()
 }
-/// Reads all skills from the given concrete skill files.
-#[cfg(test)]
-pub fn read_skills_from_files(skill_files: impl IntoIterator<Item = PathBuf>) -> Vec<ParsedSkill> {
-    skill_files
-        .into_iter()
-        .filter_map(|path| ai::skills::parse_skill(&path).ok())
-        .collect()
-}
-
 pub fn is_skill_file(path: &Path) -> bool {
     extract_skill_parent_directory(&LocalOrRemotePath::Local(path.to_path_buf())).is_ok()
 }
