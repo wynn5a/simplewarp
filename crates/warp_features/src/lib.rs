@@ -6,8 +6,6 @@ pub use overrides::{get_overrides, set_overrides};
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug, Sequence)]
 pub enum FeatureFlag {
-    CocoaSentry,
-    CrashReporting,
     DebugMode,
 
     KnowledgeSidebar,
@@ -679,7 +677,6 @@ pub const PREVIEW_FLAGS: &[FeatureFlag] = &[];
 /// NOTE: if you are promoting a feature from Preview to launch, you'll likely
 /// want to enable the feature by default in app/Cargo.toml, rather than add it to RELEASE_FLAGS.
 pub const RELEASE_FLAGS: &[FeatureFlag] = &[
-    FeatureFlag::CrashReporting,
     FeatureFlag::VideoRecording,
     // Marked text is currently only supported on MacOS.
     #[cfg(target_os = "macos")]

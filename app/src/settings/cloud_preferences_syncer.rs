@@ -169,7 +169,6 @@ struct PreferenceToCreate {
 lazy_static! {
     static ref LEGACY_CLOUD_SETTINGS_STORAGE_KEYS: Vec<&'static str> = vec![
         super::privacy::TELEMETRY_ENABLED_DEFAULTS_KEY,
-        super::privacy::CRASH_REPORTING_ENABLED_DEFAULTS_KEY,
         super::privacy::CLOUD_CONVERSATION_STORAGE_ENABLED_DEFAULTS_KEY,
         ExecutionProfiles::storage_key(),
     ];

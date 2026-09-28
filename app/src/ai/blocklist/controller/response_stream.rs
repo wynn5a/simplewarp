@@ -567,52 +567,19 @@ impl ResponseStream {
         self.cancellation_tx = None;
     }
 
-    /// Reports a non-retried request failure to crash reporting with classification
-    /// tags.
+    /// Reports a non-retried request failure with classification details.
     fn report_request_failure(&self, error: &Arc<AIApiError>, is_online: bool) {
-        #[cfg(feature = "crash_reporting")]
-        sentry::with_scope(
-            |scope| {
-                scope.set_tag(
-                    "has_received_client_actions",
-                    self.has_received_client_actions,
-                );
-                scope.set_tag("error", format!("{error:?}"));
-                scope.set_tag("is_recoverable", error.is_recoverable());
-                scope.set_tag(
-                    "will_attempt_resume",
-                    self.should_resume_conversation_after_stream_finished,
-                );
-                scope.set_tag("is_online", is_online);
-            },
-            || {
-                report_error!(
-                    error.as_ref(),
-                    extra: {
-                        "has_received_client_actions" => self.has_received_client_actions,
-                        "is_recoverable" => error.is_recoverable(),
-                        "will_attempt_resume" => self.should_resume_conversation_after_stream_finished,
-                        "is_online" => is_online,
-                        "retry_count" => self.retry_count,
-                        "error_debug" => %format!("{error:?}"),
-                    }
-                );
-            },
+        report_error!(
+            error.as_ref(),
+            extra: {
+                "has_received_client_actions" => self.has_received_client_actions,
+                "is_recoverable" => error.is_recoverable(),
+                "will_attempt_resume" => self.should_resume_conversation_after_stream_finished,
+                "is_online" => is_online,
+                "retry_count" => self.retry_count,
+                "error_debug" => %format!("{error:?}"),
+            }
         );
-        #[cfg(not(feature = "crash_reporting"))]
-        {
-            report_error!(
-                error.as_ref(),
-                extra: {
-                    "has_received_client_actions" => self.has_received_client_actions,
-                    "is_recoverable" => error.is_recoverable(),
-                    "will_attempt_resume" => self.should_resume_conversation_after_stream_finished,
-                    "is_online" => is_online,
-                    "retry_count" => self.retry_count,
-                    "error_debug" => %format!("{error:?}"),
-                }
-            );
-        }
     }
 
     /// Parks a retry until connectivity returns; cancellation invalidates the parked

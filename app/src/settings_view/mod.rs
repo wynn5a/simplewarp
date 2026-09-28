@@ -417,7 +417,6 @@ pub mod flags {
     pub const SAME_LINE_PROMPT: &str = "Same_Line_Prompt_Enabled";
     pub const TELEMETRY_FLAG: &str = "telemetry";
     pub const SAFE_MODE_FLAG: &str = "safe_mode";
-    pub const CRASH_REPORTING_FLAG: &str = "crash_reporting";
     pub const DIM_INACTIVE_PANES_FLAG: &str = "Dim_Inactive_Panes";
     pub const OPEN_WINDOWS_AT_CUSTOM_SIZE_FLAG: &str = "Open_Windows_At_Custom_Size";
     pub const WINDOW_BLUR_TEXTURE_FLAG: &str = "Window_Blur_Texture";
@@ -1657,11 +1656,6 @@ impl SettingsView {
             {
                 umbrella.expanded = true;
             }
-        }
-
-        #[cfg(feature = "crash_reporting")]
-        {
-            crate::crash_reporting::set_tag("warp.settings_page", section.to_string());
         }
 
         if let Some(settings_page) = self.current_settings_page() {

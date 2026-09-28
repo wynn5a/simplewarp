@@ -337,12 +337,6 @@ pub trait Experiment<T: Experiment<T>>: FromStr {
         // the work above and do any one-time accounting.
         if let Some(group) = assigned_group.as_ref() {
             GROUP_ASSIGNMENTS.insert(Self::name(), group.variant());
-
-            #[cfg(feature = "crash_reporting")]
-            {
-                let tag_name = format!("warp.experiments.{}", Self::name());
-                crate::crash_reporting::set_tag(&tag_name, group.variant());
-            }
         }
 
         assigned_group

@@ -1,13 +1,12 @@
 use settings::schema::SettingSchemaEntry;
 use settings::{Setting, SettingSurfaces, SettingsMode};
 
-use super::{IsCloudConversationStorageEnabled, IsCrashReportingEnabled, IsTelemetryEnabled};
+use super::{IsCloudConversationStorageEnabled, IsTelemetryEnabled};
 
 #[test]
 fn privacy_settings_apply_to_gui_and_tui() {
     for storage_key in [
         IsTelemetryEnabled::toml_key(),
-        IsCrashReportingEnabled::toml_key(),
         IsCloudConversationStorageEnabled::toml_key(),
     ] {
         let entry = inventory::iter::<SettingSchemaEntry>

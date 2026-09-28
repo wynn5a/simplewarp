@@ -241,8 +241,7 @@ jobs:
         run: cargo nextest run ${{ env.WORKSPACE_TEST_ARGS }} ${{ matrix.extra_test_args }} --no-run
         env:
           # Attach the GitHub auth token so that requests to the GitHub API
-          # don't get rate limited during compilation (e.g.: retrieving
-          # Sentry SDK binary releases).
+          # don't get rate limited during compilation.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run unit tests
@@ -531,8 +530,7 @@ jobs:
           cargo clippy --locked -p warp --all-targets --tests -- -D warnings
         env:
           # Attach the GitHub auth token so that requests to the GitHub API
-          # don't get rate limited during compilation (e.g.: retrieving
-          # Sentry SDK binary releases).
+          # don't get rate limited during compilation.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run clang-format
@@ -644,8 +642,7 @@ jobs:
         run: ./script/bundle --channel oss --nouniversal --check-only
         env:
           # Attach the GitHub auth token so that requests to the GitHub API
-          # don't get rate limited during compilation (e.g.: retrieving
-          # Sentry SDK binary releases).
+          # don't get rate limited during compilation.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # The agent-mode-evals repo (warpdotdev/agent-mode-evals) depends on this repo
@@ -671,8 +668,7 @@ jobs:
         run: cargo check --locked -p warp --lib --features agent_mode_evals
         env:
           # Attach the GitHub auth token so that requests to the GitHub API
-          # don't get rate limited during compilation (e.g.: retrieving
-          # Sentry SDK binary releases).
+          # don't get rate limited during compilation.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # A final job that collects the results of all of the parallel CI jobs and

@@ -38,7 +38,7 @@ for binary_path in "$@"; do
   if grep -Fxq "$FRAMEWORKS_RPATH" <<< "$existing_rpaths"; then
     echo "$binary_path already has an LC_RPATH for $FRAMEWORKS_RPATH, skipping"
   else
-    echo "Adding $FRAMEWORKS_RPATH rpath to $binary_path to support mac frameworks (e.g. Sentry)"
+    echo "Adding $FRAMEWORKS_RPATH rpath to $binary_path to support mac frameworks"
     install_name_tool -add_rpath "$FRAMEWORKS_RPATH" "$binary_path"
   fi
 done

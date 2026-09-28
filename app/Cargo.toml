@@ -126,9 +126,8 @@ image.workspace = true
 infer = "0.19.0"
 # Built WITHOUT the `symbolize` feature: `dump_pprof()` then returns a raw
 # pprof (sample addresses + mappings + GNU build-id), which is symbolized
-# offline against the debug-info file uploaded to Sentry by the release
-# process (matched by build-id). This keeps the shipped binary fully
-# strippable.
+# offline against the matching debug-info file (by build-id). This keeps the
+# shipped binary fully strippable.
 jemalloc_pprof = { version = "0.8.1", optional = true }
 lsp-types = "0.97.0"
 indexmap = { version = "2.0.2", features = ["serde"] }
@@ -147,7 +146,6 @@ log.workspace = true
 log-panics = { version = "2.1.0", features = ["with-backtrace"] }
 lsp.workspace = true
 warp_logging.workspace = true
-sentry = { workspace = true, optional = true }
 lz4_flex = "0.11"
 markdown_parser.workspace = true
 mcp.workspace = true
@@ -178,7 +176,6 @@ regex-automata = "0.4.6"
 regex.workspace = true
 reqwest.workspace = true
 rust-embed.workspace = true
-sentry-log = { workspace = true, optional = true }
 inventory = "0.3"
 schemars = "1"
 serde.workspace = true
@@ -356,10 +353,6 @@ nix = { workspace = true, features = [
     "mman",
 ] }
 
-[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))'.dependencies]
-crash-handler = { version = "0.6.3", optional = true }
-minidumper = { version = "0.8.3", optional = true }
-
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 freedesktop-desktop-entry = "0.5.0"
 x11rb.workspace = true
@@ -442,21 +435,11 @@ agent_onboarding = []
 ask_user_question = []
 async_find = []
 clear_autosuggestion_on_escape = []
-cocoa_sentry = ["crash_reporting"]
 command_predictor = []
 completions_v2 = [
     "plugin_host",
     "warp_completer/v2",
     "dep:command-signatures-v2",
-]
-crash_reporting = [
-    "dep:sentry",
-    "dep:sentry-log",
-    "dep:minidumper",
-    "dep:crash-handler",
-    "warp_logging/crash_reporting",
-    "warp_errors/crash_reporting",
-    "ai/crash_reporting",
 ]
 cross_repo_context = []
 well_known_mcp_ids = []
@@ -769,11 +752,9 @@ agent_mode_evals = [
 allow_ignoring_input_suggestions = []
 inline_slash_commands = ["agent_view"]
 
-# Enable this feature to track heap usage and automatically produce a heap
-# profile report when app memory usage exceeds a 10GB threshold.
-#
-# Enabled on WarpDev by default.
-heap_usage_tracking = ["jemalloc_pprof", "crash_reporting"]
+# Enable this feature to add a "Write heap profile to disk" command backed by
+# jemalloc heap profiling.
+heap_usage_tracking = ["jemalloc_pprof"]
 image_as_context = []
 in_band_generators_ssh = []
 jemalloc = ["dep:tikv-jemallocator", "ai/jemalloc"]
@@ -993,9 +974,6 @@ category = "public.app-category.developer-tools"
 copyright = "© 2025, Denver Technologies, Inc"
 identifier = "dev.warp.Warp-Stable"
 name = "Warp"
-osx_frameworks = [
-    "frameworks/default/Sentry-Dynamic-WithARM64e.xcframework/macos-arm64_arm64e_x86_64/Sentry.framework",
-]
 resources = ["assets/onboarding"]
 short_description = "The cloud-backed terminal for individuals and teams, stable build."
 
@@ -1004,9 +982,6 @@ category = "public.app-category.developer-tools"
 copyright = "© 2025, Denver Technologies, Inc"
 identifier = "dev.warp.Warp-Preview"
 name = "WarpPreview"
-osx_frameworks = [
-    "frameworks/default/Sentry-Dynamic-WithARM64e.xcframework/macos-arm64_arm64e_x86_64/Sentry.framework",
-]
 resources = ["assets/onboarding"]
 short_description = "The cloud-backed terminal for individuals and teams, feature preview build."
 
@@ -1015,9 +990,6 @@ category = "public.app-category.developer-tools"
 copyright = "© 2025, Denver Technologies, Inc"
 identifier = "dev.warp.Warp-Dev"
 name = "WarpDev"
-osx_frameworks = [
-    "frameworks/dev/Sentry-Dynamic-WithARM64e.xcframework/macos-arm64_arm64e_x86_64/Sentry.framework",
-]
 resources = ["assets/onboarding"]
 short_description = "The cloud-backed terminal for individuals and teams, developer build."
 

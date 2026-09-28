@@ -121,26 +121,15 @@ pub fn init(app: &mut AppContext) {
     ]);
 
     if ChannelState::enable_debug_features() {
-        let crash_description = if cfg!(target_os = "macos") {
-            "Crash the app (for testing sentry-cocoa)"
-        } else {
-            "Crash the app (for testing sentry-native)"
-        };
         app.register_editable_bindings([
-            EditableBinding::new("workspace:crash", crash_description, WorkspaceAction::Crash)
-                .with_context_predicate(id!("Workspace")),
             EditableBinding::new(
                 "workspace:log_review_comment_send_status_for_active_tab",
                 "[Debug] Log review comment send status for active tab",
                 WorkspaceAction::LogReviewCommentSendStatusForActiveTab,
             )
             .with_context_predicate(id!("Workspace")),
-            EditableBinding::new(
-                "workspace:panic",
-                "Trigger a panic (for testing sentry-rust)",
-                WorkspaceAction::Panic,
-            )
-            .with_context_predicate(id!("Workspace")),
+            EditableBinding::new("workspace:panic", "Trigger a panic", WorkspaceAction::Panic)
+                .with_context_predicate(id!("Workspace")),
             EditableBinding::new(
                 "workspace:open_view_tree_debug_view",
                 "Open view tree debugger",

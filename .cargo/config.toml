@@ -13,8 +13,7 @@ git-fetch-with-cli = true
 
 # Use the v0 symbol mangling scheme on every target. It encodes generic
 # instantiations (which the legacy scheme hashes away irreversibly), improving
-# demangled names in backtraces and Sentry symbolication. On wasm the shipped
-# bundle strips symbol names, so this only enriches the split-off debug artifact.
+# demangled names in backtraces and symbolication.
 [target.'cfg(all())']
 rustflags = ["-C", "symbol-mangling-version=v0"]
 

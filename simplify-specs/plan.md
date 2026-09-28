@@ -107,10 +107,28 @@ Queue, in order:
    inert external fallback-font subsystem in warpui_core; decide on `app-installation-detection`
    (desktop still serves `/install_detection` for warp.dev); `ChannelState::firebase_api_key` (zero
    readers); `.clippy.toml` wasm wording.
-2. **4gq — Sentry crash reporting**: the `crash_reporting` / `cocoa_sentry` / `heap_usage_tracking`
-   cargo features (in neither set), ~1,200 lines in `app/src/crash_reporting/`, 46 cfg sites in
-   17 files, the minidump server, the privacy-page crash-reports toggle, and `CrashReporting` /
-   `CocoaSentry` flags.
+2. ~~Sentry crash reporting~~ — **4gq done (2026-09-28).** −3.4k lines in 69 files:
+   `app/src/crash_reporting/` (Rust + minidump server + Cocoa bridge and its objc files), the
+   `crash_reporting` / `cocoa_sentry` cargo features in app, `warp_logging`, `warp_errors` and `ai`,
+   the `sentry` / `sentry-log` / `minidumper` / `crash-handler` deps (~40 crates out of
+   Cargo.lock), the `CrashReporting` / `CocoaSentry` flags, the `minidump-server` worker
+   subcommand, `CrashReportingConfig` / `sentry_url` / `is_crash_reporting_available`, the
+   privacy-page "Send crash reports" widget, its command-palette toggle and context flag, the
+   `IsCrashReportingEnabled` setting (the orphaned `privacy.crash_reporting_enabled` /
+   `CrashReportingEnabled` keys still load harmlessly), the spawner's cocoa-sentry uninit/reinit
+   around pty spawn, the debug "Crash the app" action, the dogfood process-sample upload, the
+   Sentry-tag-only `AntivirusInfo` model, the Sentry build.rs/framework download, the bundle
+   `osx_frameworks`, and the Sentry steps/scripts in CI and bundle scripts. `report_error!` keeps
+   working as local logging (the capture half and `with_error_context` are gone; `is_actionable`
+   still picks Error vs Warn). Kept, being local: `heap_usage_tracking` (now just
+   `jemalloc_pprof` + the "Write heap profile to disk" command; its Sentry auto-upload on
+   excessive memory is gone), crash recovery, `report_if_error!`, the logging skill (retitled as
+   local-only). Tests unchanged (4,392 / 4,393). Follow-ups: `SystemInfoEvent::MemoryUsageHigh` has
+   no subscriber and `memory_footprint::memory_breakdown()` is computed and discarded (the whole
+   excessive-memory check is dead); `crash_recovery::Event::CrashRecoveryProcessTornDown` is now
+   unobserved; warpui's `on_gpu_driver_selected` hook is always `None` from the app; the telemetry
+   / cloud-conversation privacy toggles and their Warp Drive pref sync; Sentry-grouping wording
+   in comments and the rest of the logging skill; stale TUI branches in the bundle scripts.
 3. ~~SSH remote server~~ — **4gr done (2026-09-28, user decision: delete).** Its install
    downloaded a Warp binary from the `.invalid` server URL, so it could never work here. Gone
    (−30.6k lines): `app/src/remote_server/`, `crates/remote_server/`, the `SshRemoteServer` and

@@ -16,8 +16,6 @@ pub struct ChannelConfig {
     pub server_config: WarpServerConfig,
     /// Configuration for Oz/ambient agents.
     pub oz_config: OzConfig,
-    /// Configuration for crash reporting.
-    pub crash_reporting_config: Option<CrashReportingConfig>,
     /// Configuration for statically-bundled MCP OAuth credentials.
     pub mcp_static_config: Option<McpStaticConfig>,
 }
@@ -74,12 +72,6 @@ impl OzConfig {
             workload_audience_url: None,
         }
     }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CrashReportingConfig {
-    /// The URL/DSN for sending error logs and crash reports to Sentry.
-    pub sentry_url: Cow<'static, str>,
 }
 
 /// Configuration for statically-bundled MCP OAuth credentials.

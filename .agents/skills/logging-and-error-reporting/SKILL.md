@@ -1,25 +1,18 @@
 ---
 name: logging-and-error-reporting
-description: How and when to log (log::* levels, safe_* macros) and report errors to Sentry (report_error!) in the Warp codebase. Use when adding or reviewing any logging or error reporting — picking a log level, deciding log vs. report_error!, keeping sensitive data out of logs, or surfacing an error to Sentry.
+description: How and when to log (log::* levels, safe_* macros) and report errors (report_error!) in the Warp codebase. Use when adding or reviewing any logging or error reporting — picking a log level, deciding log vs. report_error!, or keeping sensitive data out of logs.
 ---
 
 # logging-and-error-reporting
 
 Warp has two related ways to surface what happened at runtime:
-- **`log::*`** (`error!`/`warn!`/`info!`/`debug!`/`trace!`) — local diagnostics written to the terminal/log file and, on crash-reporting builds, uploaded to Sentry as **breadcrumbs** (context attached to the next captured event).
-- **`report_error!`** — captures a **structured Sentry event** (an actual issue) for errors worth engineering attention.
+- **`log::*`** (`error!`/`warn!`/`info!`/`debug!`/`trace!`) — local diagnostics written to the terminal/log file.
+- **`report_error!`** — logs an error worth engineering attention at `Error` level (or at `Warn` when the error is registered as not actionable).
 
-## How logs reach Sentry (important)
-
-On crash-reporting builds a `SentryLogger` wraps the logger (`warp_logging`). The filter:
-- `Error` / `Warn` / `Info` → **breadcrumb** only (not their own Sentry issue).
-- `Debug` / `Trace` → **dropped** from Sentry entirely (local-only).
-- The `Error`-level line emitted by `report_error!` itself → **ignored** by Sentry (the macro already captured a structured event; the log line would double-report).
-- A few noisy targets (wgpu, `panic`, redraw-frame, the crash-reporting module) are dropped.
-
-Consequences:
-- **`log::error!` does NOT create a Sentry issue** — it's only a breadcrumb. If a failure should be tracked in Sentry, use `report_error!`. Only `report_error!` and panics create Sentry events.
-- Breadcrumbs (Info and above) are uploaded, so they must never contain secrets or PII — see "Sensitive data: safe_* macros" below.
+> **SimpleWarp has no crash-reporting sink.** Sentry was removed (4gq): nothing is uploaded, and
+> both forms only write to the local log. The sections below still describe Warp's Sentry-era
+> conventions (grouping-stable messages, `is_actionable`, `extra:`); they remain good practice for
+> readable, greppable logs, but read every "sent to Sentry" / "breadcrumb" as "written to the log".
 
 ## Choosing: `report_error!` vs. `log::error!` vs. `log::warn!`
 

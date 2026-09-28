@@ -46,7 +46,6 @@ pub fn main() -> Result<()> {
             oz_config: OzConfig {
                 workload_audience_url: None,
             },
-            crash_reporting_config: None,
             mcp_static_config: None,
         },
     ));

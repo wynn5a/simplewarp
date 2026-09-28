@@ -232,13 +232,6 @@ pub enum WorkerCommand {
         parent: ParentOpts,
     },
 
-    /// Run the minidump server.
-    #[clap(hide = true)]
-    MinidumpServer {
-        /// Socket name for the minidump server.
-        socket_name: std::path::PathBuf,
-    },
-
     /// Run a headless ripgrep search worker.
     #[clap(hide = true)]
     RipgrepSearch {

@@ -16,7 +16,7 @@ Param (
 
     [Alias('release-tag')]
     [String]$RELEASE_TAG = '',
-    [String]$FEATURES = 'release_bundle,crash_reporting,gui',
+    [String]$FEATURES = 'release_bundle,gui',
 
     # Builds only the Warp binary, skips the installer.
     [Switch]$SKIP_BUILD_INSTALLER = $False,
@@ -132,9 +132,6 @@ if ("$CHANNEL" -eq 'local') {
     $WARP_BIN = 'warp-oss'
     $BINARY_NAME = 'warp-oss.exe'
     $APP_NAME = 'WarpOss'
-    # The OSS channel does not ship Sentry, so drop the crash_reporting feature
-    # (which would otherwise pull in the Sentry SDK as a dependency).
-    $FEATURES = 'release_bundle,gui'
 }
 
 if ($IS_TUI) {
@@ -166,9 +163,6 @@ if ($IS_TUI) {
         'oss' { 'tui-oss' }
     }
     $FEATURES = 'release_bundle,standalone,voice_input'
-    if ("$CHANNEL" -ne 'oss') {
-        $FEATURES = "$FEATURES,crash_reporting"
-    }
 } else {
     # All app channels ship the v3 classifier and v2 heuristic.
     $FEATURES = "$FEATURES,nld_classifier_v3,nld_heuristic_v2"

@@ -6,7 +6,6 @@ publish.workspace = true
 license.workspace = true
 
 [features]
-crash_reporting = ["dep:sentry"]
 # Built-in ErrorExt classifications for common third-party error types. Enabled
 # by warp_core so the app registers them; kept optional so leaf crates that only
 # need report_error! don't pull these heavier dependencies.
@@ -17,7 +16,6 @@ tokio-errors = ["dep:tokio"]
 anyhow.workspace = true
 log.workspace = true
 inventory = "0.3.20"
-sentry = { workspace = true, optional = true }
 http = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }

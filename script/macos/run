@@ -49,10 +49,6 @@ OPEN_WITH_LAUNCHD=false
 # an application doesn't make sense.
 WARP_ARGS=()
 
-# Export this variable so it can be referenced by app/build.rs later when
-# running `cargo bundle`.
-export FRAMEWORK_OVERRIDE="dev"
-
 PARAMS=""
 while (( "$#" )); do
   case "$1" in
@@ -108,12 +104,6 @@ cargo bundle --bin "$WARP_BIN_NAME" --features "$FEATURES" $PARAMS
 echo "Successfully bundled..."
 popd > /dev/null
 
-if [[ ",$FEATURES," =~ ",cocoa_sentry," ]]; then
-  echo "Copying Sentry framework into app bundle..."
-  SENTRY_FRAMEWORK="app/frameworks/dev/Sentry-Dynamic-WithARM64e.xcframework/macos-arm64_arm64e_x86_64/Sentry.framework"
-  mkdir -p "$WARP_APP_PATH/Contents/Frameworks"
-  cp -a "$SENTRY_FRAMEWORK" "$WARP_APP_PATH/Contents/Frameworks/"
-fi
 "${REPO_ROOT}/script/macos/add_framework_rpath" "$WARP_APP_PATH/Contents/MacOS/$WARP_BIN_NAME"
 
 export WARP_SCHEME_NAME

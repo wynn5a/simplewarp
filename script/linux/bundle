@@ -19,7 +19,7 @@ trap cleanup EXIT
 
 # By default we build dev bundles.
 RELEASE_CHANNEL="dev"
-FEATURES="release_bundle,crash_reporting"
+FEATURES="release_bundle"
 EXTRA_FEATURES=""
 PACKAGES=( appimage )
 BUILD="true"
@@ -223,9 +223,6 @@ elif [[ $RELEASE_CHANNEL = "oss" ]]; then
   WARP_BIN="warp-oss"
   BINARY_NAME="warp-oss"
   APP_NAME="WarpOss"
-  # The OSS channel does not ship Sentry, so drop the crash_reporting feature
-  # (which would otherwise pull in the Sentry SDK as a dependency).
-  FEATURES="release_bundle"
 fi
 
 # Artifact-specific binary naming
@@ -255,9 +252,6 @@ elif [[ "$ARTIFACT" == "tui" ]]; then
   # backends can link against the host's Wayland/X11 libraries. Deliberately
   # omit `voice_input` so portable bundles do not require the host ALSA runtime.
   WARP_TUI_FEATURES="release_bundle,standalone"
-  if [[ "$RELEASE_CHANNEL" != "oss" ]]; then
-    WARP_TUI_FEATURES="$WARP_TUI_FEATURES,crash_reporting"
-  fi
 elif [[ "$ARTIFACT" == "app" ]]; then
   # All channels ship the v3 classifier and v2 heuristic.
   FEATURES="$FEATURES,gui,nld_classifier_v3,nld_heuristic_v2"

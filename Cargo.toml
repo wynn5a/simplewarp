@@ -232,17 +232,6 @@ rust-embed = { version = "8.7.0", features = ["include-exclude"] }
 rustc-hash = "2.1.1"
 rustls = "0.23.39"
 schemars = { version = "1", features = ["chrono04"] }
-sentry = { version = "0.47.0", default-features = false, features = [
-  "anyhow",
-  "backtrace",
-  "contexts",
-  "debug-images",
-  "panic",
-  "release-health",
-  "reqwest",
-  "rustls",
-] }
-sentry-log = "0.47.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_bytes = "0.11"
 serde-bytes-repr = "0.3"
@@ -374,8 +363,8 @@ rmcp = { version = "1.6" }
 
 [profile.release]
 # Use line-tables-only (debug = 1) rather than full debuginfo (debug = 2 /
-# `true`). Line tables are enough to symbolicate panics and Sentry stack
-# traces with file/line info, but they omit the per-variable/type DWARF that
+# `true`). Line tables are enough to symbolicate panic backtraces with
+# file/line info, but they omit the per-variable/type DWARF that
 # dominates DWARF size. Dropping the type info significantly reduces rustc's
 # peak memory during ThinLTO + codegen (which was OOM-killing release builds
 # on CI), at the cost of not being able to inspect locals/types when
