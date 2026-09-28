@@ -12,7 +12,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_channel::Sender;
-#[cfg(feature = "local_tty")]
 pub use command_executor::*;
 use futures::FutureExt;
 use futures::future::{BoxFuture, Shared};
@@ -34,7 +33,6 @@ use warpui::{Entity, ModelContext, SingletonEntity};
 
 use super::ansi::{BootstrappedValue, InitShellValue, SSHValue};
 use super::terminal_model::{HistoryEntry, SubshellInitializationInfo};
-#[cfg(feature = "local_tty")]
 use crate::terminal::event::ExecutedExecutorCommandEvent;
 use crate::terminal::shell::{Shell, ShellType};
 use crate::terminal::warpify::SubshellSource;

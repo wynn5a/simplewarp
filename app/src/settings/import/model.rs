@@ -38,7 +38,6 @@ impl ImportedConfigModel {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     pub fn search_for_settings_to_import(&mut self, ctx: &mut ModelContext<Self>) {
         use std::sync::Arc;
 

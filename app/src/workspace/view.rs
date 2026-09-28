@@ -17,7 +17,6 @@ mod vertical_tabs;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-#[cfg(feature = "local_fs")]
 use std::convert::TryFrom;
 #[cfg(target_os = "macos")]
 use std::env;
@@ -41,7 +40,6 @@ pub(crate) use onboarding::OnboardingTutorial;
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
-#[cfg(feature = "local_fs")]
 use repo_metadata::repositories::DetectedRepositories;
 use serde_json;
 use warp_core::execution_mode::AppExecutionMode;
@@ -93,11 +91,9 @@ use self::vertical_tabs::{
     render_settings_popup, render_summary_pane_kind_icons, show_before_indicator,
     vtab_group_position_id,
 };
-#[cfg(feature = "local_fs")]
-use super::action::AutoCloudHandoffTrigger;
 use super::action::{
-    InitContent, NewSessionMenuAnchor, RestoreConversationLayout, TabContextMenuAnchor,
-    VerticalTabsPaneContextMenuTarget, WorkspaceAction,
+    AutoCloudHandoffTrigger, InitContent, NewSessionMenuAnchor, RestoreConversationLayout,
+    TabContextMenuAnchor, VerticalTabsPaneContextMenuTarget, WorkspaceAction,
 };
 use super::delete_conversation_confirmation_dialog::{
     DeleteConversationConfirmationDialog, DeleteConversationConfirmationEvent,
@@ -123,11 +119,9 @@ use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::agent::{AIAgentInput, EntrypointType};
 use crate::ai::agent_management::AgentManagementEvent;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-#[cfg(feature = "local_fs")]
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEditorMode;
 use crate::ai::blocklist::agent_view::editor::{AgentToolbarEditorEvent, AgentToolbarEditorModal};
-#[cfg(feature = "local_fs")]
 use crate::ai::blocklist::handoff::{HandoffLaunchAttachments, PendingCloudLaunch};
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
 use crate::ai::blocklist::suggested_agent_mode_workflow_modal::{
@@ -171,9 +165,7 @@ use crate::cloud_object::{
 };
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::editor::{add_color, remove_color};
-#[cfg(feature = "local_fs")]
-use crate::code::editor_management::CodeManager;
-use crate::code::editor_management::CodeSource;
+use crate::code::editor_management::{CodeManager, CodeSource};
 use crate::code_review::GlobalCodeReviewModel;
 use crate::code_review::diff_state::DiffStateModel;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
@@ -199,13 +191,11 @@ use crate::notebooks::CloudNotebook;
 use crate::notebooks::manager::{NotebookManager, NotebookSource};
 use crate::notification::NotificationContext;
 use crate::palette::PaletteMode;
-#[cfg(feature = "local_fs")]
-use crate::pane_group::FilePane;
 use crate::pane_group::pane::ActionOrigin;
 use crate::pane_group::{
     self, AIFactPane, AnyPaneContent, ChildAgentOrigin, CodeDiffPane, CodePane, CodeReviewPanelArg,
     CustomRouterEditorPane, Direction as PaneGroupDirection, Direction, ExecutionProfileEditorPane,
-    NetworkLogPane, NewTerminalOptions, PaneGroup, PaneId, PanesLayout, TabBarHoverIndex,
+    FilePane, NetworkLogPane, NewTerminalOptions, PaneGroup, PaneId, PanesLayout, TabBarHoverIndex,
     TerminalPaneId,
 };
 use crate::persistence::ModelEvent;
@@ -242,7 +232,7 @@ use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChange
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::settings_view::pane_manager::SettingsPaneManager;
 use crate::settings_view::{SettingsSection, SettingsView, SettingsViewEvent, flags};
-#[cfg(all(target_os = "windows", feature = "local_tty"))]
+#[cfg(target_os = "windows")]
 use crate::shell_indicator::ShellIndicatorType;
 use crate::tab::{
     COMPACT_TAB_WIDTH_THRESHOLD, ColorPickerTarget, MOVE_TO_GROUP_LABEL, NewSessionMenuItem,
@@ -255,7 +245,6 @@ use crate::tab_configs::remove_confirmation_dialog::{
     RemoveTabConfigConfirmationDialog, RemoveTabConfigConfirmationEvent,
 };
 use crate::tab_configs::session_config_modal::{SessionConfigModal, SessionConfigModalEvent};
-#[cfg(feature = "local_fs")]
 use crate::tab_configs::telemetry::WorktreeBranchNamingMode;
 use crate::tab_configs::{
     NewWorktreeModal, NewWorktreeModalEvent, TabConfigParamsModal, TabConfigParamsModalEvent,
@@ -270,12 +259,9 @@ use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::input::{Input, MenuPositioning};
 use crate::terminal::keys_settings::KeysSettings;
 use crate::terminal::ligature_settings::should_use_ligature_rendering;
-#[cfg(feature = "local_tty")]
 use crate::terminal::local_tty::docker_sandbox::resolve_sbx_path_from_user_shell;
 use crate::terminal::model::blockgrid::BlockGrid;
-#[cfg(feature = "local_fs")]
-use crate::terminal::model::session::Session;
-use crate::terminal::model::session::SessionId;
+use crate::terminal::model::session::{Session, SessionId};
 use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
 use crate::terminal::resizable_data::{
     DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_RIGHT_PANEL_WIDTH, ModalSizes, ModalType, ResizableData,
@@ -287,7 +273,6 @@ use crate::terminal::session_settings::{
 };
 use crate::terminal::settings::{SpacingMode, TerminalSettings};
 use crate::terminal::shell::ShellType;
-#[cfg(feature = "local_tty")]
 use crate::terminal::view::docker_sandbox::DEFAULT_DOCKER_SANDBOX_BASE_IMAGE;
 use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 use crate::terminal::view::load_ai_conversation::{
@@ -314,25 +299,18 @@ use crate::ui_components::buttons::{combo_inner_button, icon_button_with_color};
 use crate::ui_components::window_focus_dimming::WindowFocusDimming;
 use crate::ui_components::{blended_colors, icons};
 use crate::undo_close::UndoCloseStack;
-use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
-#[cfg(feature = "local_fs")]
 use crate::user_config::{
-    ensure_default_worktree_config, find_unused_tab_config_path, find_unused_toml_path,
-    find_unused_worktree_config_path, materialize_default_worktree_config, sanitize_toml_base_name,
-    tab_configs_dir,
+    WarpConfig, WarpConfigUpdateEvent, ensure_default_worktree_config, find_unused_tab_config_path,
+    find_unused_toml_path, find_unused_worktree_config_path, materialize_default_worktree_config,
+    sanitize_toml_base_name, tab_configs_dir,
 };
 use crate::util::bindings::{keybinding_name_to_display_string, keybinding_name_to_keystroke};
-#[cfg(feature = "local_fs")]
-use crate::util::file::external_editor::Editor;
-#[cfg(feature = "local_fs")]
-use crate::util::file::external_editor::EditorSettings;
-#[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::settings::OpenConversationPreference;
+use crate::util::file::external_editor::{Editor, EditorSettings};
 use crate::util::links;
-use crate::util::openable_file_type::FileTarget;
-#[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::{
-    EditorLayout, resolve_file_target_to_open_in_warp, resolve_file_target_with_editor_choice,
+    EditorLayout, FileTarget, resolve_file_target_to_open_in_warp,
+    resolve_file_target_with_editor_choice,
 };
 use crate::util::traffic_lights::{TrafficLightMouseStates, TrafficLightSide, traffic_light_data};
 use crate::util::truncation::truncate_from_end;
@@ -496,7 +474,6 @@ const MAX_FORK_TOAST_TITLE_LENGTH: usize = 100;
 // The max length of the window title (matching conversation title truncation).
 const MAX_WINDOW_TITLE_LENGTH: usize = 80;
 
-#[cfg(feature = "local_fs")]
 const AUTO_CLOUD_HANDOFF_PROMPT: &str =
     "Continue this local Warp Agent task in the cloud from the current conversation state.";
 
@@ -570,7 +547,6 @@ pub struct TabPaneGroupIdentifiers {
     pub terminal_ids: Vec<EntityId>,
 }
 
-#[cfg(feature = "local_fs")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LocalToCloudHandoffIntent {
     UserInitiated,
@@ -667,14 +643,12 @@ enum DefaultSessionModeBehavior {
     Ignore,
 }
 
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 struct CodeReviewPaneContext {
     repo_path: Option<LocalOrRemotePath>,
     diff_state_model: ModelHandle<DiffStateModel>,
 }
 
 /// Parameters for updating the right panel's 'state.
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 /// Context saved when the session config modal triggers `open_tab_config` and
 /// the tab config has params (worktree). The params modal opens asynchronously,
 /// so we store what we need to finish the tab replacement when it completes.
@@ -1622,7 +1596,6 @@ impl Workspace {
         dialog
     }
 
-    #[cfg(feature = "local_fs")]
     fn handle_remove_tab_config_confirmation_event(
         &mut self,
         event: &RemoveTabConfigConfirmationEvent,
@@ -1672,15 +1645,6 @@ impl Workspace {
                 ctx.notify();
             }
         }
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    fn handle_remove_tab_config_confirmation_event(
-        &mut self,
-        _event: &RemoveTabConfigConfirmationEvent,
-        _ctx: &mut ViewContext<Self>,
-    ) {
-        report_error!("Cannot delete a tab config from the web");
     }
 
     fn handle_session_config_modal_event(
@@ -1756,7 +1720,6 @@ impl Workspace {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     fn handle_session_config_completed(
         &mut self,
         selection: &crate::tab_configs::session_config::SessionConfigSelection,
@@ -1802,14 +1765,6 @@ impl Workspace {
             );
             self.remove_tab_by_pane_group_id(old_pane_group_id, ctx);
         }
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    fn handle_session_config_completed(
-        &mut self,
-        _selection: &crate::tab_configs::session_config::SessionConfigSelection,
-        _ctx: &mut ViewContext<Self>,
-    ) {
     }
 
     pub(crate) fn show_session_config_modal(&mut self, ctx: &mut ViewContext<Self>) {
@@ -3014,7 +2969,6 @@ impl Workspace {
             NewWorkspaceSource::NotebookFromFilePath { file_path } => {
                 self.add_tab_for_file_notebook(file_path, ctx);
             }
-            #[cfg(feature = "local_fs")]
             NewWorkspaceSource::TransferredTab {
                 tab_color,
                 custom_title,
@@ -3042,29 +2996,6 @@ impl Workspace {
                         rp.set_maximized(is_right_panel_maximized, ctx);
                     });
                     self.setup_code_review_panel(None, ctx);
-                }
-                self.pending_pane_group_transfer = true;
-            }
-            #[cfg(not(feature = "local_fs"))]
-            NewWorkspaceSource::TransferredTab {
-                tab_color,
-                custom_title,
-                left_panel_open,
-                is_tab_drag_preview,
-                ..
-            } => {
-                self.set_is_tab_drag_preview(is_tab_drag_preview);
-                self.add_tab_with_pane_layout(
-                    Default::default(),
-                    Arc::new(HashMap::new()),
-                    custom_title,
-                    ctx,
-                );
-                if let (Some(color), Some(tab)) = (tab_color, self.tabs.last_mut()) {
-                    tab.selected_color = SelectedTabColor::Color(color);
-                }
-                if self.left_panel_visibility_across_tabs_enabled(ctx) {
-                    self.left_panel_open = left_panel_open;
                 }
                 self.pending_pane_group_transfer = true;
             }
@@ -4509,44 +4440,39 @@ impl Workspace {
                 self.show_settings_with_section(Some(SettingsSection::WarpAgent), ctx);
             }
             #[allow(unused_variables)]
-            AIFactViewEvent::OpenFile(location) => {
-                #[cfg(feature = "local_fs")]
-                {
-                    match location {
-                        LocalOrRemotePath::Local(path) => {
-                            let settings = EditorSettings::as_ref(ctx);
-                            let target = resolve_file_target_with_editor_choice(
-                                path,
-                                *settings.open_file_editor,
-                                *settings.prefer_markdown_viewer,
-                                *settings.open_file_layout,
-                                None,
-                            );
-                            self.open_file_with_target(
-                                path.clone(),
-                                target,
-                                None,
-                                CodeSource::ProjectRules {
-                                    location: location.clone(),
-                                },
-                                ctx,
-                            );
-                        }
-                        LocalOrRemotePath::Remote(_) => {
-                            self.open_code(
-                                CodeSource::ProjectRules {
-                                    location: location.clone(),
-                                },
-                                EditorLayout::SplitPane,
-                                None,
-                                false,
-                                &[],
-                                ctx,
-                            );
-                        }
-                    }
+            AIFactViewEvent::OpenFile(location) => match location {
+                LocalOrRemotePath::Local(path) => {
+                    let settings = EditorSettings::as_ref(ctx);
+                    let target = resolve_file_target_with_editor_choice(
+                        path,
+                        *settings.open_file_editor,
+                        *settings.prefer_markdown_viewer,
+                        *settings.open_file_layout,
+                        None,
+                    );
+                    self.open_file_with_target(
+                        path.clone(),
+                        target,
+                        None,
+                        CodeSource::ProjectRules {
+                            location: location.clone(),
+                        },
+                        ctx,
+                    );
                 }
-            }
+                LocalOrRemotePath::Remote(_) => {
+                    self.open_code(
+                        CodeSource::ProjectRules {
+                            location: location.clone(),
+                        },
+                        EditorLayout::SplitPane,
+                        None,
+                        false,
+                        &[],
+                        ctx,
+                    );
+                }
+            },
             AIFactViewEvent::InitializeProject(path) => {
                 let active_terminal_view = self
                     .active_tab_pane_group()
@@ -4567,7 +4493,6 @@ impl Workspace {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     fn get_active_session(&self, ctx: &mut ViewContext<Self>) -> Option<Arc<Session>> {
         let pane_group = self.active_tab_pane_group();
         pane_group
@@ -4585,18 +4510,6 @@ impl Workspace {
             })
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    pub fn open_file_with_target(
-        &mut self,
-        _path: PathBuf,
-        _target: FileTarget,
-        _line_col: Option<LineAndColumnArg>,
-        _code_source: CodeSource,
-        _ctx: &mut ViewContext<Self>,
-    ) {
-    }
-
-    #[cfg(feature = "local_fs")]
     pub fn open_file_with_target(
         &mut self,
         path: PathBuf,
@@ -4733,7 +4646,6 @@ impl Workspace {
                         );
                     }
                     LocalOrRemotePath::Remote(_) => {
-                        #[cfg(feature = "local_fs")]
                         {
                             // Honor a notebook-viewer target (e.g. a remote
                             // Jupyter notebook) instead of always opening remote
@@ -4781,7 +4693,6 @@ impl Workspace {
     }
 
     fn handle_right_panel_event(&mut self, event: RightPanelEvent, ctx: &mut ViewContext<Self>) {
-        #[cfg(feature = "local_fs")]
         match event {
             RightPanelEvent::ToggleMaximize => {
                 self.toggle_right_panel_maximized(ctx);
@@ -4834,8 +4745,6 @@ impl Workspace {
                 self.open_lsp_logs(&log_path, ctx);
             }
         }
-        #[cfg(not(feature = "local_fs"))]
-        let _ = (event, ctx);
     }
 
     fn join_slack(&mut self, ctx: &mut ViewContext<Self>) {
@@ -4932,7 +4841,6 @@ impl Workspace {
                 }
                 menu_items.push(terminal_item.into_item());
 
-                #[cfg(feature = "local_tty")]
                 if FeatureFlag::ShellSelector.is_enabled() {
                     AvailableShells::handle(ctx).read(ctx, |model, _| {
                         for shell in model.get_available_shells() {
@@ -5211,12 +5119,9 @@ impl Workspace {
             NewSessionMenuItem::OpenLaunchConfigDocs => {
                 ctx.open_url("https://docs.warp.dev/terminal/sessions/launch-configurations")
             }
-            #[cfg(feature = "local_fs")]
             NewSessionMenuItem::CreateNewTabConfig => {
                 self.create_and_open_new_tab_config(ctx);
             }
-            #[cfg(not(feature = "local_fs"))]
-            NewSessionMenuItem::CreateNewTabConfig => {}
             NewSessionMenuItem::CreateNewTabGroup => {
                 if FeatureFlag::GroupedTabs.is_enabled() {
                     self.create_new_tab_group(ctx);
@@ -5289,7 +5194,6 @@ impl Workspace {
 
     /// Writes the default tab config template to an unused path in `~/.warp/tab_configs/`
     /// and opens it respecting the user's configured editor setting.
-    #[cfg(feature = "local_fs")]
     fn create_and_open_new_tab_config(&mut self, ctx: &mut ViewContext<Self>) {
         let dir = tab_configs_dir();
         if let Err(e) = std::fs::create_dir_all(&dir) {
@@ -5326,7 +5230,6 @@ impl Workspace {
 
     /// Snapshots the given tab's pane layout and writes it as a new tab config
     /// TOML to `~/.warp/tab_configs/`, then opens the file in the user's editor.
-    #[cfg(feature = "local_fs")]
     fn save_current_tab_as_new_config(&mut self, tab_index: usize, ctx: &mut ViewContext<Self>) {
         use crate::tab_configs::session_config::{tab_config_from_pane_snapshot, write_tab_config};
 
@@ -5362,9 +5265,6 @@ impl Workspace {
             Err(e) => log::warn!("Failed to save tab config: {e:?}"),
         }
     }
-
-    #[cfg(not(feature = "local_fs"))]
-    fn save_current_tab_as_new_config(&mut self, _tab_index: usize, _ctx: &mut ViewContext<Self>) {}
 
     /// Creates a new tab group containing a single new tab.
     fn create_new_tab_group(&mut self, ctx: &mut ViewContext<Self>) {
@@ -6500,7 +6400,6 @@ impl Workspace {
     }
 
     /// Open a file from the given session as a notebook pane.
-    #[cfg(feature = "local_fs")]
     fn open_file_notebook(
         &mut self,
         path: LocalOrRemotePath,
@@ -6530,13 +6429,7 @@ impl Workspace {
         // The notebook viewer renders markdown rather than raw lines, but it
         // hands this source back when the user toggles to the raw code view, so
         // keeping it preserves the requested line for that view.
-        let pane = FilePane::new(
-            Some(path),
-            session,
-            #[cfg(feature = "local_fs")]
-            code_source,
-            ctx,
-        );
+        let pane = FilePane::new(Some(path), session, code_source, ctx);
 
         match layout {
             EditorLayout::NewTab => {
@@ -6596,7 +6489,6 @@ impl Workspace {
         );
     }
 
-    #[cfg(feature = "local_fs")]
     fn open_code(
         &mut self,
         source: CodeSource,
@@ -7133,7 +7025,6 @@ impl Workspace {
         ctx.notify();
     }
 
-    #[cfg(feature = "local_fs")]
     fn setup_code_review_panel(
         &mut self,
         context: Option<&CodeReviewPaneContext>,
@@ -7240,7 +7131,6 @@ impl Workspace {
         });
 
         if should_open {
-            #[cfg(feature = "local_fs")]
             {
                 let window_id = ctx.window_id();
                 let resizable_data = ResizableData::handle(ctx);
@@ -7311,7 +7201,6 @@ impl Workspace {
         );
     }
 
-    #[cfg(feature = "local_fs")]
     fn open_right_panel(
         &mut self,
         context: &CodeReviewPaneContext,
@@ -7342,15 +7231,6 @@ impl Workspace {
         }
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    fn open_right_panel(
-        &mut self,
-        _context: &CodeReviewPaneContext,
-        _pane_group_handle: &ViewHandle<PaneGroup>,
-        _ctx: &mut ViewContext<Self>,
-    ) {
-    }
-
     pub fn close_right_panel(
         &mut self,
         pane_group_handle: &ViewHandle<PaneGroup>,
@@ -7366,7 +7246,6 @@ impl Workspace {
         );
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn toggle_right_panel_maximized(&mut self, ctx: &mut ViewContext<Self>) {
         let pane_group = self.active_tab_pane_group().clone();
         let is_maximized = pane_group.update(ctx, |pane_group, _| {
@@ -7807,13 +7686,6 @@ impl Workspace {
     }
 
     fn should_include_worktree_sidecar_repo(repo_path: &Path, ctx: &AppContext) -> bool {
-        #[cfg(not(feature = "local_fs"))]
-        {
-            let _ = (repo_path, ctx);
-            true
-        }
-
-        #[cfg(feature = "local_fs")]
         {
             // This performs one repo-metadata lookup per persisted workspace while the
             // sidecar items are rebuilt. That's acceptable for now given the expected
@@ -8192,7 +8064,6 @@ impl Workspace {
                 });
                 ctx.notify();
             }
-            #[cfg(feature = "local_fs")]
             LaunchConfigModalEvent::OpenFileWithTarget {
                 path,
                 target,
@@ -8413,7 +8284,6 @@ impl Workspace {
     /// substituted with a fresh name on every open.
     /// When `Some(name)` (manual naming), the commands are baked in and a
     /// `worktree_branch_name` param is added so re-opens show the params modal.
-    #[cfg(feature = "local_fs")]
     fn handle_new_worktree_submit(
         &mut self,
         repo: &str,
@@ -8491,16 +8361,6 @@ impl Workspace {
         }
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    fn handle_new_worktree_submit(
-        &mut self,
-        _repo: &str,
-        _base_branch: &str,
-        _worktree_branch_name: Option<&str>,
-        _ctx: &mut ViewContext<Self>,
-    ) {
-    }
-
     fn open_repo_picker_for_new_worktree_modal(&mut self, ctx: &mut ViewContext<Self>) {
         let modal_view = self.new_worktree_modal.view.clone();
         ctx.open_file_picker(
@@ -8526,7 +8386,6 @@ impl Workspace {
     /// Opens a worktree in the given repo using the default worktree tab config,
     /// saving the materialized config to `~/.warp/tab_configs/` first.
     /// The branch name is auto-generated.
-    #[cfg(feature = "local_fs")]
     fn open_worktree_in_repo(&mut self, repo_path: String, ctx: &mut ViewContext<Self>) {
         log::info!("open_worktree_in_repo requested: repo_path={repo_path:?}");
         let config_path = ensure_default_worktree_config();
@@ -8595,9 +8454,6 @@ impl Workspace {
         log::info!("Opening tab from saved worktree config");
         self.open_tab_config_with_params(tab_config, param_values, Some(&branch_name), ctx);
     }
-
-    #[cfg(not(feature = "local_fs"))]
-    fn open_worktree_in_repo(&mut self, _repo_path: String, _ctx: &mut ViewContext<Self>) {}
 
     /// Opens a native folder picker to add a new repo to PersistedWorkspace,
     /// triggered from the "+ Add new repo..." item in the New worktree config submenu.
@@ -9526,7 +9382,6 @@ impl Workspace {
 
     /// Closes all tabs that have code panes with the specified file path open.
     /// This is used when a file is renamed or deleted in the file tree
-    #[cfg(feature = "local_fs")]
     fn close_tabs_with_file_path(&mut self, old_path: &Path, ctx: &mut ViewContext<Self>) {
         // Find all code panes across all tabs that have this file open
         for tab_data in &self.tabs {
@@ -9547,7 +9402,6 @@ impl Workspace {
 
     /// Renames all open code tabs that point to `old_path` to now point to `new_path`,
     /// updating their contents in-place rather than closing them.
-    #[cfg(feature = "local_fs")]
     fn rename_tabs_with_file_path(
         &mut self,
         old_path: &Path,
@@ -9697,10 +9551,6 @@ impl Workspace {
             log::warn!("Local docker sandbox feature flag is disabled");
             return;
         }
-        // Docker sandboxes are inherently local — sbx resolution and the
-        // `AvailableShell::new_docker_sandbox_shell` constructor both require
-        // `local_tty`. Other builds log and bail.
-        #[cfg(feature = "local_tty")]
         {
             // Resolve sbx via the user's interactive shell PATH (same mechanism
             // MCP servers use) so we find it when installed via homebrew on Apple
@@ -9729,11 +9579,6 @@ impl Workspace {
                 );
                 ctx.notify();
             });
-        }
-        #[cfg(not(feature = "local_tty"))]
-        {
-            let _ = ctx;
-            log::warn!("Docker sandbox requires the `local_tty` feature; ignoring request");
         }
     }
 
@@ -10064,7 +9909,6 @@ impl Workspace {
     }
 
     pub fn add_tab_for_new_code_file(&mut self, ctx: &mut ViewContext<Self>) {
-        #[cfg(feature = "local_fs")]
         {
             let default_directory = self
                 .active_session_view(ctx)
@@ -10125,13 +9969,6 @@ impl Workspace {
                     });
                 }
             }
-        }
-
-        #[cfg(not(feature = "local_fs"))]
-        {
-            let _ = ctx;
-            // Code file functionality is not available without local_fs feature
-            log::warn!("NewCodeFile action called but local_fs feature is not enabled");
         }
     }
 
@@ -10280,14 +10117,11 @@ impl Workspace {
         }
 
         // Determine effective layout: use provided layout or fall back to setting
-        #[cfg(feature = "local_fs")]
         let layout_from_setting =
             match *EditorSettings::as_ref(ctx).open_conversation_layout_preference {
                 OpenConversationPreference::NewTab => RestoreConversationLayout::NewTab,
                 OpenConversationPreference::SplitPane => RestoreConversationLayout::SplitPane,
             };
-        #[cfg(not(feature = "local_fs"))]
-        let layout_from_setting = RestoreConversationLayout::NewTab;
 
         let effective_layout = restore_layout.unwrap_or(layout_from_setting);
         // Handle based on effective layout
@@ -11612,7 +11446,6 @@ impl Workspace {
                 path,
                 line_and_column_arg,
             } => {
-                #[cfg(feature = "local_fs")]
                 {
                     // Build a LocalOrRemotePath for the file. For remote sessions
                     // the host_id comes from the active working directory.
@@ -11708,10 +11541,7 @@ impl Workspace {
                 self.open_execution_profile_editor_pane(None, profile_id.clone(), ctx);
             }
             SettingsViewEvent::OpenCustomRouterFile(path) => {
-                #[cfg(feature = "local_fs")]
                 self.open_custom_router_file(path, ctx);
-                #[cfg(not(feature = "local_fs"))]
-                let _ = path;
             }
         }
     }
@@ -11807,7 +11637,6 @@ impl Workspace {
 
     /// Opens a local-to-cloud handoff pane in place over the active local pane.
     /// Triggered by `/handoff`, `&` compose mode, and the handoff footer chip.
-    #[cfg(feature = "local_fs")]
     fn start_local_to_cloud_handoff(
         &mut self,
         launch: Option<PendingCloudLaunch>,
@@ -11846,7 +11675,6 @@ impl Workspace {
     /// with `FeatureFlag::OzHandoff` (round 4an, part 1/2). Kept as a no-op so
     /// its still-live callers (the handoff-pane stub above and the
     /// `AutoHandoffActiveAgentToCloud` action handler) keep compiling.
-    #[cfg(feature = "local_fs")]
     fn record_automatic_handoff_failed(
         _intent: LocalToCloudHandoffIntent,
         _ctx: &mut ViewContext<Self>,
@@ -11859,7 +11687,6 @@ impl Workspace {
     /// `start_local_to_cloud_handoff` and `AutoHandoffActiveAgentToCloud`
     /// compiling; it always reports the same failure the old pipeline did
     /// once `is_cloud_handoff_enabled()` had gone permanently false.
-    #[cfg(feature = "local_fs")]
     fn start_local_to_cloud_handoff_from_source(
         &mut self,
         _source_view: ViewHandle<TerminalView>,
@@ -12038,15 +11865,10 @@ impl Workspace {
                     ctx,
                 );
             }
-            #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
             pane_group::Event::OpenFileInWarp { path, session } => {
-                #[cfg(feature = "local_fs")]
-                {
-                    let layout = *EditorSettings::as_ref(ctx).open_file_layout.value();
-                    self.open_file_notebook(path.clone(), Some(session.clone()), layout, None, ctx);
-                }
+                let layout = *EditorSettings::as_ref(ctx).open_file_layout.value();
+                self.open_file_notebook(path.clone(), Some(session.clone()), layout, None, ctx);
             }
-            #[cfg(feature = "local_fs")]
             pane_group::Event::OpenCodeInWarp {
                 source,
                 layout,
@@ -12054,7 +11876,6 @@ impl Workspace {
             } => {
                 self.open_code(source.clone(), *layout, *line_col, false, &[], ctx);
             }
-            #[cfg(feature = "local_fs")]
             pane_group::Event::PreviewCodeInWarp { source } => {
                 self.open_code(
                     source.clone(),
@@ -12427,14 +12248,10 @@ impl Workspace {
                 pane_id,
                 hidden_pane_preview_direction,
             } => {
-                #[cfg(feature = "local_fs")]
                 let prefers_tabbed_editor_view = FeatureFlag::TabbedEditorView.is_enabled()
                     && *EditorSettings::as_ref(ctx)
                         .prefer_tabbed_editor_view
                         .value();
-
-                #[cfg(not(feature = "local_fs"))]
-                let prefers_tabbed_editor_view = false;
 
                 // If a code pane is being dragged over a workspace tab with an existing code pane,
                 // we don't allow it to be placed freely. Instead, it should be merged into the existing
@@ -12677,7 +12494,6 @@ impl Workspace {
                     });
                 }
             }
-            #[cfg(feature = "local_fs")]
             pane_group::Event::OpenFileWithTarget {
                 path,
                 target,
@@ -12699,11 +12515,9 @@ impl Workspace {
                     ctx,
                 );
             }
-            #[cfg(feature = "local_fs")]
             pane_group::Event::FileRenamed { old_path, new_path } => {
                 self.rename_tabs_with_file_path(old_path, new_path, ctx);
             }
-            #[cfg(feature = "local_fs")]
             pane_group::Event::FileDeleted { path } => {
                 self.close_tabs_with_file_path(path, ctx);
             }
@@ -12956,16 +12770,10 @@ impl Workspace {
     fn update_active_session(&mut self, ctx: &mut ViewContext<Self>) {
         let pane_group_handle = self.active_tab_pane_group();
         let file_tree_and_global_search_are_enabled = {
-            #[cfg(feature = "local_fs")]
             {
                 Self::should_enable_file_tree_and_global_search_for_pane_group(
                     self.active_tab_pane_group().as_ref(ctx),
                 )
-            }
-
-            #[cfg(not(feature = "local_fs"))]
-            {
-                false
             }
         };
 
@@ -12975,7 +12783,6 @@ impl Workspace {
 
         match pane_group_handle.as_ref(ctx).active_session_view(ctx) {
             Some(terminal_handle) => {
-                #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
                 let (session, pwd_location, is_local, is_wsl_session, has_pending_ssh) =
                     terminal_handle.read(ctx, |terminal, ctx| {
                         let active_session_id = terminal.active_block_session_id();
@@ -13031,7 +12838,6 @@ impl Workspace {
                     left_panel.update_coding_panel_enablement(enablement, ctx);
                 });
 
-                #[cfg(feature = "local_fs")]
                 {
                     self.right_panel_view.update(ctx, |right_panel, ctx| {
                         right_panel.update_session_env(is_remote, is_wsl_session, ctx);
@@ -13054,7 +12860,6 @@ impl Workspace {
                     left_panel.update_coding_panel_enablement(enablement, ctx);
                 });
 
-                #[cfg(feature = "local_fs")]
                 {
                     self.right_panel_view.update(ctx, |right_panel, ctx| {
                         right_panel.update_session_env(false, false, ctx);
@@ -13214,7 +13019,6 @@ impl Workspace {
     /// Unlike most "open file" flows, this always uses the Warp code editor
     /// rather than honoring the user's external/system editor preference, since
     /// the button is specifically for editing the router config inside Warp.
-    #[cfg(feature = "local_fs")]
     fn open_custom_router_file(&mut self, path: &Path, ctx: &mut ViewContext<Self>) {
         let settings = EditorSettings::as_ref(ctx);
         let target = resolve_file_target_to_open_in_warp(path, settings, None);
@@ -17617,7 +17421,7 @@ impl Workspace {
     /// Computes the list of available left panel views based on current AI settings and feature flags.
     fn compute_left_panel_views(ctx: &AppContext) -> Vec<ToolPanelView> {
         let mut views = vec![];
-        if cfg!(feature = "local_fs") && *CodeSettings::as_ref(ctx).show_project_explorer.value() {
+        if *CodeSettings::as_ref(ctx).show_project_explorer.value() {
             views.push(ToolPanelView::ProjectExplorer);
         }
         if FeatureFlag::AgentViewConversationListView.is_enabled()
@@ -17625,8 +17429,7 @@ impl Workspace {
         {
             views.push(ToolPanelView::ConversationListView);
         }
-        if cfg!(feature = "local_fs")
-            && FeatureFlag::GlobalSearch.is_enabled()
+        if FeatureFlag::GlobalSearch.is_enabled()
             && *CodeSettings::as_ref(ctx).show_global_search.value()
         {
             views.push(ToolPanelView::GlobalSearch {
@@ -17940,11 +17743,9 @@ impl TypedActionView for Workspace {
                 self.open_repo_picker_for_new_worktree_modal(ctx);
             }
             OpenTabConfigErrorFile {
-                #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
                 path,
                 toast_object_id,
             } => {
-                #[cfg(feature = "local_fs")]
                 {
                     let settings = EditorSettings::as_ref(ctx);
                     let target = resolve_file_target_with_editor_choice(
@@ -17971,7 +17772,6 @@ impl TypedActionView for Workspace {
             TabConfigSidecarMakeDefault {
                 mode,
                 tab_config_path,
-                #[cfg_attr(not(feature = "local_tty"), allow(unused_variables))]
                 shell,
             } => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
@@ -17984,7 +17784,6 @@ impl TypedActionView for Workspace {
                         );
                     }
                 });
-                #[cfg(feature = "local_tty")]
                 if let Some(shell) = shell {
                     use crate::terminal::available_shells::AvailableShells;
                     AvailableShells::handle(ctx).update(ctx, |model, ctx| {
@@ -17993,11 +17792,7 @@ impl TypedActionView for Workspace {
                 }
                 self.close_new_session_dropdown_menu(ctx);
             }
-            TabConfigSidecarEditConfig {
-                #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
-                path,
-            } => {
-                #[cfg(feature = "local_fs")]
+            TabConfigSidecarEditConfig { path } => {
                 {
                     let settings = EditorSettings::as_ref(ctx);
                     let target = resolve_file_target_with_editor_choice(
@@ -18041,51 +17836,39 @@ impl TypedActionView for Workspace {
                 launch,
                 environment_id,
             } => {
-                #[cfg(feature = "local_fs")]
                 self.start_local_to_cloud_handoff(launch.clone(), *environment_id, ctx);
-                #[cfg(not(feature = "local_fs"))]
-                {
-                    let _ = (launch, environment_id);
-                }
             }
             AutoHandoffActiveAgentToCloud {
                 terminal_view_id,
                 conversation_id,
                 trigger,
             } => {
-                #[cfg(feature = "local_fs")]
-                {
-                    let intent = LocalToCloudHandoffIntent::Automatic {
-                        trigger: *trigger,
-                        conversation_id: *conversation_id,
-                    };
-                    let launch = Some(PendingCloudLaunch {
-                        prompt: AUTO_CLOUD_HANDOFF_PROMPT.to_owned(),
-                        attachments: HandoffLaunchAttachments::default(),
-                    });
-                    match self.terminal_view(*terminal_view_id, ctx) {
-                        Some(source_view) => {
-                            self.start_local_to_cloud_handoff_from_source(
-                                source_view,
-                                launch,
-                                None,
-                                intent,
-                                ctx,
-                            );
-                        }
-                        _ => {
-                            log::debug!(
-                                "Skipping automatic local-to-cloud handoff via {:?}: terminal view {:?} is no longer open",
-                                trigger,
-                                terminal_view_id,
-                            );
-                            Self::record_automatic_handoff_failed(intent, ctx);
-                        }
+                let intent = LocalToCloudHandoffIntent::Automatic {
+                    trigger: *trigger,
+                    conversation_id: *conversation_id,
+                };
+                let launch = Some(PendingCloudLaunch {
+                    prompt: AUTO_CLOUD_HANDOFF_PROMPT.to_owned(),
+                    attachments: HandoffLaunchAttachments::default(),
+                });
+                match self.terminal_view(*terminal_view_id, ctx) {
+                    Some(source_view) => {
+                        self.start_local_to_cloud_handoff_from_source(
+                            source_view,
+                            launch,
+                            None,
+                            intent,
+                            ctx,
+                        );
                     }
-                }
-                #[cfg(not(feature = "local_fs"))]
-                {
-                    let _ = (terminal_view_id, conversation_id, trigger);
+                    _ => {
+                        log::debug!(
+                            "Skipping automatic local-to-cloud handoff via {:?}: terminal view {:?} is no longer open",
+                            trigger,
+                            terminal_view_id,
+                        );
+                        Self::record_automatic_handoff_failed(intent, ctx);
+                    }
                 }
             }
             OpenNetworkLogPane => {
@@ -18259,7 +18042,6 @@ impl TypedActionView for Workspace {
                 let pane_group_handle = self.active_tab_pane_group().clone();
                 self.toggle_right_panel(&pane_group_handle, ctx);
             }
-            #[cfg(feature = "local_fs")]
             OpenCodeReviewPanel(locator) => {
                 let pane_group_handle = self
                     .tabs
@@ -18290,8 +18072,6 @@ impl TypedActionView for Workspace {
                     }
                 }
             }
-            #[cfg(not(feature = "local_fs"))]
-            OpenCodeReviewPanel(_) => {}
             ToggleVerticalTabsPanel => {
                 self.toggle_vertical_tabs_panel(ctx);
             }
@@ -18906,11 +18686,9 @@ impl TypedActionView for Workspace {
                     ctx,
                 );
             }
-            #[cfg(feature = "local_fs")]
             FileRenamed { old_path, new_path } => {
                 self.rename_tabs_with_file_path(old_path, new_path, ctx);
             }
-            #[cfg(feature = "local_fs")]
             FileDeleted { path } => {
                 self.close_tabs_with_file_path(path, ctx);
             }

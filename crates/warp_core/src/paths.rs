@@ -423,6 +423,6 @@ pub fn bundled_resources_dir() -> Option<PathBuf> {
     }
 }
 
-#[cfg(all(test, feature = "local_fs"))]
+#[cfg(test)]
 #[path = "paths_tests.rs"]
 mod tests;

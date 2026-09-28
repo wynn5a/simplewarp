@@ -18,7 +18,6 @@ static POWERSHELL_5_PATH: LazyLock<Option<PathBuf>> = LazyLock::new(find_powersh
 static WSL_PATH: LazyLock<Option<PathBuf>> = LazyLock::new(find_wsl_path);
 
 /// Returns the location which Warp was installed to.
-#[cfg(feature = "local_fs")]
 pub fn install_dir() -> Result<path::PathBuf> {
     let current_exe = env::current_exe()?;
     current_exe

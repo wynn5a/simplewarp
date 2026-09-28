@@ -914,7 +914,7 @@ pub fn init(app: &mut AppContext) {
         "Toggle PTY Recording for Session",
         TerminalAction::ToggleSessionRecording,
     )
-    .with_enabled(|| cfg!(feature = "local_fs") && ChannelState::enable_debug_features())
+    .with_enabled(ChannelState::enable_debug_features)
     .with_context_predicate(id!("Terminal"))]);
 
     app.register_editable_bindings([EditableBinding::new(

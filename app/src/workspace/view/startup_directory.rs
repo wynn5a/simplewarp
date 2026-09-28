@@ -6,9 +6,7 @@ use warpui::{AppContext, SingletonEntity, ViewContext, WindowId};
 
 use super::Workspace;
 use crate::terminal::ShellLaunchData;
-use crate::terminal::available_shells::AvailableShell;
-#[cfg(feature = "local_tty")]
-use crate::terminal::available_shells::AvailableShells;
+use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 use crate::terminal::session_settings::{NewSessionSource, SessionSettings};
 
 impl Workspace {
@@ -81,15 +79,7 @@ impl Workspace {
         let (prev_session_working_directory, prev_session_shell) =
             active_session_info.unwrap_or_default();
 
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "local_tty")] {
-                let is_wsl = new_session_shell(chosen_shell, ctx)
-                .wsl_distro()
-                .is_some();
-            } else {
-                let is_wsl = false;
-            }
-        }
+        let is_wsl = new_session_shell(chosen_shell, ctx).wsl_distro().is_some();
 
         let is_same_system = same_system(prev_session_shell.as_ref(), chosen_shell, ctx);
 
@@ -109,7 +99,6 @@ impl Workspace {
 /// The shell to be used in the new session,
 /// based on the shell explicitly chosen by the user or
 /// the default startup shell specified in settings.
-#[cfg(feature = "local_tty")]
 fn new_session_shell(chosen_shell: Option<&AvailableShell>, ctx: &AppContext) -> AvailableShell {
     chosen_shell.cloned().unwrap_or_else(move || {
         AvailableShells::handle(ctx).read(ctx, |shells, ctx| shells.get_user_preferred_shell(ctx))
@@ -121,7 +110,6 @@ fn new_session_shell(chosen_shell: Option<&AvailableShell>, ctx: &AppContext) ->
 /// they're both on native Windows or both in the same WSL distribution.
 ///
 /// Returns `true` if `old_session_launch_data` is `None`.
-#[cfg(feature = "local_tty")]
 fn same_system(
     old_session_launch_data: Option<&ShellLaunchData>,
     chosen_shell: Option<&AvailableShell>,
@@ -140,15 +128,6 @@ fn same_system(
         }
         _ => wsl_distro.is_none(),
     }
-}
-
-#[cfg(not(feature = "local_tty"))]
-const fn same_system(
-    _old_session_launch_data: Option<&ShellLaunchData>,
-    _chosen_shell: Option<&AvailableShell>,
-    _ctx: &AppContext,
-) -> bool {
-    true
 }
 
 /// Helper function to compute the actual startup directory for the

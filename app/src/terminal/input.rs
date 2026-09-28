@@ -35,16 +35,13 @@ use std::time::Duration;
 
 use ai::skills::SkillReference;
 use async_channel::Sender;
-#[cfg(feature = "local_fs")]
 use diesel::SqliteConnection;
 use futures::FutureExt as _;
 use futures::stream::AbortHandle;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use ordered_float::Float;
-use parking_lot::FairMutex;
-#[cfg(feature = "local_fs")]
-use parking_lot::Mutex;
+use parking_lot::{FairMutex, Mutex};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use settings::{Setting as _, ToggleableSetting};
@@ -173,7 +170,6 @@ use crate::channel::{Channel, ChannelState};
 use crate::cloud_object::CloudObject;
 use crate::cloud_object::model::actions::ObjectActionType;
 use crate::cloud_object::model::persistence::CloudModel;
-#[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::code_review::diff_state::DiffMode;
 use crate::completer::SessionContext;
@@ -200,7 +196,6 @@ use crate::input_suggestions::{
 use crate::network::NetworkStatus;
 use crate::pane_group::PaneGroupAction;
 use crate::pane_group::focus_state::PaneFocusHandle;
-#[cfg(feature = "local_fs")]
 use crate::persistence::{database_file_path, establish_ro_connection};
 use crate::prefix::longest_common_prefix;
 use crate::search::QueryFilter;
@@ -260,7 +255,6 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::user_config::WarpConfig;
 use crate::util::bindings::{self, CustomAction, keybinding_name_to_normalized_string};
-#[cfg(feature = "local_fs")]
 use crate::util::file::external_editor;
 use crate::util::image::MAX_IMAGE_COUNT_FOR_QUERY;
 use crate::util::truncation::truncate_from_end;
@@ -862,7 +856,6 @@ pub enum Event {
     UnhandledCmdEnter,
     CtrlEnter,
     OpenSettings(SettingsSection),
-    #[cfg(feature = "local_fs")]
     OpenCodeInWarp {
         source: CodeSource,
         layout: external_editor::settings::EditorLayout,
@@ -1135,7 +1128,6 @@ pub struct CompleterData {
     pub sessions: ModelHandle<Sessions>,
     pub active_block_metadata: Option<BlockMetadata>,
     command_registry: Arc<CommandRegistry>,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     last_user_block_completed: Option<UserBlockCompleted>,
 }
 
@@ -1418,12 +1410,10 @@ pub struct Input {
     next_command_model: ModelHandle<NextCommandModel>,
 
     /// The last block that the user ran. This is used for generating autosuggestions.
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     last_user_block_completed: Option<UserBlockCompleted>,
 
     hoverable_handle: MouseStateHandle,
 
-    #[cfg(feature = "local_fs")]
     conn: Option<Arc<Mutex<SqliteConnection>>>,
 
     /// Cached hint text to ensure it remains stable during shell initialization hooks
@@ -2888,7 +2878,6 @@ impl Input {
             last_user_block_completed: None,
             hoverable_handle: Default::default(),
             terminal_view_id,
-            #[cfg(feature = "local_fs")]
             conn: None,
             attachment_chips: Default::default(),
             is_processing_attached_images: false,
@@ -2919,7 +2908,6 @@ impl Input {
             input_contents_before_prompt_chip_command: None,
         };
 
-        #[cfg(feature = "local_fs")]
         if let Some(db_url) = database_file_path().to_str()
             && let Ok(conn) = establish_ro_connection(db_url)
         {
@@ -4579,7 +4567,6 @@ impl Input {
             return Err("Tried to open file in code editor for a remote session".to_string());
         }
 
-        #[cfg(feature = "local_fs")]
         {
             // Get the current working directory from the active terminal session
             let current_dir = self
@@ -7272,12 +7259,10 @@ impl Input {
         // Get current ignored shell commands to filter during generation
         let ignored_suggestions = IgnoredSuggestionsModel::as_ref(ctx)
             .get_ignored_suggestions_for_type(SuggestionType::ShellCommand);
-        #[cfg(feature = "local_fs")]
         let conn = self.conn.clone();
         let abort_handle = ctx
             .spawn_abortable(
                 async move {
-                    #[cfg(feature = "local_fs")]
                     // First, use rich history to find commands with a matching prefix that were run
                     // in a similar context, taking into account the most recent block run.
                     if let Some(conn) = conn
@@ -8700,7 +8685,6 @@ impl Input {
                         let file_path = if is_ai_mode {
                             file_path.to_string()
                         } else {
-                            #[cfg(feature = "local_fs")]
                             {
                                 // Try to get current working directory and process the file path
                                 let processed_path = self
@@ -8743,9 +8727,6 @@ impl Input {
 
                                 processed_path.unwrap_or_else(|| file_path.to_string())
                             }
-
-                            #[cfg(not(feature = "local_fs"))]
-                            file_path.to_string()
                         };
                         self.replace_at_symbol_with_text(&file_path, ctx);
                     }

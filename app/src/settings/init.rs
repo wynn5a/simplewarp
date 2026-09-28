@@ -89,7 +89,6 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     super::LinuxAppConfiguration::register(ctx);
 
-    #[cfg(feature = "local_fs")]
     crate::util::file::external_editor::EditorSettings::register(ctx);
 }
 
@@ -205,7 +204,6 @@ pub fn init(
     // Set up hot-reload for the settings file. When the WarpConfig watcher
     // detects a change to settings.toml, reload preferences from disk and
     // push changed values into setting models.
-    #[cfg(feature = "local_fs")]
     {
         let prefs = <settings::PublicPreferences as warpui::SingletonEntity>::as_ref(ctx);
         if prefs.is_settings_file() {
@@ -221,7 +219,6 @@ pub fn init(
 
 /// Handles a `WarpConfig` change event, reloading settings from disk when
 /// the settings file is modified, created, or deleted.
-#[cfg(feature = "local_fs")]
 fn handle_warp_config_change(
     _: warpui::ModelHandle<crate::user_config::WarpConfig>,
     event: &crate::user_config::WarpConfigUpdateEvent,

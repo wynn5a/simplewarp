@@ -1,13 +1,9 @@
 mod in_band_command_executor;
-#[cfg(feature = "local_tty")]
 mod local_command_executor;
-#[cfg(feature = "local_tty")]
 mod msys2_command_executor;
-#[cfg(feature = "local_tty")]
 mod wsl_command_executor;
 use std::collections::HashMap;
 mod noop_command_executor;
-#[cfg(feature = "local_tty")]
 mod remote_command_executor;
 mod shared;
 
@@ -22,14 +18,11 @@ pub use in_band_command_executor::{
     InBandCommand, InBandCommandCancelledEvent, InBandCommandExecutor, InBandCommandOutputReceiver,
     is_in_band_command,
 };
-#[cfg(feature = "local_tty")]
 pub use local_command_executor::LocalCommandExecutor;
 pub use noop_command_executor::NoOpCommandExecutor;
-#[cfg(feature = "local_tty")]
 pub use remote_command_executor::RemoteCommandExecutor;
 pub use shared::{ExecutorCommandEvent, shell_escape_single_quotes, shell_quote_arg};
 use warp_completer::completer::CommandOutput;
-#[cfg(feature = "local_tty")]
 use warp_errors::report_error;
 use warpui::ModelContext;
 
@@ -97,16 +90,15 @@ pub fn new_command_executor_for_session(
     parent_session_info: Option<&SessionInfo>,
     ctx: &mut ModelContext<Sessions>,
 ) -> Arc<dyn CommandExecutor> {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "local_tty")] {
-            new_command_executor_for_local_tty_session(session_info, executor_command_tx, in_band_command_output_rx, parent_session_info, ctx)
-        } else {
-            Arc::new(NoOpCommandExecutor::default())
-        }
-    }
+    new_command_executor_for_local_tty_session(
+        session_info,
+        executor_command_tx,
+        in_band_command_output_rx,
+        parent_session_info,
+        ctx,
+    )
 }
 
-#[cfg(feature = "local_tty")]
 fn new_command_executor_for_local_tty_session(
     session_info: &SessionInfo,
     executor_command_tx: &Sender<ExecutorCommandEvent>,

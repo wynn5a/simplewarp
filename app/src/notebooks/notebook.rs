@@ -987,7 +987,6 @@ impl NotebookView {
                 .into_item(),
         );
 
-        #[cfg(feature = "local_fs")]
         {
             menu_items.push(
                 MenuItemFields::new("Export")

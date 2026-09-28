@@ -380,7 +380,6 @@ impl EnvVarCollectionView {
             );
         }
 
-        #[cfg(feature = "local_fs")]
         menu_items.push(
             MenuItemFields::new("Export")
                 .with_on_select_action(EnvVarCollectionAction::Export)

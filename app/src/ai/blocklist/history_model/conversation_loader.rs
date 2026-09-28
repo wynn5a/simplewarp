@@ -14,7 +14,6 @@ use super::{
 };
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
-#[cfg(feature = "local_fs")]
 use crate::persistence::agent::read_agent_conversation_by_id;
 use crate::persistence::model::{
     AgentConversation, AgentConversationData, AgentConversationSummary,
@@ -23,7 +22,6 @@ use crate::persistence::model::{
 /// Converts an `AgentConversation` from the database to an `AIConversation`.
 /// This utility function extracts the conversion logic that was originally embedded
 /// in the terminal view restoration process.
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub fn convert_persisted_conversation_to_ai_conversation(
     persisted_conversation: AgentConversation,
 ) -> Option<AIConversation> {
@@ -153,7 +151,6 @@ impl BlocklistAIHistoryModel {
         }
 
         // If not in memory, try to load from the database
-        #[cfg(feature = "local_fs")]
         {
             let persisted_ai_conversation = self.db_connection.clone().and_then(|conn| {
                 let mut conn = conn.lock().ok()?;

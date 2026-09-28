@@ -5,7 +5,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use itertools::Itertools;
 use parking_lot::Mutex;
-#[cfg(feature = "local_fs")]
 use repo_metadata::DirectoryWatcher;
 use settings::Setting as _;
 use warp_completer::completer::{CommandExitStatus, CommandOutput};
@@ -18,14 +17,10 @@ use crate::CLIAgentSessionsModel;
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::AuthManager;
-#[cfg(feature = "local_fs")]
 use crate::code_review::diff_state::DiffStats;
-#[cfg(feature = "local_fs")]
 use crate::code_review::git_repo_model::{GitRepoStatusModel, GitStatusMetadata};
-#[cfg(feature = "local_fs")]
 use crate::code_review::github_repo_model::GitHubRepoModel;
 use crate::context_chips::context_chip::{Environment, PromptGenerator};
-#[cfg(feature = "local_fs")]
 use crate::context_chips::display_chip::GitBranchTrackingStatus;
 use crate::context_chips::prompt::Prompt;
 use crate::context_chips::{ChipAvailability, ChipDisabledReason, ContextChipKind};
@@ -48,10 +43,8 @@ use crate::terminal::session_settings::{
 use crate::terminal::shell::Shell;
 use crate::terminal::view::PromptPosition;
 use crate::terminal::{CLIAgent, History};
-#[cfg(feature = "local_fs")]
 use crate::util::git::PrInfo;
 
-#[cfg(feature = "local_fs")]
 fn git_status_metadata(branch: &str) -> GitStatusMetadata {
     GitStatusMetadata {
         current_branch_name: branch.to_string(),
@@ -734,7 +727,6 @@ fn test_ps1_without_active_agent_surface_runs_no_footer_generators() {
         });
     });
 }
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_externally_driven_chip_skips_periodic_timer() {
     App::test((), |mut app| async move {
@@ -795,7 +787,6 @@ fn test_externally_driven_chip_skips_periodic_timer() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_git_status_change_updates_chip_value() {
     App::test((), |mut app| async move {
@@ -866,7 +857,6 @@ fn test_git_status_change_updates_chip_value() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_git_status_change_updates_branch_status_chip_value() {
     App::test((), |mut app| async move {
@@ -946,7 +936,6 @@ fn test_git_status_change_updates_branch_status_chip_value() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_git_status_pr_info_updates_github_pr_chip_value() {
     let _flag_guard = FeatureFlag::GithubPrPromptChip.override_enabled(true);

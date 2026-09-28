@@ -4,36 +4,30 @@
 //! supporting multiple platforms (macOS, Linux, Windows) and architectures
 //! (x64, arm64).
 
-use anyhow::{Context, Result, bail};
-use serde::Deserialize;
+use std::ffi::OsStr;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        use flate2::read::GzDecoder;
-        use futures::io::AsyncWriteExt;
-        use std::ffi::OsStr;
-        use std::io::Read;
-        use std::path::{Path, PathBuf};
-        use tar::Archive;
-        use command::r#async::Command;
-        use semver::Version;
-    }
-}
+use anyhow::{Context, Result, bail};
+use command::r#async::Command;
+use flate2::read::GzDecoder;
+use futures::io::AsyncWriteExt;
+use semver::Version;
+use serde::Deserialize;
+use tar::Archive;
 
 /// The pinned Node.js version to install.
-#[cfg(feature = "local_fs")]
 const NODE_VERSION: &str = "v22.12.0";
 
 /// Minimum supported Node.js version for system-installed Node.
-#[cfg(feature = "local_fs")]
 const MIN_NODE_VERSION: Version = Version::new(20, 0, 0);
 
 // Platform-specific paths for Node.js binaries
 cfg_if::cfg_if! {
-    if #[cfg(all(feature = "local_fs", windows))] {
+    if #[cfg(windows)] {
         const NODE_BINARY_PATH: &str = "node.exe";
         const NPM_BINARY_PATH: &str = "node_modules/npm/bin/npm-cli.js";
-    } else if #[cfg(feature = "local_fs")] {
+    } else {
         const NODE_BINARY_PATH: &str = "bin/node";
         const NPM_BINARY_PATH: &str = "bin/npm";
     }
@@ -60,7 +54,6 @@ impl NpmInfo {
 }
 
 /// Archive type for Node.js distribution.
-#[cfg(feature = "local_fs")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArchiveType {
     /// A gzip-compressed tarball (for macOS and Linux)
@@ -70,14 +63,12 @@ pub enum ArchiveType {
 }
 
 /// Platform-specific Node.js distribution information.
-#[cfg(feature = "local_fs")]
 struct NodeDistribution {
     os: &'static str,
     arch: &'static str,
     archive_type: ArchiveType,
 }
 
-#[cfg(feature = "local_fs")]
 impl NodeDistribution {
     /// Determines the Node.js distribution for the current platform.
     fn current() -> Result<Self> {
@@ -133,7 +124,6 @@ impl NodeDistribution {
 }
 
 /// Returns the path to the Node.js installation directory.
-#[cfg(feature = "local_fs")]
 pub fn node_installation_dir() -> Result<PathBuf> {
     let dist = NodeDistribution::current()?;
     let folder_name = dist.folder_name(NODE_VERSION);
@@ -141,13 +131,11 @@ pub fn node_installation_dir() -> Result<PathBuf> {
 }
 
 /// Returns the path to the installed node binary.
-#[cfg(feature = "local_fs")]
 pub fn node_binary_path() -> Result<PathBuf> {
     Ok(node_installation_dir()?.join(NODE_BINARY_PATH))
 }
 
 /// Returns the path to the installed npm binary/script.
-#[cfg(feature = "local_fs")]
 pub fn npm_binary_path() -> Result<PathBuf> {
     Ok(node_installation_dir()?.join(NPM_BINARY_PATH))
 }
@@ -167,7 +155,6 @@ pub fn npm_binary_path() -> Result<PathBuf> {
 /// - The current platform/architecture is not supported
 /// - Network errors occur during download
 /// - Extraction fails
-#[cfg(feature = "local_fs")]
 pub async fn install_npm(client: &http_client::Client) -> Result<PathBuf> {
     log::info!("Node.js runtime install_npm called");
 
@@ -242,7 +229,6 @@ pub async fn install_npm(client: &http_client::Client) -> Result<PathBuf> {
 }
 
 /// Checks if an existing Node.js installation is valid.
-#[cfg(feature = "local_fs")]
 async fn is_valid_installation(node_binary: &Path) -> bool {
     // Check if the binary exists
     if async_fs::metadata(node_binary).await.is_err() {
@@ -278,7 +264,6 @@ async fn is_valid_installation(node_binary: &Path) -> bool {
 /// Extracts a gzip-compressed tarball to the destination directory.
 ///
 /// This is a simple wrapper around tar::Archive that extracts all contents.
-#[cfg(feature = "local_fs")]
 pub fn extract_tar_gz(data: &[u8], dest_dir: &Path) -> Result<()> {
     let decoder = GzDecoder::new(data);
     let mut archive = Archive::new(decoder);
@@ -291,7 +276,6 @@ pub fn extract_tar_gz(data: &[u8], dest_dir: &Path) -> Result<()> {
 /// Extracts a single gzip-compressed file to the destination path.
 ///
 /// This decompresses a `.gz` file (not a `.tar.gz` archive) directly to a file.
-#[cfg(feature = "local_fs")]
 pub async fn extract_gz(data: &[u8], dest_path: &Path) -> Result<()> {
     let mut decoder = GzDecoder::new(data);
     let mut decompressed = Vec::new();
@@ -326,7 +310,6 @@ pub async fn extract_gz(data: &[u8], dest_path: &Path) -> Result<()> {
 /// Note: This function performs synchronous zip reading (which is CPU-bound) followed by
 /// async file I/O. Similar to `extract_gz`, this approach is acceptable for reasonably-sized
 /// archives since the zip reading is relatively fast.
-#[cfg(feature = "local_fs")]
 pub async fn extract_zip<F>(data: &[u8], dest_dir: &Path, file_filter: Option<F>) -> Result<()>
 where
     F: Fn(&str) -> bool,
@@ -402,7 +385,6 @@ where
 /// # Returns
 /// Returns the path to a working node binary, or `None` if no working node is found.
 /// For system node, returns `PathBuf::from("node")` to let PATH resolution handle it.
-#[cfg(feature = "local_fs")]
 pub async fn find_working_node_binary(path_env_var: Option<&str>) -> Option<PathBuf> {
     // First, try our custom node installation
     if let Ok(custom_node) = node_binary_path()
@@ -445,7 +427,6 @@ pub async fn find_working_node_binary(path_env_var: Option<&str>) -> Option<Path
 ///
 /// # Errors
 /// Returns an error if Node.js is not found or doesn't meet the minimum version.
-#[cfg(feature = "local_fs")]
 pub async fn detect_system_node(path_env_var: impl AsRef<OsStr>) -> Result<()> {
     let path_env_var = path_env_var.as_ref();
 

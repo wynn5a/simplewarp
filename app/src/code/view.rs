@@ -10,7 +10,6 @@ use warp_core::ui::appearance::Appearance;
 use warp_core::ui::icons::ICON_DIMENSIONS;
 use warp_editor::render::element::VerticalExpansionBehavior;
 use warp_util::path::LineAndColumnArg;
-#[cfg(feature = "local_fs")]
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     AcceptedByDropTarget, Align, Border, ChildAnchor, ChildView, Clipped, ConstrainedBox,
@@ -146,14 +145,11 @@ pub enum CodeViewAction {
     CloseAll,
     CloseSaved,
     ToggleMaximized,
-    #[cfg(feature = "local_fs")]
     CopyFilePath,
     /// Open the active code tab's file in the platform's file manager
     /// (Finder on macOS, Explorer on Windows). No-op when the active tab has
     /// no resolvable local path.
-    #[cfg(feature = "local_fs")]
     RevealInFinder,
-    #[cfg(feature = "local_fs")]
     RenderMarkdown,
     DragOverIndex {
         target: usize,
@@ -262,14 +258,12 @@ impl CodeView {
         let location = source.location();
         let mut view = Self::new_internal(source, ctx);
         view.open_or_focus_existing(location, line_col, ctx);
-        #[cfg(feature = "local_fs")]
         {
             view.update_markdown_mode_segmented_control(ctx);
         }
         view
     }
 
-    #[cfg(feature = "local_fs")]
     fn update_markdown_mode_segmented_control(&mut self, ctx: &mut ViewContext<Self>) {
         let renders_in_notebook_viewer = self
             .tab_at(self.active_tab_index)
@@ -334,7 +328,6 @@ impl CodeView {
 
         if let Some(path) = path {
             view.open_in_preview_or_promote(path, ctx);
-            #[cfg(feature = "local_fs")]
             {
                 view.update_markdown_mode_segmented_control(ctx);
             }
@@ -543,7 +536,6 @@ impl CodeView {
             LocalCodeEditorEvent::ViewportUpdated => (),
             LocalCodeEditorEvent::LayoutInvalidated => (),
             LocalCodeEditorEvent::DiscardUnsavedChanges { path } => {
-                #[cfg(feature = "local_fs")]
                 GlobalBufferModel::handle(ctx).update(ctx, |global_buffer, ctx| {
                     global_buffer.discard_unsaved_changes(path, ctx);
                 });
@@ -1337,7 +1329,6 @@ impl CodeView {
             tab_index: index,
         });
 
-        #[cfg(feature = "local_fs")]
         {
             self.update_markdown_mode_segmented_control(ctx);
         }
@@ -2069,7 +2060,6 @@ impl CodeView {
                 .into_item(),
         ];
 
-        #[cfg(feature = "local_fs")]
         {
             let active_location = self
                 .tab_at(self.active_tab_index)
@@ -2263,7 +2253,6 @@ impl TypedActionView for CodeView {
                 });
             }
 
-            #[cfg(feature = "local_fs")]
             CodeViewAction::CopyFilePath => {
                 if let Some(location) = self
                     .tab_at(self.active_tab_index)
@@ -2273,7 +2262,6 @@ impl TypedActionView for CodeView {
                         .write(ClipboardContent::plain_text(location.display_path()));
                 }
             }
-            #[cfg(feature = "local_fs")]
             CodeViewAction::RevealInFinder => {
                 if let Some(path) = self.local_path(ctx) {
                     ctx.open_file_path_in_explorer(&path);
@@ -2283,7 +2271,6 @@ impl TypedActionView for CodeView {
                     );
                 }
             }
-            #[cfg(feature = "local_fs")]
             CodeViewAction::RenderMarkdown => {
                 let lor_path = self
                     .tab_at(self.active_tab_index)

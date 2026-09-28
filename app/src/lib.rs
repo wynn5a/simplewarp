@@ -123,22 +123,18 @@ use code::opened_files::OpenedFilesModel;
 use code_review::GlobalCodeReviewModel;
 use code_review::git_repo_model::GitRepoModels;
 use quit_warning::UnsavedStateSummary;
-#[cfg(feature = "local_fs")]
-use repo_metadata::{
-    RepoMetadataModel, repositories::DetectedRepositories, watcher::DirectoryWatcher,
-};
+use repo_metadata::RepoMetadataModel;
+use repo_metadata::repositories::DetectedRepositories;
+use repo_metadata::watcher::DirectoryWatcher;
 use server::network_log_pane_manager::NetworkLogPaneManager;
-#[cfg(feature = "local_fs")]
 use settings::import::model::ImportedConfigModel;
 use settings_view::pane_manager::SettingsPaneManager;
 use terminal::general_settings::GeneralSettings;
 use terminal::keys_settings::KeysSettings;
-#[cfg(feature = "local_tty")]
 use terminal::local_shell::LocalShellState;
 pub use util::bindings::cmd_or_ctrl_shift;
 use warp_cli::agent::AgentCommand;
 use warp_cli::{CliCommand, GlobalOptions};
-#[cfg(feature = "local_fs")]
 use watcher::HomeDirectoryWatcher;
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
@@ -149,13 +145,10 @@ pub mod workspace;
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::ops::Deref;
-#[cfg(feature = "local_fs")]
 use std::sync::Arc;
 
 use ::settings::{Setting, ToggleableSetting};
-#[cfg(feature = "local_tty")]
-use anyhow::Context;
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use appearance::{Appearance, AppearanceManager};
 use channel::ChannelState;
 use interval_timer::IntervalTimer;
@@ -166,7 +159,6 @@ pub use persistence::testing as sqlite_testing;
 pub use plugin::{PLUGIN_HOST_FLAG, run_plugin_host};
 use server::server_api::ServerApiProvider;
 use settings::{ExtraMetaKeys, PrivacySettings};
-#[cfg(feature = "local_fs")]
 use terminal::input;
 use terminal::session_settings::SessionSettings;
 use url::Url;
@@ -177,7 +169,6 @@ use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
 // Re-export the safe logging macros at the crate root level for backwards compatibility
 pub use warp_core::{safe_debug, safe_error, safe_info, safe_warn};
 use warp_errors::{report_error, report_if_error};
-#[cfg(feature = "local_fs")]
 use warp_files::FileModel;
 use warp_logging::{LogDestination, LogFrontend};
 use warpui::integration::TestDriver;
@@ -205,7 +196,6 @@ use crate::cloud_object::export::ExportManager;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code::global_buffer_model::GlobalBufferModel;
-#[cfg(feature = "local_fs")]
 use crate::code::language_server_shutdown_manager::LanguageServerShutdownManager;
 use crate::context_chips::prompt::Prompt;
 use crate::default_terminal::DefaultTerminal;
@@ -529,7 +519,7 @@ pub fn run() -> Result<()> {
 /// Runs a parsed Warp worker command.
 fn run_worker_command(worker: &warp_cli::WorkerCommand) -> Result<()> {
     match worker {
-        #[cfg(all(feature = "local_tty", unix))]
+        #[cfg(unix)]
         warp_cli::WorkerCommand::TerminalServer(args) => {
             crate::terminal::local_tty::server::run_terminal_server(args);
             Ok(())
@@ -727,7 +717,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     // files, modified signal handlers, etc.) to avoid unexpected effects on
     // spawned ptys.
     //
-    #[cfg(feature = "local_tty")]
     let pty_spawner =
         terminal::local_tty::spawner::PtySpawner::new().context("Failed to create pty spawner")?;
 
@@ -836,7 +825,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             )
         });
         // Add the terminal server singleton to the application.
-        #[cfg(feature = "local_tty")]
         ctx.add_singleton_model(move |_ctx| pty_spawner);
 
         // Register user preferences.  This must be done before initializing
@@ -1027,7 +1015,6 @@ pub(crate) fn initialize_app(
         AppearanceManager::as_ref(ctx).set_app_icon(ctx);
     }
 
-    #[cfg(feature = "local_tty")]
     terminal::available_shells::register(ctx);
 
     // Add truly global actions that don't depend on the existence of any view here
@@ -1116,7 +1103,6 @@ pub(crate) fn initialize_app(
         log::info!("Home directory not found; skipping HomeDirectoryWatcher registration");
     }
 
-    #[cfg(feature = "local_fs")]
     {
         let imported_config_model = ctx.add_singleton_model(ImportedConfigModel::new);
 
@@ -1206,12 +1192,10 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|_| ToastStack);
     ctx.add_singleton_model(|_| GlobalCodeReviewModel);
     ctx.add_singleton_model(workspace::OneTimeModalModel::new);
-    #[cfg(feature = "local_fs")]
     ctx.add_singleton_model(FileModel::new);
     ctx.add_singleton_model(GlobalBufferModel::new);
     #[cfg(windows)]
     ctx.add_singleton_model(util::traffic_lights::windows::RendererState::new);
-    #[cfg(feature = "local_fs")]
     ctx.add_singleton_model(|_| LanguageServerShutdownManager::new());
 
     #[cfg(feature = "voice_input")]
@@ -1332,7 +1316,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(TerminalKeybindings::new);
     ctx.add_singleton_model(|_| ActiveSession::default());
 
-    #[cfg(feature = "local_tty")]
     {
         ctx.add_singleton_model(LocalShellState::new);
         ctx.add_singleton_model(system::SystemInfo::new);
@@ -1500,12 +1483,11 @@ pub(crate) fn app_callbacks(
             // app.  Additionally, this must occur after terminating the
             // persistence writer, so we don't keep track of the fact that the
             // shell sessions terminated.
-            #[cfg(feature = "local_tty")]
             terminal::local_tty::spawner::PtySpawner::handle(ctx).update(ctx, |pty_spawner, _| {
                 pty_spawner.prepare_for_app_termination();
             });
 
-            #[cfg(all(feature = "local_tty", windows))]
+            #[cfg(windows)]
             terminal::local_tty::shutdown_all_pty_event_loops(ctx);
 
             // Tear down app services before spawning the new process, to

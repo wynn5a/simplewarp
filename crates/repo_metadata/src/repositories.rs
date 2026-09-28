@@ -55,14 +55,12 @@ impl DetectedRepositories {
 
     /// Given the active directory pwd, kick off a background job to detect the git project root and emit an event
     /// to interested listeners.
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     pub fn detect_possible_local_git_repo(
         &mut self,
         active_directory: &str,
         source: RepoDetectionSource,
         ctx: &mut ModelContext<Self>,
     ) -> impl Future<Output = Option<PathBuf>> + use<> {
-        #[cfg(feature = "local_fs")]
         {
             use futures::channel::oneshot;
 
@@ -160,12 +158,6 @@ impl DetectedRepositories {
             self.spawned_futures.push(spawned_handle.future_id());
 
             Either::Left(async move { rx.await.unwrap_or(None) })
-        }
-
-        #[cfg(not(feature = "local_fs"))]
-        {
-            use futures::future::Ready;
-            Either::<Ready<Option<PathBuf>>, Ready<Option<PathBuf>>>::Left(ready(None))
         }
     }
 
@@ -275,7 +267,6 @@ impl DetectedRepositories {
 }
 
 /// Information about a discovered Git repository.
-#[cfg(feature = "local_fs")]
 #[derive(Debug, Clone)]
 struct GitRepoInfo {
     /// Path to the working tree, if present. None for bare repositories.
@@ -293,7 +284,6 @@ struct GitRepoInfo {
 /// - A .git file containing "gitdir: <path>": working tree is the parent directory; git dir is the parsed path (resolved if relative)
 ///
 /// Traverses up to the user's $HOME directory; if no repo is found by that point, returns `None`.
-#[cfg(feature = "local_fs")]
 async fn find_git_repo(path: &Path) -> Option<GitRepoInfo> {
     let home_dir = dirs::home_dir()?;
     let mut current = path.to_owned();
@@ -357,7 +347,6 @@ async fn find_git_repo(path: &Path) -> Option<GitRepoInfo> {
 }
 
 /// Checks whether the given directory is a valid Git directory by verifying it contains a HEAD file.
-#[cfg(feature = "local_fs")]
 async fn is_valid_git_dir(dir: &Path) -> bool {
     async_fs::metadata(dir.join("HEAD"))
         .await

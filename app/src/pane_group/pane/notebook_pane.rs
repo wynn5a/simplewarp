@@ -152,7 +152,6 @@ pub(super) fn subscribe_to_link_model(
                 ctx,
             );
         }
-        #[cfg(feature = "local_fs")]
         LinkEvent::OpenFileWithTarget {
             path,
             target,

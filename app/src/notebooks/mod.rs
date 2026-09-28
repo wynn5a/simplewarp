@@ -94,7 +94,6 @@ pub fn init(app: &mut AppContext) {
 /// This:
 /// * Normalizes code block languages
 /// * Includes extra context for embedded objects.
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub fn export_notebook(data: &str, ctx: &AppContext) -> anyhow::Result<String> {
     use warp_editor::content::buffer::Buffer;
     use warp_editor::content::markdown::MarkdownStyle;

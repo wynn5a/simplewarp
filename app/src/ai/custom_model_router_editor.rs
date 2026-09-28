@@ -35,7 +35,6 @@ use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
-#[cfg(feature = "local_fs")]
 use crate::user_config::WarpConfig;
 use crate::view_components::FilterableDropdown;
 use crate::view_components::action_button::{
@@ -524,7 +523,6 @@ impl CustomRouterEditorView {
             return;
         }
 
-        #[cfg(feature = "local_fs")]
         {
             let yaml = match router.to_yaml_string() {
                 Ok(y) => y,

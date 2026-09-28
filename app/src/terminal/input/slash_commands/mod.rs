@@ -4,7 +4,6 @@ mod mixer;
 mod search_item;
 pub(super) mod view;
 
-#[cfg(feature = "local_fs")]
 use std::path::PathBuf;
 
 use ai::skills::SkillReference;
@@ -16,7 +15,6 @@ use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::AnsiColorIdentifier;
 use warp_errors::report_error;
-#[cfg(feature = "local_fs")]
 use warp_util::path::{CleanPathResult, LineAndColumnArg};
 use warpui::clipboard::ClipboardContent;
 use warpui::{AppContext, SingletonEntity, ViewContext};
@@ -48,7 +46,6 @@ use crate::terminal::input::slash_command_model::{
 use crate::terminal::input::{
     CompletionsTrigger, Event, Input, InputSuggestionsMode, UserQueryMenuAction,
 };
-#[cfg(feature = "local_fs")]
 use crate::terminal::model::session::Session;
 use crate::terminal::view::TerminalAction;
 use crate::ui_components::color_dot;
@@ -158,7 +155,6 @@ impl SlashCommandTrigger {
     }
 }
 
-#[cfg(feature = "local_fs")]
 fn open_file_command_path(
     session: &Session,
     current_dir: &str,
@@ -577,90 +573,79 @@ impl Input {
                 let args = argument.expect("args are Some()");
                 self.initiate_create_new_project(args.to_owned(), ctx);
             }
-            SlashCommandKind::Edit => {
-                #[cfg(feature = "local_fs")]
-                match argument {
-                    Some(args) if !args.is_empty() => {
-                        let Some(session_id) = self.active_block_session_id() else {
-                            return false;
-                        };
+            SlashCommandKind::Edit => match argument {
+                Some(args) if !args.is_empty() => {
+                    let Some(session_id) = self.active_block_session_id() else {
+                        return false;
+                    };
 
-                        let Some(session) = self.sessions.as_ref(ctx).get(session_id) else {
-                            return false;
-                        };
+                    let Some(session) = self.sessions.as_ref(ctx).get(session_id) else {
+                        return false;
+                    };
 
-                        if !session.is_local() {
-                            let window_id = ctx.window_id();
-                            ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                                toast_stack.add_ephemeral_toast(
-                                    DismissibleToast::error(
-                                        "The /open-file command is only available for local sessions"
-                                            .to_owned(),
-                                    ),
-                                    window_id,
-                                    ctx,
-                                );
-                            });
-                            return false;
-                        }
-
-                        let current_dir = self
-                            .active_block_metadata
-                            .as_ref()
-                            .and_then(|metadata| metadata.current_working_directory())
-                            .map(str::to_owned);
-
-                        let Some(current_dir) = current_dir else {
-                            return false;
-                        };
-
-                        let (file_path, line_col) =
-                            open_file_command_path(&session, &current_dir, args);
-
-                        match std::fs::metadata(&file_path) {
-                            Ok(metadata) if metadata.is_file() => {
-                                use crate::util::file::external_editor;
-
-                                ctx.dispatch_typed_action(&TerminalAction::OpenCodeInWarp {
-                                    path: file_path,
-                                    layout: external_editor::settings::EditorLayout::SplitPane,
-                                    line_col,
-                                });
-                            }
-                            Ok(_) => {
-                                show_error_toast(
-                                    "The /open-file command only works for files, not directories"
+                    if !session.is_local() {
+                        let window_id = ctx.window_id();
+                        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                            toast_stack.add_ephemeral_toast(
+                                DismissibleToast::error(
+                                    "The /open-file command is only available for local sessions"
                                         .to_owned(),
-                                    ctx,
-                                );
-                                return true;
-                            }
-                            Err(_) => {
-                                show_error_toast(
-                                    format!("File not found: {}", file_path.display()),
-                                    ctx,
-                                );
-                                return true;
-                            }
+                                ),
+                                window_id,
+                                ctx,
+                            );
+                        });
+                        return false;
+                    }
+
+                    let current_dir = self
+                        .active_block_metadata
+                        .as_ref()
+                        .and_then(|metadata| metadata.current_working_directory())
+                        .map(str::to_owned);
+
+                    let Some(current_dir) = current_dir else {
+                        return false;
+                    };
+
+                    let (file_path, line_col) =
+                        open_file_command_path(&session, &current_dir, args);
+
+                    match std::fs::metadata(&file_path) {
+                        Ok(metadata) if metadata.is_file() => {
+                            use crate::util::file::external_editor;
+
+                            ctx.dispatch_typed_action(&TerminalAction::OpenCodeInWarp {
+                                path: file_path,
+                                layout: external_editor::settings::EditorLayout::SplitPane,
+                                line_col,
+                            });
+                        }
+                        Ok(_) => {
+                            show_error_toast(
+                                "The /open-file command only works for files, not directories"
+                                    .to_owned(),
+                                ctx,
+                            );
+                            return true;
+                        }
+                        Err(_) => {
+                            show_error_toast(
+                                format!("File not found: {}", file_path.display()),
+                                ctx,
+                            );
+                            return true;
                         }
                     }
-                    _ => {
-                        use crate::search::command_palette::PaletteSource;
+                }
+                _ => {
+                    use crate::search::command_palette::PaletteSource;
 
-                        ctx.emit(Event::OpenFilesPalette {
-                            source: PaletteSource::Keybinding,
-                        });
-                    }
+                    ctx.emit(Event::OpenFilesPalette {
+                        source: PaletteSource::Keybinding,
+                    });
                 }
-                #[cfg(not(feature = "local_fs"))]
-                {
-                    show_error_toast(
-                        "The /open-file command is not supported in this build".to_owned(),
-                        ctx,
-                    );
-                    return true;
-                }
-            }
+            },
             SlashCommandKind::ExportToClipboard => {
                 let history = BlocklistAIHistoryModel::handle(ctx);
                 let Some(conversation) = history
@@ -736,7 +721,7 @@ impl Input {
                 ctx.dispatch_typed_action(&TerminalAction::OpenViewMCPPane);
             }
             SlashCommandKind::OpenSettingsFile => {
-                if !FeatureFlag::SettingsFile.is_enabled() || !cfg!(feature = "local_fs") {
+                if !FeatureFlag::SettingsFile.is_enabled() {
                     return false;
                 }
                 ctx.dispatch_typed_action(&WorkspaceAction::OpenSettingsFile);

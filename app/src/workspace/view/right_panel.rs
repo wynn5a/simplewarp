@@ -27,11 +27,9 @@ use crate::ai::agent::AgentReviewCommentBatch;
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code_review::code_review_header::HEADER_BUTTON_PADDING;
-#[cfg(feature = "local_fs")]
-use crate::code_review::code_review_view::CodeReviewAction;
 use crate::code_review::code_review_view::{
-    CONTENT_LEFT_MARGIN, CONTENT_RIGHT_MARGIN, CodeReviewCommentDebugState, CodeReviewView,
-    CodeReviewViewEvent, ReviewActionTargetProvider, render_file_navigation_button,
+    CONTENT_LEFT_MARGIN, CONTENT_RIGHT_MARGIN, CodeReviewAction, CodeReviewCommentDebugState,
+    CodeReviewView, CodeReviewViewEvent, ReviewActionTargetProvider, render_file_navigation_button,
 };
 use crate::code_review::diff_state::DiffStateModel;
 use crate::code_review::telemetry_event::CodeReviewContextDestination;
@@ -48,12 +46,11 @@ use crate::terminal::view::TerminalView;
 use crate::ui_components::buttons::icon_button_with_color;
 use crate::ui_components::icons;
 use crate::util::bindings::{CustomAction, keybinding_name_to_display_string};
-#[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
 use crate::util::path::{display_name_with_host, display_path_with_host};
-use crate::view_components::action_button::{ActionButton, PaneHeaderTheme};
-#[cfg(feature = "local_fs")]
-use crate::view_components::action_button::{NakedTheme, TooltipAlignment};
+use crate::view_components::action_button::{
+    ActionButton, NakedTheme, PaneHeaderTheme, TooltipAlignment,
+};
 use crate::view_components::{Dropdown, DropdownItem};
 use crate::workspace::WorkspaceAction;
 use crate::workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME;
@@ -184,7 +181,6 @@ struct CodeReviewState {
     did_focused_repo_change: bool,
 }
 
-#[cfg(feature = "local_fs")]
 struct CodeReviewSessionEnv {
     is_remote: bool,
     is_wsl: bool,
@@ -245,15 +241,6 @@ impl CodeReviewState {
         }
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    fn set_available_repos(
-        &mut self,
-        _repos: Vec<LocalOrRemotePath>,
-        _ctx: &mut ViewContext<RightPanelView>,
-    ) {
-    }
-
-    #[cfg(feature = "local_fs")]
     fn set_available_repos(
         &mut self,
         repos: Vec<LocalOrRemotePath>,
@@ -279,15 +266,6 @@ impl CodeReviewState {
         }
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    pub fn set_selected_repo(
-        &mut self,
-        _repo_path: LocalOrRemotePath,
-        _ctx: &mut ViewContext<RightPanelView>,
-    ) {
-    }
-
-    #[cfg(feature = "local_fs")]
     pub fn set_selected_repo(
         &mut self,
         repo_path: LocalOrRemotePath,
@@ -309,7 +287,6 @@ impl CodeReviewState {
     /// Internal method to set the selected repo with control over whether to update the dropdown.
     /// When `update_dropdown` is false, we skip updating the dropdown (useful when the change
     /// is coming from the dropdown itself to avoid circular updates).
-    #[cfg(feature = "local_fs")]
     fn set_selected_repo_internal(
         &mut self,
         repo_path: LocalOrRemotePath,
@@ -334,13 +311,11 @@ impl CodeReviewState {
         ctx.notify();
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn get_repo_display_name(&self, repo_path: &LocalOrRemotePath) -> Option<String> {
         let name = display_name_with_host(repo_path);
         (!name.is_empty()).then_some(name)
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn update_repo_dropdown(&mut self, ctx: &mut ViewContext<RightPanelView>) {
         // Collect data before borrowing mutably
         let (items, selected_display_name) = {
@@ -382,7 +357,6 @@ impl CodeReviewState {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub enum RightPanelAction {
     ToggleFileSidebar,
     SelectRepo {
@@ -394,10 +368,8 @@ pub enum RightPanelAction {
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub enum RightPanelEvent {
     ToggleMaximize,
-    #[cfg(feature = "local_fs")]
     OpenFileWithTarget {
         path: PathBuf,
         target: FileTarget,
@@ -416,14 +388,11 @@ pub struct RightPanelView {
     resizable_state_handle: ResizableStateHandle,
     close_button_mouse_state: MouseStateHandle,
     file_navigation_button_mouse_state: MouseStateHandle,
-    #[cfg(feature = "local_fs")]
     open_repository_button: ViewHandle<ActionButton>,
     pub active_pane_group: Option<ViewHandle<PaneGroup>>,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     working_directories_model: ModelHandle<WorkingDirectoriesModel>,
     maximize_button: ViewHandle<ActionButton>,
     code_review_state: Option<CodeReviewState>,
-    #[cfg(feature = "local_fs")]
     code_review_session_env: Option<CodeReviewSessionEnv>,
     panel_position: super::PanelPosition,
 }
@@ -437,7 +406,6 @@ impl RightPanelView {
             "Toggle Maximize Code Review Panel",
             RightPanelAction::ToggleMaximize,
         )
-        .with_enabled(|| cfg!(feature = "local_fs"))
         .with_context_predicate(id!("RightPanelView"))
         .with_custom_action(CustomAction::ToggleMaximizePane)]);
     }
@@ -458,11 +426,7 @@ impl RightPanelView {
             }
         };
 
-        let code_review_state = if cfg!(feature = "local_fs") {
-            Some(CodeReviewState::new(ctx))
-        } else {
-            None
-        };
+        let code_review_state = Some(CodeReviewState::new(ctx));
 
         ctx.subscribe_to_model(&working_directories_model, move |me, _, event, ctx| {
             me.handle_working_directories_event(event, ctx)
@@ -498,7 +462,6 @@ impl RightPanelView {
             button
         });
 
-        #[cfg(feature = "local_fs")]
         let open_repository_button = ctx.add_typed_action_view(|_| {
             ActionButton::new("Open repository", NakedTheme)
                 .with_size(crate::view_components::action_button::ButtonSize::Small)
@@ -511,13 +474,11 @@ impl RightPanelView {
             resizable_state_handle,
             close_button_mouse_state: Default::default(),
             file_navigation_button_mouse_state: Default::default(),
-            #[cfg(feature = "local_fs")]
             open_repository_button,
             active_pane_group: None,
             working_directories_model,
             maximize_button,
             code_review_state,
-            #[cfg(feature = "local_fs")]
             code_review_session_env: None,
             panel_position: super::PanelPosition::Right,
         }
@@ -532,7 +493,6 @@ impl RightPanelView {
         ctx.notify();
     }
 
-    #[cfg(feature = "local_fs")]
     pub fn update_session_env(
         &mut self,
         is_remote: bool,
@@ -549,7 +509,6 @@ impl RightPanelView {
             .and_then(|s| s.selected_repo_path.as_ref())
     }
 
-    #[cfg(feature = "local_fs")]
     pub fn update_selected_repo(
         &mut self,
         repo_path: LocalOrRemotePath,
@@ -687,7 +646,6 @@ impl RightPanelView {
         ctx.notify();
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     /// Will only update repo_path if one is not already set
     pub fn open_code_review(
         &mut self,
@@ -763,7 +721,6 @@ impl RightPanelView {
         self.close_code_review_view(pane_group.id(), repo_path, ctx);
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     pub fn close_code_review(&mut self, ctx: &mut ViewContext<Self>) {
         self.close_active_code_review_view(ctx);
 
@@ -868,7 +825,6 @@ impl RightPanelView {
         let Some(selected_repo_path) = selected_repo_path else {
             let simple_header = self.render_simple_header(close_button);
 
-            #[cfg(feature = "local_fs")]
             let no_repo_body = {
                 let open_repo_button =
                     || Some(ChildView::new(&self.open_repository_button).finish());
@@ -887,9 +843,6 @@ impl RightPanelView {
                     CodeReviewView::render_not_repo_state(appearance, open_repo_button())
                 }
             };
-
-            #[cfg(not(feature = "local_fs"))]
-            let no_repo_body = CodeReviewView::render_not_repo_state(appearance, None);
 
             return Flex::column()
                 .with_child(simple_header)
@@ -928,7 +881,6 @@ impl RightPanelView {
         }
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn render_maximize_pane_button(&self) -> Box<dyn Element> {
         ConstrainedBox::new(ChildView::new(&self.maximize_button).finish())
             .with_height(warp_core::ui::icons::ICON_DIMENSIONS)
@@ -1147,7 +1099,6 @@ impl RightPanelView {
         }
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     pub fn focus_active_code_review_view(&self, ctx: &mut ViewContext<Self>) {
         let Some(state) = &self.code_review_state else {
             return;
@@ -1251,7 +1202,6 @@ impl RightPanelView {
                 } => {
                     Self::route_review_comments(me, &code_review, comments.clone(), repo_path, ctx);
                 }
-                #[cfg(feature = "local_fs")]
                 CodeReviewViewEvent::OpenFileWithTarget {
                     path,
                     target,
@@ -1732,7 +1682,6 @@ impl Entity for RightPanelView {
     type Event = RightPanelEvent;
 }
 
-#[cfg(feature = "local_fs")]
 impl TypedActionView for RightPanelView {
     type Action = RightPanelAction;
 
@@ -1817,15 +1766,6 @@ impl TypedActionView for RightPanelView {
                 }
             }
         }
-    }
-}
-
-#[cfg(not(feature = "local_fs"))]
-impl TypedActionView for RightPanelView {
-    type Action = RightPanelAction;
-
-    fn handle_action(&mut self, _action: &Self::Action, _ctx: &mut ViewContext<Self>) {
-        // No actions when local_fs is disabled
     }
 }
 

@@ -37,12 +37,9 @@ use create_documents::CreateDocumentsExecutor;
 use edit_documents::EditDocumentsExecutor;
 use fetch_conversation::FetchConversationExecutor;
 use file_glob::FileGlobExecutor;
-#[cfg(feature = "local_fs")]
-use futures::AsyncReadExt;
-use futures::FutureExt;
 use futures::future::BoxFuture;
+use futures::{AsyncReadExt, FutureExt};
 use grep::GrepExecutor;
-#[cfg(feature = "local_fs")]
 use mime_guess::from_path;
 use parking_lot::FairMutex;
 use read_documents::ReadDocumentsExecutor;
@@ -67,11 +64,8 @@ pub use suggest_prompt::PromptSuggestionExecutor;
 use use_computer::UseComputerExecutor;
 use wait_for_events::WaitForEventsExecutor;
 use warp_core::execution_mode::AppExecutionMode;
-#[cfg(feature = "local_fs")]
 use warp_files::{FileModel, TextFileReadResult};
-#[cfg(feature = "local_fs")]
 use warp_util::file::FileLoadError;
-#[cfg(feature = "local_fs")]
 use warp_util::file_type::is_buffer_binary;
 use warpui::r#async::{Spawnable, SpawnableOutput};
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
@@ -81,24 +75,21 @@ use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
-    AIAgentActionType, AIAgentActionTypeDiscriminants, CancellationReason, FileContext,
-    FileLocations, ReadFilesFailedFile, ServerOutputId, UploadArtifactResult,
+    AIAgentActionType, AIAgentActionTypeDiscriminants, AnyFileContent, CancellationReason,
+    FileContext, FileLocations, ReadFilesFailedFile, ServerOutputId, UploadArtifactResult,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
-#[cfg(feature = "local_fs")]
-use crate::ai::{agent::AnyFileContent, paths::host_native_absolute_path};
+use crate::ai::paths::host_native_absolute_path;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::command_executor::shell_quote_arg;
 use crate::terminal::model::session::{ExecuteCommandOptions, Session};
 use crate::terminal::model_events::ModelEventDispatcher;
 use crate::terminal::shell::ShellType;
 use crate::terminal::{ShellLaunchData, TerminalModel};
-#[cfg(feature = "local_fs")]
 use crate::util::image::{
     ProcessImageResult, is_supported_image_mime_type, process_image_for_agent,
 };
-#[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::is_binary_file;
 
 /// Types of actions that can be executed in parallel.
@@ -1034,7 +1025,6 @@ const RECORDING_UNAVAILABLE: &str = "Screen recording is not available in this b
 
 /// Per-file byte limit for [`read_local_file_context`]. Binary files larger
 /// than this are skipped; text files are truncated at this limit.
-#[cfg(feature = "local_fs")]
 const MAX_FILE_READ_BYTES: usize = 1_000_000;
 
 /// The results of a [`read_local_file_context`] call.
@@ -1069,7 +1059,6 @@ pub fn describe_failed_files(failed_files: &[ReadFilesFailedFile]) -> String {
 /// ([`MAX_FILE_READ_BYTES`]). Pass `None` to use the default.
 /// If `max_batch_bytes` is provided, the cumulative content of all files is capped at that
 /// budget; once exceeded, remaining files are reported as too large.
-#[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
 pub async fn read_local_file_context(
     file_names: &[FileLocations],
     current_working_directory: Option<String>,
@@ -1077,12 +1066,6 @@ pub async fn read_local_file_context(
     max_file_bytes: Option<usize>,
     max_batch_bytes: Option<usize>,
 ) -> anyhow::Result<ReadFileContextResult> {
-    #[cfg(not(feature = "local_fs"))]
-    return Err(anyhow::anyhow!(
-        "Can't read files when not on a local filesystem"
-    ));
-
-    #[cfg(feature = "local_fs")]
     {
         let mut result = ReadFileContextResult {
             file_contexts: Vec::new(),
@@ -1215,7 +1198,6 @@ pub async fn read_local_file_context(
 /// fallback, extensionless text files (e.g. shell scripts named `bundle`)
 /// would be incorrectly classified as binary and returned to the agent as
 /// raw bytes instead of UTF-8 text.
-#[cfg(feature = "local_fs")]
 async fn should_read_as_binary(path: &std::path::Path) -> bool {
     // Fast path: extension/filename clearly indicates text.
     if !is_binary_file(path) {
@@ -1236,7 +1218,6 @@ async fn should_read_as_binary(path: &std::path::Path) -> bool {
 /// looks binary according to [`is_buffer_binary`]. Returns `true` on any I/O
 /// error so callers default to the binary code path. Kept local to this
 /// module so `warp_util` doesn't need to grow an `async_fs` dependency.
-#[cfg(feature = "local_fs")]
 async fn is_file_content_binary_async(path: &std::path::Path) -> bool {
     const CHUNK_SIZE: usize = 1024;
 
@@ -1252,12 +1233,10 @@ async fn is_file_content_binary_async(path: &std::path::Path) -> bool {
 
 /// Renders a byte count in megabytes with one decimal place (e.g. `3.5 MB`),
 /// matching the units used in the "too large" failure message.
-#[cfg(feature = "local_fs")]
 fn format_mb(bytes: usize) -> String {
     format!("{:.1} MB", bytes as f64 / 1_000_000.0)
 }
 
-#[cfg(feature = "local_fs")]
 enum BinaryFileReadResult {
     /// Successfully read as binary.
     Context {
@@ -1277,7 +1256,6 @@ enum BinaryFileReadResult {
 }
 
 /// Reads a binary file, applying image processing when applicable.
-#[cfg(feature = "local_fs")]
 async fn read_binary_file_context(
     path: &std::path::Path,
     max_bytes: usize,
@@ -1390,7 +1368,6 @@ fn get_server_output_id(
         .server_output_id()
 }
 
-#[cfg(feature = "local_fs")]
 async fn read_file_as_binary(file_path: &std::path::Path) -> Result<Vec<u8>, FileLoadError> {
     if !FileModel::file_exists(file_path).await {
         return Err(FileLoadError::DoesNotExist);
@@ -1399,6 +1376,6 @@ async fn read_file_as_binary(file_path: &std::path::Path) -> Result<Vec<u8>, Fil
     async_fs::read(file_path).await.map_err(FileLoadError::from)
 }
 
-#[cfg(all(test, feature = "local_fs"))]
+#[cfg(test)]
 #[path = "execute_tests.rs"]
 mod tests;

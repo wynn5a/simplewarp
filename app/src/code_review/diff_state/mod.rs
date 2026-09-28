@@ -14,13 +14,10 @@ use warpui::{AppContext, ModelContext, ModelHandle};
 
 use crate::code_review::diff_size_limits::DiffSize;
 use crate::util::git::{BranchEntry, Commit, FileChangeEntry, PrInfo};
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 mod local;
 pub use local::LocalDiffStateModel;
-#[cfg(feature = "local_fs")]
 pub(crate) use local::diff_metadata_against_head;
 
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 mod error;
 pub(crate) use error::DiffStateError;
 
@@ -673,7 +670,6 @@ impl DiffStateModel {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     pub(crate) fn stop_active_watcher(&self, ctx: &mut ModelContext<Self>) {
         match self {
             Self::Local(local) => {

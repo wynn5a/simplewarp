@@ -108,7 +108,6 @@ impl ReviewCommentBatch {
         });
     }
 
-    #[cfg(feature = "local_fs")]
     pub(crate) fn upsert_imported_comments(
         &mut self,
         comments: Vec<AttachedReviewComment>,
@@ -175,7 +174,6 @@ impl ReviewCommentBatch {
 
     /// Stores imported comments that are waiting for diffs and editors to load before they can be flattened,
     /// relocated, and inserted into `comments`.
-    #[cfg(feature = "local_fs")]
     pub(crate) fn add_pending_imported_comments(
         &mut self,
         comments: Vec<PendingImportedReviewComment>,

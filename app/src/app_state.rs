@@ -150,7 +150,6 @@ pub enum LeafContents {
     GetStarted,
 }
 
-#[cfg(feature = "local_fs")]
 impl LeafContents {
     /// Whether this pane content should be written to (and later restored
     /// from) the SQLite app-state database.

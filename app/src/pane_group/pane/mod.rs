@@ -44,7 +44,6 @@ use crate::ai::ai_document_view::AIDocumentView;
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
 use crate::ai::execution_profiles::editor::ExecutionProfileEditorView;
 use crate::ai::facts::AIFactView;
-#[cfg(feature = "local_fs")]
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::view::CodeView;
 use crate::env_vars::view::env_var_collection::EnvVarCollectionView;
@@ -351,7 +350,6 @@ impl PaneId {
         Self::new(IPaneType::NetworkLog, network_log_pane_view)
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     pub(super) fn deferred_placeholder_pane_id() -> Self {
         Self(IPaneId {
             pane_type: IPaneType::DeferredPlaceholder,
@@ -1030,12 +1028,10 @@ pub enum PaneEvent {
         initial_query: Option<String>,
     },
     ClearHoveredTabIndex,
-    #[cfg(feature = "local_fs")]
     ReplaceWithCodePane {
         path: LocalOrRemotePath,
         source: Option<crate::code::editor_management::CodeSource>,
     },
-    #[cfg(feature = "local_fs")]
     ReplaceWithFilePane {
         path: LocalOrRemotePath,
         source: Option<crate::code::editor_management::CodeSource>,

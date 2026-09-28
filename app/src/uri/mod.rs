@@ -698,13 +698,7 @@ impl Action {
                 open_file(window_id, path, ctx);
             }
             Self::OpenFileEditor { path, line_col } => {
-                #[cfg(feature = "local_fs")]
                 open_file_editor(primary_window_id, path.clone(), *line_col, ctx);
-                #[cfg(not(feature = "local_fs"))]
-                {
-                    let _ = (path, line_col);
-                    log::warn!("open_file_editor action requires local_fs support");
-                }
             }
             Action::Docker => {
                 if let Err(err) = open_docker_container(url, ctx) {
@@ -803,7 +797,6 @@ pub fn handle_incoming_uri(url: &Url, ctx: &mut AppContext) {
     // If we're running on a platform where we can spawn local TTYs,
     // check if this is a file:// URL and if so, spawn a new session
     // with an initial working directory based on the provided path.
-    #[cfg(feature = "local_tty")]
     if url.scheme() == "file" {
         if let Ok(path) = url.to_file_path() {
             open_file(primary_window_id, path, ctx);
@@ -892,7 +885,6 @@ fn classify_open_file_action(path: &Path, prefer_markdown_viewer: bool) -> OpenF
     }
 }
 
-#[cfg(feature = "local_fs")]
 fn can_open_file_editor_path(path: &Path) -> bool {
     path.is_file() && is_file_openable_in_warp(path).is_some()
 }
@@ -909,13 +901,10 @@ fn open_file(window_id: Option<WindowId>, path: PathBuf, ctx: &mut AppContext) {
             .map(|view_id| (window_id, view_id))
     });
 
-    #[cfg(feature = "local_fs")]
     let prefer_markdown_viewer = {
         use crate::util::file::external_editor::EditorSettings;
         *EditorSettings::as_ref(ctx).prefer_markdown_viewer
     };
-    #[cfg(not(feature = "local_fs"))]
-    let prefer_markdown_viewer = true;
 
     let action = classify_open_file_action(&path, prefer_markdown_viewer);
 
@@ -932,7 +921,6 @@ fn open_file(window_id: Option<WindowId>, path: PathBuf, ctx: &mut AppContext) {
             ctx.dispatch_global_action("root_view:open_new_with_file_notebook", &path);
         }
     } else if action == OpenFileAction::Editor {
-        #[cfg(feature = "local_fs")]
         {
             use crate::code::editor_management::CodeSource;
             use crate::root_view::{NewWorkspaceSource, open_new_with_workspace_source};
@@ -1010,14 +998,12 @@ fn open_file(window_id: Option<WindowId>, path: PathBuf, ctx: &mut AppContext) {
     }
 }
 
-#[cfg(feature = "local_fs")]
 fn open_file_editor(
     primary_window_id: Option<WindowId>,
     path: PathBuf,
     line_col: Option<LineAndColumnArg>,
     ctx: &mut AppContext,
 ) {
-    #[cfg(feature = "local_fs")]
     {
         use crate::code::editor_management::CodeSource;
         use crate::root_view::{NewWorkspaceSource, open_new_with_workspace_source};

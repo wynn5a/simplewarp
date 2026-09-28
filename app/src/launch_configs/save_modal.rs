@@ -25,11 +25,9 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
 };
 use crate::launch_configs::launch_config::LaunchConfig;
-use crate::user_config::launch_configs_dir;
-#[cfg(feature = "local_fs")]
-use crate::user_config::{WarpConfig, util::file_name_to_human_readable_name};
+use crate::user_config::util::file_name_to_human_readable_name;
+use crate::user_config::{WarpConfig, launch_configs_dir};
 use crate::util::bindings::keybinding_name_to_display_string;
-#[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
 
 const MODAL_WIDTH: f32 = 660.;
@@ -155,7 +153,6 @@ pub enum LaunchConfigModalEvent {
     /// already, we may as well save it "manually" to the WarpConfig, while waiting for the update
     /// from the file system. This event passes a saved config to the handler to let us do that.
     SuccessfullySavedConfig(LaunchConfig),
-    #[cfg(feature = "local_fs")]
     OpenFileWithTarget {
         path: std::path::PathBuf,
         target: FileTarget,
@@ -235,7 +232,6 @@ impl LaunchConfigSaveModal {
     }
 
     /// Open the saved file if the modal is in the correct state
-    #[cfg(feature = "local_fs")]
     fn open_file(&self, ctx: &mut ViewContext<Self>) {
         use crate::util::file::external_editor::EditorSettings;
         use crate::util::openable_file_type::resolve_file_target;
@@ -255,7 +251,6 @@ impl LaunchConfigSaveModal {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     fn try_save_launch_config(&mut self, ctx: &mut ViewContext<Self>) {
         let file_name_candidate = self.editor.as_ref(ctx).buffer_text(ctx);
         let launch_config_name = file_name_to_human_readable_name(&file_name_candidate);
@@ -662,15 +657,12 @@ impl TypedActionView for LaunchConfigSaveModal {
         };
         match action {
             LaunchConfigSaveAction::Close => self.close(ctx),
-            LaunchConfigSaveAction::Save =>
-            {
-                #[cfg(feature = "local_fs")]
+            LaunchConfigSaveAction::Save => {
                 if !self.editor.as_ref(ctx).is_empty(ctx) {
                     self.try_save_launch_config(ctx);
                 }
             }
             LaunchConfigSaveAction::OpenFile => {
-                #[cfg(feature = "local_fs")]
                 self.open_file(ctx);
                 self.close(ctx);
             }

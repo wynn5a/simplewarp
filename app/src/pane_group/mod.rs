@@ -19,9 +19,7 @@ use uuid::Uuid;
 use warp_core::command::ExitCode;
 use warp_errors::report_if_error;
 use warp_terminal::shell::{ShellName, ShellType};
-#[cfg(feature = "local_fs")]
-use warp_util::path::LineAndColumnArg;
-use warp_util::path::convert_wsl_to_windows_host_path;
+use warp_util::path::{LineAndColumnArg, convert_wsl_to_windows_host_path};
 use warpui::elements::{
     ChildView, CrossAxisAlignment, DispatchEventResult, Element, EventHandler, Flex, MainAxisSize,
     ParentElement, Shrinkable, Stack,
@@ -48,12 +46,10 @@ use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::ai::llms::LLMId;
 use crate::ai::restored_conversations::RestoredAgentConversations;
 use crate::ai_assistant::AskAIType;
-#[cfg(feature = "local_fs")]
-use crate::app_state::CodePaneSnapShot;
 use crate::app_state::{
-    self, AIFactPaneSnapshot, BranchSnapshot, EnvVarCollectionPaneSnapshot, LeafContents,
-    LeafSnapshot, NotebookPaneSnapshot, PaneNodeSnapshot, PaneUuid, SettingsPaneSnapshot,
-    TerminalPaneSnapshot, WorkflowPaneSnapshot,
+    self, AIFactPaneSnapshot, BranchSnapshot, CodePaneSnapShot, EnvVarCollectionPaneSnapshot,
+    LeafContents, LeafSnapshot, NotebookPaneSnapshot, PaneNodeSnapshot, PaneUuid,
+    SettingsPaneSnapshot, TerminalPaneSnapshot, WorkflowPaneSnapshot,
 };
 use crate::appearance::Appearance;
 use crate::banner::{Banner, BannerEvent, BannerState, BannerTextContent, DismissalType};
@@ -61,7 +57,6 @@ use crate::channel::{Channel, ChannelState};
 use crate::cmd_or_ctrl_shift;
 use crate::code::active_file::ActiveFileModel;
 use crate::code::buffer_location::LocalOrRemotePath;
-#[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::code::view::{CodeView, CodeViewAction};
 use crate::code_review::comments::{AttachedReviewComment, PendingImportedReviewComment};
@@ -86,11 +81,9 @@ use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 use crate::terminal::focus_env::add_session_focus_env_vars;
 use crate::terminal::general_settings::{GeneralSettings, GeneralSettingsChangedEvent};
-#[cfg(feature = "local_tty")]
-use crate::terminal::local_tty::TerminalManager as LocalTtyTerminalManager;
-#[cfg(feature = "local_tty")]
 use crate::terminal::local_tty::{
-    TerminalViewSurfaceConfig, create_terminal_view_surface, terminal_view_restored_blocks,
+    TerminalManager as LocalTtyTerminalManager, TerminalViewSurfaceConfig,
+    create_terminal_view_surface, terminal_view_restored_blocks,
 };
 use crate::terminal::model::session::Session;
 use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
@@ -110,7 +103,6 @@ use crate::terminal::{
 use crate::tips::{Tip, TipAction, TipsCompleted, mark_feature_used_and_write_to_user_defaults};
 use crate::undo_close::{UndoCloseStack, UndoCloseStackEvent};
 use crate::util::bindings::{CustomAction, is_binding_pty_compliant};
-#[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
 use crate::view_components::ToastFlavor;
 use crate::workflows::workflow::Workflow;
@@ -193,7 +185,6 @@ fn get_minimum_pane_size(app: &AppContext) -> f32 {
 /// 3. As a final fallback, perform a plain `PATH` lookup via
 ///    [`AvailableShell::try_from`] in case the user put something exotic in
 ///    `shell`.
-#[cfg(feature = "local_tty")]
 fn resolve_tab_config_shell(name: &str, ctx: &AppContext) -> Option<AvailableShell> {
     if name.contains(std::path::MAIN_SEPARATOR) {
         return AvailableShell::try_from(name).ok();
@@ -467,13 +458,11 @@ pub enum Event {
         /// The session that the path was opened from.
         session: Arc<Session>,
     },
-    #[cfg(feature = "local_fs")]
     OpenCodeInWarp {
         source: CodeSource,
         layout: crate::util::file::external_editor::settings::EditorLayout,
         line_col: Option<LineAndColumnArg>,
     },
-    #[cfg(feature = "local_fs")]
     PreviewCodeInWarp {
         source: CodeSource,
     },
@@ -600,20 +589,17 @@ pub enum Event {
         target_view: LeftPanelTargetView,
         force_open: bool,
     },
-    #[cfg(feature = "local_fs")]
     OpenFileWithTarget {
         path: PathBuf,
         target: FileTarget,
         line_col: Option<LineAndColumnArg>,
     },
     /// File was renamed in the file tree
-    #[cfg(feature = "local_fs")]
     FileRenamed {
         old_path: PathBuf,
         new_path: PathBuf,
     },
     /// File was deleted in the file tree
-    #[cfg(feature = "local_fs")]
     FileDeleted {
         path: PathBuf,
     },
@@ -1188,15 +1174,9 @@ impl PaneGroup {
             } => {
                 let uuid = Uuid::new_v4();
 
-                #[cfg(feature = "local_tty")]
                 let chosen_shell: Option<AvailableShell> = shell
                     .as_deref()
                     .and_then(|name| resolve_tab_config_shell(name, ctx));
-                #[cfg(not(feature = "local_tty"))]
-                let chosen_shell: Option<AvailableShell> = {
-                    let _ = shell;
-                    None
-                };
 
                 // A persisted `PaneMode::Cloud` degrades to a plain terminal
                 // session: cloud-mode panes can no longer be created.
@@ -1412,7 +1392,6 @@ impl PaneGroup {
         user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
         view_size: Vector2F,
         model_event_sender: Option<SyncSender<ModelEvent>>,
-        #[cfg_attr(not(feature = "local_fs"), allow(unused_variables, clippy::ptr_arg))]
         deferred_panes: &mut Vec<(PaneId, LeafSnapshot)>,
     ) -> anyhow::Result<(PaneData, InitialFocus)> {
         let custom_vertical_tabs_title = leaf.custom_vertical_tabs_title.clone();
@@ -1543,18 +1522,15 @@ impl PaneGroup {
                 Ok((PaneData::new(pane_id), focus))
             }
             LeafContents::Notebook(snapshot) => {
-                let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    NotebookPaneSnapshot::CloudNotebook { notebook_id } => {
-                        Box::new(NotebookPane::restore(notebook_id, ctx))
-                    }
-                    NotebookPaneSnapshot::LocalFileNotebook { path } => Box::new(FilePane::new(
-                        path.map(LocalOrRemotePath::Local),
-                        None,
-                        #[cfg(feature = "local_fs")]
-                        None,
-                        ctx,
-                    )),
-                };
+                let pane: Box<dyn AnyPaneContent + 'static> =
+                    match snapshot {
+                        NotebookPaneSnapshot::CloudNotebook { notebook_id } => {
+                            Box::new(NotebookPane::restore(notebook_id, ctx))
+                        }
+                        NotebookPaneSnapshot::LocalFileNotebook { path } => Box::new(
+                            FilePane::new(path.map(LocalOrRemotePath::Local), None, None, ctx),
+                        ),
+                    };
 
                 let pane_id = pane.as_pane().id();
                 pane_contents.insert(pane_id, pane);
@@ -1565,7 +1541,6 @@ impl PaneGroup {
 
                 Ok((PaneData::new(pane_id), focus))
             }
-            #[cfg(feature = "local_fs")]
             LeafContents::Code(snapshot) => {
                 let CodePaneSnapShot::Local {
                     tabs,
@@ -1591,10 +1566,6 @@ impl PaneGroup {
                 };
                 Ok((PaneData::new(pane_id), focus))
             }
-            #[cfg(not(feature = "local_fs"))]
-            LeafContents::Code(_) => Err(anyhow::anyhow!(
-                "Code pane restoration not supported on this platform"
-            )),
             LeafContents::EnvVarCollection(snapshot) => {
                 let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
                     EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
@@ -1726,7 +1697,6 @@ impl PaneGroup {
         result
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables, unused_mut))]
     fn process_deferred_panes(
         deferred_panes: Vec<(PaneId, LeafSnapshot)>,
         mut result: (PaneData, InitialFocus),
@@ -2147,7 +2117,6 @@ impl PaneGroup {
     pub fn selected_text_from_focused_pane(&self, ctx: &AppContext) -> Option<String> {
         let focused_pane_id = self.focused_pane_id(ctx);
 
-        #[cfg(feature = "local_fs")]
         {
             // If the focused pane is a code pane, return the selected text from the code view.
             if focused_pane_id.is_code_pane() {
@@ -2230,7 +2199,6 @@ impl PaneGroup {
 
     /// Send prompt change bindkey events to all terminal sessions in this pane group. This
     /// is used for intra-session prompt switching between Warp prompt and PS1.
-    #[cfg_attr(not(feature = "local_tty"), allow(unused_variables))]
     pub fn send_prompt_change_bindkey_to_all_sessions(
         &self,
         honor_ps1: bool,
@@ -2238,7 +2206,6 @@ impl PaneGroup {
     ) {
         self.panes_of::<TerminalPane>()
             .for_each(move |session_data| {
-                #[cfg(feature = "local_tty")]
                 {
                     session_data
                         .terminal_manager(app)
@@ -3645,7 +3612,6 @@ impl PaneGroup {
         original_pane_id
     }
 
-    #[cfg(feature = "local_fs")]
     fn replace_file_pane_with_code_pane(
         &mut self,
         file_pane_id: PaneId,
@@ -3670,7 +3636,6 @@ impl PaneGroup {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     fn replace_code_pane_with_file_pane(
         &mut self,
         code_pane_id: PaneId,
@@ -3745,11 +3710,9 @@ impl PaneGroup {
                 self.add_terminal_pane_in_agent_mode(initial_query.as_deref(), None, ctx)
             }
             PaneEvent::ClearHoveredTabIndex => ctx.emit(Event::ClearHoveredTabIndex),
-            #[cfg(feature = "local_fs")]
             PaneEvent::ReplaceWithCodePane { path, source } => {
                 self.replace_file_pane_with_code_pane(pane_id, path.clone(), source.clone(), ctx);
             }
-            #[cfg(feature = "local_fs")]
             PaneEvent::ReplaceWithFilePane { path, source } => {
                 self.replace_code_pane_with_file_pane(pane_id, path.clone(), source.clone(), ctx);
             }
@@ -4455,79 +4418,57 @@ impl PaneGroup {
     ) {
         add_session_focus_env_vars(&mut env_vars, terminal_session_uuid);
 
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "local_tty")] {
-                let all_restored_blocks =
-                    terminal_view_restored_blocks(restored_blocks, &conversation_restoration);
-                let has_conversation_restoration = matches!(
-                    &conversation_restoration,
-                    Some(
-                        ConversationRestorationInNewPaneType::Startup { .. }
-                            | ConversationRestorationInNewPaneType::Historical { .. }
-                    )
-                );
-                let is_historical = matches!(
-                    &conversation_restoration,
-                    Some(ConversationRestorationInNewPaneType::Historical { .. })
-                );
-                let should_use_live_appearance = conversation_restoration
-                    .as_ref()
-                    .map(|restoration| restoration.should_use_live_appearance())
-                    .unwrap_or(false);
-                let has_restored_command_blocks = all_restored_blocks
-                    .as_ref()
-                    .is_some_and(|blocks| !blocks.is_empty());
-                let model_event_sender_for_surface = model_event_sender.clone();
-                let window_id = ctx.window_id();
-                let terminal_init = LocalTtyTerminalManager::<TerminalView>::create_model(
-                    startup_directory,
-                    env_vars,
-                    all_restored_blocks.as_ref(),
-                    user_default_shell_unsupported_banner_model_handle,
-                    initial_size,
-                    model_event_sender,
-                    chosen_shell,
-                    ctx,
-                    |surface_init, ctx| {
-                        create_terminal_view_surface(
-                            TerminalViewSurfaceConfig {
-                                resources,
-                                model_event_sender: model_event_sender_for_surface,
-                                window_id,
-                                initial_input_config,
-                                conversation_restoration,
-                                has_conversation_restoration,
-                                is_historical,
-                                should_use_live_appearance,
-                                has_restored_command_blocks,
-                            },
-                            surface_init,
-                            ctx,
-                        )
+        let all_restored_blocks =
+            terminal_view_restored_blocks(restored_blocks, &conversation_restoration);
+        let has_conversation_restoration = matches!(
+            &conversation_restoration,
+            Some(
+                ConversationRestorationInNewPaneType::Startup { .. }
+                    | ConversationRestorationInNewPaneType::Historical { .. }
+            )
+        );
+        let is_historical = matches!(
+            &conversation_restoration,
+            Some(ConversationRestorationInNewPaneType::Historical { .. })
+        );
+        let should_use_live_appearance = conversation_restoration
+            .as_ref()
+            .map(|restoration| restoration.should_use_live_appearance())
+            .unwrap_or(false);
+        let has_restored_command_blocks = all_restored_blocks
+            .as_ref()
+            .is_some_and(|blocks| !blocks.is_empty());
+        let model_event_sender_for_surface = model_event_sender.clone();
+        let window_id = ctx.window_id();
+        let terminal_init = LocalTtyTerminalManager::<TerminalView>::create_model(
+            startup_directory,
+            env_vars,
+            all_restored_blocks.as_ref(),
+            user_default_shell_unsupported_banner_model_handle,
+            initial_size,
+            model_event_sender,
+            chosen_shell,
+            ctx,
+            |surface_init, ctx| {
+                create_terminal_view_surface(
+                    TerminalViewSurfaceConfig {
+                        resources,
+                        model_event_sender: model_event_sender_for_surface,
+                        window_id,
+                        initial_input_config,
+                        conversation_restoration,
+                        has_conversation_restoration,
+                        is_historical,
+                        should_use_live_appearance,
+                        has_restored_command_blocks,
                     },
-                );
-                let terminal_manager = terminal_init.manager;
-                let terminal_view = terminal_init.surface;
-            } else {
-                use crate::terminal::{ShellLaunchState, shell::{ShellName, ShellType}};
-
-                let terminal_init = MockTerminalManager::create_model(
-                    ShellLaunchState::ShellSpawned {
-                        available_shell: chosen_shell,
-                        display_name: ShellName::blank(),
-                        shell_type: ShellType::Zsh
-                    },
-                    resources,
-                    None,
-                    conversation_restoration,
-                    initial_size,
-                    ctx.window_id(),
+                    surface_init,
                     ctx,
-                );
-                let terminal_manager = terminal_init.manager;
-                let terminal_view = terminal_init.view;
-            }
-        }
+                )
+            },
+        );
+        let terminal_manager = terminal_init.manager;
+        let terminal_view = terminal_init.surface;
 
         (terminal_view, terminal_manager)
     }
@@ -4633,7 +4574,6 @@ impl PaneGroup {
     /// Whether to use the user-specified startup directory when starting
     /// a new session. On Windows, we ignore this custom directory setting in
     /// WSL sessions. On all other systems, we honor the custom directory.
-    #[cfg(feature = "local_tty")]
     fn should_ignore_custom_startup_directory(
         &self,
         chosen_shell: &Option<AvailableShell>,
@@ -4647,15 +4587,6 @@ impl PaneGroup {
             })
             .wsl_distro();
         wsl_distro.is_some()
-    }
-
-    #[cfg(not(feature = "local_tty"))]
-    const fn should_ignore_custom_startup_directory(
-        &self,
-        _chosen_shell: &Option<AvailableShell>,
-        _ctx: &ViewContext<Self>,
-    ) -> bool {
-        false
     }
 
     /// Creates a loading terminal pane that shows a spinner while conversation data is being fetched.

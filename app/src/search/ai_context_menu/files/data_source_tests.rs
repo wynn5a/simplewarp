@@ -144,7 +144,6 @@ fn test_wildcard_single() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_git_changed_files_boost() {
     // Test that git changed files get boosted in zero state (empty query)
     let normal_file = "normal_file.rs";
@@ -169,7 +168,6 @@ fn test_git_changed_files_boost() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_git_changed_files_no_boost_with_query() {
     // Test that git changed files don't get boosted when there's a query
     let normal_file = "normal_file.rs";
@@ -743,7 +741,6 @@ fn test_fuzzy_match_files_respects_max_results() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_file_data_source_for_pwd_holistic_behavior() {
     App::test((), |mut app| async move {
         app.add_singleton_model(|_| DetectedRepositories::default());

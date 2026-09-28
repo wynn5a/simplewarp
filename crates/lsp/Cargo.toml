@@ -7,9 +7,6 @@ publish.workspace = true
 license.workspace = true
 description = "Language Server Protocol implementation for Warp"
 
-[features]
-local_fs = []
-
 [dependencies]
 anyhow = { workspace = true }
 async-channel = { workspace = true }

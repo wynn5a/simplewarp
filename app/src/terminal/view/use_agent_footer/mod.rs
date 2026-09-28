@@ -485,7 +485,6 @@ impl TerminalView {
     /// editor (e.g. shared-session viewer follow-up prompts). Returns
     /// without writing if there is no active CLI agent session or the text
     /// is empty.
-    #[cfg(feature = "local_tty")]
     pub(crate) fn submit_text_to_cli_agent_pty(
         &mut self,
         text: String,

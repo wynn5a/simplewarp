@@ -678,7 +678,7 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
 
     commands.push(ORCHESTRATE.clone());
 
-    if FeatureFlag::SettingsFile.is_enabled() && cfg!(feature = "local_fs") {
+    if FeatureFlag::SettingsFile.is_enabled() {
         commands.push(OPEN_SETTINGS_FILE);
     }
 

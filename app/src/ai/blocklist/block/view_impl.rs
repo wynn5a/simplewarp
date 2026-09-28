@@ -1085,9 +1085,7 @@ impl View for AIBlock {
                 is_conversation_transcript_viewer,
                 imported_comments: &self.imported_comments,
                 run_agents_card_views: &self.run_agents_card_views,
-                #[cfg(feature = "local_fs")]
                 resolved_code_block_paths: &self.resolved_code_block_paths,
-                #[cfg(feature = "local_fs")]
                 resolved_blocklist_image_sources: &self.resolved_blocklist_image_sources,
                 thinking_display_mode: AISettings::as_ref(app).thinking_display_mode,
                 conversation_has_imported_comments: self

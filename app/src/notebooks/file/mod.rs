@@ -6,15 +6,12 @@ use pathfinder_geometry::vector::vec2f;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::icons::ICON_DIMENSIONS;
 use warp_editor::model::CoreEditorModel;
-#[cfg(feature = "local_fs")]
 use warp_files::{FileModel, FileModelEvent};
-#[cfg(feature = "local_fs")]
 use warp_util::file::FileId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warp_util::path::user_friendly_path;
 use warp_util::remote_path::RemotePath;
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
-#[cfg(feature = "local_fs")]
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Align, Container, CrossAxisAlignment, DispatchEventResult, Empty, EventHandler, Flex,
@@ -35,7 +32,6 @@ use super::editor::view::{EditorViewEvent, RichTextEditorConfig, RichTextEditorV
 use super::link::{NotebookLinks, SessionSource};
 use super::{NotebookLocation, styles};
 use crate::appearance::Appearance;
-#[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::editor::InteractionState;
 use crate::menu::{MenuItem, MenuItemFields};
@@ -51,7 +47,6 @@ use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
 use crate::settings::FontSettings;
 use crate::terminal::model::session::Session;
 use crate::ui_components::icons::Icon;
-#[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
 pub use crate::util::openable_file_type::{
     is_jupyter_notebook_file, is_markdown_file, renders_in_warp_notebook_viewer,
@@ -77,7 +72,6 @@ pub struct FileNotebookView {
     retry_button_mouse_state: MouseStateHandle,
     file_state: FileState,
     /// File watcher id for the currently opened file, if any.
-    #[cfg(feature = "local_fs")]
     file_id: Option<FileId>,
     pane_configuration: ModelHandle<PaneConfiguration>,
     focus_handle: Option<PaneFocusHandle>,
@@ -87,7 +81,6 @@ pub struct FileNotebookView {
     markdown_display_mode: MarkdownDisplayMode,
     display_mode_segmented_control: ViewHandle<MarkdownToggleView>,
     /// Set when the file was opened from a CodePane, and restored on a raw/rendered toggle.
-    #[cfg(feature = "local_fs")]
     code_source: Option<CodeSource>,
     /// Persistent hover state for the header title tooltip.
     header_title_mouse_state: MouseStateHandle,
@@ -102,7 +95,6 @@ pub enum FileNotebookEvent {
     TitleUpdated,
     FileLoaded,
     Pane(PaneEvent),
-    #[cfg(feature = "local_fs")]
     OpenFileWithTarget {
         path: PathBuf,
         target: FileTarget,
@@ -122,11 +114,8 @@ pub enum FileNotebookAction {
     Close,
     FocusTerminalInput,
     ReloadFile,
-    #[cfg(feature = "local_fs")]
     CopyFilePath,
-    #[cfg(feature = "local_fs")]
     OpenInEditor,
-    #[cfg(feature = "local_fs")]
     OpenAsCode,
     ContextMenu(ContextMenuAction),
     ToggleMarkdownDisplayMode(MarkdownDisplayMode),
@@ -274,7 +263,6 @@ impl FileNotebookView {
             editor,
             file_state: FileState::NoFile,
             retry_button_mouse_state: Default::default(),
-            #[cfg(feature = "local_fs")]
             file_id: None,
             pane_configuration,
             focus_handle: None,
@@ -283,18 +271,15 @@ impl FileNotebookView {
             view_position_id,
             markdown_display_mode: MarkdownDisplayMode::Rendered,
             display_mode_segmented_control,
-            #[cfg(feature = "local_fs")]
             code_source: None,
             header_title_mouse_state: Default::default(),
         }
     }
 
-    #[cfg(feature = "local_fs")]
     pub fn set_code_source(&mut self, source: Option<CodeSource>) {
         self.code_source = source;
     }
 
-    #[cfg(feature = "local_fs")]
     pub fn code_source(&self) -> Option<&CodeSource> {
         self.code_source.as_ref()
     }
@@ -336,7 +321,6 @@ impl FileNotebookView {
         });
     }
 
-    #[cfg(feature = "local_fs")]
     fn set_context(&mut self, path: &Path, session: Arc<Session>, ctx: &mut ViewContext<Self>) {
         self.location = Some(FileLocation::new(path, session.home_dir()));
         let title = self.title();
@@ -407,7 +391,6 @@ impl FileNotebookView {
             session: session.clone(),
         });
 
-        #[cfg(feature = "local_fs")]
         {
             // Reopening (e.g. "Try again") must not leave the previous read, its watcher, or its
             // event subscription behind: `subscribe_to_model` appends, so re-subscribing without
@@ -468,23 +451,10 @@ impl FileNotebookView {
                 },
             );
         }
-
-        #[cfg(not(feature = "local_fs"))]
-        {
-            safe_warn!(
-                safe: ("Local filesystem access is not available in this build"),
-                full: ("Local filesystem access is not available in this build (feature \"local_fs\" disabled)")
-            );
-            self.file_state = FileState::Error(SourceFile::FileBased {
-                path: LocalOrRemotePath::Local(local_path),
-                session,
-            });
-            ctx.notify();
-        }
     }
 
     /// The [`FileId`] this view currently holds open, if any.
-    #[cfg(all(test, feature = "local_fs"))]
+    #[cfg(test)]
     pub(crate) fn file_id_for_test(&self) -> Option<FileId> {
         self.file_id
     }
@@ -493,7 +463,6 @@ impl FileNotebookView {
     /// file's watcher registration, and this view's subscription to the model's events.
     ///
     /// Safe to call when no file is open, and idempotent, so every teardown path can run it.
-    #[cfg(feature = "local_fs")]
     pub(crate) fn release_file_model(&mut self, ctx: &mut ViewContext<Self>) {
         let file_model = FileModel::handle(ctx);
         if let Some(file_id) = self.file_id.take() {
@@ -512,7 +481,6 @@ impl FileNotebookView {
         content: &str,
         ctx: &mut ViewContext<Self>,
     ) {
-        #[cfg(feature = "local_fs")]
         self.release_file_model(ctx);
         self.set_content(content, ctx);
         let title = title.into();
@@ -552,7 +520,6 @@ impl FileNotebookView {
         ctx.notify();
     }
 
-    #[cfg(feature = "local_fs")]
     fn open_as_code(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(path) = self.file_state.path().cloned() {
             ctx.emit(FileNotebookEvent::Pane(PaneEvent::ReplaceWithCodePane {
@@ -856,14 +823,12 @@ impl TypedActionView for FileNotebookView {
                 ctx.emit(FileNotebookEvent::Pane(PaneEvent::FocusActiveSession))
             }
             FileNotebookAction::ReloadFile => self.reload_file(ctx),
-            #[cfg(feature = "local_fs")]
             FileNotebookAction::CopyFilePath => {
                 if let Some(path) = self.file_state.path() {
                     ctx.clipboard()
                         .write(ClipboardContent::plain_text(path.display_path()));
                 }
             }
-            #[cfg(feature = "local_fs")]
             FileNotebookAction::OpenInEditor => {
                 if self.is_jupyter_notebook_file() {
                     self.open_as_code(ctx);
@@ -885,7 +850,6 @@ impl TypedActionView for FileNotebookView {
                     }));
                 }
             }
-            #[cfg(feature = "local_fs")]
             FileNotebookAction::OpenAsCode => self.open_as_code(ctx),
             FileNotebookAction::ContextMenu(action) => {
                 let copy_file_path = self.file_state.path().map(|p| p.display_path());
@@ -905,14 +869,11 @@ impl TypedActionView for FileNotebookView {
                         self.update_editor_display_mode(ctx);
                     }
                     MarkdownDisplayMode::Raw => {
-                        #[cfg(feature = "local_fs")]
-                        {
-                            if let Some(path) = self.file_state.path().cloned() {
-                                ctx.emit(FileNotebookEvent::Pane(PaneEvent::ReplaceWithCodePane {
-                                    path,
-                                    source: self.code_source.clone(),
-                                }));
-                            }
+                        if let Some(path) = self.file_state.path().cloned() {
+                            ctx.emit(FileNotebookEvent::Pane(PaneEvent::ReplaceWithCodePane {
+                                path,
+                                source: self.code_source.clone(),
+                            }));
                         }
                     }
                 }
@@ -964,7 +925,6 @@ impl BackingView for FileNotebookView {
                     .into_item(),
             );
 
-            #[cfg(feature = "local_fs")]
             {
                 // The markdown rendered/raw toggle is always visible in the pane header, so it is
                 // not duplicated here. "Open in editor" stays available for local files.

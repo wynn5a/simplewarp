@@ -1,4 +1,3 @@
-#[cfg(feature = "local_fs")]
 use std::io::Write;
 use std::path::PathBuf;
 

@@ -1,21 +1,14 @@
 use std::borrow::Cow;
-#[cfg(feature = "local_tty")]
 use std::collections::{HashMap, HashSet};
-#[cfg(feature = "local_tty")]
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-#[cfg(feature = "local_tty")]
 use settings::Setting as _;
-#[cfg(feature = "local_tty")]
-use warpui::{AppContext, ModelContext};
-use warpui::{Entity, SingletonEntity};
+use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use super::ShellLaunchData;
 use super::session_settings::{NewSessionShell, StartupShell};
 use super::shell::ShellType;
-#[cfg(feature = "local_tty")]
 use crate::util::path::file_exists_and_is_executable;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -28,7 +21,6 @@ struct LocalConfig {
 impl TryFrom<StartupShell> for LocalConfig {
     type Error = ();
 
-    #[cfg(feature = "local_tty")]
     fn try_from(value: StartupShell) -> Result<Self, Self::Error> {
         use crate::terminal::local_tty::shell::supported_shell_path_and_type;
 
@@ -40,11 +32,6 @@ impl TryFrom<StartupShell> for LocalConfig {
             shell_type,
         })
     }
-
-    #[cfg(not(feature = "local_tty"))]
-    fn try_from(_value: StartupShell) -> Result<Self, Self::Error> {
-        Err(())
-    }
 }
 
 /// The state for the AvailableShell model. Is kept private to the module, b/c we do not want people
@@ -52,15 +39,12 @@ impl TryFrom<StartupShell> for LocalConfig {
 #[derive(Debug, PartialEq, Eq, Hash)]
 enum Config {
     SystemDefault,
-    #[cfg_attr(not(feature = "local_tty"), allow(dead_code))]
     KnownLocal(LocalConfig),
-    #[cfg_attr(not(feature = "local_tty"), allow(dead_code))]
     Wsl {
         distro: String,
     },
-    #[cfg_attr(any(not(feature = "local_tty"), unix), allow(dead_code))]
+    #[cfg_attr(unix, allow(dead_code))]
     MSYS2(LocalConfig),
-    #[cfg_attr(not(feature = "local_tty"), allow(dead_code))]
     Custom(LocalConfig),
     /// A shell running inside a Docker sandbox via `sbx run`.
     ///
@@ -68,7 +52,6 @@ enum Config {
     /// shell that actually runs comes from the container image. This mirrors
     /// how [`Config::Wsl`] carries just the distro name and defers the shell
     /// choice to WSL itself.
-    #[cfg_attr(not(feature = "local_tty"), allow(dead_code))]
     DockerSandbox {
         /// Path to the `sbx` CLI binary on the host.
         sbx_path: PathBuf,
@@ -83,7 +66,6 @@ enum Config {
 // dead code so that the concept of the struct can exist, but remove any methods that do anything
 // with it. That way, method calls can still take `Option<AvailableShell>` as an argument, but
 // Callers with no local shell can just specify `None` for the value.
-#[cfg_attr(not(feature = "local_tty"), allow(dead_code,))]
 /// Contains the config describing a 'shell' that can be launched for a new session. Currently falls
 /// into 4 categories:
 /// - Known Local: A shell that is known to be installed on the local filesystem, and can be run
@@ -156,7 +138,6 @@ impl AvailableShell {
     }
 }
 
-#[cfg(feature = "local_tty")]
 impl AvailableShell {
     /// The long name of the shell. For local shells, this includes the path to
     /// the executable.
@@ -375,7 +356,6 @@ impl Default for AvailableShell {
     }
 }
 
-#[cfg(feature = "local_tty")]
 impl TryFrom<&str> for AvailableShell {
     type Error = ();
 
@@ -391,7 +371,6 @@ impl TryFrom<&str> for AvailableShell {
     }
 }
 
-#[cfg(feature = "local_tty")]
 impl TryFrom<NewSessionShell> for AvailableShell {
     type Error = ();
 
@@ -404,26 +383,12 @@ impl TryFrom<NewSessionShell> for AvailableShell {
     }
 }
 
-#[cfg_attr(not(feature = "local_tty"), allow(dead_code))]
 pub struct AvailableShells {
     shells: Vec<AvailableShell>,
     /// A map of shell name to the number of times it appears in the list.
-    #[cfg(feature = "local_tty")]
     shell_counts: HashMap<String, usize>,
 }
 
-#[cfg(not(feature = "local_tty"))]
-impl AvailableShells {
-    pub fn get_available_shells(&self) -> impl Iterator<Item = &AvailableShell> {
-        std::iter::empty()
-    }
-
-    pub fn get_from_shell_launch_data(&self, _config: &ShellLaunchData) -> Option<AvailableShell> {
-        None
-    }
-}
-
-#[cfg(feature = "local_tty")]
 impl AvailableShells {
     pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
         let fallback_shells_path = cfg!(unix).then_some(Path::new("/etc/shells"));
@@ -942,7 +907,6 @@ impl AvailableShells {
 ///
 /// Parameterized (rather than keying off `cfg!(windows)` internally) so both
 /// branches can be unit-tested from any host platform.
-#[cfg(feature = "local_tty")]
 fn command_name_matches(stored: &str, requested: &str, is_windows: bool) -> bool {
     if is_windows {
         let stored_norm = stored.to_ascii_lowercase();
@@ -962,7 +926,6 @@ impl Entity for AvailableShells {
 }
 impl SingletonEntity for AvailableShells {}
 
-#[cfg(feature = "local_tty")]
 pub fn register(app: &mut impl warpui::AddSingletonModel) {
     #[cfg(windows)]
     app.add_singleton_model(super::wsl::WslInfo::new);

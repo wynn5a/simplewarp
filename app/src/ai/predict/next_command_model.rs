@@ -1,12 +1,12 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
-#[cfg(feature = "local_fs")]
 use std::time::Duration;
 
 use chrono::Utc;
+use diesel::SqliteConnection;
 use futures::stream::AbortHandle;
 use itertools::Itertools;
-#[cfg_attr(not(feature = "local_fs"), allow(unused_imports))]
 use parking_lot::{FairMutex, Mutex};
 use warp_completer::completer::{
     self, AliasExpansionResult, CompleterOptions, CompletionsFallbackStrategy, MatchStrategy,
@@ -14,9 +14,8 @@ use warp_completer::completer::{
 };
 use warp_completer::meta::Spanned;
 use warp_completer::parsers::ParsedExpression;
-use warp_completer::parsers::hir::{Command, Expression, FlagType};
+use warp_completer::parsers::hir::{ArgType, Command, Expression, FlagType};
 use warp_core::features::FeatureFlag;
-#[cfg(feature = "local_fs")]
 use warpui::r#async::FutureExt;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
@@ -27,7 +26,6 @@ use super::generate_ai_input_suggestions::{
 use crate::ai::block_context::BlockContext;
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::completer::SessionContext;
-#[cfg(feature = "local_fs")]
 use crate::persistence::{database_file_path, establish_ro_connection};
 use crate::settings::AISettings;
 use crate::terminal::event::UserBlockCompleted;
@@ -35,23 +33,12 @@ use crate::terminal::input::{CompleterData, IntelligentAutosuggestionResult};
 use crate::terminal::model::session::Sessions;
 use crate::terminal::{History, HistoryEntry, TerminalModel};
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        use diesel::SqliteConnection;
-        use std::path::PathBuf;
-        use warp_completer::parsers::hir::ArgType;
-    }
-}
-
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 const MAX_NUM_SIMILAR_HISTORY_CONTEXT: usize = 25;
 
 /// The number of additional preceding commands for each HistoryContext
 /// included in the LLM request.
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 const NUM_ADDITIONAL_PREV_COMMAND_CONTEXT_LLM: usize = 2;
 
-#[cfg(feature = "local_fs")]
 const ARG_GENERATOR_VALIDATION_TIMEOUT: Duration = Duration::from_millis(150);
 
 pub fn is_next_command_enabled(app: &warpui::AppContext) -> bool {
@@ -128,7 +115,6 @@ pub struct ZeroStateSuggestionInfo {
 pub struct NextCommandModel {
     sessions: ModelHandle<Sessions>,
     model: Arc<FairMutex<TerminalModel>>,
-    #[cfg(feature = "local_fs")]
     conn: Option<Arc<Mutex<SqliteConnection>>>,
 
     next_command_state: NextCommandSuggestionState,
@@ -149,7 +135,6 @@ pub enum NextCommandModelEvent {
 
 impl NextCommandModel {
     pub fn new(sessions: ModelHandle<Sessions>, model: Arc<FairMutex<TerminalModel>>) -> Self {
-        #[cfg(feature = "local_fs")]
         let conn = database_file_path().to_str().and_then(|db_url| {
             establish_ro_connection(db_url)
                 .ok()
@@ -158,7 +143,6 @@ impl NextCommandModel {
         Self {
             sessions,
             model,
-            #[cfg(feature = "local_fs")]
             conn,
             next_command_state: NextCommandSuggestionState::None,
             cached_zerostate_next_command_context: None,
@@ -172,7 +156,6 @@ impl NextCommandModel {
     /// where the last element of HistoryContext.previous_commands is the same as completed_block.
     /// Returns None if there was a connection issue, and Some(empty vec)
     /// if there is no similar historical context.
-    #[cfg(feature = "local_fs")]
     pub fn get_similar_history_context(
         conn: &mut SqliteConnection,
         completed_block: &UserBlockCompleted,
@@ -247,17 +230,14 @@ impl NextCommandModel {
         // TODO(roland): reconsider down arrow UX for next command or remove completely
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     fn get_next_command_context(
         terminal_model: Arc<FairMutex<TerminalModel>>,
-        #[cfg(feature = "local_fs")] conn: Option<Arc<Mutex<SqliteConnection>>>,
+        conn: Option<Arc<Mutex<SqliteConnection>>>,
         ai_execution_context: WarpAiExecutionContext,
         block_completed: &UserBlockCompleted,
     ) -> NextCommandContext {
-        #[cfg_attr(not(feature = "local_fs"), allow(unused_mut))]
         let mut history_contexts = vec![];
         let context_messages = get_context_messages(terminal_model.clone(), 5, 100, 200);
-        #[cfg(feature = "local_fs")]
         if let Some(conn) = conn {
             let mut conn = conn.lock();
             history_contexts = Self::get_similar_history_context(
@@ -318,7 +298,6 @@ impl NextCommandModel {
     }
 
     /// Generates a next command suggestion with a prefix in the input.
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     #[expect(clippy::too_many_arguments)]
     pub fn generate_next_command_suggestion_with_prefix(
         &mut self,
@@ -341,7 +320,6 @@ impl NextCommandModel {
             None
         };
 
-        #[cfg(feature = "local_fs")]
         let conn = self.conn.clone();
         self.next_command_state = NextCommandSuggestionState::None;
         self.abort_inflight_request();
@@ -365,7 +343,6 @@ impl NextCommandModel {
                         } else {
                             Self::get_next_command_context(
                                 terminal_model,
-                                #[cfg(feature = "local_fs")]
                                 conn,
                                 context,
                                 &block_completed,
@@ -623,7 +600,6 @@ impl SingletonEntity for NextCommandModel {}
 
 /// Validates that the arg is valid given its type (e.g. filepath exists if it's a filepath arg).
 /// This uses a file system call, so this function should be called only in background threads.
-#[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
 async fn is_arg_valid(
     full_command: &str,
     arg: &Spanned<ParsedExpression>,
@@ -638,87 +614,98 @@ async fn is_arg_valid(
     if arg_types_to_validate.is_empty() {
         return true;
     }
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "local_fs")] {
-            // If we have arg types to validate, the arg must pass validation for at least one of them.
-            // If the argument has one or more generators, validate these last because they're more expensive
-            // and we can check all generators together using completions suggestions.
-            let mut has_generator_arg_type = false;
-            for arg_type in arg_types_to_validate {
-                match arg_type {
-                    ArgType::File => {
-                        let mut path_arg = PathBuf::from(arg.value().as_str());
-                        if path_arg.is_relative()
-                            && let Ok(working_dir) = PathBuf::try_from(ctx.current_working_directory.clone()) {
-                                path_arg = working_dir.join(path_arg);
-                            }
-                        if path_arg.is_file() {
-                            return true;
-                        }
-                    }
-                    ArgType::Folder => {
-                        let mut path_arg = PathBuf::from(arg.value().as_str());
-                        if path_arg.is_relative()
-                            && let Ok(working_dir) = PathBuf::try_from(ctx.current_working_directory.clone()) {
-                                path_arg = working_dir.join(path_arg);
-                            }
-                        if path_arg.is_dir() {
-                            return true;
-                        }
-                    }
-                    ArgType::Generator(_) => {
-                        has_generator_arg_type = true;
-                    }
-                };
-            }
-            if has_generator_arg_type {
-                // We don't have completions implemented for feature flags like --features=with_local_server.
-                // If arg is the span of `with_local_server`, attempting to complete on --features= to validate it will return no results.
-                // We should only use completions to validate the arg if the previous character is whitespace, until completions handles this case.
-                let prev_char = full_command.get(..arg.span.start()).and_then(|s| s.chars().next_back());
-                if prev_char.is_some_and(|c| !c.is_whitespace()) {
+    // If we have arg types to validate, the arg must pass validation for at least one of them.
+    // If the argument has one or more generators, validate these last because they're more expensive
+    // and we can check all generators together using completions suggestions.
+    let mut has_generator_arg_type = false;
+    for arg_type in arg_types_to_validate {
+        match arg_type {
+            ArgType::File => {
+                let mut path_arg = PathBuf::from(arg.value().as_str());
+                if path_arg.is_relative()
+                    && let Ok(working_dir) =
+                        PathBuf::try_from(ctx.current_working_directory.clone())
+                {
+                    path_arg = working_dir.join(path_arg);
+                }
+                if path_arg.is_file() {
                     return true;
                 }
-                // Running completions runs all generators, so we only need to do this once.
-                // TODO(roland): this also generates completions from sources other than generators, which are unnecessary.
-                // If performance becomes a concern, consider validating against generators sequentially and returning early if valid.
-                // We use completions suggestions because it's simpler to implement and read.
-                let completions_future = completer::suggestions(
-                    full_command,
-                    arg.span.start(),
-                    session_env_vars,
-                    CompleterOptions {
-                        match_strategy: MatchStrategy::CaseSensitive,
-                        fallback_strategy: CompletionsFallbackStrategy::None,
-                        suggest_file_path_completions_only: false,
-                        parse_quotes_as_literals: false,
-                    },
-                    ctx,
-                );
-
-                // If the completions call times out, assume the arg is valid.
-                // This is necessary because some generators can hang (e.g. kubectl commands if the cluster isn't running).
-                let Ok(completion_result) = completions_future.with_timeout(ARG_GENERATOR_VALIDATION_TIMEOUT).await else {
-                    log::debug!("Generator validation for arg `{}` in command `{}` timed out - assuming it's valid", arg.value().as_str(), full_command);
+            }
+            ArgType::Folder => {
+                let mut path_arg = PathBuf::from(arg.value().as_str());
+                if path_arg.is_relative()
+                    && let Ok(working_dir) =
+                        PathBuf::try_from(ctx.current_working_directory.clone())
+                {
+                    path_arg = working_dir.join(path_arg);
+                }
+                if path_arg.is_dir() {
                     return true;
-                };
-
-                let Some(completion_result) = completion_result else {
-                    return true;
-                };
-                for suggestion in completion_result.suggestions {
-                    if suggestion.display() == arg.value().as_str() {
-                        return true;
-                    }
                 }
             }
-            // If we didn't pass validation for any of the possible arg types, this arg is invalid.
-            log::debug!("arg `{}` in command `{}` failed validation", arg.value().as_str(), full_command);
-            false
-        } else {
-            true
+            ArgType::Generator(_) => {
+                has_generator_arg_type = true;
+            }
+        };
+    }
+    if has_generator_arg_type {
+        // We don't have completions implemented for feature flags like --features=with_local_server.
+        // If arg is the span of `with_local_server`, attempting to complete on --features= to validate it will return no results.
+        // We should only use completions to validate the arg if the previous character is whitespace, until completions handles this case.
+        let prev_char = full_command
+            .get(..arg.span.start())
+            .and_then(|s| s.chars().next_back());
+        if prev_char.is_some_and(|c| !c.is_whitespace()) {
+            return true;
+        }
+        // Running completions runs all generators, so we only need to do this once.
+        // TODO(roland): this also generates completions from sources other than generators, which are unnecessary.
+        // If performance becomes a concern, consider validating against generators sequentially and returning early if valid.
+        // We use completions suggestions because it's simpler to implement and read.
+        let completions_future = completer::suggestions(
+            full_command,
+            arg.span.start(),
+            session_env_vars,
+            CompleterOptions {
+                match_strategy: MatchStrategy::CaseSensitive,
+                fallback_strategy: CompletionsFallbackStrategy::None,
+                suggest_file_path_completions_only: false,
+                parse_quotes_as_literals: false,
+            },
+            ctx,
+        );
+
+        // If the completions call times out, assume the arg is valid.
+        // This is necessary because some generators can hang (e.g. kubectl commands if the cluster isn't running).
+        let Ok(completion_result) = completions_future
+            .with_timeout(ARG_GENERATOR_VALIDATION_TIMEOUT)
+            .await
+        else {
+            log::debug!(
+                "Generator validation for arg `{}` in command `{}` timed out - assuming it's valid",
+                arg.value().as_str(),
+                full_command
+            );
+            return true;
+        };
+
+        let Some(completion_result) = completion_result else {
+            return true;
+        };
+        for suggestion in completion_result.suggestions {
+            if suggestion.display() == arg.value().as_str() {
+                return true;
+            }
         }
     }
+    // If we didn't pass validation for any of the possible arg types, this arg is invalid.
+    log::debug!(
+        "arg `{}` in command `{}` failed validation",
+        arg.value().as_str(),
+        full_command
+    );
+    false
 }
 
 /// Validates the command is valid.

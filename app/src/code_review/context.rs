@@ -1,18 +1,13 @@
 use std::collections::HashMap;
 
 use warp_editor::render::model::LineCount;
+use warpui::{AppContext, ModelHandle};
 
-use crate::ai::agent::DiffSetHunk;
-use crate::code_review::diff_state::{DiffLineType, FileDiff};
+use crate::ai::agent::{AIAgentAttachment, CurrentHead, DiffBase, DiffSetHunk};
+use crate::ai::blocklist::BlocklistAIContextModel;
+use crate::code_review::DiffSetScope;
+use crate::code_review::diff_state::{DiffLineType, DiffMode, FileDiff};
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        use crate::ai::agent::{AIAgentAttachment, CurrentHead, DiffBase};
-        use crate::ai::blocklist::BlocklistAIContextModel;
-        use crate::code_review::{diff_state::DiffMode, DiffSetScope};
-        use warpui::{AppContext, ModelHandle};
-    }
-}
 /// Converts file diffs into a map keyed by repo-relative path strings.
 pub fn convert_file_diffs_to_diffset_hunks<'a, I>(files: I) -> HashMap<String, Vec<DiffSetHunk>>
 where
@@ -67,7 +62,6 @@ where
 }
 
 /// Creates attachment reference and key for a set of changes based on scope and diff mode
-#[cfg(feature = "local_fs")]
 pub fn create_attachment_reference_and_key(
     scope: &DiffSetScope,
     diff_mode: &DiffMode,
@@ -98,7 +92,6 @@ pub fn create_attachment_reference_and_key(
 
 /// Registers a DiffSet attachment with the AI controller
 /// This encapsulates the common logic for creating and registering diff attachments
-#[cfg(feature = "local_fs")]
 pub fn register_diffset_attachment(
     ai_context_model: &ModelHandle<BlocklistAIContextModel>,
     attachment_key: String,

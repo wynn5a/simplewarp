@@ -1,44 +1,34 @@
-#![cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-use std::collections::HashSet;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use command::blocking::Command;
 use fuzzy_match::{
     FuzzyMatchResult, contains_wildcards, match_indices_case_insensitive,
     match_wildcard_pattern_case_insensitive,
 };
+use repo_metadata::RepoMetadataModel;
+use repo_metadata::local_model::GetContentsArgs;
+use repo_metadata::repositories::DetectedRepositories;
+use repo_metadata::repository_identifier::RepositoryIdentifier;
+use repo_metadata::wrapper_model::RepoMetadataEvent;
+use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        use crate::workspace::ActiveSession;
-        use command::blocking::Command;
-        use repo_metadata::local_model::GetContentsArgs;
-        use repo_metadata::wrapper_model::RepoMetadataEvent;
-        use repo_metadata::RepoMetadataModel;
-        use repo_metadata::repository_identifier::RepositoryIdentifier;
-        use repo_metadata::repositories::DetectedRepositories;
-        use std::cell::RefCell;
-        use std::collections::HashMap;
-        use warp_util::local_or_remote_path::LocalOrRemotePath;
-    }
-}
-
 use super::search_item::FileSearchResult;
+use crate::workspace::ActiveSession;
 
 /// Shared model for file search functionality across different UI components.
 /// This singleton provides common file discovery, fuzzy matching, and git integration.
 pub struct FileSearchModel {
     /// Cached flattened repo contents keyed by repo root location (local or remote).
     /// Populated lazily on first query, invalidated when the file tree changes.
-    #[cfg(feature = "local_fs")]
     repo_contents_cache: RefCell<HashMap<LocalOrRemotePath, Arc<Vec<FileSearchResult>>>>,
 }
 
 impl FileSearchModel {
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        #[cfg(feature = "local_fs")]
         ctx.subscribe_to_model(
             &RepoMetadataModel::handle(ctx),
             |me, _, event, _ctx| match event {
@@ -64,43 +54,21 @@ impl FileSearchModel {
         );
 
         Self {
-            #[cfg(feature = "local_fs")]
             repo_contents_cache: RefCell::new(HashMap::new()),
         }
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    pub fn repo_root(&self, _app: &AppContext) -> Option<PathBuf> {
-        None
-    }
-
-    #[cfg(feature = "local_fs")]
     pub fn repo_root(&self, app: &AppContext) -> Option<PathBuf> {
         self.repo_root_location(app)
             .and_then(|loc| PathBuf::try_from(loc).ok())
     }
 
     /// Returns the repo root as a `LocalOrRemotePath`, supporting both local and SSH sessions.
-    #[cfg(not(feature = "local_fs"))]
-    pub fn repo_root_location(
-        &self,
-        _app: &AppContext,
-    ) -> Option<warp_util::local_or_remote_path::LocalOrRemotePath> {
-        None
-    }
-
-    /// Returns the repo root as a `LocalOrRemotePath`, supporting both local and SSH sessions.
-    #[cfg(feature = "local_fs")]
     pub fn repo_root_location(&self, app: &AppContext) -> Option<LocalOrRemotePath> {
         let active_window_id = app.windows().state().active_window;
         let working_dir =
             active_window_id.and_then(|wid| ActiveSession::as_ref(app).working_directory(wid))?;
         DetectedRepositories::as_ref(app).get_root_for_path(working_dir)
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    pub fn get_folder_contents(&self, _app: &AppContext) -> Vec<FileSearchResult> {
-        Vec::new()
     }
 
     /// Fetches files and folders from the current working directory (non-recursive).
@@ -109,7 +77,6 @@ impl FileSearchModel {
     /// For remote sessions it queries the `RepoMetadataModel`, which receives
     /// lazy-loaded first-level snapshots from the remote server on every
     /// `NavigatedToDirectory`.
-    #[cfg(feature = "local_fs")]
     pub fn get_folder_contents(&self, app: &AppContext) -> Vec<FileSearchResult> {
         let active_window_id = app.windows().state().active_window;
         let working_dir =
@@ -196,7 +163,6 @@ impl FileSearchModel {
     /// query-specific results are not cached. When `query` is empty (zero
     /// state) the full unfiltered contents are returned and cached per repo
     /// root location, invalidated when the file tree changes.
-    #[cfg(feature = "local_fs")]
     pub fn get_repo_contents(&self, query: &str, app: &AppContext) -> Arc<Vec<FileSearchResult>> {
         self.get_repo_contents_with_options(query, true, app)
     }
@@ -207,7 +173,6 @@ impl FileSearchModel {
     /// directory entries, such as the Command Palette file filter. Excluding
     /// directories keeps them from consuming the repo-metadata result cap, which
     /// otherwise starves file matches when many directories match the query.
-    #[cfg(feature = "local_fs")]
     pub fn get_repo_file_contents(
         &self,
         query: &str,
@@ -216,7 +181,6 @@ impl FileSearchModel {
         self.get_repo_contents_with_options(query, false, app)
     }
 
-    #[cfg(feature = "local_fs")]
     fn get_repo_contents_with_options(
         &self,
         query: &str,
@@ -250,7 +214,6 @@ impl FileSearchModel {
 
     /// Gets repository contents with git status information for prioritization.
     /// Reuses the cached repo contents from `get_repo_contents`.
-    #[cfg(feature = "local_fs")]
     pub fn get_repo_contents_with_git_status(
         &self,
         app: &AppContext,
@@ -263,28 +226,6 @@ impl FileSearchModel {
         (contents, git_changed_files)
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    pub fn get_repo_contents(&self, _query: &str, _app: &AppContext) -> Arc<Vec<FileSearchResult>> {
-        Arc::new(Vec::new())
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    pub fn get_repo_file_contents(
-        &self,
-        _query: &str,
-        _app: &AppContext,
-    ) -> Arc<Vec<FileSearchResult>> {
-        Arc::new(Vec::new())
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    pub fn get_repo_contents_with_git_status(
-        &self,
-        _app: &AppContext,
-    ) -> (Arc<Vec<FileSearchResult>>, HashSet<String>) {
-        (Arc::new(Vec::new()), HashSet::new())
-    }
-
     /// Builds the [`GetContentsArgs`] used to traverse repo metadata.
     ///
     /// For an empty `query` this returns the default args (unfiltered). For a
@@ -292,7 +233,6 @@ impl FileSearchModel {
     /// whose repo-relative path (produced by `relative_path`) fuzzy-matches the
     /// query. Pushing the query into traversal ensures the result cap applies
     /// to *matching* files rather than the first files encountered.
-    #[cfg(feature = "local_fs")]
     fn contents_args<F>(query: &str, include_folders: bool, relative_path: F) -> GetContentsArgs
     where
         F: for<'a> Fn(&repo_metadata::RepoContent<'a>) -> Option<String> + Send + Sync + 'static,
@@ -319,7 +259,6 @@ impl FileSearchModel {
     /// [`Self::contents_args`]) so the repo-metadata result cap applies to
     /// matching files rather than the first files encountered in traversal
     /// order.
-    #[cfg(feature = "local_fs")]
     fn get_contents_from_repo(
         &self,
         repo_root: &LocalOrRemotePath,
@@ -671,7 +610,6 @@ impl FileSearchModel {
     }
 
     /// Get git changed files (modified, added, renamed, etc.) for prioritization
-    #[cfg(feature = "local_fs")]
     pub fn get_git_changed_files(
         &self,
         repo_path: &Path,

@@ -14,9 +14,7 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity, Win
 
 use super::file::is_markdown_file;
 use crate::terminal::model::session::Session;
-#[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::EditorSettings;
-#[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::{FileTarget, is_supported_image_file, resolve_file_target};
 use crate::workspace::ActiveSession;
 
@@ -130,7 +128,6 @@ impl NotebookLinks {
     ) -> impl Future<Output = Result<LinkTarget, ResolveError>> + use<> {
         if let Ok(url) = Url::parse(link) {
             // The `url` crate only provides `to_file_path` on certain platforms.
-            #[cfg(feature = "local_fs")]
             if url.scheme() == "file" {
                 // Unlike below, if there's missing information, we can still fall back to the
                 // system for file:// URL handling.
@@ -166,21 +163,16 @@ impl NotebookLinks {
                 let clean_path = CleanPathResult::with_line_and_column_number(link);
                 let path = match self.session_source.base_directory(ctx) {
                     Some(base_directory) => {
-                        cfg_if::cfg_if! {
-                            if #[cfg(feature = "local_fs")] {
-                                let Some(path) = crate::util::file::absolute_path_if_valid(
-                                    &clean_path,
-                                    crate::util::file::ShellPathType::PlatformNative(base_directory.to_path_buf()),
-                                    Some(launch_data),
-                                ) else {
-                                    return Either::Right(future::ready(Err(ResolveError::FileNotFound)));
-                                };
-                                path
-                            } else {
-                                // If we don't have a local filesystem, we append the path naively.
-                                base_directory.join(clean_path.path)
-                            }
-                        }
+                        let Some(path) = crate::util::file::absolute_path_if_valid(
+                            &clean_path,
+                            crate::util::file::ShellPathType::PlatformNative(
+                                base_directory.to_path_buf(),
+                            ),
+                            Some(launch_data),
+                        ) else {
+                            return Either::Right(future::ready(Err(ResolveError::FileNotFound)));
+                        };
+                        path
                     }
                     None => {
                         let Some(path) = launch_data.maybe_convert_absolute_path(&clean_path.path)
@@ -261,22 +253,11 @@ impl NotebookLinks {
                 session,
                 is_markdown: true,
             } => {
-                #[cfg(not(feature = "local_fs"))]
-                let _ = line_and_column;
-
-                #[cfg(feature = "local_fs")]
-                {
-                    let settings = EditorSettings::as_ref(ctx);
-                    if *settings.prefer_markdown_viewer {
-                        ctx.emit(LinkEvent::OpenFileNotebook { path, session });
-                    } else {
-                        open_file(path, line_and_column, ctx);
-                    }
-                }
-
-                #[cfg(not(feature = "local_fs"))]
-                {
+                let settings = EditorSettings::as_ref(ctx);
+                if *settings.prefer_markdown_viewer {
                     ctx.emit(LinkEvent::OpenFileNotebook { path, session });
+                } else {
+                    open_file(path, line_and_column, ctx);
                 }
             }
             LinkTarget::LocalFile {
@@ -347,13 +328,11 @@ impl NotebookLinks {
 /// This prevents a malicious markdown link from triggering arbitrary code execution
 /// via an executable disguised as a local file (e.g. an extensionless shell script).
 // The `line_and_column` argument is unused when there is no local filesystem.
-#[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
 fn open_file(
     path: PathBuf,
     line_and_column: Option<LineAndColumnArg>,
     ctx: &mut ModelContext<NotebookLinks>,
 ) {
-    #[cfg(feature = "local_fs")]
     {
         // Images are safe to open with the system default viewer.
         if is_supported_image_file(&path) {
@@ -386,8 +365,6 @@ fn open_file(
             }
         }
     }
-    #[cfg(not(feature = "local_fs"))]
-    ctx.open_file_path(&path);
 }
 
 impl Entity for NotebookLinks {
@@ -437,7 +414,6 @@ pub enum LinkEvent {
     /// Signal to views that they should re-resolve links because the backing context for
     /// resolution has changed.
     RefreshLinks,
-    #[cfg(feature = "local_fs")]
     /// Emitted when a file should be opened in Warp (code editor or markdown viewer).
     OpenFileWithTarget {
         path: PathBuf,

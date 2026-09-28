@@ -1,5 +1,3 @@
-#![cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-
 use std::collections::VecDeque;
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -8,7 +6,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use futures_lite::StreamExt;
 use ignore::gitignore::Gitignore;
-#[cfg(feature = "local_fs")]
 use notify_debouncer_full::notify::WatchFilter;
 use thiserror::Error;
 use warp_errors::{ErrorExt, register_error, report_error};
@@ -1076,7 +1073,6 @@ fn is_within_symlink(path: &Path, repo_root: &Path) -> bool {
 /// consistent. Nested per-directory `.gitignore` files are not consulted here
 /// (same limitation as the existing tagging), which can only cause us to
 /// over-watch, never to miss events.
-#[cfg(feature = "local_fs")]
 pub fn repo_watch_filter(
     repo_root: PathBuf,
     gitignores: Vec<Arc<Gitignore>>,

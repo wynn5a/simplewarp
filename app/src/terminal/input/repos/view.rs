@@ -1,28 +1,20 @@
 //! Inline repos menu view for switching between indexed repos.
 
-#[cfg(feature = "local_fs")]
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-#[cfg(feature = "local_fs")]
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "local_fs")]
-use warpui::SingletonEntity;
 use warpui::elements::ChildView;
-use warpui::{Element, Entity, ModelHandle, View, ViewContext, ViewHandle};
+use warpui::{Element, Entity, ModelHandle, SingletonEntity, View, ViewContext, ViewHandle};
 
 use crate::ai::blocklist::agent_view::AgentViewController;
-#[cfg(feature = "local_fs")]
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::{AddAsyncSourceOptions, SearchMixer};
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
 use crate::terminal::input::inline_menu::{InlineMenuEvent, InlineMenuPositioner, InlineMenuView};
 use crate::terminal::input::repos::AcceptRepo;
-#[cfg(feature = "local_fs")]
-use crate::terminal::input::repos::data_source::GitSummaryCache;
-use crate::terminal::input::repos::data_source::RepoMenuDataSource;
+use crate::terminal::input::repos::data_source::{GitSummaryCache, RepoMenuDataSource};
 use crate::terminal::input::suggestions_mode_model::{
     InputSuggestionsModeEvent, InputSuggestionsModeModel,
 };
@@ -42,7 +34,6 @@ pub struct InlineReposMenuView {
     input_suggestions_model: ModelHandle<InputSuggestionsModeModel>,
     input_buffer_model: ModelHandle<InputBufferModel>,
     /// Git summaries shared with the data source, populated in the background.
-    #[cfg(feature = "local_fs")]
     git_summaries: GitSummaryCache,
 }
 
@@ -54,16 +45,12 @@ impl InlineReposMenuView {
         positioner: &ModelHandle<InlineMenuPositioner>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        #[cfg(feature = "local_fs")]
         let git_summaries: GitSummaryCache = Arc::new(Mutex::new(HashMap::new()));
 
-        #[cfg(feature = "local_fs")]
         let data_source = {
             let git_summaries = git_summaries.clone();
             ctx.add_model(move |_| RepoMenuDataSource::new(git_summaries))
         };
-        #[cfg(not(feature = "local_fs"))]
-        let data_source = ctx.add_model(|_| RepoMenuDataSource::new());
 
         let mixer = ctx.add_model(|ctx| {
             let mut mixer = SearchMixer::<AcceptRepo>::new();
@@ -120,7 +107,6 @@ impl InlineReposMenuView {
                     });
                     // Kick off the background git-summary load so branch/diff
                     // stats fill in without blocking the initial repo list.
-                    #[cfg(feature = "local_fs")]
                     me.load_git_summaries_in_background(ctx);
                 }
             },
@@ -140,7 +126,6 @@ impl InlineReposMenuView {
             mixer,
             input_suggestions_model,
             input_buffer_model: input_buffer_model.clone(),
-            #[cfg(feature = "local_fs")]
             git_summaries,
         }
     }
@@ -152,7 +137,6 @@ impl InlineReposMenuView {
     /// [`RepoMenuDataSource`]); this fills it in a moment later. We load all
     /// summaries and refresh once (rather than per-repo) to avoid repeatedly
     /// resetting the user's selection while data streams in.
-    #[cfg(feature = "local_fs")]
     fn load_git_summaries_in_background(&self, ctx: &mut ViewContext<Self>) {
         let paths: Vec<PathBuf> = PersistedWorkspace::as_ref(ctx)
             .workspaces()

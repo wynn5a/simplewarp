@@ -2,7 +2,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pathfinder_geometry::vector::vec2f;
-#[cfg(feature = "local_fs")]
 use repo_metadata::RepoMetadataModel;
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
@@ -10,7 +9,6 @@ use string_offset::CharOffset;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_editor::render::model::BlockItem;
-#[cfg(feature = "local_fs")]
 use warp_files::FileModel;
 use warpui::platform::WindowStyle;
 use warpui::{App, SingletonEntity, View};
@@ -41,7 +39,6 @@ fn init_app(app: &mut App) {
     app.add_singleton_model(|_| KeybindingChangedNotifier::new());
     app.add_singleton_model(DirectoryWatcher::new);
     app.add_singleton_model(|_| DetectedRepositories::default());
-    #[cfg(feature = "local_fs")]
     app.add_singleton_model(RepoMetadataModel::new);
     app.add_singleton_model(FileSearchModel::new);
     app.add_singleton_model(FileModel::new);
@@ -349,7 +346,6 @@ fn test_file_notebook_mermaid_blocks_default_to_rendered() {
 
 /// APP-5243: retrying and then discarding a failed open must not panic, and each attempt must
 /// release the file state it opened rather than stacking it on the shared [`FileModel`].
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_reload_and_discard_after_failed_open() {
     use warpui::TypedActionView;

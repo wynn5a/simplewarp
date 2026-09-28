@@ -46,7 +46,6 @@ impl TerminalView {
                             .into_item(),
                     );
                 }
-                #[cfg(feature = "local_fs")]
                 RichContentLink::FilePath { absolute_path, .. } => {
                     items.push(
                         MenuItemFields::new("Copy path")

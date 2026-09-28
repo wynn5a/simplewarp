@@ -37,7 +37,6 @@ impl CodePane {
         Self::from_view(view, ctx)
     }
 
-    #[cfg(feature = "local_fs")]
     pub fn new_preview<V: View>(source: CodeSource, ctx: &mut ViewContext<V>) -> Self {
         let view = ctx.add_typed_action_view(move |ctx| CodeView::new_preview(source, ctx));
         Self::from_view(view, ctx)
@@ -86,7 +85,6 @@ impl PaneContent for CodePane {
             return false;
         }
 
-        #[cfg(feature = "local_fs")]
         self.file_view(ctx).update(ctx, |code_view, ctx| {
             let line_col = match &source {
                 CodeSource::Link { range_start, .. } => *range_start,
@@ -128,7 +126,6 @@ impl PaneContent for CodePane {
                     });
 
                     // Track the opened file in the OpenedFilesModel
-                    #[cfg(feature = "local_fs")]
                     {
                         use repo_metadata::repositories::DetectedRepositories;
 
@@ -188,7 +185,6 @@ impl PaneContent for CodePane {
 
         // Only cleanup tabs when the pane is actually being destroyed (not during undo grace period)
         // This preserves the tab state so it can be properly restored via undo-close
-        #[cfg(feature = "local_fs")]
         if matches!(detach_type, DetachType::Closed) {
             file_view.update(ctx, |code_view, ctx| {
                 code_view.cleanup_all_tabs(ctx);

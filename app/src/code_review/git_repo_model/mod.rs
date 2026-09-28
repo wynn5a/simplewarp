@@ -1,8 +1,6 @@
 use warpui::{AppContext, Entity, ModelContext, ModelHandle};
 
-#[cfg(feature = "local_fs")]
 mod local;
-#[cfg(feature = "local_fs")]
 pub use local::LocalGitRepoStatusModel;
 
 use super::diff_state::DiffStats;
@@ -11,7 +9,6 @@ use crate::context_chips::display_chip::GitBranchTrackingStatus;
 
 /// Public metadata exposed to consumers — the subset of diff metadata
 /// that the git chip (prompt display, agent view footer) needs.
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 #[derive(Debug, Clone)]
 pub struct GitStatusMetadata {
     pub current_branch_name: String,
@@ -35,7 +32,6 @@ pub enum GitRepoStatusEvent {
 /// Consumers (prompt chips, tabs, code review, agent context) hold a
 /// `ModelHandle<GitRepoStatusModel>` and subscribe to its [`GitRepoStatusEvent`]s.
 pub enum GitRepoStatusModel {
-    #[cfg(feature = "local_fs")]
     Local(ModelHandle<LocalGitRepoStatusModel>),
 }
 
@@ -43,7 +39,6 @@ impl Entity for GitRepoStatusModel {
     type Event = GitRepoStatusEvent;
 }
 
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 impl GitRepoStatusModel {
     /// Re-emit a sub-model event so subscribers of the unified model observe
     /// the same `GitRepoStatusEvent`s regardless of backend.
@@ -56,7 +51,6 @@ impl GitRepoStatusModel {
     /// Mode-independent status metadata (branch names + HEAD diff stats).
     pub fn metadata<'a>(&self, ctx: &'a AppContext) -> Option<&'a GitStatusMetadata> {
         match self {
-            #[cfg(feature = "local_fs")]
             Self::Local(m) => m.as_ref(ctx).metadata(),
         }
     }
@@ -64,13 +58,11 @@ impl GitRepoStatusModel {
     /// Force a metadata refresh (branch names, diff stats).
     pub fn refresh_metadata(&self, ctx: &mut ModelContext<Self>) {
         match self {
-            #[cfg(feature = "local_fs")]
             Self::Local(m) => m.update(ctx, |m, ctx| m.refresh_metadata(ctx)),
         }
     }
 }
 
-#[cfg(feature = "local_fs")]
 pub(super) fn new_local_git_repo_status_model(
     repo_path: std::path::PathBuf,
     repository_model: ModelHandle<repo_metadata::Repository>,
@@ -85,7 +77,7 @@ pub(super) fn new_local_git_repo_status_model(
     })
 }
 
-#[cfg(all(test, feature = "local_fs"))]
+#[cfg(test)]
 impl GitRepoStatusModel {
     /// Wraps a local-backend test model in the unified enum.
     pub(crate) fn new_local_for_test(
@@ -105,7 +97,6 @@ impl GitRepoStatusModel {
         ctx: &mut ModelContext<Self>,
     ) {
         match self {
-            #[cfg(feature = "local_fs")]
             Self::Local(m) => m.update(ctx, |m, ctx| m.set_metadata_for_test(metadata, ctx)),
         }
     }

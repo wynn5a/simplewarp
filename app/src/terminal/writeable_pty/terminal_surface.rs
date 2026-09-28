@@ -68,7 +68,6 @@ where
 
     /// Called once the shell starter has been determined and the PTY event loop
     /// has started, so the surface can react to shell launch metadata.
-    #[cfg(feature = "local_tty")]
     fn on_shell_determined(&mut self, _ctx: &mut ViewContext<Self>) {}
 
     /// Called when the active shell launch data is updated (e.g. shell indicator metadata).
@@ -80,7 +79,6 @@ where
     }
 
     /// Called when the PTY fails to spawn so the surface can surface the error.
-    #[cfg(feature = "local_tty")]
     fn on_pty_spawn_failed(&mut self, error: anyhow::Error, ctx: &mut ViewContext<Self>);
 
     /// Called when termios indicates a likely password prompt is blocking the active block.

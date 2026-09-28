@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "local_fs")]
 use anyhow::Result;
 
 use super::tab_config::{
@@ -174,7 +173,6 @@ pub fn build_tab_config(
 ///
 /// Creates `dir` if it doesn't exist. Returns the path of the written file.
 /// The filesystem watcher will automatically pick up the new file.
-#[cfg(feature = "local_fs")]
 pub fn write_tab_config(config: &TabConfig, dir: &Path, base_name: &str) -> Result<PathBuf> {
     std::fs::create_dir_all(dir)?;
     let path = crate::user_config::find_unused_toml_path(dir, base_name);

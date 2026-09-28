@@ -1,4 +1,3 @@
-#[cfg(feature = "local_fs")]
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -72,20 +71,15 @@ pub fn init(app: &mut AppContext) {
     )]);
 }
 
-#[cfg(feature = "local_fs")]
 use anyhow::Context as _;
 use warp_errors::report_error;
-#[cfg(feature = "local_fs")]
 use warp_util::path::LineAndColumnArg;
 
-#[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 // Import keybinding constants from code view to ensure consistency
 use crate::code::view::{SAVE_FILE_BINDING_DESCRIPTION, SAVE_FILE_BINDING_NAME};
 use crate::notebooks::file::MarkdownDisplayMode;
-#[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::settings::EditorLayout;
-#[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -105,13 +99,11 @@ pub enum AIDocumentAction {
 pub enum AIDocumentEvent {
     Pane(PaneEvent),
     CloseRequested,
-    #[cfg(feature = "local_fs")]
     OpenCodeInWarp {
         source: CodeSource,
         layout: EditorLayout,
         line_col: Option<LineAndColumnArg>,
     },
-    #[cfg(feature = "local_fs")]
     OpenFileWithTarget {
         path: std::path::PathBuf,
         target: FileTarget,
@@ -790,7 +782,6 @@ impl AIDocumentView {
             EditorViewEvent::Focused => {
                 ctx.emit(AIDocumentEvent::Pane(PaneEvent::FocusSelf));
             }
-            #[cfg(feature = "local_fs")]
             EditorViewEvent::OpenFile {
                 path,
                 line_and_column_num,
@@ -846,7 +837,6 @@ impl AIDocumentView {
     }
 
     /// Export the current content as a markdown file.
-    #[cfg(feature = "local_fs")]
     fn export(&self, ctx: &mut ViewContext<Self>) {
         use warpui::platform::SaveFilePickerConfiguration;
 
@@ -890,9 +880,6 @@ impl AIDocumentView {
             config,
         );
     }
-
-    #[cfg(not(feature = "local_fs"))]
-    fn export(&self, _ctx: &mut ViewContext<Self>) {}
 }
 
 impl Entity for AIDocumentView {
@@ -1129,7 +1116,6 @@ impl BackingView for AIDocumentView {
                 .into_item(),
         );
 
-        #[cfg(feature = "local_fs")]
         {
             menu_items.push(
                 crate::menu::MenuItemFields::new("Save as markdown file")

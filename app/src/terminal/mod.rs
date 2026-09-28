@@ -50,9 +50,7 @@ pub mod keys_settings;
 pub mod ligature_settings;
 mod line_editor_status;
 pub mod links;
-#[cfg(feature = "local_tty")]
 pub mod local_shell;
-#[cfg(feature = "local_tty")]
 pub mod local_tty;
 mod meta_shortcuts;
 pub mod mock_terminal_manager;

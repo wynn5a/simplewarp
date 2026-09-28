@@ -20,7 +20,6 @@ use warp_core::SessionId;
 use warpui::{AppContext, SingletonEntity as _};
 
 use super::shell::DirectShellStarter;
-#[cfg(feature = "local_tty")]
 use crate::terminal::local_shell::LocalShellState;
 use crate::terminal::shell::ShellType;
 use crate::util::path::{resolve_executable, resolve_executable_in_path};
@@ -65,7 +64,6 @@ pub fn resolve_sbx_path() -> Option<PathBuf> {
 ///
 /// Falls back to the process's `PATH` if the interactive PATH capture
 /// fails.
-#[cfg(feature = "local_tty")]
 pub fn resolve_sbx_path_from_user_shell(
     ctx: &mut AppContext,
 ) -> BoxFuture<'static, Option<PathBuf>> {

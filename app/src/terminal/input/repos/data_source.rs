@@ -1,9 +1,7 @@
 //! Async data source for the inline repos menu.
 
-#[cfg(feature = "local_fs")]
 use std::collections::HashMap;
 use std::path::PathBuf;
-#[cfg(feature = "local_fs")]
 use std::sync::{Arc, Mutex};
 
 use warpui::{AppContext, Entity, SingletonEntity};
@@ -12,7 +10,6 @@ use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::{AsyncDataSource, BoxFuture, DataSourceRunErrorWrapper};
 use crate::terminal::input::repos::AcceptRepo;
-#[cfg(feature = "local_fs")]
 use crate::util::git::RepoGitSummary;
 
 /// Cache of per-repo git summaries (branch + diff stats) keyed by repo path.
@@ -21,25 +18,17 @@ use crate::util::git::RepoGitSummary;
 /// and the view, which populates it in the background. This lets the menu show
 /// the repo list synchronously while the (relatively expensive) git data is
 /// lazily loaded and filled in as it arrives.
-#[cfg(feature = "local_fs")]
 pub type GitSummaryCache = Arc<Mutex<HashMap<PathBuf, RepoGitSummary>>>;
 
 pub struct RepoMenuDataSource {
     /// Git summaries populated in the background by the view. Reads never block
     /// on git; missing entries simply render without branch/diff-stat suffixes.
-    #[cfg(feature = "local_fs")]
     git_summaries: GitSummaryCache,
 }
 
 impl RepoMenuDataSource {
-    #[cfg(feature = "local_fs")]
     pub fn new(git_summaries: GitSummaryCache) -> Self {
         Self { git_summaries }
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    pub fn new() -> Self {
-        Self {}
     }
 }
 
@@ -61,14 +50,12 @@ impl AsyncDataSource for RepoMenuDataSource {
         // Snapshot the currently-known git summaries. This is intentionally
         // non-blocking: whatever has been loaded so far is rendered, and the
         // rest fills in when the background load re-runs the query.
-        #[cfg(feature = "local_fs")]
         let git_summaries = {
             let cache = self.git_summaries.lock().unwrap_or_else(|e| e.into_inner());
             cache.clone()
         };
 
         Box::pin(async move {
-            #[cfg(feature = "local_fs")]
             {
                 use crate::terminal::input::repos::search_item::RepoSearchItem;
 
@@ -102,13 +89,6 @@ impl AsyncDataSource for RepoMenuDataSource {
                 };
 
                 Ok(results)
-            }
-
-            #[cfg(not(feature = "local_fs"))]
-            {
-                let _ = workspace_paths;
-                let _ = query_text;
-                Ok(vec![])
             }
         })
     }

@@ -99,25 +99,18 @@ pub fn keybinding_file_path() -> std::path::PathBuf {
 /// Save the custom keybindings map to disk.
 #[cfg(not(test))]
 // Allow unused variables when no local filesystem exists as the arg is unused.
-#[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
 fn save_custom_keybindings(map: CustomKeybindings) {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "local_fs")] {
-            let file = match crate::util::file::create_file(keybinding_file_path()) {
-                Ok(f) => f,
-                Err(e) => {
-                    log::warn!("Unable to open file for storing custom keybindings: {e}");
-                    return;
-                }
-            };
-            let writer = std::io::BufWriter::new(file);
-
-            if let Err(e) = serde_yaml::to_writer(writer, &map) {
-                log::warn!("Unable to serialize custom keybindings to file: {e}");
-            }
-        } else {
-            log::warn!("TODO(wasm): need to implement keybindings support");
+    let file = match crate::util::file::create_file(keybinding_file_path()) {
+        Ok(f) => f,
+        Err(e) => {
+            log::warn!("Unable to open file for storing custom keybindings: {e}");
+            return;
         }
+    };
+    let writer = std::io::BufWriter::new(file);
+
+    if let Err(e) = serde_yaml::to_writer(writer, &map) {
+        log::warn!("Unable to serialize custom keybindings to file: {e}");
     }
 }
 

@@ -3,14 +3,10 @@ pub mod util;
 #[path = "native.rs"]
 mod imp;
 
-#[cfg(feature = "local_fs")]
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(crate) use imp::load_tab_configs;
-#[cfg(feature = "local_fs")]
-pub use imp::load_workflows;
-pub use imp::{load_launch_configs, load_theme_configs};
+pub use imp::{load_launch_configs, load_theme_configs, load_workflows};
 use lazy_static::lazy_static;
 use warp_core::ui::theme::WarpTheme;
 use warpui::{Entity, ModelContext, SingletonEntity};
@@ -53,26 +49,20 @@ lazy_static! {
 #[derive(Clone)]
 pub enum WarpConfigUpdateEvent {
     Themes,
-    #[cfg_attr(not(feature = "local_fs"), expect(dead_code))]
     LocalUserWorkflows,
     LaunchConfigs,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     TabConfigs,
     /// Emitted when one or more tab config files failed to parse.
     TabConfigErrors(Vec<TabConfigError>),
     /// The local `custom_model_routers/` custom model routers were created, modified, or deleted.
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     ModelConfigs,
     /// Emitted when one or more `custom_model_routers/` files failed to parse.
     ModelConfigErrors(Vec<ModelConfigError>),
     /// The settings file (`settings.toml`) was created, modified, or deleted.
-    #[cfg_attr(not(feature = "local_fs"), expect(dead_code))]
     Settings,
     /// One or more settings in `settings.toml` could not be loaded.
-    #[cfg_attr(not(feature = "local_fs"), expect(dead_code))]
     SettingsErrors(crate::settings::SettingsFileError),
     /// A previously-errored settings reload succeeded with no errors.
-    #[cfg_attr(not(feature = "local_fs"), expect(dead_code))]
     SettingsErrorsCleared,
 }
 
@@ -170,7 +160,6 @@ impl WarpConfig {
     /// Eagerly removes a tab config by its source path and emits a `TabConfigs` event.
     /// (Used after deleting the file on disk so the menu updates immediately
     /// rather than waiting for the filesystem watcher.)
-    #[cfg(feature = "local_fs")]
     pub fn remove_tab_config_by_path(&mut self, path: &Path, ctx: &mut ModelContext<Self>) {
         let before = self.tab_configs.len();
         self.tab_configs
@@ -221,7 +210,6 @@ pub fn default_tab_configs_dir() -> PathBuf {
 
 /// Returns whether the path points to a tab config TOML file under one of Warp's
 /// tab config directories.
-#[cfg(feature = "local_fs")]
 pub fn is_tab_config_toml(path: &Path) -> bool {
     let is_toml = path
         .extension()
@@ -238,7 +226,6 @@ pub fn is_tab_config_toml(path: &Path) -> bool {
 
 /// Ensures `~/.warp/default_tab_configs/worktree.toml` exists, creating it
 /// from the embedded template if missing. Returns the path to the file.
-#[cfg(feature = "local_fs")]
 pub(crate) fn ensure_default_worktree_config() -> PathBuf {
     let dir = default_tab_configs_dir();
     let path = dir.join("worktree.toml");
@@ -260,7 +247,6 @@ pub(crate) fn ensure_default_worktree_config() -> PathBuf {
     path
 }
 
-#[cfg(feature = "local_fs")]
 pub(crate) fn materialize_default_worktree_config(
     template_toml: &str,
     config_name: &str,
@@ -301,7 +287,6 @@ pub(crate) fn materialize_default_worktree_config(
     Ok((toml_content, tab_config))
 }
 
-#[cfg(feature = "local_fs")]
 fn replace_default_worktree_placeholders(
     value: &mut toml::Value,
     repo_path: &str,
@@ -338,7 +323,6 @@ fn replace_default_worktree_placeholders(
 
 /// Returns a path for a new tab config file that does not yet exist in `dir`.
 /// Tries `my_tab_config.toml`, then `my_tab_config_1.toml`, `my_tab_config_2.toml`, etc.
-#[cfg(feature = "local_fs")]
 pub(crate) fn find_unused_tab_config_path(dir: &Path) -> PathBuf {
     find_unused_toml_path(dir, "my_tab_config")
 }
@@ -346,7 +330,6 @@ pub(crate) fn find_unused_tab_config_path(dir: &Path) -> PathBuf {
 /// Returns a `.toml` path in `dir` that does not yet exist.
 ///
 /// Tries `{base_name}.toml`, then `{base_name}_1.toml`, `{base_name}_2.toml`, etc.
-#[cfg(feature = "local_fs")]
 pub(crate) fn find_unused_toml_path(dir: &Path, base_name: &str) -> PathBuf {
     let base = dir.join(format!("{base_name}.toml"));
     if !base.exists() {
@@ -367,7 +350,6 @@ pub(crate) fn find_unused_toml_path(dir: &Path, base_name: &str) -> PathBuf {
 /// Preserves ASCII letters, digits, hyphens, and underscores. All other
 /// characters are replaced with underscores, repeated underscores are collapsed,
 /// and leading/trailing underscores are removed.
-#[cfg(feature = "local_fs")]
 pub(crate) fn sanitize_toml_base_name(base_name: &str) -> String {
     let mut sanitized = String::with_capacity(base_name.len());
     let mut last_was_underscore = false;
@@ -395,7 +377,6 @@ pub(crate) fn sanitize_toml_base_name(base_name: &str) -> String {
 ///
 /// The caller is expected to pass a branch name that has already been validated
 /// (alphanumeric, hyphens, underscores only) so no sanitization is performed here.
-#[cfg(feature = "local_fs")]
 pub(crate) fn find_unused_worktree_config_path(dir: &Path, branch_name: &str) -> PathBuf {
     let base = dir.join(format!("worktree_{branch_name}.toml"));
     if !base.exists() {

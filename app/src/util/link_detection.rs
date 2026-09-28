@@ -1,8 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
+use std::path::{Path, PathBuf};
 
 use string_offset::ByteOffset;
 use urlocator::{UrlLocation, UrlLocator};
+use warp_util::path::CleanPathResult;
 use warpui::Action;
 use warpui::elements::{MouseStateHandle, PartialClickableElement};
 use warpui::platform::Cursor;
@@ -14,15 +16,6 @@ use crate::ai::blocklist::block::view_impl::output::LinkActionConstructors;
 use crate::terminal::ShellLaunchData;
 use crate::terminal::links::should_directly_open_link;
 use crate::terminal::model::grid::grid_handler::{is_file_link_separator, is_url_link_separator};
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        use std::collections::HashSet;
-        use std::path::Path;
-        use std::path::PathBuf;
-        use warp_util::path::CleanPathResult;
-    }
-}
 
 pub const RICH_CONTENT_LINK_FIRST_CHAR_POSITION_ID: &str =
     "ai_block:rich_content_link_first_char_position";
@@ -125,7 +118,6 @@ impl DetectedLinksState {
 #[derive(Clone, Debug)]
 pub(crate) enum DetectedLinkType {
     Url(String),
-    #[cfg(feature = "local_fs")]
     FilePath {
         absolute_path: PathBuf,
         line_and_column_num: Option<warp_util::path::LineAndColumnArg>,
@@ -246,7 +238,6 @@ fn detect_urls(text: &str) -> Vec<Range<usize>> {
     url_ranges
 }
 
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 fn addr_of(s: &str) -> usize {
     s.as_ptr() as usize
 }
@@ -265,12 +256,10 @@ const MAX_SEPARATORS_PER_WORD: usize = 256;
 /// File path candidates start after one separator and end before another. Using [`ByteOffset`]
 /// keeps the byte-indexing semantics explicit when separators are multi-byte characters like
 /// box-drawing glyphs.
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 type SeparatorByteRange = Range<ByteOffset>;
 
 /// Returns separator byte ranges in `word`, framed by zero-width virtual separators at
 /// the start and end of the word. Returns empty if either safety cap is exceeded.
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 fn separator_byte_ranges_for_file_path_search(word: &str) -> Vec<SeparatorByteRange> {
     if word.len() > MAX_WORD_LEN_FOR_FILE_PATH {
         return Vec::new();
@@ -311,7 +300,6 @@ fn separator_byte_ranges_for_file_path_search(word: &str) -> Vec<SeparatorByteRa
 ///
 /// Tokens exceeding [`MAX_WORD_LEN_FOR_FILE_PATH`] or [`MAX_SEPARATORS_PER_WORD`]
 /// yield no candidates to bound the substring enumeration.
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 fn possible_file_paths_in_word(word: &str) -> impl Iterator<Item = &str> {
     let separator_byte_ranges = separator_byte_ranges_for_file_path_search(word);
     let mut possible_path_byte_ranges = vec![];
@@ -332,7 +320,6 @@ fn possible_file_paths_in_word(word: &str) -> impl Iterator<Item = &str> {
 }
 
 /// Returns a DetectedLink::FilePath if expanded_path is a valid path that actually exists on the file system.
-#[cfg(feature = "local_fs")]
 fn compute_valid_file_path(
     working_directory: &Path,
     expanded_path: &str,
@@ -371,7 +358,6 @@ fn compute_valid_file_path(
 }
 
 /// Returns a set of all file and folder names in the given directory (relative, not absolute paths).
-#[cfg(feature = "local_fs")]
 fn get_files_and_folders_in_directory(directory: &Path) -> HashSet<PathBuf> {
     let mut files_and_folders = HashSet::new();
     let Ok(entries) = std::fs::read_dir(directory) else {
@@ -387,7 +373,6 @@ fn get_files_and_folders_in_directory(directory: &Path) -> HashSet<PathBuf> {
 }
 
 /// Returns the detected valid file paths in some text along with their char ranges.
-#[cfg(feature = "local_fs")]
 pub(crate) fn detect_file_paths(
     working_directory: &str,
     text: &str,
@@ -508,7 +493,6 @@ pub(crate) fn get_word_range_at_offset(
 }
 
 /// Parse line ranges from comma-separated text content and return detected ranges.
-#[cfg(feature = "local_fs")]
 fn parse_line_range(
     potential_range: &str,
     text: &str,
@@ -539,7 +523,6 @@ fn parse_line_range(
 /// Helper function to detect line ranges that appear after a valid file path.
 /// Looks for patterns like "file.rs (1-50, 100-150)" and returns the detected ranges.
 /// Returns a vector of (line_number, char_range) tuples.
-#[cfg(feature = "local_fs")]
 fn detect_line_ranges_after_file_path(
     text: &str,
     file_path_byte_end: usize,
@@ -681,11 +664,8 @@ pub(crate) fn collect_output_data_for_link_detection(
 pub(crate) fn detect_all_links(
     texts: &[(String, TextLocation)],
     md_hyperlinks: HyperlinksByLocation,
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     current_working_directory: Option<&String>,
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))] shell_launch_data: Option<
-        &ShellLaunchData,
-    >,
+    shell_launch_data: Option<&ShellLaunchData>,
 ) -> HashMap<TextLocation, HashMap<Range<usize>, DetectedLinkType>> {
     let mut all_links: HashMap<TextLocation, HashMap<Range<usize>, DetectedLinkType>> =
         HashMap::new();
@@ -705,7 +685,6 @@ pub(crate) fn detect_all_links(
         }
 
         // Detect file path links, skipping any that overlap with URLs
-        #[cfg(feature = "local_fs")]
         if let Some(cwd) = current_working_directory {
             let file_paths = detect_file_paths(cwd, text, shell_launch_data);
             for (range, link) in file_paths {
@@ -740,11 +719,8 @@ pub(crate) fn detect_links(
     detected_links_state: &mut DetectedLinksState,
     text: &str,
     text_location: TextLocation,
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     current_working_directory: Option<&String>,
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))] shell_launch_data: Option<
-        &ShellLaunchData,
-    >,
+    shell_launch_data: Option<&ShellLaunchData>,
 ) {
     let url_ranges = detect_urls(text);
     for url_range in &url_ranges {
@@ -764,7 +740,6 @@ pub(crate) fn detect_links(
                 },
             );
     }
-    #[cfg(feature = "local_fs")]
     if let Some(current_working_directory) = current_working_directory {
         let file_paths = detect_file_paths(current_working_directory, text, shell_launch_data);
         for (range, link) in file_paths {

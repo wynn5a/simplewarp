@@ -75,7 +75,6 @@ fn initialize_app(app: &mut App) -> TestState {
     app.add_singleton_model(|_| ObjectActions::new(Vec::new()));
     app.add_singleton_model(|_| KeybindingChangedNotifier::new());
     app.add_singleton_model(|_| repo_metadata::repositories::DetectedRepositories::default());
-    #[cfg(feature = "local_fs")]
     app.add_singleton_model(repo_metadata::RepoMetadataModel::new);
     app.add_singleton_model(FileSearchModel::new);
     app.add_singleton_model(NotebookKeybindings::new);

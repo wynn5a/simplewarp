@@ -23,7 +23,6 @@ use num_traits::SaturatingSub;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
-#[cfg(feature = "local_fs")]
 use repo_metadata::repositories::DetectedRepositories;
 use string_offset::CharOffset;
 use vec1::Vec1;
@@ -37,7 +36,6 @@ use warp_editor::content::text::IndentUnit;
 use warp_editor::render::model::{Decoration, LineCount};
 use warp_util::content_version::ContentVersion;
 use warp_util::file::{FileId, FileLoadError, FileSaveError};
-#[cfg(feature = "local_fs")]
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warp_util::path::to_relative_path;
 use warp_util::sync::Condition;
@@ -931,7 +929,6 @@ impl LocalCodeEditorView {
 
         let Some(lsp_server) = lsp_manager.as_ref(ctx).server_for_path(&path, ctx) else {
             // If the LSP is not registered, try to start it via PersistedWorkspace.
-            #[cfg(feature = "local_fs")]
             {
                 use crate::ai::persisted_workspace::LspTask;
                 PersistedWorkspace::handle(ctx).update(ctx, |workspace, ctx| {
@@ -1458,7 +1455,6 @@ impl LocalCodeEditorView {
             });
 
             // Subscribe to PersistedWorkspace events for LSP installation completion
-            #[cfg(feature = "local_fs")]
             {
                 ctx.subscribe_to_model(
                     &PersistedWorkspace::handle(ctx),
@@ -1474,7 +1470,6 @@ impl LocalCodeEditorView {
 
     /// Handles PersistedWorkspaceEvent for LSP installation completion.
     /// Note: Toast notifications are handled directly by PersistedWorkspace.
-    #[cfg(feature = "local_fs")]
     fn handle_persisted_workspace_event(
         me: &mut Self,
         event: &PersistedWorkspaceEvent,
@@ -1501,7 +1496,6 @@ impl LocalCodeEditorView {
     /// 3. Getting the repository root from DetectedRepositories
     /// 4. Enabling the LSP server in PersistedWorkspace
     /// 5. Starting the LSP server via PersistedWorkspace
-    #[cfg(feature = "local_fs")]
     fn enable_lsp_for_path(path: &Path, ctx: &mut ViewContext<Self>) {
         use crate::ai::persisted_workspace::LspTask;
 
@@ -1546,7 +1540,6 @@ impl LocalCodeEditorView {
     /// Installs the LSP server and then enables it for the given file path.
     /// This delegates to PersistedWorkspace which handles the async installation
     /// and emits events that are handled by handle_persisted_workspace_event.
-    #[cfg(feature = "local_fs")]
     fn install_and_enable_lsp_for_path(path: &Path, ctx: &mut ViewContext<Self>) {
         use crate::ai::persisted_workspace::LspTask;
 
@@ -1591,7 +1584,6 @@ impl LocalCodeEditorView {
 
     /// Opens the LSP log file in a terminal pane using `tail -f`.
     /// Emits an event that bubbles up to Workspace which handles opening the terminal.
-    #[cfg(feature = "local_fs")]
     fn open_lsp_logs_for_path(path: &Path, ctx: &mut ViewContext<Self>) {
         // Get the language ID from the file path
         let Some(language_id) = LanguageId::from_path(path) else {
@@ -1856,7 +1848,6 @@ impl LocalCodeEditorView {
     /// Update this editor's file identity after a `GlobalBufferModel::rename`.
     /// Sets the new file_id and path, re-subscribes to `GlobalBufferModelEvent`,
     /// and updates the language from the new path.
-    #[cfg(feature = "local_fs")]
     pub fn apply_rename(
         &mut self,
         buffer_state: BufferState,

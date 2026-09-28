@@ -10,7 +10,6 @@ use crate::terminal::view::TerminalAction;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NewSessionOptionId(pub(crate) String);
 impl NewSessionOptionId {
-    #[cfg_attr(not(feature = "local_tty"), allow(dead_code))]
     pub(super) fn new(s: String) -> Self {
         Self(s)
     }

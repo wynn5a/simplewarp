@@ -7,41 +7,35 @@ use crate::launch_configs::launch_config::PaneTemplateType;
 use crate::tab_configs::render_tab_config;
 use crate::tab_configs::tab_config::{TabConfigPaneType, generated_worktree_repo_dir};
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_default_tab_configs_dir_uses_underscores() {
     assert!(default_tab_configs_dir().ends_with("default_tab_configs"));
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_is_tab_config_toml_matches_user_tab_configs() {
     let path = tab_configs_dir().join("my_tab_config.toml");
     assert!(is_tab_config_toml(&path));
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_is_tab_config_toml_matches_default_tab_configs() {
     let path = default_tab_configs_dir().join("worktree.toml");
     assert!(is_tab_config_toml(&path));
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_is_tab_config_toml_rejects_non_toml_paths() {
     let path = tab_configs_dir().join("my_tab_config.yaml");
     assert!(!is_tab_config_toml(&path));
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_is_tab_config_toml_rejects_tomls_outside_tab_config_dirs() {
     let path = launch_configs_dir().join("workspace.toml");
     assert!(!is_tab_config_toml(&path));
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_materialize_default_worktree_config_bakes_repo_and_pane_type_only() {
     let template = include_str!("../../resources/tab_configs/default_worktree.toml");
@@ -77,7 +71,6 @@ fn test_materialize_default_worktree_config_bakes_repo_and_pane_type_only() {
     );
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_materialized_default_worktree_config_renders_full_worktree_path() {
     let template = include_str!("../../resources/tab_configs/default_worktree.toml");
@@ -104,13 +97,11 @@ fn test_materialized_default_worktree_config_renders_full_worktree_path() {
     }
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_sanitize_toml_base_name_replaces_spaces_and_dots() {
     assert_eq!(sanitize_toml_base_name("My Project.v2"), "my_project_v2");
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_sanitize_toml_base_name_falls_back_for_empty_result() {
     assert_eq!(sanitize_toml_base_name("..."), "worktree");
@@ -122,7 +113,6 @@ fn write_tab_config_toml(dir: &Path, file_name: &str, config_name: &str) {
     write!(f, "name = \"{}\"", config_name).unwrap();
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_load_tab_configs_sorts_case_insensitive() {
     let dir = tempfile::tempdir().unwrap();
@@ -137,7 +127,6 @@ fn test_load_tab_configs_sorts_case_insensitive() {
     assert_eq!(names, vec!["alpha", "Beta", "Zebra"]);
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_load_tab_configs_deterministic_tie_breaking() {
     let dir = tempfile::tempdir().unwrap();
@@ -151,7 +140,6 @@ fn test_load_tab_configs_deterministic_tie_breaking() {
     assert_eq!(names, vec!["Alpha", "alpha"]);
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_load_tab_configs_empty_directory() {
     let dir = tempfile::tempdir().unwrap();
@@ -162,7 +150,6 @@ fn test_load_tab_configs_empty_directory() {
     assert!(errors.is_empty());
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_load_tab_configs_skips_non_toml_files() {
     let dir = tempfile::tempdir().unwrap();

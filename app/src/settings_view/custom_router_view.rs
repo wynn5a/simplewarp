@@ -1,4 +1,3 @@
-#[cfg(feature = "local_fs")]
 use std::path::PathBuf;
 
 use warpui::elements::{
@@ -13,13 +12,11 @@ use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::appearance::Appearance;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
-use crate::view_components::action_button::ActionButton;
-#[cfg(feature = "local_fs")]
-use crate::view_components::action_button::{ButtonSize, DangerSecondaryTheme, SecondaryTheme};
-#[cfg(feature = "local_fs")]
+use crate::view_components::action_button::{
+    ActionButton, ButtonSize, DangerSecondaryTheme, SecondaryTheme,
+};
 const HEADER_BUTTON_HEIGHT: f32 = 28.;
 
-#[cfg(feature = "local_fs")]
 #[derive(Debug, Clone)]
 pub enum CustomRouterViewAction {
     OpenFile,
@@ -28,11 +25,8 @@ pub enum CustomRouterViewAction {
 }
 
 pub enum CustomRouterViewEvent {
-    #[cfg(feature = "local_fs")]
     OpenFile(PathBuf),
-    #[cfg(feature = "local_fs")]
     Edit,
-    #[cfg(feature = "local_fs")]
     Delete,
 }
 
@@ -44,7 +38,6 @@ pub struct CustomRouterView {
 }
 
 impl CustomRouterView {
-    #[cfg(feature = "local_fs")]
     pub fn new(router: CustomModelRouter, ctx: &mut ViewContext<Self>) -> Self {
         let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let open_file_button = ctx.add_typed_action_view(|_ctx| {
@@ -218,7 +211,6 @@ impl View for CustomRouterView {
     }
 }
 
-#[cfg(feature = "local_fs")]
 impl warpui::TypedActionView for CustomRouterView {
     type Action = CustomRouterViewAction;
 
@@ -353,7 +345,6 @@ fn render_model_line(
 }
 
 /// A card rendering a file that failed to parse as a custom model router.
-#[cfg(feature = "local_fs")]
 pub fn render_router_error_card(
     file_name: impl Into<String>,
     error_message: impl Into<String>,
@@ -420,6 +411,6 @@ pub fn render_router_error_card(
     .finish()
 }
 
-#[cfg(all(test, feature = "local_fs"))]
+#[cfg(test)]
 #[path = "custom_router_view_tests.rs"]
 mod tests;

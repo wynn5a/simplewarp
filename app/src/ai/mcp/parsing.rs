@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
 use handlebars::{get_arguments, render_template};
-#[cfg(feature = "local_fs")]
 use serde::Deserialize;
 
 use crate::ai::mcp::templatable::{JsonTemplate, TemplatableMCPServer, TemplateVariable};
 use crate::ai::mcp::templatable_installation::{
     TemplatableMCPServerInstallation, VariableType, VariableValue,
 };
-#[cfg(feature = "local_fs")]
 use crate::ai::mcp::{JSONMCPServer, JSONTransportType};
 
 /// Normalize MCP JSON input to ensure it has a server name wrapper.
@@ -46,7 +44,6 @@ pub(crate) fn normalize_mcp_json(json_str: &str) -> serde_json::Result<String> {
 /// Codex servers are either STDIO (discriminated by a required `command` field)
 /// or streamable HTTP (discriminated by a required `url` field).
 /// See https://developers.openai.com/codex/mcp/ for more details on Codex's MCP configuration spec.
-#[cfg(feature = "local_fs")]
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum CodexServerEntry {
@@ -87,7 +84,6 @@ enum CodexServerEntry {
     },
 }
 
-#[cfg(feature = "local_fs")]
 impl From<CodexServerEntry> for JSONTransportType {
     fn from(entry: CodexServerEntry) -> Self {
         match entry {
@@ -149,7 +145,6 @@ impl From<CodexServerEntry> for JSONTransportType {
 
 /// Normalizes the contents of a Codex `config.toml` into a JSON string
 /// compatible with `ParsedTemplatableMCPServerResult::from_user_json`.
-#[cfg(feature = "local_fs")]
 pub(crate) fn normalize_codex_toml_to_json(file_contents: &str) -> Result<String, anyhow::Error> {
     // Parse into a raw Value first so we can handle per-entry deserialization failures
     // gracefully. Using HashMap<String, CodexServerEntry> directly would cause the entire

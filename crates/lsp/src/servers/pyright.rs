@@ -1,29 +1,23 @@
 use std::path::Path;
 use std::sync::Arc;
 
-#[cfg(feature = "local_fs")]
 use anyhow::Context;
 use async_trait::async_trait;
-#[cfg(feature = "local_fs")]
 use command::r#async::Command;
 
 use crate::CommandBuilder;
 use crate::language_server_candidate::{LanguageServerCandidate, LanguageServerMetadata};
-#[cfg(feature = "local_fs")]
 use crate::supported_servers::CustomBinaryConfig;
 
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub struct PyrightCandidate {
     client: Arc<http_client::Client>,
 }
 
 impl PyrightCandidate {
     /// Path to the langserver JS file relative to the pyright install directory.
-    #[cfg(feature = "local_fs")]
     const LANGSERVER_JS_PATH: &str = "node_modules/pyright/langserver.index.js";
 
     /// Path to the pyright CLI JS file (used for version checks).
-    #[cfg(feature = "local_fs")]
     const PYRIGHT_CLI_PATH: &str = "node_modules/pyright/dist/pyright.js";
 
     pub fn new(client: Arc<http_client::Client>) -> Self {
@@ -43,7 +37,6 @@ impl PyrightCandidate {
     ///
     /// # Arguments
     /// * `path_env_var` - The PATH environment variable to use when checking for system node.
-    #[cfg(feature = "local_fs")]
     pub async fn find_installed_binary_config(
         path_env_var: Option<&str>,
     ) -> Option<CustomBinaryConfig> {
@@ -104,7 +97,6 @@ impl PyrightCandidate {
 }
 
 #[async_trait]
-#[cfg(feature = "local_fs")]
 impl LanguageServerCandidate for PyrightCandidate {
     async fn should_suggest_for_repo(&self, path: &Path, _executor: &CommandBuilder) -> bool {
         // Check for common Python project indicators
@@ -202,33 +194,5 @@ impl LanguageServerCandidate for PyrightCandidate {
             url: None, // npm packages don't have direct download URLs
             digest: None,
         })
-    }
-}
-
-#[async_trait]
-#[cfg(not(feature = "local_fs"))]
-impl LanguageServerCandidate for PyrightCandidate {
-    async fn should_suggest_for_repo(&self, _path: &Path, _executor: &CommandBuilder) -> bool {
-        false
-    }
-
-    async fn is_installed_in_data_dir(&self, _executor: &CommandBuilder) -> bool {
-        false
-    }
-
-    async fn is_installed_on_path(&self, _executor: &CommandBuilder) -> bool {
-        false
-    }
-
-    async fn install(
-        &self,
-        _metadata: LanguageServerMetadata,
-        _executor: &CommandBuilder,
-    ) -> anyhow::Result<()> {
-        todo!()
-    }
-
-    async fn fetch_latest_server_metadata(&self) -> anyhow::Result<LanguageServerMetadata> {
-        todo!()
     }
 }

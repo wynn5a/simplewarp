@@ -1401,13 +1401,11 @@ impl AppearanceSettingsPageView {
         // of the corresponding tab (not on transient login/AI state), so the
         // section stays stable regardless of when the page is built.
         let mut tools_panel_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![];
-        if cfg!(feature = "local_fs") {
-            tools_panel_widgets.push(Box::new(ToolsPanelProjectExplorerWidget::default()));
-        }
+        tools_panel_widgets.push(Box::new(ToolsPanelProjectExplorerWidget::default()));
         if FeatureFlag::AgentViewConversationListView.is_enabled() {
             tools_panel_widgets.push(Box::new(ToolsPanelConversationHistoryWidget::default()));
         }
-        if cfg!(feature = "local_fs") && FeatureFlag::GlobalSearch.is_enabled() {
+        if FeatureFlag::GlobalSearch.is_enabled() {
             tools_panel_widgets.push(Box::new(ToolsPanelGlobalSearchWidget::default()));
         }
         if !tools_panel_widgets.is_empty() {

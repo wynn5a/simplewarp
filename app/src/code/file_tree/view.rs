@@ -48,13 +48,9 @@ use crate::terminal::input::InputDropTargetData;
 use crate::terminal::view::{TerminalDropTargetData, TerminalView};
 use crate::ui_components::icons::Icon;
 use crate::ui_components::item_highlight::{ImageOrIcon, ItemHighlightState};
-#[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::EditorSettings;
 use crate::util::openable_file_type::{
     EditorLayout, FileTarget, is_file_content_binary, is_jupyter_notebook_file, is_markdown_file,
-};
-#[cfg(feature = "local_fs")]
-use crate::util::openable_file_type::{
     resolve_file_target_to_open_in_warp, resolve_file_target_with_editor_choice,
 };
 
@@ -240,11 +236,8 @@ pub struct FileTreeView {
     root_directories: HashMap<StandardizedPath, RootDirectory>,
     /// The displayed directories
     displayed_directories: Vec<StandardizedPath>,
-    #[cfg(feature = "local_fs")]
     enablement: CodingPanelEnablementState,
-    #[cfg(feature = "local_fs")]
     repository_metadata_model: ModelHandle<RepoMetadataModel>,
-    #[cfg(feature = "local_fs")]
     is_active: bool,
     /// Identifier of the currently selected item
     selected_item: Option<FileTreeIdentifier>,
@@ -275,7 +268,6 @@ pub struct FileTreeView {
     explicitly_collapsed: HashMap<StandardizedPath, HashSet<StandardizedPath>>,
     /// Lazy-loaded paths that this view has registered with the
     /// [`LocalRepoMetadataModel`] for file watching.
-    #[cfg(feature = "local_fs")]
     registered_lazy_loaded_paths: HashSet<StandardizedPath>,
     /// Directory the view wants to focus once its entry becomes available.
     ///
@@ -319,25 +311,14 @@ impl FileTreeView {
             .is_some_and(|r| r.is_remote())
     }
 
-    #[cfg(feature = "local_fs")]
     fn is_active(&self) -> bool {
         self.is_active
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    fn is_active(&self) -> bool {
-        true
-    }
-
-    #[cfg(feature = "local_fs")]
     pub fn set_is_active(&mut self, is_active: bool, ctx: &mut ViewContext<Self>) {
         self.set_is_active_local_fs(is_active, ctx);
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    pub fn set_is_active(&mut self, _is_active: bool, _ctx: &mut ViewContext<Self>) {}
-
-    #[cfg(feature = "local_fs")]
     fn set_is_active_local_fs(&mut self, is_active: bool, ctx: &mut ViewContext<Self>) {
         if self.is_active == is_active {
             return;
@@ -394,7 +375,6 @@ impl FileTreeView {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     fn subscribe_to_repository_metadata(&self, ctx: &mut ViewContext<Self>) {
         let model = self.repository_metadata_model.clone();
         ctx.subscribe_to_model(&model, |me, _, event, ctx| {
@@ -402,7 +382,6 @@ impl FileTreeView {
         });
     }
 
-    #[cfg(feature = "local_fs")]
     fn remove_lazy_loaded_entry(&mut self, path: &StandardizedPath, ctx: &mut ViewContext<Self>) {
         let Some(std_path) = self.registered_lazy_loaded_paths.take(path) else {
             return;
@@ -420,7 +399,6 @@ impl FileTreeView {
     ///
     /// Performs a single `rebuild_flattened_items` / `ctx.notify` at the end
     /// regardless of how many roots were processed.
-    #[cfg(feature = "local_fs")]
     fn insert_or_update_remote_roots(
         &mut self,
         remote_ids: &[repo_metadata::RemoteRepositoryIdentifier],
@@ -492,7 +470,6 @@ impl FileTreeView {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     fn handle_repository_metadata_event(
         &mut self,
         event: &repo_metadata::RepoMetadataEvent,
@@ -627,7 +604,6 @@ impl FileTreeView {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     fn subscribe_to_active_file_model(&self, ctx: &mut ViewContext<Self>) {
         let Some(active_file_model) = self.active_file_model.clone() else {
             return;
@@ -638,7 +614,6 @@ impl FileTreeView {
         });
     }
 
-    #[cfg(feature = "local_fs")]
     fn unsubscribe_from_active_file_model(&self, ctx: &mut ViewContext<Self>) {
         let Some(active_file_model) = self.active_file_model.as_ref() else {
             return;
@@ -695,17 +670,13 @@ impl FileTreeView {
             _ => {}
         });
 
-        #[cfg(feature = "local_fs")]
         let repository_metadata_model = RepoMetadataModel::handle(ctx);
 
         Self {
             root_directories: HashMap::new(),
             displayed_directories: Vec::new(),
-            #[cfg(feature = "local_fs")]
             enablement: CodingPanelEnablementState::Enabled,
-            #[cfg(feature = "local_fs")]
             repository_metadata_model,
-            #[cfg(feature = "local_fs")]
             is_active: false,
             selected_item: None,
             list_state: UniformListState::new(),
@@ -719,7 +690,6 @@ impl FileTreeView {
             active_file_model: None,
             has_terminal_session: false,
             explicitly_collapsed: HashMap::new(),
-            #[cfg(feature = "local_fs")]
             registered_lazy_loaded_paths: HashSet::new(),
             pending_focus_target: None,
             show_hidden_files: *CodeSettings::as_ref(ctx).show_hidden_files,
@@ -890,7 +860,6 @@ impl FileTreeView {
         self.list_state.add_scroll_top(delta_lines as f32);
     }
 
-    #[cfg(feature = "local_fs")]
     pub(crate) fn set_enablement_state(
         &mut self,
         enablement: CodingPanelEnablementState,
@@ -908,7 +877,6 @@ impl FileTreeView {
     /// This is the remote equivalent of [`set_root_directories`]. It
     /// inserts or updates the given remote repos and removes any existing
     /// remote roots that are NOT in `repos`. Local roots are unaffected.
-    #[cfg(feature = "local_fs")]
     pub fn set_remote_root_directories(
         &mut self,
         repos: &[repo_metadata::RemoteRepositoryIdentifier],
@@ -985,7 +953,6 @@ impl FileTreeView {
     /// absorbed descendants' ancestor chains are auto-expanded so the user
     /// can still see their focus. Explicitly-collapsed folders are not
     /// re-expanded.
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     pub fn set_root_directories(&mut self, paths: Vec<PathBuf>, ctx: &mut ViewContext<Self>) {
         // Convert PathBuf inputs to StandardizedPath at this entry point.
         let std_paths: Vec<StandardizedPath> = paths
@@ -1037,12 +1004,10 @@ impl FileTreeView {
             self.migrate_absorbed_root_state(ancestor, absorbed);
         }
 
-        #[cfg(feature = "local_fs")]
         let new_last_directory = new_displayed.last() != self.displayed_directories.last();
 
         // Unregister any lazy-loaded paths that are no longer displayed
         // (includes absorbed descendants that were standalone-registered).
-        #[cfg(feature = "local_fs")]
         {
             let removed_lazy_loaded_paths: Vec<StandardizedPath> = self
                 .registered_lazy_loaded_paths
@@ -1065,7 +1030,6 @@ impl FileTreeView {
         // `set_remote_root_directories` and must not be passed to
         // `update_directory_contents` which would overwrite their
         // remote-backed entry with an empty local lazy-loaded one.
-        #[cfg(feature = "local_fs")]
         {
             let local_displayed: Vec<_> = new_displayed
                 .iter()
@@ -1280,7 +1244,6 @@ impl FileTreeView {
 
     /// Updates the contents of the directories in the file tree.
     /// Will not add new root directories to the file tree.
-    #[cfg(feature = "local_fs")]
     fn update_directory_contents(
         &mut self,
         paths: &[StandardizedPath],
@@ -1391,7 +1354,6 @@ impl FileTreeView {
         self.load_directory_from_model(root_path, &target_item, ctx);
     }
 
-    #[cfg(feature = "local_fs")]
     fn load_directory_from_model(
         &mut self,
         root_path: &StandardizedPath,
@@ -1436,15 +1398,6 @@ impl FileTreeView {
         {
             root_dir.entry = state.entry.clone();
         }
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    fn load_directory_from_model(
-        &mut self,
-        _root_path: &StandardizedPath,
-        _target_item: &FileTreeEntryState,
-        _ctx: &mut ViewContext<Self>,
-    ) {
     }
 
     /// Toggles the expansion state of a folder
@@ -1492,7 +1445,6 @@ impl FileTreeView {
     /// Ensures a displayed standalone directory is registered with
     /// [`LocalRepoMetadataModel`] as a lazily-loaded path while the file tree is active, then
     /// refreshes this view's directory entry from the model.
-    #[cfg(feature = "local_fs")]
     fn register_and_refresh_lazy_loaded_directory(
         &mut self,
         path: &StandardizedPath,
@@ -2148,16 +2100,6 @@ impl FileTreeView {
         }
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    fn open_file(
-        &self,
-        _path: &Path,
-        _editor_layout: Option<EditorLayout>,
-        _ctx: &mut ViewContext<Self>,
-    ) {
-    }
-
-    #[cfg(feature = "local_fs")]
     fn open_file(
         &self,
         path: &Path,
@@ -2214,7 +2156,6 @@ impl FileTreeView {
                         {
                             FileTarget::MarkdownViewer(EditorLayout::SplitPane)
                         } else if is_markdown_file(remote_file_path) {
-                            #[cfg(feature = "local_fs")]
                             {
                                 let prefer_md = *EditorSettings::as_ref(ctx).prefer_markdown_viewer;
                                 if prefer_md {
@@ -2222,10 +2163,6 @@ impl FileTreeView {
                                 } else {
                                     FileTarget::CodeEditor(EditorLayout::SplitPane)
                                 }
-                            }
-                            #[cfg(not(feature = "local_fs"))]
-                            {
-                                FileTarget::CodeEditor(EditorLayout::SplitPane)
                             }
                         } else {
                             FileTarget::CodeEditor(EditorLayout::SplitPane)
@@ -2852,25 +2789,27 @@ impl FileTreeView {
 }
 
 pub enum FileTreeEvent {
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-    AttachAsContext { path: PathBuf },
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
+    AttachAsContext {
+        path: PathBuf,
+    },
     OpenFile {
         path: LocalOrRemotePath,
         target: FileTarget,
         line_col: Option<LineAndColumnArg>,
     },
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     FileRenamed {
         old_path: PathBuf,
         new_path: PathBuf,
     },
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-    FileDeleted { path: PathBuf },
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-    CDToDirectory { path: PathBuf },
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-    OpenDirectoryInNewTab { path: PathBuf },
+    FileDeleted {
+        path: PathBuf,
+    },
+    CDToDirectory {
+        path: PathBuf,
+    },
+    OpenDirectoryInNewTab {
+        path: PathBuf,
+    },
 }
 
 impl Entity for FileTreeView {
@@ -2882,12 +2821,6 @@ impl View for FileTreeView {
         "FilePicker"
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    fn render(&self, app: &AppContext) -> Box<dyn Element> {
-        self.render_error_state(REMOTE_TEXT.to_string(), app)
-    }
-
-    #[cfg(feature = "local_fs")]
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         if matches!(self.enablement, CodingPanelEnablementState::Disabled) {
             return self.render_error_state(DISABLED_TEXT.to_string(), app);

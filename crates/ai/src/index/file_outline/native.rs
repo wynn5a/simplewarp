@@ -17,13 +17,7 @@ use warp_errors::report_error;
 use warp_util::standardized_path::StandardizedPath;
 
 use crate::index::file_outline::{FileOutline, Outline, Symbol};
-use crate::index::{Entry, FileId, FileMetadata, THREADPOOL};
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        use crate::index::matches_gitignores;
-    }
-}
+use crate::index::{Entry, FileId, FileMetadata, THREADPOOL, matches_gitignores};
 
 /// Given a repo path, try to build its outline. An outline is a list of all its files and the symbols
 /// of interest from each file.

@@ -16,7 +16,6 @@ use warpui::accessibility::{AccessibilityContent, ActionAccessibilityContent, Wa
 use warpui::{SingletonEntity, ViewContext};
 
 use super::{Event, InlineBannerItem, InlineBannerType, TerminalView};
-#[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::terminal::event::UserBlockCompleted;
 use crate::terminal::general_settings::GeneralSettings;
@@ -161,7 +160,6 @@ impl TerminalView {
                         });
                     } else {
                         // Code and other text files open in the code editor.
-                        #[cfg(feature = "local_fs")]
                         ctx.emit(Event::OpenCodeInWarp {
                             source: CodeSource::Link {
                                 path: banner_state.target.path,

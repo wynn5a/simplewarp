@@ -31,7 +31,6 @@ fn should_refresh_metadata_ignores_ignored_file_updates() {
     ));
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn parse_branch_tracking_counts_accepts_git_rev_list_output() {
     assert_eq!(

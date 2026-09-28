@@ -178,10 +178,8 @@ pub(crate) struct Props<'a> {
     /// `AIAgentActionId` and embeds it via `ChildView` when the action
     /// is rendered. Multi-card lifecycle = AIBlock lifecycle.
     pub(crate) run_agents_card_views: &'a HashMap<AIAgentActionId, ViewHandle<RunAgentsCardView>>,
-    #[cfg(feature = "local_fs")]
     pub(crate) resolved_code_block_paths:
         &'a HashMap<std::path::PathBuf, Option<std::path::PathBuf>>,
-    #[cfg(feature = "local_fs")]
     pub(crate) resolved_blocklist_image_sources: &'a super::common::ResolvedBlocklistImageSources,
     /// Controls how agent thinking/reasoning traces are displayed.
     pub(super) thinking_display_mode: crate::settings::ThinkingDisplayMode,
@@ -320,11 +318,9 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                         .selection_handle
                                         .is_selecting(),
                                     item_spacing: CONTENT_ITEM_VERTICAL_MARGIN,
-                                    #[cfg(feature = "local_fs")]
                                     resolved_code_block_paths: Some(
                                         props.resolved_code_block_paths,
                                     ),
-                                    #[cfg(feature = "local_fs")]
                                     resolved_blocklist_image_sources: Some(
                                         props.resolved_blocklist_image_sources,
                                     ),
@@ -3874,9 +3870,7 @@ fn render_collapsible_text_block_section(
             secret_redaction_state: props.secret_redaction_state,
             is_selecting_text: props.state_handles.selection_handle.is_selecting(),
             item_spacing: CONTENT_ITEM_VERTICAL_MARGIN,
-            #[cfg(feature = "local_fs")]
             resolved_code_block_paths: Some(props.resolved_code_block_paths),
-            #[cfg(feature = "local_fs")]
             resolved_blocklist_image_sources: Some(props.resolved_blocklist_image_sources),
         },
         app,

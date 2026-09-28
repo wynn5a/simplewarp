@@ -8,7 +8,6 @@ use lsp_server_selector::{LSPServerInfo, create_lsp_server_selector};
 pub use model::{InitProjectModel, InitProjectModelEvent, InitStepKind};
 use model::{InitStepData, InitStepStatus};
 use warp_core::ui::theme::Fill;
-#[cfg(feature = "local_fs")]
 use warp_errors::report_error;
 use warpui::elements::{
     Border, ChildView, Container, CrossAxisAlignment, Empty, Flex, MouseStateHandle, ParentElement,
@@ -465,7 +464,6 @@ impl InitStepBlock {
             .finish()
     }
 
-    #[cfg(feature = "local_fs")]
     async fn create_symlink_to_agents_md(
         source_path: &Path,
         project_root: &Path,
@@ -960,7 +958,6 @@ impl TypedActionView for InitStepBlock {
                     .to_string();
 
                 // Create symlink in background
-                #[cfg(feature = "local_fs")]
                 {
                     let path_clone = path.clone();
                     let root_path = self.model.as_ref(ctx).root_path().to_path_buf();

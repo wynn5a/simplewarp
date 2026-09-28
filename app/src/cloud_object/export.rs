@@ -1,14 +1,10 @@
 use std::collections::HashMap;
 use std::collections::hash_map::{Entry, OccupiedEntry};
-#[cfg(feature = "local_fs")]
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "local_fs")]
 use aho_corasick::{AhoCorasick, MatchKind};
-#[cfg(feature = "local_fs")]
 use anyhow::{Context, anyhow};
-#[cfg(feature = "local_fs")]
 use futures::AsyncWriteExt;
 use warp_util::path::ShellFamily;
 use warpui::r#async::SpawnedFutureHandle;
@@ -19,15 +15,12 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity, WindowId};
 use super::CloudObjectTypeAndId;
 use crate::cloud_object::PERSONAL_SPACE_NAME;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::notebooks::export_notebook;
 use crate::safe_warn;
-use crate::view_components::DismissibleToast;
-use crate::workspace::{ToastStack, active_terminal_in_window};
-#[cfg(feature = "local_fs")]
-use crate::{
-    notebooks::export_notebook, server::cloud_objects::update_manager::get_duplicate_object_name,
-    view_components::ToastLink, workflows::export_workflow::export_serialize,
-    workspace::WorkspaceAction,
-};
+use crate::server::cloud_objects::update_manager::get_duplicate_object_name;
+use crate::view_components::{DismissibleToast, ToastLink};
+use crate::workflows::export_workflow::export_serialize;
+use crate::workspace::{ToastStack, WorkspaceAction, active_terminal_in_window};
 
 /// Singleton model for exporting cloud objects to local files.
 pub struct ExportManager {
@@ -48,7 +41,6 @@ pub enum ExportEvent {
         id: ExportId,
     },
     /// Export completed.
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     Completed { id: ExportId, path: PathBuf },
 }
 
@@ -199,7 +191,6 @@ impl ExportManager {
     }
 
     /// Handle an object's export finishing.
-    #[cfg(feature = "local_fs")]
     fn handle_object_export(
         &mut self,
         id: ExportId,
@@ -253,7 +244,6 @@ impl ExportManager {
     }
 
     /// Export a single object.
-    #[cfg(feature = "local_fs")]
     fn export_one(
         id: ExportId,
         is_bulk: bool,
@@ -334,18 +324,6 @@ impl ExportManager {
         ))
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    fn export_one(
-        _id: ExportId,
-        _is_bulk: bool,
-        _parent_path: &Path,
-        _object: CloudObjectTypeAndId,
-        _shell_family: ShellFamily,
-        _ctx: &mut ModelContext<Self>,
-    ) -> anyhow::Result<SpawnedFutureHandle> {
-        anyhow::bail!("export not supported without a local filesystem")
-    }
-
     /// Cancel an export.
     fn cancel(&mut self, id: ExportId, ctx: &mut ModelContext<Self>) {
         if self.exports.remove(&id).is_some() {
@@ -380,7 +358,6 @@ impl ExportManager {
     }
 
     /// Handle the last object in an export completing successfully.
-    #[cfg(feature = "local_fs")]
     fn handle_completion(
         export: OccupiedEntry<ExportId, Export>,
         root_path: PathBuf,
@@ -458,7 +435,6 @@ impl ExportId {
 }
 
 /// Write an object's exported representation to disk.
-#[cfg(feature = "local_fs")]
 async fn write_object(
     parent_path: PathBuf,
     is_bulk: bool,
@@ -507,7 +483,6 @@ async fn write_object(
     }
 }
 
-#[cfg(feature = "local_fs")]
 lazy_static::lazy_static! {
     /// Matcher for characters which are forbidden in filenames.
     static ref FORBIDDEN_FILENAME_PATTERNS: AhoCorasick = make_forbidden_filenames_matcher();
@@ -515,7 +490,6 @@ lazy_static::lazy_static! {
 
 /// This is a helper for [`safe_filename`], which constructs a cached [`AhoCorasick`] matcher to
 /// replace forbidden filename characters.
-#[cfg(feature = "local_fs")]
 fn make_forbidden_filenames_matcher() -> AhoCorasick {
     // NTFS (Windows) disallows ASCII control characters in path names.
     let ascii_control = 0x00..0x1f;
@@ -533,7 +507,6 @@ fn make_forbidden_filenames_matcher() -> AhoCorasick {
 /// characters cannot be escaped in a path.
 ///
 /// See [Comparison of filename limitations](https://en.wikipedia.org/wiki/Filename#Comparison_of_filename_limitations).
-#[cfg(feature = "local_fs")]
 pub fn safe_filename(filename: &str) -> String {
     let mut result = String::new();
     FORBIDDEN_FILENAME_PATTERNS.replace_all_with(filename, &mut result, |_, _, dst| {

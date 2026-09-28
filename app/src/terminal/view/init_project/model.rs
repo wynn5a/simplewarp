@@ -104,7 +104,6 @@ pub struct InitProjectModel {
     /// If project already has all setup done before /init started
     is_already_setup: bool,
     /// Root path for this /init session
-    #[cfg(feature = "local_fs")]
     root_path: PathBuf,
     path_env_var: Option<String>,
 }
@@ -123,7 +122,6 @@ impl InitProjectModel {
             current_step_index: 0,
             is_cancelled: false,
             is_already_setup,
-            #[cfg(feature = "local_fs")]
             root_path: pwd_path,
             path_env_var,
         }
@@ -131,10 +129,7 @@ impl InitProjectModel {
 
     /// Start the /init flow: compute steps, emit welcome step, progress to next
     pub fn start(&mut self, ctx: &mut ModelContext<Self>) {
-        #[cfg(feature = "local_fs")]
         let pwd_path = self.root_path.clone();
-        #[cfg(not(feature = "local_fs"))]
-        let pwd_path = PathBuf::new();
 
         // Welcome step is always Completed immediately (no async needed)
         self.set_step(
@@ -215,7 +210,6 @@ impl InitProjectModel {
         !self.is_completed() && !self.is_cancelled
     }
 
-    #[cfg(feature = "local_fs")]
     pub fn root_path(&self) -> &Path {
         &self.root_path
     }

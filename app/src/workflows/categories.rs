@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::ops::Deref;
-#[cfg(feature = "local_fs")]
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -431,7 +430,6 @@ impl CategoriesView {
             .flatten()
     }
 
-    #[cfg(feature = "local_fs")]
     fn on_project_workflows_loaded(
         &mut self,
         workflows: Vec<Workflow>,
@@ -466,7 +464,6 @@ impl CategoriesView {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     fn load_project_workflows(&mut self, path: PathBuf, ctx: &mut ViewContext<Self>) {
         let _ = ctx.spawn(
             async move {
@@ -1215,9 +1212,7 @@ impl VoltronFeatureViewMeta for CategoriesView {
 
     // Unused variables allowed when no local filesystem as `metadata` arg
     // is unused.
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     fn on_load(&mut self, metadata: VoltronMetadata, ctx: &mut ViewContext<Self>) {
-        #[cfg(feature = "local_fs")]
         if let Some(active_path) = metadata.active_session_path_if_local {
             self.load_project_workflows(active_path, ctx);
         }

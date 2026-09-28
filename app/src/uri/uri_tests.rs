@@ -664,7 +664,6 @@ fn test_open_file_ipynb_opens_in_editor_when_disabled() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_open_file_rust_source_still_opens_in_editor() {
     let dir = tempfile::tempdir().unwrap();
     let p = dir.path().join("main.rs");
@@ -684,7 +683,6 @@ fn test_open_file_editor_executable_sh_opens_in_editor() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_open_file_editor_rust_source_opens_in_editor() {
     let dir = tempfile::tempdir().unwrap();
     let p = dir.path().join("main.rs");
@@ -693,7 +691,6 @@ fn test_open_file_editor_rust_source_opens_in_editor() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_open_file_editor_binary_file_is_rejected() {
     let dir = tempfile::tempdir().unwrap();
     let p = dir.path().join("image.png");

@@ -1,23 +1,17 @@
-use std::path::Path;
-#[cfg(feature = "local_fs")]
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-#[cfg(feature = "local_fs")]
 use command::r#async::Command;
 
 use crate::CommandBuilder;
-#[cfg(feature = "local_fs")]
 use crate::install::{
     AssetKind, fetch_latest_metadata_from_github_dynamic_asset, install_from_github,
 };
 use crate::language_server_candidate::{LanguageServerCandidate, LanguageServerMetadata};
 
-#[cfg(feature = "local_fs")]
 const SERVER_NAME: &str = "clangd";
 
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub struct ClangdCandidate {
     client: Arc<http_client::Client>,
 }
@@ -27,7 +21,6 @@ impl ClangdCandidate {
         Self { client }
     }
 
-    #[cfg(feature = "local_fs")]
     pub async fn find_installed_binary_in_data_dir() -> Option<PathBuf> {
         let install_root = warp_core::paths::data_dir().join(SERVER_NAME);
         if !install_root.is_dir() {
@@ -57,7 +50,6 @@ impl ClangdCandidate {
     }
 }
 
-#[cfg(feature = "local_fs")]
 fn asset_os_suffix() -> anyhow::Result<&'static str> {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("macos", _) => Ok("mac"),
@@ -67,7 +59,6 @@ fn asset_os_suffix() -> anyhow::Result<&'static str> {
     }
 }
 
-#[cfg(feature = "local_fs")]
 fn is_c_or_cpp_extension(extension: &str) -> bool {
     matches!(
         extension,
@@ -75,7 +66,6 @@ fn is_c_or_cpp_extension(extension: &str) -> bool {
     )
 }
 
-#[cfg(feature = "local_fs")]
 async fn binary_is_working(binary_path: &Path) -> bool {
     let mut command = Command::new(binary_path);
     command.arg("--version");
@@ -86,7 +76,6 @@ async fn binary_is_working(binary_path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-#[cfg(feature = "local_fs")]
 fn is_bin_clangd_path(path: &Path) -> bool {
     let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
         return false;
@@ -108,7 +97,6 @@ fn is_bin_clangd_path(path: &Path) -> bool {
         == Some("bin")
 }
 
-#[cfg(feature = "local_fs")]
 fn find_binary_in_dir(root: &Path) -> Option<PathBuf> {
     let mut directories = vec![root.to_path_buf()];
 
@@ -134,7 +122,6 @@ fn find_binary_in_dir(root: &Path) -> Option<PathBuf> {
 }
 
 #[async_trait]
-#[cfg(feature = "local_fs")]
 impl LanguageServerCandidate for ClangdCandidate {
     async fn should_suggest_for_repo(&self, path: &Path, _executor: &CommandBuilder) -> bool {
         let repo_markers = [
@@ -211,33 +198,5 @@ impl LanguageServerCandidate for ClangdCandidate {
             move |tag| format!("clangd-{os_suffix}-{tag}.zip"),
         )
         .await
-    }
-}
-
-#[async_trait]
-#[cfg(not(feature = "local_fs"))]
-impl LanguageServerCandidate for ClangdCandidate {
-    async fn should_suggest_for_repo(&self, _path: &Path, _executor: &CommandBuilder) -> bool {
-        false
-    }
-
-    async fn is_installed_in_data_dir(&self, _executor: &CommandBuilder) -> bool {
-        false
-    }
-
-    async fn is_installed_on_path(&self, _executor: &CommandBuilder) -> bool {
-        false
-    }
-
-    async fn install(
-        &self,
-        _metadata: LanguageServerMetadata,
-        _executor: &CommandBuilder,
-    ) -> anyhow::Result<()> {
-        todo!()
-    }
-
-    async fn fetch_latest_server_metadata(&self) -> anyhow::Result<LanguageServerMetadata> {
-        todo!()
     }
 }

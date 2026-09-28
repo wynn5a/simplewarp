@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_broadcast::InactiveReceiver;
-#[cfg(feature = "local_fs")]
 use warp_errors::report_error;
 use warpui::r#async::SpawnedFutureHandle;
 use warpui::{Entity, ModelContext, SingletonEntity, WindowId};
@@ -12,7 +11,6 @@ use crate::view_components::{DismissibleToast, ToastLink};
 use crate::workspace::{ToastStack, WorkspaceAction};
 
 /// Subdirectory under the application state directory for PTY recordings.
-#[cfg(feature = "local_fs")]
 const PTY_RECORDINGS_DIR: &str = "pty_recordings";
 
 /// Per-session PTY recorder. Manages starting and stopping an async
@@ -27,7 +25,6 @@ pub struct PtyRecorder {
     /// Whether the per-session recording toggle is enabled.
     is_per_session_recording_enabled: bool,
     /// Inactive receiver for PTY reads. Only `Some` for local TTY sessions.
-    #[cfg_attr(not(feature = "local_fs"), expect(dead_code))]
     pty_reads_rx: Option<InactiveReceiver<Arc<Vec<u8>>>>,
     /// Window ID used for showing toasts.
     window_id: WindowId,
@@ -69,18 +66,12 @@ impl PtyRecorder {
         recorder
     }
 
-    #[cfg(feature = "local_fs")]
     fn recording_path(ctx: &ModelContext<Self>) -> PathBuf {
         use chrono::Local;
 
         let recordings_dir = warp_core::paths::state_dir().join(PTY_RECORDINGS_DIR);
         let timestamp = Local::now().format("%Y-%m-%d_%H-%M-%S");
         recordings_dir.join(format!("{timestamp}-{}.pty.recording", ctx.model_id()))
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    fn recording_path(_ctx: &ModelContext<Self>) -> PathBuf {
-        PathBuf::new()
     }
 
     /// Whether recording is currently active.
@@ -123,7 +114,6 @@ impl PtyRecorder {
 
     /// Start recording PTY bytes. Returns the path of the recording file
     /// on success, or `None` if recording could not be started.
-    #[cfg(feature = "local_fs")]
     fn start_recording(&mut self, ctx: &mut ModelContext<Self>) -> Option<&Path> {
         use std::fs;
 
@@ -144,12 +134,6 @@ impl PtyRecorder {
         self.recording_handle = Some(ctx.spawn(record_future, |_, _, _| {}));
         log::info!("Started PTY recording to {}", self.path.display());
         Some(&self.path)
-    }
-
-    /// No-op on platforms without local filesystem access.
-    #[cfg(not(feature = "local_fs"))]
-    fn start_recording(&mut self, _ctx: &mut ModelContext<Self>) -> Option<&Path> {
-        None
     }
 
     /// Shows a toast with the given message. If `recording_path` is provided,
@@ -198,7 +182,6 @@ impl Drop for PtyRecorder {
 
 /// Records all of the PTY reads that are received over the channel
 /// to the given file path.
-#[cfg(feature = "local_fs")]
 async fn record_pty_bytes(
     mut pty_reads_rx: async_broadcast::Receiver<Arc<Vec<u8>>>,
     path: PathBuf,

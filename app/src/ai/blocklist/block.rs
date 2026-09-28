@@ -17,9 +17,7 @@ use std::cell::OnceCell;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
-use std::path::Path;
-#[cfg(feature = "local_fs")]
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -44,7 +42,6 @@ use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
 use warp_editor::content::buffer::InitialBufferState;
-#[cfg(feature = "local_fs")]
 use warp_editor::content::edit::resolve_asset_source_relative_to_directory;
 use warp_editor::render::element::VerticalExpansionBehavior;
 use warp_errors::{report_error, report_if_error};
@@ -132,7 +129,6 @@ use crate::ai::facts::{AIFact, AIMemory, CloudAIFactModel};
 use crate::ai::get_relevant_files::controller::{
     GetRelevantFilesController, GetRelevantFilesControllerEvent,
 };
-#[cfg(feature = "local_fs")]
 use crate::ai::skills::SkillOpenOrigin;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
@@ -169,7 +165,6 @@ use crate::terminal::view::{
 use crate::terminal::{ShellLaunchData, TerminalModel, TerminalView};
 use crate::ui_components::icons::Icon;
 use crate::util::link_detection::*;
-#[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::{FileTarget, is_supported_image_file};
 use crate::view_components::DismissibleToast;
 use crate::view_components::action_button::{
@@ -240,7 +235,6 @@ pub fn init(app: &mut AppContext) {
     cli::init(app);
 }
 
-#[cfg(feature = "local_fs")]
 impl AIBlock {
     fn detected_file_path_target_override(&self, absolute_path: &Path) -> Option<FileTarget> {
         is_supported_image_file(absolute_path).then_some(FileTarget::SystemGeneric)
@@ -979,9 +973,7 @@ pub struct AIBlock {
     /// Cache of resolved code block file paths, keyed by the original path from the AI output.
     /// Populated by the background file path detection task so that `render_code_output_section`
     /// does not need to call `fs::metadata` on every render.
-    #[cfg(feature = "local_fs")]
     resolved_code_block_paths: HashMap<PathBuf, Option<PathBuf>>,
-    #[cfg(feature = "local_fs")]
     resolved_blocklist_image_sources: view_impl::common::ResolvedBlocklistImageSources,
     terminal_view_handle: WeakViewHandle<TerminalView>,
 
@@ -1372,9 +1364,7 @@ impl AIBlock {
             has_imported_comments: false,
             run_agents_card_views: Default::default(),
             link_detection_handle: None,
-            #[cfg(feature = "local_fs")]
             resolved_code_block_paths: Default::default(),
-            #[cfg(feature = "local_fs")]
             resolved_blocklist_image_sources: Default::default(),
             terminal_view_handle,
             ask_user_question_view: None,
@@ -1493,10 +1483,8 @@ impl AIBlock {
     /// Detects all links (URLs + file paths) in both the output and user query inputs.
     /// Reads the current output from the model internally.
     ///
-    /// On `local_fs`, this spawns a background task via `spawn_blocking` to avoid blocking
-    /// the main thread with filesystem I/O (file path detection + code block path resolution).
-    /// Otherwise detection runs synchronously. This is fine because it's only URL detection
-    /// which is cheap.
+    /// Spawns a background task via `spawn_blocking` to avoid blocking the main thread with
+    /// filesystem I/O (file path detection + code block path resolution).
     fn spawn_link_detection(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(handle) = self.link_detection_handle.take() {
             handle.abort();
@@ -1525,7 +1513,6 @@ impl AIBlock {
             }
         }
 
-        #[cfg(feature = "local_fs")]
         {
             // Collect code block paths that need resolution for the render cache.
             let code_block_paths: Vec<PathBuf> = output
@@ -1620,13 +1607,6 @@ impl AIBlock {
                     me.link_detection_handle = None;
                 },
             ));
-        }
-
-        #[cfg(not(feature = "local_fs"))]
-        {
-            // No filesystem I/O, so detection is cheap and runs synchronously.
-            let all_links = detect_all_links(&texts, hyperlinks, None, None);
-            self.detected_links_state.replace_all_links(all_links);
         }
     }
 
@@ -3001,41 +2981,29 @@ impl AIBlock {
                         ctx.emit(AIBlockEvent::PassiveCodeDiffLoaded);
                     }
                 }
-                #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
                 CodeDiffViewEvent::OpenSkill { reference, path } => {
-                    #[cfg(feature = "local_fs")]
-                    {
-                        ctx.emit(AIBlockEvent::OpenCodeInWarp {
-                            source: CodeSource::Skill {
-                                reference: reference.clone(),
-                                location: path.clone(),
-                                origin: SkillOpenOrigin::EditFiles,
-                            },
-                            layout: *crate::util::file::external_editor::EditorSettings::as_ref(
-                                ctx,
-                            )
+                    ctx.emit(AIBlockEvent::OpenCodeInWarp {
+                        source: CodeSource::Skill {
+                            reference: reference.clone(),
+                            location: path.clone(),
+                            origin: SkillOpenOrigin::EditFiles,
+                        },
+                        layout: *crate::util::file::external_editor::EditorSettings::as_ref(ctx)
                             .open_file_layout
                             .value(),
-                        });
-                    }
+                    });
                 }
-                #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
                 CodeDiffViewEvent::OpenMCPConfig { path, .. } => {
-                    #[cfg(feature = "local_fs")]
-                    {
-                        ctx.emit(AIBlockEvent::OpenCodeInWarp {
-                            source: CodeSource::Link {
-                                path: path.clone(),
-                                range_start: None,
-                                range_end: None,
-                            },
-                            layout: *crate::util::file::external_editor::EditorSettings::as_ref(
-                                ctx,
-                            )
+                    ctx.emit(AIBlockEvent::OpenCodeInWarp {
+                        source: CodeSource::Link {
+                            path: path.clone(),
+                            range_start: None,
+                            range_end: None,
+                        },
+                        layout: *crate::util::file::external_editor::EditorSettings::as_ref(ctx)
                             .open_file_layout
                             .value(),
-                        });
-                    }
+                    });
                 }
                 _ => (),
             }
@@ -3658,7 +3626,6 @@ impl AIBlock {
 
         // Subscribe to events from SearchCodebaseView and convert them to AIBlockActions
         ctx.subscribe_to_view(&view, |me, view, event, ctx| match event {
-            #[cfg(feature = "local_fs")]
             SearchCodebaseViewEvent::OpenLinkTooltip { rich_content_link } => {
                 let rich_content_link = match rich_content_link {
                     RichContentLink::FilePath {
@@ -3678,15 +3645,6 @@ impl AIBlock {
                 }));
                 ctx.notify();
             }
-            #[cfg(not(feature = "local_fs"))]
-            SearchCodebaseViewEvent::OpenLinkTooltip { rich_content_link } => {
-                ctx.emit(AIBlockEvent::ShowLinkTooltip(RichContentLinkTooltipInfo {
-                    link: rich_content_link.clone(),
-                    position_id: RICH_CONTENT_LINK_FIRST_CHAR_POSITION_ID.to_owned(),
-                }));
-                ctx.notify();
-            }
-            #[cfg(feature = "local_fs")]
             SearchCodebaseViewEvent::OpenDetectedFilePath {
                 absolute_path,
                 line_and_column_num,
@@ -4049,7 +4007,6 @@ impl AIBlock {
             .link_at(&hovered.location, &hovered.link_range)?;
         let rich_content_link = match link_type {
             DetectedLinkType::Url(link) => RichContentLink::Url(link.clone()),
-            #[cfg(feature = "local_fs")]
             DetectedLinkType::FilePath {
                 absolute_path,
                 line_and_column_num,
@@ -4767,7 +4724,6 @@ impl AIBlock {
             Some(DetectedLinkType::Url(link)) => {
                 ctx.open_url(link);
             }
-            #[cfg(feature = "local_fs")]
             Some(DetectedLinkType::FilePath {
                 absolute_path,
                 line_and_column_num,
@@ -4791,7 +4747,6 @@ impl AIBlock {
         };
         let rich_content_link = match link_type {
             DetectedLinkType::Url(link) => RichContentLink::Url(link.clone()),
-            #[cfg(feature = "local_fs")]
             DetectedLinkType::FilePath {
                 absolute_path,
                 line_and_column_num,
@@ -5553,7 +5508,6 @@ pub enum AIBlockEvent {
         view: ViewHandle<CodeDiffView>,
     },
 
-    #[cfg(feature = "local_fs")]
     OpenDetectedFilePath {
         absolute_path: PathBuf,
         line_and_column_num: Option<warp_util::path::LineAndColumnArg>,
@@ -5609,7 +5563,6 @@ pub enum AIBlockEvent {
     SelectionChanged,
     CopiedEmptyText,
     OpenSettings,
-    #[cfg(feature = "local_fs")]
     OpenCodeInWarp {
         source: CodeSource,
         layout: crate::util::file::external_editor::settings::EditorLayout,
@@ -5788,7 +5741,6 @@ pub enum AIBlockAction {
     },
 }
 
-#[cfg(feature = "local_fs")]
 fn open_code_action_event(
     source: &CodeSource,
     layout: crate::util::file::external_editor::settings::EditorLayout,
@@ -6215,10 +6167,7 @@ impl TypedActionView for AIBlock {
                 // Clear the stored command after copying
                 self.last_right_clicked_command = None;
             }
-            AIBlockAction::OpenCodeInWarp {
-                #[cfg_attr(not(feature = "local_fs"), allow(unused))]
-                source,
-            } => {
+            AIBlockAction::OpenCodeInWarp { source } => {
                 // Resets the interaction states of ReadSkill and ReadFiles tool call banners before opening a new code pane
                 // Avoids an immediate re-hover (and stuck tooltip) while the new code pane is being created
                 for handle in self.state_handles.skill_button_handles.values() {
@@ -6229,7 +6178,6 @@ impl TypedActionView for AIBlock {
 
                 // Sends a telemetry event when a skill is opened from an 'open skill' button
 
-                #[cfg(feature = "local_fs")]
                 {
                     let layout = *crate::util::file::external_editor::EditorSettings::as_ref(ctx)
                         .open_file_layout

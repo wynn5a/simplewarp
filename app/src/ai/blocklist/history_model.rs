@@ -1,13 +1,10 @@
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-#[cfg(feature = "local_fs")]
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use ai::skills::SkillPathOrigin;
 use anyhow::anyhow;
 use chrono::{DateTime, Local, NaiveDateTime};
-#[cfg(feature = "local_fs")]
 use diesel::SqliteConnection;
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
@@ -39,10 +36,8 @@ use crate::ai::agent::{
 use crate::ai::artifacts::Artifact;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::input_suggestions::HistoryOrder;
-use crate::persistence::ModelEvent;
 use crate::persistence::model::{AgentConversation, AgentConversationData};
-#[cfg(feature = "local_fs")]
-use crate::persistence::{database_file_path, establish_ro_connection};
+use crate::persistence::{ModelEvent, database_file_path, establish_ro_connection};
 use crate::terminal::model::block::BlockId;
 use crate::terminal::view::blocklist_filter;
 use crate::ui_components::icons::Icon;
@@ -236,7 +231,6 @@ pub struct BlocklistAIHistoryModel {
     /// Conversations that have had at least one AIBlock receive imported review comments.
     conversations_with_imported_comments: HashSet<AIConversationId>,
 
-    #[cfg(feature = "local_fs")]
     db_connection: Option<Arc<Mutex<SqliteConnection>>>,
 }
 
@@ -246,7 +240,6 @@ impl BlocklistAIHistoryModel {
         prompt_history: Vec<(String, DateTime<Local>)>,
         multi_agent_conversations: &[AgentConversation],
     ) -> Self {
-        #[cfg(feature = "local_fs")]
         let db_connection = database_file_path().to_str().and_then(|db_url| {
             establish_ro_connection(db_url)
                 .ok()
@@ -265,7 +258,6 @@ impl BlocklistAIHistoryModel {
         let mut model = Self {
             persisted_queries,
             prompt_history,
-            #[cfg(feature = "local_fs")]
             db_connection,
             ..Self::default()
         };
@@ -2488,7 +2480,6 @@ pub enum BlocklistAIHistoryEvent {
 
     /// Includes the terminal surface's [`EntityId`] so we can disambiguate the source of the event
     /// because this [`BlocklistAIHistoryModel`] is global.
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     UpdatedStreamingExchange {
         exchange_id: AIAgentExchangeId,
         terminal_surface_id: EntityId,

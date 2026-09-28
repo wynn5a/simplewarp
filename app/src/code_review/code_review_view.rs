@@ -8,7 +8,6 @@ use std::time::Duration;
 use ai::project_context::model::ProjectContextModel;
 use indexmap::IndexMap;
 use itertools::Itertools;
-#[cfg(feature = "local_fs")]
 use num_traits::SaturatingSub;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
@@ -83,10 +82,9 @@ use crate::code_review::DiffSetScope;
 use crate::code_review::comments::{
     AttachedReviewCommentTarget, CommentId, ReviewCommentBatch, ReviewCommentBatchEvent,
 };
-use crate::code_review::context::convert_file_diffs_to_diffset_hunks;
-#[cfg(feature = "local_fs")]
 use crate::code_review::context::{
-    create_attachment_reference_and_key, register_diffset_attachment,
+    convert_file_diffs_to_diffset_hunks, create_attachment_reference_and_key,
+    register_diffset_attachment,
 };
 use crate::code_review::diff_selector::{DiffSelector, DiffSelectorEvent, DiffTarget};
 use crate::code_review::diff_state::{
@@ -98,9 +96,7 @@ use crate::code_review::find_model::CodeReviewFindModel;
 use crate::code_review::git_repo_model::{GitRepoModels, GitRepoStatusEvent, GitRepoStatusModel};
 use crate::code_review::github_repo_model::{GitHubRepoEvent, GitHubRepoModel};
 use crate::code_review::hidden_lines::calculate_hidden_lines;
-#[cfg(feature = "local_fs")]
-use crate::code_review::telemetry_event::DiffSetContextScope;
-use crate::code_review::telemetry_event::PaneStateChange;
+use crate::code_review::telemetry_event::{DiffSetContextScope, PaneStateChange};
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::editor::InteractionState;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
@@ -121,13 +117,9 @@ use crate::ui_components::render_file_search_row::{FileSearchRowOptions, render_
 use crate::util::bindings::{
     CustomAction, custom_tag_to_keystroke, keybinding_name_to_display_string,
 };
-#[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::EditorSettings;
 use crate::util::git::{BranchEntry, PrInfo};
-#[cfg(feature = "local_fs")]
-use crate::util::openable_file_type::FileTarget;
-#[cfg(feature = "local_fs")]
-use crate::util::openable_file_type::resolve_file_target_with_editor_choice;
+use crate::util::openable_file_type::{FileTarget, resolve_file_target_with_editor_choice};
 use crate::view_components::DismissibleToast;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, AdjoinedSide, ButtonSize, DangerPrimaryTheme, KeystrokeSource,
@@ -406,7 +398,6 @@ struct GitSessionState {
 #[derive(Clone, Debug)]
 pub enum CodeReviewViewEvent {
     Pane(PaneEvent),
-    #[cfg(feature = "local_fs")]
     OpenFileWithTarget {
         path: PathBuf,
         target: FileTarget,
@@ -701,7 +692,6 @@ impl CodeReviewView {
 
             // Subscribe to PersistedWorkspace events to refresh the footer
             // UI after LSP installation succeeds or fails.
-            #[cfg(feature = "local_fs")]
             {
                 use crate::ai::persisted_workspace::{PersistedWorkspace, PersistedWorkspaceEvent};
 
@@ -828,7 +818,6 @@ impl CodeReviewView {
 
     /// Enables an LSP server for the workspace. Uses the provided server_type if given,
     /// otherwise derives it from the path.
-    #[cfg(feature = "local_fs")]
     fn handle_enable_lsp(
         path: &Path,
         server_type: Option<lsp::supported_servers::LSPServerType>,
@@ -873,7 +862,6 @@ impl CodeReviewView {
     }
 
     /// Installs and enables an LSP server for the workspace.
-    #[cfg(feature = "local_fs")]
     fn handle_install_and_enable_lsp(
         path: &Path,
         server_type: Option<lsp::supported_servers::LSPServerType>,
@@ -913,22 +901,6 @@ impl CodeReviewView {
                 ctx,
             );
         });
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    fn handle_enable_lsp(
-        _path: &Path,
-        _server_type: Option<lsp::supported_servers::LSPServerType>,
-        _ctx: &mut ViewContext<Self>,
-    ) {
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    fn handle_install_and_enable_lsp(
-        _path: &Path,
-        _server_type: Option<lsp::supported_servers::LSPServerType>,
-        _ctx: &mut ViewContext<Self>,
-    ) {
     }
 
     fn set_active_repo_comment_model(
@@ -3024,7 +2996,6 @@ impl CodeReviewView {
                 );
             }
             LocalCodeEditorEvent::DiscardUnsavedChanges { path: _path } => {
-                #[cfg(feature = "local_fs")]
                 GlobalBufferModel::handle(ctx).update(ctx, |global_buffer, ctx| {
                     global_buffer.discard_unsaved_changes(_path, ctx);
                 });
@@ -5061,7 +5032,6 @@ impl CodeReviewView {
         format!("diff_removed_{}", ctx.view_id())
     }
 
-    #[cfg(feature = "local_fs")]
     fn attach_diff_not_allowed_toast_id(&self, ctx: &mut ViewContext<Self>) -> String {
         format!("attach_diff_not_allowed_{}", ctx.view_id())
     }
@@ -5528,7 +5498,6 @@ impl CodeReviewView {
     }
 
     /// Insert diff set as context in the terminal input (either all files or a specific file)
-    #[cfg(feature = "local_fs")]
     fn insert_diff_as_context(&mut self, scope: DiffSetScope, ctx: &mut ViewContext<Self>) {
         if let Some(terminal_view) = self.attach_target_terminal(ctx) {
             let _diff_set_scope = match &scope {
@@ -5632,11 +5601,6 @@ impl CodeReviewView {
                 });
             }
         }
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    fn insert_diff_as_context(&mut self, _scope: DiffSetScope, _ctx: &mut ViewContext<Self>) {
-        report_error!("insert_diff_as_context is not supported without the local_fs feature");
     }
 
     fn get_current_head(&self, ctx: &ViewContext<Self>) -> Option<CurrentHead> {
@@ -6507,16 +6471,6 @@ impl CodeReviewView {
         });
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    fn open_code_review_file(
-        &self,
-        _full_path: PathBuf,
-        _line_and_column: Option<LineAndColumnArg>,
-        _ctx: &mut ViewContext<Self>,
-    ) {
-    }
-
-    #[cfg(feature = "local_fs")]
     fn open_code_review_file(
         &self,
         full_path: PathBuf,

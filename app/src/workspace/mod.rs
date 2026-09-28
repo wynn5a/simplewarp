@@ -558,7 +558,6 @@ pub fn init(app: &mut AppContext) {
                 .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Toggle Code Review"),
             WorkspaceAction::ToggleRightPanel,
         )
-        .with_enabled(|| cfg!(feature = "local_fs"))
         .with_context_predicate(id!("Workspace"))
         .with_mac_key_binding("cmd-shift-+")
         .with_linux_or_windows_key_binding("ctrl-shift-+"),
@@ -1171,7 +1170,7 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
             "Open settings file",
             WorkspaceAction::OpenSettingsFile,
         )
-        .with_enabled(|| FeatureFlag::SettingsFile.is_enabled() && cfg!(feature = "local_fs"))
+        .with_enabled(|| FeatureFlag::SettingsFile.is_enabled())
         .with_group(bindings::BindingGroup::Settings.as_str())
         .with_context_predicate(id!("Workspace")),
     ]);

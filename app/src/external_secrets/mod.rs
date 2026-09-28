@@ -8,7 +8,6 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[cfg(feature = "local_tty")]
 use crate::terminal::local_shell::execute_command;
 use crate::terminal::shell::ShellType;
 use crate::ui_components::icons::Icon;
@@ -74,7 +73,6 @@ impl SecretManager {
         shell_path: PathBuf,
         path_env_var: Option<String>,
     ) -> bool {
-        #[cfg(feature = "local_tty")]
         {
             match self {
                 SecretManager::OnePassword => {
@@ -109,7 +107,6 @@ impl SecretManager {
         shell_path: PathBuf,
         path_env_var: Option<String>,
     ) -> Option<Vec<ExternalSecret>> {
-        #[cfg(feature = "local_tty")]
         {
             match self {
                 SecretManager::OnePassword => {

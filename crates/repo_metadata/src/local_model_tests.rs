@@ -15,10 +15,9 @@ use virtual_fs::{Stub, VirtualFS};
 use warp_util::standardized_path::StandardizedPath;
 use warpui_core::r#async::FutureExt as _;
 use warpui_core::{App, ModelHandle};
-#[cfg(feature = "local_fs")]
 use watcher::BulkFilesystemWatcherEvent;
 
-#[cfg(all(unix, feature = "local_fs"))]
+#[cfg(unix)]
 use crate::StandingQueryResults;
 use crate::entry::{
     BudgetExceededBehavior, BuildTreeOptions, DirectoryEntry, Entry, FileMetadata,
@@ -40,16 +39,12 @@ impl LocalRepoMetadataModel {
             standing_results: HashMap::new(),
             lazy_loaded_paths: Default::default(),
             build_tasks: Default::default(),
-            #[cfg(feature = "local_fs")]
             watcher_update_tasks: Default::default(),
-            #[cfg(feature = "local_fs")]
             watcher: Default::default(),
             emit_incremental_updates: false,
             force_included_paths: Default::default(),
             standing_query_definitions: Default::default(),
-            #[cfg(feature = "local_fs")]
             symlink_targets: Default::default(),
-            #[cfg(feature = "local_fs")]
             repo_watches: Default::default(),
         }
     }
@@ -370,7 +365,6 @@ fn remove_repository_keeps_nested_repo_build_tasks() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn remove_repository_aborts_and_drops_watcher_update_tasks() {
     let repo_path = StandardizedPath::try_new("/watcher_update_removed_repo").unwrap();
@@ -438,7 +432,6 @@ fn remove_repository_aborts_and_drops_watcher_update_tasks() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn remove_repository_keeps_nested_repo_watcher_update_tasks() {
     let parent_repo_path = StandardizedPath::try_new("/parent_watcher_repo").unwrap();
@@ -729,7 +722,6 @@ fn test_get_repo_contents_filter_applies_before_cap() {
     ));
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_lazy_loaded_path_registrations_are_refcounted() {
     VirtualFS::test("lazy_loaded_path_refcount", |dirs, mut vfs| {
@@ -792,7 +784,6 @@ fn test_lazy_loaded_path_registrations_are_refcounted() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_lazy_loaded_path_does_not_build_standing_rule_results_below_shallow_tree() {
     VirtualFS::test("lazy_loaded_path_standing_rules", |dirs, mut vfs| {
@@ -828,7 +819,6 @@ fn test_lazy_loaded_path_does_not_build_standing_rule_results_below_shallow_tree
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_lazy_loaded_path_discovers_force_included_skills_and_emits_watcher_delta() {
     VirtualFS::test("lazy_loaded_path_force_included_skills", |dirs, mut vfs| {
@@ -922,7 +912,6 @@ fn test_lazy_loaded_path_discovers_force_included_skills_and_emits_watcher_delta
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_index_directory_path_upgrades_lazy_loaded_non_git_path() {
     VirtualFS::test("lazy_loaded_non_git_path_upgrade", |dirs, mut vfs| {
@@ -1011,7 +1000,6 @@ fn test_index_directory_path_upgrades_lazy_loaded_non_git_path() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_index_directory_path_upgrades_pending_lazy_loaded_non_git_path() {
     VirtualFS::test(
@@ -1958,7 +1946,7 @@ fn removed_direct_skill_child_refreshes_provider_for_possible_symlink_removal() 
         }));
     });
 }
-#[cfg(all(unix, feature = "local_fs"))]
+#[cfg(unix)]
 #[test]
 fn added_external_target_skill_symlink_routes_to_lexical_repository() {
     VirtualFS::test(
@@ -2043,7 +2031,7 @@ fn added_external_target_skill_symlink_routes_to_lexical_repository() {
         },
     );
 }
-#[cfg(all(unix, feature = "local_fs"))]
+#[cfg(unix)]
 #[test]
 fn modified_external_symlink_target_upserts_lexical_project_skill() {
     VirtualFS::test(
@@ -2129,7 +2117,7 @@ fn modified_external_symlink_target_upserts_lexical_project_skill() {
     );
 }
 
-#[cfg(all(unix, feature = "local_fs"))]
+#[cfg(unix)]
 #[test]
 fn removed_then_recreated_external_symlink_target_refreshes_lexical_project_skill() {
     VirtualFS::test(
@@ -2260,7 +2248,7 @@ fn removed_then_recreated_external_symlink_target_refreshes_lexical_project_skil
     );
 }
 
-#[cfg(all(unix, feature = "local_fs"))]
+#[cfg(unix)]
 #[test]
 fn symlink_targets_retain_aliases_and_clear_for_removed_or_failed_repositories() {
     VirtualFS::test(
@@ -2331,7 +2319,7 @@ fn symlink_targets_retain_aliases_and_clear_for_removed_or_failed_repositories()
     );
 }
 
-#[cfg(all(unix, feature = "local_fs"))]
+#[cfg(unix)]
 #[test]
 fn removed_external_symlink_target_directory_queues_lexical_removal_and_clears_mapping() {
     VirtualFS::test(
@@ -2605,7 +2593,6 @@ fn test_standardized_path_edge_cases() {
 /// On Linux, a lazy (non-git) root is watched non-recursively, so only the root
 /// itself should be tracked initially. On other platforms the root is watched
 /// recursively and nothing is tracked for per-directory teardown.
-#[cfg(feature = "local_fs")]
 #[test]
 fn index_lazy_loaded_path_tracks_only_root() {
     VirtualFS::test("lazy_root_tracking", |dirs, mut vfs| {
@@ -2645,7 +2632,6 @@ fn index_lazy_loaded_path_tracks_only_root() {
 
 /// Expanding a subdirectory of a lazy root should add a per-directory watch for
 /// it on Linux (so its children stay fresh) while leaving non-Linux untouched.
-#[cfg(feature = "local_fs")]
 #[test]
 fn load_directory_tracks_expanded_subdir_for_lazy_root() {
     VirtualFS::test("lazy_load_subdir_tracking", |dirs, mut vfs| {
@@ -2691,7 +2677,6 @@ fn load_directory_tracks_expanded_subdir_for_lazy_root() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn load_directory_completion_resolves_after_tree_update() {
     VirtualFS::test("lazy_load_completion_updates_tree", |dirs, mut vfs| {
@@ -2735,7 +2720,6 @@ fn load_directory_completion_resolves_after_tree_update() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn load_directory_with_completion_coalesces_duplicate_inflight_load() {
     VirtualFS::test("lazy_load_duplicate_completion", |dirs, mut vfs| {
@@ -2868,7 +2852,6 @@ fn directory_load_coalescing_is_scoped_by_owner_and_kind() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn load_directory_completion_skips_removed_tree_entry() {
     VirtualFS::test("lazy_load_removed_subdir", |dirs, mut vfs| {
@@ -2920,7 +2903,6 @@ fn load_directory_completion_skips_removed_tree_entry() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn load_directory_completion_skips_replaced_tree_entry() {
     VirtualFS::test("lazy_load_replaced_subdir", |dirs, mut vfs| {
@@ -2981,7 +2963,6 @@ fn load_directory_completion_skips_replaced_tree_entry() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn load_directory_completion_skips_recreated_unloaded_tree_entry() {
     VirtualFS::test("lazy_load_recreated_subdir", |dirs, mut vfs| {
@@ -3049,7 +3030,6 @@ fn load_directory_completion_skips_recreated_unloaded_tree_entry() {
 
 /// Indexing a git repo records a recursive watch mode (not a lazy one) and is
 /// not tracked as a lazy-loaded path, on any platform.
-#[cfg(feature = "local_fs")]
 #[test]
 fn recursive_repo_uses_recursive_watch_mode() {
     VirtualFS::test("recursive_repo_watch_mode", |dirs, mut vfs| {
@@ -3357,7 +3337,6 @@ fn incremental_event_under_expanded_ignored_dir_keeps_it_loaded() {
 /// Expanding a gitignored directory inside a git repo registers an on-demand
 /// non-recursive watch for it on Linux (where the recursive root watch prunes
 /// gitignored dirs), while other platforms rely on the recursive root watch.
-#[cfg(feature = "local_fs")]
 #[test]
 fn load_directory_watches_expanded_gitignored_dir_for_git_repo() {
     VirtualFS::test("git_repo_gitignored_expand", |dirs, mut vfs| {
@@ -3420,7 +3399,6 @@ fn load_directory_watches_expanded_gitignored_dir_for_git_repo() {
 
 /// Removing a git repo clears its tracked watch entry (root plus any on-demand
 /// per-directory watches for expanded gitignored dirs).
-#[cfg(feature = "local_fs")]
 #[test]
 fn remove_repository_clears_extra_dir_watches() {
     VirtualFS::test("git_repo_remove_clears_extra", |dirs, mut vfs| {
@@ -3469,7 +3447,6 @@ fn remove_repository_clears_extra_dir_watches() {
 
 /// Tearing down a lazy root clears all of its tracked per-directory watches and
 /// removes the repository state.
-#[cfg(feature = "local_fs")]
 #[test]
 fn remove_lazy_loaded_path_clears_tracked_watches() {
     VirtualFS::test("lazy_remove_clears_tracking", |dirs, mut vfs| {
@@ -3512,7 +3489,7 @@ fn remove_lazy_loaded_path_clears_tracked_watches() {
 /// per-directory watch (and any tracked descendants), so the entry no longer
 /// lingers in `extra_dirs`. Otherwise a directory recreated at the same path
 /// would be skipped by `watch_subdir` and never re-watched.
-#[cfg(all(unix, feature = "local_fs"))]
+#[cfg(unix)]
 #[test]
 fn deleted_subdir_drops_its_tracked_watch() {
     VirtualFS::test("lazy_delete_subdir_drops_watch", |dirs, mut vfs| {

@@ -381,7 +381,6 @@ fn test_reconcile_project_rules_hydrates_local_and_remote_paths() {
     assert_eq!(remote_result.active_rules[0].content, "remote content");
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_remote_standing_results_preserve_host_qualified_rule_paths() {
     let host = HostId::new("test-host".to_string());
@@ -654,7 +653,6 @@ fn test_remote_global_rules_only_layer_for_matching_remote_host() {
     );
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_superseding_refresh_coalesces_without_overlapping_reads() {
     use std::sync::OnceLock;

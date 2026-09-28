@@ -7,37 +7,25 @@ use ai::workspace::WorkspaceMetadata;
 use anyhow::Context;
 use chrono::Utc;
 use itertools::Itertools;
-use lsp::LanguageId;
-#[cfg(feature = "local_fs")]
-use lsp::LspEvent;
 use lsp::supported_servers::LSPServerType;
-#[cfg(feature = "local_fs")]
-use lsp::{LspManagerModel, LspServerConfig};
-#[cfg(feature = "local_fs")]
+use lsp::{LanguageId, LspEvent, LspManagerModel, LspServerConfig};
 use repo_metadata::RepoMetadataModel;
-#[cfg(feature = "local_fs")]
 use repo_metadata::repositories::{DetectedRepositories, DetectedRepositoriesEvent};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "local_fs")]
 use warp_core::channel::ChannelState;
 use warp_errors::report_if_error;
-#[cfg(feature = "local_fs")]
 use warp_util::standardized_path::StandardizedPath;
-#[cfg(feature = "local_fs")]
 use warpui::windowing::WindowManager;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use crate::ai::metadata_project_rules::read_project_rule_contents;
-#[cfg(feature = "local_fs")]
 use crate::code::language_server_shutdown_manager::LanguageServerShutdownManager;
 use crate::persistence::ModelEvent;
-#[cfg(feature = "local_fs")]
 use crate::server::server_api::ServerApiProvider;
 use crate::terminal::TerminalView;
-#[cfg(feature = "local_fs")]
 use crate::terminal::local_shell::LocalShellState;
-#[cfg(feature = "local_fs")]
-use crate::{view_components::DismissibleToast, workspace::ToastStack};
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
 
 /// Represents whether an LSP server is enabled or disabled for a workspace.
 ///
@@ -54,7 +42,6 @@ pub enum EnablementState {
 }
 
 /// Describes an LSP operation to be executed after capturing the interactive shell PATH.
-#[cfg(feature = "local_fs")]
 pub enum LspTask {
     /// Install and enable an LSP server for a file path.
     Install {
@@ -148,7 +135,6 @@ pub struct PersistedWorkspace {
     workspaces: HashMap<PathBuf, Workspace>,
     model_event_sender: Option<SyncSender<ModelEvent>>,
     /// Global installation status per LSP server type.
-    #[cfg(feature = "local_fs")]
     lsp_installation_status: HashMap<LSPServerType, LSPInstallationStatus>,
 }
 
@@ -188,7 +174,6 @@ impl PersistedWorkspace {
         Self {
             workspaces: HashMap::new(),
             model_event_sender: None,
-            #[cfg(feature = "local_fs")]
             lsp_installation_status: HashMap::new(),
         }
     }
@@ -245,7 +230,6 @@ impl PersistedWorkspace {
         // `index_repo` drives project-rules (and, transitively, project
         // skills) discovery, which must work in modes that keep codebase
         // indexing off (e.g. the TUI front-end).
-        #[cfg(feature = "local_fs")]
         if !cfg!(any(test, feature = "integration_tests")) {
             ctx.subscribe_to_model(&DetectedRepositories::handle(ctx), |me, _, event, ctx| {
                 let DetectedRepositoriesEvent::DetectedGitRepo { repository, .. } = event;
@@ -256,14 +240,12 @@ impl PersistedWorkspace {
         }
 
         // Collect workspace paths before metadata is moved into Self.
-        #[cfg(feature = "local_fs")]
         let startup_workspace_paths: Vec<PathBuf> = metadata.keys().cloned().collect();
 
         #[allow(unused_mut)]
         let mut result = Self {
             workspaces: metadata,
             model_event_sender,
-            #[cfg(feature = "local_fs")]
             lsp_installation_status: HashMap::new(),
         };
 
@@ -271,7 +253,6 @@ impl PersistedWorkspace {
         // the available-server state is fresh by the time any footer is created.
         // We pass skip_cached=true so workspaces with persisted entries are still
         // re-scanned to discover newly relevant server types.
-        #[cfg(feature = "local_fs")]
         if !cfg!(any(test, feature = "integration_tests")) && !startup_workspace_paths.is_empty() {
             result.detect_available_servers_for_workspaces(startup_workspace_paths, true, ctx);
         }
@@ -416,7 +397,6 @@ impl PersistedWorkspace {
     /// immediately) unless `skip_cached` is true, in which case all workspaces are scanned
     /// unconditionally. The workspaces to scan share a single background task and one
     /// interactive PATH capture.
-    #[cfg(feature = "local_fs")]
     pub fn detect_available_servers_for_workspaces(
         &mut self,
         workspace_paths: Vec<PathBuf>,
@@ -508,7 +488,6 @@ impl PersistedWorkspace {
         );
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn index_repo(&self, directory_path: PathBuf, ctx: &mut ModelContext<Self>) {
         ProjectContextModel::handle(ctx).update(ctx, |model, ctx| {
             let _ = model.index_and_store_rules(
@@ -549,7 +528,6 @@ impl PersistedWorkspace {
         }
 
         self.persist_metadata_for_index(&path);
-        #[cfg(feature = "local_fs")]
         match StandardizedPath::from_local_canonicalized(&path) {
             Ok(path) => {
                 if let Err(error) = RepoMetadataModel::handle(ctx).update(ctx, |model, ctx| {
@@ -578,7 +556,6 @@ impl PersistedWorkspace {
             .dedup_by(|a, b| a.path == b.path)
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     pub fn navigated_to_path(&mut self, directory: &PathBuf) {
         if let Some(workspace) = self.workspaces.get_mut(directory) {
             workspace.metadata.navigated_ts = Some(Utc::now());
@@ -617,7 +594,6 @@ impl PersistedWorkspace {
 
     /// Installs the LSP server for the given file path and enables it.
     /// This is used when the server is not yet installed.
-    #[cfg(feature = "local_fs")]
     fn handle_install_lsp(
         &mut self,
         file_path: PathBuf,
@@ -729,7 +705,6 @@ impl PersistedWorkspace {
 
     /// Starts all enabled LSP servers for the given file path.
     /// This looks up the workspace root and starts any servers that are enabled but not yet running.
-    #[cfg(feature = "local_fs")]
     fn handle_spawn_lsp(
         &self,
         file_path: &Path,
@@ -833,7 +808,6 @@ impl PersistedWorkspace {
 
     /// Executes an LSP task after capturing the interactive shell PATH.
     /// This is the main entry point for LSP operations that need the full PATH.
-    #[cfg(feature = "local_fs")]
     pub fn execute_lsp_task(&mut self, task: LspTask, ctx: &mut ModelContext<Self>) {
         // For Spawn tasks, check synchronously whether there are any enabled LSP
         // servers for this workspace before kicking off the expensive interactive
@@ -877,7 +851,6 @@ impl PersistedWorkspace {
     /// 3. If NotInstalled => DisabledAndNotInstalled
     /// 4. If Installing => Installing
     /// 5. If Checking or Unknown => set Checking, start detection, return CheckingForInstallation
-    #[cfg(feature = "local_fs")]
     pub fn detect_lsp_workspace_status(
         &mut self,
         repo_root: PathBuf,
@@ -943,7 +916,6 @@ impl PersistedWorkspace {
     }
 }
 
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub fn all_working_directories(app: &AppContext) -> HashSet<PathBuf> {
     let mut working_directories = HashSet::new();
     for window_id in app.window_ids() {

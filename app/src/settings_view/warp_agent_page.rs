@@ -5,7 +5,6 @@
 //! custom routers) and the miscellaneous agent display settings.
 
 use std::ops::Not;
-#[cfg(feature = "local_fs")]
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
@@ -470,9 +469,7 @@ pub struct WarpAgentPageView {
     lrc_submission_mode_dropdown: ViewHandle<Dropdown<WarpAgentPageAction>>,
 
     // Custom model router views (gated on FeatureFlag::CustomModelRouters)
-    #[cfg(feature = "local_fs")]
     router_views: Vec<ViewHandle<super::custom_router_view::CustomRouterView>>,
-    #[cfg(feature = "local_fs")]
     add_router_button: ViewHandle<ActionButton>,
 
     custom_endpoint_modal_state: CustomEndpointModalViewState,
@@ -758,9 +755,7 @@ impl WarpAgentPageView {
             ctx.notify();
         });
 
-        #[cfg(feature = "local_fs")]
         let router_views = Self::create_router_views(ctx);
-        #[cfg(feature = "local_fs")]
         let add_router_button = ctx.add_typed_action_view(|_| {
             ActionButton::new("+ Add router", SecondaryTheme)
                 .with_size(ButtonSize::Small)
@@ -768,7 +763,6 @@ impl WarpAgentPageView {
                     ctx.dispatch_typed_action(WarpAgentPageAction::OpenAddCustomRouter);
                 })
         });
-        #[cfg(feature = "local_fs")]
         {
             let is_enabled = warp_core::features::FeatureFlag::CustomModelRouters.is_enabled()
                 && is_any_ai_enabled;
@@ -889,7 +883,6 @@ impl WarpAgentPageView {
         });
 
         // Subscribe to WarpConfig to refresh router views when files change.
-        #[cfg(feature = "local_fs")]
         ctx.subscribe_to_model(
             &crate::user_config::WarpConfig::handle(ctx),
             |me, _, event, ctx| {
@@ -911,9 +904,7 @@ impl WarpAgentPageView {
             orchestration_message_display_mode_dropdown,
             default_prompt_submission_mode_dropdown,
             lrc_submission_mode_dropdown,
-            #[cfg(feature = "local_fs")]
             router_views,
-            #[cfg(feature = "local_fs")]
             add_router_button,
             custom_endpoint_modal_state,
             remove_custom_endpoint_confirmation_dialog,
@@ -1512,7 +1503,6 @@ impl WarpAgentPageView {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     fn create_router_views(
         ctx: &mut ViewContext<Self>,
     ) -> Vec<ViewHandle<super::custom_router_view::CustomRouterView>> {
@@ -1538,7 +1528,6 @@ impl WarpAgentPageView {
                     }
                     CustomRouterViewEvent::Delete => {
                         if let Some(path) = &router_clone.source_path {
-                            #[cfg(feature = "local_fs")]
                             {
                                 if let Err(e) =
                                     crate::user_config::WarpConfig::delete_custom_model_router(path)
@@ -1570,9 +1559,7 @@ impl View for WarpAgentPageView {
 #[allow(clippy::large_enum_variant)]
 pub enum WarpAgentPageEvent {
     FocusModal,
-    #[cfg(feature = "local_fs")]
     OpenCustomRouterEditor(Option<crate::ai::custom_model_routers::CustomModelRouter>),
-    #[cfg(feature = "local_fs")]
     OpenCustomRouterFile(PathBuf),
     ShowModal,
     HideModal,
@@ -1611,7 +1598,6 @@ pub enum WarpAgentPageAction {
     ToggleAgentAttribution,
 
     // Custom model routers
-    #[cfg(feature = "local_fs")]
     OpenAddCustomRouter,
 
     // Custom inference
@@ -1877,7 +1863,6 @@ impl TypedActionView for WarpAgentPageView {
                 });
                 ctx.notify();
             }
-            #[cfg(feature = "local_fs")]
             WarpAgentPageAction::OpenAddCustomRouter => {
                 ctx.emit(WarpAgentPageEvent::OpenCustomRouterEditor(None));
             }
@@ -3407,7 +3392,6 @@ impl SettingsWidget for CustomModelRoutersWidget {
         FeatureFlag::CustomModelRouters.is_enabled()
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     fn render(
         &self,
         view: &Self::View,
@@ -3424,16 +3408,11 @@ impl SettingsWidget for CustomModelRoutersWidget {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(build_sub_header(appearance, "Custom Routers", Some(header_color)).finish())
             .with_child({
-                #[cfg(feature = "local_fs")]
                 {
                     warpui::elements::Container::new(view.add_router_button.as_ref(app).render(app))
                         .with_margin_bottom(4.)
                         .with_margin_top(-4.)
                         .finish()
-                }
-                #[cfg(not(feature = "local_fs"))]
-                {
-                    warpui::elements::Empty::new().finish()
                 }
             })
             .finish();
@@ -3451,8 +3430,7 @@ impl SettingsWidget for CustomModelRoutersWidget {
                 app,
             ));
 
-        // Error cards and router summary cards (local_fs only)
-        #[cfg(feature = "local_fs")]
+        // Error cards and router summary cards
         let column = {
             use super::custom_router_view::render_router_error_card;
             use crate::user_config::WarpConfig;

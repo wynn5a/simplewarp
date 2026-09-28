@@ -540,10 +540,7 @@ pub enum WorkspaceAction {
     /// conversation isn't handoff-able (no synced server token, empty, or no
     /// active conversation at all).
     OpenLocalToCloudHandoffPane {
-        #[cfg(feature = "local_fs")]
         launch: Option<crate::ai::blocklist::handoff::PendingCloudLaunch>,
-        #[cfg(not(feature = "local_fs"))]
-        launch: Option<()>,
         environment_id: Option<crate::server::ids::SyncId>,
     },
     /// Automatically hand off the active running local agent conversation in the
@@ -570,13 +567,11 @@ pub enum WorkspaceAction {
         view_id: EntityId,
     },
     /// Handle a file being renamed in the file tree
-    #[cfg(feature = "local_fs")]
     FileRenamed {
         old_path: PathBuf,
         new_path: PathBuf,
     },
     /// Handle a file being deleted in the file tree
-    #[cfg(feature = "local_fs")]
     FileDeleted {
         path: PathBuf,
     },
@@ -955,9 +950,7 @@ impl WorkspaceAction {
             SampleProcess => false,
             #[cfg(target_os = "macos")]
             InstallOz | UninstallOz => false,
-            #[cfg(feature = "local_fs")]
             FileRenamed { .. } => false, // File rename doesn't change workspace state
-            #[cfg(feature = "local_fs")]
             FileDeleted { .. } => false, // File deletion doesn't change workspace state
             #[cfg(target_os = "linux")]
             DismissWaylandCrashRecoveryBannerAndOpenLink => false,

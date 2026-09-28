@@ -2,17 +2,12 @@ use std::collections::HashMap;
 
 use ai::project_context::model::ProjectContextModel;
 use pane_group::{NotebookPane, PaneState, SplitPaneState, TerminalPaneId};
-#[cfg(feature = "local_fs")]
-use repo_metadata::CanonicalizedPath;
-#[cfg(feature = "local_fs")]
-use repo_metadata::RepoMetadataModel;
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
-#[cfg(feature = "local_fs")]
+use repo_metadata::{CanonicalizedPath, RepoMetadataModel};
 use tempfile::TempDir;
 use terminal::view::ActiveSessionState;
 use warp_editor::editor::NavigationKey;
-#[cfg(feature = "local_fs")]
 use warp_files::FileModel;
 use warpui::platform::WindowStyle;
 use warpui::{AddSingletonModel, App, ViewHandle};
@@ -62,7 +57,6 @@ use crate::terminal::keys::TerminalKeybindings;
 use crate::terminal::local_tty::spawner::PtySpawner;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::undo_close::UndoCloseSettings;
-#[cfg(feature = "local_fs")]
 use crate::user_config::tab_configs_dir;
 #[cfg(windows)]
 use crate::util::traffic_lights::windows::RendererState;
@@ -124,7 +118,6 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| FileBasedMCPManager::default());
 
     app.add_singleton_model(|_| TemplatableMCPServerManager::default());
-    #[cfg(feature = "local_fs")]
     app.add_singleton_model(FileModel::new);
     app.add_singleton_model(|ctx| {
         AIExecutionProfilesModel::new(&crate::LaunchMode::new_for_unit_test(), ctx)
@@ -143,7 +136,6 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| IgnoredSuggestionsModel::new(vec![]));
     app.add_singleton_model(|_| crate::code_review::git_repo_model::GitRepoModels::new());
 
-    #[cfg(feature = "local_fs")]
     app.add_singleton_model(RepoMetadataModel::new);
     app.add_singleton_model(search::files::model::FileSearchModel::new);
 
@@ -152,7 +144,6 @@ pub(crate) fn initialize_app(app: &mut App) {
         app.add_singleton_model(RendererState::new);
     }
 
-    #[cfg(feature = "local_tty")]
     terminal::available_shells::register(app);
     AltScreenReporting::register(app);
 
@@ -428,7 +419,6 @@ fn copy_model_and_profile_preserves_explicit_model_over_source_profile_default()
     });
 }
 
-#[cfg(feature = "local_fs")]
 fn open_worktree_sidecar(workspace: &ViewHandle<Workspace>, app: &mut App) {
     workspace.update(app, |workspace, ctx| {
         workspace.open_new_session_dropdown_menu(
@@ -456,7 +446,6 @@ fn open_worktree_sidecar(workspace: &ViewHandle<Workspace>, app: &mut App) {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_worktree_sidecar_hover_takes_precedence_over_selection() {
     let _tab_configs_guard = FeatureFlag::TabConfigs.override_enabled(true);
@@ -509,7 +498,6 @@ fn test_worktree_sidecar_hover_takes_precedence_over_selection() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_worktree_sidecar_pointer_entry_does_not_select_top_repo() {
     let _tab_configs_guard = FeatureFlag::TabConfigs.override_enabled(true);
@@ -578,7 +566,6 @@ fn test_worktree_sidecar_pointer_entry_does_not_select_top_repo() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_worktree_sidecar_close_via_select_item_executes_from_workspace() {
     let _tab_configs_guard = FeatureFlag::TabConfigs.override_enabled(true);
@@ -622,7 +609,6 @@ fn test_worktree_sidecar_close_via_select_item_executes_from_workspace() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_open_file_notebook_focuses_existing_markdown_pane() {
     App::test((), |mut app| async move {
@@ -685,7 +671,6 @@ fn test_open_file_notebook_focuses_existing_markdown_pane() {
 /// Regression test for the agent file-range preview's "Open file" button: the
 /// handler used to zero out `range_start`, so consumers that read the jump
 /// target off the `CodeSource` opened the file at the top.
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_open_file_with_target_event_preserves_requested_line() {
     use crate::code::editor_management::CodeManager;
@@ -739,7 +724,6 @@ fn test_open_file_with_target_event_preserves_requested_line() {
 
 /// Regression test for the raw-code toggle: the notebook-viewer target used to
 /// drop the `CodeSource` outright, so the raw view always started at line 1.
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_open_markdown_viewer_target_preserves_requested_line() {
     App::test((), |mut app| async move {
@@ -783,7 +767,6 @@ fn test_open_markdown_viewer_target_preserves_requested_line() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_worktree_sidecar_search_editor_enter_executes_selection() {
     let _tab_configs_guard = FeatureFlag::TabConfigs.override_enabled(true);
@@ -825,12 +808,10 @@ fn test_worktree_sidecar_search_editor_enter_executes_selection() {
 /// `prefix` from `~/.warp/tab_configs/` on drop. Because `Drop` runs even
 /// when a test panics, this prevents stale worktree configs from leaking
 /// into Warp dev.
-#[cfg(feature = "local_fs")]
 struct TabConfigCleanupGuard {
     prefix: &'static str,
 }
 
-#[cfg(feature = "local_fs")]
 impl TabConfigCleanupGuard {
     fn new(prefix: &'static str) -> Self {
         // Eagerly clean up leftovers from any previously-crashed run.
@@ -852,7 +833,6 @@ impl TabConfigCleanupGuard {
     }
 }
 
-#[cfg(feature = "local_fs")]
 impl Drop for TabConfigCleanupGuard {
     fn drop(&mut self) {
         Self::clean(self.prefix);
@@ -2739,7 +2719,6 @@ fn test_unified_new_session_menu_includes_reopen_closed_session() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_worktree_sidecar_search_editor_proxies_navigation_and_escape() {
     let _tab_configs_guard = FeatureFlag::TabConfigs.override_enabled(true);
@@ -2851,7 +2830,6 @@ fn test_worktree_sidecar_search_editor_proxies_navigation_and_escape() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_worktree_sidecar_hides_linked_worktrees_from_repo_list() {
     let _tab_configs_guard = FeatureFlag::TabConfigs.override_enabled(true);

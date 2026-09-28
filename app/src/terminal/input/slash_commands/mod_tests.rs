@@ -80,7 +80,7 @@ fn not_cloud_agent_commands_are_only_active_outside_cloud_mode() {
     assert!(!commands::NEW.is_active(cloud_context));
 }
 
-#[cfg(all(feature = "local_fs", windows))]
+#[cfg(windows)]
 mod windows {
     use std::sync::Arc;
 

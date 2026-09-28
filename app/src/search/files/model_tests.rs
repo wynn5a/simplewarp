@@ -152,7 +152,6 @@ mod file_search_model_tests {
         assert!(!FileSearchModel::should_skip_overly_broad_query("a*b"));
     }
 
-    #[cfg(feature = "local_fs")]
     #[test]
     fn test_contents_args_keeps_folders_by_default() {
         // The default (directory-inclusive) path is used by callers like the
@@ -164,7 +163,6 @@ mod file_search_model_tests {
         assert!(empty.include_folders);
     }
 
-    #[cfg(feature = "local_fs")]
     #[test]
     fn test_contents_args_excludes_folders_for_file_only_search() {
         let args = FileSearchModel::contents_args("src", false, |_| Some("src/main.rs".into()));

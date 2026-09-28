@@ -1,6 +1,5 @@
 //! Shared tooltip UI components for file path and link tooltips
 
-#[cfg(feature = "local_fs")]
 use std::path::Path;
 
 use warpui::elements::{
@@ -187,7 +186,6 @@ where
 /// - Whether this file is openable in Warp (skips binary files and directories)
 /// - Whether the file renders in Warp's notebook viewer, which is reached via a
 ///   different affordance (skips Markdown and, when enabled, Jupyter notebooks)
-#[cfg(feature = "local_fs")]
 pub fn should_show_open_in_warp_link(path: &Path, app: &AppContext) -> bool {
     use warpui::SingletonEntity;
 
@@ -203,9 +201,4 @@ pub fn should_show_open_in_warp_link(path: &Path, app: &AppContext) -> bool {
     }
 
     !renders_in_warp_notebook_viewer(path) && !is_binary_file(path) && !path.is_dir()
-}
-
-#[cfg(not(feature = "local_fs"))]
-pub fn should_show_open_in_warp_link(_path: &std::path::Path, _app: &AppContext) -> bool {
-    false
 }

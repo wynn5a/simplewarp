@@ -22,17 +22,14 @@ use warpui::{
 };
 
 use crate::ToastStack;
+use crate::ai::mcp::file_based_manager::FileBasedMCPManagerEvent;
 use crate::ai::mcp::templatable::{GalleryData, TemplatableMCPServer};
 use crate::ai::mcp::templatable_manager::{
     TemplatableMCPServerManager, TemplatableMCPServerManagerEvent,
 };
 use crate::ai::mcp::{
-    FileBasedMCPManager, MCPGalleryManager, MCPProvider, MCPServerUpdate,
-    TemplatableMCPServerInstallation, logs,
-};
-#[cfg(feature = "local_fs")]
-use crate::ai::mcp::{
-    FileMCPWatcher, FileMCPWatcherEvent, file_based_manager::FileBasedMCPManagerEvent,
+    FileBasedMCPManager, FileMCPWatcher, FileMCPWatcherEvent, MCPGalleryManager, MCPProvider,
+    MCPServerUpdate, TemplatableMCPServerInstallation, logs,
 };
 use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
@@ -111,31 +108,26 @@ impl MCPServersListPageView {
             me.handle_templatable_mcp_manager_event(event, ctx);
         });
 
-        cfg_if::cfg_if!(
-            if #[cfg(feature = "local_fs")] {
-                // Refresh cards when active servers are spawned, removed, or logged out.
-                let file_based_manager = FileBasedMCPManager::handle(ctx);
-                ctx.subscribe_to_model(&file_based_manager, |me, _, event, ctx| match event {
-                    FileBasedMCPManagerEvent::SpawnServers { .. }
-                    | FileBasedMCPManagerEvent::DespawnServers { .. }
-                    | FileBasedMCPManagerEvent::PurgeCredentials { .. } => {
-                        // Refresh cards when servers are spawned or removed.
-                        me.refresh_file_based_server_cards(ctx);
-                    }
-                    _ => {}
-                });
-
-                // Refresh cards when MCP config files are parsed or removed.
-                let file_mcp_watcher = FileMCPWatcher::handle(ctx);
-                ctx.subscribe_to_model(&file_mcp_watcher, |me, _, event, ctx| match event {
-                    FileMCPWatcherEvent::Parsed { .. }
-                    | FileMCPWatcherEvent::Removed { .. } => {
-                        me.refresh_file_based_server_cards(ctx);
-                    }
-                    _ => {}
-                });
+        // Refresh cards when active servers are spawned, removed, or logged out.
+        let file_based_manager = FileBasedMCPManager::handle(ctx);
+        ctx.subscribe_to_model(&file_based_manager, |me, _, event, ctx| match event {
+            FileBasedMCPManagerEvent::SpawnServers { .. }
+            | FileBasedMCPManagerEvent::DespawnServers { .. }
+            | FileBasedMCPManagerEvent::PurgeCredentials { .. } => {
+                // Refresh cards when servers are spawned or removed.
+                me.refresh_file_based_server_cards(ctx);
             }
-        );
+            _ => {}
+        });
+
+        // Refresh cards when MCP config files are parsed or removed.
+        let file_mcp_watcher = FileMCPWatcher::handle(ctx);
+        ctx.subscribe_to_model(&file_mcp_watcher, |me, _, event, ctx| match event {
+            FileMCPWatcherEvent::Parsed { .. } | FileMCPWatcherEvent::Removed { .. } => {
+                me.refresh_file_based_server_cards(ctx);
+            }
+            _ => {}
+        });
 
         // Re-render when the file-based MCP enabled setting changes.
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
@@ -1531,7 +1523,6 @@ impl MCPServersListPageView {
         }
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn refresh_file_based_server_cards(&mut self, ctx: &mut ViewContext<Self>) {
         self.create_file_based_server_cards(ctx);
     }

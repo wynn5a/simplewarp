@@ -1,29 +1,23 @@
 use std::path::Path;
 use std::sync::Arc;
 
-#[cfg(feature = "local_fs")]
 use anyhow::Context;
 use async_trait::async_trait;
-#[cfg(feature = "local_fs")]
 use command::r#async::Command;
 
 use crate::CommandBuilder;
 use crate::language_server_candidate::{LanguageServerCandidate, LanguageServerMetadata};
-#[cfg(feature = "local_fs")]
 use crate::supported_servers::CustomBinaryConfig;
 
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub struct TypeScriptLanguageServerCandidate {
     client: Arc<http_client::Client>,
 }
 
 impl TypeScriptLanguageServerCandidate {
     /// Path to the new langserver JS file (v4.0.0+) relative to the install directory.
-    #[cfg(feature = "local_fs")]
     const NEW_SERVER_PATH: &str = "node_modules/typescript-language-server/lib/cli.mjs";
 
     /// Path to the old langserver JS file (pre-4.0.0) relative to the install directory.
-    #[cfg(feature = "local_fs")]
     const OLD_SERVER_PATH: &str = "node_modules/typescript-language-server/lib/cli.js";
 
     pub fn new(client: Arc<http_client::Client>) -> Self {
@@ -37,7 +31,6 @@ impl TypeScriptLanguageServerCandidate {
     ///
     /// # Arguments
     /// * `path_env_var` - The PATH environment variable to use when checking for system node.
-    #[cfg(feature = "local_fs")]
     pub async fn find_installed_binary_config(
         path_env_var: Option<&str>,
     ) -> Option<CustomBinaryConfig> {
@@ -105,7 +98,6 @@ impl TypeScriptLanguageServerCandidate {
 }
 
 #[async_trait]
-#[cfg(feature = "local_fs")]
 impl LanguageServerCandidate for TypeScriptLanguageServerCandidate {
     async fn should_suggest_for_repo(&self, path: &Path, _executor: &CommandBuilder) -> bool {
         // Check for common JavaScript/TypeScript project indicators
@@ -214,33 +206,5 @@ impl LanguageServerCandidate for TypeScriptLanguageServerCandidate {
             url: None, // npm packages don't have direct download URLs
             digest: None,
         })
-    }
-}
-
-#[async_trait]
-#[cfg(not(feature = "local_fs"))]
-impl LanguageServerCandidate for TypeScriptLanguageServerCandidate {
-    async fn should_suggest_for_repo(&self, _path: &Path, _executor: &CommandBuilder) -> bool {
-        false
-    }
-
-    async fn is_installed_in_data_dir(&self, _executor: &CommandBuilder) -> bool {
-        false
-    }
-
-    async fn is_installed_on_path(&self, _executor: &CommandBuilder) -> bool {
-        false
-    }
-
-    async fn install(
-        &self,
-        _metadata: LanguageServerMetadata,
-        _executor: &CommandBuilder,
-    ) -> anyhow::Result<()> {
-        todo!()
-    }
-
-    async fn fetch_latest_server_metadata(&self) -> anyhow::Result<LanguageServerMetadata> {
-        todo!()
     }
 }

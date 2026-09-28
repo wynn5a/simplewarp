@@ -36,7 +36,6 @@ use warpui::image_cache::ImageType;
 use warpui::keymap::{EditableBinding, FixedBinding, PerPlatformKeystroke};
 use warpui::platform::{Cursor, OperatingSystem};
 use warpui::presenter::ChildView;
-#[cfg(feature = "local_fs")]
 use warpui::text::word_boundaries::WordBoundariesPolicy;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -68,7 +67,6 @@ use crate::terminal::grid_renderer::URL_COLOR;
 use crate::terminal::links::directly_open_link_keybinding_string;
 use crate::ui_components::icons::ICON_DIMENSIONS;
 use crate::util::bindings::CustomAction;
-#[cfg(feature = "local_fs")]
 use crate::util::link_detection::{DetectedLinkType, detect_file_paths, get_word_range_at_offset};
 use crate::util::tooltips::{
     TooltipLink, TooltipRedaction, render_tooltip, should_show_open_in_warp_link,
@@ -2152,7 +2150,6 @@ impl RichTextEditorView {
 
         self.hovered_file_path = None;
 
-        #[cfg(feature = "local_fs")]
         {
             // Check for file paths at the hovered word, expanding to include the previous word
             // to detect line ranges like "file.rs (16-30)" when hovering over "(16-30)"

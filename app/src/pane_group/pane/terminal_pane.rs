@@ -18,26 +18,22 @@ use crate::ai::agent::StartAgentExecutionMode;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::ambient_agents::task::normalize_orchestrator_agent_name;
-#[cfg(feature = "local_fs")]
-use crate::ai::blocklist::BlocklistAIHistoryEvent;
 use crate::ai::blocklist::agent_view::{AgentViewControllerEvent, AgentViewEntryOrigin};
 use crate::ai::blocklist::{
-    BlocklistAIHistoryModel, StartAgentRequest, apply_child_agent_model_override,
-    prepare_local_oz_child_launch,
+    BlocklistAIHistoryEvent, BlocklistAIHistoryModel, StartAgentRequest,
+    apply_child_agent_model_override, prepare_local_oz_child_launch,
 };
 use crate::ai::conversation_utils;
 use crate::ai::llms::LLMPreferences;
 use crate::app_state::{AmbientAgentPaneSnapshot, LeafContents, TerminalPaneSnapshot};
 use crate::code::buffer_location::LocalOrRemotePath;
-#[cfg(feature = "local_fs")]
-use crate::pane_group::CodeSource;
 use crate::pane_group::Event::OpenConversationHistory;
 use crate::pane_group::child_agent::{
     ErrorChildAgentConversationRequest, HiddenChildAgentConversation,
     HiddenChildAgentConversationRequest, HiddenChildAgentTaskContext,
     create_error_child_agent_conversation, create_hidden_child_agent_conversation,
 };
-use crate::pane_group::{self, Direction, PaneGroup};
+use crate::pane_group::{self, CodeSource, Direction, PaneGroup};
 use crate::persistence::{BlockCompleted, ModelEvent};
 use crate::session_management::SessionNavigationData;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
@@ -206,7 +202,6 @@ impl PaneContent for TerminalPane {
         }
 
         let terminal_view_id = self.terminal_view(ctx).id();
-        #[cfg(feature = "local_fs")]
         {
             ctx.subscribe_to_model(
                 &BlocklistAIHistoryModel::handle(ctx),
@@ -335,7 +330,6 @@ impl PaneContent for TerminalPane {
                 .clone(),
         );
 
-        #[cfg(feature = "local_fs")]
         {
             ctx.unsubscribe_to_model(&BlocklistAIHistoryModel::handle(ctx));
         }
@@ -846,13 +840,11 @@ fn handle_terminal_view_event(
                     session: session.clone(),
                 });
             }
-            #[cfg(feature = "local_fs")]
             Event::PreviewCodeInWarp { source } => {
                 ctx.emit(pane_group::Event::PreviewCodeInWarp {
                     source: source.clone(),
                 });
             }
-            #[cfg(feature = "local_fs")]
             Event::OpenCodeInWarp { source, layout } => {
                 ctx.emit(pane_group::Event::OpenCodeInWarp {
                     source: source.clone(),
@@ -919,7 +911,6 @@ fn handle_terminal_view_event(
                 group.terminal_with_open_summarization_dialog = is_open.then_some(terminal_pane_id);
                 ctx.notify();
             }
-            #[cfg(feature = "local_fs")]
             Event::OpenFileWithTarget {
                 path,
                 target,
@@ -1015,14 +1006,12 @@ fn handle_terminal_view_event(
                     initial_content: initial_content.clone(),
                 });
             }
-            #[cfg(feature = "local_fs")]
             Event::FileRenamed { old_path, new_path } => {
                 ctx.emit(pane_group::Event::FileRenamed {
                     old_path: old_path.clone(),
                     new_path: new_path.clone(),
                 });
             }
-            #[cfg(feature = "local_fs")]
             Event::FileDeleted { path } => {
                 ctx.emit(pane_group::Event::FileDeleted { path: path.clone() });
             }
@@ -1458,7 +1447,6 @@ fn launch_local_harness_child(
     );
 }
 
-#[cfg(feature = "local_fs")]
 fn handle_ai_history_event(
     event: &BlocklistAIHistoryEvent,
     terminal_view_id: EntityId,

@@ -1,5 +1,3 @@
-#![cfg(feature = "local_fs")]
-
 use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;

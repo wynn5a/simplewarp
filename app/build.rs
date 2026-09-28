@@ -214,9 +214,6 @@ fn get_build_profile_name() -> String {
 }
 
 fn add_features(target_os: &str) {
-    println!("cargo:rustc-cfg=feature=\"local_fs\"");
-    println!("cargo:rustc-cfg=feature=\"local_tty\"");
-
     if target_os != "windows" {
         println!("cargo:rustc-cfg=feature=\"iterm_images\"");
     }

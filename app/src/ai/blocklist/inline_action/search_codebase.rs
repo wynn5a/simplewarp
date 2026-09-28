@@ -39,7 +39,6 @@ pub enum SearchCodebaseViewEvent {
     OpenLinkTooltip {
         rich_content_link: RichContentLink,
     },
-    #[cfg(feature = "local_fs")]
     OpenDetectedFilePath {
         absolute_path: std::path::PathBuf,
         line_and_column_num: Option<warp_util::path::LineAndColumnArg>,
@@ -389,7 +388,6 @@ impl TypedActionView for SearchCodebaseView {
                         Some(DetectedLinkType::Url(link)) => {
                             ctx.open_url(link);
                         }
-                        #[cfg(feature = "local_fs")]
                         Some(DetectedLinkType::FilePath {
                             absolute_path,
                             line_and_column_num,
@@ -420,7 +418,6 @@ impl TypedActionView for SearchCodebaseView {
                 if let Some(link_type) = self.detected_links_state.link_at(location, link_range) {
                     let rich_content_link: RichContentLink = match link_type {
                         DetectedLinkType::Url(link) => RichContentLink::Url(link.clone()),
-                        #[cfg(feature = "local_fs")]
                         DetectedLinkType::FilePath {
                             absolute_path,
                             line_and_column_num,

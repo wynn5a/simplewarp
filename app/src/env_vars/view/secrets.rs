@@ -18,13 +18,10 @@ use crate::env_vars::active_env_var_collection_data::SavingStatus;
 use crate::external_secrets::{ExternalSecretManager, SecretManager};
 use crate::search::external_secrets::searcher::ExternalSecretSearchItemAction;
 use crate::search::external_secrets::view::ExternalSecretsMenuEvent;
+use crate::terminal::local_shell::LocalShellState;
 use crate::ui_components::icons::Icon;
-#[cfg(feature = "local_tty")]
-use crate::{
-    terminal::local_shell::LocalShellState,
-    view_components::{DismissibleToast, ToastLink},
-    workspace::{ToastStack, WorkspaceAction},
-};
+use crate::view_components::{DismissibleToast, ToastLink};
+use crate::workspace::{ToastStack, WorkspaceAction};
 
 impl EnvVarCollectionView {
     pub(super) fn handle_external_secrets_dialog_event(
@@ -70,7 +67,6 @@ impl EnvVarCollectionView {
         secret_manager: SecretManager,
         ctx: &mut ViewContext<Self>,
     ) {
-        #[cfg(feature = "local_tty")]
         {
             let window_id = ctx.window_id();
             let local_shell = LocalShellState::as_ref(ctx);

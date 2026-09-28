@@ -170,7 +170,6 @@ fn test_detect_possible_local_git_repo_nested_repo_created_after_parent_registra
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_find_git_repo_with_worktree() {
     VirtualFS::test("find_git_repo_worktree", |dirs, mut vfs| {
         // Set up a primary repository with a worktree directory.

@@ -1,4 +1,3 @@
-#![cfg(feature = "local_fs")]
 use std::collections::HashSet;
 
 use repo_metadata::RepoMetadataModel;

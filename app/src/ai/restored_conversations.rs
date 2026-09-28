@@ -1,19 +1,15 @@
 //! A singleton model for restoring conversations by ID across terminal views.
 
 use std::collections::{HashMap, HashSet};
-#[cfg(feature = "local_fs")]
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "local_fs")]
 use diesel::SqliteConnection;
 use warpui::{Entity, SingletonEntity};
 
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
-#[cfg_attr(not(any(feature = "local_fs", test)), allow(unused_imports))]
 use crate::ai::blocklist::history_model::convert_persisted_conversation_to_ai_conversation_with_metadata;
 #[cfg(test)]
 use crate::persistence::model::AgentConversation;
-#[cfg(feature = "local_fs")]
 use crate::persistence::{database_file_path, establish_ro_connection};
 
 /// Singleton model that restores agent conversations on demand.
@@ -30,13 +26,11 @@ pub struct RestoredAgentConversations {
     /// historical take-once semantics now that the backing database can
     /// otherwise serve the same conversation repeatedly.
     taken: HashSet<AIConversationId>,
-    #[cfg(feature = "local_fs")]
     db_connection: Option<Arc<Mutex<SqliteConnection>>>,
 }
 
 impl RestoredAgentConversations {
     pub fn new() -> Self {
-        #[cfg(feature = "local_fs")]
         let db_connection = database_file_path().to_str().and_then(|db_url| {
             establish_ro_connection(db_url)
                 .ok()
@@ -46,7 +40,6 @@ impl RestoredAgentConversations {
         Self {
             conversations: HashMap::new(),
             taken: HashSet::new(),
-            #[cfg(feature = "local_fs")]
             db_connection,
         }
     }
@@ -72,14 +65,12 @@ impl RestoredAgentConversations {
         Self {
             conversations: conversations_by_id,
             taken: HashSet::new(),
-            #[cfg(feature = "local_fs")]
             db_connection: None,
         }
     }
 
     /// Loads and converts a conversation from the local database.
     fn load_from_db(&self, id: &AIConversationId) -> Option<AIConversation> {
-        #[cfg(feature = "local_fs")]
         {
             let conn = self.db_connection.clone()?;
             let mut conn = conn.lock().ok()?;
@@ -96,11 +87,6 @@ impl RestoredAgentConversations {
                     None
                 }
             }
-        }
-        #[cfg(not(feature = "local_fs"))]
-        {
-            let _ = id;
-            None
         }
     }
 

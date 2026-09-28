@@ -7,7 +7,6 @@ license.workspace = true
 
 [features]
 jemalloc = []
-local_fs = []
 test-util = []
 
 [dependencies]

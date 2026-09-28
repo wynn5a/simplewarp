@@ -591,6 +591,40 @@ Queue, in order:
    mock branch is dead (function is `local_tty`-only); `ai::artifacts` screenshot/file
    download buttons; remaining recording tool-call conversion.
 
+18. ~~Cloud-environment objects, artifact downloads, recording conversion, `local_fs` / `local_tty`~~ —
+   **4hg done (2026-09-28), two commits.** (a) −2.4k lines in 49 files. Environments: only
+   server-synced rows ever existed, so `CloudEnvironmentCatalog`, `AmbientAgentEnvironment` (+
+   StringModel/JsonModel, `GithubRepo`, `BaseImage`, providers/secrets config), the orchestration
+   environment picker / `environment_snapshot` / default resolution / persistence / "select an
+   environment" hint, the never-constructed `ChipMenuType::Environments` menu + sidecar (and the
+   copyable-field options only it used), private setting `last_selected_environment_id`, unread
+   `FeatureFlag::CloudEnvironments` / `cloud_environments` feature. Stale `CLOUDENVIRONMENT` rows are
+   skipped at load (as `CLOUDAGENTCONFIG`). `SourceRepo` / `CodeForge` → `cloud_object_models::
+   source_repo` (scheduled agents read them). Remote runs still carry `environment_id` on the wire;
+   the UI never sets it. Artifact row: screenshot / file buttons (failed lightbox / failed download
+   toast from server artifact storage) gone with `open_screenshot_lightbox`,
+   `download_file_artifact`, `file_button_label`; persisted `Screenshot` / `File` artifacts still load
+   and still match the list filters. Recording: `StartRecording { summary }`, `StopRecording
+   { recording_id }` (capture config fed only the deleted recorder), window-target parsing,
+   `InvalidRecordingWindowId`, success/discard to-API conversions (never produced locally); orphaned
+   never-compiled `ai/agent/action/convert_tests.rs`. (b) −2.9k lines in 205 files: `local_fs` /
+   `local_tty` were set unconditionally by build.rs in app and in ai / lsp / node_runtime /
+   persistence / repo_metadata / warp_core (every bin, every config), so the features, the six
+   crate build.rs files, every `not(...)` stub / `cfg_attr` / `cfg!` and the four `dummy_*` modules
+   are gone and the enabled code is unconditional (incl. the docker sandbox view's mock-terminal
+   branch). Scripted (attribute / `cfg_if!` / `cfg!` rewrite), reviewed by compile + diff; one
+   clippy `const_is_empty` fix in the WSL error path. Tests 4,211 default / 4,212 simplewarp (−9,
+   deleted with their code: 2 catalog, 1 env snapshot, 1 env pre-fill, 2 `set_environment_id`, 3
+   `file_button_label`), `cloud_object_models` −20 (environment serde; 1 `SourceRepo` test kept),
+   ai / lsp / repo_metadata / node_runtime / persistence / warp_core / warp_features 448 passed, 0
+   failed. Linux x11 check of `computer_use` (4hf) still not possible: `x86_64-unknown-linux-gnu`
+   std installs, but `freetype-sys` / `yeslogic-fontconfig-sys` (via warpui_core → font-kit) need a
+   Linux C sysroot. Follow-ups: 76 bare `{ … }` blocks left where `#[cfg(feature = "local_fs")] {`
+   stood (not flattened blindly: scope ends drop guards/locks); the whole Cloud/Remote orchestration
+   mode (host / runner / auth-secret pickers, `RunAgentsExecutionMode::Remote`; remote children
+   already fail with "not supported in this build"); `ScheduledAmbientAgent` (server-scheduled);
+   `UploadFileArtifact` tool-call conversion; conversation-list Screenshot / File artifact filters.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

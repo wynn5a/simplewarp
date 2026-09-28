@@ -3689,7 +3689,6 @@ fn test_open_slash_command_opens_files_palette_when_entered_from_slash_menu() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_open_slash_command_clears_buffer_on_success() {
     App::test((), |mut app| async move {
@@ -3734,7 +3733,6 @@ fn test_open_slash_command_clears_buffer_on_success() {
     });
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_open_slash_command_expands_tilde() {
     App::test((), |mut app| async move {

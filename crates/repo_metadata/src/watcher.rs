@@ -3,30 +3,24 @@ use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::Arc;
 
-#[cfg(feature = "local_fs")]
-use futures::{FutureExt as _, future::OptionFuture};
+use futures::FutureExt as _;
+use futures::future::OptionFuture;
+use ignore::gitignore::Gitignore;
 use warp_util::standardized_path::StandardizedPath;
 use warpui_core::{Entity, ModelContext, ModelHandle, SingletonEntity, WeakModelHandle};
+use watcher::{BulkFilesystemWatcher, BulkFilesystemWatcherEvent};
 
+use crate::entry::{
+    extract_worktree_git_dir, is_commit_related_git_file, is_common_git_config,
+    is_git_internal_path, is_index_lock_file, is_remote_tracking_ref, is_shared_git_ref,
+    is_tracking_state_git_file,
+};
 use crate::repository::SubscriberId;
 use crate::{RepoMetadataError, Repository};
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        use std::sync::Arc;
-
-        use ignore::gitignore::Gitignore;
-        use watcher::{BulkFilesystemWatcher, BulkFilesystemWatcherEvent};
-        use crate::entry::{
-            extract_worktree_git_dir, is_commit_related_git_file, is_git_internal_path,
-            is_common_git_config, is_index_lock_file, is_remote_tracking_ref,
-            is_shared_git_ref, is_tracking_state_git_file,
-        };
-        /// Duration between filesystem watch events in milliseconds
-        const FILESYSTEM_WATCHER_DEBOUNCE_MILLI_SECS: u64 = 500;
-    }
-}
+/// Duration between filesystem watch events in milliseconds
+const FILESYSTEM_WATCHER_DEBOUNCE_MILLI_SECS: u64 = 500;
 
 const MAX_CONCURRENT_TASKS: usize = 2;
 
@@ -38,7 +32,6 @@ pub struct DirectoryWatcher {
     directories: HashMap<StandardizedPath, ModelHandle<Repository>>,
 
     /// The filesystem watcher for monitoring changes.
-    #[cfg(feature = "local_fs")]
     watcher: Option<ModelHandle<BulkFilesystemWatcher>>,
     #[cfg(test)]
     stopped_watching_paths: Vec<StandardizedPath>,
@@ -49,33 +42,24 @@ pub struct DirectoryWatcher {
     /// Paths that must be watched (and indexed) even when they are gitignored
     /// or beyond the tree's size limit — e.g. skill provider directories that
     /// consumers (LSP, MCP) need live updates for.
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     force_included_paths: Vec<PathBuf>,
 }
 
 impl DirectoryWatcher {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "local_fs")] {
-                let fs_watcher = ctx.add_model(|ctx| {
-                    BulkFilesystemWatcher::new(
-                        std::time::Duration::from_millis(FILESYSTEM_WATCHER_DEBOUNCE_MILLI_SECS),
-                        ctx,
-                    )
-                });
-                ctx.subscribe_to_model(&fs_watcher, Self::handle_watcher_event);
-            } else {
-                // Silence an unused parameter warning.
-                let _ = ctx;
-            }
-        }
+        let fs_watcher = ctx.add_model(|ctx| {
+            BulkFilesystemWatcher::new(
+                std::time::Duration::from_millis(FILESYSTEM_WATCHER_DEBOUNCE_MILLI_SECS),
+                ctx,
+            )
+        });
+        ctx.subscribe_to_model(&fs_watcher, Self::handle_watcher_event);
 
         let processing_queue = ctx.add_model(TaskQueue::new);
         ctx.subscribe_to_model(&processing_queue, Self::handle_queue_event);
 
         Self {
             directories: Default::default(),
-            #[cfg(feature = "local_fs")]
             watcher: Some(fs_watcher),
             #[cfg(test)]
             stopped_watching_paths: Vec::new(),
@@ -88,21 +72,14 @@ impl DirectoryWatcher {
     /// preventing thread leaks in tests.
     #[cfg(any(test, feature = "test-util"))]
     pub fn new_for_testing(ctx: &mut ModelContext<Self>) -> Self {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "local_fs")] {
-                let fs_watcher = ctx.add_model(|_ctx| BulkFilesystemWatcher::new_for_test());
-                ctx.subscribe_to_model(&fs_watcher, Self::handle_watcher_event);
-            } else {
-                let _ = ctx;
-            }
-        }
+        let fs_watcher = ctx.add_model(|_ctx| BulkFilesystemWatcher::new_for_test());
+        ctx.subscribe_to_model(&fs_watcher, Self::handle_watcher_event);
 
         let processing_queue = ctx.add_model(TaskQueue::new);
         ctx.subscribe_to_model(&processing_queue, Self::handle_queue_event);
 
         Self {
             directories: Default::default(),
-            #[cfg(feature = "local_fs")]
             watcher: Some(fs_watcher),
             #[cfg(test)]
             stopped_watching_paths: Vec::new(),
@@ -163,7 +140,6 @@ impl DirectoryWatcher {
     /// 4. **Common config** (`.git/config`): all repos sharing that common Git directory.
     /// 5. **Repo-specific** (`.git/HEAD`, `.git/index.lock`, etc.): only the
     ///    repo whose working tree directly contains `.git` (main repo).
-    #[cfg(feature = "local_fs")]
     fn find_repos_for_git_event(
         &self,
         git_path: &Path,
@@ -326,7 +302,6 @@ impl DirectoryWatcher {
     /// Starts watching multiple directories for filesystem changes.
     ///
     /// The returned future resolves once all directories are registered.
-    #[cfg(feature = "local_fs")]
     pub(crate) fn start_watching_directories(
         &mut self,
         directory_paths: Vec<StandardizedPath>,
@@ -349,7 +324,6 @@ impl DirectoryWatcher {
     ///
     /// The returned future resolves once the directory is registered. Filesystem changes before
     /// this may not be observed.
-    #[cfg(feature = "local_fs")]
     pub(crate) fn start_watching_directory(
         &mut self,
         directory_path: &StandardizedPath,
@@ -399,7 +373,6 @@ impl DirectoryWatcher {
     }
 
     /// Stops watching a directory for filesystem changes.
-    #[cfg(feature = "local_fs")]
     pub(crate) fn stop_watching_directory(
         &mut self,
         directory_path: &StandardizedPath,
@@ -407,41 +380,34 @@ impl DirectoryWatcher {
     ) -> impl Future<Output = Result<(), anyhow::Error>> {
         #[cfg(test)]
         self.stopped_watching_paths.push(directory_path.clone());
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "local_fs")] {
-                let local_path = directory_path.to_local_path();
-                let unregistration_future = if let Some(ref watcher) = self.watcher {
-                    if let Some(local_path) = local_path {
-                        watcher.update(ctx, |watcher, _ctx| {
-                            Some(watcher.unregister_path(&local_path))
-                        })
-                    } else {
-                        log::warn!("Cannot unwatch non-local path: {directory_path}");
-                        None
-                    }
-                } else {
-                    log::warn!("No watcher available");
-                    None
-                };
-
-                let path_display = directory_path.to_string();
-                OptionFuture::from(unregistration_future).map(move |result| match result {
-                    Some(Ok(())) => {
-                        log::debug!("Stopped watching {path_display}");
-                        Ok(())
-                    }
-                    Some(Err(e)) => {
-                        log::warn!("Failed to stop watching {path_display}: {e:#}");
-                        Err(e)
-                    }
-                    None => Ok(()),
+        let local_path = directory_path.to_local_path();
+        let unregistration_future = if let Some(ref watcher) = self.watcher {
+            if let Some(local_path) = local_path {
+                watcher.update(ctx, |watcher, _ctx| {
+                    Some(watcher.unregister_path(&local_path))
                 })
             } else {
-                async { Ok(()) }
+                log::warn!("Cannot unwatch non-local path: {directory_path}");
+                None
             }
-        }
+        } else {
+            log::warn!("No watcher available");
+            None
+        };
+
+        let path_display = directory_path.to_string();
+        OptionFuture::from(unregistration_future).map(move |result| match result {
+            Some(Ok(())) => {
+                log::debug!("Stopped watching {path_display}");
+                Ok(())
+            }
+            Some(Err(e)) => {
+                log::warn!("Failed to stop watching {path_display}: {e:#}");
+                Err(e)
+            }
+            None => Ok(()),
+        })
     }
-    #[cfg(feature = "local_fs")]
     pub(crate) fn stop_watching_unused_git_directories(
         &mut self,
         repository_root_to_stop: &StandardizedPath,
@@ -478,7 +444,6 @@ impl DirectoryWatcher {
         });
     }
 
-    #[cfg(feature = "local_fs")]
     fn record_git_internal_path_update(
         &self,
         path: &Path,
@@ -525,7 +490,6 @@ impl DirectoryWatcher {
     }
 
     /// Handles filesystem watcher events.
-    #[cfg(feature = "local_fs")]
     fn handle_watcher_event(
         &mut self,
         _: ModelHandle<BulkFilesystemWatcher>,
@@ -777,7 +741,6 @@ enum Task {
         repository: WeakModelHandle<Repository>,
         subscriber_id: SubscriberId,
     },
-    #[cfg(feature = "local_fs")]
     /// Deliver an incremental update (filesystem changes) to a specific repository subscriber.
     Update {
         repository: WeakModelHandle<Repository>,
@@ -804,7 +767,6 @@ impl Task {
                     None
                 }
             }
-            #[cfg(feature = "local_fs")]
             Task::Update {
                 repository,
                 subscriber_id,
@@ -887,7 +849,6 @@ impl TaskQueue {
         );
     }
 
-    #[cfg(feature = "local_fs")]
     pub(crate) fn enqueue_incremental_update(
         &mut self,
         repository: WeakModelHandle<Repository>,

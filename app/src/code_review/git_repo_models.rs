@@ -1,16 +1,11 @@
 use std::collections::HashMap;
 
-#[cfg(feature = "local_fs")]
 use repo_metadata::repositories::DetectedRepositories;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity, WeakModelHandle};
 
-use super::git_repo_model::GitRepoStatusModel;
-#[cfg(feature = "local_fs")]
-use super::git_repo_model::new_local_git_repo_status_model;
-use super::github_repo_model::GitHubRepoModel;
-#[cfg(feature = "local_fs")]
-use super::github_repo_model::LocalGitHubRepoModel;
+use super::git_repo_model::{GitRepoStatusModel, new_local_git_repo_status_model};
+use super::github_repo_model::{GitHubRepoModel, LocalGitHubRepoModel};
 
 // ── GitRepoModels (singleton cache) ─────────────────────────────────────────
 
@@ -56,25 +51,15 @@ impl GitRepoModels {
 
         let handle = match repo {
             LocalOrRemotePath::Local(repo_path) => {
-                #[cfg(feature = "local_fs")]
-                {
-                    let Some(repository_model) = DetectedRepositories::as_ref(ctx)
-                        .get_local_watched_repo_for_path(repo_path, ctx)
-                    else {
-                        anyhow::bail!(
-                            "No watched repository found for path: {}",
-                            repo_path.display()
-                        );
-                    };
-                    new_local_git_repo_status_model(repo_path.clone(), repository_model, ctx)
-                }
-                #[cfg(not(feature = "local_fs"))]
-                {
+                let Some(repository_model) = DetectedRepositories::as_ref(ctx)
+                    .get_local_watched_repo_for_path(repo_path, ctx)
+                else {
                     anyhow::bail!(
                         "No watched repository found for path: {}",
                         repo_path.display()
                     );
-                }
+                };
+                new_local_git_repo_status_model(repo_path.clone(), repository_model, ctx)
             }
             LocalOrRemotePath::Remote(remote_path) => {
                 anyhow::bail!(
@@ -113,7 +98,6 @@ impl GitRepoModels {
 
         let handle = match repo {
             LocalOrRemotePath::Local(repo_path) => {
-                #[cfg(feature = "local_fs")]
                 {
                     // LocalGitHubRepoModel needs a sibling GitRepoStatusModel for
                     // branch info.
@@ -127,13 +111,6 @@ impl GitRepoModels {
                         });
                         GitHubRepoModel::Local(inner)
                     })
-                }
-                #[cfg(not(feature = "local_fs"))]
-                {
-                    anyhow::bail!(
-                        "Local GitHub repo info is unavailable without local_fs: {}",
-                        repo_path.display()
-                    );
                 }
             }
             LocalOrRemotePath::Remote(remote_path) => {

@@ -19,7 +19,6 @@ pub mod editor;
 pub mod editor_management;
 pub mod global_buffer_model;
 pub mod inline_diff;
-#[cfg(feature = "local_fs")]
 pub mod language_server_shutdown_manager;
 pub mod lsp_logs;
 
@@ -51,7 +50,6 @@ register_error!(ImmediateSaveError);
 pub trait ShowCommentEditorProvider: Debug + 'static {
     /// Returns whether the comment editor should be shown given the location of the line where
     /// the editor would be shown.
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn should_show_comment_editor(&self, editor_line_location: RectF, app: &AppContext) -> bool;
 }
 
@@ -69,7 +67,6 @@ impl ShowCommentEditorProvider for NoopCommentEditorProvider {
 pub trait ShowFindReferencesCardProvider: Debug + 'static {
     /// Returns whether the find references card should be shown given the location of the anchor
     /// point where the card would be positioned.
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn should_show_find_references_card(
         &self,
         card_anchor_location: RectF,

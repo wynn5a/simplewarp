@@ -12,7 +12,6 @@ pub mod telemetry;
 
 pub use new_worktree_modal::{NewWorktreeModal, NewWorktreeModalEvent};
 pub use params_modal::{TabConfigParamsModal, TabConfigParamsModalEvent};
-#[cfg(feature = "local_fs")]
 pub(crate) use tab_config::build_worktree_config_toml;
 pub use tab_config::{
     TabConfig, TabConfigError, TabConfigParam, TabConfigParamType, render_tab_config,

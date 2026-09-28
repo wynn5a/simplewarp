@@ -174,7 +174,6 @@ impl super::WarpConfig {
     /// lowercasing and replacing non-alphanumeric characters (except `-`) with
     /// `_`. If the candidate path already exists, a numeric suffix is appended
     /// (`_2`, `_3`, …) until a free slot is found. Returns the path written to.
-    #[cfg(feature = "local_fs")]
     pub fn save_custom_model_router(
         name: &str,
         yaml: &str,
@@ -207,7 +206,6 @@ impl super::WarpConfig {
     /// Deletes a custom model router file from disk.
     /// The filesystem watcher in [`Self::handle_warp_managed_paths_event`] will
     /// pick up the deletion and reload `custom_model_routers`.
-    #[cfg(feature = "local_fs")]
     pub fn delete_custom_model_router(source_path: &std::path::Path) -> anyhow::Result<()> {
         std::fs::remove_file(source_path)
             .map_err(|e| anyhow::anyhow!("could not delete router file: {e}"))
@@ -215,7 +213,6 @@ impl super::WarpConfig {
 
     /// This method takes a file name candidate (appends .yaml if missing) and a LaunchConfig as
     /// arguments. It saves the file and returns the filename used if successful.
-    #[cfg(feature = "local_fs")]
     pub fn save_new_launch_config(
         file_name: String,
         launch_config: LaunchConfig,

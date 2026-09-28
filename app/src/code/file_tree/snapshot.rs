@@ -336,7 +336,6 @@ impl FileTreeSnapshot {
 
     /// Populates a directory with its children from the filesystem.
     /// This scans the directory and adds all immediate children.
-    #[cfg(feature = "local_fs")]
     pub fn load_directory_children(
         &mut self,
         dir_path: &Path,

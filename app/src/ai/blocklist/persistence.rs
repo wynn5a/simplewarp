@@ -1,5 +1,4 @@
 //! Manages how we serialize blocklist AI data for persistence.
-#![cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 
 use std::collections::HashMap;
 use std::sync::Arc;

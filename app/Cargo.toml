@@ -752,23 +752,8 @@ kitty_keyboard_protocol = []
 ligatures = []
 trim_trailing_blank_lines = []
 list_skills = []
-# This feature is enabled in build.rs when compiling for platforms which
-# support having a local tty/shell session.  It can be used to conditionally
-# include dependencies that should only exist in such environments.
-local_tty = []
 local_computer_use = []
 local_claude_codex_child_harnesses = []
-# This feature is enabled in build.rs when compiling for platforms which
-# have APIs for interacting with a local filesystem.  It can be used to
-# conditionally include dependencies that should only exist in such
-# environments.
-local_fs = [
-    "ai/local_fs",
-    "lsp/local_fs",
-    "persistence/local_fs",
-    "repo_metadata/local_fs",
-    "warp_core/local_fs",
-]
 jupyter_notebook_rendering = []
 markdown_tables = []
 markdown_mermaid = []

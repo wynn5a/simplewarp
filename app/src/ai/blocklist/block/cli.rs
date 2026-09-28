@@ -1092,9 +1092,7 @@ impl View for CLISubagentView {
                                 copy_code_action_factory: Some(&copy_code_action),
                                 detected_links: Some(&self.link_detection_state),
                                 item_spacing: CONTENT_PADDING,
-                                #[cfg(feature = "local_fs")]
                                 resolved_code_block_paths: None,
-                                #[cfg(feature = "local_fs")]
                                 resolved_blocklist_image_sources: None,
                             },
                             app,

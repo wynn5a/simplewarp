@@ -790,7 +790,7 @@ fn decode_wsl_path_result(result: io::Result<process::Output>) -> Option<UnixPat
                 use std::os::windows::ffi::OsStringExt as _;
                 let wsl_err_msg = OsString::from_wide(bytemuck::cast_slice(&output.stdout));
             } else {
-                let wsl_err_msg = "";
+                let wsl_err_msg = OsString::new();
             }
         }
         // If wsl.exe was correctly invoked but the Linux command had an error, that will

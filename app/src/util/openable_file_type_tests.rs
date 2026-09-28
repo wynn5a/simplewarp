@@ -1,6 +1,5 @@
 use std::path::Path;
 
-#[cfg(feature = "local_fs")]
 use settings::Setting as _;
 use warp_core::features::FeatureFlag;
 
@@ -15,7 +14,6 @@ fn test_binary_files_not_openable() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_open_code_panels_file_editor_default_is_warp() {
     use crate::util::file::external_editor::settings::OpenCodePanelsFileEditor;
 
@@ -26,7 +24,6 @@ fn test_open_code_panels_file_editor_default_is_warp() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_resolve_file_target_markdown_viewer_precedence() {
     let target = resolve_file_target_with_editor_choice(
         Path::new("README.md"),
@@ -40,7 +37,6 @@ fn test_resolve_file_target_markdown_viewer_precedence() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_resolve_file_target_warp_uses_default_layout() {
     let target = resolve_file_target_with_editor_choice(
         Path::new("data.txt"),
@@ -56,7 +52,6 @@ fn test_resolve_file_target_warp_uses_default_layout() {
 /// `file.open` from local control relies on this resolver never routing to an
 /// external editor or the system default app, even when user settings prefer one.
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_resolve_file_target_to_open_in_warp_never_leaves_warp() {
     use crate::util::file::external_editor::settings::{
         OpenCodePanelsFileEditor, OpenConversationLayoutPreference, OpenFileEditor, OpenFileLayout,
@@ -86,7 +81,6 @@ fn test_resolve_file_target_to_open_in_warp_never_leaves_warp() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_resolve_file_target_binary_is_system_generic() {
     let target = resolve_file_target_with_editor_choice(
         Path::new("image.png"),
@@ -100,7 +94,6 @@ fn test_resolve_file_target_binary_is_system_generic() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_resolve_file_target_binary_uses_env_editor() {
     let target = resolve_file_target_with_editor_choice(
         Path::new("image.png"),
@@ -131,7 +124,6 @@ fn test_renders_in_warp_notebook_viewer() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_resolve_file_target_jupyter_notebook_flag_on() {
     let _flag = FeatureFlag::JupyterNotebookRendering.override_enabled(true);
     // Even with prefer_markdown_viewer off and an explicit Warp editor choice,
@@ -147,7 +139,6 @@ fn test_resolve_file_target_jupyter_notebook_flag_on() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_resolve_file_target_jupyter_notebook_flag_off() {
     let _flag = FeatureFlag::JupyterNotebookRendering.override_enabled(false);
     // With the flag off, a Jupyter notebook opens as JSON in the code editor,
@@ -183,7 +174,6 @@ fn test_markdown_files() {
 }
 
 #[test]
-#[cfg(feature = "local_fs")]
 fn test_code_files() {
     assert_eq!(
         is_file_openable_in_warp(Path::new("main.rs")),
@@ -200,27 +190,6 @@ fn test_code_files() {
     assert_eq!(
         is_file_openable_in_warp(Path::new("config.json")),
         Some(OpenableFileType::Code)
-    );
-}
-
-#[test]
-#[cfg(not(feature = "local_fs"))]
-fn test_code_files() {
-    assert_eq!(
-        is_file_openable_in_warp(Path::new("main.rs")),
-        Some(OpenableFileType::Text)
-    );
-    assert_eq!(
-        is_file_openable_in_warp(Path::new("app.js")),
-        Some(OpenableFileType::Text)
-    );
-    assert_eq!(
-        is_file_openable_in_warp(Path::new("script.py")),
-        Some(OpenableFileType::Text)
-    );
-    assert_eq!(
-        is_file_openable_in_warp(Path::new("config.json")),
-        Some(OpenableFileType::Text)
     );
 }
 

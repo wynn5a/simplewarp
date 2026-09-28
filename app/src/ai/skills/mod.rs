@@ -5,19 +5,10 @@ use warp_util::local_or_remote_path::LocalOrRemotePath;
 
 mod telemetry;
 pub use telemetry::SkillOpenOrigin;
-#[cfg(feature = "local_fs")]
 mod bundled;
-#[cfg(all(test, feature = "local_fs"))]
-pub(crate) use bundled::BundledSkillActivation;
-
-cfg_if::cfg_if! {
-    if #[cfg(not(feature = "local_fs"))] {
-        mod dummy_skill_manager;
-        pub use dummy_skill_manager::SkillManager;
-    }
-}
-
 pub use ai::skills::SkillReference;
+#[cfg(test)]
+pub(crate) use bundled::BundledSkillActivation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkillManagerEvent {
@@ -81,9 +72,5 @@ pub use resolve_skill_spec::{
     ResolveSkillError, ResolvedSkill, clone_repo_for_skill, resolve_skill_spec,
 };
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        mod skill_manager;
-        pub use skill_manager::SkillManager;
-    }
-}
+mod skill_manager;
+pub use skill_manager::SkillManager;

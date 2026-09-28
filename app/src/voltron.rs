@@ -102,7 +102,6 @@ impl VoltronItem {
 /// Structure used by the `on_load` method to pass extra metadata to features.
 #[derive(Clone, Default)]
 pub struct VoltronMetadata {
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     pub active_session_path_if_local: Option<PathBuf>,
 
     /// Starting editor text for the buffer within Voltron.

@@ -1,52 +1,36 @@
 use std::ops::Deref;
+use std::path::PathBuf;
 
 use serde::{Serialize, Serializer};
+use unicode_general_category::{GeneralCategory, get_general_category};
+use unicode_width::UnicodeWidthChar;
+use warp_errors::report_error;
+use warp_util::path::{CleanPathResult, LineAndColumnArg};
 use warpui::ViewContext;
 use warpui::platform::Cursor;
 
-use crate::terminal::TerminalModel;
+use super::{FindLinkArg, TerminalEditor};
 use crate::terminal::model::RespectObfuscatedSecrets;
+use crate::terminal::model::grid::grid_handler;
 use crate::terminal::model::grid::grid_handler::Link;
 use crate::terminal::model::index::Point;
 use crate::terminal::model::terminal_model::{WithinBlock, WithinModel};
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        use crate::{
-            terminal::model::grid::grid_handler,
-            terminal::ShellLaunchData,
-            util::file::{FileLink, absolute_path_if_valid, ShellPathType},
-            util::openable_file_type::FileTarget,
-        };
-        use std::path::PathBuf;
-        use unicode_general_category::{get_general_category, GeneralCategory};
-        use unicode_width::UnicodeWidthChar;
-        use warp_util::path::CleanPathResult;
-        use warp_util::path::LineAndColumnArg;
-    }
-}
-
-#[cfg(feature = "local_fs")]
-use warp_errors::report_error;
-
-use super::{FindLinkArg, TerminalEditor};
+use crate::terminal::{ShellLaunchData, TerminalModel};
+use crate::util::file::{FileLink, ShellPathType, absolute_path_if_valid};
+use crate::util::openable_file_type::FileTarget;
 
 // "a/" and "b/" are prefixes specific to Git Diff
-#[cfg(feature = "local_fs")]
 const PREFIXES_TO_REMOVE: [&str; 2] = ["a/", "b/"];
 
 /// "@" is a suffix that can be added to symlinks. It appears in Git Bash's default configuration
 /// for `ls`.
-#[cfg(feature = "local_fs")]
 const SUFFIXES_TO_REMOVE: [&str; 1] = ["@"];
 
-#[cfg(feature = "local_fs")]
 struct TrimmedSentencePunctuation<'a> {
     path: &'a str,
     removed_width: usize,
 }
 
-#[cfg(feature = "local_fs")]
 fn is_trailing_sentence_punctuation(c: char) -> bool {
     if c == '.' {
         return true;
@@ -75,7 +59,6 @@ fn is_trailing_sentence_punctuation(c: char) -> bool {
 /// Returns `None` when there is no trailing sentence punctuation, or when a
 /// trailing period is part of a `.`/`..` path component (e.g. `.`, `..`, `foo/.`,
 /// `foo/..`), which are legitimate path segments and must be preserved.
-#[cfg(feature = "local_fs")]
 fn path_without_trailing_sentence_punctuation(
     path: &str,
 ) -> Option<TrimmedSentencePunctuation<'_>> {
@@ -116,7 +99,6 @@ fn path_without_trailing_sentence_punctuation(
 #[derive(Debug, Clone)]
 pub enum GridHighlightedLink {
     Url(WithinModel<Link>),
-    #[cfg(feature = "local_fs")]
     File(WithinModel<FileLink>),
     /// OSC 8 hyperlink span. Carries the URI directly because — unlike `Url`
     /// — it isn't recoverable from the cell text.
@@ -130,7 +112,6 @@ impl GridHighlightedLink {
     pub fn contains(&self, position: &WithinModel<Point>) -> bool {
         match self {
             GridHighlightedLink::Url(url) => url.contains(position),
-            #[cfg(feature = "local_fs")]
             GridHighlightedLink::File(file_link) => file_link.contains(position),
             GridHighlightedLink::Hyperlink { link, .. } => link.contains(position),
         }
@@ -138,7 +119,6 @@ impl GridHighlightedLink {
 
     pub fn tooltip_text(&self) -> &'static str {
         match &self {
-            #[cfg(feature = "local_fs")]
             GridHighlightedLink::File(file_link)
                 if file_link
                     .get_inner()
@@ -148,7 +128,6 @@ impl GridHighlightedLink {
             {
                 "Open folder"
             }
-            #[cfg(feature = "local_fs")]
             GridHighlightedLink::File(_) => "Open file",
             GridHighlightedLink::Url(_) => "Open link",
             GridHighlightedLink::Hyperlink { .. } => "Open link",
@@ -165,7 +144,6 @@ impl Serialize for GridHighlightedLink {
             GridHighlightedLink::Url(_) => {
                 serializer.serialize_unit_variant("HighlightedLink", 0, "Url")
             }
-            #[cfg(feature = "local_fs")]
             GridHighlightedLink::File(_) => {
                 serializer.serialize_unit_variant("HighlightedLink", 1, "File")
             }
@@ -182,7 +160,6 @@ impl TryFrom<GridHighlightedLink> for Link {
     fn try_from(value: GridHighlightedLink) -> Result<Self, Self::Error> {
         match value {
             GridHighlightedLink::Url(WithinModel::AltScreen(url)) => Ok(url),
-            #[cfg(feature = "local_fs")]
             GridHighlightedLink::File(WithinModel::AltScreen(file_link)) => Ok(file_link.link),
             GridHighlightedLink::Hyperlink {
                 link: WithinModel::AltScreen(link),
@@ -201,7 +178,6 @@ impl TryFrom<GridHighlightedLink> for WithinBlock<Link> {
     fn try_from(value: GridHighlightedLink) -> Result<Self, Self::Error> {
         match value {
             GridHighlightedLink::Url(WithinModel::BlockList(url)) => Ok(url),
-            #[cfg(feature = "local_fs")]
             GridHighlightedLink::File(WithinModel::BlockList(file_link)) => {
                 Ok(file_link.map(|file_link| file_link.link))
             }
@@ -232,7 +208,6 @@ pub struct HighlightedLinkOption {
 #[derive(Clone, Debug)]
 pub enum RichContentLink {
     Url(String),
-    #[cfg(feature = "local_fs")]
     FilePath {
         absolute_path: PathBuf,
         line_and_column_num: Option<LineAndColumnArg>,
@@ -243,11 +218,9 @@ pub enum RichContentLink {
 impl RichContentLink {
     pub fn tooltip_text(&self) -> &'static str {
         match &self {
-            #[cfg(feature = "local_fs")]
             RichContentLink::FilePath { absolute_path, .. } if absolute_path.is_dir() => {
                 "Open folder"
             }
-            #[cfg(feature = "local_fs")]
             RichContentLink::FilePath { .. } => "Open file",
             RichContentLink::Url(_) => "Open link",
         }
@@ -281,7 +254,6 @@ impl HighlightedLinkOption {
                         .set_smart_select_override(link.range.clone());
                 }
             },
-            #[cfg(feature = "local_fs")]
             GridHighlightedLink::File(within_model) => match within_model {
                 WithinModel::BlockList(within_block) => {
                     let point_range = WithinBlock::new(
@@ -468,7 +440,6 @@ impl super::TerminalView {
         self.last_hover_fragment_boundary = Some(new_fragment_boundary);
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     pub(super) fn handle_find_link(
         &mut self,
         find_link_arg: FindLinkArg,
@@ -485,11 +456,9 @@ impl super::TerminalView {
             .as_ref()
             .is_some_and(|url| url.contains(&position))
         {
-            #[cfg_attr(not(feature = "local_fs"), allow(clippy::needless_return))]
             return;
         }
 
-        #[cfg(feature = "local_fs")]
         self.scan_for_file_path(position, from_editor, ctx);
     }
 
@@ -503,7 +472,6 @@ impl super::TerminalView {
         ctx.notify();
 
         match link {
-            #[cfg(feature = "local_fs")]
             GridHighlightedLink::File(link) => {
                 let link = link.get_inner();
                 if let Some(path) = link.absolute_path() {
@@ -533,7 +501,6 @@ impl super::TerminalView {
         ctx.notify();
 
         match link {
-            #[cfg(feature = "local_fs")]
             RichContentLink::FilePath {
                 absolute_path,
                 line_and_column_num,
@@ -559,7 +526,6 @@ impl super::TerminalView {
 
 // A collection of link detection functions that are only valid on platforms
 // where we can spawn a local tty.
-#[cfg(feature = "local_fs")]
 impl super::TerminalView {
     /// Scans the terminal model at the given position to see if it is
     /// contained within a path that should be linkified.
@@ -796,6 +762,6 @@ impl super::TerminalView {
     }
 }
 
-#[cfg(all(test, feature = "local_fs"))]
+#[cfg(test)]
 #[path = "link_detection_tests.rs"]
 mod tests;

@@ -131,7 +131,6 @@ pub enum GlobalSearchEvent {
     },
 }
 
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub enum Event {
     OpenMatch {
         location: LocalOrRemotePath,

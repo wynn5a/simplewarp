@@ -1,24 +1,13 @@
 mod file_outline;
 pub mod locations;
 
-#[cfg(feature = "local_fs")]
-pub use file_outline::build_outline;
-pub use file_outline::{Outline, Symbol};
-pub use repo_metadata::{BuildTreeError, DirectoryEntry, Entry, FileId, FileMetadata};
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        pub use repo_metadata::entry::{is_git_internal_path, should_watch_directory_in_git_path};
-        pub use repo_metadata::matches_gitignores;
-    }
-}
-
-#[cfg(feature = "local_fs")]
+pub use file_outline::{Outline, Symbol, build_outline};
 use native::*;
-#[cfg(not(feature = "local_fs"))]
-use wasm::*;
+pub use repo_metadata::entry::{is_git_internal_path, should_watch_directory_in_git_path};
+pub use repo_metadata::{
+    BuildTreeError, DirectoryEntry, Entry, FileId, FileMetadata, matches_gitignores,
+};
 
-#[cfg(feature = "local_fs")]
 mod native {
     use std::thread::available_parallelism;
 
@@ -38,12 +27,5 @@ mod native {
 
     lazy_static::lazy_static! {
         pub(super) static ref THREADPOOL: Option<rayon::ThreadPool> = create_thread_pool();
-    }
-}
-
-#[cfg(not(feature = "local_fs"))]
-mod wasm {
-    lazy_static::lazy_static! {
-        pub(super) static ref THREADPOOL: Option<rayon::ThreadPool> = None;
     }
 }

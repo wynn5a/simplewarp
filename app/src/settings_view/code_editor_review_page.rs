@@ -2,9 +2,7 @@
 
 use warp_core::settings::ToggleableSetting as _;
 use warp_errors::report_if_error;
-use warpui::elements::Element;
-#[cfg(feature = "local_fs")]
-use warpui::elements::Empty;
+use warpui::elements::{Element, Empty};
 use warpui::ui_components::components::UiComponent;
 use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle};
@@ -32,11 +30,8 @@ impl EditorAndCodeReviewPageView {
     }
 
     fn build_page() -> PageType<Self> {
-        #[cfg(feature = "local_fs")]
         let mut widgets: Vec<Box<dyn SettingsWidget<View = Self>>> =
             vec![Box::new(ExternalEditorCodeWidget)];
-        #[cfg(not(feature = "local_fs"))]
-        let mut widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![];
 
         widgets.extend([
             Box::new(AutoOpenCodeReviewPaneCodeWidget::default())
@@ -175,10 +170,8 @@ impl From<ViewHandle<EditorAndCodeReviewPageView>> for SettingsPageViewHandle {
     }
 }
 
-#[cfg(feature = "local_fs")]
 struct ExternalEditorCodeWidget;
 
-#[cfg(feature = "local_fs")]
 impl SettingsWidget for ExternalEditorCodeWidget {
     type View = EditorAndCodeReviewPageView;
 

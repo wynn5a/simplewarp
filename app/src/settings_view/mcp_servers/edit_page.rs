@@ -1,11 +1,8 @@
 use std::collections::HashMap;
 use std::path::Path;
-#[cfg(feature = "local_fs")]
 use std::sync::Arc;
 
-#[cfg(feature = "local_fs")]
 use diesel::SqliteConnection;
-#[cfg(feature = "local_fs")]
 use parking_lot::Mutex;
 use pathfinder_geometry::vector::vec2f;
 use settings::Setting as _;
@@ -36,9 +33,7 @@ use crate::ai::mcp::{
 };
 use crate::cloud_object::CloudObject;
 use crate::code::editor::view::{CodeEditorRenderOptions, CodeEditorView};
-use crate::persistence::ModelEvent;
-#[cfg(feature = "local_fs")]
-use crate::persistence::{database_file_path, establish_ro_connection};
+use crate::persistence::{ModelEvent, database_file_path, establish_ro_connection};
 use crate::settings_view::mcp_servers::destructive_mcp_confirmation_dialog::{
     DestructiveMCPConfirmationDialog, DestructiveMCPConfirmationDialogEvent,
 };
@@ -111,7 +106,6 @@ pub struct MCPServersEditPageView {
     destructive_mcp_confirmation_dialog: ViewHandle<DestructiveMCPConfirmationDialog>,
     log_out_icon_button_mouse_handle: MouseStateHandle,
 
-    #[cfg(feature = "local_fs")]
     #[allow(dead_code)]
     database_connection: Option<Arc<Mutex<SqliteConnection>>>,
 }
@@ -163,7 +157,6 @@ impl MCPServersEditPageView {
             me.handle_delete_confirmation_event(event, ctx);
         });
 
-        #[cfg(feature = "local_fs")]
         let database_connection = database_file_path().to_str().and_then(|db_url| {
             establish_ro_connection(db_url)
                 .ok()
@@ -181,7 +174,6 @@ impl MCPServersEditPageView {
             destructive_mcp_confirmation_dialog,
             log_out_icon_button_mouse_handle: Default::default(),
 
-            #[cfg(feature = "local_fs")]
             database_connection,
         }
     }

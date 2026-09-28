@@ -29,13 +29,12 @@ use {
 };
 
 use super::keybindings::KeyBindingModifyingState;
-#[cfg(feature = "local_tty")]
-use super::settings_page::render_sub_sub_header;
 use super::settings_page::{
     AdditionalInfo, CONTENT_FONT_SIZE, Category, HEADER_PADDING, MatchData, PageType,
     SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, TOGGLE_BUTTON_RIGHT_PADDING,
     ToggleState, add_setting, build_reset_button, build_toggle_element, render_body_item,
     render_body_item_label, render_dropdown_item, render_dropdown_item_label,
+    render_sub_sub_header,
 };
 use super::{
     DisplayCount, SettingsAction, SettingsSection, ToggleSettingActionPair, features, flags,
@@ -878,9 +877,7 @@ pub struct FeaturesPageView {
 
     notifications_long_running_threshold_editor: ViewHandle<EditorView>,
 
-    #[cfg(feature = "local_tty")]
     working_directory_view: ViewHandle<features::WorkingDirectoryView>,
-    #[cfg(feature = "local_tty")]
     startup_shell_view: ViewHandle<features::StartupShellView>,
     undo_close_view: ViewHandle<features::UndoCloseView>,
 
@@ -890,7 +887,6 @@ pub struct FeaturesPageView {
     mouse_scroll_input_editor: ViewHandle<EditorView>,
     valid_mouse_scroll_multiplier: bool,
 
-    #[cfg(feature = "local_fs")]
     external_editor_view: ViewHandle<features::ExternalEditorView>,
     word_boundary_editor: ViewHandle<EditorView>,
 
@@ -1718,22 +1714,17 @@ impl FeaturesPageView {
                         });
                 }
                 SessionSettingsChangedEvent::NewSessionShellOverride => {
-                    #[cfg(feature = "local_tty")]
-                    {
-                        use super::features::startup_shell::NewSessionShellAction;
-                        use crate::terminal::session_settings::StartupShell;
-                        me.startup_shell_view.update(ctx, |_, ctx| {
-                            if matches!(
-                                *SessionSettings::as_ref(ctx).startup_shell_override.value(),
-                                StartupShell::Custom(_),
-                            ) {
-                                ctx.dispatch_typed_action(
-                                    &NewSessionShellAction::ShowCustomPathInput,
-                                );
-                            }
-                            ctx.notify();
-                        });
-                    }
+                    use super::features::startup_shell::NewSessionShellAction;
+                    use crate::terminal::session_settings::StartupShell;
+                    me.startup_shell_view.update(ctx, |_, ctx| {
+                        if matches!(
+                            *SessionSettings::as_ref(ctx).startup_shell_override.value(),
+                            StartupShell::Custom(_),
+                        ) {
+                            ctx.dispatch_typed_action(&NewSessionShellAction::ShowCustomPathInput);
+                        }
+                        ctx.notify();
+                    });
                 }
                 _ => {}
             }
@@ -1861,7 +1852,6 @@ impl FeaturesPageView {
             }
         });
 
-        #[cfg(feature = "local_fs")]
         let external_editor_view = ctx.add_typed_action_view(features::ExternalEditorView::new);
 
         let global_hotkey_mode =
@@ -1893,10 +1883,8 @@ impl FeaturesPageView {
 
         let graphics_backend_dropdown = ctx.add_typed_action_view(Dropdown::new);
 
-        #[cfg(feature = "local_tty")]
         let working_directory_view = ctx.add_typed_action_view(features::WorkingDirectoryView::new);
 
-        #[cfg(feature = "local_tty")]
         let startup_shell_view = ctx.add_typed_action_view(features::StartupShellView::new);
 
         let undo_close_view = ctx.add_typed_action_view(features::UndoCloseView::new);
@@ -2076,16 +2064,13 @@ impl FeaturesPageView {
 
             notifications_long_running_threshold_editor,
 
-            #[cfg(feature = "local_tty")]
             working_directory_view,
-            #[cfg(feature = "local_tty")]
             startup_shell_view,
             undo_close_view,
 
             max_block_size_input_editor: block_size_editor,
             valid_max_block_size: true,
 
-            #[cfg(feature = "local_fs")]
             external_editor_view,
             word_boundary_editor,
             global_hotkey_dropdown,
@@ -2139,7 +2124,6 @@ impl FeaturesPageView {
         general_widgets.push(Box::new(SnackbarHeaderWidget::default()));
         general_widgets.push(Box::new(LinkTooltipWidget::default()));
 
-        #[cfg(feature = "local_fs")]
         {
             let external_editor_settings =
                 crate::util::file::external_editor::EditorSettings::as_ref(ctx);
@@ -2204,7 +2188,6 @@ impl FeaturesPageView {
 
         let session_settings = SessionSettings::as_ref(ctx);
 
-        #[cfg(feature = "local_tty")]
         {
             if session_settings
                 .startup_shell_override
@@ -4132,11 +4115,9 @@ impl SettingsWidget for LinkTooltipWidget {
     }
 }
 
-#[cfg(feature = "local_fs")]
 #[derive(Default)]
 struct ExternalEditorWidget {}
 
-#[cfg(feature = "local_fs")]
 impl SettingsWidget for ExternalEditorWidget {
     type View = FeaturesPageView;
 
@@ -4578,11 +4559,9 @@ impl SettingsWidget for DesktopNotificationsWidget {
     }
 }
 
-#[cfg(feature = "local_tty")]
 #[derive(Default)]
 struct StartupShellWidget {}
 
-#[cfg(feature = "local_tty")]
 impl SettingsWidget for StartupShellWidget {
     type View = FeaturesPageView;
 
@@ -4605,11 +4584,9 @@ impl SettingsWidget for StartupShellWidget {
     }
 }
 
-#[cfg(feature = "local_tty")]
 #[derive(Default)]
 struct WorkingDirectoryWidget {}
 
-#[cfg(feature = "local_tty")]
 impl SettingsWidget for WorkingDirectoryWidget {
     type View = FeaturesPageView;
 

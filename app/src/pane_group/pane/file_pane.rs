@@ -7,7 +7,6 @@ use super::notebook_pane::subscribe_to_link_model;
 use super::view::PaneView;
 use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 use crate::app_state::{LeafContents, NotebookPaneSnapshot};
-#[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::notebooks::file::{FileNotebookEvent, FileNotebookView};
 use crate::terminal::model::session::Session;
@@ -39,12 +38,11 @@ impl FilePane {
     pub fn new<V: View>(
         path: Option<LocalOrRemotePath>,
         target_session: Option<Arc<Session>>,
-        #[cfg(feature = "local_fs")] code_source: Option<CodeSource>,
+        code_source: Option<CodeSource>,
         ctx: &mut ViewContext<V>,
     ) -> Self {
         let view = ctx.add_typed_action_view(move |ctx| {
             let mut view = FileNotebookView::new(ctx);
-            #[cfg(feature = "local_fs")]
             view.set_code_source(code_source);
 
             if let Some(path) = path {
@@ -93,7 +91,6 @@ impl PaneContent for FilePane {
                 FileNotebookEvent::FileLoaded => {
                     ctx.emit(crate::pane_group::Event::AppStateChanged)
                 }
-                #[cfg(feature = "local_fs")]
                 FileNotebookEvent::OpenFileWithTarget {
                     path,
                     target,
@@ -131,12 +128,9 @@ impl PaneContent for FilePane {
 
         // Only release the shared file state once the pane is really gone. During the undo-close
         // grace period and across moves the same view is reattached, so it keeps its file open.
-        #[cfg(feature = "local_fs")]
         if matches!(detach_type, DetachType::Closed) {
             file_view.update(ctx, |view, ctx| view.release_file_model(ctx));
         }
-        #[cfg(not(feature = "local_fs"))]
-        let _ = detach_type;
     }
 
     fn snapshot(&self, app: &AppContext) -> LeafContents {

@@ -135,9 +135,7 @@ impl AgentToolbarItemKind {
             // cannot open a tool view the rest of the app hides. See
             // `Workspace::compute_left_panel_views` and the `SHOW_PROJECT_EXPLORER`
             // keybinding predicate.
-            Self::FileExplorer => {
-                cfg!(feature = "local_fs") && *CodeSettings::as_ref(app).show_project_explorer
-            }
+            Self::FileExplorer => *CodeSettings::as_ref(app).show_project_explorer,
             _ => true,
         }
     }

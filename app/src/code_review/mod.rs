@@ -2,7 +2,6 @@ pub mod code_review_view;
 pub mod comment_list_view;
 pub mod context;
 pub mod diff_size_limits;
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub mod diff_state;
 pub mod editor_state;
 pub(crate) mod find_model;
@@ -19,7 +18,6 @@ pub(crate) mod comment_rendering;
 pub mod comments;
 pub(crate) mod diff_menu;
 pub(crate) mod diff_selector;
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub(crate) mod file_invalidation_queue;
 
 use code_review_view::CodeReviewAction;

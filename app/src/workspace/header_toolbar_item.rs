@@ -65,7 +65,7 @@ impl HeaderToolbarItemKind {
             // The agent management view was removed. The variant stays so persisted
             // toolbar configs that name it keep deserializing.
             Self::AgentManagement => false,
-            Self::CodeReview => cfg!(feature = "local_fs"),
+            Self::CodeReview => true,
             // The notifications mailbox was removed. The variant stays so persisted
             // toolbar configs that name it keep deserializing.
             Self::NotificationsMailbox => false,

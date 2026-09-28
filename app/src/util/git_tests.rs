@@ -22,7 +22,6 @@ async fn git(repo: &Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&output.stdout).trim().to_owned()
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn repository_info_from_gh_output_parses_name_and_owner() {
     // No url in the output => host is absent.
@@ -39,7 +38,6 @@ fn repository_info_from_gh_output_parses_name_and_owner() {
     );
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn repository_info_from_gh_output_parses_host_from_url() {
     assert_eq!(
@@ -55,7 +53,7 @@ fn repository_info_from_gh_output_parses_host_from_url() {
     );
 }
 
-#[cfg(all(feature = "local_fs", unix))]
+#[cfg(unix)]
 #[tokio::test]
 async fn get_repository_info_returns_none_when_gh_cannot_resolve_github_repo() {
     use std::fs;
@@ -87,13 +85,11 @@ async fn get_repository_info_returns_none_when_gh_cannot_resolve_github_repo() {
     );
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn repository_info_from_gh_output_rejects_missing_name() {
     assert!(super::repository_info_from_gh_output(r#"{"owner":{"login":"warpdotdev"}}"#).is_err());
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn repository_info_from_gh_output_rejects_missing_owner_login() {
     assert!(
@@ -101,7 +97,6 @@ fn repository_info_from_gh_output_rejects_missing_owner_login() {
     );
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn repository_info_from_gh_output_rejects_empty_fields() {
     assert!(
@@ -114,7 +109,6 @@ fn repository_info_from_gh_output_rejects_empty_fields() {
     );
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn repository_info_from_gh_output_rejects_malformed_json() {
     assert!(super::repository_info_from_gh_output("not json").is_err());
@@ -133,7 +127,7 @@ async fn init_repo() -> (TempDir, std::path::PathBuf) {
     (dir, path)
 }
 
-#[cfg(all(feature = "local_fs", unix))]
+#[cfg(unix)]
 #[tokio::test]
 async fn get_repository_info_reads_gh_repo_view() {
     use std::fs;
@@ -186,7 +180,6 @@ fn detects_missing_gh_errors() {
     ));
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn detects_no_pr_for_branch_errors() {
     assert!(super::is_no_pr_for_branch_error(
@@ -202,7 +195,6 @@ fn detects_no_pr_for_branch_errors() {
     assert!(!super::is_no_pr_for_branch_error("repository not found"));
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn detects_repository_lookup_not_applicable_errors() {
     assert!(super::is_repository_lookup_not_applicable_error(
@@ -267,7 +259,6 @@ async fn get_pr_for_branch_returns_none_for_detached_head() {
     assert_eq!(get_pr_for_branch(&repo, None).await.unwrap(), None);
 }
 
-#[cfg(feature = "local_fs")]
 #[tokio::test]
 async fn committed_branch_files_excludes_uncommitted_and_untracked() {
     let (_dir, repo) = init_repo().await;

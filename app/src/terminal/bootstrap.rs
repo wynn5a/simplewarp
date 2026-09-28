@@ -7,11 +7,8 @@ use rand::Rng;
 use warp_core::session_id::SessionId;
 use warpui::{AppContext, AssetProvider, SingletonEntity};
 
-#[cfg(feature = "local_fs")]
-use super::{
-    model::session::{BootstrapSessionType, SessionInfo},
-    warpify::settings::{PIPENV_SUBSHELL_COMMAND_REGEX, POETRY_SUBSHELL_COMMAND_REGEX},
-};
+use super::model::session::{BootstrapSessionType, SessionInfo};
+use super::warpify::settings::{PIPENV_SUBSHELL_COMMAND_REGEX, POETRY_SUBSHELL_COMMAND_REGEX};
 use crate::env_vars::{EnvVar, EnvVarExt};
 use crate::terminal::session_settings::SessionSettings;
 use crate::terminal::shell::ShellType;
@@ -27,7 +24,6 @@ lazy_static! {
 /// errors
 const BYTE_ORDER_MARK: &str = "\u{FEFF}";
 
-#[cfg(feature = "local_fs")]
 pub fn is_container_subshell(session_info: &SessionInfo) -> bool {
     session_info.subshell_info.as_ref().is_some_and(|info| {
         let first_token = info
@@ -62,7 +58,6 @@ pub fn is_container_subshell(session_info: &SessionInfo) -> bool {
 /// bootstrap is the only known way to bootstrap such subshells successfully.
 ///
 /// We use RC-file based bootstrap for MSYS2 because it has slow PTY throughput.
-#[cfg(feature = "local_fs")]
 pub fn should_use_rc_file_bootstrap_method(
     shell_type: ShellType,
     session_info: &SessionInfo,

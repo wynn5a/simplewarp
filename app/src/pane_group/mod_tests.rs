@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use ai::project_context::model::ProjectContextModel;
 use pathfinder_geometry::rect::RectF;
 use persistence::model::AgentConversation;
-#[cfg(feature = "local_fs")]
 use repo_metadata::RepoMetadataModel;
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
@@ -132,7 +131,6 @@ fn initialize_app_with_history(app: &mut App, conversations: Vec<AgentConversati
     app.add_singleton_model(HarnessAvailabilityModel::new);
     #[cfg(feature = "voice_input")]
     app.add_singleton_model(voice_input::VoiceInput::new);
-    #[cfg(feature = "local_fs")]
     app.add_singleton_model(RepoMetadataModel::new);
     app.add_singleton_model(SkillManager::new);
     app.add_singleton_model(FileSearchModel::new);
@@ -2129,7 +2127,6 @@ fn test_focused_pane_is_synchronized_with_application_focus() {
 /// reattached without reopening its file. Releasing the file on close would therefore leave a
 /// restored pane rendering content that can never update again. The file is released only once the
 /// pane is permanently discarded.
-#[cfg(feature = "local_fs")]
 #[test]
 fn test_undo_close_keeps_a_file_pane_watching_its_file() {
     use warp_files::FileModel;

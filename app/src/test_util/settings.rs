@@ -71,7 +71,6 @@ pub fn initialize_settings_for_tests_with_mode(
     AppIconSettings::register(app);
     EmacsBindingsSettings::register(app);
 
-    #[cfg(feature = "local_fs")]
     {
         crate::util::file::external_editor::EditorSettings::register(app);
     }

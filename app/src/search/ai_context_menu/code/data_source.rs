@@ -1,4 +1,3 @@
-#![cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};

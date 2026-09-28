@@ -4,12 +4,9 @@
 // based on the request type and status.
 
 use std::borrow::Cow;
-#[cfg(feature = "local_fs")]
 use std::collections::HashMap;
 use std::iter;
-use std::path::Path;
-#[cfg(feature = "local_fs")]
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use itertools::Itertools;
@@ -124,7 +121,6 @@ pub const LOAD_OUTPUT_MESSAGE_FOR_WAITING_FOR_COMMAND_COMPLETION: &str =
     "Waiting for command to exit...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH: &str = "Searching the web...";
 
-#[cfg(feature = "local_fs")]
 pub(crate) type ResolvedBlocklistImageSources = HashMap<String, Option<AssetSource>>;
 
 pub const BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND: &str =
@@ -1117,9 +1113,7 @@ pub struct TextSectionsProps<'a, V, A: 'static> {
     pub secret_redaction_state: &'a SecretRedactionState,
     pub is_selecting_text: bool,
     pub item_spacing: f32,
-    #[cfg(feature = "local_fs")]
     pub resolved_code_block_paths: Option<&'a HashMap<PathBuf, Option<PathBuf>>>,
-    #[cfg(feature = "local_fs")]
     pub resolved_blocklist_image_sources: Option<&'a ResolvedBlocklistImageSources>,
 }
 
@@ -1137,7 +1131,6 @@ pub fn render_text_sections<V: View, A: Action>(
     let lightbox_collection = collect_visual_markdown_lightbox_collection(
         &indexed_sections,
         props.current_working_directory,
-        #[cfg(feature = "local_fs")]
         props.resolved_blocklist_image_sources,
         app,
     );
@@ -1150,7 +1143,6 @@ pub fn render_text_sections<V: View, A: Action>(
                 indexed_section_offset,
                 image.layout.clone(),
                 props.current_working_directory,
-                #[cfg(feature = "local_fs")]
                 props.resolved_blocklist_image_sources,
                 app,
             );
@@ -1171,7 +1163,6 @@ pub fn render_text_sections<V: View, A: Action>(
                     is_selecting_text: props.is_selecting_text,
                     copy_action_factory: props.copy_code_action_factory,
                     current_working_directory: props.current_working_directory,
-                    #[cfg(feature = "local_fs")]
                     resolved_blocklist_image_sources: props.resolved_blocklist_image_sources,
                     lightbox_collection: &lightbox_collection,
                     tooltip_mouse_state_handles: handles_for_group,
@@ -1265,7 +1256,6 @@ pub fn render_text_sections<V: View, A: Action>(
                         open_code_block_action_factory: props.open_code_block_action_factory,
                         copy_code_action_factory: props.copy_code_action_factory,
                         selectable: props.selectable,
-                        #[cfg(feature = "local_fs")]
                         resolved_code_block_paths: props.resolved_code_block_paths,
                     },
                     app,
@@ -1305,7 +1295,6 @@ pub fn render_text_sections<V: View, A: Action>(
                         is_selecting_text: props.is_selecting_text,
                         copy_action_factory: props.copy_code_action_factory,
                         current_working_directory: props.current_working_directory,
-                        #[cfg(feature = "local_fs")]
                         resolved_blocklist_image_sources: props.resolved_blocklist_image_sources,
                         tooltip_mouse_state,
                     },
@@ -1376,9 +1365,7 @@ fn collect_renderable_image_group<'a>(
     start_index: usize,
     layout: AgentOutputImageLayout,
     current_working_directory: Option<&String>,
-    #[cfg(feature = "local_fs")] resolved_blocklist_image_sources: Option<
-        &ResolvedBlocklistImageSources,
-    >,
+    resolved_blocklist_image_sources: Option<&ResolvedBlocklistImageSources>,
     app: &AppContext,
 ) -> RenderableImageGroup<'a> {
     let mut images = Vec::new();
@@ -1402,7 +1389,6 @@ fn collect_renderable_image_group<'a>(
             || !can_render_blocklist_image(
                 image,
                 current_working_directory,
-                #[cfg(feature = "local_fs")]
                 resolved_blocklist_image_sources,
                 app,
             )
@@ -1425,9 +1411,7 @@ fn collect_renderable_image_group<'a>(
 fn collect_visual_markdown_lightbox_collection(
     indexed_sections: &[(usize, &AIAgentTextSection)],
     current_working_directory: Option<&String>,
-    #[cfg(feature = "local_fs")] resolved_blocklist_image_sources: Option<
-        &ResolvedBlocklistImageSources,
-    >,
+    resolved_blocklist_image_sources: Option<&ResolvedBlocklistImageSources>,
     app: &AppContext,
 ) -> VisualMarkdownLightboxCollection {
     let mut section_indices = Vec::new();
@@ -1437,7 +1421,6 @@ fn collect_visual_markdown_lightbox_collection(
         if let Some(image) = lightbox_image_for_text_section(
             section,
             current_working_directory,
-            #[cfg(feature = "local_fs")]
             resolved_blocklist_image_sources,
             app,
         ) {
@@ -1455,16 +1438,13 @@ fn collect_visual_markdown_lightbox_collection(
 fn lightbox_image_for_text_section(
     section: &AIAgentTextSection,
     current_working_directory: Option<&String>,
-    #[cfg(feature = "local_fs")] resolved_blocklist_image_sources: Option<
-        &ResolvedBlocklistImageSources,
-    >,
+    resolved_blocklist_image_sources: Option<&ResolvedBlocklistImageSources>,
     app: &AppContext,
 ) -> Option<ui_components::lightbox::LightboxImage> {
     match section {
         AIAgentTextSection::Image { image } => lightbox_image_for_blocklist_image(
             image,
             current_working_directory,
-            #[cfg(feature = "local_fs")]
             resolved_blocklist_image_sources,
             app,
         ),
@@ -1478,15 +1458,12 @@ fn lightbox_image_for_text_section(
 fn lightbox_image_for_blocklist_image(
     image: &AgentOutputImage,
     current_working_directory: Option<&String>,
-    #[cfg(feature = "local_fs")] resolved_blocklist_image_sources: Option<
-        &ResolvedBlocklistImageSources,
-    >,
+    resolved_blocklist_image_sources: Option<&ResolvedBlocklistImageSources>,
     app: &AppContext,
 ) -> Option<ui_components::lightbox::LightboxImage> {
     let (asset_source, _) = load_renderable_image_asset(
         image,
         current_working_directory,
-        #[cfg(feature = "local_fs")]
         resolved_blocklist_image_sources,
         app,
     )?;
@@ -1731,7 +1708,6 @@ struct ImageSectionProps<'a, A: Action> {
     is_selecting_text: bool,
     copy_action_factory: Option<CopyCodeActionFactory<A>>,
     current_working_directory: Option<&'a String>,
-    #[cfg(feature = "local_fs")]
     resolved_blocklist_image_sources: Option<&'a ResolvedBlocklistImageSources>,
     /// Persistent `MouseStateHandle` used to back the hover tooltip when the
     /// image carries a CommonMark title. `None` means the caller had no
@@ -1747,7 +1723,6 @@ struct ImageRenderContext<'a, A: Action + 'static> {
     is_selecting_text: bool,
     copy_action_factory: Option<CopyCodeActionFactory<A>>,
     current_working_directory: Option<&'a String>,
-    #[cfg(feature = "local_fs")]
     resolved_blocklist_image_sources: Option<&'a ResolvedBlocklistImageSources>,
     lightbox_collection: &'a VisualMarkdownLightboxCollection,
     /// Per-image persistent `MouseStateHandle`s for the images in this group,
@@ -1808,7 +1783,6 @@ fn image_fallback_text(image: &AgentOutputImage) -> String {
         image.alt_text.clone()
     }
 }
-#[cfg(feature = "local_fs")]
 fn blocklist_image_asset_source(
     source: &str,
     current_working_directory: Option<&String>,
@@ -1823,23 +1797,10 @@ fn blocklist_image_asset_source(
     }
 }
 
-#[cfg(not(feature = "local_fs"))]
-fn blocklist_image_asset_source(
-    source: &str,
-    current_working_directory: Option<&String>,
-) -> Option<AssetSource> {
-    Some(resolve_asset_source_relative_to_directory(
-        source,
-        current_working_directory.map(Path::new),
-    ))
-}
-
 fn load_renderable_image_asset(
     image: &AgentOutputImage,
     current_working_directory: Option<&String>,
-    #[cfg(feature = "local_fs")] resolved_blocklist_image_sources: Option<
-        &ResolvedBlocklistImageSources,
-    >,
+    resolved_blocklist_image_sources: Option<&ResolvedBlocklistImageSources>,
     app: &AppContext,
 ) -> Option<(AssetSource, AssetState<ImageType>)> {
     if !FeatureFlag::BlocklistMarkdownImages.is_enabled()
@@ -1848,15 +1809,12 @@ fn load_renderable_image_asset(
         return None;
     }
 
-    #[cfg(feature = "local_fs")]
     let asset_source = blocklist_image_asset_source(
         &image.source,
         current_working_directory,
         resolved_blocklist_image_sources,
     )?;
 
-    #[cfg(not(feature = "local_fs"))]
-    let asset_source = blocklist_image_asset_source(&image.source, current_working_directory)?;
     if !should_load_blocklist_image_asset(&asset_source) {
         return None;
     }
@@ -1871,15 +1829,12 @@ fn load_renderable_image_asset(
 fn can_render_blocklist_image(
     image: &AgentOutputImage,
     current_working_directory: Option<&String>,
-    #[cfg(feature = "local_fs")] resolved_blocklist_image_sources: Option<
-        &ResolvedBlocklistImageSources,
-    >,
+    resolved_blocklist_image_sources: Option<&ResolvedBlocklistImageSources>,
     app: &AppContext,
 ) -> bool {
     load_renderable_image_asset(
         image,
         current_working_directory,
-        #[cfg(feature = "local_fs")]
         resolved_blocklist_image_sources,
         app,
     )
@@ -1897,7 +1852,6 @@ fn render_image_section<A: Action>(
     if !can_render_blocklist_image(
         props.image,
         props.current_working_directory,
-        #[cfg(feature = "local_fs")]
         props.resolved_blocklist_image_sources,
         app,
     ) {
@@ -1918,7 +1872,6 @@ fn render_image_section<A: Action>(
     let lightbox_collection = collect_visual_markdown_lightbox_collection(
         &indexed_sections,
         props.current_working_directory,
-        #[cfg(feature = "local_fs")]
         props.resolved_blocklist_image_sources,
         app,
     );
@@ -1930,7 +1883,6 @@ fn render_image_section<A: Action>(
         is_selecting_text: props.is_selecting_text,
         copy_action_factory: props.copy_action_factory,
         current_working_directory: props.current_working_directory,
-        #[cfg(feature = "local_fs")]
         resolved_blocklist_image_sources: props.resolved_blocklist_image_sources,
         lightbox_collection: &lightbox_collection,
         tooltip_mouse_state_handles: handles_for_group,
@@ -1974,7 +1926,6 @@ fn render_inline_image_group_item<A: Action>(
     let (asset_source, asset_state) = load_renderable_image_asset(
         indexed_image.image,
         render_context.current_working_directory,
-        #[cfg(feature = "local_fs")]
         render_context.resolved_blocklist_image_sources,
         app,
     )
@@ -2072,7 +2023,6 @@ fn render_block_image_group_row<A: Action>(
     let (asset_source, _) = load_renderable_image_asset(
         indexed_image.image,
         render_context.current_working_directory,
-        #[cfg(feature = "local_fs")]
         render_context.resolved_blocklist_image_sources,
         app,
     )
@@ -2748,7 +2698,6 @@ pub struct CodeSectionProps<'a, A: 'static> {
     pub selectable: bool,
     /// Pre-resolved code block file paths from the background detection task.
     /// Keyed by original path; value is the resolved absolute path (or None if unresolvable).
-    #[cfg(feature = "local_fs")]
     pub resolved_code_block_paths: Option<&'a HashMap<PathBuf, Option<PathBuf>>>,
 }
 
@@ -2759,7 +2708,6 @@ pub fn render_code_output_section<A: Action>(
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
 
-    #[cfg(feature = "local_fs")]
     let source = if let Some(CodeSource::Link {
         path,
         range_start,
@@ -2788,9 +2736,6 @@ pub fn render_code_output_section<A: Action>(
     } else {
         None
     };
-
-    #[cfg(not(feature = "local_fs"))]
-    let source = None;
 
     // Prefer the resolved (absolute, validated-to-exist) path when available.
     // If resolution fails, fall back to the original path parsed from the AI output.
@@ -2833,16 +2778,9 @@ pub fn render_code_output_section<A: Action>(
             CodeBlockOptions {
                 on_open: match (props.open_code_block_action_factory, open_source.clone()) {
                     #[allow(unused)]
-                    (Some(action_factory), Some(source)) => {
-                        #[cfg(feature = "local_fs")]
-                        {
-                            Some(Box::new(move |_, ctx| {
-                                ctx.dispatch_typed_action(action_factory(source.clone()));
-                            }))
-                        }
-                        #[cfg(not(feature = "local_fs"))]
-                        None
-                    }
+                    (Some(action_factory), Some(source)) => Some(Box::new(move |_, ctx| {
+                        ctx.dispatch_typed_action(action_factory(source.clone()));
+                    })),
                     _ => None,
                 },
                 on_execute: if allow_execution {
@@ -2902,16 +2840,9 @@ pub fn render_code_output_section<A: Action>(
                 CodeBlockOptions {
                     on_open: match (props.open_code_block_action_factory, open_source.clone()) {
                         #[allow(unused)]
-                        (Some(action_factory), Some(source)) => {
-                            #[cfg(feature = "local_fs")]
-                            {
-                                Some(Box::new(move |_, ctx| {
-                                    ctx.dispatch_typed_action(action_factory(source.clone()));
-                                }))
-                            }
-                            #[cfg(not(feature = "local_fs"))]
-                            None
-                        }
+                        (Some(action_factory), Some(source)) => Some(Box::new(move |_, ctx| {
+                            ctx.dispatch_typed_action(action_factory(source.clone()));
+                        })),
                         _ => None,
                     },
                     on_execute: if allow_execution {
@@ -2993,7 +2924,6 @@ pub fn get_highlight_ranges_for_find_matches(
 }
 
 /// Attempts to resolve a parsed file path into a valid one. Returns `None` if resolution fails.
-#[cfg(feature = "local_fs")]
 pub(crate) fn resolve_absolute_file_path(
     path: PathBuf,
     working_directory: Option<&String>,

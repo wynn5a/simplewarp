@@ -5,7 +5,6 @@ use std::sync::Arc;
 use async_channel::{Receiver, Sender};
 use parking_lot::FairMutex;
 use thiserror::Error;
-#[cfg(feature = "local_fs")]
 use warp_errors::report_error;
 use warp_util::path::ShellFamily;
 use warpui::r#async::block_on;
@@ -364,7 +363,6 @@ impl<T: EventLoopSender> PtyController<T> {
     ) {
         let shell_type = pending_session_info.shell.shell_type();
 
-        #[cfg(feature = "local_fs")]
         if let Some(path) = permanent_bootstrap_file(shell_type, pending_session_info) {
             // If there is a permanent bootstrap file, source it directly. We
             // currently only do this for local PowerShell sessions on Windows.
@@ -377,7 +375,6 @@ impl<T: EventLoopSender> PtyController<T> {
     }
 
     /// Writes the bytes to to terminate and run the bootstrap script.
-    #[cfg(feature = "local_fs")]
     fn write_terminating_bootstrap_bytes(&mut self, ctx: &mut ModelContext<PtyController<T>>) {
         cfg_if::cfg_if! {
             if #[cfg(unix)] {
@@ -388,7 +385,6 @@ impl<T: EventLoopSender> PtyController<T> {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     fn write_bootstrap_script_to_shell(
         &mut self,
         pending_session_info: &SessionInfo,
@@ -456,7 +452,6 @@ impl<T: EventLoopSender> PtyController<T> {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     /// Sources the bootstrap script at the given path. Assumes that the path
     /// contains a valid file.
     fn source_bootstrap_script(
@@ -482,17 +477,6 @@ impl<T: EventLoopSender> PtyController<T> {
             }
         }
         self.write_terminating_bootstrap_bytes(ctx);
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    fn write_bootstrap_script_to_shell(
-        &mut self,
-        _pending_session_info: &SessionInfo,
-        ctx: &mut ModelContext<PtyController<T>>,
-        _shell_type: ShellType,
-        bootstrap: Cow<'static, [u8]>,
-    ) {
-        self.write_bytes(bootstrap, ctx);
     }
 
     /// Handles the shell having finished bootstrapping.

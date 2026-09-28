@@ -21,8 +21,8 @@ use crate::root_view::QuakeModePinPosition;
 use crate::settings::ExtraMetaKeys;
 use crate::terminal::session_settings::{StartupShell, WorkingDirectoryConfig};
 use crate::themes::theme_creator::pick_accent_color_from_options;
-#[cfg(feature = "local_fs")]
-use crate::{themes::theme_creator_body::ThemeCreatorBody, user_config};
+use crate::themes::theme_creator_body::ThemeCreatorBody;
+use crate::user_config;
 
 #[derive(Debug)]
 pub enum ThemeType {
@@ -174,7 +174,6 @@ impl Config {
     }
 
     pub(super) fn write_theme(&self) -> Option<ThemeType> {
-        #[cfg(feature = "local_fs")]
         {
             if !self.theme.should_import {
                 return None;
@@ -220,11 +219,6 @@ impl Config {
                     })
                 }
             }
-        }
-        #[cfg(not(feature = "local_fs"))]
-        {
-            log::warn!("Tried to save theme without a local filesystem.");
-            None
         }
     }
 

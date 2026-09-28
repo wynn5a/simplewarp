@@ -10,9 +10,7 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 use super::WorkflowSource;
 use super::workflow::Workflow;
 use crate::terminal::model::session::Session;
-use crate::user_config::WarpConfig;
-#[cfg(feature = "local_fs")]
-use crate::user_config::load_workflows;
+use crate::user_config::{WarpConfig, load_workflows};
 
 pub fn workflows_dir(base_dir: impl AsRef<Path>) -> PathBuf {
     base_dir.as_ref().join("workflows")
@@ -90,7 +88,6 @@ impl LocalWorkflows {
     ///
     /// If `use_cache` is `UseCache::No`, reads the workflows from disk regardless of whether or
     /// not there is an existing cached vector and updates the cached vector.
-    #[cfg(feature = "local_fs")]
     pub fn project_workflows(
         &mut self,
         working_directory: &Path,
@@ -172,7 +169,6 @@ fn app_workflows() -> Vec<Workflow> {
 
 /// Loads project-level workflows (if any) from the warp config directory in the current working
 /// directory.
-#[cfg(feature = "local_fs")]
 pub(super) fn load_project_workflows(path: &Path) -> Vec<Workflow> {
     match git2::Repository::discover(path) {
         Ok(repository) => repository.workdir().map_or(Vec::new(), |workdir| {

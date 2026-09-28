@@ -3,28 +3,22 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use futures::future::BoxFuture;
+use repo_metadata::{
+    RepoMetadataEvent, RepoMetadataModel, RepositoryIdentifier, StandingQueryContent,
+};
 use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
+use warp_util::remote_path::RemotePath;
+use warp_util::standardized_path::StandardizedPath;
 use warpui_core::{Entity, ModelContext, SingletonEntity};
 
 use super::GlobalRules;
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        use repo_metadata::{
-            RepoMetadataEvent, RepoMetadataModel, RepositoryIdentifier, StandingQueryContent,
-        };
-        use warp_util::remote_path::RemotePath;
-        use warp_util::standardized_path::StandardizedPath;
-    }
-}
 
 pub type ProjectRuleContents = Vec<(LocalOrRemotePath, String)>;
 /// App-provided reader for the exact rule paths discovered by repository metadata.
 pub type ProjectRuleContentReader =
     fn(Vec<LocalOrRemotePath>) -> BoxFuture<'static, anyhow::Result<ProjectRuleContents>>;
 
-#[cfg(feature = "local_fs")]
 fn standing_project_rule_paths<'a>(
     repo_id: &RepositoryIdentifier,
     contents: impl IntoIterator<Item = &'a StandingQueryContent>,
@@ -89,7 +83,6 @@ struct ProjectRules {
 }
 
 impl ProjectRules {
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn rule_paths(&self) -> impl Iterator<Item = &LocalOrRemotePath> {
         self.rules.iter().flat_map(|rule| {
             rule.warp_md
@@ -98,12 +91,10 @@ impl ProjectRules {
                 .map(|rule| &rule.path)
         })
     }
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn local_rule_paths(&self) -> impl Iterator<Item = PathBuf> + '_ {
         self.rule_paths()
             .filter_map(|path| path.to_local_path().map(Path::to_path_buf))
     }
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn retain_rule_paths(&mut self, retained_paths: &HashSet<LocalOrRemotePath>) {
         self.rules.retain_mut(|rule| {
             if rule
@@ -148,7 +139,6 @@ impl ProjectRules {
 
     /// Upsert a rule to the set of project rules. This will create a new RuleAtPath entry if none exists and update the existing one
     /// otherwise.
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn upsert_rule(&mut self, path: &LocalOrRemotePath, content: String) {
         let Some(parent) = path.parent() else {
             return;
@@ -194,7 +184,6 @@ impl ProjectRules {
 
 /// Singleton model that keeps track of mapping between paths and rule files
 /// Currently supports WARP.md files, but designed to be extensible
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 #[derive(Default)]
 pub struct ProjectContextModel {
     /// Mapping from directory path to list of rule files found in that directory
@@ -203,9 +192,7 @@ pub struct ProjectContextModel {
     /// against applying a result for a repository that was removed, or otherwise invalidated,
     /// while its refresh was in flight. The entry for a repository is cleared once its
     /// current-generation refresh completes.
-    #[cfg(feature = "local_fs")]
     rule_refresh_generations: HashMap<RepositoryIdentifier, u64>,
-    #[cfg(feature = "local_fs")]
     next_rule_refresh_generation: u64,
     /// Repositories with a rule-refresh read currently running in the background.
     ///
@@ -213,12 +200,10 @@ pub struct ProjectContextModel {
     /// be cancelled once started, so aborting the outer future doesn't stop them. Instead, this
     /// set is used to serialize refreshes per repository: while one is in flight, a superseding
     /// request is recorded in `rule_refresh_pending` rather than spawning an overlapping read.
-    #[cfg(feature = "local_fs")]
     rule_refresh_in_flight: HashSet<RepositoryIdentifier>,
     /// Repositories that received a refresh request while a refresh was already in flight. The
     /// in-flight read's completion consults this to run exactly one coalesced follow-up refresh
     /// against the latest standing results, instead of one read per superseding event.
-    #[cfg(feature = "local_fs")]
     rule_refresh_pending: HashSet<RepositoryIdentifier>,
     /// File-based global rules and their local watcher state. Kept separate
     /// from `path_to_rules`, which is project-scoped.
@@ -282,15 +267,12 @@ pub enum ProjectContextModelEvent {
 }
 
 impl ProjectContextModel {
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     pub fn new_from_persisted(
         persisted_rules: Vec<ProjectRulePath>,
         project_rule_content_reader: ProjectRuleContentReader,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        #[cfg_attr(not(feature = "local_fs"), allow(unused_mut))]
         let mut model = Self::default();
-        #[cfg(feature = "local_fs")]
         {
             ctx.subscribe_to_model(&RepoMetadataModel::handle(ctx), move |me, _, event, ctx| {
                 match event {
@@ -347,14 +329,12 @@ impl ProjectContextModel {
     }
 
     /// Reconciles project rule contents from the repository metadata standing result set.
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     pub fn index_and_store_rules(
         &mut self,
         root_path: PathBuf,
         project_rule_content_reader: ProjectRuleContentReader,
         ctx: &mut ModelContext<Self>,
     ) -> Result<()> {
-        #[cfg(feature = "local_fs")]
         {
             let repo_path = StandardizedPath::from_local_canonicalized(&root_path)?;
             let repo_id = RepositoryIdentifier::local(repo_path.clone());
@@ -376,7 +356,6 @@ impl ProjectContextModel {
     /// If a refresh is already reading files for this repo, the request is coalesced: it is
     /// recorded in `rule_refresh_pending` and a single follow-up refresh runs once the in-flight
     /// read completes, instead of spawning a second, overlapping read.
-    #[cfg(feature = "local_fs")]
     fn refresh_project_rules_for_repo(
         &mut self,
         repo_id: RepositoryIdentifier,
@@ -395,7 +374,6 @@ impl ProjectContextModel {
 
     /// Spawns the background read for a rule refresh. Callers must first confirm via
     /// `rule_refresh_in_flight` that no refresh is already running for `repo_id`.
-    #[cfg(feature = "local_fs")]
     fn start_rule_refresh(
         &mut self,
         repo_id: RepositoryIdentifier,
@@ -450,7 +428,6 @@ impl ProjectContextModel {
         });
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn reconcile_project_rules(
         rule_paths: Vec<LocalOrRemotePath>,
         rule_contents: ProjectRuleContents,
@@ -464,7 +441,6 @@ impl ProjectContextModel {
         existing_rules
     }
 
-    #[cfg(feature = "local_fs")]
     fn remove_project_rules_for_repo(
         &mut self,
         repo_id: &RepositoryIdentifier,
@@ -489,7 +465,6 @@ impl ProjectContextModel {
         }
     }
 
-    #[cfg(feature = "local_fs")]
     fn apply_project_rules(
         &mut self,
         repo_id: RepositoryIdentifier,
@@ -625,7 +600,6 @@ impl ProjectContextModel {
         })
     }
 
-    #[cfg(feature = "local_fs")]
     async fn read_persisted_rules(
         rule_paths: Vec<ProjectRulePath>,
     ) -> HashMap<LocalOrRemotePath, ProjectRules> {

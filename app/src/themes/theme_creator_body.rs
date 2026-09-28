@@ -1,12 +1,11 @@
 use std::default::Default;
 use std::fmt;
+use std::fs::copy;
+use std::io::Write;
 use std::path::PathBuf;
-#[cfg(feature = "local_fs")]
-use std::{fs::copy, io::Write};
 
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
-#[cfg(feature = "local_fs")]
 use warp_core::ui::theme::WarpTheme;
 use warpui::elements::{
     Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DispatchEventResult,
@@ -24,9 +23,7 @@ use warpui::{
 
 use crate::appearance::{Appearance, AppearanceManager};
 use crate::editor::{EditorView, Event as EditorEvent};
-#[cfg(feature = "local_fs")]
-use crate::themes::theme::CustomTheme;
-use crate::themes::theme::{InMemoryThemeOptions, ThemeKind};
+use crate::themes::theme::{CustomTheme, InMemoryThemeOptions, ThemeKind};
 use crate::user_config;
 
 const BUTTON_PADDING: f32 = 12.;
@@ -160,7 +157,6 @@ impl ThemeCreatorBody {
         ctx.notify();
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(unused))]
     pub fn create_theme(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(theme_options) = self.theme_options.as_mut() {
             let theme_name = theme_options.name();
@@ -185,7 +181,6 @@ impl ThemeCreatorBody {
 
             theme_options.set_path(dir.join(format!("{theme_name}.{image_extension}")));
             let mut errored = true;
-            #[cfg(feature = "local_fs")]
             {
                 ThemeCreatorBody::write_theme(
                     &theme_options.theme(),
@@ -206,8 +201,6 @@ impl ThemeCreatorBody {
                     },
                 );
             }
-            #[cfg(not(feature = "local_fs"))]
-            log::warn!("Tried to save theme without a local filesystem.");
             if errored {
                 self.send_error_toast("Something went wrong".to_string(), ctx);
             }
@@ -216,7 +209,6 @@ impl ThemeCreatorBody {
 
     /// Writes a theme to the filesystem. Calls the success callback if successful.
     /// Note: the image option should be (original_theme_image_path, theme_name, image_extension).
-    #[cfg(feature = "local_fs")]
     pub fn write_theme<T>(
         theme: &WarpTheme,
         dir: PathBuf,

@@ -13,14 +13,8 @@ use crate::terminal::TerminalModel;
 use crate::terminal::links::directly_open_link_keybinding_string;
 use crate::terminal::model::{ObfuscateSecrets, Secret};
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
-use crate::terminal::view::SecretTooltip;
+use crate::terminal::view::{RichContentLink, SecretTooltip};
 use crate::util::tooltips::{TooltipLink, TooltipRedaction};
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        use crate::terminal::view::RichContentLink;
-    }
-}
 
 struct GridTooltipLink {
     text: String,
@@ -33,7 +27,6 @@ struct GridTooltipLink {
 /// If appropriate, returns a GridTooltipLink for opening the file in warp.
 /// Mutates `detail_for_default` leaving None in place if the GridTooltipLink returned is the default
 /// action on "Cmd+Click" and thus should use the detail_for_default.
-#[cfg(feature = "local_fs")]
 fn open_in_warp_tooltip(
     path: std::path::PathBuf,
     line_and_column_num: Option<warp_util::path::LineAndColumnArg>,
@@ -71,7 +64,6 @@ fn open_in_warp_tooltip(
 
 /// Returns a GridTooltipLink for revealing the file in the platform's file explorer
 /// (Finder on macOS, file manager on Linux/Windows).
-#[cfg(feature = "local_fs")]
 fn show_in_file_explorer_tooltip(
     path: std::path::PathBuf,
     mouse_state: MouseStateHandle,
@@ -95,7 +87,6 @@ impl TerminalView {
     /// Expects at least one of the two tooltips to be visible.
     // Unused variables allowed when no local filesystem as the `app` argument
     // is unused.
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     pub(super) fn render_grid_tooltip(
         &self,
         stack: &mut Stack,
@@ -202,13 +193,11 @@ impl TerminalView {
             }
         }
 
-        #[cfg_attr(not(feature = "local_fs"), allow(unused_mut))]
         if let Some(link) = &self.open_grid_link_tool_tip {
             let mut open_in_warp = None;
             let mut show_in_file_explorer = None;
             let modifier = directly_open_link_keybinding_string();
             let mut detail = Some(format!("[{modifier} Click]"));
-            #[cfg(feature = "local_fs")]
             {
                 if let GridHighlightedLink::File(file_link) = link
                     && let Some(path) = file_link.get_inner().absolute_path()
@@ -244,7 +233,6 @@ impl TerminalView {
             links.extend(show_in_file_explorer);
         }
 
-        #[cfg_attr(not(feature = "local_fs"), allow(unused_mut))]
         if let Some(tooltip_info) = &self.open_rich_content_link_tool_tip {
             element_id = tooltip_info.position_id.to_owned();
             let mut open_in_warp = None;
@@ -252,7 +240,6 @@ impl TerminalView {
             let modifier_string = directly_open_link_keybinding_string();
             let mut detail = Some(format!("[{modifier_string} Click]"));
 
-            #[cfg(feature = "local_fs")]
             {
                 if let RichContentLink::FilePath {
                     absolute_path,

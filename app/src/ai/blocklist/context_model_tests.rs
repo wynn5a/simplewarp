@@ -6,9 +6,7 @@
 use std::sync::Arc;
 
 use parking_lot::FairMutex;
-#[cfg(feature = "local_fs")]
 use repo_metadata::DirectoryWatcher;
-#[cfg(feature = "local_fs")]
 use warp_util::standardized_path::StandardizedPath;
 use warpui::r#async::executor::Background;
 use warpui::{App, EntityId, ModelHandle, SingletonEntity};
@@ -27,9 +25,7 @@ use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, QueuedQuery, QueuedQueryModel,
     QueuedQueryOrigin,
 };
-#[cfg(feature = "local_fs")]
 use crate::code_review::git_repo_model::GitRepoStatusModel;
-#[cfg(feature = "local_fs")]
 use crate::code_review::github_repo_model::GitHubRepoModel;
 use crate::terminal::color::{self, Colors};
 use crate::terminal::event_listener::ChannelEventListener;
@@ -165,7 +161,6 @@ impl ConversationSelection for TestConversationSelection {
     }
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn repository_context_reads_github_repo_model() {
     App::test((), |mut app| async move {
@@ -435,7 +430,6 @@ fn pull_request_context_from_pr_info_rejects_numbers_that_do_not_fit_agent_conte
     );
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn pull_request_context_reads_github_repo_model() {
     App::test((), |mut app| async move {

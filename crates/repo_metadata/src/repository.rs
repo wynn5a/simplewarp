@@ -1,29 +1,19 @@
 use std::collections::HashMap;
 use std::future::Future;
-#[cfg(feature = "local_fs")]
 use std::path::{Component, Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures::future::ready;
-#[cfg(feature = "local_fs")]
 use ignore::gitignore::Gitignore;
 use warp_util::standardized_path::StandardizedPath;
-#[cfg(feature = "local_fs")]
-use warpui_core::SingletonEntity;
 use warpui_core::r#async::{BoxFuture, SpawnedFutureHandle};
-use warpui_core::{Entity, ModelContext, ModelHandle};
+use warpui_core::{Entity, ModelContext, ModelHandle, SingletonEntity};
 
-#[cfg(feature = "local_fs")]
-use crate::watcher::DirectoryWatcher;
-use crate::watcher::TaskQueue;
-use crate::{RepoMetadataError, RepositoryUpdate};
-#[cfg(feature = "local_fs")]
-use crate::{
-    entry::{matches_gitignores, should_ignore_git_path},
-    gitignores_for_directory,
-};
+use crate::entry::{matches_gitignores, should_ignore_git_path};
+use crate::watcher::{DirectoryWatcher, TaskQueue};
+use crate::{RepoMetadataError, RepositoryUpdate, gitignores_for_directory};
 
 /// Trait for entities that want to subscribe to repository file changes.
 pub trait RepositorySubscriber: Send + Sync {
@@ -63,7 +53,6 @@ pub struct StartWatching {
     pub registration_future: BoxFuture<'static, Result<(), RepoMetadataError>>,
 }
 struct RepositorySubscription {
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     mode: RepositoryWatchMode,
     subscriber: Box<dyn RepositorySubscriber>,
 }
@@ -85,10 +74,8 @@ pub struct Repository {
     /// Counter for generating unique subscriber IDs.
     next_subscriber_id: SubscriberId,
     /// Cached gitignore patterns for this repository.
-    #[cfg(feature = "local_fs")]
     gitignores: Vec<Arc<Gitignore>>,
     /// Cached loose remote-tracking ref tracked by the active branch.
-    #[cfg(feature = "local_fs")]
     tracked_remote_ref: Option<TrackedRemoteRef>,
     #[cfg(test)]
     tracked_remote_ref_refresh_count: usize,
@@ -96,13 +83,11 @@ pub struct Repository {
     task_queue: ModelHandle<TaskQueue>,
 }
 
-#[cfg(feature = "local_fs")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TrackedRemoteRef {
     full_ref_name: String,
 }
 
-#[cfg(feature = "local_fs")]
 impl TrackedRemoteRef {
     pub(crate) fn from_full_ref_name(full_ref_name: impl Into<String>) -> Option<Self> {
         let full_ref_name = full_ref_name.into();
@@ -136,7 +121,6 @@ impl Repository {
         external_git_directory: Option<StandardizedPath>,
         task_queue: ModelHandle<TaskQueue>,
     ) -> Self {
-        #[cfg(feature = "local_fs")]
         let gitignores = {
             let local_path = root_dir.to_local_path_lossy();
             gitignores_for_directory(&local_path)
@@ -152,9 +136,7 @@ impl Repository {
             common_git_directory,
             subscribers: HashMap::new(),
             next_subscriber_id: 0,
-            #[cfg(feature = "local_fs")]
             gitignores,
-            #[cfg(feature = "local_fs")]
             tracked_remote_ref: None,
             #[cfg(test)]
             tracked_remote_ref_refresh_count: 0,
@@ -201,7 +183,6 @@ impl Repository {
     /// Directory registrations can be created from a raw path before git detection completes.
     /// Preserve any metadata already associated with the repository, since later raw-path
     /// registrations must not downgrade a known linked worktree.
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     pub(super) fn enrich_external_git_directory(
         &mut self,
         external_git_directory: StandardizedPath,
@@ -214,7 +195,6 @@ impl Repository {
         self.common_git_directory = Self::derive_common_git_directory(&external_git_directory);
         self.external_git_directory = Some(external_git_directory);
 
-        #[cfg(feature = "local_fs")]
         if self.has_git_repository_subscribers() {
             let git_paths = self.git_watch_paths();
             if !git_paths.is_empty() {
@@ -253,21 +233,18 @@ impl Repository {
             .unwrap_or_else(|| self.git_dir())
     }
 
-    #[cfg(feature = "local_fs")]
     pub(crate) fn tracked_remote_ref_path(&self) -> Option<PathBuf> {
         self.tracked_remote_ref
             .as_ref()
             .map(|tracked_ref| self.common_git_dir().join(tracked_ref.full_ref_name()))
     }
 
-    #[cfg(feature = "local_fs")]
     pub(crate) fn tracks_remote_ref_path(&self, remote_ref_path: &Path) -> bool {
         self.tracked_remote_ref_path().is_some_and(|tracked_path| {
             Self::path_for_comparison(&tracked_path) == Self::path_for_comparison(remote_ref_path)
         })
     }
 
-    #[cfg(feature = "local_fs")]
     pub(crate) fn update_tracked_remote_ref(
         &mut self,
         tracked_remote_ref: Option<TrackedRemoteRef>,
@@ -279,12 +256,10 @@ impl Repository {
         true
     }
 
-    #[cfg(feature = "local_fs")]
     fn path_for_comparison(path: &Path) -> PathBuf {
         dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
     }
 
-    #[cfg(feature = "local_fs")]
     pub(crate) async fn resolve_tracked_remote_ref(root_dir: PathBuf) -> Option<TrackedRemoteRef> {
         let output = warp_util::git::run_git_command(
             &root_dir,
@@ -296,7 +271,6 @@ impl Repository {
         TrackedRemoteRef::from_full_ref_name(full_ref_name)
     }
 
-    #[cfg(feature = "local_fs")]
     pub(crate) fn refresh_tracked_remote_ref(
         &mut self,
         notify: bool,
@@ -326,7 +300,6 @@ impl Repository {
         );
     }
 
-    #[cfg(feature = "local_fs")]
     fn enqueue_remote_ref_update(&mut self, ctx: &mut ModelContext<Self>) {
         let repository_handle = ctx.handle();
         let subscriber_ids = self.get_git_repository_subscriber_ids();
@@ -346,7 +319,6 @@ impl Repository {
         });
     }
 
-    #[cfg(feature = "local_fs")]
     pub(crate) fn git_watch_paths(&self) -> Vec<StandardizedPath> {
         let mut paths = Vec::new();
         if let Some(external_git_dir) = &self.external_git_directory {
@@ -367,7 +339,6 @@ impl Repository {
         paths
     }
 
-    #[cfg(feature = "local_fs")]
     pub(crate) fn has_git_repository_subscribers(&self) -> bool {
         self.subscribers
             .values()
@@ -383,7 +354,6 @@ impl Repository {
     ///
     /// If this is the first subscriber, the repository root will be added to the
     /// RepositoryWatcher's set of watched paths.
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     pub fn start_watching(
         &mut self,
         mode: RepositoryWatchMode,
@@ -394,16 +364,13 @@ impl Repository {
         self.next_subscriber_id += 1;
 
         // If this is the first subscriber, we need to start watching the repository
-        #[cfg(feature = "local_fs")]
         let should_start_filesystem_watching = self.subscribers.is_empty();
-        #[cfg(feature = "local_fs")]
         let should_start_git_watching =
             mode == RepositoryWatchMode::GitRepository && !self.has_git_repository_subscribers();
 
         self.subscribers
             .insert(subscriber_id, RepositorySubscription { mode, subscriber });
 
-        #[cfg(feature = "local_fs")]
         let registration_future: BoxFuture<'static, Result<(), RepoMetadataError>> = {
             let mut directories_to_watch = Vec::new();
             if should_start_filesystem_watching {
@@ -428,15 +395,10 @@ impl Repository {
             }
         };
 
-        #[cfg(not(feature = "local_fs"))]
-        let registration_future: BoxFuture<'static, Result<(), RepoMetadataError>> =
-            Box::pin(async move { Ok(()) });
-
         let self_handle = ctx.handle();
         self.task_queue.update(ctx, |queue, ctx| {
             queue.enqueue_scan(self_handle, subscriber_id, ctx);
         });
-        #[cfg(feature = "local_fs")]
         if should_start_git_watching {
             self.refresh_tracked_remote_ref(false, ctx);
         }
@@ -451,7 +413,6 @@ impl Repository {
     ///
     /// If this was the last subscriber, the repository root will be removed from the
     /// RepositoryWatcher's set of watched paths.
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     pub fn stop_watching(&mut self, subscriber_id: SubscriberId, ctx: &mut ModelContext<Self>) {
         let Some(mut subscription) = self.subscribers.remove(&subscriber_id) else {
             return;
@@ -459,11 +420,9 @@ impl Repository {
 
         subscription.subscriber.on_unsubscribe(ctx);
 
-        #[cfg(feature = "local_fs")]
         let should_stop_git_watching = subscription.mode == RepositoryWatchMode::GitRepository
             && !self.has_git_repository_subscribers();
 
-        #[cfg(feature = "local_fs")]
         if should_stop_git_watching {
             self.tracked_remote_ref = None;
         }
@@ -477,7 +436,6 @@ impl Repository {
             );
         }
 
-        #[cfg(feature = "local_fs")]
         if should_stop_filesystem_watching || should_stop_git_watching {
             let root_dir = self.root_dir.clone();
             let git_paths = if should_stop_git_watching {
@@ -510,7 +468,6 @@ impl Repository {
     }
 
     /// Notifies a specific subscriber about file changes.
-    #[cfg(feature = "local_fs")]
     pub(crate) fn notify_subscriber(
         &mut self,
         subscriber_id: SubscriberId,
@@ -527,7 +484,6 @@ impl Repository {
     }
 
     /// Returns updates filtered for each subscriber's watch mode.
-    #[cfg(feature = "local_fs")]
     pub(crate) fn subscriber_updates(
         &self,
         update: &RepositoryUpdate,
@@ -546,7 +502,6 @@ impl Repository {
             .collect()
     }
 
-    #[cfg(feature = "local_fs")]
     fn get_git_repository_subscriber_ids(&self) -> Vec<SubscriberId> {
         self.subscribers
             .iter()
@@ -557,7 +512,6 @@ impl Repository {
     }
 
     /// Checks if a path is gitignored within this repository.
-    #[cfg(feature = "local_fs")]
     pub fn check_gitignore_status(&self, path: &Path) -> bool {
         // Check if path is a .git internal file
         if should_ignore_git_path(path) {

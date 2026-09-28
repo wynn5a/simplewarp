@@ -6,20 +6,18 @@ use ai::skills::{ParsedSkill, SkillProvider, SkillScope};
 use itertools::Itertools;
 use ui_components::lightbox::{LightboxImage, LightboxImageSource};
 use warp_util::local_or_remote_path::LocalOrRemotePath;
-#[cfg(feature = "local_fs")]
 use warpui::assets::asset_cache::AssetSource;
 use warpui::elements::{Empty, MouseStateHandle};
 use warpui::{App, Element};
 
 use super::{
-    CollapsibleElementState, CollapsibleExpansionState, VisualMarkdownLightboxCollection,
+    CollapsibleElementState, CollapsibleExpansionState, ResolvedBlocklistImageSources,
+    VisualMarkdownLightboxCollection, blocklist_image_asset_source,
     collect_visual_markdown_lightbox_collection, compute_visual_section_width,
     image_tooltip_handles_for_group, inline_image_source_label,
     is_supported_blocklist_image_source, lightbox_trigger_for_section, query_prefix_highlight_len,
     render_scrollable_collapsible_content, text_sections_with_indices, warping_footer_height,
 };
-#[cfg(feature = "local_fs")]
-use super::{ResolvedBlocklistImageSources, blocklist_image_asset_source};
 use crate::ai::agent::{
     AIAgentInput, AIAgentTextSection, AgentOutputImage, AgentOutputImageLayout,
     AgentOutputMermaidDiagram, MessageId, UserQueryMode,
@@ -276,13 +274,8 @@ fn collect_visual_markdown_lightbox_collection_includes_mermaid_sections_in_sour
             ];
 
             let indexed_sections = text_sections_with_indices(&sections, 10).collect_vec();
-            let collection = collect_visual_markdown_lightbox_collection(
-                &indexed_sections,
-                None,
-                #[cfg(feature = "local_fs")]
-                None,
-                ctx,
-            );
+            let collection =
+                collect_visual_markdown_lightbox_collection(&indexed_sections, None, None, ctx);
 
             assert_eq!(collection.section_indices, vec![11, 13]);
             assert_eq!(collection.images.len(), 2);
@@ -304,7 +297,6 @@ fn inline_image_source_label_uses_file_name() {
     );
 }
 
-#[cfg(feature = "local_fs")]
 #[test]
 fn blocklist_image_asset_source_uses_cached_resolution_when_available() {
     let current_working_directory = "/tmp/session".to_string();

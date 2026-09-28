@@ -8,7 +8,6 @@ use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity as _};
 
 use super::GitHubRepoEvent;
 use crate::code_review::git_repo_model::{GitRepoStatusEvent, GitRepoStatusModel};
-#[cfg(feature = "local_tty")]
 use crate::terminal::local_shell::LocalShellState;
 use crate::terminal::session_settings::{GithubPrPromptChipDefaultValidation, SessionSettings};
 use crate::util::git::{
@@ -184,7 +183,6 @@ impl LocalGitHubRepoModel {
             return;
         }
         let repo_path = self.repo_path.clone();
-        #[cfg(feature = "local_tty")]
         let path_future = {
             // Use the shell's interactive PATH so `gh` can be found when Warp
             // was launched outside of a login shell, e.g. from the macOS GUI.
@@ -192,8 +190,6 @@ impl LocalGitHubRepoModel {
                 shell_state.get_interactive_path_env_var(ctx)
             })
         };
-        #[cfg(not(feature = "local_tty"))]
-        let path_future = futures::future::ready(None);
         let branch_for_callback = branch.clone();
         let abort_handle = ctx.spawn(
             async move {
@@ -226,7 +222,6 @@ impl LocalGitHubRepoModel {
             return;
         }
         let repo_path = self.repo_path.clone();
-        #[cfg(feature = "local_tty")]
         let path_future = {
             // Use the shell's interactive PATH so `gh` can be found when Warp
             // was launched outside of a login shell, e.g. from the macOS GUI.
@@ -234,8 +229,6 @@ impl LocalGitHubRepoModel {
                 shell_state.get_interactive_path_env_var(ctx)
             })
         };
-        #[cfg(not(feature = "local_tty"))]
-        let path_future = futures::future::ready(None);
         self.repository_info_abort_handle = Some(ctx.spawn(
             async move {
                 let path_env = path_future.await;

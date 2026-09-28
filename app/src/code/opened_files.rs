@@ -17,7 +17,6 @@ impl OpenedFilesInRepo {
         self.0.get(relative_path)
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     pub fn iter(&self) -> impl Iterator<Item = (&String, &Instant)> {
         self.0.iter()
     }
@@ -54,7 +53,6 @@ impl OpenedFilesModel {
     /// `repo_root` is the repository root location (local or remote).
     /// `file_location` is the absolute file location. If it is not within
     /// `repo_root`, the file is not recorded.
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     pub fn file_opened(
         &mut self,
         repo_root: LocalOrRemotePath,

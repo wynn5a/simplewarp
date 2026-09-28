@@ -8,13 +8,11 @@ use lsp::{
 };
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
-#[cfg(feature = "local_fs")]
 use repo_metadata::repositories::DetectedRepositories;
 use warp_core::ui::Icon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill as ThemeFill, WarpTheme};
-#[cfg(feature = "local_fs")]
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
@@ -29,14 +27,11 @@ use warpui::{
     ViewHandle, WeakModelHandle,
 };
 
-#[cfg(feature = "local_fs")]
-use crate::ai::persisted_workspace::PersistedWorkspaceEvent;
 use crate::ai::persisted_workspace::{
-    LSPEnablementResultForFile, LspRepoStatus, PersistedWorkspace,
+    LSPEnablementResultForFile, LspRepoStatus, PersistedWorkspace, PersistedWorkspaceEvent,
 };
 use crate::settings::AISettings;
 use crate::ui_components::blended_colors;
-#[cfg(feature = "local_fs")]
 use crate::user_config::is_tab_config_toml;
 use crate::view_components::action_button::{
     ActionButton, ButtonSize, NakedTheme, PaneHeaderTheme,
@@ -131,27 +126,17 @@ impl FooterMode {
 #[derive(Debug, Clone, PartialEq)]
 pub enum CodeFooterViewAction {
     CloseMenu,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     ToggleMenu,
     EnableLSP,
     RunTabConfigSkill,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     OpenLogs,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     RestartServer,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     StopServer,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     StartServer,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     RemoveServer,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     RestartAllServers,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     StopAllServers,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     StartAllServers,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     ManageServers,
 }
 
@@ -259,15 +244,10 @@ impl LspRepoStatuses {
 }
 
 impl CodeFooterView {
-    #[cfg(feature = "local_fs")]
     fn is_tab_config_path(path: &Path) -> bool {
         is_tab_config_toml(path)
     }
 
-    #[cfg(not(feature = "local_fs"))]
-    fn is_tab_config_path(_path: &Path) -> bool {
-        false
-    }
     fn create_tab_config_skill_button(ctx: &mut ViewContext<Self>) -> ViewHandle<ActionButton> {
         ctx.add_typed_action_view(|_ctx| {
             ActionButton::new("/update-tab-config", NakedTheme)
@@ -373,7 +353,6 @@ impl CodeFooterView {
         });
 
         // Kick off detection via PersistedWorkspace and subscribe for updates
-        #[cfg(feature = "local_fs")]
         let initial_status = {
             let status = Self::detect_installation_status(&path, ctx);
 
@@ -429,8 +408,6 @@ impl CodeFooterView {
 
             status
         };
-        #[cfg(not(feature = "local_fs"))]
-        let initial_status = LspRepoStatus::CheckingForInstallation;
 
         Self {
             mode: FooterMode::SingleFile {
@@ -475,7 +452,6 @@ impl CodeFooterView {
         );
 
         // Kick off async detection of available servers for this workspace
-        #[cfg(feature = "local_fs")]
         {
             let persisted = PersistedWorkspace::handle(ctx);
             persisted.update(ctx, |model, ctx| {
@@ -677,7 +653,6 @@ impl CodeFooterView {
 
     /// Detects LSP installation status for the given file path and returns the initial status.
     /// This is shared between `new` and `clear_server_subscription`. Only used in SingleFile mode.
-    #[cfg(feature = "local_fs")]
     fn detect_installation_status(
         file_path: &std::path::Path,
         ctx: &mut ViewContext<Self>,
@@ -765,7 +740,6 @@ impl CodeFooterView {
         });
 
         // Set initial status and kick off installation status detection
-        #[cfg(feature = "local_fs")]
         if let FooterMode::SingleFile {
             path,
             lsp_repo_status,
@@ -774,13 +748,6 @@ impl CodeFooterView {
         {
             *lsp_repo_status = Self::detect_installation_status(path, ctx);
             self.update_enable_button_label(ctx);
-        }
-        #[cfg(not(feature = "local_fs"))]
-        if let FooterMode::SingleFile {
-            lsp_repo_status, ..
-        } = &mut self.mode
-        {
-            *lsp_repo_status = LspRepoStatus::CheckingForInstallation;
         }
 
         ctx.notify();
@@ -1645,7 +1612,6 @@ impl CodeFooterView {
 }
 
 #[derive(Clone)]
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub enum CodeFooterViewEvent {
     RunTabConfigSkill {
         path: PathBuf,

@@ -1,17 +1,9 @@
-#![cfg_attr(not(feature = "local_fs"), allow(dead_code))]
+pub mod agent;
+mod block_list;
+pub mod commands;
+mod sqlite;
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        pub mod agent;
-        mod block_list;
-        mod sqlite;
-        pub mod commands;
-    }
-}
-
-pub use persistence::model;
-#[cfg_attr(not(feature = "local_fs"), expect(unused_imports))]
-pub use persistence::schema;
+pub use persistence::{model, schema};
 
 #[cfg(feature = "integration_tests")]
 pub mod testing;
@@ -27,10 +19,7 @@ use ai::workspace::WorkspaceMetadata as CodeWorkspaceMetadata;
 use chrono::{DateTime, Local};
 use instant::Instant;
 use lsp::supported_servers::LSPServerType;
-#[cfg(any(feature = "local_fs", feature = "integration_tests"))]
-pub use sqlite::database_file_path;
-#[cfg(any(feature = "local_fs", feature = "integration_tests"))]
-pub use sqlite::establish_ro_connection;
+pub use sqlite::{database_file_path, establish_ro_connection};
 use uuid::Uuid;
 use warp_core::command::ExitCode;
 use warp_errors::report_error;
@@ -78,15 +67,8 @@ pub struct ConversationSummaryBackfill {
 /// writing updated data to persist, if the persistence subsystem is
 /// available.
 #[tracing::instrument(name = "persistence::initialize", skip_all, fields(tags.cloud_agent = true))]
-#[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
 pub fn initialize(ctx: &mut AppContext) -> (Option<Box<PersistedData>>, Option<WriterHandles>) {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "local_fs")] {
-            sqlite::initialize(ctx)
-        } else {
-            (None, None)
-        }
-    }
+    sqlite::initialize(ctx)
 }
 
 /// Holds interfaces to the writer thread.

@@ -10,7 +10,6 @@ use crate::terminal::shell::ShellType;
 /// Creates a `NamedTempFile` with the given bootstrap contents
 ///
 /// Return `None` if any part of the operation fails
-#[cfg(feature = "local_fs")]
 pub fn create_bootstrap_file<C, S>(
     contents: C,
     shell_type: ShellType,

@@ -1,25 +1,15 @@
-use std::collections::HashMap;
-#[cfg(feature = "local_fs")]
-use std::collections::HashSet;
-#[cfg(feature = "local_fs")]
-use std::path::Path;
-#[cfg(feature = "local_fs")]
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 
-#[cfg(feature = "local_fs")]
 use indexmap::IndexSet;
-#[cfg(feature = "local_fs")]
 use repo_metadata::repositories::DetectedRepositories;
-#[cfg(feature = "local_fs")]
 use warp_errors::report_error;
-#[cfg(feature = "local_fs")]
 use warp_util::remote_path::RemotePath;
-#[cfg(feature = "local_fs")]
-use warpui::{AppContext, SingletonEntity as _};
-use warpui::{Entity, EntityId, ModelContext, ModelHandle, ViewHandle};
+use warpui::{
+    AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _, ViewHandle,
+};
 
 use crate::code::buffer_location::LocalOrRemotePath;
-#[cfg(feature = "local_fs")]
 use crate::code::file_tree::FileTreeView;
 use crate::code_review::code_review_view::CodeReviewView;
 use crate::code_review::comments::{
@@ -32,13 +22,11 @@ use crate::workspace::view::global_search::view::GlobalSearchView;
 ///
 /// Enforces that local keys are always paired with local-backend models and
 /// remote keys with remote-backend models via dedicated insertion methods.
-#[cfg(feature = "local_fs")]
 #[derive(Default)]
 struct DiffStateModelMap {
     models: HashMap<LocalOrRemotePath, ModelHandle<DiffStateModel>>,
 }
 
-#[cfg(feature = "local_fs")]
 impl DiffStateModelMap {
     fn get(&self, key: &LocalOrRemotePath) -> Option<&ModelHandle<DiffStateModel>> {
         self.models.get(key)
@@ -72,7 +60,6 @@ impl DiffStateModelMap {
 ///
 /// All mutations go through methods on this wrapper to guarantee the two
 /// maps stay in sync.
-#[cfg(feature = "local_fs")]
 #[derive(Default)]
 struct PaneGroupRepositoryRoots {
     /// Forward: per-pane-group ordered set of repository roots.
@@ -83,7 +70,6 @@ struct PaneGroupRepositoryRoots {
     path_to_pane_groups: HashMap<LocalOrRemotePath, HashSet<EntityId>>,
 }
 
-#[cfg(feature = "local_fs")]
 impl PaneGroupRepositoryRoots {
     /// Read-only view of a pane group's repository roots, preserving the
     /// existing `HashMap::get(&pane_group_id)` semantics.
@@ -238,7 +224,6 @@ pub enum WorkingDirectoriesEvent {
 }
 
 #[derive(Default)]
-#[cfg(feature = "local_fs")]
 /// Workspace model that tracks working directories across all pane groups.
 /// Emits events when the set of directories changes for any pane group.
 pub struct WorkingDirectoriesModel {
@@ -284,13 +269,7 @@ pub struct WorkingDirectoriesModel {
     file_tree_views: HashMap<EntityId, ViewHandle<FileTreeView>>,
 }
 
-#[derive(Default)]
-#[cfg(not(feature = "local_fs"))]
-/// Does nothing without a local file system
-pub struct WorkingDirectoriesModel {}
-
 /// Index Sets are ordered by insertion order. This function updates an index set to match a new set of items.
-#[cfg(feature = "local_fs")]
 pub fn update_index_set(
     index_set: &mut IndexSet<LocalOrRemotePath>,
     new_items: impl IntoIterator<Item = LocalOrRemotePath>,
@@ -302,7 +281,6 @@ pub fn update_index_set(
     }
 }
 
-#[cfg(feature = "local_fs")]
 impl WorkingDirectoriesModel {
     pub fn new() -> Self {
         Self::default()
@@ -942,141 +920,6 @@ impl WorkingDirectoriesModel {
     }
 }
 
-#[cfg(not(feature = "local_fs"))]
-impl WorkingDirectoriesModel {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Get the unique directories for a specific pane group in most to least recently added order.
-    pub fn most_recent_directories_for_pane_group(
-        &self,
-        _pane_group_id: EntityId,
-    ) -> Option<impl Iterator<Item = WorkingDirectory> + '_> {
-        Option::<std::iter::Empty<WorkingDirectory>>::None
-    }
-
-    /// Get the unique repository roots for a specific pane group in most to least recently added order.
-    pub fn most_recent_repositories_for_pane_group(
-        &self,
-        _pane_group_id: EntityId,
-    ) -> Option<impl Iterator<Item = LocalOrRemotePath> + '_> {
-        Option::<std::iter::Empty<LocalOrRemotePath>>::None
-    }
-
-    /// Get the terminal view ID associated with a specific repository in a pane group.
-    pub fn get_terminal_id_for_root_path(
-        &self,
-        _pane_group_id: EntityId,
-        _root_path: &LocalOrRemotePath,
-    ) -> Option<EntityId> {
-        None
-    }
-
-    pub fn refresh_working_directories_for_pane_group(
-        &mut self,
-        _pane_group_id: EntityId,
-        _terminal_cwds: Vec<(EntityId, LocalOrRemotePath)>,
-        _editor_paths: Vec<(EntityId, LocalOrRemotePath)>,
-        _focused_terminal_id: Option<EntityId>,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-    }
-
-    pub fn get_or_create_diff_state_model(
-        &mut self,
-        _key: LocalOrRemotePath,
-        _ctx: &mut ModelContext<Self>,
-    ) -> Option<ModelHandle<DiffStateModel>> {
-        None
-    }
-
-    pub fn get_or_create_code_review_comments(
-        &mut self,
-        _repo_path: &LocalOrRemotePath,
-        _ctx: &mut ModelContext<Self>,
-    ) -> Option<ModelHandle<ReviewCommentBatch>> {
-        None
-    }
-
-    pub fn store_code_review_view(
-        &mut self,
-        _pane_group_id: EntityId,
-        _repo_path: LocalOrRemotePath,
-        _view: ViewHandle<CodeReviewView>,
-    ) {
-    }
-
-    pub fn get_code_review_view(
-        &self,
-        _pane_group_id: EntityId,
-        _repo_path: &LocalOrRemotePath,
-    ) -> Option<ViewHandle<CodeReviewView>> {
-        None
-    }
-
-    pub fn get_selected_review_repo(&self, _pane_group_id: EntityId) -> Option<&LocalOrRemotePath> {
-        None
-    }
-
-    pub fn set_selected_review_repo(
-        &mut self,
-        _pane_group_id: EntityId,
-        _repo_path: LocalOrRemotePath,
-    ) {
-    }
-
-    pub fn clear_selected_review_repo(&mut self, _pane_group_id: EntityId) {}
-
-    pub fn store_global_search_view(
-        &mut self,
-        _pane_group_id: EntityId,
-        _view: ViewHandle<GlobalSearchView>,
-    ) {
-    }
-
-    pub fn get_global_search_view(
-        &self,
-        _pane_group_id: EntityId,
-    ) -> Option<ViewHandle<GlobalSearchView>> {
-        None
-    }
-
-    pub fn store_file_tree_view(
-        &mut self,
-        _pane_group_id: EntityId,
-        _view: ViewHandle<crate::code::file_tree::FileTreeView>,
-    ) {
-    }
-
-    pub fn get_file_tree_view(
-        &self,
-        _pane_group_id: EntityId,
-    ) -> Option<ViewHandle<crate::code::file_tree::FileTreeView>> {
-        None
-    }
-
-    pub fn remove_pane_group(&mut self, _pane_group_id: EntityId, _ctx: &mut ModelContext<Self>) {}
-
-    pub(crate) fn insert_code_review_comments(
-        &mut self,
-        _pane_group_id: EntityId,
-        _repo_path: &LocalOrRemotePath,
-        _comments: &Vec<PendingImportedReviewComment>,
-        _diff_mode: &DiffMode,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-    }
-
-    pub(crate) fn upsert_flattened_code_review_comments(
-        &mut self,
-        _repo_path: &LocalOrRemotePath,
-        _comments: Vec<AttachedReviewComment>,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-    }
-}
-
 impl Entity for WorkingDirectoriesModel {
     type Event = WorkingDirectoriesEvent;
 }
@@ -1088,7 +931,6 @@ impl Entity for WorkingDirectoriesModel {
 /// Returns None if the path is empty, invalid, or cannot be canonicalized.
 /// Canonicalization failure may indicate remote paths or non-existent directories,
 /// which could be supported in the future.
-#[cfg(feature = "local_fs")]
 fn normalize_cwd(raw_cwd: &str) -> Option<PathBuf> {
     if raw_cwd.is_empty() {
         return None;
