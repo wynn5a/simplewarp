@@ -28,7 +28,7 @@ use crate::appearance::Appearance;
 use crate::auth::auth_state::AuthStateProvider;
 use crate::cloud_object::folders::CloudFolder;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{CloudObject, CloudObjectTypeAndId, Owner};
+use crate::cloud_object::{CloudObject, CloudObjectTypeAndId, Owner, personal_drive};
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
 use crate::notebooks::editor::model::{
     FileLinkResolutionContext, NotebooksEditorModel, RichTextEditorModelEvent,
@@ -44,7 +44,6 @@ use crate::terminal::TerminalView;
 use crate::terminal::model::session::Session;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::throttle::throttle;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 /// The frequency at which we check for modifications and save the AI document to the server.
 /// Uses the same 2-second period as notebooks for consistency.
@@ -1199,19 +1198,13 @@ impl AIDocumentModel {
         self.earlier_versions.get(id)
     }
 
-    /// Get the appropriate owner for plan documents.
-    /// For service accounts, returns the team drive owner.
-    /// For regular users, returns the personal drive owner.
+    /// Get the appropriate owner for plan documents: the personal drive, or `None` for a service
+    /// account (which has no personal drive).
     fn get_plan_owner(ctx: &AppContext) -> Option<Owner> {
-        let is_service_account = AuthStateProvider::as_ref(ctx).get().is_service_account();
-
-        if is_service_account {
-            // If the SA doesn't have a team, we'll skip the plan sync in the caller
-            UserWorkspaces::as_ref(ctx)
-                .sole_team_uid()
-                .map(|team_uid| Owner::Team { team_uid })
+        if AuthStateProvider::as_ref(ctx).get().is_service_account() {
+            None
         } else {
-            UserWorkspaces::as_ref(ctx).personal_drive(ctx)
+            personal_drive(ctx)
         }
     }
 

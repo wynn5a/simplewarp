@@ -42,10 +42,12 @@ enum ProfileSource {
     /// first local edit materializes the collection in [`AISettings`], so the empty implicit
     /// settings default is never exposed.
     PendingSettings { default_profile: AIExecutionProfile },
-    /// CLI launches use a fixed, more permissive default profile that can't be edited.
+    /// CLI launches use a fixed, more permissive default profile that can't be edited. The
+    /// user's local profiles are also readable, so a run can select one of them instead.
     Cli {
         id: ExecutionProfileId,
         profile: AIExecutionProfile,
+        local_profiles: ExecutionProfilesConfig,
     },
 }
 
@@ -74,8 +76,25 @@ impl ProfileSource {
                     *is_sandboxed,
                     *computer_use_override,
                 ),
+                local_profiles: stored_or_implicit_profiles(ctx),
             },
         }
+    }
+}
+
+/// The profiles the app would show: the stored collection, or just the implicit default profile
+/// when none has been stored yet.
+fn stored_or_implicit_profiles(ctx: &AppContext) -> ExecutionProfilesConfig {
+    let execution_profiles = &AISettings::as_ref(ctx).execution_profiles;
+    if execution_profiles.is_value_explicitly_set() {
+        execution_profiles.value().clone()
+    } else {
+        let mut profiles = ExecutionProfilesConfig::default();
+        profiles.insert(
+            ExecutionProfileId::default_profile(),
+            implicit_default_profile(ctx),
+        );
+        profiles
     }
 }
 
@@ -313,9 +332,32 @@ impl AIExecutionProfilesModel {
                     id: profile_id.clone(),
                     data,
                 }),
-            ProfileSource::PendingSettings { .. } | ProfileSource::Cli { .. } => {
+            ProfileSource::PendingSettings { .. } => {
                 (*profile_id == self.default_profile_id()).then(|| self.default_profile(ctx))
             }
+            ProfileSource::Cli { local_profiles, .. } => {
+                if *profile_id == self.default_profile_id() {
+                    Some(self.default_profile(ctx))
+                } else {
+                    local_profiles
+                        .profile(profile_id)
+                        .cloned()
+                        .map(|data| AIExecutionProfileInfo {
+                            id: profile_id.clone(),
+                            data,
+                        })
+                }
+            }
+        }
+    }
+
+    /// The user's local profiles: the ones the app shows, even in a CLI launch whose own default
+    /// profile is the fixed CLI one.
+    pub fn local_profiles(&self, ctx: &AppContext) -> ExecutionProfilesConfig {
+        match &self.source {
+            ProfileSource::Settings => AISettings::as_ref(ctx).execution_profiles.value().clone(),
+            ProfileSource::PendingSettings { .. } => self.pending_profiles(ctx),
+            ProfileSource::Cli { local_profiles, .. } => local_profiles.clone(),
         }
     }
 

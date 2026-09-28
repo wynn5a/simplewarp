@@ -25,7 +25,6 @@ use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::terminal_model::TerminalModel;
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::view::PromptSuggestion;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const PASSIVE_CODE_DIFF_LONG_FILE_LINE_LIMIT: usize = 2000;
 const PASSIVE_CODE_DIFF_LONG_FILE_BYTE_LIMIT: usize = 100_000;
@@ -464,15 +463,13 @@ fn should_generate_prompt_suggestions(
     }
 
     AISettings::as_ref(ctx).is_prompt_suggestions_enabled(ctx)
-        && UserWorkspaces::as_ref(ctx).is_prompt_suggestions_toggleable()
 }
 
 fn should_generate_unit_test_suggestion(
     block_completed: &UserBlockCompleted,
     ctx: &ModelContext<PassiveSuggestionsModel>,
 ) -> bool {
-    let enabled = AISettings::as_ref(ctx).is_code_suggestions_enabled(ctx)
-        && UserWorkspaces::as_ref(ctx).is_code_suggestions_toggleable();
+    let enabled = AISettings::as_ref(ctx).is_code_suggestions_enabled(ctx);
 
     enabled
         && block_completed.command.starts_with("git")
@@ -484,8 +481,7 @@ fn passive_code_diffs_enabled(ctx: &ModelContext<PassiveSuggestionsModel>) -> bo
     let ai_settings = AISettings::as_ref(ctx);
     let is_prompt_suggestions_enabled = ai_settings.is_prompt_suggestions_enabled(ctx);
     let is_code_suggestions_enabled = ai_settings.is_code_suggestions_enabled(ctx);
-    let is_toggleable = UserWorkspaces::as_ref(ctx).is_code_suggestions_toggleable();
-    is_prompt_suggestions_enabled && is_code_suggestions_enabled && is_toggleable
+    is_prompt_suggestions_enabled && is_code_suggestions_enabled
 }
 
 fn fetch_static_prompt_suggestion(block: &UserBlockCompleted) -> Option<PromptSuggestion> {

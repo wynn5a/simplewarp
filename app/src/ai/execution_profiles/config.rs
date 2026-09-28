@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use indexmap::IndexMap;
+use itertools::Itertools as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use super::{
@@ -17,6 +18,7 @@ use super::{
     RunAgentsPermission, WriteToPtyPermission,
 };
 use crate::ai::llms::LLMId;
+use crate::cloud_object::model::generic_string_model::StringModel as _;
 use crate::settings::AgentModeCommandExecutionPredicate;
 
 /// Reserved key for the one required default profile.
@@ -91,6 +93,21 @@ impl fmt::Display for ExecutionProfileId {
     }
 }
 
+/// Why a profile reference didn't name exactly one profile.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum ProfileLookupError {
+    #[error("Agent profile \"{0}\" not found; run `agent profile list` to see the local profiles")]
+    NotFound(String),
+    #[error(
+        "Agent profile name \"{name}\" matches more than one profile; pass one of their IDs instead: {}",
+        ids.iter().join(", ")
+    )]
+    AmbiguousName {
+        name: String,
+        ids: Vec<ExecutionProfileId>,
+    },
+}
+
 /// Complete execution-profile collection persisted as one setting value.
 ///
 /// The collection always contains [`ExecutionProfileId::default_profile`].
@@ -129,6 +146,30 @@ impl ExecutionProfilesConfig {
     ) -> Option<AIExecutionProfile> {
         profile.is_default_profile = id.is_default();
         self.0.insert(id, profile)
+    }
+
+    /// Resolves a user-typed profile reference: an exact profile ID, or else a display name
+    /// (compared case-insensitively) that exactly one profile has.
+    pub fn resolve(&self, reference: &str) -> Result<ExecutionProfileId, ProfileLookupError> {
+        let reference = reference.trim();
+        if let Some(id) = self.profile_ids().find(|id| id.as_str() == reference) {
+            return Ok(id.clone());
+        }
+
+        let reference_lowercase = reference.to_lowercase();
+        let mut matches = self
+            .profiles()
+            .filter(|(_, profile)| profile.display_name().to_lowercase() == reference_lowercase)
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        match matches.len() {
+            0 => Err(ProfileLookupError::NotFound(reference.to_string())),
+            1 => Ok(matches.remove(0)),
+            _ => Err(ProfileLookupError::AmbiguousName {
+                name: reference.to_string(),
+                ids: matches,
+            }),
+        }
     }
 
     /// Removes a non-default profile.

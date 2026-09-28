@@ -111,7 +111,7 @@ impl InstallationModalBody {
 
         if let Some(templatable_mcp_server) = &self.templatable_mcp_server {
             self.is_shared = TemplatableMCPServerManager::as_ref(ctx)
-                .is_server_template_shared(templatable_mcp_server.uuid, ctx);
+                .is_server_template_shared(templatable_mcp_server.uuid);
 
             self.variable_inputs = templatable_mcp_server
                 .template

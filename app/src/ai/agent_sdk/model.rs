@@ -34,7 +34,7 @@ impl ModelCommandRunner {
 
         let llm_prefs = LLMPreferences::as_ref(ctx);
         let mut ids = BTreeSet::new();
-        for info in llm_prefs.get_base_llm_choices_for_agent_mode(ctx) {
+        for info in llm_prefs.get_base_llm_choices_for_agent_mode() {
             ids.insert(info.id.to_string());
         }
 

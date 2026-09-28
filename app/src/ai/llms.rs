@@ -13,14 +13,9 @@ use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
 use super::custom_model_routers::{self, CustomModelRouter, ModelConfigError};
 use super::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
-/// Checks if a user's' API key is being used for the given provider.
-/// Returns `true` if BYO API key is enabled and a key exists for the provider.
+/// Whether the user has an API key for the given provider.
 pub fn is_using_api_key_for_provider(provider: &LLMProvider, app: &AppContext) -> bool {
-    if !UserWorkspaces::as_ref(app).is_byo_api_key_enabled(app) {
-        return false;
-    }
     let manager = ApiKeyManager::as_ref(app);
 
     match provider {
@@ -31,45 +26,15 @@ pub fn is_using_api_key_for_provider(provider: &LLMProvider, app: &AppContext) -
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ByoKeySource {
-    UserProvided,
-}
+/// Label for a model whose inference goes through the user's own API key or custom endpoint.
+pub const BYO_KEY_INFERENCE_LABEL: &str = "Inference via User-provided API key";
 
-impl ByoKeySource {
-    pub fn inference_label(self) -> &'static str {
-        match self {
-            ByoKeySource::UserProvided => "Inference via User-provided API key",
-        }
-    }
-}
-
-/// Returns the first-party key source that will be used for this provider.
-pub fn first_party_key_source_for_provider(
-    provider: &LLMProvider,
-    app: &AppContext,
-) -> Option<ByoKeySource> {
-    (UserWorkspaces::as_ref(app).are_member_byo_keys_allowed()
-        && is_using_api_key_for_provider(provider, app))
-    .then_some(ByoKeySource::UserProvided)
-}
-
-pub fn is_using_first_party_key_for_provider(provider: &LLMProvider, app: &AppContext) -> bool {
-    first_party_key_source_for_provider(provider, app).is_some()
-}
-
-pub fn byo_key_source_for_model(llm: &LLMInfo, app: &AppContext) -> Option<ByoKeySource> {
-    let is_custom_endpoint = LLMPreferences::as_ref(app)
-        .custom_llm_info_for_id(&llm.id)
-        .is_some();
-    if is_custom_endpoint && UserWorkspaces::as_ref(app).are_member_byo_endpoints_allowed() {
-        return Some(ByoKeySource::UserProvided);
-    }
-    first_party_key_source_for_provider(&llm.provider, app)
-}
-
+/// Whether the model runs on the user's own API key or custom endpoint.
 pub fn should_show_key_icon_for_model(llm: &LLMInfo, app: &AppContext) -> bool {
-    byo_key_source_for_model(llm, app).is_some()
+    LLMPreferences::as_ref(app)
+        .custom_llm_info_for_id(&llm.id)
+        .is_some()
+        || is_using_api_key_for_provider(&llm.provider, app)
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -154,7 +119,7 @@ impl DisableReason {
 /// or disabled for a reason that doesn't block requests (see
 /// [`DisableReason::should_clear_preference`]).
 fn is_usable_llm(info: &LLMInfo, app: &AppContext) -> bool {
-    let has_byok_key = is_using_first_party_key_for_provider(&info.provider, app);
+    let has_byok_key = is_using_api_key_for_provider(&info.provider, app);
     info.disable_reason
         .as_ref()
         .is_none_or(|reason| !reason.should_clear_preference(has_byok_key))
@@ -708,7 +673,7 @@ impl LLMPreferences {
             let raw_override = self.base_llm_for_terminal_view.get(&terminal_view_id);
             if let Some(llm_id) = raw_override
                 && let Some(llm_info) =
-                    self.model_info_for_id(&self.models_by_feature.agent_mode, llm_id, app)
+                    self.model_info_for_id(&self.models_by_feature.agent_mode, llm_id)
             {
                 return llm_info;
             }
@@ -730,7 +695,7 @@ impl LLMPreferences {
             .data()
             .base_model
             .clone()
-            .and_then(|id| self.model_info_for_id(&self.models_by_feature.agent_mode, &id, app))
+            .and_then(|id| self.model_info_for_id(&self.models_by_feature.agent_mode, &id))
             .unwrap_or_else(|| self.fallback_llm_info(&self.models_by_feature.agent_mode, app))
     }
 
@@ -745,7 +710,7 @@ impl LLMPreferences {
     ) -> &'a LLMInfo {
         available
             .usable_default_llm_info(app)
-            .or_else(|| self.custom_llm_choices(app).next())
+            .or_else(|| self.custom_llm_choices().next())
             .or_else(|| self.provider_llm_choices().next())
             .unwrap_or_else(|| available.default_llm_info())
     }
@@ -761,10 +726,9 @@ impl LLMPreferences {
         &'a self,
         available: &'a AvailableLLMs,
         id: &LLMId,
-        app: &AppContext,
     ) -> Option<&'a LLMInfo> {
         Self::server_info_for_id_router_gated(available, id)
-            .or_else(|| self.custom_llm_info_for_id_if_enabled(id, app))
+            .or_else(|| self.custom_llm_info_for_id(id))
             .or_else(|| self.custom_router_llm_info_for_id_if_enabled(id))
             .or_else(|| self.provider_llm_info_for_id(id))
     }
@@ -789,7 +753,7 @@ impl LLMPreferences {
             .data()
             .coding_model
             .clone()
-            .and_then(|id| self.model_info_for_id(&self.models_by_feature.coding, &id, app))
+            .and_then(|id| self.model_info_for_id(&self.models_by_feature.coding, &id))
             .unwrap_or_else(|| self.fallback_llm_info(&self.models_by_feature.coding, app))
     }
 
@@ -812,10 +776,7 @@ impl LLMPreferences {
     }
 
     /// Returns the set of LLMs available for Agent Mode use.
-    pub fn get_base_llm_choices_for_agent_mode(
-        &self,
-        app: &AppContext,
-    ) -> impl Iterator<Item = &LLMInfo> + use<'_> {
+    pub fn get_base_llm_choices_for_agent_mode(&self) -> impl Iterator<Item = &LLMInfo> + use<'_> {
         // Don't show admin-disabled models in the dropdown
         let routers_enabled = FeatureFlag::CustomModelRouters.is_enabled();
         self.models_by_feature
@@ -833,7 +794,7 @@ impl LLMPreferences {
             .filter(move |llm| {
                 routers_enabled || !custom_model_routers::is_cloud_custom_router_id(llm.id.as_str())
             })
-            .chain(self.custom_llm_choices(app))
+            .chain(self.custom_llm_choices())
             .chain(self.provider_llm_choices())
             .chain(self.custom_router_choices())
     }
@@ -844,10 +805,7 @@ impl LLMPreferences {
     }
 
     /// Returns the set of LLMs available for coding.
-    pub fn get_coding_llm_choices(
-        &self,
-        app: &AppContext,
-    ) -> impl Iterator<Item = &LLMInfo> + use<'_> {
+    pub fn get_coding_llm_choices(&self) -> impl Iterator<Item = &LLMInfo> + use<'_> {
         // Don't show admin-disabled models in the dropdown
         let routers_enabled = FeatureFlag::CustomModelRouters.is_enabled();
         self.models_by_feature
@@ -864,16 +822,13 @@ impl LLMPreferences {
             .filter(move |llm| {
                 routers_enabled || !custom_model_routers::is_cloud_custom_router_id(llm.id.as_str())
             })
-            .chain(self.custom_llm_choices(app))
+            .chain(self.custom_llm_choices())
             .chain(self.provider_llm_choices())
             .chain(self.custom_router_choices())
     }
 
     /// Returns the set of LLMs available for CLI agent.
-    pub fn get_cli_agent_llm_choices(
-        &self,
-        app: &AppContext,
-    ) -> impl Iterator<Item = &LLMInfo> + use<'_> {
+    pub fn get_cli_agent_llm_choices(&self) -> impl Iterator<Item = &LLMInfo> + use<'_> {
         // Don't show admin-disabled models in the dropdown
         self.get_cli_agent_available()
             .choices
@@ -884,7 +839,7 @@ impl LLMPreferences {
                     Some(DisableReason::AdminDisabled | DisableReason::NeedsWarpAccount)
                 )
             })
-            .chain(self.custom_llm_choices(app))
+            .chain(self.custom_llm_choices())
             .chain(self.provider_llm_choices())
     }
 
@@ -904,7 +859,7 @@ impl LLMPreferences {
             .and_then(|id| {
                 available
                     .info_for_id(&id)
-                    .or_else(|| self.custom_llm_info_for_id_if_enabled(&id, app))
+                    .or_else(|| self.custom_llm_info_for_id(&id))
             })
             .unwrap_or_else(|| self.fallback_llm_info(available, app))
     }
@@ -992,26 +947,9 @@ impl LLMPreferences {
             .unwrap_or_else(|| CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL.to_string())
     }
 
-    fn custom_llm_info_for_id_if_enabled(&self, id: &LLMId, app: &AppContext) -> Option<&LLMInfo> {
-        Self::custom_inference_enabled(app)
-            .then(|| self.custom_llm_info_for_id(id))
-            .flatten()
-    }
-
-    /// Iterator over the user's custom-endpoint LLMs, gated on the feature flag and entitlement.
-    pub fn custom_llm_choices(&self, app: &AppContext) -> std::slice::Iter<'_, LLMInfo> {
-        if Self::custom_inference_enabled(app) {
-            self.custom_llms.iter()
-        } else {
-            // Empty slice with a matching element type so the return type stays consistent
-            // across both branches.
-            (&[] as &[LLMInfo]).iter()
-        }
-    }
-
-    fn custom_inference_enabled(app: &AppContext) -> bool {
-        let workspaces = UserWorkspaces::as_ref(app);
-        workspaces.is_custom_inference_enabled(app) && workspaces.are_member_byo_endpoints_allowed()
+    /// Iterator over the user's custom-endpoint LLMs.
+    pub fn custom_llm_choices(&self) -> std::slice::Iter<'_, LLMInfo> {
+        self.custom_llms.iter()
     }
 
     /// Resolves a custom model router by its `config_key`/`LLMId`.
@@ -1474,9 +1412,7 @@ impl LLMPreferences {
                         .models_by_feature
                         .agent_mode
                         .usable_info_for_id(effective_base_model_id, ctx)
-                        .or_else(|| {
-                            self.custom_llm_info_for_id_if_enabled(effective_base_model_id, ctx)
-                        });
+                        .or_else(|| self.custom_llm_info_for_id(effective_base_model_id));
                     let effective_base_model_unusable = effective_base_model_usable.is_none();
                     let effective_base_model_is_configurable = effective_base_model_usable
                         .is_some_and(|info| info.context_window.is_configurable);
@@ -1507,9 +1443,7 @@ impl LLMPreferences {
                                 .models_by_feature
                                 .coding
                                 .usable_info_for_id(preferred_llm_id, ctx)
-                                .or_else(|| {
-                                    self.custom_llm_info_for_id_if_enabled(preferred_llm_id, ctx)
-                                })
+                                .or_else(|| self.custom_llm_info_for_id(preferred_llm_id))
                                 .is_none()
                         {
                             profiles.set_coding_model(&profile_id, None, ctx);
@@ -1526,9 +1460,7 @@ impl LLMPreferences {
                             && self
                                 .get_cli_agent_available()
                                 .usable_info_for_id(preferred_llm_id, ctx)
-                                .or_else(|| {
-                                    self.custom_llm_info_for_id_if_enabled(preferred_llm_id, ctx)
-                                })
+                                .or_else(|| self.custom_llm_info_for_id(preferred_llm_id))
                                 .is_none()
                         {
                             profiles.set_cli_agent_model(&profile_id, None, ctx);

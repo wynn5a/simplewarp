@@ -7,12 +7,12 @@ use super::super::{DefaultSessionModeBehavior, Direction};
 use super::view::PaneView;
 use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 use crate::app_state::{LeafContents, NotebookPaneSnapshot};
+use crate::cloud_object::personal_drive;
 use crate::notebooks::link::{LinkEvent, NotebookLinks};
 use crate::notebooks::manager::{NotebookManager, NotebookSource};
 use crate::notebooks::notebook::{NotebookEvent, NotebookView};
 use crate::server::ids::SyncId;
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub struct NotebookPane {
     view: ViewHandle<PaneView<NotebookView>>,
@@ -43,9 +43,7 @@ impl NotebookPane {
             Some(id) => NotebookSource::Existing(id),
             None => NotebookSource::New {
                 title: None,
-                owner: UserWorkspaces::as_ref(ctx)
-                    .personal_drive(ctx)
-                    .context("personal drive unavailable")?,
+                owner: personal_drive(ctx).context("personal drive unavailable")?,
                 initial_folder_id: None,
             },
         };

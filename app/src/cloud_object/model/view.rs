@@ -146,7 +146,7 @@ impl CloudViewModel {
     pub fn object_space(&self, id: &ObjectUid, app: &AppContext) -> Option<Space> {
         CloudModel::as_ref(app)
             .get_by_uid(id)
-            .map(|object| object.space(app))
+            .map(|object| object.space())
     }
 
     /// Get the current user's access level on a Warp Drive object.
@@ -162,7 +162,7 @@ impl CloudViewModel {
     }
 
     fn object_access_level(object: &dyn CloudObject, app: &AppContext) -> SharingAccessLevel {
-        match object.space(app) {
+        match object.space() {
             // For now, users have full access to all objects in their own drives. We may introduce
             // drive-level ACLs in the future.
             Space::Personal | Space::Team { .. } => SharingAccessLevel::Full,
@@ -214,7 +214,7 @@ impl CloudViewModel {
                     .is_anonymous_or_logged_out()
                 {
                     // The object is editable, but the user is not logged in.
-                    if object.space(app) == Space::Personal {
+                    if object.space() == Space::Personal {
                         ContentEditability::Editable
                     } else {
                         ContentEditability::RequiresLogin

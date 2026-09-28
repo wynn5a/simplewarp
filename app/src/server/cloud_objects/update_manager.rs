@@ -8,7 +8,7 @@ use cloud_objects::time::ServerTimestamp;
 use lazy_static::lazy_static;
 use regex::Regex;
 use warp_errors::report_error;
-use warpui::{AppContext, Entity, ModelContext, RetryOption, SingletonEntity};
+use warpui::{Entity, ModelContext, RetryOption, SingletonEntity};
 
 use crate::ai::facts::{AIFact, CloudAIFactModel};
 use crate::ai::mcp::templatable::{CloudTemplatableMCPServerModel, TemplatableMCPServer};
@@ -34,7 +34,6 @@ use crate::server::ids::{ClientId, HashableId, ObjectUid, ServerId, SyncId, ToSe
 use crate::workflows::workflow::Workflow;
 use crate::workflows::workflow_enum::{CloudWorkflowEnumModel, WorkflowEnum};
 use crate::workflows::{CloudWorkflowModel, WorkflowId};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 lazy_static! {
     /// For online-only operations, we want to quickly determine if the operation can succeed,
@@ -253,7 +252,7 @@ impl UpdateManager {
             // Moving into the trash is really a trash operation.
             CloudObjectLocation::Trash => return self.trash_object(object_id, ctx),
             CloudObjectLocation::Space(destination_space) => {
-                match UserWorkspaces::as_ref(ctx).space_to_owner(destination_space, ctx) {
+                match destination_space.owner(ctx) {
                     Some(destination_owner) if destination_owner != object_current_owner => {
                         CloudModel::handle(ctx).update(ctx, |model, ctx| {
                             model.update_object_location(&uid, Some(destination_owner), None, ctx);
@@ -355,7 +354,7 @@ impl UpdateManager {
             let initial_folder_id = object.metadata.folder_id;
             let mut duplicate_model = object.model().clone();
             let duplicate_name =
-                self.get_next_duplicate_object_name(&object as &dyn CloudObject, cloud_model, ctx);
+                self.get_next_duplicate_object_name(&object as &dyn CloudObject, cloud_model);
             duplicate_model.set_display_name(&duplicate_name);
             (duplicate_model, client_id, owner, initial_folder_id)
         };
@@ -413,9 +412,9 @@ impl UpdateManager {
         force_expand: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        let count = CloudModel::handle(ctx).read(ctx, |model, ctx| {
+        let count = CloudModel::handle(ctx).read(ctx, |model, _| {
             model
-                .active_non_welcome_notebooks_in_space(Space::Personal, ctx)
+                .active_non_welcome_notebooks_in_space(Space::Personal)
                 .count()
         });
         if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
@@ -444,7 +443,6 @@ impl UpdateManager {
         &self,
         original_cloud_object: &dyn CloudObject,
         cloud_model: &CloudModel,
-        app: &AppContext,
     ) -> String {
         let original_name = original_cloud_object.display_name();
 
@@ -452,8 +450,7 @@ impl UpdateManager {
         // same type, and populate a hashset with those names.
         let same_type_and_folder_names = cloud_model
             .active_cloud_objects_in_location_without_descendents(
-                original_cloud_object.location(cloud_model, app),
-                app,
+                original_cloud_object.location(cloud_model),
             )
             .filter(|&object| object.object_type() == original_cloud_object.object_type())
             .map(|object| object.display_name())
@@ -479,9 +476,9 @@ impl UpdateManager {
         force_expand: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        let count = CloudModel::handle(ctx).read(ctx, |model, ctx| {
+        let count = CloudModel::handle(ctx).read(ctx, |model, _| {
             model
-                .active_non_welcome_workflows_in_space(Space::Personal, ctx)
+                .active_non_welcome_workflows_in_space(Space::Personal)
                 .count()
         });
         if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
@@ -515,9 +512,9 @@ impl UpdateManager {
         force_expand: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        let count = CloudModel::handle(ctx).read(ctx, |model, ctx| {
+        let count = CloudModel::handle(ctx).read(ctx, |model, _| {
             model
-                .active_non_welcome_env_var_collections_in_space(Space::Personal, ctx)
+                .active_non_welcome_env_var_collections_in_space(Space::Personal)
                 .count()
         });
         if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {

@@ -105,7 +105,7 @@ impl ExportManager {
                     log::warn!("Tried to export un-exportable object {object:?}")
                 }
                 Some(cloud_object) => {
-                    let id = ExportId(*object, cloud_object.space(ctx));
+                    let id = ExportId(*object, cloud_object.space());
                     ids.push(id);
                     match self.exports.entry(id) {
                         Entry::Occupied(_) => {
@@ -321,7 +321,7 @@ impl ExportManager {
         };
 
         let path = if is_bulk {
-            parent_path.join(safe_filename(&id.1.name(ctx)))
+            parent_path.join(safe_filename(&id.1.name()))
         } else {
             parent_path.to_path_buf()
         };

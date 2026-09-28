@@ -56,6 +56,8 @@ use crate::ai::blocklist::{
 use crate::ai::cloud_environments::{
     AmbientAgentEnvironment, CloudAmbientAgentEnvironment, GithubRepo, SourceRepo,
 };
+use crate::ai::execution_profiles::ProfileLookupError;
+use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::ai::mcp::file_based_manager::{FileBasedMCPManager, FileBasedMCPManagerEvent};
 use crate::ai::mcp::parsing::{ParsedTemplatableMCPServerResult, normalize_mcp_json, resolve_json};
@@ -386,7 +388,7 @@ pub struct Task {
     /// The prompt for the agent.
     pub prompt: String,
     pub model: Option<LLMId>,
-    /// ID of the profile to run as (SyncId string). If None, use the default profile.
+    /// Local profile to run as, by ID or unique name. If None, use the CLI default profile.
     pub profile: Option<String>,
     /// MCP server specifications to start prior to execution.
     pub mcp_specs: Vec<MCPSpec>,
@@ -419,8 +421,8 @@ pub enum AgentDriverError {
     MCPJsonParseError(String),
     #[error("MCP server configuration is missing required variables")]
     MCPMissingVariables,
-    #[error("Agent profile \"{0}\" not found")]
-    ProfileError(String),
+    #[error(transparent)]
+    ProfileError(#[from] ProfileLookupError),
     #[error("Saved prompt not found for id {0}")]
     AIWorkflowNotFound(String),
     #[error("Terminal bootstrap failed")]
@@ -1885,7 +1887,9 @@ impl AgentDriver {
             let profile = task.profile.clone();
             setup_events
                 .record_result(SetupStep::AgentProfileConfiguration, async {
-                    Self::configure_terminal(profile)
+                    foreground
+                        .spawn(move |me, ctx| me.configure_terminal(profile, ctx))
+                        .await?
                 })
                 .await?;
 
@@ -2639,13 +2643,21 @@ impl AgentDriver {
         }
     }
 
-    /// Rejects a requested profile. Profiles were only addressable by their Warp Drive sync ID,
-    /// which no local profile has.
-    fn configure_terminal(profile: Option<String>) -> Result<(), AgentDriverError> {
-        match profile {
-            Some(profile) => Err(AgentDriverError::ProfileError(profile)),
-            None => Ok(()),
-        }
+    /// Selects the local profile that `profile` (an ID or unique name) names for the terminal.
+    fn configure_terminal(
+        &self,
+        profile: Option<String>,
+        ctx: &mut ModelContext<Self>,
+    ) -> Result<(), AgentDriverError> {
+        let Some(profile) = profile else {
+            return Ok(());
+        };
+        let terminal_id = self.terminal_driver.as_ref(ctx).terminal_view().id();
+        AIExecutionProfilesModel::handle(ctx).update(ctx, |model, ctx| {
+            let profile_id = model.local_profiles(ctx).resolve(&profile)?;
+            model.set_active_profile(terminal_id, profile_id, ctx);
+            Ok(())
+        })
     }
 
     fn set_base_model_override(

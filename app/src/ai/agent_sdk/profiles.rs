@@ -28,19 +28,12 @@ struct ProfilesCommandRunner;
 
 impl ProfilesCommandRunner {
     fn list(&self, global_options: GlobalOptions, ctx: &mut ModelContext<Self>) {
-        let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
-
-        let profile_ids = profiles_model.get_all_profile_ids();
-
-        let profiles: Vec<_> = profile_ids
-            .iter()
-            .flat_map(|id| profiles_model.get_profile_by_id(id, ctx))
-            .map(|profile| {
-                let name = profile.data().display_name().to_string();
-                ProfileInfo {
-                    id: "Unsynced".to_string(),
-                    name,
-                }
+        let profiles: Vec<_> = AIExecutionProfilesModel::as_ref(ctx)
+            .local_profiles(ctx)
+            .profiles()
+            .map(|(id, profile)| ProfileInfo {
+                id: id.to_string(),
+                name: profile.display_name(),
             })
             .collect();
 

@@ -1,5 +1,8 @@
-use settings::SupportedPlatforms;
 use settings::macros::define_settings_group;
+use settings::{Setting as _, SupportedPlatforms};
+use warpui::{AppContext, SingletonEntity as _};
+
+use super::AISettings;
 
 define_settings_group!(CodeSettings, settings: [
     code_as_default_editor: CodeAsDefaultEditor {
@@ -82,3 +85,10 @@ define_settings_group!(CodeSettings, settings: [
         description: "Whether the Warp text editor automatically saves changes as you type and when the editor loses focus.",
     },
 ]);
+
+/// Whether codebase context is enabled, from the global AI and codebase-specific settings.
+/// Prefer this function to determine whether to show indexing-related functionality.
+pub fn is_codebase_context_enabled(app: &AppContext) -> bool {
+    AISettings::as_ref(app).is_any_ai_enabled()
+        && *CodeSettings::as_ref(app).codebase_context_enabled.value()
+}

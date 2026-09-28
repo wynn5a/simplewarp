@@ -182,7 +182,7 @@ impl ActiveEnvVarCollectionData {
                 CloudViewModel::as_ref(app).object_space(&sync_id.uid(), app)
             }
             ActiveEnvVarCollection::NewEnvVarCollection(env_var_collection) => {
-                Some(env_var_collection.space(app))
+                Some(env_var_collection.space())
             }
         }
     }

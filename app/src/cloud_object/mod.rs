@@ -13,13 +13,12 @@ use self::model::generic_string_model::{
     GenericStringModel, GenericStringObjectId, Serializer, StringModel,
 };
 use self::model::persistence::CloudModel;
-use crate::auth::UserUid;
+use crate::auth::{AuthStateProvider, UserUid};
 use crate::persistence::ModelEvent;
 use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, ServerId, SyncId, ToServerId};
 use crate::util::time_format::format_approx_duration_from_now_utc;
 use crate::workflows::WorkflowSource;
 use crate::workspaces::user_profiles::UserProfiles;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub mod cloud_object_styling;
 pub mod drive_object_type;
@@ -98,7 +97,7 @@ pub trait CloudObject: Debug {
     fn cloud_object_type_and_id(&self) -> CloudObjectTypeAndId;
 
     /// Returns whether this object can be moved to the given space.
-    fn can_move_to_space(&self, _space: Space, _app: &AppContext) -> bool {
+    fn can_move_to_space(&self, _space: Space) -> bool {
         true
     }
 
@@ -128,8 +127,8 @@ pub trait CloudObject: Debug {
     ///
     /// If the object is shared with the current user, the space will reflect that, not the
     /// object's actual owner.
-    fn space(&self, app: &AppContext) -> Space {
-        UserWorkspaces::as_ref(app).owner_to_space(self.permissions().owner, app)
+    fn space(&self) -> Space {
+        self.permissions().owner.into()
     }
 
     /// Returns the name of the containing "object" for this object.
@@ -144,7 +143,7 @@ pub trait CloudObject: Debug {
     // Returns the names of all the containing "objects" for this object, ordered from
     // the space down to the direct parent. This could include folders or spaces.
     fn containing_object_names(&self, app: &AppContext) -> Vec<String> {
-        let mut names = vec![self.space(app).name(app)];
+        let mut names = vec![self.space().name()];
         if let Some(folder_id) = self.metadata().folder_id {
             let cloud_model = CloudModel::as_ref(app);
             let mut chain = Vec::new();
@@ -166,8 +165,8 @@ pub trait CloudObject: Debug {
     }
 
     /// Returns whether this CloudObject is in the given space
-    fn is_in_space(&self, space: Space, app: &AppContext) -> bool {
-        self.space(app) == space
+    fn is_in_space(&self, space: Space) -> bool {
+        self.space() == space
     }
 
     fn is_welcome_object(&self) -> bool {
@@ -177,14 +176,14 @@ pub trait CloudObject: Debug {
     /// Returns the direct location of the object. If the object
     /// is not in a folder, this will be the object's space. Otherwise, it will
     /// be the folder the object is placed in directly, even if that folder is nested.
-    fn location(&self, cloud_model: &CloudModel, app: &AppContext) -> CloudObjectLocation {
+    fn location(&self, cloud_model: &CloudModel) -> CloudObjectLocation {
         if let Some(folder_id) = self.metadata().folder_id
             && cloud_model.get_folder(&folder_id).is_some()
         {
             return CloudObjectLocation::Folder(folder_id);
         }
 
-        CloudObjectLocation::Space(self.space(app))
+        CloudObjectLocation::Space(self.space())
     }
 
     /// Return true is this object or any of its ancestors are trashed. Also returns true
@@ -528,8 +527,8 @@ where
         self.model().should_clear_on_unique_key_conflict()
     }
 
-    fn can_move_to_space(&self, space: Space, app: &AppContext) -> bool {
-        self.model().can_move_to_space(self.space(app), space)
+    fn can_move_to_space(&self, space: Space) -> bool {
+        self.model().can_move_to_space(self.space(), space)
     }
 
     fn has_conflicting_changes(&self) -> bool {
@@ -703,20 +702,40 @@ pub enum Space {
 }
 
 impl Space {
-    pub fn name(&self, app: &AppContext) -> String {
+    pub fn name(&self) -> String {
         match self {
             Space::Personal => "Personal".to_string(),
-            Space::Team { team_uid, .. } => {
-                let user_workspaces = UserWorkspaces::as_ref(app);
-                if let Some(team) = user_workspaces.team_from_uid(*team_uid) {
-                    team.name.clone()
-                } else {
-                    "Team".to_string()
-                }
-            }
+            Space::Team { .. } => "Team".to_string(),
             Space::Shared => "Shared with me".to_string(),
         }
     }
+
+    /// The [`Owner`] of objects in this space, or `None` for the space of shared objects (or the
+    /// personal space when there is no user).
+    pub fn owner(self, app: &AppContext) -> Option<Owner> {
+        match self {
+            Space::Team { team_uid } => Some(Owner::Team { team_uid }),
+            Space::Personal => personal_drive(app),
+            Space::Shared => None,
+        }
+    }
+}
+
+impl From<Owner> for Space {
+    fn from(owner: Owner) -> Self {
+        match owner {
+            Owner::User { .. } => Space::Personal,
+            Owner::Team { team_uid } => Space::Team { team_uid },
+        }
+    }
+}
+
+/// The [`Owner`] for the user's personal drive, or `None` when there is no user.
+pub fn personal_drive(app: &AppContext) -> Option<Owner> {
+    AuthStateProvider::as_ref(app)
+        .get()
+        .user_id()
+        .map(|user_uid| Owner::User { user_uid })
 }
 
 /// Enum for specifying the location of a warp drive object.

@@ -318,12 +318,7 @@ impl ApiKeyManager {
     /// non-empty URL and API key.
     pub fn custom_model_providers_for_request(
         &self,
-        include_custom_models: bool,
     ) -> Option<api::request::settings::CustomModelProviders> {
-        if !include_custom_models {
-            return None;
-        }
-
         let providers: Vec<_> = self
             .keys
             .custom_endpoints
@@ -357,26 +352,11 @@ impl ApiKeyManager {
         }
     }
 
-    pub fn api_keys_for_request(
-        &self,
-        include_byo_keys: bool,
-    ) -> Option<api::request::settings::ApiKeys> {
-        let anthropic = include_byo_keys
-            .then(|| self.keys.anthropic.clone())
-            .flatten()
-            .unwrap_or_default();
-        let openai = include_byo_keys
-            .then(|| self.keys.openai.clone())
-            .flatten()
-            .unwrap_or_default();
-        let google = include_byo_keys
-            .then(|| self.keys.google.clone())
-            .flatten()
-            .unwrap_or_default();
-        let open_router = include_byo_keys
-            .then(|| self.keys.open_router.clone())
-            .flatten()
-            .unwrap_or_default();
+    pub fn api_keys_for_request(&self) -> Option<api::request::settings::ApiKeys> {
+        let anthropic = self.keys.anthropic.clone().unwrap_or_default();
+        let openai = self.keys.openai.clone().unwrap_or_default();
+        let google = self.keys.google.clone().unwrap_or_default();
+        let open_router = self.keys.open_router.clone().unwrap_or_default();
 
         if anthropic.is_empty() && openai.is_empty() && google.is_empty() && open_router.is_empty()
         {

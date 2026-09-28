@@ -33,7 +33,6 @@ use crate::test_util::settings::initialize_settings_for_tests;
 use crate::vim_registers::VimRegisters;
 use crate::workspace::ActiveSession;
 use crate::workspace::sync_inputs::SyncedInputState;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 // Await render/layout completion for a CodeEditorView in tests.
 async fn layout_editor_view(app: &mut App, editor: &ViewHandle<CodeEditorView>) {
@@ -61,9 +60,6 @@ fn initialize_code_editor_app(app: &mut App) {
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(NotebookKeybindings::new);
-
-    // Add UserWorkspaces mock (required by CodeEditorView)
-    app.add_singleton_model(|ctx| UserWorkspaces::mock(vec![], ctx));
 
     // Enable vim mode in editor settings
     app.update_model(

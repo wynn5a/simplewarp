@@ -92,9 +92,9 @@ fn has_feature_gated_anonymous_user_reached_limit(
 }
 
 pub fn has_feature_gated_anonymous_user_reached_notebook_limit(ctx: &mut AppContext) -> bool {
-    let count = CloudModel::handle(ctx).read(ctx, |model, ctx| {
+    let count = CloudModel::handle(ctx).read(ctx, |model, _| {
         model
-            .active_non_welcome_notebooks_in_space(Space::Personal, ctx)
+            .active_non_welcome_notebooks_in_space(Space::Personal)
             .count()
     });
     has_feature_gated_anonymous_user_reached_limit(
@@ -105,9 +105,9 @@ pub fn has_feature_gated_anonymous_user_reached_notebook_limit(ctx: &mut AppCont
 }
 
 pub fn has_feature_gated_anonymous_user_reached_workflow_limit(ctx: &mut AppContext) -> bool {
-    let count = CloudModel::handle(ctx).read(ctx, |model, ctx| {
+    let count = CloudModel::handle(ctx).read(ctx, |model, _| {
         model
-            .active_non_welcome_workflows_in_space(Space::Personal, ctx)
+            .active_non_welcome_workflows_in_space(Space::Personal)
             .count()
     });
     has_feature_gated_anonymous_user_reached_limit(
@@ -118,9 +118,9 @@ pub fn has_feature_gated_anonymous_user_reached_workflow_limit(ctx: &mut AppCont
 }
 
 pub fn has_feature_gated_anonymous_user_reached_env_var_limit(ctx: &mut AppContext) -> bool {
-    let count = CloudModel::handle(ctx).read(ctx, |model, ctx| {
+    let count = CloudModel::handle(ctx).read(ctx, |model, _| {
         model
-            .active_non_welcome_env_var_collections_in_space(Space::Personal, ctx)
+            .active_non_welcome_env_var_collections_in_space(Space::Personal)
             .count()
     });
     has_feature_gated_anonymous_user_reached_limit(

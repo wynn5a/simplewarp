@@ -10,7 +10,7 @@ pub fn validate_agent_mode_base_model_id(
 ) -> anyhow::Result<LLMId> {
     let llm_prefs = LLMPreferences::as_ref(ctx);
     let valid_ids = llm_prefs
-        .get_base_llm_choices_for_agent_mode(ctx)
+        .get_base_llm_choices_for_agent_mode()
         .map(|info| info.id.clone())
         .collect::<Vec<_>>();
 

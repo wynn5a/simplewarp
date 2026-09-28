@@ -44,7 +44,7 @@ use crate::cloud_object::export::ExportManager;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
 use crate::cloud_object::model::view::{Editor, EditorState};
 use crate::cloud_object::object_limits::has_feature_gated_anonymous_user_reached_notebook_limit;
-use crate::cloud_object::{CloudObjectTypeAndId, ObjectType, Owner, Space};
+use crate::cloud_object::{CloudObjectTypeAndId, ObjectType, Owner, Space, personal_drive};
 use crate::cmd_or_ctrl_shift;
 use crate::editor::{
     EditOrigin, EditorView, Event as EditorEvent, InteractionState, PropagateAndNoOpNavigationKeys,
@@ -71,7 +71,6 @@ use crate::util::bindings::{self, CustomAction};
 use crate::view_components::{DismissibleToast, ToastType};
 use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ToastStack;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 mod details_bar;
 
@@ -322,9 +321,6 @@ impl NotebookView {
             notebook.handle_input_editor_event(event, ctx);
         });
 
-        let user_workspaces = UserWorkspaces::handle(ctx);
-        ctx.observe(&user_workspaces, Self::on_user_workspaces_update);
-
         let cloud_model = CloudModel::handle(ctx);
         ctx.subscribe_to_model(&cloud_model, |notebook, _handle, event, ctx| {
             notebook.handle_cloud_model_event(event, ctx);
@@ -468,20 +464,6 @@ impl NotebookView {
     #[cfg(test)]
     pub fn title_editor(&self) -> ViewHandle<EditorView> {
         self.title.clone()
-    }
-
-    fn on_user_workspaces_update(
-        &mut self,
-        _user_workspaces: ModelHandle<UserWorkspaces>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // TODO Update the notebook after receiving the event from UserWorkspaces model"
-        // Update the notebook view if it's a team notebook (assuming there are non-team
-        // notebooks?) and there's been changes to it
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.refresh_pane_header_overflow_menu_items(ctx)
-        });
-        ctx.notify();
     }
 
     /// Handle an event from this notebook's [`ActiveNotebookData`] model.
@@ -995,7 +977,7 @@ impl NotebookView {
         let copy_client_id = ClientId::new();
         let copy_sync_id = SyncId::ClientId(copy_client_id);
 
-        let Some(personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) else {
+        let Some(personal_drive) = personal_drive(ctx) else {
             log::warn!("User drive not available for copying notebook");
             return;
         };

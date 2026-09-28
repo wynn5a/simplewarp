@@ -6,12 +6,11 @@ use warpui::{SingletonEntity, WindowId, async_assert};
 
 use crate::ai::facts::AIMemory;
 use crate::ai::facts::view::AIFactPage;
-use crate::cloud_object::Space;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::{Space, personal_drive};
 use crate::integration_testing::view_getters::workspace_view;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 /// Create a personal rule and save its sync ID into the step data.
 pub fn create_a_personal_rule(
@@ -36,9 +35,7 @@ pub fn create_a_personal_rule(
                 update_manager.create_ai_fact(
                     ai_fact,
                     client_id,
-                    UserWorkspaces::as_ref(ctx)
-                        .personal_drive(ctx)
-                        .expect("User UID must be set in tests"),
+                    personal_drive(ctx).expect("User UID must be set in tests"),
                     ctx,
                 );
             });
@@ -46,10 +43,10 @@ pub fn create_a_personal_rule(
             data.insert(key.clone(), sync_id);
         })
         .add_assertion(move |app, _| {
-            CloudModel::handle(app).read(app, |cloud_model, ctx| {
+            CloudModel::handle(app).read(app, |cloud_model, _| {
                 async_assert!(
                     cloud_model
-                        .active_cloud_objects_in_space(Space::Personal, ctx)
+                        .active_cloud_objects_in_space(Space::Personal)
                         .count()
                         > 0,
                     "Rule exists"

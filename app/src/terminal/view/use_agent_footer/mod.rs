@@ -318,7 +318,6 @@ impl TerminalView {
                     &command,
                     Some(session.shell_family().escape_char()),
                     Some(session.aliases()),
-                    ctx,
                 )
             })
         });

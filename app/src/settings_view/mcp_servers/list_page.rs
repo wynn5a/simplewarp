@@ -20,7 +20,6 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
-    WeakViewHandle,
 };
 
 use crate::ToastStack;
@@ -61,7 +60,6 @@ use crate::view_components::DismissibleToast;
 use crate::view_components::action_button::{ActionButton, NakedTheme};
 use crate::workflows::local_workflows::tail_command_for_shell;
 use crate::workspace::Workspace;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const DESCRIPTION_TEXT: &str = "Add MCP servers to extend the Warp Agent's capabilities. MCP servers expose data sources or tools to agents through a standardized interface, essentially acting like plugins. Add a custom server, or use the presets to get started with popular servers. You can also find team servers that have been shared with you here. ";
 
@@ -93,7 +91,6 @@ const EMPTY_STATE_TEXT: &str = "Once you add a MCP server, it will be shown here
 const NO_SEARCH_RESULTS_TEXT: &str = "No search results found";
 
 pub struct MCPServersListPageView {
-    handle: WeakViewHandle<Self>,
     server_cards: HashMap<ServerCardItemId, ViewHandle<ServerCardView>>,
     gallery_server_cards: HashMap<ServerCardItemId, ViewHandle<ServerCardView>>,
     // MCP server cards for uninstalled file-based servers, grouped by provider.
@@ -205,7 +202,6 @@ impl MCPServersListPageView {
         });
 
         let mut me = Self {
-            handle: ctx.handle(),
             server_cards: Default::default(),
             gallery_server_cards,
             file_based_template_cards: Default::default(),
@@ -272,31 +268,11 @@ impl MCPServersListPageView {
     fn is_shared(item_id: ServerCardItemId, app: &AppContext) -> bool {
         match item_id {
             ServerCardItemId::TemplatableMCP(template_uuid) => {
-                TemplatableMCPServerManager::as_ref(app)
-                    .is_server_template_shared(template_uuid, app)
+                TemplatableMCPServerManager::as_ref(app).is_server_template_shared(template_uuid)
             }
             ServerCardItemId::TemplatableMCPInstallation(installation_uuid) => {
                 TemplatableMCPServerManager::as_ref(app)
-                    .is_server_installation_shared(installation_uuid, app)
-            }
-            ServerCardItemId::GalleryMCP(_) | ServerCardItemId::FileBasedMCP(_) => false,
-        }
-    }
-
-    fn is_shareable(
-        item_id: ServerCardItemId,
-        server_card_status: ServerCardStatus,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        if UserWorkspaces::as_ref(ctx).team_for_view(ctx).is_none() {
-            return false;
-        }
-        match item_id {
-            ServerCardItemId::TemplatableMCP(_)
-            | ServerCardItemId::TemplatableMCPInstallation(_) => {
-                let is_shared = Self::is_shared(item_id, ctx);
-                let is_running = matches!(server_card_status, ServerCardStatus::Running);
-                !is_shared && is_running
+                    .is_server_installation_shared(installation_uuid)
             }
             ServerCardItemId::GalleryMCP(_) | ServerCardItemId::FileBasedMCP(_) => false,
         }
@@ -321,7 +297,6 @@ impl MCPServersListPageView {
         let item_id = ServerCardItemId::TemplatableMCP(template_uuid);
         let title_chip_text = Self::get_title_chip_text(item_id, template_uuid, ctx);
         let server_card_status = ServerCardStatus::AvailableToSave;
-        let is_shareable = Self::is_shareable(item_id, server_card_status, ctx);
 
         let server_card = ServerCardView::new(
             item_id,
@@ -334,7 +309,6 @@ impl MCPServersListPageView {
             None, // Templates cannot have an error
             title_chip_text.into_iter().collect(),
             ServerCardOptions {
-                show_share_icon_button: is_shareable,
                 ..server_card_status.into()
             },
         );
@@ -354,21 +328,13 @@ impl MCPServersListPageView {
                 Some(state) => state.into(),
                 None => ServerCardStatus::Installed,
             };
-        let is_shareable = Self::is_shareable(item_id, server_card_status, ctx);
         let is_update_available = TemplatableMCPServerManager::as_ref(ctx)
             .is_update_available_for_installation(installation_uuid, ctx);
-        let team_uid = UserWorkspaces::as_ref(ctx)
-            .team_for_view(ctx)
-            .map(|team| team.uid);
-        let is_authorized_editor =
+        let is_author =
             TemplatableMCPServerManager::handle(ctx).read(ctx, |templatable_manager, ctx| {
-                templatable_manager.is_authorized_editor(
-                    installation.template_uuid(),
-                    team_uid,
-                    ctx,
-                )
+                templatable_manager.is_author(installation.template_uuid(), ctx)
             });
-        let should_show_update_symbol = is_authorized_editor && is_update_available;
+        let should_show_update_symbol = is_author && is_update_available;
 
         let title_chip_text = Self::get_title_chip_text(item_id, installation.template_uuid(), ctx);
         let description = installation.templatable_mcp_server().description.clone();
@@ -397,7 +363,6 @@ impl MCPServersListPageView {
             title_chip_text.into_iter().collect(),
             ServerCardOptions {
                 show_log_out_icon_button: uses_oauth,
-                show_share_icon_button: is_shareable,
                 show_update_available_icon_button: should_show_update_symbol,
                 ..server_card_status.into()
             },
@@ -462,38 +427,6 @@ impl MCPServersListPageView {
                 )
             })
             .collect()
-    }
-
-    fn share_templatable_mcp_server(&mut self, template_uuid: Uuid, ctx: &mut ViewContext<Self>) {
-        let Some(team_uid) = UserWorkspaces::as_ref(ctx)
-            .team_for_view(ctx)
-            .map(|team| team.uid)
-        else {
-            return;
-        };
-        TemplatableMCPServerManager::handle(ctx).update(ctx, |templatable_manager, ctx| {
-            templatable_manager.share_templatable_mcp_server(template_uuid, team_uid, ctx);
-        });
-    }
-
-    fn share_templatable_mcp_server_installation(
-        &mut self,
-        installation_uuid: Uuid,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(team_uid) = UserWorkspaces::as_ref(ctx)
-            .team_for_window(ctx.window_id())
-            .map(|team| team.uid)
-        else {
-            return;
-        };
-        TemplatableMCPServerManager::handle(ctx).update(ctx, |templatable_manager, ctx| {
-            templatable_manager.share_templatable_mcp_server_installation(
-                installation_uuid,
-                team_uid,
-                ctx,
-            );
-        });
     }
 
     pub fn delete_server(&mut self, item_id: ServerCardItemId, ctx: &mut ViewContext<Self>) {
@@ -627,20 +560,6 @@ impl MCPServersListPageView {
             ServerCardEvent::Edit(item_id) => {
                 ctx.emit(MCPServersListPageViewEvent::Edit(*item_id));
             }
-            ServerCardEvent::Share(item_id) => match item_id {
-                ServerCardItemId::TemplatableMCP(template_uuid) => {
-                    self.share_templatable_mcp_server(*template_uuid, ctx);
-                }
-                ServerCardItemId::TemplatableMCPInstallation(installation_uuid) => {
-                    self.share_templatable_mcp_server_installation(*installation_uuid, ctx);
-                }
-                ServerCardItemId::GalleryMCP(_) => {
-                    report_error!("Share is not implemented for gallery MCP items.")
-                }
-                ServerCardItemId::FileBasedMCP(_) => {
-                    report_error!("Share is not implemented for file-based MCP servers.")
-                }
-            },
             ServerCardEvent::ViewLogs(item_id) => match item_id {
                 ServerCardItemId::TemplatableMCP(_) => {
                     report_error!("Viewing logs is not implemented for templatable MCP.");
@@ -1222,16 +1141,8 @@ impl MCPServersListPageView {
                 }
                 if !shared_server_cards.is_empty() {
                     shared_server_cards.extend(filtered_gallery_cards);
-                    let team_name = UserWorkspaces::as_ref(app)
-                        .team_for_view_handle(&self.handle, app)
-                        .map(|team| team.name.clone());
-                    let shared_by_text = match team_name {
-                        Some(name) => format!("Shared by Warp and {name}"),
-                        None => "Shared by Warp and from other devices".to_string(),
-                    };
-
                     page.add_child(self.render_server_cards_section(
-                        &shared_by_text,
+                        "Shared by Warp and from other devices",
                         &shared_server_cards,
                         appearance,
                         app,
@@ -1589,7 +1500,6 @@ impl MCPServersListPageView {
                 None, // no error when not yet started
                 title_chips,
                 ServerCardOptions {
-                    show_share_icon_button: false,
                     ..ServerCardStatus::AvailableToSave.into()
                 },
             );
@@ -1639,7 +1549,6 @@ impl MCPServersListPageView {
                 // File-based servers cannot be edited or shared from settings.
                 show_log_out_icon_button: uses_oauth,
                 show_edit_config_icon_button: false,
-                show_share_icon_button: false,
                 ..server_card_status.into()
             },
         );

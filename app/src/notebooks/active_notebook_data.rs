@@ -199,8 +199,8 @@ impl ActiveNotebookData {
             ActiveNotebook::None => None,
             ActiveNotebook::CommittedNotebook(id) => CloudModel::as_ref(app)
                 .get_notebook(id)
-                .map(|notebook| notebook.space(app)),
-            ActiveNotebook::NewNotebook(notebook) => Some(notebook.space(app)),
+                .map(|notebook| notebook.space()),
+            ActiveNotebook::NewNotebook(notebook) => Some(notebook.space()),
         }
     }
 

@@ -59,7 +59,6 @@ use super::{
     SettingActionPairContexts, SettingActionPairDescriptions, SettingsAction, SettingsSection,
     ToggleSettingActionPair, editor_text_colors, flags,
 };
-use crate::UserWorkspaces;
 use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::{
     AgentToolbarEditorMode, AgentToolbarInlineEditor,
@@ -82,7 +81,6 @@ use crate::ui_components::icons::Icon;
 use crate::util::bindings;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
 use crate::view_components::{Dropdown, DropdownItem, FilterableDropdown};
-use crate::workspaces::user_workspaces::UserWorkspacesEvent;
 
 const PRIMARY_HEADER_FONT_SIZE: f32 = 24.;
 
@@ -354,8 +352,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             .is_supported_on_current_platform(
                 AISettings::as_ref(app)
                     .git_operations_autogen_enabled_internal
-                    .is_supported_on_current_platform()
-                    && UserWorkspaces::as_ref(app).is_git_operations_ai_enabled(),
+                    .is_supported_on_current_platform(),
             ),
         ],
         app,
@@ -495,14 +492,6 @@ pub struct WarpAgentPageView {
 impl WarpAgentPageView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
-
-        let workspace = UserWorkspaces::handle(ctx);
-        ctx.subscribe_to_model(&workspace, |me, _workspace, event, ctx| {
-            if let UserWorkspacesEvent::TeamsChanged = event {
-                me.sync_custom_endpoint_buttons(ctx);
-                ctx.notify();
-            }
-        });
 
         let voice_input_toggle_key_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
@@ -657,12 +646,6 @@ impl WarpAgentPageView {
             me.handle_detection_denylist_editor_event(event, ctx);
         });
 
-        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, _handle, _event, ctx| {
-            // Re-render if teams-related data changed that may affect whether features such as voice input are enabled.
-            me.sync_custom_endpoint_buttons(ctx);
-            ctx.notify();
-        });
-
         // Refresh model dropdowns when BYO API keys update so key icons reflect latest state.
         ctx.subscribe_to_model(&ApiKeyManager::handle(ctx), |me, _model, _event, ctx| {
             me.sync_custom_endpoint_buttons(ctx);
@@ -794,9 +777,7 @@ impl WarpAgentPageView {
             });
         }
 
-        let custom_inference_controls_enabled = is_any_ai_enabled
-            && UserWorkspaces::as_ref(ctx).is_custom_inference_enabled(ctx)
-            && UserWorkspaces::as_ref(ctx).are_member_byo_endpoints_allowed();
+        let custom_inference_controls_enabled = is_any_ai_enabled;
         let custom_inference_add_button = ctx.add_typed_action_view(|_| {
             ActionButton::new("+ Add custom model", SecondaryTheme)
                 .with_size(ButtonSize::Small)
@@ -1070,18 +1051,9 @@ impl WarpAgentPageView {
     /// "no credits" error with an `auto` model. Also skips when the current
     /// default is already served by a BYO credential.
     fn should_offer_default_model_switch(ctx: &AppContext) -> bool {
-        // Exclude only confirmed paid plans. Solo/individual users have no
-        // `current_workspace`, and billing may not have loaded yet (Unknown), so
-        // treat both as eligible and rely on the out-of-credits check below to
-        // filter anyone who can still run Warp-hosted models. (A strict
-        // `is_free_plan()` check here meant solo free users — the common case —
-        // never saw the prompt.)
-        let on_paid_plan = UserWorkspaces::as_ref(ctx)
-            .current_workspace()
-            .is_some_and(|workspace| workspace.billing_metadata.is_user_on_paid_plan());
         let out_of_monthly_credits =
             !AIRequestUsageModel::as_ref(ctx).has_base_plan_requests_remaining();
-        !on_paid_plan && out_of_monthly_credits && !Self::active_base_model_is_byo_covered(ctx)
+        out_of_monthly_credits && !Self::active_base_model_is_byo_covered(ctx)
     }
 
     /// Detects a provider key that was just added (absent -> present) by diffing
@@ -1120,7 +1092,7 @@ impl WarpAgentPageView {
             return;
         }
         let choices: Vec<(LLMId, String)> = LLMPreferences::as_ref(ctx)
-            .get_base_llm_choices_for_agent_mode(ctx)
+            .get_base_llm_choices_for_agent_mode()
             .filter(|llm| llm.provider == provider)
             .map(|llm| (llm.id.clone(), llm.menu_display_name()))
             .collect();
@@ -1230,8 +1202,6 @@ impl WarpAgentPageView {
     }
     fn can_use_custom_inference_controls(app: &AppContext) -> bool {
         AISettings::as_ref(app).is_any_ai_enabled()
-            && UserWorkspaces::as_ref(app).is_custom_inference_enabled(app)
-            && UserWorkspaces::as_ref(app).are_member_byo_endpoints_allowed()
     }
 
     fn show_add_custom_endpoint_modal(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1714,9 +1684,6 @@ impl TypedActionView for WarpAgentPageView {
                 ctx.notify();
             }
             WarpAgentPageAction::TogglePromptSuggestions => {
-                if !UserWorkspaces::as_ref(ctx).is_prompt_suggestions_toggleable() {
-                    return;
-                }
                 match AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     settings
                         .prompt_suggestions_enabled_internal
@@ -1743,9 +1710,6 @@ impl TypedActionView for WarpAgentPageView {
                 ctx.notify();
             }
             WarpAgentPageAction::ToggleGitOperationsAutogen => {
-                if !UserWorkspaces::as_ref(ctx).is_git_operations_ai_enabled() {
-                    return;
-                }
                 match AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     settings
                         .git_operations_autogen_enabled_internal
@@ -2040,25 +2004,21 @@ impl ActiveAIWidget {
         }
     }
     fn is_next_command_toggleable(&self, app: &AppContext) -> bool {
-        UserWorkspaces::as_ref(app).is_next_command_enabled()
-            && AISettings::as_ref(app)
-                .intelligent_autosuggestions_enabled_internal
-                .is_supported_on_current_platform()
+        AISettings::as_ref(app)
+            .intelligent_autosuggestions_enabled_internal
+            .is_supported_on_current_platform()
     }
 
     fn is_prompt_suggestions_toggleable(&self, app: &AppContext) -> bool {
-        UserWorkspaces::as_ref(app).is_prompt_suggestions_toggleable()
-            && AISettings::as_ref(app)
-                .prompt_suggestions_enabled_internal
-                .is_supported_on_current_platform()
+        AISettings::as_ref(app)
+            .prompt_suggestions_enabled_internal
+            .is_supported_on_current_platform()
     }
 
     fn is_suggested_code_banners_toggleable(&self, app: &AppContext) -> bool {
-        (self.is_prompt_suggestions_toggleable(app)
-            || UserWorkspaces::as_ref(app).is_code_suggestions_toggleable())
-            && AISettings::as_ref(app)
-                .code_suggestions_enabled_internal
-                .is_supported_on_current_platform()
+        AISettings::as_ref(app)
+            .code_suggestions_enabled_internal
+            .is_supported_on_current_platform()
     }
 
     fn is_git_operations_autogen_toggleable(&self, app: &AppContext) -> bool {
@@ -2066,7 +2026,6 @@ impl ActiveAIWidget {
             && AISettings::as_ref(app)
                 .git_operations_autogen_enabled_internal
                 .is_supported_on_current_platform()
-            && UserWorkspaces::as_ref(app).is_git_operations_ai_enabled()
     }
 
     fn render_next_command_section(
@@ -2621,8 +2580,8 @@ impl SettingsWidget for VoiceWidget {
         "voice agent oz ai a.i. speech input natural language talk english spanish french german estonian finnish"
     }
 
-    fn should_render(&self, app: &AppContext) -> bool {
-        cfg!(feature = "voice_input") && UserWorkspaces::as_ref(app).is_voice_enabled()
+    fn should_render(&self, _app: &AppContext) -> bool {
+        cfg!(feature = "voice_input")
     }
 
     fn render(
@@ -3000,9 +2959,7 @@ struct ApiKeysWidget {
 impl ApiKeysWidget {
     fn new(ctx: &mut ViewContext<<Self as SettingsWidget>::View>) -> Self {
         let ai_settings = AISettings::as_ref(ctx);
-        let workspace_handle = UserWorkspaces::handle(ctx);
         let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
-        let member_byo_keys_allowed = workspace_handle.as_ref(ctx).are_member_byo_keys_allowed();
 
         let provider_api_key_editors = LLMProvider::API_KEY_PROVIDERS
             .into_iter()
@@ -3038,11 +2995,7 @@ impl ApiKeysWidget {
                     }
                     editor
                 });
-                update_editor_interaction_state(
-                    editor.clone(),
-                    is_any_ai_enabled && member_byo_keys_allowed,
-                    ctx,
-                );
+                update_editor_interaction_state(editor.clone(), is_any_ai_enabled, ctx);
                 ctx.subscribe_to_view(&editor, move |_, editor, event, ctx| {
                     if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
                         let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
@@ -3050,21 +3003,6 @@ impl ApiKeysWidget {
                         ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
                             manager.set_provider_key(provider, key, ctx);
                         });
-                    }
-                });
-                let editor_clone = editor.clone();
-                ctx.subscribe_to_model(&workspace_handle, move |_, workspace, event, ctx| {
-                    if let UserWorkspacesEvent::TeamsChanged = event {
-                        let is_any_ai_enabled =
-                            AISettings::handle(ctx).as_ref(ctx).is_any_ai_enabled();
-                        let member_byo_keys_allowed =
-                            workspace.as_ref(ctx).are_member_byo_keys_allowed();
-                        update_editor_interaction_state(
-                            editor_clone.clone(),
-                            is_any_ai_enabled && member_byo_keys_allowed,
-                            ctx,
-                        );
-                        ctx.notify();
                     }
                 });
                 ProviderApiKeyEditor { provider, editor }
@@ -3180,12 +3118,7 @@ impl ApiKeysWidget {
         column.finish()
     }
 
-    fn render_custom_inference_description(
-        &self,
-        show_provider_keys: bool,
-        show_custom_endpoints: bool,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_custom_inference_description(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let mut lines = Vec::new();
         let mut add_paragraph = |fragments| {
@@ -3195,27 +3128,19 @@ impl ApiKeysWidget {
             lines.push(FormattedTextLine::Line(fragments));
         };
 
-        if show_provider_keys {
-            add_paragraph(vec![FormattedTextFragment::plain_text(
-                "Use your own API keys from model providers for Warp Agent. API keys are used to make requests to your chosen model provider. Using auto models or models you do not have available API keys for will consume Warp credits.",
-            )]);
-        }
-
-        if show_custom_endpoints {
-            add_paragraph(vec![FormattedTextFragment::plain_text(
-                "Add custom endpoints to use third-party models. Custom endpoints must support OpenAI Chat Completions, OpenAI Responses, or Anthropic Messages.",
-            )]);
-        }
-
-        if show_provider_keys || show_custom_endpoints {
-            add_paragraph(vec![FormattedTextFragment::plain_text(
-                "API keys added here are stored only on this device, not on Warp's servers.",
-            )]);
-            add_paragraph(vec![FormattedTextFragment::hyperlink(
-                "Learn more",
-                CUSTOM_INFERENCE_LEARN_MORE_URL,
-            )]);
-        }
+        add_paragraph(vec![FormattedTextFragment::plain_text(
+            "Use your own API keys from model providers for Warp Agent. API keys are used to make requests to your chosen model provider. Using auto models or models you do not have available API keys for will consume Warp credits.",
+        )]);
+        add_paragraph(vec![FormattedTextFragment::plain_text(
+            "Add custom endpoints to use third-party models. Custom endpoints must support OpenAI Chat Completions, OpenAI Responses, or Anthropic Messages.",
+        )]);
+        add_paragraph(vec![FormattedTextFragment::plain_text(
+            "API keys added here are stored only on this device, not on Warp's servers.",
+        )]);
+        add_paragraph(vec![FormattedTextFragment::hyperlink(
+            "Learn more",
+            CUSTOM_INFERENCE_LEARN_MORE_URL,
+        )]);
         let description = FormattedTextElement::new(
             FormattedText::new(lines),
             CONTENT_FONT_SIZE,
@@ -3235,11 +3160,7 @@ impl ApiKeysWidget {
             .finish()
     }
 
-    fn render_custom_inference_info_icon(
-        &self,
-        appearance: &Appearance,
-        managed_byok_byoe_enabled: bool,
-    ) -> Box<dyn Element> {
+    fn render_custom_inference_info_icon(&self, appearance: &Appearance) -> Box<dyn Element> {
         let icon = Container::new(
             ConstrainedBox::new(
                 Icon::Info
@@ -3252,26 +3173,15 @@ impl ApiKeysWidget {
         )
         .finish();
 
-        let tooltip_text = if managed_byok_byoe_enabled {
-            FormattedText::new([FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text(
-                    "Custom inference settings are managed by your organization.",
-                ),
-            ])])
-        } else {
-            FormattedText::new([FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text(
-                    "By using BYOK or custom endpoints, you agree to use them only as permitted by ",
-                ),
-                FormattedTextFragment::hyperlink(
-                    "Warp's Terms of Service",
-                    CUSTOM_INFERENCE_TERMS_URL,
-                ),
-                FormattedTextFragment::plain_text(
-                    ". BYOK and custom endpoints are intended for individual use and small teams. Companies or organizations with more than 10 employees should use Warp Business or Enterprise.",
-                ),
-            ])])
-        };
+        let tooltip_text = FormattedText::new([FormattedTextLine::Line(vec![
+            FormattedTextFragment::plain_text(
+                "By using BYOK or custom endpoints, you agree to use them only as permitted by ",
+            ),
+            FormattedTextFragment::hyperlink("Warp's Terms of Service", CUSTOM_INFERENCE_TERMS_URL),
+            FormattedTextFragment::plain_text(
+                ". BYOK and custom endpoints are intended for individual use and small teams. Companies or organizations with more than 10 employees should use Warp Business or Enterprise.",
+            ),
+        ])]);
         let tooltip_background = appearance.theme().tooltip_background();
 
         let info_button =
@@ -3395,56 +3305,6 @@ impl ApiKeysWidget {
     }
 }
 
-/// Visibility and enabled-state rules for the member-facing Custom Inference
-/// settings section (provider API keys + custom endpoints).
-#[derive(Clone, Copy)]
-struct CustomInferenceVisibility {
-    is_any_ai_enabled: bool,
-    show_provider_keys: bool,
-    provider_keys_enabled: bool,
-    show_custom_inference: bool,
-    custom_inference_controls_enabled: bool,
-    managed_byok_byoe_enabled: bool,
-}
-
-impl CustomInferenceVisibility {
-    fn compute(app: &AppContext) -> Self {
-        let workspaces = UserWorkspaces::as_ref(app);
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
-        let is_custom_inference_enabled = workspaces.is_custom_inference_enabled(app);
-        let member_byo_keys_allowed = workspaces.are_member_byo_keys_allowed();
-        let member_byo_endpoints_allowed = workspaces.are_member_byo_endpoints_allowed();
-
-        let show_provider_keys = member_byo_keys_allowed;
-        let provider_keys_enabled = show_provider_keys && is_any_ai_enabled;
-
-        // BYOE (custom endpoints).
-        let show_custom_inference = is_custom_inference_enabled && member_byo_endpoints_allowed;
-        let custom_inference_controls_enabled = show_custom_inference && is_any_ai_enabled;
-
-        Self {
-            is_any_ai_enabled,
-            show_provider_keys,
-            provider_keys_enabled,
-            show_custom_inference,
-            custom_inference_controls_enabled,
-            managed_byok_byoe_enabled: workspaces
-                .current_workspace()
-                .is_some_and(|workspace| workspace.billing_metadata.is_managed_byok_byoe_enabled()),
-        }
-    }
-
-    /// Whether any member-facing Custom Inference content renders at all.
-    fn show_section(&self) -> bool {
-        self.show_provider_keys || self.show_custom_inference
-    }
-
-    /// Whether the section header renders in the enabled color.
-    fn section_enabled(&self) -> bool {
-        self.provider_keys_enabled || self.custom_inference_controls_enabled
-    }
-}
-
 impl SettingsWidget for ApiKeysWidget {
     type View = WarpAgentPageView;
 
@@ -3458,135 +3318,68 @@ impl SettingsWidget for ApiKeysWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let visibility = CustomInferenceVisibility::compute(app);
-        let CustomInferenceVisibility {
-            is_any_ai_enabled,
-            show_provider_keys,
-            provider_keys_enabled,
-            show_custom_inference,
-            custom_inference_controls_enabled,
-            managed_byok_byoe_enabled,
-        } = visibility;
+        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
 
         let mut column = Flex::column().with_child(render_separator(appearance));
 
-        if visibility.show_section() {
-            // Header row: "Custom Inference" + info icon on left, "+ Add custom model" on right
-            let header_left = Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    build_sub_header(
-                        appearance,
-                        "Custom Inference",
-                        Some(styles::header_font_color(visibility.section_enabled(), app)),
-                    )
-                    .with_margin_bottom(0.)
-                    .finish(),
-                )
-                .with_child(
-                    self.render_custom_inference_info_icon(appearance, managed_byok_byoe_enabled),
-                )
-                .finish();
-
-            let header_row = Flex::row()
-                .with_main_axis_size(MainAxisSize::Max)
-                .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(header_left);
-            let header_row = if show_custom_inference {
-                header_row.with_child(view.custom_inference_add_button.as_ref(app).render(app))
-            } else {
-                header_row
-            }
-            .finish();
-
-            column.add_child(
-                Container::new(header_row)
-                    .with_padding_bottom(HEADER_PADDING)
-                    .finish(),
-            );
-
-            // Description with Learn more link
-            column.add_child(self.render_custom_inference_description(
-                show_provider_keys,
-                show_custom_inference,
-                app,
-            ));
-        } else if managed_byok_byoe_enabled {
-            column.add_child(
+        // Header row: "Custom Inference" + info icon on left, "+ Add custom model" on right
+        let header_left = Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(
                 build_sub_header(
                     appearance,
                     "Custom Inference",
                     Some(styles::header_font_color(is_any_ai_enabled, app)),
                 )
+                .with_margin_bottom(0.)
+                .finish(),
+            )
+            .with_child(self.render_custom_inference_info_icon(appearance))
+            .finish();
+
+        let header_row = Flex::row()
+            .with_main_axis_size(MainAxisSize::Max)
+            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(header_left)
+            .with_child(view.custom_inference_add_button.as_ref(app).render(app))
+            .finish();
+
+        column.add_child(
+            Container::new(header_row)
                 .with_padding_bottom(HEADER_PADDING)
                 .finish(),
+        );
+
+        // Description with Learn more link
+        column.add_child(self.render_custom_inference_description(app));
+
+        column.add_child(self.render_provider_key_editors(appearance, is_any_ai_enabled, app));
+
+        // Custom endpoints sub-label + list (only when endpoints non-empty)
+        let endpoints = &ApiKeyManager::as_ref(app).keys().custom_endpoints;
+        if !endpoints.is_empty() {
+            column.add_child(
+                Container::new(
+                    Text::new_inline(
+                        "Custom endpoints",
+                        appearance.ui_font_family(),
+                        CONTENT_FONT_SIZE,
+                    )
+                    .with_color(styles::header_font_color(is_any_ai_enabled, app).into())
+                    .with_style(Properties::default().weight(Weight::Semibold))
+                    .finish(),
+                )
+                .with_margin_top(16.)
+                .with_margin_bottom(8.)
+                .finish(),
             );
-            column.add_child(render_ai_setting_description(
-                "Your organization manages custom inference. Personal API keys and custom endpoints are currently disabled.",
+            column.add_child(self.render_custom_endpoints_list(
+                view,
+                appearance,
                 is_any_ai_enabled,
                 app,
             ));
-        } else {
-            // Fallback: old "API Keys" header only
-            column.add_child(
-                build_sub_header(
-                    appearance,
-                    "API Keys",
-                    Some(styles::header_font_color(is_any_ai_enabled, app)),
-                )
-                .with_padding_bottom(HEADER_PADDING)
-                .finish(),
-            );
-        }
-
-        if show_provider_keys {
-            column.add_child(self.render_provider_key_editors(
-                appearance,
-                provider_keys_enabled,
-                app,
-            ));
-        }
-
-        // Custom endpoints sub-label + list (only when flag on and endpoints non-empty)
-        if show_custom_inference {
-            let endpoints = &ApiKeyManager::as_ref(app).keys().custom_endpoints;
-            if !endpoints.is_empty() {
-                column.add_child(
-                    Container::new(
-                        Text::new_inline(
-                            "Custom endpoints",
-                            appearance.ui_font_family(),
-                            CONTENT_FONT_SIZE,
-                        )
-                        .with_color(
-                            styles::header_font_color(custom_inference_controls_enabled, app)
-                                .into(),
-                        )
-                        .with_style(Properties::default().weight(Weight::Semibold))
-                        .finish(),
-                    )
-                    .with_margin_top(16.)
-                    .with_margin_bottom(8.)
-                    .finish(),
-                );
-                let endpoints_list = self.render_custom_endpoints_list(
-                    view,
-                    appearance,
-                    custom_inference_controls_enabled,
-                    app,
-                );
-                // When the provider-key rows are hidden, this list is the
-                // section's last child, so pad it from the next separator.
-                let endpoints_list = if show_provider_keys {
-                    endpoints_list
-                } else {
-                    Container::new(endpoints_list)
-                        .with_margin_bottom(16.)
-                        .finish()
-                };
-                column.add_child(endpoints_list);
-            }
         }
 
         column.finish()

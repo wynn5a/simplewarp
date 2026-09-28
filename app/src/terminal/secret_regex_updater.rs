@@ -1,7 +1,7 @@
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::settings::{CustomSecretRegex, PrivacySettings, PrivacySettingsChangedEvent};
-use crate::terminal::model::set_user_and_enterprise_secret_regexes;
+use crate::terminal::model::set_user_secret_regexes;
 
 /// Dummy singleton model that is used to update the current set of custom regexes within the
 /// terminal model. We do this via a singleton model since we only want to do this once any time
@@ -31,7 +31,7 @@ impl CustomSecretRegexUpdater {
             .iter()
             .map(CustomSecretRegex::pattern);
 
-        set_user_and_enterprise_secret_regexes(user_secrets, std::iter::empty());
+        set_user_secret_regexes(user_secrets);
     }
 }
 

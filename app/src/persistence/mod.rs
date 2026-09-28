@@ -54,7 +54,6 @@ use crate::terminal::model::block::{SerializedAgentViewVisibility, SerializedBlo
 use crate::terminal::model::session::SessionId;
 use crate::workflows::CloudWorkflow;
 use crate::workspaces::user_profiles::UserProfileWithUID;
-use crate::workspaces::workspace::{Workspace as WorkspaceMetadata, WorkspaceUid};
 
 /// A conversation whose `summary` column had to be derived from its task
 /// snapshot at read time (rows written before the column existed, or rows
@@ -165,8 +164,6 @@ pub struct PersistedData {
 
     /// Shareable objects.
     pub cloud_objects: Vec<Box<dyn CloudObject>>,
-    pub workspaces: Vec<WorkspaceMetadata>,
-    pub current_workspace_uid: Option<WorkspaceUid>,
     pub command_history: Vec<PersistedCommand>,
     pub user_profiles: Vec<UserProfileWithUID>,
     pub object_actions: Vec<ObjectAction>,

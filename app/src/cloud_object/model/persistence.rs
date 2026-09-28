@@ -105,18 +105,17 @@ impl CloudModel {
         &self,
         hashed_id: &str,
         new_location: CloudObjectLocation,
-        app: &AppContext,
     ) -> bool {
         // TODO(ben): Update as sharing+moving is supported in more cases.
 
         if let Some(object) = self.objects_by_id.get(hashed_id) {
-            let object_space = object.space(app);
+            let object_space = object.space();
             if let CloudObjectLocation::Space(space) = new_location {
                 if matches!(object_space, Space::Team { .. }) && space == Space::Personal {
                     return false;
                 }
 
-                if !object.can_move_to_space(space, app) {
+                if !object.can_move_to_space(space) {
                     return false;
                 }
             }
@@ -158,14 +157,10 @@ impl CloudModel {
 
     /// Given a hashed object-id, returns the object's CloudObjectLocation
     /// (either a folder or top level space)
-    pub fn object_location(
-        &self,
-        hashed_id: &str,
-        app: &AppContext,
-    ) -> Option<CloudObjectLocation> {
+    pub fn object_location(&self, hashed_id: &str) -> Option<CloudObjectLocation> {
         self.objects_by_id
             .get(hashed_id)
-            .map(|object| object.location(self, app))
+            .map(|object| object.location(self))
     }
 
     pub fn get_by_uid(&self, uid: &ObjectUid) -> Option<&dyn CloudObject> {
@@ -613,9 +608,8 @@ impl CloudModel {
     pub fn active_workflows_in_space<'a>(
         &'a self,
         space: Space,
-        app: &'a AppContext,
     ) -> impl Iterator<Item = &'a CloudWorkflow> + 'a {
-        self.active_cloud_objects_in_space(space, app)
+        self.active_cloud_objects_in_space(space)
             .filter_map(|object| object.into())
     }
 
@@ -623,9 +617,8 @@ impl CloudModel {
     pub fn active_non_welcome_workflows_in_space<'a>(
         &'a self,
         space: Space,
-        app: &'a AppContext,
     ) -> impl Iterator<Item = &'a CloudWorkflow> + 'a {
-        self.active_non_welcome_cloud_objects_in_space(space, app)
+        self.active_non_welcome_cloud_objects_in_space(space)
             .filter_map(|object| object.into())
     }
 
@@ -633,9 +626,8 @@ impl CloudModel {
     pub fn active_notebooks_in_space<'a>(
         &'a self,
         space: Space,
-        app: &'a AppContext,
     ) -> impl Iterator<Item = &'a CloudNotebook> + 'a {
-        self.active_cloud_objects_in_space(space, app)
+        self.active_cloud_objects_in_space(space)
             .filter_map(|object| object.into())
     }
 
@@ -643,9 +635,8 @@ impl CloudModel {
     pub fn active_non_welcome_notebooks_in_space<'a>(
         &'a self,
         space: Space,
-        app: &'a AppContext,
     ) -> impl Iterator<Item = &'a CloudNotebook> + 'a {
-        self.active_non_welcome_cloud_objects_in_space(space, app)
+        self.active_non_welcome_cloud_objects_in_space(space)
             .filter_map(|object| object.into())
     }
 
@@ -653,9 +644,8 @@ impl CloudModel {
     pub fn active_non_welcome_env_var_collections_in_space<'a>(
         &'a self,
         space: Space,
-        app: &'a AppContext,
     ) -> impl Iterator<Item = &'a CloudEnvVarCollection> + 'a {
-        self.active_non_welcome_cloud_objects_in_space(space, app)
+        self.active_non_welcome_cloud_objects_in_space(space)
             .filter_map(|object| object.into())
     }
 
@@ -834,13 +824,10 @@ impl CloudModel {
     pub fn active_cloud_objects_in_location_without_descendents<'a>(
         &'a self,
         location: CloudObjectLocation,
-        app: &'a AppContext,
     ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
         self.objects_by_id
             .values()
-            .filter(move |object| {
-                !object.is_trashed(self) && object.location(self, app) == location
-            })
+            .filter(move |object| !object.is_trashed(self) && object.location(self) == location)
             .map(|object| object.as_ref())
     }
 
@@ -850,24 +837,21 @@ impl CloudModel {
     pub fn trashed_cloud_objects_in_location_without_descendents<'a>(
         &'a self,
         location: CloudObjectLocation,
-        app: &'a AppContext,
     ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
         self.objects_by_id
             .values()
-            .filter(move |object| object.is_trashed(self) && object.location(self, app) == location)
+            .filter(move |object| object.is_trashed(self) && object.location(self) == location)
             .map(|object| object.as_ref())
     }
 
     pub fn trashed_cloud_object_types_in_location_with_descendants(
         &self,
         location: CloudObjectLocation,
-        app: &AppContext,
     ) -> Vec<ObjectType> {
         let mut trashed_objects: Vec<ObjectType> = Vec::new();
         self.trashed_cloud_object_types_in_location_with_descendants_helper(
             location,
             &mut trashed_objects,
-            app,
         );
         trashed_objects
     }
@@ -879,10 +863,9 @@ impl CloudModel {
         &self,
         location: CloudObjectLocation,
         trashed_objects: &mut Vec<ObjectType>,
-        app: &AppContext,
     ) {
         // Fetch direct descendants of the location
-        self.trashed_cloud_objects_in_location_without_descendents(location, app)
+        self.trashed_cloud_objects_in_location_without_descendents(location)
             .for_each(|object| {
                 trashed_objects.push(object.object_type());
                 let folder: Option<&CloudFolder> = object.into();
@@ -891,7 +874,6 @@ impl CloudModel {
                     self.trashed_cloud_object_types_in_location_with_descendants_helper(
                         CloudObjectLocation::Folder(folder.id),
                         trashed_objects,
-                        app,
                     );
                 }
             });
@@ -900,16 +882,15 @@ impl CloudModel {
     /// Given a CloudObjectLocation (either a folder or a space), returns an iterator of cloud objects
     /// that live directly in this location (its children) are in the trash but have not been explicitly
     /// trashed by a user. I.e. this function does NOT look into nested folders in order to return those children.
-    pub fn indirectly_trashed_cloud_objects_in_location_without_descendents<'a>(
-        &'a self,
+    pub fn indirectly_trashed_cloud_objects_in_location_without_descendents(
+        &self,
         location: CloudObjectLocation,
-        app: &'a AppContext,
-    ) -> impl Iterator<Item = &'a dyn CloudObject> {
+    ) -> impl Iterator<Item = &dyn CloudObject> {
         self.objects_by_id
             .values()
             .filter(move |object| {
                 object.is_trashed(self)
-                    && object.location(self, app) == location
+                    && object.location(self) == location
                     && object.metadata().trashed_ts.is_none()
             })
             .map(|object| object.as_ref())
@@ -919,11 +900,10 @@ impl CloudModel {
     pub fn active_cloud_objects_in_space<'a>(
         &'a self,
         space: Space,
-        app: &'a AppContext,
     ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
         self.objects_by_id
             .values()
-            .filter(move |object| object.is_in_space(space, app) && !object.is_trashed(self))
+            .filter(move |object| object.is_in_space(space) && !object.is_trashed(self))
             .map(|object| object.as_ref())
     }
 
@@ -931,14 +911,11 @@ impl CloudModel {
     pub fn active_non_welcome_cloud_objects_in_space<'a>(
         &'a self,
         space: Space,
-        app: &'a AppContext,
     ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
         self.objects_by_id
             .values()
             .filter(move |object| {
-                object.is_in_space(space, app)
-                    && !object.is_trashed(self)
-                    && !object.is_welcome_object()
+                object.is_in_space(space) && !object.is_trashed(self) && !object.is_welcome_object()
             })
             .map(|object| object.as_ref())
     }
@@ -947,11 +924,10 @@ impl CloudModel {
     pub fn all_cloud_objects_in_space<'a>(
         &'a self,
         space: Space,
-        app: &'a AppContext,
     ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
         self.objects_by_id
             .values()
-            .filter(move |object| object.is_in_space(space, app))
+            .filter(move |object| object.is_in_space(space))
             .map(|object| object.as_ref())
     }
 
@@ -959,63 +935,43 @@ impl CloudModel {
     pub fn trashed_cloud_objects_in_space<'a>(
         &'a self,
         space: Space,
-        app: &'a AppContext,
     ) -> impl Iterator<Item = &'a dyn CloudObject> + 'a {
         self.objects_by_id
             .values()
-            .filter(move |object| object.is_in_space(space, app) && object.is_trashed(self))
+            .filter(move |object| object.is_in_space(space) && object.is_trashed(self))
             .map(|object| object.as_ref())
     }
 
     /// Returns all cloud objects in the space that have been explicitly trashed by a user.
-    pub fn directly_trashed_cloud_objects_in_space<'a>(
-        &'a self,
+    pub fn directly_trashed_cloud_objects_in_space(
+        &self,
         space: Space,
-        app: &'a AppContext,
-    ) -> impl Iterator<Item = &'a dyn CloudObject> {
+    ) -> impl Iterator<Item = &dyn CloudObject> {
         self.objects_by_id
             .values()
             .filter(move |object| {
-                object.is_in_space(space, app) && object.metadata().trashed_ts.is_some()
+                object.is_in_space(space) && object.metadata().trashed_ts.is_some()
             })
             .map(|object| object.as_ref())
     }
 
     /// Returns a map of how many active (not trashed) objects reside within specified spaces.
-    pub fn num_active_cloud_objects_per_space<'a, I>(
-        &self,
-        spaces: I,
-        app: &AppContext,
-    ) -> HashMap<Space, usize>
+    pub fn num_active_cloud_objects_per_space<'a, I>(&self, spaces: I) -> HashMap<Space, usize>
     where
         I: Iterator<Item = &'a Space>,
     {
         spaces
-            .map(|space| {
-                (
-                    *space,
-                    self.active_cloud_objects_in_space(*space, app).count(),
-                )
-            })
+            .map(|space| (*space, self.active_cloud_objects_in_space(*space).count()))
             .collect::<HashMap<_, _>>()
     }
 
     /// Returns a map of how many trashed objects reside within specified spaces.
-    pub fn num_trashed_cloud_objects_per_space<'a, I>(
-        &self,
-        spaces: I,
-        app: &AppContext,
-    ) -> HashMap<Space, usize>
+    pub fn num_trashed_cloud_objects_per_space<'a, I>(&self, spaces: I) -> HashMap<Space, usize>
     where
         I: Iterator<Item = &'a Space>,
     {
         spaces
-            .map(|space| {
-                (
-                    *space,
-                    self.trashed_cloud_objects_in_space(*space, app).count(),
-                )
-            })
+            .map(|space| (*space, self.trashed_cloud_objects_in_space(*space).count()))
             .collect::<HashMap<_, _>>()
     }
 

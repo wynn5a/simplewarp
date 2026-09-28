@@ -64,7 +64,6 @@ use crate::ai::blocklist::block::view_impl::common::{
 };
 use crate::ai::blocklist::code_block::CodeSnippetButtonHandles;
 use crate::ai::blocklist::inline_action::inline_action_icons::icon_size;
-use crate::ai::blocklist::permissions::is_agent_mode_autonomy_allowed;
 use crate::ai::blocklist::{
     BlocklistAIActionModel, BlocklistAIHistoryEvent, BlocklistAIPermissions,
 };
@@ -1528,13 +1527,11 @@ impl TypedActionView for CLISubagentView {
 }
 
 fn should_show_write_to_pty_speedbump(app: &AppContext) -> bool {
-    is_agent_mode_autonomy_allowed(app)
-        && *AISettings::as_ref(app).should_show_agent_mode_write_to_pty_speedbump
+    *AISettings::as_ref(app).should_show_agent_mode_write_to_pty_speedbump
 }
 
 fn should_show_read_files_speedbump(app: &AppContext) -> bool {
-    is_agent_mode_autonomy_allowed(app)
-        && *AISettings::as_ref(app).should_show_agent_mode_autoread_files_speedbump
+    *AISettings::as_ref(app).should_show_agent_mode_autoread_files_speedbump
 }
 
 fn get_action_loading_text(action: AIAgentActionType) -> Option<String> {

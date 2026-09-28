@@ -28,7 +28,6 @@ use crate::launch_configs::launch_config;
 use crate::linear::LinearIssueWork;
 use crate::pane_group::{NewTerminalOptions, PanesLayout};
 use crate::persistence::ModelEvent;
-use crate::server::ids::ServerId;
 use crate::settings::QuakeModeSettings;
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::settings_view::{SettingsSection, flags};
@@ -42,7 +41,6 @@ use crate::uri::{OpenMCPSettingsArgs, OpenSettingsArgs};
 use crate::util::bindings::{self, is_binding_pty_compliant};
 use crate::window_settings::WindowSettings;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceAction, WorkspaceRegistry};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{
     ChannelState, GlobalResourceHandles, GlobalResourceHandlesProvider, UpdateQuakeModeEventArg,
 };
@@ -1128,11 +1126,6 @@ pub enum NewWorkspaceSource {
         options: Box<NewTerminalOptions>,
         initial_query: Option<String>,
     },
-    /// Starts the workspace with the Cloud Agent setup tab.
-    /// Opens a new window pre-scoped to a specific team, chosen via the title-bar team switcher.
-    TeamSwitched {
-        team_uid: ServerId,
-    },
     /// A tab is being transferred from another window via the transferable views framework.
     /// The workspace will create a placeholder tab, which will be replaced by the transferred
     /// PaneGroup after window creation.
@@ -1175,33 +1168,6 @@ impl NewWorkspaceSource {
             _ => false,
         }
     }
-
-    pub fn team_uid(&self, ctx: &AppContext) -> Option<ServerId> {
-        let source_window_id = match self {
-            Self::Empty {
-                previous_active_window,
-                ..
-            } => *previous_active_window,
-            Self::TransferredTab {
-                source_window_id, ..
-            } => Some(*source_window_id),
-            Self::FromTemplate { .. }
-            | Self::Session { .. }
-            | Self::NotebookFromFilePath { .. }
-            | Self::AgentSession { .. } => None,
-            Self::TeamSwitched { team_uid } => return Some(*team_uid),
-            Self::Restored {
-                window_snapshot, ..
-            } => {
-                if let Some(team_uid) = window_snapshot.team_uid {
-                    return Some(team_uid);
-                }
-                None
-            }
-        };
-
-        UserWorkspaces::as_ref(ctx).inherited_or_default_team_uid(source_window_id)
-    }
 }
 
 /// Args needed to construct a `Workspace`.
@@ -1222,12 +1188,6 @@ impl RootView {
         workspace_setting: NewWorkspaceSource,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let window_id = ctx.window_id();
-        let team_uid = workspace_setting.team_uid(ctx);
-        UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
-            user_workspaces.register_window(window_id, team_uid, ctx);
-        });
-
         let model_event_sender = global_resource_handles.model_event_sender.clone();
         let workspace_args = WorkspaceArgs {
             global_resource_handles,

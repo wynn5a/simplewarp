@@ -260,7 +260,7 @@ fn oz_model_menu_items<A: OrchestrationControlAction, V: View>(
     ctx: &mut ViewContext<V>,
 ) -> Vec<MenuItem<DropdownAction>> {
     let llm_prefs = LLMPreferences::as_ref(ctx);
-    let all_choices: Vec<_> = llm_prefs.get_base_llm_choices_for_agent_mode(ctx).collect();
+    let all_choices: Vec<_> = llm_prefs.get_base_llm_choices_for_agent_mode().collect();
     let ordered_choices: Vec<_> = rows
         .iter()
         .filter_map(|row| {

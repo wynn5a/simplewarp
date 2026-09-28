@@ -24,8 +24,8 @@ use super::model_spec_scores::{
 use crate::ai::custom_model_routers::is_custom_router_id;
 use crate::ai::execution_profiles::model_menu_items::is_auto;
 use crate::ai::llms::{
-    ByoKeySource, DisableReason, LLMId, LLMInfo, LLMPreferences, LLMSpec, ModelIconFlags,
-    byo_key_source_for_model, model_leading_icon, should_show_key_icon_for_model,
+    BYO_KEY_INFERENCE_LABEL, DisableReason, LLMId, LLMInfo, LLMPreferences, LLMSpec,
+    ModelIconFlags, model_leading_icon, should_show_key_icon_for_model,
 };
 use crate::features::FeatureFlag;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
@@ -261,10 +261,10 @@ impl SyncDataSource for ModelSelectorDataSource {
         };
 
         let choices = if is_full_terminal {
-            llm_preferences.get_cli_agent_llm_choices(app).collect_vec()
+            llm_preferences.get_cli_agent_llm_choices().collect_vec()
         } else {
             llm_preferences
-                .get_base_llm_choices_for_agent_mode(app)
+                .get_base_llm_choices_for_agent_mode()
                 .collect_vec()
         };
         Ok(
@@ -286,7 +286,7 @@ struct ModelSearchItem {
     spec: Option<LLMSpec>,
     leading_icon: Icon,
     credential_icon: Option<Icon>,
-    byo_key_source: Option<ByoKeySource>,
+    uses_byo_key: bool,
     display_text: String,
     is_selected: bool,
     is_custom_router: bool,
@@ -305,7 +305,7 @@ impl ModelSearchItem {
         let llm = &choice.llm;
         let is_custom_router = is_custom_router_id(llm.id.as_str());
         let is_auto = is_auto(llm);
-        let byo_key_source = byo_key_source_for_model(llm, app);
+        let uses_byo_key = should_show_key_icon_for_model(llm, app);
         let leading_icon = model_leading_icon(
             llm,
             ModelIconFlags {
@@ -313,13 +313,13 @@ impl ModelSearchItem {
                 is_auto,
             },
         );
-        let credential_icon = byo_key_source.is_some().then_some(Icon::Key);
+        let credential_icon = uses_byo_key.then_some(Icon::Key);
         Self {
             id: llm.id.clone(),
             spec: llm.spec.clone(),
             leading_icon,
             credential_icon,
-            byo_key_source,
+            uses_byo_key,
             display_text: llm.display_name.clone(),
             is_selected: &llm.id == active_llm_id,
             is_custom_router,
@@ -520,7 +520,7 @@ impl SearchItem for ModelSearchItem {
         };
         let header = render_model_spec_header(title, description, app);
 
-        let cost_row = if let Some(source) = self.byo_key_source {
+        let cost_row = if self.uses_byo_key {
             let manage_button = appearance
                 .ui_builder()
                 .button(
@@ -548,7 +548,7 @@ impl SearchItem for ModelSearchItem {
                 })
                 .finish();
             CostRow::BilledToProvider {
-                label: source.inference_label(),
+                label: BYO_KEY_INFERENCE_LABEL,
                 manage_button: Container::new(manage_button).finish(),
             }
         } else {

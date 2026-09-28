@@ -19,7 +19,6 @@ use crate::ai::mcp::{FileMCPWatcher, FileMCPWatcherEvent, ParsedTemplatableMCPSe
 use crate::auth::AuthStateProvider;
 use crate::settings::AISettings;
 use crate::warp_managed_paths_watcher::{WarpManagedPathsWatcher, warp_managed_mcp_config_path};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 // Helper to initialize dependencies and return FileBasedMCPManager handle
 fn setup_app(app: &mut App) -> warpui::ModelHandle<FileBasedMCPManager> {
@@ -31,7 +30,6 @@ fn setup_app(app: &mut App) -> warpui::ModelHandle<FileBasedMCPManager> {
     app.add_singleton_model(FileMCPWatcher::new);
     app.add_singleton_model(AISettings::new_with_defaults);
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(FileBasedMCPManager::new)
 }
 

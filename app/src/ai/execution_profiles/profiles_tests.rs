@@ -4,7 +4,7 @@ use warpui::{App, SingletonEntity};
 use crate::LaunchMode;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::execution_profiles::{
-    ActionPermission, ExecutionProfileId, ExecutionProfilesConfig,
+    AIExecutionProfile, ActionPermission, ExecutionProfileId, ExecutionProfilesConfig,
 };
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::settings::AISettings;
@@ -152,18 +152,7 @@ fn settings_collection_backs_create_edit_and_delete() {
 fn cli_uses_its_own_default_profile() {
     App::test((), |mut app| async move {
         install_singletons(&mut app);
-        let cli_model = app.add_model(|ctx| {
-            AIExecutionProfilesModel::new(
-                &LaunchMode::CommandLine {
-                    command: warp_cli::CliCommand::Model(warp_cli::model::ModelCommand::List),
-                    global_options: warp_cli::GlobalOptions::default(),
-                    debug: false,
-                    is_sandboxed: true,
-                    computer_use_override: None,
-                },
-                ctx,
-            )
-        });
+        let cli_model = app.add_model(|ctx| AIExecutionProfilesModel::new(&cli_launch_mode(), ctx));
         cli_model.read(&app, |model, ctx| {
             assert_ne!(
                 model.default_profile_id(),
@@ -179,5 +168,81 @@ fn cli_uses_its_own_default_profile() {
                 .update(&mut app, |model, ctx| model.create_profile(ctx))
                 .is_none()
         );
+    });
+}
+
+fn cli_launch_mode() -> LaunchMode {
+    LaunchMode::CommandLine {
+        command: warp_cli::CliCommand::Model(warp_cli::model::ModelCommand::List),
+        global_options: warp_cli::GlobalOptions::default(),
+        debug: false,
+        is_sandboxed: true,
+        computer_use_override: None,
+    }
+}
+
+#[test]
+fn cli_can_select_a_stored_local_profile() {
+    App::test((), |mut app| async move {
+        install_singletons(&mut app);
+        let reviewer_id = ExecutionProfileId::parse("profile-reviewer").unwrap();
+        app.update(|ctx| {
+            let mut profiles = ExecutionProfilesConfig::default();
+            profiles.insert(
+                reviewer_id.clone(),
+                AIExecutionProfile {
+                    name: "Reviewer".to_string(),
+                    execute_commands: ActionPermission::AlwaysAsk,
+                    ..Default::default()
+                },
+            );
+            AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                settings
+                    .execution_profiles
+                    .set_value(profiles, ctx)
+                    .unwrap();
+            });
+        });
+
+        let cli_model = app.add_model(|ctx| AIExecutionProfilesModel::new(&cli_launch_mode(), ctx));
+        let terminal_view_id = warpui::EntityId::new();
+        cli_model.update(&mut app, |model, ctx| {
+            let local_profiles = model.local_profiles(ctx);
+            assert_eq!(
+                local_profiles.profile_ids().cloned().collect::<Vec<_>>(),
+                vec![ExecutionProfileId::default_profile(), reviewer_id.clone()]
+            );
+            let profile_id = local_profiles.resolve("reviewer").unwrap();
+            model.set_active_profile(terminal_view_id, profile_id, ctx);
+        });
+        cli_model.read(&app, |model, ctx| {
+            let active = model.active_profile(Some(terminal_view_id), ctx);
+            assert_eq!(active.id(), &reviewer_id);
+            assert_eq!(active.data().name, "Reviewer");
+            // Other terminals keep the CLI default.
+            assert_eq!(
+                model.active_profile(None, ctx).data().execute_commands,
+                ActionPermission::AlwaysAllow
+            );
+        });
+    });
+}
+
+#[test]
+fn cli_lists_the_implicit_default_before_any_profile_is_stored() {
+    App::test((), |mut app| async move {
+        install_singletons(&mut app);
+        let cli_model = app.add_model(|ctx| AIExecutionProfilesModel::new(&cli_launch_mode(), ctx));
+        cli_model.read(&app, |model, ctx| {
+            let local_profiles = model.local_profiles(ctx);
+            assert_eq!(
+                local_profiles.profile_ids().cloned().collect::<Vec<_>>(),
+                vec![ExecutionProfileId::default_profile()]
+            );
+            assert_eq!(
+                local_profiles.resolve("default"),
+                Ok(ExecutionProfileId::default_profile())
+            );
+        });
     });
 }

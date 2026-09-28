@@ -29,18 +29,6 @@ pub struct SecretsRegex {
 
     /// The DFAs used to search for secrets in the grid.
     pub dfas: RegexDFAs,
-
-    /// Metadata about the regex pattern, including which secret levels it corresponds to.
-    pub level_metadata: RegexLevelMetadata,
-}
-
-/// Tracks counts to infer which regex patterns correspond to which secret levels
-#[derive(Debug, Clone)]
-pub struct RegexLevelMetadata {
-    /// Number of enterprise regex patterns (they are added first)
-    pub enterprise_count: usize,
-    /// Number of user regex patterns (they are added after enterprise patterns)
-    pub user_count: usize,
 }
 
 lazy_static! {
@@ -56,10 +44,6 @@ lazy_static! {
             regex: regex_automata::meta::Regex::new_many(&[] as &[&str])
                 .expect("should be able to construct empty regex"),
             dfas: RegexDFAs::new_many(&[], false, true).expect("should be able to construct empty regex DFA"),
-            level_metadata: RegexLevelMetadata {
-                enterprise_count: 0,
-                user_count: 0,
-            },
         })
     );
 }
@@ -88,42 +72,12 @@ pub struct RichContentSecretTooltipInfo {
     pub is_obfuscated: bool,
     pub position_id: String,
     pub view_id: EntityId,
-    pub secret_level: SecretLevel,
 }
 
 #[derive(Copy, Clone, Debug)]
 pub enum IsObfuscated {
     Yes,
     No,
-}
-
-/// Represents the level/source of a secret redaction rule
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum SecretLevel {
-    /// User-defined custom secret patterns
-    User,
-    /// Enterprise/organization-defined secret patterns
-    Enterprise,
-}
-
-impl SecretLevel {
-    /// Returns true if this is an enterprise level secret
-    pub fn is_enterprise(self) -> bool {
-        matches!(self, SecretLevel::Enterprise)
-    }
-
-    /// Returns true if this is a user level secret
-    pub fn is_user(self) -> bool {
-        matches!(self, SecretLevel::User)
-    }
-
-    /// Returns the priority of the secret level. Enterprise has highest priority.
-    pub fn priority(self) -> u8 {
-        match self {
-            SecretLevel::User => 0,
-            SecretLevel::Enterprise => 1,
-        }
-    }
 }
 
 /// Whether or not to respect obfuscated secrets when retrieving grid contents.
@@ -195,8 +149,6 @@ pub struct Secret {
     /// Whether the secret is currently obfuscated.
     is_obfuscated: IsObfuscated,
     range: RangeInclusive<Point>,
-    /// The level/source of this secret's redaction rule
-    secret_level: SecretLevel,
 }
 
 impl RangeInModel for &Secret {
@@ -222,20 +174,11 @@ impl Secret {
         matches!(self.is_obfuscated, IsObfuscated::Yes)
     }
 
-    pub fn new(
-        is_obfuscated: IsObfuscated,
-        range: RangeInclusive<Point>,
-        secret_level: SecretLevel,
-    ) -> Self {
+    pub fn new(is_obfuscated: IsObfuscated, range: RangeInclusive<Point>) -> Self {
         Self {
             is_obfuscated,
             range,
-            secret_level,
         }
-    }
-
-    pub fn secret_level(&self) -> SecretLevel {
-        self.secret_level
     }
 }
 
@@ -341,35 +284,16 @@ impl SecretMap {
     }
 }
 
-/// Updates secret scanning with a new set of user-defined and enterprise regexes.
-///
-/// The implementation here ensures enterprise secrets are handled differently, maintaining separation
-/// from the user's configuration in their settings.
+/// Updates secret scanning with a new set of user-defined regexes (duplicates are dropped).
 ///
 /// If the internal [`RegexDFAs`] or [`regex_automata::meta::Regex`] can't be constructed from the
 /// new regexes for any reason, the current regexes are kept unchanged.
-pub fn set_user_and_enterprise_secret_regexes<'a>(
-    user_secrets: impl IntoIterator<Item = &'a regex::Regex>,
-    enterprise_secrets: impl IntoIterator<Item = &'a regex::Regex>,
-) {
-    // Collect enterprise and user secrets into vectors to count them
-    let enterprise_secrets_vec: Vec<&'a regex::Regex> = enterprise_secrets.into_iter().collect();
-    let user_secrets_vec: Vec<&'a regex::Regex> = user_secrets.into_iter().collect();
-
-    // Dedup user regex entries against enterprise regexes to improve performance
-    let mut seen_patterns: std::collections::HashSet<&str> =
-        enterprise_secrets_vec.iter().map(|r| r.as_str()).collect();
-
-    let filtered_user_secrets_vec: Vec<&'a regex::Regex> = user_secrets_vec
+pub fn set_user_secret_regexes<'a>(user_secrets: impl IntoIterator<Item = &'a regex::Regex>) {
+    let mut seen_patterns = std::collections::HashSet::new();
+    let all_secrets = user_secrets
         .into_iter()
-        .filter(|r| seen_patterns.insert(r.as_str()))
-        .collect();
-
-    // Combine all secrets additively: enterprise first (highest priority), then filtered user
-    let all_secrets = enterprise_secrets_vec
-        .iter()
         .map(|regex| regex.as_str())
-        .chain(filtered_user_secrets_vec.iter().map(|regex| regex.as_str()))
+        .filter(|pattern| seen_patterns.insert(*pattern))
         .collect_vec();
 
     // Make sure we can compile both the regex and the DFA before we attempt to replace the live
@@ -385,14 +309,7 @@ pub fn set_user_and_enterprise_secret_regexes<'a>(
         }
     };
     let secrets_regex = match regex_automata::meta::Regex::new_many(&all_secrets) {
-        Ok(regex) => SecretsRegex {
-            regex,
-            dfas,
-            level_metadata: RegexLevelMetadata {
-                enterprise_count: enterprise_secrets_vec.len(),
-                user_count: filtered_user_secrets_vec.len(),
-            },
-        },
+        Ok(regex) => SecretsRegex { regex, dfas },
         Err(err) => {
             safe_warn!(
                 safe: ("Failed to construct new Regex with combined secrets"),
@@ -402,7 +319,7 @@ pub fn set_user_and_enterprise_secret_regexes<'a>(
         }
     };
 
-    // Store a shareable reference to the new compiled regex, DFAs, and metadata.
+    // Store a shareable reference to the new compiled regex and DFAs.
     *SECRETS_REGEX.lock() = Arc::new(secrets_regex);
 }
 

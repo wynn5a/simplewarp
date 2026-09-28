@@ -1050,7 +1050,7 @@ fn fill_filterable_dropdown<F>(
     dropdown.set_placeholder(MODEL_PLACEHOLDER, ctx);
     let items = available_model_menu_items(
         LLMPreferences::as_ref(ctx)
-            .get_base_llm_choices_for_agent_mode(ctx)
+            .get_base_llm_choices_for_agent_mode()
             .filter(|llm| !is_auto_target(llm.id.as_str()))
             .collect_vec(),
         |llm| DropdownAction::select_action_and_close(make_action(llm.id.to_string())),

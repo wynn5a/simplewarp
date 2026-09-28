@@ -254,7 +254,6 @@ use crate::workspace::{
     ActiveSession, OneTimeModalModel, PaneViewLocator, ToastStack, Workspace, WorkspaceAction,
 };
 use crate::workspaces::user_profiles::UserProfiles;
-use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 
 /// Our embedded application assets.
 pub static ASSETS: warp_assets::Assets = warp_assets::Assets;
@@ -959,8 +958,6 @@ pub(crate) fn initialize_app(
 
     let (
         cloud_objects,
-        cached_workspaces,
-        current_workspace_uid,
         app_state,
         command_history,
         restored_user_profiles,
@@ -979,8 +976,6 @@ pub(crate) fn initialize_app(
         .map(|sqlite_data| {
             (
                 sqlite_data.cloud_objects,
-                sqlite_data.workspaces,
-                sqlite_data.current_workspace_uid,
                 sqlite_data.app_state,
                 sqlite_data.command_history,
                 sqlite_data.user_profiles,
@@ -1014,16 +1009,10 @@ pub(crate) fn initialize_app(
                 Default::default(),
                 Default::default(),
                 Default::default(),
-                Default::default(),
-                Default::default(),
             )
         });
 
     ctx.add_singleton_model(|_| AIRequestUsageModel::new());
-
-    ctx.add_singleton_model(|ctx| {
-        UserWorkspaces::new(cached_workspaces, current_workspace_uid, ctx)
-    });
 
     ctx.add_singleton_model(::ai::api_keys::ApiKeyManager::new);
 
@@ -1391,17 +1380,6 @@ pub(crate) fn initialize_app(
             tip_model_handle_for_ai.update(ctx, |model, ctx| {
                 model.revalidate_tips(ctx);
             });
-        });
-        // Also revalidate when workspace/team data changes (e.g. voice toggled at
-        // the org level). Billing metadata — including `warp_ai_policy.is_voice_enabled`
-        // — lives inside the team data, so `TeamsChanged` covers all policy updates.
-        let tip_model_handle_for_teams = tip_model_handle.clone();
-        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), move |_, event, ctx| {
-            if matches!(event, UserWorkspacesEvent::TeamsChanged) {
-                tip_model_handle_for_teams.update(ctx, |model, ctx| {
-                    model.revalidate_tips(ctx);
-                });
-            }
         });
         // Revalidate when any keybinding changes so tips with `<keybinding>`
         // placeholders are hidden/shown when the referenced binding is cleared

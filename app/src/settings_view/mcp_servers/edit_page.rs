@@ -24,7 +24,6 @@ use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent;
 use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
-    WeakViewHandle,
 };
 
 use crate::GlobalResourceHandlesProvider;
@@ -54,7 +53,6 @@ use crate::view_components::action_button::{
     ActionButton, DangerNakedTheme, DangerSecondaryTheme, PrimaryTheme,
 };
 use crate::workspace::ToastStack;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const DEFAULT_JSON_TEXT: &str = r#"{
     "": {
@@ -108,7 +106,6 @@ impl ServerModel {
 }
 
 pub struct MCPServersEditPageView {
-    handle: WeakViewHandle<Self>,
     server_card_item_id: Option<ServerCardItemId>,
     server_model: ServerModel,
     save_button: ViewHandle<ActionButton>,
@@ -196,7 +193,6 @@ impl MCPServersEditPageView {
         });
 
         Self {
-            handle: ctx.handle(),
             server_card_item_id: None,
             server_model: ServerModel::None,
             save_button,
@@ -385,44 +381,40 @@ impl MCPServersEditPageView {
     fn is_shared(item_id: ServerCardItemId, app: &AppContext) -> bool {
         match item_id {
             ServerCardItemId::TemplatableMCP(template_uuid) => {
-                TemplatableMCPServerManager::as_ref(app)
-                    .is_server_template_shared(template_uuid, app)
+                TemplatableMCPServerManager::as_ref(app).is_server_template_shared(template_uuid)
             }
             ServerCardItemId::TemplatableMCPInstallation(installation_uuid) => {
                 TemplatableMCPServerManager::as_ref(app)
-                    .is_server_installation_shared(installation_uuid, app)
+                    .is_server_installation_shared(installation_uuid)
             }
             ServerCardItemId::GalleryMCP(_) | ServerCardItemId::FileBasedMCP(_) => false,
         }
     }
 
     fn is_editable(&self, item_id: Option<ServerCardItemId>, app: &AppContext) -> bool {
-        let team_uid = UserWorkspaces::as_ref(app)
-            .team_for_view_handle(&self.handle, app)
-            .map(|team| team.uid);
         match item_id {
             Some(ServerCardItemId::TemplatableMCPInstallation(installation_uuid)) => {
                 let template_uuid =
                     TemplatableMCPServerManager::as_ref(app).get_template_uuid(installation_uuid);
 
                 if let Some(template_uuid) = template_uuid {
-                    let is_authorized_editor = TemplatableMCPServerManager::as_ref(app)
-                        .is_authorized_editor(template_uuid, team_uid, app);
+                    let is_author =
+                        TemplatableMCPServerManager::as_ref(app).is_author(template_uuid, app);
                     let is_shared = TemplatableMCPServerManager::as_ref(app)
-                        .is_server_template_shared(template_uuid, app);
+                        .is_server_template_shared(template_uuid);
 
-                    is_authorized_editor || !is_shared
+                    is_author || !is_shared
                 } else {
                     false
                 }
             }
             Some(ServerCardItemId::TemplatableMCP(template_uuid)) => {
                 let is_shared = TemplatableMCPServerManager::as_ref(app)
-                    .is_server_template_shared(template_uuid, app);
-                let is_authorized_editor = TemplatableMCPServerManager::as_ref(app)
-                    .is_authorized_editor(template_uuid, team_uid, app);
+                    .is_server_template_shared(template_uuid);
+                let is_author =
+                    TemplatableMCPServerManager::as_ref(app).is_author(template_uuid, app);
 
-                is_authorized_editor || !is_shared
+                is_author || !is_shared
             }
             Some(ServerCardItemId::GalleryMCP(_)) | Some(ServerCardItemId::FileBasedMCP(_)) => {
                 false

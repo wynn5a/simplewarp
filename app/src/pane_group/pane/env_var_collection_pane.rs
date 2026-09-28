@@ -4,12 +4,12 @@ use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 use super::view::PaneView;
 use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 use crate::app_state::{EnvVarCollectionPaneSnapshot, LeafContents};
+use crate::cloud_object::personal_drive;
 use crate::env_vars::EnvVarCollectionType;
 use crate::env_vars::manager::{EnvVarCollectionManager, EnvVarCollectionSource};
 use crate::env_vars::view::env_var_collection::{EnvVarCollectionEvent, EnvVarCollectionView};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::server::ids::SyncId;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub struct EnvVarCollectionPane {
     view: ViewHandle<PaneView<EnvVarCollectionView>>,
@@ -51,9 +51,7 @@ impl EnvVarCollectionPane {
             Some(id) => EnvVarCollectionSource::Existing(id),
             None => EnvVarCollectionSource::New {
                 title: None,
-                owner: UserWorkspaces::as_ref(ctx)
-                    .personal_drive(ctx)
-                    .context("personal drive unavailable")?,
+                owner: personal_drive(ctx).context("personal drive unavailable")?,
                 initial_folder_id: None,
             },
         };

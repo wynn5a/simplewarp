@@ -4,7 +4,7 @@ use warpui::App;
 
 use super::TerminalDriver;
 use crate::ai::agent_sdk::driver::AgentDriverError;
-use crate::terminal::model::secrets::set_user_and_enterprise_secret_regexes;
+use crate::terminal::model::secrets::set_user_secret_regexes;
 use crate::terminal::view::Event;
 use crate::test_util::add_window_with_terminal;
 use crate::test_util::terminal::initialize_app_for_terminal_view;
@@ -17,12 +17,11 @@ fn shell_exit_fails_in_flight_and_subsequent_commands() {
         initialize_app_for_terminal_view(&mut app);
 
         // Configure a secret pattern (a GitHub classic PAT). In production
-        // these are populated from the user's/enterprise's privacy settings
+        // these are populated from the user's privacy settings
         // via CustomSecretRegexUpdater.
-        set_user_and_enterprise_secret_regexes(
-            [&Regex::new(r"\bghp_[A-Za-z0-9_]{36}\b").expect("pattern should compile")],
-            std::iter::empty(),
-        );
+        set_user_secret_regexes([
+            &Regex::new(r"\bghp_[A-Za-z0-9_]{36}\b").expect("pattern should compile")
+        ]);
 
         let terminal_view = add_window_with_terminal(&mut app, None);
         let terminal_driver =

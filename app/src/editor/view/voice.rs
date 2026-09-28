@@ -23,7 +23,6 @@ use crate::ui_components::buttons::{icon_button, icon_button_with_color};
 use crate::ui_components::icons;
 use crate::view_components::{FeaturePopup, NewFeaturePopupLabel};
 use crate::workspace::ToastStack;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const MICROPHONE_ACCESS_ERROR_ID: &str = "MICROPHONE_ACCESS_ERROR";
 const NUM_TIMES_TO_SHOW_VOICE_NEW_FEATURE_POPUP: usize = 4;
@@ -122,7 +121,7 @@ impl EditorView {
         options: VoiceTranscriptionOptions,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !UserWorkspaces::handle(ctx).as_ref(ctx).is_voice_enabled() {
+        if !cfg!(feature = "voice_input") {
             return;
         }
 
@@ -148,7 +147,7 @@ impl EditorView {
         cancel_transcription: bool,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !UserWorkspaces::handle(ctx).as_ref(ctx).is_voice_enabled() {
+        if !cfg!(feature = "voice_input") {
             return;
         }
         if cancel_transcription {
@@ -198,7 +197,7 @@ impl EditorView {
         source: &voice_input::VoiceInputToggledFrom,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        if !UserWorkspaces::handle(ctx).as_ref(ctx).is_voice_enabled() {
+        if !cfg!(feature = "voice_input") {
             return false;
         }
 
@@ -404,7 +403,7 @@ impl EditorView {
     ) {
         let mut state = self.voice_input_state.clone();
         state.recording_handle = None;
-        if !UserWorkspaces::handle(ctx).as_ref(ctx).is_voice_enabled() {
+        if !cfg!(feature = "voice_input") {
             if state.lifecycle.fail() {
                 self.set_voice_input_state(state, ctx);
             }

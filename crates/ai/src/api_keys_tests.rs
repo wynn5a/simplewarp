@@ -27,7 +27,7 @@ fn persisted_provider_api_key_updates_request_state() {
 
         manager.read(&app, |manager, _| {
             let request_keys = manager
-                .api_keys_for_request(true)
+                .api_keys_for_request()
                 .expect("persisted provider key should be available to requests");
             assert_eq!(request_keys.anthropic, "sk-ant-test");
         });
@@ -73,7 +73,7 @@ fn custom_model_providers_preserves_configured_schema() {
     });
 
     let provider = &mgr
-        .custom_model_providers_for_request(true)
+        .custom_model_providers_for_request()
         .expect("configured endpoint should be sent")
         .providers[0];
     assert_eq!(
@@ -259,16 +259,7 @@ fn provider_key_count_ignores_blank_keys_and_endpoints() {
 #[test]
 fn custom_model_providers_none_when_empty() {
     let mgr = make_manager(ApiKeys::default());
-    assert!(mgr.custom_model_providers_for_request(true).is_none());
-}
-
-#[test]
-fn custom_model_providers_none_when_byo_disabled() {
-    let mgr = make_manager(ApiKeys {
-        custom_endpoints: vec![endpoint("ep", "https://a.io", "k", &[("m", None)])],
-        ..Default::default()
-    });
-    assert!(mgr.custom_model_providers_for_request(false).is_none());
+    assert!(mgr.custom_model_providers_for_request().is_none());
 }
 
 #[test]
@@ -282,7 +273,7 @@ fn custom_model_providers_populates_single_endpoint() {
         )],
         ..Default::default()
     });
-    let result = mgr.custom_model_providers_for_request(true).unwrap();
+    let result = mgr.custom_model_providers_for_request().unwrap();
     assert_eq!(result.providers.len(), 1);
     let p = &result.providers[0];
     assert_eq!(p.base_url, "https://custom.io/v1");
@@ -315,7 +306,7 @@ fn multiple_endpoints_all_serialize() {
         ],
         ..Default::default()
     });
-    let result = mgr.custom_model_providers_for_request(true).unwrap();
+    let result = mgr.custom_model_providers_for_request().unwrap();
     assert_eq!(result.providers.len(), 2);
     assert_eq!(result.providers[0].base_url, "https://a.io");
     assert_eq!(result.providers[0].models[0].config_key, "uuid-a");
@@ -327,15 +318,6 @@ fn multiple_endpoints_all_serialize() {
 }
 
 #[test]
-fn byok_disabled_returns_none_even_with_endpoints() {
-    let mgr = make_manager(ApiKeys {
-        custom_endpoints: vec![endpoint("ep", "https://a.io", "k", &[("m", None)])],
-        ..Default::default()
-    });
-    assert!(mgr.custom_model_providers_for_request(false).is_none());
-}
-
-#[test]
 fn empty_api_key_endpoints_are_skipped() {
     let mgr = make_manager(ApiKeys {
         custom_endpoints: vec![
@@ -344,7 +326,7 @@ fn empty_api_key_endpoints_are_skipped() {
         ],
         ..Default::default()
     });
-    let result = mgr.custom_model_providers_for_request(true).unwrap();
+    let result = mgr.custom_model_providers_for_request().unwrap();
     assert_eq!(result.providers.len(), 1);
     assert_eq!(result.providers[0].base_url, "https://b.io");
 }
@@ -360,7 +342,7 @@ fn endpoints_with_only_empty_models_are_skipped() {
         )],
         ..Default::default()
     });
-    assert!(mgr.custom_model_providers_for_request(true).is_none());
+    assert!(mgr.custom_model_providers_for_request().is_none());
 }
 
 // ── display_label fallback ─────────────────────────────────────
@@ -400,7 +382,7 @@ fn display_label_falls_back_to_name_when_alias_is_whitespace() {
 #[test]
 fn api_keys_for_request_none_when_empty() {
     let mgr = make_manager(ApiKeys::default());
-    assert!(mgr.api_keys_for_request(true).is_none());
+    assert!(mgr.api_keys_for_request().is_none());
 }
 
 #[test]
@@ -410,20 +392,10 @@ fn api_keys_for_request_populates_provider_keys() {
         anthropic: Some("sk-a".into()),
         ..Default::default()
     });
-    let result = mgr.api_keys_for_request(true).unwrap();
+    let result = mgr.api_keys_for_request().unwrap();
     assert_eq!(result.openai, "sk-o");
     assert_eq!(result.anthropic, "sk-a");
     assert!(result.google.is_empty());
-}
-
-#[test]
-fn api_keys_for_request_omits_keys_when_byo_disabled() {
-    let mgr = make_manager(ApiKeys {
-        openai: Some("sk-o".into()),
-        ..Default::default()
-    });
-    // With BYO disabled and no other credentials, returns None.
-    assert!(mgr.api_keys_for_request(false).is_none());
 }
 
 #[test]
@@ -432,7 +404,7 @@ fn api_keys_for_request_none_for_custom_endpoints_only() {
         custom_endpoints: vec![endpoint("ep", "https://a.io", "k", &[("m", None)])],
         ..Default::default()
     });
-    assert!(mgr.api_keys_for_request(true).is_none());
+    assert!(mgr.api_keys_for_request().is_none());
 }
 
 // ── ApiKeyManager::has_any_key ──────────────────

@@ -6,13 +6,12 @@ use warpui::integration::TestStep;
 use warpui::windowing::WindowManager;
 use warpui::{App, SingletonEntity, ViewHandle, WindowId, async_assert};
 
-use crate::cloud_object::Space;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::{Space, personal_drive};
 use crate::integration_testing::view_getters::{notebook_view, workspace_view};
 use crate::notebooks::manager::NotebookSource;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 fn notebook_editor(
     app: &App,
@@ -35,9 +34,7 @@ pub fn create_a_personal_notebook(key: impl Into<String>, title: impl Into<Strin
             UpdateManager::handle(app).update(app, |update_manager, ctx| {
                 update_manager.create_notebook(
                     client_id,
-                    UserWorkspaces::as_ref(ctx)
-                        .personal_drive(ctx)
-                        .expect("User UID must be set in tests"),
+                    personal_drive(ctx).expect("User UID must be set in tests"),
                     None,
                     Default::default(),
                     true,
@@ -51,10 +48,10 @@ pub fn create_a_personal_notebook(key: impl Into<String>, title: impl Into<Strin
             data.insert(key.clone(), sync_id);
         })
         .add_assertion(move |app, _| {
-            CloudModel::handle(app).read(app, |cloud_model, ctx| {
+            CloudModel::handle(app).read(app, |cloud_model, _| {
                 async_assert!(
                     cloud_model
-                        .active_cloud_objects_in_space(Space::Personal, ctx)
+                        .active_cloud_objects_in_space(Space::Personal)
                         .count()
                         > 0,
                     "Notebook exists"

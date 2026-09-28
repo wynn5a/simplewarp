@@ -68,3 +68,70 @@ fn file_collection_rejects_invalid_values_as_a_unit() {
         assert_eq!(ExecutionProfilesConfig::from_file_value(&value), None);
     }
 }
+
+fn profiles_named(names: &[(&str, &str)]) -> ExecutionProfilesConfig {
+    let mut config = ExecutionProfilesConfig::default();
+    for (id, name) in names {
+        config.insert(
+            ExecutionProfileId::parse(*id).expect("test id should be valid"),
+            AIExecutionProfile {
+                name: name.to_string(),
+                ..Default::default()
+            },
+        );
+    }
+    config
+}
+
+fn id(value: &str) -> ExecutionProfileId {
+    ExecutionProfileId::parse(value).expect("test id should be valid")
+}
+
+#[test]
+fn resolve_matches_an_exact_id() {
+    let config = profiles_named(&[("profile-a", "Reviewer")]);
+    assert_eq!(config.resolve("profile-a"), Ok(id("profile-a")));
+    assert_eq!(
+        config.resolve("default"),
+        Ok(ExecutionProfileId::default_profile())
+    );
+}
+
+#[test]
+fn resolve_matches_a_unique_name_case_insensitively() {
+    let config = profiles_named(&[("profile-a", "Reviewer"), ("profile-b", "Builder")]);
+    assert_eq!(config.resolve("reviewer"), Ok(id("profile-a")));
+    assert_eq!(config.resolve("  BUILDER "), Ok(id("profile-b")));
+    // The default profile always displays as "Default".
+    assert_eq!(
+        config.resolve("Default"),
+        Ok(ExecutionProfileId::default_profile())
+    );
+}
+
+#[test]
+fn resolve_prefers_an_id_over_a_name() {
+    let config = profiles_named(&[("profile-a", "profile-b"), ("profile-b", "Other")]);
+    assert_eq!(config.resolve("profile-b"), Ok(id("profile-b")));
+}
+
+#[test]
+fn resolve_rejects_an_ambiguous_name() {
+    let config = profiles_named(&[("profile-a", "Same"), ("profile-b", "same")]);
+    assert_eq!(
+        config.resolve("Same"),
+        Err(ProfileLookupError::AmbiguousName {
+            name: "Same".to_string(),
+            ids: vec![id("profile-a"), id("profile-b")],
+        })
+    );
+}
+
+#[test]
+fn resolve_reports_an_unknown_reference() {
+    let config = profiles_named(&[("profile-a", "Reviewer")]);
+    assert_eq!(
+        config.resolve("Unsynced"),
+        Err(ProfileLookupError::NotFound("Unsynced".to_string()))
+    );
+}

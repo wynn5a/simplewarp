@@ -5,7 +5,6 @@ use warpui::{App, SingletonEntity};
 use super::*;
 use crate::auth::AuthStateProvider;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 #[test]
 fn auto_approve_denylist_bypass_defaults_on_and_is_available_in_gui_settings() {
@@ -29,7 +28,6 @@ fn auto_approve_denylist_bypass_defaults_on_and_is_available_in_gui_settings() {
 
 fn add_ai_enablement_dependencies_for_test(app: &mut App) {
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    app.add_singleton_model(UserWorkspaces::default_mock);
 }
 
 // ToolbarCommandMap Tests

@@ -38,8 +38,8 @@ use crate::ai::execution_profiles::profiles::{
     AIExecutionProfilesModel, AIExecutionProfilesModelEvent,
 };
 use crate::ai::llms::{
-    ByoKeySource, LLMId, LLMInfo, LLMPreferences, LLMPreferencesEvent, LLMSpec,
-    byo_key_source_for_model, should_show_key_icon_for_model,
+    BYO_KEY_INFERENCE_LABEL, LLMId, LLMInfo, LLMPreferences, LLMPreferencesEvent, LLMSpec,
+    should_show_key_icon_for_model,
 };
 use crate::appearance::Appearance;
 use crate::cloud_object::model::generic_string_model::StringModel;
@@ -701,7 +701,7 @@ impl ProfileModelSelector {
 
         // Store all model choices for reasoning variant lookups
         self.all_model_choices = llm_preferences
-            .get_base_llm_choices_for_agent_mode(ctx)
+            .get_base_llm_choices_for_agent_mode()
             .cloned()
             .collect();
 
@@ -709,7 +709,7 @@ impl ProfileModelSelector {
         // custom-endpoint choices (rendered separately under a `Custom models` sub-header so
         // the server-curated list stays visually distinct).
         let custom_ids: std::collections::HashSet<LLMId> = llm_preferences
-            .custom_llm_choices(ctx)
+            .custom_llm_choices()
             .map(|info| info.id.clone())
             .collect();
         let server_choices: Vec<&LLMInfo> = self
@@ -847,7 +847,7 @@ impl ProfileModelSelector {
 
         let items: Vec<MenuItem<ProfileModelSelectorAction>> = match kind {
             ModelSpecSidecarKind::Auto => llm_preferences
-                .get_base_llm_choices_for_agent_mode(ctx)
+                .get_base_llm_choices_for_agent_mode()
                 .filter(|llm| is_auto(llm))
                 .map(|llm| {
                     let is_selected = llm.id == active_llm_id;
@@ -1044,7 +1044,7 @@ impl ProfileModelSelector {
                             // Get the first "auto" variant as the generic auto model
                             let llm_prefs = LLMPreferences::as_ref(ctx);
                             llm_prefs
-                                .get_base_llm_choices_for_agent_mode(ctx)
+                                .get_base_llm_choices_for_agent_mode()
                                 .find(|llm| is_auto(llm))
                                 .cloned()
                         }
@@ -1601,11 +1601,7 @@ impl ProfileModelSelector {
         .finish()
     }
 
-    fn render_model_spec_api_key(
-        &self,
-        byo_key_source: ByoKeySource,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_model_spec_api_key(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
@@ -1624,7 +1620,7 @@ impl ProfileModelSelector {
                             .with_child(
                                 Container::new(
                                     Text::new(
-                                        byo_key_source.inference_label().to_string(),
+                                        BYO_KEY_INFERENCE_LABEL.to_string(),
                                         appearance.ui_font_family(),
                                         14.,
                                     )
@@ -1654,7 +1650,7 @@ impl ProfileModelSelector {
     fn render_all_model_spec_values(
         &self,
         spec: &LLMSpec,
-        byo_key_source: Option<ByoKeySource>,
+        uses_byo_key: bool,
         bg_bar_color: ColorU,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -1667,8 +1663,8 @@ impl ProfileModelSelector {
             ),
             self.render_model_spec_value("Speed".to_string(), spec.speed, bg_bar_color, app),
         ];
-        if let Some(byo_key_source) = byo_key_source {
-            spec_values.push(self.render_model_spec_api_key(byo_key_source, app));
+        if uses_byo_key {
+            spec_values.push(self.render_model_spec_api_key(app));
         } else {
             spec_values.push(self.render_model_spec_value(
                 "Cost".to_string(),
@@ -1684,7 +1680,7 @@ impl ProfileModelSelector {
     fn render_model_spec(
         &self,
         spec: &LLMSpec,
-        byo_key_source: Option<ByoKeySource>,
+        uses_byo_key: bool,
         app: &AppContext,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
@@ -1696,7 +1692,7 @@ impl ProfileModelSelector {
         );
         let spec = self.render_all_model_spec_values(
             spec,
-            byo_key_source,
+            uses_byo_key,
             internal_colors::neutral_3(theme),
             app,
         );
@@ -1743,7 +1739,7 @@ impl ProfileModelSelector {
         let sidecar_menu = ChildView::new(&self.model_spec_sidecar.dropdown).finish();
         let spec_values = self.render_all_model_spec_values(
             &spec.clone().unwrap_or_default(),
-            None,
+            false,
             internal_colors::neutral_5(theme),
             app,
         );
@@ -1934,8 +1930,8 @@ impl View for ProfileModelSelector {
                         .cloned();
                     Some(self.render_sidecar_spec_panel(&kind, &sidecar_spec, app))
                 } else if let Some(spec) = info.spec.as_ref() {
-                    let byo_key_source = byo_key_source_for_model(info, app);
-                    Some(self.render_model_spec(spec, byo_key_source, app))
+                    let uses_byo_key = should_show_key_icon_for_model(info, app);
+                    Some(self.render_model_spec(spec, uses_byo_key, app))
                 } else {
                     None
                 };

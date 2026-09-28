@@ -39,7 +39,6 @@ use super::settings_page::{
     render_dropdown_item_label, render_input_list, render_separator,
 };
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
-use crate::UserWorkspaces;
 use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::model_menu_items::available_model_menu_items;
@@ -275,14 +274,6 @@ impl AgentProfilesPageView {
                     report_if_error!(model.add_command_to_autoexecution_denylist(predicate, ctx));
                 })
             }
-        });
-
-        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, _handle, _event, ctx| {
-            // Re-render if teams-related data changed that may affect which
-            // models are available.
-            Self::refresh_base_model_menu(&me.base_model_dropdown, ctx);
-            Self::refresh_coding_model_menu(&me.coding_model_dropdown, ctx);
-            ctx.notify();
         });
 
         ctx.subscribe_to_model(
@@ -960,7 +951,7 @@ impl AgentProfilesPageView {
             }
 
             let choices = LLMPreferences::as_ref(ctx)
-                .get_base_llm_choices_for_agent_mode(ctx)
+                .get_base_llm_choices_for_agent_mode()
                 .collect_vec();
 
             let items = available_model_menu_items(
@@ -1002,7 +993,7 @@ impl AgentProfilesPageView {
             }
 
             let choices = LLMPreferences::as_ref(ctx)
-                .get_coding_llm_choices(ctx)
+                .get_coding_llm_choices()
                 .collect_vec();
 
             let items = available_model_menu_items(

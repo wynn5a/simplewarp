@@ -5,12 +5,11 @@ use std::sync::Arc;
 use itertools::Itertools as _;
 
 use super::GridHandler;
-use crate::ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels_using_regex;
 use crate::terminal::model::grid::{Dimensions as _, RespectDisplayedOutput, grapheme_cursor};
 use crate::terminal::model::index::{Direction, Point};
 use crate::terminal::model::secrets::{
     IsObfuscated, ObfuscateSecrets, SECRETS_REGEX, Secret, SecretAndHandle, SecretHandle,
-    SecretLevel, SecretsRegex,
+    SecretsRegex,
 };
 use crate::terminal::model::terminal_model::RangeInModel;
 
@@ -92,12 +91,11 @@ impl GridHandler {
         range: RangeInclusive<Point>,
         is_obfuscated: IsObfuscated,
         plaintext: String,
-        secret_level: SecretLevel,
     ) {
         let handle = SecretHandle::next();
 
         let range = *range.start()..=*range.end();
-        let secret = Secret::new(is_obfuscated, range.clone(), secret_level);
+        let secret = Secret::new(is_obfuscated, range.clone());
         self.secrets.insert(handle, secret, self.columns());
 
         self.secrets_in_plaintext
@@ -245,10 +243,7 @@ impl GridHandler {
                 IsObfuscated::Yes
             };
 
-            // Determine the secret level by re-scanning the plaintext
-            let secret_level = self.determine_secret_level(&plaintext, &secrets_regex);
-
-            self.mark_secret_range(secret_match, is_obfuscated, plaintext, secret_level);
+            self.mark_secret_range(secret_match, is_obfuscated, plaintext);
         }
     }
 
@@ -267,20 +262,6 @@ impl GridHandler {
             cursor.move_forward();
         }
         text
-    }
-
-    /// Determines the secret level by re-scanning the plaintext using the rich content detection
-    /// which includes secret level information
-    fn determine_secret_level(&self, plaintext: &str, regex: &SecretsRegex) -> SecretLevel {
-        let secrets_with_levels = find_secrets_in_text_with_levels_using_regex(plaintext, regex);
-
-        // Find the first match that corresponds to our plaintext
-        // In case of multiple matches, we return the highest priority level
-        secrets_with_levels
-            .into_iter()
-            .map(|(_, level)| level)
-            .max_by_key(|level| level.priority())
-            .unwrap_or(SecretLevel::User) // Default to User level if no matches found
     }
 
     fn set_all_bytes_scanned_for_secrets(&mut self, value: bool) {

@@ -30,7 +30,6 @@ use crate::server::ids::SyncId;
 use crate::settings::PrivacySettings;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::test_util::settings::initialize_settings_for_tests_with_mode;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{
     AgentNotificationsModel, GlobalResourceHandles, GlobalResourceHandlesProvider, LaunchMode,
 };
@@ -185,7 +184,6 @@ fn initialize_run_agents_test(app: &mut App, mode: ExecutionMode) -> RunAgentsTe
         AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
     });
     app.add_singleton_model(PrivacySettings::mock);
-    app.add_singleton_model(UserWorkspaces::default_mock);
     let conversation_id = history.update(app, |history_model, ctx| {
         history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
     });

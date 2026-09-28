@@ -243,7 +243,7 @@ mod tests;
 /// Profile subcommands.
 #[derive(Debug, Clone, Subcommand)]
 pub enum AgentProfileCommand {
-    /// List available agent profiles.
+    /// List the local agent profiles and the IDs `agent run --profile` accepts.
     List,
 }
 
@@ -382,8 +382,8 @@ pub struct RunAgentArgs {
     #[command(flatten)]
     pub computer_use: HiddenComputerUseArgs,
 
-    /// Agent profile to configure the terminal session.
-    #[arg(long = "profile", value_name = "ID")]
+    /// Local agent profile to run with, by ID or name (see `agent profile list`).
+    #[arg(long = "profile", value_name = "PROFILE")]
     pub profile: Option<String>,
 
     /// Execution harness for the agent run.

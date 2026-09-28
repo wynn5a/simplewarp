@@ -327,7 +327,7 @@ pub fn oz_model_snapshot(
     // Oz / unset: Warp LLM catalog. Custom models are excluded for cloud
     // execution because remote workers cannot use local custom endpoints.
     let llm_prefs = LLMPreferences::as_ref(ctx);
-    let (auto_models, rest): (Vec<_>, Vec<_>) = get_base_model_choices(llm_prefs, ctx, is_local)
+    let (auto_models, rest): (Vec<_>, Vec<_>) = get_base_model_choices(llm_prefs, is_local)
         .partition(|llm| llm.id.as_str().starts_with("auto"));
     let (custom_models, other_models): (Vec<_>, Vec<_>) = rest
         .into_iter()

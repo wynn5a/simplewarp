@@ -327,6 +327,44 @@ Queue, in order:
    `UserWorkspaces` itself; `SecretLevel::Enterprise`; `agent run --profile`; single-variant
    `ByoKeySource` (see 4gw).
 
+10. ~~`UserWorkspaces`, enterprise secret tier, `ByoKeySource`, CLI profiles~~ — **4gy done
+   (2026-09-28).** −2.7k lines in 135 files. `UserWorkspaces` and the `Workspace` / `Team` /
+   `BillingMetadata` / `Tier` model types are gone; the workspace sqlite cache is no longer read
+   (tables and migrations untouched; the unused diesel row structs `Team`, `NewTeam`,
+   `TeamMemberRow`, `NewTeamMember`, `Workspace`, `NewWorkspace`, `TeamSetting`,
+   `NewTeamSettings`, `WorkspaceTeam`, `NewWorkspaceTeam` deleted). Every gate collapsed to
+   no-workspace: the billing-tier toggles (prompt/code suggestions, Next Command, git-ops AI,
+   voice → `cfg!(voice_input)`, AI autonomy → `is_agent_mode_autonomy_allowed` deleted), member
+   BYO key/endpoint policy (`CustomInferenceVisibility`, the "managed by your organization"
+   section/tooltip, `custom_llm_info_for_id_if_enabled`; `api_keys_for_request` /
+   `custom_model_providers_for_request` lost their always-true flag), paid-plan and enterprise
+   checks, the Uber `aifx` CLI-agent special case (`CLIAgent::detect` lost its ctx). Team
+   windows: the title-bar team switcher, `OpenNewWindowForTeam` / `ShowTeamSwitcherMenu`,
+   `NewWorkspaceSource::TeamSwitched`, `WindowSnapshot.team_uid` (the `windows.team_uid` column
+   is written `NULL`), the Team workflows tab, team MCP sharing (share button/events,
+   `share_templatable_mcp_server*`, admin check in `is_authorized_editor` → `is_author`; unshare
+   stays, a stale team object can still move to Personal). `personal_drive`, `Space::owner` and
+   `From<Owner> for Space` replace the owner/space helpers; `Space::name` and
+   `CloudObject::space` / `location` / `is_in_space` / `can_move_to_space` and the CloudModel
+   space queries lost their unused ctx. `is_codebase_context_enabled` moved to `settings::code`
+   (slash commands now listen to `CodeSettings` directly). `SecretLevel` is deleted outright (it
+   was never serialized): regex level metadata, per-match level rescan in the grid,
+   level-priority merging, the enterprise tooltip / env-var messages;
+   `set_user_and_enterprise_secret_regexes` → `set_user_secret_regexes`. `ByoKeySource` →
+   `BYO_KEY_INFERENCE_LABEL` + a bool. CLI profiles (local fix): CLI launches snapshot the local
+   profiles (stored collection, or the implicit default), `AIExecutionProfilesModel::local_profiles`
+   exposes them, `ExecutionProfilesConfig::resolve` takes an exact ID or a unique case-insensitive
+   name (`ProfileLookupError::{NotFound, AmbiguousName}`); `agent profile list` prints the local
+   IDs (`default`, `profile-…`) and `agent run --profile <id|name>` selects that profile for the
+   run's terminal (help text updated). Tests 4,292 default / 4,293 simplewarp (−7 net: −14 deleted
+   with their code — 7 UserWorkspaces, 3 Uber aifx, 2 team window, 1 window team_uid round-trip,
+   1 workspace prompt alert; +7 new — 5 profile resolution, 2 CLI local-profile model),
+   `ai` + `persistence` + `warp_cli` 305 passed (−3 in `ai`: BYO-disabled flag cases), 0 failed.
+   Follow-ups: `Space::Team` / `Owner::Team` / `WorkflowSource::Team` readers (only stale team
+   objects reach them now); `UserProfiles` (server-fetched user display names); the dead pub
+   CloudModel query `trashed_cloud_object_types_in_location_with_descendants` and other
+   zero-caller space queries.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,

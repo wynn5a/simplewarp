@@ -16,13 +16,13 @@ use warpui::{
 };
 
 use crate::ai::agent::SuggestedAgentModeWorkflow;
+use crate::cloud_object::personal_drive;
 use crate::modal::{Modal, ModalEvent};
 use crate::pane_group::PaneEvent;
 use crate::server::ids::SyncId;
 use crate::ui_components::blended_colors;
 use crate::workflows::workflow_view::{WorkflowView, WorkflowViewEvent};
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const SUGGESTED_PROMPT_MODAL_HEADER: &str = "Prompt";
 
@@ -85,9 +85,7 @@ impl SuggestedAgentModeWorkflowModal {
     ) {
         let workflow_view = ctx.add_typed_action_view(|ctx| {
             let mut workflow_view = WorkflowView::new_in_suggestion_dialog(ctx);
-            if let Some(owner) = UserWorkspaces::as_ref(ctx)
-                .space_to_owner(crate::cloud_object::Space::Personal, ctx)
-            {
+            if let Some(owner) = personal_drive(ctx) {
                 workflow_view.open_new_workflow(
                     Some(workflow_and_id.workflow.name.clone()),
                     Some(workflow_and_id.workflow.prompt.clone()),

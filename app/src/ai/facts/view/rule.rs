@@ -25,7 +25,9 @@ use super::{AIFact, CloudAIFact, CloudAIFactModel, is_edit_allowed, is_syncing, 
 use crate::ai::facts::AIMemory;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{CloudObject, GenericStringObjectFormat, JsonObjectType, Owner};
+use crate::cloud_object::{
+    CloudObject, GenericStringObjectFormat, JsonObjectType, Owner, personal_drive,
+};
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
@@ -40,7 +42,6 @@ use crate::util::path::display_path_with_host;
 use crate::view_components::DismissibleToast;
 use crate::view_components::action_button::{ActionButton, NakedTheme};
 use crate::workspace::ToastStack;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub const HEADER_TEXT: &str = "Rules";
 const DESCRIPTION_TEXT: &str = "Rules enhance the agent by providing structured guidelines that help maintain consistency, enforce best practices, and adapt to specific workflows, including codebases or broader tasks.";
@@ -179,7 +180,7 @@ impl RuleView {
             ctx.notify();
         });
 
-        let owner = UserWorkspaces::as_ref(ctx).personal_drive(ctx);
+        let owner = personal_drive(ctx);
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
             if matches!(

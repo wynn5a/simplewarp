@@ -13,7 +13,6 @@ use crate::appearance;
 use crate::auth::AuthStateProvider;
 use crate::server::server_api::ServerApiProvider;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 // Mocked data to make it easy to test.
 lazy_static::lazy_static! {
@@ -47,7 +46,6 @@ lazy_static::lazy_static! {
 fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
     appearance::register(app);
-    app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| AIRequestUsageModel::new());

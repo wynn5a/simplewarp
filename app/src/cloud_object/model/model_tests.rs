@@ -1,4 +1,3 @@
-use lazy_static::lazy_static;
 use warpui::{App, ModelHandle};
 
 use super::*;
@@ -8,10 +7,8 @@ use crate::cloud_object::{
     CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus, Owner,
 };
 use crate::notebooks::CloudNotebookModel;
-use crate::server::ids::{ClientId, ServerId};
+use crate::server::ids::ClientId;
 use crate::settings::{CloudPreference, Platform, Preference};
-use crate::workspaces::team::Team;
-use crate::workspaces::workspace::{Workspace, WorkspaceUid};
 
 fn create_cloud_model(
     app: &mut App,
@@ -20,22 +17,6 @@ fn create_cloud_model(
     // Make sure to register the CloudModel singleton - some CloudObject methods
     // find it and other dependencies via the AppContext.
     app.add_singleton_model(|_ctx| CloudModel::new(None, objects))
-}
-
-lazy_static! {
-    /// Mock the user being on _a_ team in tests, so that the team drive is available.
-    /// Otherwise, any team objects will appear shared.
-    static ref TEST_TEAM: Team = Team::from_local_cache(
-        ServerId::from(1),
-        "Test Team".to_string(),
-        None,
-        None,
-    );
-
-    static ref TEST_WORKSPACE: Workspace = Workspace::from_local_cache(
-        WorkspaceUid::from(ServerId::from(1)),
-        Some(vec![TEST_TEAM.clone()]),
-    );
 }
 
 fn mock_permissions() -> CloudObjectPermissions {

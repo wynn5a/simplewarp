@@ -30,7 +30,7 @@ mod config;
 pub mod editor;
 pub mod model_menu_items;
 pub mod profiles;
-pub use config::{ExecutionProfileId, ExecutionProfilesConfig};
+pub use config::{ExecutionProfileId, ExecutionProfilesConfig, ProfileLookupError};
 
 fn effective_base_model<'a>(profile: &AIExecutionProfile, app: &'a AppContext) -> &'a LLMInfo {
     let prefs = LLMPreferences::as_ref(app);

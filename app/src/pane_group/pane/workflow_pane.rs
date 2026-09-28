@@ -6,11 +6,11 @@ use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, PaneView};
 use crate::app_state::{LeafContents, WorkflowPaneSnapshot};
+use crate::cloud_object::personal_drive;
 use crate::server::ids::SyncId;
 use crate::workflows::manager::{WorkflowManager, WorkflowOpenSource};
 use crate::workflows::workflow_view::{WorkflowView, WorkflowViewEvent};
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType, WorkflowViewMode};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub struct WorkflowPane {
     view: ViewHandle<PaneView<WorkflowView>>,
@@ -41,9 +41,7 @@ impl WorkflowPane {
             None => WorkflowOpenSource::New {
                 title: None,
                 content: None,
-                owner: UserWorkspaces::as_ref(ctx)
-                    .personal_drive(ctx)
-                    .context("personal drive unavailable")?,
+                owner: personal_drive(ctx).context("personal drive unavailable")?,
                 initial_folder_id: None,
                 is_for_agent_mode: false,
             },

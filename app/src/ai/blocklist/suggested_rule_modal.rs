@@ -17,9 +17,9 @@ use warpui::{
 
 use crate::ai::agent::SuggestedRule;
 use crate::ai::facts::{AIFact, AIMemory, CloudAIFactModel};
-use crate::cloud_object::Owner;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
+use crate::cloud_object::{Owner, personal_drive};
 use crate::editor::{
     EditorOptions, EditorView, EnterAction, EnterSettings, Event as EditorEvent, InteractionState,
     PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
@@ -30,7 +30,6 @@ use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::SyncId;
 use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{ActionButton, PrimaryTheme};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const HEADER_TEXT: &str = "Suggested rule";
 const MAX_EDITOR_HEIGHT: f32 = 240.;
@@ -229,7 +228,7 @@ impl SuggestedRuleView {
             me.handle_cloud_model_event(event, ctx);
         });
 
-        let owner = UserWorkspaces::as_ref(ctx).personal_drive(ctx);
+        let owner = personal_drive(ctx);
 
         let network_status = NetworkStatus::handle(ctx);
         ctx.subscribe_to_model(&network_status, |me, _, _event, ctx| {

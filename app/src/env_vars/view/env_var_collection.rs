@@ -19,7 +19,7 @@ use warpui::{
 use super::command_dialog::EnvVarCommandDialog;
 use super::menus::Menus;
 use crate::Appearance;
-use crate::ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels;
+use crate::ai::blocklist::block::secret_redaction::find_secrets_in_text;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{CloudObjectTypeAndId, Owner};
 use crate::editor::EditorView;
@@ -41,7 +41,6 @@ use crate::search::external_secrets::view::ExternalSecretsMenu;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::SyncId;
 use crate::sharing::ContentEditability;
-use crate::terminal::model::secrets::SecretLevel;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
@@ -108,8 +107,6 @@ pub(super) enum EditorType {
 /// Validation error for a specific field containing secrets
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct ValidationError {
-    /// The highest priority secret level detected in this field
-    pub(super) secret_level: SecretLevel,
     /// User-friendly error message
     pub(super) message: String,
 }
@@ -158,12 +155,11 @@ impl RowValidationState {
         }
     }
 
-    /// Gets the highest severity error in this row
-    pub(super) fn get_highest_severity_error(&self) -> Option<&ValidationError> {
+    /// Gets the first error in this row
+    pub(super) fn get_first_error(&self) -> Option<&ValidationError> {
         [&self.name_error, &self.value_error, &self.description_error]
-            .iter()
-            .filter_map(|error| error.as_ref())
-            .max_by_key(|error| error.secret_level.priority())
+            .into_iter()
+            .find_map(|error| error.as_ref())
     }
 }
 
@@ -183,12 +179,11 @@ impl FormValidationState {
         self.description_error = error;
     }
 
-    /// Gets the highest severity error in the form (including both metadata and variable rows)
-    pub(super) fn get_highest_severity_error(&self) -> Option<&ValidationError> {
+    /// Gets the first error in the form's metadata fields
+    pub(super) fn get_first_error(&self) -> Option<&ValidationError> {
         [&self.title_error, &self.description_error]
-            .iter()
-            .filter_map(|error| error.as_ref())
-            .max_by_key(|error| error.secret_level.priority())
+            .into_iter()
+            .find_map(|error| error.as_ref())
     }
 }
 
@@ -336,15 +331,9 @@ pub enum EnvVarCollectionAction {
 
 /// Defines the view for a collection of environment variables
 impl ValidationError {
-    /// Create validation error from detected secret level
-    fn from_secret_level(secret_level: SecretLevel) -> Self {
-        let message = match secret_level {
-            SecretLevel::Enterprise => "This environment variable cannot be created due to conflicts with your enterprise's secret redaction settings. Contact a team admin for details.".to_string(),
-            SecretLevel::User => "This environment variable cannot be created due to conflicts with your secret redaction settings. Save the secret as an environment variable (in your shell config or a .env file), or update your secret redaction settings in Settings > Privacy.".to_string(),
-        };
+    fn secret_detected() -> Self {
         Self {
-            secret_level,
-            message,
+            message: "This environment variable cannot be created due to conflicts with your secret redaction settings. Save the secret as an environment variable (in your shell config or a .env file), or update your secret redaction settings in Settings > Privacy.".to_string(),
         }
     }
 }
@@ -352,19 +341,7 @@ impl ValidationError {
 impl EnvVarCollectionView {
     /// Validates field content for secrets and returns validation error if found
     fn validate_field_content(text: &str) -> Option<ValidationError> {
-        let detected_secrets = find_secrets_in_text_with_levels(text);
-        if detected_secrets.is_empty() {
-            return None;
-        }
-
-        // Find the highest priority secret level
-        detected_secrets
-            .iter()
-            .map(|(_, level)| *level)
-            .max_by_key(|level| level.priority())
-            .map(|highest_priority_level| {
-                ValidationError::from_secret_level(highest_priority_level)
-            })
+        (!find_secrets_in_text(text).is_empty()).then(ValidationError::secret_detected)
     }
 
     /// Updates validation state for a specific field in a row
@@ -955,18 +932,13 @@ impl EnvVarCollectionView {
                 .any(|row| row.validation_state.has_errors())
     }
 
-    /// Gets the highest severity error across the entire form
+    /// Gets the first error across the entire form
     fn get_highest_severity_form_error(&self) -> Option<&ValidationError> {
-        let form_error = self.form_validation_state.get_highest_severity_error();
-        let row_errors = self
-            .variable_rows
-            .iter()
-            .filter_map(|row| row.validation_state.get_highest_severity_error());
-
-        std::iter::once(form_error)
-            .flatten()
-            .chain(row_errors)
-            .max_by_key(|error| error.secret_level.priority())
+        self.form_validation_state.get_first_error().or_else(|| {
+            self.variable_rows
+                .iter()
+                .find_map(|row| row.validation_state.get_first_error())
+        })
     }
 
     pub(super) fn is_online(&self, app: &AppContext) -> bool {

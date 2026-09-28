@@ -20,7 +20,6 @@ use crate::server::server_api::ServerApiProvider;
 use crate::settings::AISettings;
 use crate::terminal::input::models::query_model_picker_choices;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 // -- DisableReason::should_clear_preference tests --
 
@@ -476,7 +475,6 @@ fn deserialized_available_llms_with_missing_default_does_not_panic() {
 fn with_model_picker_query_test_context(f: impl FnOnce(&LLMPreferences, &AppContext) + 'static) {
     App::test((), |app| async move {
         app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(UserWorkspaces::default_mock);
         app.read(|app_ctx| {
             let agent_mode = AvailableLLMs::new(
                 "auto".into(),
@@ -511,7 +509,6 @@ fn reconcile_preserves_custom_models_saved_on_execution_profile() {
         app.add_singleton_model(|_| AuthStateProvider::new_for_test());
         app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
-        app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -583,7 +580,6 @@ fn reconcile_preserves_custom_endpoint_models_not_configured_locally() {
         app.add_singleton_model(|_| AuthStateProvider::new_for_test());
         app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
-        app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -680,7 +676,6 @@ fn reconcile_preserves_custom_router_models_not_configured_locally() {
         app.add_singleton_model(|_| AuthStateProvider::new_for_test());
         app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
-        app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -777,7 +772,7 @@ fn shared_model_picker_query_orders_filters_and_marks_disabled_choices() {
     with_model_picker_query_test_context(|preferences, app| {
         let all = query_model_picker_choices(
             preferences,
-            preferences.get_base_llm_choices_for_agent_mode(app),
+            preferences.get_base_llm_choices_for_agent_mode(),
             "",
             app,
         );
@@ -793,7 +788,7 @@ fn shared_model_picker_query_orders_filters_and_marks_disabled_choices() {
 
         let filtered = query_model_picker_choices(
             preferences,
-            preferences.get_base_llm_choices_for_agent_mode(app),
+            preferences.get_base_llm_choices_for_agent_mode(),
             "gpt 5",
             app,
         );
@@ -812,7 +807,6 @@ fn updating_active_profile_base_model_persists_and_updates_resolution() {
         app.add_singleton_model(|_| AuthStateProvider::new_for_test());
         app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
-        app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -881,7 +875,6 @@ fn selecting_a_custom_profile_default_clears_the_session_override() {
         app.add_singleton_model(|_| AuthStateProvider::new_for_test());
         app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
-        app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -937,7 +930,6 @@ fn explicit_child_model_pin_preserves_gui_behavior_and_only_emits_for_effective_
         app.add_singleton_model(|_| AuthStateProvider::new_for_test());
         app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| NetworkStatus::new());
-        app.add_singleton_model(UserWorkspaces::default_mock);
         app.add_singleton_model(CloudModel::mock);
         app.add_singleton_model(|_| UpdateManager::mock());
         app.add_singleton_model(|_| TemplatableMCPServerManager::default());

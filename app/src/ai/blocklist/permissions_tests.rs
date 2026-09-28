@@ -25,7 +25,6 @@ use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::settings::{AISettings, AgentModeCommandExecutionPredicate, PrivacySettings};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::test_util::settings::initialize_settings_for_tests_with_mode;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{
     AgentNotificationsModel, GlobalResourceHandles, GlobalResourceHandlesProvider, LaunchMode,
 };
@@ -74,7 +73,6 @@ fn initialize_permissions_test_with_mode(
         AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
     });
     app.add_singleton_model(PrivacySettings::mock);
-    app.add_singleton_model(UserWorkspaces::default_mock);
 
     let conversation_id = history.update(app, |history_model, ctx| {
         history_model.start_new_conversation(terminal_view_id, false, false, false, ctx)
