@@ -15284,7 +15284,7 @@ impl TerminalView {
                 AIAgentCitation::WebPage { url } => {
                     ctx.open_url(url);
                 }
-                // Agent memories live in Oz, which this build has no access to.
+                // Agent memories were a remote store this build has no access to.
                 AIAgentCitation::AgentMemory { .. } => {}
             },
             AIBlockEvent::OpenAIFactCollection { sync_id } => {

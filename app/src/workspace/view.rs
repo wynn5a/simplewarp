@@ -6345,31 +6345,31 @@ impl Workspace {
         }
     }
 
-    /// Install the Oz CLI by creating a symlink in /usr/local/bin
+    /// Install the SimpleWarp CLI by creating a symlink in /usr/local/bin
     #[cfg(target_os = "macos")]
-    fn install_oz(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.spawn(async { cli_install::install_oz() }, |view, result, ctx| {
+    fn install_cli(&mut self, ctx: &mut ViewContext<Self>) {
+        ctx.spawn(async { cli_install::install_cli() }, |view, result, ctx| {
             let command_name = ChannelState::cli_command_name();
-            let message = format!("Installed the Oz CLI globally. You can now run '{command_name}' from any terminal outside of Warp.");
+            let message = format!("Installed the SimpleWarp CLI globally. You can now run '{command_name}' from any terminal outside the app.");
             let toast = DismissibleToast::success(message);
-            view.handle_cli_command_result(result, toast, "Failed to install Oz command", ctx);
+            view.handle_cli_command_result(result, toast, "Failed to install SimpleWarp command", ctx);
         });
     }
 
-    /// Uninstall the Oz CLI by removing the symlink from /usr/local/bin
+    /// Uninstall the SimpleWarp CLI by removing the symlink from /usr/local/bin
     #[cfg(target_os = "macos")]
-    fn uninstall_oz(&mut self, ctx: &mut ViewContext<Self>) {
+    fn uninstall_cli(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.spawn(
-            async { cli_install::uninstall_oz() },
+            async { cli_install::uninstall_cli() },
             |view, result, ctx| {
                 let toast = DismissibleToast::success(
-                    "Removed the global Oz CLI installation — it still works inside Warp."
+                    "Removed the global SimpleWarp CLI installation — it still works inside the app."
                         .to_string(),
                 );
                 view.handle_cli_command_result(
                     result,
                     toast,
-                    "Failed to uninstall Oz command",
+                    "Failed to uninstall SimpleWarp command",
                     ctx,
                 );
             },
@@ -9868,7 +9868,7 @@ impl Workspace {
         ctx.spawn(future, move |workspace, source_conversation, ctx| {
             let Some(source_conversation) = source_conversation else {
                 report_error!(
-                    "Failed to load Oz conversation for forking.",
+                    "Failed to load the agent conversation for forking.",
                     extra: { "conversation_id" => %conversation_id }
                 );
                 WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
@@ -17092,9 +17092,9 @@ impl TypedActionView for Workspace {
                 });
             }
             #[cfg(target_os = "macos")]
-            InstallOz => self.install_oz(ctx),
+            InstallCli => self.install_cli(ctx),
             #[cfg(target_os = "macos")]
-            UninstallOz => self.uninstall_oz(ctx),
+            UninstallCli => self.uninstall_cli(ctx),
             UndoRevertInCodeReviewPane { window_id, view_id } => {
                 self.undo_revert_in_code_review_pane(*window_id, *view_id, ctx)
             }
@@ -17519,7 +17519,7 @@ impl TypedActionView for Workspace {
             }
             RunAISuggestedCommand(code) => {
                 let command = code.trim().to_string();
-                let workflow = Workflow::new("Command from Oz", command);
+                let workflow = Workflow::new("Command from agent", command);
                 self.run_workflow_in_active_input(
                     &WorkflowType::AIGenerated {
                         workflow,

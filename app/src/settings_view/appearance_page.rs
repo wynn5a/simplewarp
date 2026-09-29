@@ -4721,7 +4721,7 @@ impl SettingsWidget for UseLatestUserPromptAsConversationTitleInTabNamesWidget {
                 })
                 .finish(),
             Some(
-                "Show the latest user prompt instead of the generated conversation title for Oz and third-party agent sessions in vertical tabs."
+                "Show the latest user prompt instead of the generated conversation title for agent sessions in vertical tabs."
                     .to_string(),
             ),
         )

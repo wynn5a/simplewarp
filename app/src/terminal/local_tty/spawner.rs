@@ -164,10 +164,9 @@ impl PtySpawner {
                 // immediately rather than falling back.
                 if is_e2big(&err) {
                     // err already contains the original message. We add some context on how to fix.
-                    return Err(err.context(
-                        "This can happen when env vars in the image or Oz secrets are \
-                         too long.",
-                    ));
+                    return Err(
+                        err.context("This can happen when env vars in the image are too long.")
+                    );
                 }
                 report_error!(err.context(
                     "Failed to spawn pty via terminal server; falling back to spawning locally...",

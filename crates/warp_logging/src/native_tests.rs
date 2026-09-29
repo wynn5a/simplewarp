@@ -308,7 +308,7 @@ fn resolved_active_paths_use_frontend_directory_and_channel_name() {
     );
     assert_eq!(
         cli.log_file_path(),
-        base.join("oz").join("warp_preview.log")
+        base.join("simplewarp").join("warp_preview.log")
     );
 }
 

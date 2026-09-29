@@ -65,14 +65,14 @@ pub struct GlobalOptions {
     pub output_format: OutputFormat,
 }
 
-/// Normal argument parser for the shared Warp executable across all channels.
+/// Normal argument parser for the shared executable across all channels.
 ///
-/// Oz commands are subcommands of this parser, so invoking an `oz` symlink does
-/// not require a mode flag.
+/// The agent commands are subcommands of this parser, so invoking a `simplewarp`
+/// symlink does not require a mode flag.
 #[derive(Debug, Default, Parser, Clone)]
 #[command(
-    name = "oz",
-    display_name = "Oz",
+    name = "simplewarp",
+    display_name = "SimpleWarp",
     about = r#"Run coding agents from the command line
 
 The agent runs locally in a terminal session, against the AI provider you configure.

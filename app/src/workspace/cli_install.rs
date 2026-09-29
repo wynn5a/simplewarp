@@ -7,8 +7,8 @@ use command::blocking::Command;
 use warp_core::channel::ChannelState;
 use warp_util::path::ShellFamily;
 
-/// Compute the target path where the Oz CLI symlink should be installed, based on channel
-fn oz_install_target_path() -> PathBuf {
+/// Compute the target path where the CLI symlink should be installed, based on channel
+fn cli_install_target_path() -> PathBuf {
     PathBuf::from("/usr/local/bin").join(ChannelState::cli_command_name())
 }
 
@@ -153,19 +153,19 @@ fn uninstall_symlink(target: &Path, command_name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Install the Oz CLI by symlinking the shared Warp executable into /usr/local/bin.
+/// Install the SimpleWarp CLI by symlinking this executable into /usr/local/bin.
 ///
-/// The normal argument parser dispatches Oz subcommands directly. It also uses
-/// the `oz`-prefixed invocation name to print CLI help rather than launch the
-/// GUI when no subcommand is provided.
-pub fn install_oz() -> Result<()> {
-    let oz_path = oz_install_target_path();
+/// The normal argument parser dispatches agent subcommands directly. The
+/// invocation name also prints CLI help rather than launch the GUI when no
+/// subcommand is provided.
+pub fn install_cli() -> Result<()> {
+    let cli_path = cli_install_target_path();
     let current_binary =
         std::env::current_exe().context("Failed to get current executable path")?;
-    install_symlink(&current_binary, &oz_path, "Oz CLI")
+    install_symlink(&current_binary, &cli_path, "SimpleWarp CLI")
 }
 
-/// Uninstall the Oz CLI by removing the symlink from /usr/local/bin
-pub fn uninstall_oz() -> Result<()> {
-    uninstall_symlink(&oz_install_target_path(), "Oz command")
+/// Uninstall the SimpleWarp CLI by removing the symlink from /usr/local/bin
+pub fn uninstall_cli() -> Result<()> {
+    uninstall_symlink(&cli_install_target_path(), "SimpleWarp command")
 }
