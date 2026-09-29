@@ -36,7 +36,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | DONE through 4hz: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
+| 4 — Delete the dead cloud code and the TUI | DONE through 4ia: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
@@ -96,16 +96,10 @@ Product decisions, not deletions: the Oz branding of the local CLI install and ~
 `agent run --harness claude` no longer needs the Oz platform plugin (4hw). The onboarding tutorial is
 deleted (4hx).
 
-Outstanding product decisions:
-- **Orchestration.** `RunAgents` / `StartAgent` (and the child-harness launch) are live code that the
-  local adapter never offers (`local_inference::tools::SUPPORTED`). Offer `run_agents` (children can't
-  be messaged; `SendMessageToAgent` always errors), or delete the vertical.
-- **Provider 429.** It renders as the generic error with the provider's body, and
-  `RenderableAIError::QuotaLimit` is never produced. Map a 429 to `QuotaLimit`, or leave it.
-- **Enable-candidates** (see Status): EditableMarkdownMermaid, ImeMarkedText, ITermImages,
-  LocalDockerSandbox, computer use.
-- **Claude notification plugin.** `agent run --harness claude` and local Claude children install
-  `warp@claude-code-warp` from GitHub. Bundle it, or keep the one-time fetch.
+Outstanding product decisions (2026-09-29 user rulings): orchestration vertical **deleted**
+(4ia); provider 429 → `QuotaLimit` mapping **to do** (4ib); Oz branding → SimpleWarp **to do**
+(4ic); enable-candidates **all to be enabled** (4id). The Claude notification plugin keeps its
+current one-time GitHub fetch (user decision: no change).
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
 `CloudAgent` / `ScheduledAmbientAgent` shapes, `crates/isolation_platform` (local detection) and
@@ -1273,6 +1267,32 @@ Queue, in order:
    dead-code lint never flagged it). The kept block-onboarding prompt block lives elsewhere and
    does not use either file. Tests unchanged: 4,092 default / 4,093 simplewarp, 0 failed; clippy
    trio, format, both cargo checks clean.
+
+38. ~~Multi-agent orchestration vertical (user decision: delete)~~ — **4ia done (2026-09-29,
+   commit 1a248d999).** The local adapter never offers `run_agents`, so the whole child-agent
+   vertical was unreachable. −18.9k lines in 123 files: `RunAgentsExecutor` /
+   `StartAgentExecutor` + tests, local Oz/harness child launch (`child_agent_launch.rs`,
+   `pane_group/child_agent/` hidden panes + restoration, `local_harness_launch.rs`,
+   `local_harness_setup.rs`), all orchestration UI (pill bar + model, run_agents confirmation
+   card, orchestration_controls, topology, conversation links, avatar module, block renderer,
+   `document/orchestration_config_block.rs`, usage per-child rollup), the `/orchestrate` slash
+   command (+ `SlashCommandKind::Orchestrate`; `UserQueryMode::Orchestrate` stays for wire
+   compat), the `CommonCommandGates` machinery that only gated /orchestrate,
+   `orchestration_enabled` request plumbing (`supports_orchestration_v2` now literal false;
+   RunAgents/WaitForEvents no longer advertised), RunAgents permission settings UI + dead model
+   methods, and the `LocalClaudeCodexChildHarnesses` / `MultiLevelOrchestration` flags
+   (RUNTIME_FEATURE_FLAGS now empty). 181 tests deleted. **Kept:** crates/ai action/result
+   serde shapes + convert arms (old transcripts load), `RunAgentsPermission` enum + TOML field,
+   `agent run` CLI driver + shared harness/plugin-manager code (the notification plugin still
+   installs for `agent run --harness claude`), `AmbientAgentTaskId`, `Harness::Oz`,
+   `is_child_agent_conversation` + conversation_loader child semantics for old DBs,
+   context-window usage view. **Residue (later rounds):** crates/ai orchestration variants are
+   wire-only; `OrchestrationMessageDisplayMode` setting + block.rs collapsible helpers are
+   restore-path only. Tests 3,911 default / 3,912 simplewarp, 0 failed; warp_cli 55; clippy
+   trio, format, both checks clean. The dispatch subagent died mid-round on a provider quota
+   error; the resume (parent session) verified the uncommitted partial tree as untrusted
+   input, completed the remaining scope, and repaired two botched edits (claude_tests.rs
+   dangling fragment; agent_icon_tests match arm referencing a deleted variant).
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
