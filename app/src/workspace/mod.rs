@@ -101,16 +101,6 @@ pub fn init(app: &mut AppContext) {
         id!("Workspace"),
     )]);
     app.register_fixed_bindings([
-        FixedBinding::new(
-            "escape",
-            WorkspaceAction::DismissSessionConfigTabConfigChip,
-            id!("Workspace") & id!(flags::SESSION_CONFIG_TAB_CONFIG_CHIP_OPEN),
-        ),
-        FixedBinding::new(
-            "enter",
-            WorkspaceAction::DismissSessionConfigTabConfigChip,
-            id!("Workspace") & id!(flags::SESSION_CONFIG_TAB_CONFIG_CHIP_OPEN),
-        ),
         // Feature intro never steals focus, so Escape must be handled at the workspace
         // level while the popover is open rather than on FeatureIntroModal itself.
         FixedBinding::new(

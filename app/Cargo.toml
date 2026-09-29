@@ -221,7 +221,6 @@ languages.workspace = true
 warp_terminal.workspace = true
 wgpu = { workspace = true, optional = true }
 natural_language_detection.workspace = true
-onboarding.workspace = true
 aho-corasick = "1.1.3"
 strum.workspace = true
 strum_macros.workspace = true
@@ -385,7 +384,6 @@ agent_mode = []
 agent_mode_computer_use = []
 background_computer_use = []
 agent_mode_debug = []
-agent_onboarding = []
 ask_user_question = []
 async_find = []
 clear_autosuggestion_on_escape = []
@@ -469,7 +467,6 @@ default = [
     "force_classic_completions",
     "agent_tips",
     "pluggable_notifications",
-    "agent_onboarding",
     "global_search",
     "list_skills",
     "ask_user_question",
@@ -890,7 +887,6 @@ category = "public.app-category.developer-tools"
 copyright = "© 2025, Denver Technologies, Inc"
 identifier = "dev.warp.WarpOss"
 name = "WarpOss"
-resources = ["assets/onboarding"]
 icon = ["channels/oss/icon/no-padding/512x512.png", "channels/oss/icon/no-padding/icon.ico"]
 short_description = "The open-source, cloud-backed terminal for individuals and teams."
 

@@ -36,7 +36,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | DONE through 4hw: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
+| 4 — Delete the dead cloud code and the TUI | DONE through 4hx: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
@@ -94,14 +94,13 @@ Product decisions, not deletions: the Oz branding of the local CLI install and ~
 "Oz" strings (rebrand); the Help menu / `JoinSlack` / feedback / ~69 `docs.warp.dev` links (repoint
 or drop; the preview-program Slack, the typeform feedback link and the cloud-agents tip are the
 ones actually wrong for this fork). The local Claude/Codex child-harness `oz run message` bug is fixed (4hv);
-`agent run --harness claude` no longer needs the Oz platform plugin (4hw).
+`agent run --harness claude` no longer needs the Oz platform plugin (4hw). The onboarding tutorial is
+deleted (4hx).
 
 Outstanding product decisions:
 - **Orchestration.** `RunAgents` / `StartAgent` (and the child-harness launch) are live code that the
   local adapter never offers (`local_inference::tools::SUPPORTED`). Offer `run_agents` (children can't
   be messaged; `SendMessageToAgent` always errors), or delete the vertical.
-- **Onboarding tutorial.** `crates/onboarding`'s local tutorial has no entry point in simplewarp.
-  Wire one up or delete it.
 - **Provider 429.** It renders as the generic error with the provider's body, and
   `RenderableAIError::QuotaLimit` is never produced. Map a 429 to `QuotaLimit`, or leave it.
 - **Enable-candidates** (see Status): EditableMarkdownMermaid, ImeMarkedText, ITermImages,
@@ -1195,10 +1194,43 @@ Queue, in order:
    −0.5k lines in 15 source files. Tests 4,092 default / 4,093 simplewarp (−7), warp_cli 55, 0
    failed. Not run: a real `claude`/`codex` CLI.
 
+35. ~~Onboarding tutorial~~ — **4hx done (2026-09-29, user decision: delete).** −3.0k lines of Rust
+   (`crates/onboarding` 1.8k, −1.2k in 21 app/core sources), 56 images and 6 SVGs. Nothing dispatched
+   `StartAgentOnboardingTutorial` or set `pending_onboarding_intention`; the only way in was the
+   debug "[Debug] Onboarding Callout" bindings. **Removed:** `crates/onboarding` (callout view/model,
+   components, examples) and its workspace/app deps; `workspace/view/onboarding.rs`
+   (`OnboardingTutorial`, `start_agent_onboarding_tutorial`, `dispatch_tutorial_*`),
+   `WorkspaceAction::StartAgentOnboardingTutorial`, `pending_onboarding_intention`; the session-config
+   "Access your tab configs here." chip (it was only armed by a pending onboarding intention:
+   `DismissSessionConfigTabConfigChip` + its escape/enter bindings, the
+   `SESSION_CONFIG_TAB_CONFIG_CHIP_OPEN` context flag, the chip mouse state, its tutorial queue);
+   `TerminalAction::OnboardingFlow`, `OnboardingVersion` / `AgentOnboardingVersion` /
+   `OnboardingIntention`, the five debug bindings, the terminal view's callout field / rendering /
+   focus / event handling and keybinding builder; the terminal `Event::OnboardingInitCompleted` /
+   `OnboardingTutorialCompleted` / `PendingCommandCompleted` (only the tutorial subscribed; the
+   pending-command queue and deferred agent-view entry stay), `pane_group::Event::OnboardingTutorialCompleted`,
+   `clear_enter_agent_view_after_pending_commands`, `has_pending_command_or_awaiting_completion`;
+   `AgentViewEntryOrigin::{OnboardingCallout, Onboarding}` and
+   `InputTypeAutoDetectionSource::OnboardingAgentPrompt` (in-memory only); the `AgentOnboarding` flag +
+   `agent_onboarding` cargo feature; `AppExecutionMode::can_show_onboarding`; the callout-bubble
+   renderer and its six `CalloutTriangle*` icons/SVGs; `onboarding_theme_picker_themes` (no caller);
+   56 unreferenced `async/png/onboarding` images from the old onboarding wizard and deleted launch
+   modals (41 MB embedded; `custom_model_router_intro_banner.png` stays, the feature-intro modal uses
+   it); the warp-oss bundle's `resources = ["assets/onboarding"]` (the directory does not exist).
+   **Kept (live, same word):** the block-onboarding prompt block after "Import External Settings"
+   (`ImportSettings`, `OnboardingPromptBlock`, `SettingsImportView`), the `BlockOnboarding`
+   experiment layer, `AgentModeOnboardingBlockShown` / same-line-prompt onboarding-block settings,
+   `RichContentMetadata::AIOnboardingBlock`, init-project's `ONBOARDING_TEXT`, Claude Code's
+   `has_completed_onboarding` config write, `CloudObjectEventEntrypoint::Onboarding` (serde), the
+   `AddGetStartedTab` debug binding, `set_enter_agent_view_after_pending_commands`. No setting key
+   was removed. Tests unchanged: 4,092 default / 4,093 simplewarp, 0 failed (the tutorial had no
+   tests). **Follow-up:** `session_config_rendering`'s accent-background (`bg: Some`) paths were for
+   the old onboarding wizard; every caller now passes `None`.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,
-`Icon::Warp`, the app_state WarpDrive tombstone), `crates/onboarding`'s live local tutorial, the
+`Icon::Warp`, the app_state WarpDrive tombstone), the
 enable-candidate flags above, and the `AgentHarness` flag (live by design).
 
 ## Risks

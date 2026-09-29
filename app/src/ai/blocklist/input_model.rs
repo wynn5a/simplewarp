@@ -51,8 +51,6 @@ pub enum InputTypeAutoDetectionSource {
     ConversationContextRender,
     /// "Continue conversation" button forced AI mode.
     ContinueConversation,
-    /// Onboarding tutorial agent prompt forced AI mode.
-    OnboardingAgentPrompt,
     /// Locking the input for a CLI subagent's terminal-control handoff.
     /// Distinguishes an agent-installed AI lock from a user-forced one so the
     /// post-agent reset only restores autodetection when the lock was installed
