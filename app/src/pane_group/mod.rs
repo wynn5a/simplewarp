@@ -36,7 +36,6 @@ use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::ai_document_view::AIDocumentView;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
-use crate::ai::blocklist::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
 use crate::ai::blocklist::suggested_rule_modal::SuggestedRuleAndId;
 use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig, SerializedBlockListItem};
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDocumentVersion};
@@ -508,9 +507,6 @@ pub enum Event {
     /// Clears the hovered tab index so it no longer appears as highlighted drop target
     ClearHoveredTabIndex,
     OpenWarpDriveObjectInPane(ObjectUid),
-    OpenSuggestedAgentModeWorkflowModal {
-        workflow_and_id: SuggestedAgentModeWorkflowAndId,
-    },
     OpenSuggestedRuleModal {
         rule_and_id: SuggestedRuleAndId,
     },

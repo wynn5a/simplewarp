@@ -30,8 +30,7 @@ pub fn classify_driver_error(error: &AgentDriverError) -> AgentTaskState {
         AgentDriverError::ConversationCancelled { .. } => AgentTaskState::Cancelled,
         AgentDriverError::ConversationBlocked { .. } => AgentTaskState::Blocked,
         // --- Setup errors ---
-        AgentDriverError::SkillResolutionFailed(_)
-        | AgentDriverError::ConfigBuildFailed(_)
+        AgentDriverError::ConfigBuildFailed(_)
         | AgentDriverError::HarnessCommandFailed { .. }
         | AgentDriverError::HarnessSetupFailed { .. }
         | AgentDriverError::HarnessConfigSetupFailed { .. }

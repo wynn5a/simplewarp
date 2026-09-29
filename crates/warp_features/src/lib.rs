@@ -45,12 +45,6 @@ pub enum FeatureFlag {
     /// Warp Agent Mode.
     AgentMode,
 
-    /// Whether the user is part of the Warp Alpha Program (AI Trusted Testers).
-    /// This is enabled automatically for local and dev builds.
-    /// Collect conversation and input autodetection data for agent mode.
-    /// Also collects block data for Next Command, if enabled.
-    AgentModeAnalytics,
-
     /// A setting to enable a traditional completions experience.
     ClassicCompletions,
 
@@ -147,9 +141,6 @@ pub enum FeatureFlag {
 
     /// Enables suggested rules.
     SuggestedRules,
-
-    /// Enables suggested workflows for Agent Mode.
-    SuggestedAgentModeWorkflows,
 
     /// Forces users to login.
     ForceLogin,
@@ -396,10 +387,6 @@ pub enum FeatureFlag {
     // Enables a side panel conversation list view for AgentView mode.
     AgentViewConversationListView,
 
-    /// When enabled, the server will use message replacement + retroactive subtasks for
-    /// summarization.
-    SummarizationViaMessageReplacement,
-
     /// Enables pluggable notifications via OSC 9 and OSC 777 escape sequences.
     /// External programs can trigger system and in-app notifications.
     PluggableNotifications,
@@ -414,12 +401,6 @@ pub enum FeatureFlag {
 
     /// When enabled, we expose LSP as a tool to the agent
     LSPAsATool,
-
-    /// Enables platform skills support (--skill flag) for agent runs.
-    ///
-    /// Skills are loaded from `.agents/skills/`, `.warp/skills/`, `.claude/skills/`, and `.codex/skills/`
-    /// directories to provide base prompts for agent runs.
-    OzPlatformSkills,
 
     /// Enables loading and returning bundled skills in the SkillManager.
     BundledSkills,
@@ -508,9 +489,6 @@ pub enum FeatureFlag {
     /// instead of individual pane rows.
     VerticalTabsSummaryMode,
 
-    /// Enables configurable expanded context windows for eligible GPT models.
-    GPTConfigurableContextWindow,
-
     /// Gates the Grouped Tabs feature.
     GroupedTabs,
 
@@ -536,11 +514,6 @@ pub enum FeatureFlag {
     /// Shows a warning in the agent view when the active conversation's
     /// provider-side prompt cache has expired.
     PromptCacheExpiryWarning,
-
-    /// Enables runner support for agent runs: the `runner_id` key in agent
-    /// config files (rejected when the flag is off), which overrides an agent's
-    /// compute (docker image, instance shape, setup commands) by runner ID.
-    CloudRunners,
 
     /// Renders MCP tool-call request and response JSON as an interactive
     /// collapsible tree with typed colors and per-row Copy JSON, instead of
@@ -582,7 +555,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::RemoveAutosuggestionDuringTabCompletions,
     FeatureFlag::ResizeFix,
     FeatureFlag::AgentModeWorkflows,
-    FeatureFlag::AgentModeAnalytics,
     FeatureFlag::SshDragAndDrop,
     FeatureFlag::MultiWorkspace,
     FeatureFlag::ImeMarkedText,
@@ -590,7 +562,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::RunGeneratorsWithCmdExe,
     FeatureFlag::Projects,
     FeatureFlag::FileGlobV2Warnings,
-    FeatureFlag::SummarizationViaMessageReplacement,
     FeatureFlag::LocalComputerUse,
     // These are enabled via 100% experiment on prod warp-server,
     // but we need to enable here for dogfood builds.
@@ -600,7 +571,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::CodeReviewScrollPreservation,
     FeatureFlag::RememberFastForwardState,
     FeatureFlag::LocalDockerSandbox,
-    FeatureFlag::GPTConfigurableContextWindow,
     FeatureFlag::RestorePromptOnInlineModelSelectorSearch,
     FeatureFlag::TerminalLifecycleRecovery,
     FeatureFlag::PromptCacheExpiryWarning,

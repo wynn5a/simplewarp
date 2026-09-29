@@ -124,8 +124,6 @@ fn model_from_markdown(
 
 fn initialize_deps(app: &mut App) {
     app.add_singleton_model(|_| Appearance::mock());
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
     initialize_settings_for_tests(app);
 }
 

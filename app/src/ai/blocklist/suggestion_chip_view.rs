@@ -7,9 +7,8 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use super::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
 use super::suggested_rule_modal::SuggestedRuleAndId;
-use crate::ai::agent::{SuggestedAgentModeWorkflow, SuggestedLoggingId, SuggestedRule};
+use crate::ai::agent::{SuggestedLoggingId, SuggestedRule};
 use crate::ai::facts::{AIFact, AIMemory, CloudAIFactModel};
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
@@ -20,29 +19,26 @@ use crate::view_components::action_button::{ActionButton, ActionButtonTheme, Sec
 
 const MAX_CHIP_WIDTH: f32 = 316.;
 
-const MAX_PROMPT_TOOLTIP_LENGTH: usize = 200;
-
-/// A chip view component for displaying suggested rules and agent mode workflows.
+/// A chip view component for displaying suggested rules.
 ///
 /// This component is responsible for:
-/// - Rendering a clickable chip that represents a suggested rule or agent mode workflow
-/// - Tracking the state of the rule/workflow (saved or not)
+/// - Rendering a clickable chip that represents a suggested rule
+/// - Tracking the state of the rule (saved or not)
 /// - Handling clicks to show the appropriate modal dialog via workspace-level events
 /// - Syncing with the cloud model for persistence
 ///
-/// When clicked, the chip emits events to display either the `SuggestedRuleModal` or
-/// `SuggestedAgentModeWorkflowModal` at the workspace level, which position themselves
-/// relative to the chip position.
+/// When clicked, the chip emits an event to display the `SuggestedRuleModal` at the workspace
+/// level, which positions itself relative to the chip position.
 ///
 /// # UI Behavior
 /// - A chip with a saved rule shows a check icon and has a different theme
-/// - The chip position is saved for the modal dialogs to position relative to it
+/// - The chip position is saved for the modal dialog to position relative to it
 /// - Chips have limited width and tooltips for overflow content
 ///
 /// # Events
 /// The component emits events to:
-/// - Show rule or workflow modals
-/// - Open existing rules or workflows directly
+/// - Show the rule modal
+/// - Open existing rules directly
 /// A theme for the dismiss button in the suggestion footer.
 pub struct SuggestionDismissButtonTheme;
 
@@ -70,18 +66,8 @@ impl ActionButtonTheme for SuggestionDismissButtonTheme {
 
 #[derive(Debug, Clone)]
 pub enum SuggestedChipViewEvent {
-    ShowSuggestedRuleDialog {
-        rule_and_id: SuggestedRuleAndId,
-    },
-    OpenAIFactCollection {
-        sync_id: Option<SyncId>,
-    },
-    OpenWorkflow {
-        sync_id: SyncId,
-    },
-    ShowSuggestedAgentModeWorkflowModal {
-        workflow_and_id: SuggestedAgentModeWorkflowAndId,
-    },
+    ShowSuggestedRuleDialog { rule_and_id: SuggestedRuleAndId },
+    OpenAIFactCollection { sync_id: Option<SyncId> },
 }
 
 #[derive(Debug, Clone)]
@@ -91,19 +77,13 @@ pub enum SuggestedViewAction {
 
 #[derive(Debug, Clone)]
 enum Suggestion {
-    Rule {
-        rule: SuggestedRule,
-    },
-    AgentModeWorkflow {
-        workflow: SuggestedAgentModeWorkflow,
-    },
+    Rule { rule: SuggestedRule },
 }
 
 impl Suggestion {
     pub fn icon(&self) -> Icon {
         match self {
             Suggestion::Rule { .. } => Icon::BookOpen,
-            Suggestion::AgentModeWorkflow { .. } => Icon::Prompt,
         }
     }
 
@@ -112,40 +92,23 @@ impl Suggestion {
             Suggestion::Rule { rule, .. } => {
                 format!("Add rule: {}", rule.content.clone())
             }
-            Suggestion::AgentModeWorkflow { workflow, .. } => {
-                let prompt = if workflow.prompt.chars().count() > MAX_PROMPT_TOOLTIP_LENGTH {
-                    let truncated: String = workflow
-                        .prompt
-                        .chars()
-                        .take(MAX_PROMPT_TOOLTIP_LENGTH - 3)
-                        .collect();
-                    format!("{truncated}...")
-                } else {
-                    workflow.prompt.clone()
-                };
-                format!("Suggested prompt:\n{prompt}")
-            }
         }
     }
 
     fn position_id(&self) -> String {
         match self {
             Suggestion::Rule { rule, .. } => format!("rule_position_{}", rule.logging_id),
-            Suggestion::AgentModeWorkflow { workflow, .. } => {
-                format!("agent_mode_workflow_position_{}", workflow.logging_id)
-            }
         }
     }
 
     fn chip_label(&self) -> String {
         match self {
             Suggestion::Rule { rule, .. } => rule.content.clone(),
-            Suggestion::AgentModeWorkflow { workflow, .. } => workflow.name.clone(),
         }
     }
 }
 
-/// Data required to render a single suggested rule or agent mode workflow.
+/// Data required to render a single suggested rule.
 #[derive(Clone)]
 pub struct SuggestionChipView {
     suggestion: Suggestion,
@@ -177,36 +140,9 @@ impl SuggestionChipView {
         me
     }
 
-    pub fn new_agent_mode_workflow_chip(
-        workflow: SuggestedAgentModeWorkflow,
-        ctx: &mut ViewContext<Self>,
-    ) -> Self {
-        Self::listen_for_warp_drive_events(ctx);
-        let sync_id = SyncId::ClientId(ClientId::default());
-
-        let chip = ctx.add_typed_action_view(|_| {
-            ActionButton::new(workflow.name.clone(), SecondaryTheme)
-                .with_max_label_width(MAX_CHIP_WIDTH)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(SuggestedViewAction::ChipClicked);
-                })
-        });
-
-        let suggestion = Suggestion::AgentModeWorkflow { workflow };
-        let mut me = Self {
-            suggestion,
-            sync_id,
-            chip,
-            is_saved: false,
-        };
-        me.reset_suggestion(ctx);
-        me
-    }
-
     pub fn logging_id(&self) -> SuggestedLoggingId {
         match &self.suggestion {
             Suggestion::Rule { rule, .. } => rule.logging_id.clone(),
-            Suggestion::AgentModeWorkflow { workflow, .. } => workflow.logging_id.clone(),
         }
     }
 
@@ -235,7 +171,7 @@ impl SuggestionChipView {
                 type_and_id: CloudObjectTypeAndId::GenericStringObject { id, .. },
                 ..
             } => {
-                // If the rule or workflow has been deleted, then we should reset it such that
+                // If the rule has been deleted, then we should reset it such that
                 // the suggestion can be added again.
                 if self.sync_id == *id {
                     self.reset_suggestion(ctx);
@@ -245,7 +181,7 @@ impl SuggestionChipView {
         }
     }
 
-    /// Resets the rule or agent mode workflow to its initial state.
+    /// Resets the rule to its initial state.
     fn reset_suggestion(&mut self, ctx: &mut ViewContext<Self>) {
         self.sync_id = SyncId::ClientId(ClientId::default());
         self.is_saved = false;
@@ -281,9 +217,6 @@ impl SuggestionChipView {
                     });
                     ctx.notify();
                 }
-            }
-            Suggestion::AgentModeWorkflow { .. } => {
-                // Loading agent mode workflows is not yet supported as there is no editing flow.
             }
         }
     }
@@ -342,28 +275,6 @@ impl TypedActionView for SuggestionChipView {
                                 sync_id: self.sync_id,
                             },
                         });
-                        self.chip.update(ctx, |chip, ctx| {
-                            chip.set_active(true, ctx);
-                        });
-                    }
-                }
-                Suggestion::AgentModeWorkflow { workflow, .. } => {
-                    if CloudModel::as_ref(ctx)
-                        .get_workflow(&self.sync_id)
-                        .is_some()
-                    {
-                        ctx.emit(SuggestedChipViewEvent::OpenWorkflow {
-                            sync_id: self.sync_id,
-                        });
-                    } else {
-                        ctx.emit(
-                            SuggestedChipViewEvent::ShowSuggestedAgentModeWorkflowModal {
-                                workflow_and_id: SuggestedAgentModeWorkflowAndId {
-                                    workflow: workflow.clone(),
-                                    sync_id: self.sync_id,
-                                },
-                            },
-                        );
                         self.chip.update(ctx, |chip, ctx| {
                             chip.set_active(true, ctx);
                         });

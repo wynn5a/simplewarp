@@ -53,8 +53,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| ObjectActions::new(Vec::new()));
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
 }
 
 /// Container so that [`NotebookView`] can be registered as a typed action view.

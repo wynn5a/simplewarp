@@ -55,8 +55,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AIRules,
         #[cfg(feature = "shell_selector")]
         FeatureFlag::ShellSelector,
-        #[cfg(feature = "cloud_runners")]
-        FeatureFlag::CloudRunners,
         #[cfg(feature = "full_screen_zen_mode")]
         FeatureFlag::FullScreenZenMode,
         #[cfg(feature = "minimalist_ui")]
@@ -89,8 +87,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::DefaultAdeberryTheme,
         #[cfg(feature = "suggested_rules")]
         FeatureFlag::SuggestedRules,
-        #[cfg(feature = "suggested_agent_mode_workflows")]
-        FeatureFlag::SuggestedAgentModeWorkflows,
         #[cfg(feature = "command_correction_key")]
         FeatureFlag::CommandCorrectionKey,
         #[cfg(feature = "use_tantivy_search")]
@@ -255,8 +251,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::InlineHistoryMenu,
         #[cfg(feature = "inline_repo_menu")]
         FeatureFlag::InlineRepoMenu,
-        #[cfg(feature = "summarization_via_message_replacement")]
-        FeatureFlag::SummarizationViaMessageReplacement,
         #[cfg(feature = "pluggable_notifications")]
         FeatureFlag::PluggableNotifications,
         #[cfg(feature = "async_find")]
@@ -269,8 +263,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::LSPAsATool,
         #[cfg(feature = "inline_profile_selector")]
         FeatureFlag::InlineProfileSelector,
-        #[cfg(feature = "oz_platform_skills")]
-        FeatureFlag::OzPlatformSkills,
         #[cfg(feature = "bundled_skills")]
         FeatureFlag::BundledSkills,
         #[cfg(feature = "new_tab_styling")]
@@ -315,8 +307,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::WarpifyFooter,
         #[cfg(feature = "solo_user_byok")]
         FeatureFlag::SoloUserByok,
-        #[cfg(feature = "gpt_configurable_context_window")]
-        FeatureFlag::GPTConfigurableContextWindow,
         #[cfg(feature = "git_operations_in_code_review")]
         FeatureFlag::GitOperationsInCodeReview,
         #[cfg(feature = "trim_trailing_blank_lines")]

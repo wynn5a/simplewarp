@@ -40,8 +40,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(FileSearchModel::new);
     app.add_singleton_model(NotebookKeybindings::new);
     app.add_singleton_model(TerminalKeybindings::new);
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
 }
 
 /// Builds a list of the standard notebook context-menu items by appending the set of split-pane

@@ -733,11 +733,6 @@ fn handle_terminal_view_event(
             Event::OpenWarpDriveObjectInPane(uid) => {
                 ctx.emit(pane_group::Event::OpenWarpDriveObjectInPane(uid.clone()));
             }
-            Event::OpenSuggestedAgentModeWorkflowModal { workflow_and_id } => {
-                ctx.emit(pane_group::Event::OpenSuggestedAgentModeWorkflowModal {
-                    workflow_and_id: workflow_and_id.clone(),
-                });
-            }
             Event::OpenSuggestedRuleDialog { rule_and_id } => {
                 ctx.emit(pane_group::Event::OpenSuggestedRuleModal {
                     rule_and_id: rule_and_id.clone(),

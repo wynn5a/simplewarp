@@ -44,7 +44,6 @@ impl SetupClientEventReporter {
 
 #[derive(Clone, Copy)]
 pub(crate) enum SetupStep {
-    SkillRepoClone,
     TerminalBootstrap,
     McpServerStartup,
     AgentProfileConfiguration,
@@ -66,9 +65,6 @@ macro_rules! span_and_name {
 impl SetupStep {
     fn to_event_name_and_span(self) -> (&'static str, tracing::Span) {
         match self {
-            Self::SkillRepoClone => {
-                span_and_name!("setup_skill_repo_clone")
-            }
             Self::TerminalBootstrap => {
                 span_and_name!("setup_terminal_bootstrap")
             }

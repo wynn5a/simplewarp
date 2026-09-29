@@ -55,9 +55,11 @@ pub enum AgentToolbarItemKind {
     // CLI agent only
     RichInput,
 
+    // Never rendered; the variant stays so persisted toolbar layouts that list it still parse.
+    VoiceInput,
+
     // Both
     FileExplorer,
-    VoiceInput,
     // Renamed from ImageAttach; alias preserves existing user toolbar configs.
     #[serde(alias = "ImageAttach")]
     FileAttach,
@@ -75,7 +77,7 @@ pub enum AgentToolbarItemKind {
 impl AgentToolbarItemKind {
     pub fn available_in(&self) -> ToolbarAvailability {
         match self {
-            Self::ContextChip(_) | Self::VoiceInput | Self::FileAttach | Self::FileExplorer => {
+            Self::ContextChip(_) | Self::FileAttach | Self::FileExplorer => {
                 ToolbarAvailability::Both
             }
             Self::ModelSelector
@@ -83,7 +85,9 @@ impl AgentToolbarItemKind {
             | Self::ContextWindowUsage
             | Self::FastForwardToggle
             | Self::HandoffToCloud => ToolbarAvailability::AgentViewOnly,
-            Self::RichInput | Self::Settings => ToolbarAvailability::CLIAgentOnly,
+            Self::RichInput | Self::VoiceInput | Self::Settings => {
+                ToolbarAvailability::CLIAgentOnly
+            }
         }
     }
 
@@ -92,11 +96,11 @@ impl AgentToolbarItemKind {
             Self::ContextChip(_) => "Context Chip",
             Self::ModelSelector => "Model Selector",
             Self::NLDToggle => "Autodetection",
-            Self::VoiceInput => "Voice Input",
             Self::FileAttach => "Attach File",
             Self::ContextWindowUsage => "Context Usage",
             Self::FileExplorer => "File Explorer",
             Self::RichInput => "Rich Input",
+            Self::VoiceInput => "Voice Input",
             Self::Settings => "Settings",
             Self::FastForwardToggle => "Fast Forward",
             Self::HandoffToCloud => "Hand off to cloud",
@@ -108,11 +112,11 @@ impl AgentToolbarItemKind {
             Self::ContextChip(kind) => kind.udi_icon(),
             Self::ModelSelector => Some(Icon::Agent),
             Self::NLDToggle => Some(Icon::NLD),
-            Self::VoiceInput => Some(Icon::Microphone),
             Self::FileAttach => Some(Icon::Plus),
             Self::ContextWindowUsage => Some(Icon::ContextRemaining100),
             Self::FileExplorer => Some(Icon::FileCopy),
             Self::RichInput => Some(Icon::TextInput),
+            Self::VoiceInput => None,
             Self::Settings => Some(Icon::Settings),
             Self::FastForwardToggle => Some(Icon::FastForward),
             // The bundled `upload-cloud-01.svg` (cloud-with-upward-arrow) is the
@@ -130,7 +134,7 @@ impl AgentToolbarItemKind {
             // was folded permanently off (round 4an) — it required a Warp
             // account/server, which this build never has. The variant stays
             // for persisted-toolbar-layout backwards compatibility.
-            Self::HandoffToCloud | Self::RichInput => false,
+            Self::HandoffToCloud | Self::RichInput | Self::VoiceInput => false,
             // Matches the gating on every other project explorer entry point, so the chip
             // cannot open a tool view the rest of the app hides. See
             // `Workspace::compute_left_panel_views` and the `SHOW_PROJECT_EXPLORER`
@@ -157,14 +161,12 @@ impl AgentToolbarItemKind {
 
     /// Default right-side items for the agent view footer.
     pub fn default_right() -> Vec<Self> {
-        let mut items = vec![
+        vec![
             Self::ContextChip(ContextChipKind::AgentPlanAndTodoList),
             Self::ContextWindowUsage,
             Self::ModelSelector,
-        ];
-        items.push(Self::VoiceInput);
-        items.push(Self::FileAttach);
-        items
+            Self::FileAttach,
+        ]
     }
 
     /// All items available for the agent view footer configurator.
@@ -176,7 +178,6 @@ impl AgentToolbarItemKind {
         items.extend([
             Self::ModelSelector,
             Self::NLDToggle,
-            Self::VoiceInput,
             Self::FileAttach,
             Self::ContextWindowUsage,
             // Opt-in only: deliberately absent from `default_left`/`default_right`.
@@ -190,13 +191,11 @@ impl AgentToolbarItemKind {
 
     /// Default left-side items for the CLI agent footer.
     pub fn cli_default_left() -> Vec<Self> {
-        let mut items = vec![
+        vec![
             Self::FileAttach,
-            Self::VoiceInput,
             Self::ContextChip(ContextChipKind::GitDiffStats),
-        ];
-        items.push(Self::FileExplorer);
-        items
+            Self::FileExplorer,
+        ]
     }
 
     /// Default right-side items for the CLI agent footer.
@@ -214,12 +213,7 @@ impl AgentToolbarItemKind {
             .into_iter()
             .map(Self::ContextChip)
             .collect();
-        items.extend([
-            Self::FileExplorer,
-            Self::FileAttach,
-            Self::VoiceInput,
-            Self::Settings,
-        ]);
+        items.extend([Self::FileExplorer, Self::FileAttach, Self::Settings]);
         items
     }
 

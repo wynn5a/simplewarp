@@ -147,7 +147,6 @@ pub(crate) struct Props<'a> {
     pub(super) is_references_section_open: bool,
     pub(super) autonomy_setting_speedbump: &'a AutonomySettingSpeedbump,
     pub(super) suggested_rules: &'a Vec<ViewHandle<SuggestionChipView>>,
-    pub(super) suggested_agent_mode_workflow: &'a Option<ViewHandle<SuggestionChipView>>,
     pub(super) manage_rules_button: &'a ViewHandle<ActionButton>,
     pub(super) keyboard_navigable_buttons: Option<&'a ViewHandle<KeyboardNavigableButtons>>,
     pub(super) response_rating: &'a OnceCell<AIBlockResponseRating>,
@@ -3075,13 +3074,8 @@ fn render_suggested_rules_and_prompts_footer(
         })
         .collect_vec();
 
-    let suggested_prompt = props.suggested_agent_mode_workflow.as_ref().filter(|chip| {
-        let logging_id = chip.as_ref(app).logging_id();
-        !dismissed_ids.contains(&logging_id)
-    });
-
     // If no visible suggestions, don't render the footer
-    if suggested_rules.is_empty() && suggested_prompt.is_none() {
+    if suggested_rules.is_empty() {
         return None;
     }
 
@@ -3097,20 +3091,15 @@ fn render_suggested_rules_and_prompts_footer(
     .with_selectable(false)
     .finish();
 
-    let has_suggested_rules = !suggested_rules.is_empty();
-
-    let right_buttons = {
-        let mut row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
-        if has_suggested_rules {
-            row.add_child(
-                Container::new(ChildView::new(props.disable_rule_suggestions_button).finish())
-                    .with_margin_right(4.)
-                    .finish(),
-            );
-        }
-        row.add_child(ChildView::new(props.dismiss_suggestion_button).finish());
-        row.finish()
-    };
+    let right_buttons = Flex::row()
+        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+        .with_child(
+            Container::new(ChildView::new(props.disable_rule_suggestions_button).finish())
+                .with_margin_right(4.)
+                .finish(),
+        )
+        .with_child(ChildView::new(props.dismiss_suggestion_button).finish())
+        .finish();
 
     let title = Container::new(
         Flex::row()
@@ -3128,19 +3117,8 @@ fn render_suggested_rules_and_prompts_footer(
         .map(|rule| ChildView::new(rule).finish())
         .collect_vec();
 
-    let suggested_agent_mode_workflows = suggested_prompt
-        .iter()
-        .map(|workflow| ChildView::new(workflow).finish())
-        .collect_vec();
-    let has_suggested_agent_mode_workflow = !suggested_agent_mode_workflows.is_empty();
-
-    let mut prompts_row = Wrap::row()
-        .with_children(suggested_rules)
-        .with_children(suggested_agent_mode_workflows);
-
-    if has_suggested_rules && !has_suggested_agent_mode_workflow {
-        prompts_row.add_child(ChildView::new(props.manage_rules_button).finish());
-    }
+    let mut prompts_row = Wrap::row().with_children(suggested_rules);
+    prompts_row.add_child(ChildView::new(props.manage_rules_button).finish());
 
     Some(
         Flex::column()

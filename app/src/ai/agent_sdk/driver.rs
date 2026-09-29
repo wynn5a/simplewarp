@@ -350,8 +350,6 @@ pub enum AgentDriverError {
          Check the setup commands for this environment."
     )]
     SetupCommandExitedShell { command: String },
-    #[error("{0}")]
-    SkillResolutionFailed(String),
     #[error("Failed to build agent configuration")]
     ConfigBuildFailed(#[source] anyhow::Error),
     #[error("Harness command exited with code {exit_code}")]

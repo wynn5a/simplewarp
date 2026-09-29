@@ -108,8 +108,6 @@ fn initialize_app_with_history(app: &mut App, conversations: Vec<AgentConversati
     app.add_singleton_model(|_| AIRequestUsageModel::new());
     app.add_singleton_model(LLMPreferences::new);
     app.add_singleton_model(HarnessAvailabilityModel::new);
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
     app.add_singleton_model(RepoMetadataModel::new);
     app.add_singleton_model(SkillManager::new);
     app.add_singleton_model(FileSearchModel::new);

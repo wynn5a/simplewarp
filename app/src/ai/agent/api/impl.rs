@@ -97,8 +97,7 @@ pub async fn generate_multi_agent_output(
                 .map(Into::into)
                 .collect(),
             supports_v4a_file_diffs: FeatureFlag::V4AFileDiffs.is_enabled(),
-            supports_summarization_via_message_replacement:
-                FeatureFlag::SummarizationViaMessageReplacement.is_enabled(),
+            supports_summarization_via_message_replacement: false,
             supports_bundled_skills: FeatureFlag::BundledSkills.is_enabled(),
             supports_research_agent: params.research_agent_enabled,
             supports_orchestration_v2: false,

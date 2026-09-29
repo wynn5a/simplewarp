@@ -1,7 +1,6 @@
 #[path = "file_watchers/mod.rs"]
 mod file_watchers;
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
 
 use ai::skills::{ParsedSkill, SkillPathOrigin, SkillReference, SkillScope};
 pub use file_watchers::{SkillWatcher, SkillWatcherEvent, extract_skill_parent_directory};
@@ -146,71 +145,6 @@ impl SkillManager {
         }
 
         skills
-    }
-
-    /// Returns the currently-known home skill file paths.
-    pub fn home_skill_paths(&self) -> Vec<LocalOrRemotePath> {
-        let Some(home_dir) = self.home_directory_for_origin(&SkillPathOrigin::Local) else {
-            return vec![];
-        };
-        self.directory_skills
-            .get(&home_dir)
-            .map(|skills| skills.iter().cloned().collect())
-            .unwrap_or_default()
-    }
-
-    /// Returns the currently-known directories which have skills registered.
-    /// This includes both repo roots and subdirectories with skills.
-    pub fn directories_with_skills(&self) -> Vec<PathBuf> {
-        let mut dirs: Vec<PathBuf> = self
-            .directory_skills
-            .keys()
-            .filter_map(|path| path.to_local_path().map(Path::to_path_buf))
-            .collect();
-        dirs.sort();
-        dirs
-    }
-
-    /// Returns skill file paths that are under `scope_dir`.
-    ///
-    /// This is used for skill resolution when the agent is invoked in a directory
-    /// above a series of repos—we need skills in those repos to be in scope.
-    ///
-    /// Example: If `scope_dir` is `/code` and there are skills at:
-    /// - `/code/repo-a/.agents/skills/deploy/SKILL.md`
-    /// - `/code/repo-b/.agents/skills/test/SKILL.md`
-    /// Both will be returned.
-    pub fn skill_paths_in_scope(&self, scope_dir: &Path) -> Vec<PathBuf> {
-        let mut paths = HashSet::new();
-        let scope_dir = LocalOrRemotePath::Local(scope_dir.to_path_buf());
-
-        for (dir, skill_paths) in &self.directory_skills {
-            // Include skills from directories that are under scope_dir
-            if dir.starts_with(&scope_dir) {
-                paths.extend(
-                    skill_paths
-                        .iter()
-                        .filter_map(|path| path.to_local_path().map(Path::to_path_buf)),
-                );
-            }
-        }
-
-        let mut paths: Vec<PathBuf> = paths.into_iter().collect();
-        paths.sort();
-        paths
-    }
-
-    /// Returns skill file paths that have the given skill name.
-    /// A skill's name comes from the `name` field in its SKILL.md front matter.
-    pub fn skill_paths_by_name(&self, name: &str) -> Vec<LocalOrRemotePath> {
-        self.skills_by_name
-            .get(name)
-            .map(|paths| {
-                let mut paths: Vec<LocalOrRemotePath> = paths.iter().cloned().collect();
-                paths.sort_by_key(LocalOrRemotePath::display_path);
-                paths
-            })
-            .unwrap_or_default()
     }
 
     /// Returns a reference to a parsed skill for a specific SKILL.md file path, if it is cached.

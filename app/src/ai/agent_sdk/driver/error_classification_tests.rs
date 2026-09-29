@@ -39,10 +39,6 @@ fn terminal_unavailable_is_error() {
 #[test]
 fn config_failures_are_failed() {
     assert_state(
-        AgentDriverError::SkillResolutionFailed("missing".to_string()),
-        AgentTaskState::Failed,
-    );
-    assert_state(
         AgentDriverError::InvalidWorkingDirectory {
             path: "/nope".into(),
             source: std::io::ErrorKind::NotFound.into(),

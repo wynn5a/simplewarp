@@ -2,7 +2,6 @@
 //! For now this provides a simple runner that echoes the received command.
 
 use std::fmt::Write;
-use std::path::Path;
 
 use anyhow::Context;
 pub use driver::AgentDriver;
@@ -18,13 +17,9 @@ use warpui::{AppContext, ModelSpawner, SingletonEntity};
 use crate::ai::agent_sdk::driver::harness::{HarnessKind, harness_kind};
 use crate::ai::agent_sdk::driver::{AgentDriverOptions, Task};
 use crate::ai::agent_sdk::mcp_config::build_mcp_servers_from_specs;
-use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
 use crate::ai::ambient_agents::AgentConfigSnapshot;
 use crate::ai::ambient_agents::task::HarnessConfig;
 use crate::ai::llms::LLMId;
-use crate::ai::skills::{
-    ResolveSkillError, ResolvedSkill, clone_repo_for_skill, resolve_skill_spec,
-};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::workflows::workflow::Workflow;
 
@@ -61,39 +56,6 @@ fn dispatch_command(
     }
 }
 
-fn format_skill_resolution_error(err: ResolveSkillError) -> String {
-    match err {
-        ResolveSkillError::NotFound { skill } => {
-            format!("Skill '{skill}' not found")
-        }
-        ResolveSkillError::RepoNotFound { repo } => {
-            format!("Repository '{repo}' not found")
-        }
-        ResolveSkillError::Ambiguous { skill, candidates } => {
-            let mut msg = format!(
-                "Skill '{skill}' is ambiguous; specify as repo:skill_name\n\nCandidates:\n"
-            );
-            for path in candidates {
-                msg.push_str(&format!("- {}\n", path.display()));
-            }
-            msg
-        }
-        ResolveSkillError::OrgMismatch {
-            repo,
-            expected,
-            found,
-        } => {
-            format!("Repository '{repo}' found but belongs to org '{found}', expected '{expected}'")
-        }
-        ResolveSkillError::ParseFailed { path, message } => {
-            format!("Failed to parse skill file {}: {message}", path.display())
-        }
-        ResolveSkillError::CloneFailed { org, repo, message } => {
-            format!("Failed to clone repository '{org}/{repo}': {message}")
-        }
-    }
-}
-
 /// Run the agent with the provided command.
 fn run_agent(
     ctx: &mut AppContext,
@@ -102,9 +64,6 @@ fn run_agent(
 ) -> anyhow::Result<()> {
     match command {
         AgentCommand::Run(args) => {
-            if args.skill.is_some() && !FeatureFlag::OzPlatformSkills.is_enabled() {
-                return Err(anyhow::anyhow!("unexpected argument '--skill' found"));
-            }
             if args.harness != Harness::Oz && !FeatureFlag::AgentHarness.is_enabled() {
                 return Err(anyhow::anyhow!("unexpected argument '--harness' found"));
             }
@@ -140,10 +99,9 @@ fn run_agent(
 }
 
 /// Build the merged agent configuration from all sources and the Task for the driver.
-/// Merge precedence: file < CLI < skill
+/// Merge precedence: file < CLI
 fn build_merged_config_and_task(
     args: &RunAgentArgs,
-    resolved_skill: &Option<ResolvedSkill>,
     prompt: &Option<Prompt>,
     ctx: &mut AppContext,
 ) -> anyhow::Result<(AgentConfigSnapshot, Task)> {
@@ -154,22 +112,8 @@ fn build_merged_config_and_task(
 
     let cli_mcp_servers = build_mcp_servers_from_specs(&args.all_mcp_specs())?;
 
-    // Merge precedence: file < CLI < skill
+    // Merge precedence: file < CLI
     let file_merged = config_file::merge_with_precedence(loaded_file.as_ref(), Default::default());
-
-    // Runner support is gated. The `run` command has no `--runner` flag, but a
-    // config file can still set `runner_id`, so reject it when the flag is off.
-    if file_merged.runner_id.is_some() && !FeatureFlag::CloudRunners.is_enabled() {
-        return Err(anyhow::anyhow!(
-            "`runner_id` is set in the config file but runner support is not enabled"
-        ));
-    }
-
-    // Skill provides base_prompt and optionally name
-    let (skill_name, runtime_base_prompt) = match resolved_skill {
-        Some(skill) => (Some(skill.name.clone()), Some(skill.instructions.clone())),
-        None => (None, None),
-    };
 
     // When a non-Oz harness is active, --model targets the harness rather than the Oz model.
     let harness_model_id = if args.harness != Harness::Oz {
@@ -190,13 +134,11 @@ fn build_merged_config_and_task(
     };
 
     let mut merged_config = AgentConfigSnapshot {
-        // CLI name > skill name > file name
-        name: args.name.clone().or(skill_name).or(file_merged.name),
+        // CLI name > file name
+        name: args.name.clone().or(file_merged.name),
         environment_id: file_merged.environment_id,
-        runner_id: file_merged.runner_id,
         model_id: oz_model,
-        // Skill base_prompt takes precedence over file base_prompt
-        base_prompt: runtime_base_prompt.clone().or(file_merged.base_prompt),
+        base_prompt: file_merged.base_prompt,
         mcp_servers: config_file::merge_mcp_servers(file_merged.mcp_servers, cli_mcp_servers),
         profile_id: args.profile.clone(),
         worker_host: file_merged.worker_host,
@@ -230,10 +172,7 @@ fn build_merged_config_and_task(
         (Some(base_prompt), Some(Prompt::PlainText(user_prompt))) => {
             Prompt::PlainText(format!("{base_prompt}\n\n{user_prompt}"))
         }
-        (Some(base_prompt), None) => {
-            // Skill-only invocation: use skill instructions as the prompt
-            Prompt::PlainText(base_prompt.to_string())
-        }
+        (Some(base_prompt), None) => Prompt::PlainText(base_prompt.to_string()),
         (_, Some(p)) => p.clone(),
         (None, None) => {
             return Err(anyhow::anyhow!(AgentDriverError::InvalidRuntimeState));
@@ -290,10 +229,8 @@ impl AgentDriverRunner {
         args: RunAgentArgs,
         output_format: OutputFormat,
     ) -> Result<(), AgentDriverError> {
-        let setup_events = SetupClientEventReporter::new();
         // Build driver options and task.
-        let (driver_options, task) =
-            Self::build_driver_options_and_task(&foreground, args, &setup_events).await?;
+        let (driver_options, task) = Self::build_driver_options_and_task(&foreground, args).await?;
 
         match &task.harness {
             HarnessKind::Unsupported(harness) => {
@@ -322,63 +259,10 @@ impl AgentDriverRunner {
         Ok(())
     }
 
-    /// Resolve the skill spec from args, if one was provided.
-    ///
-    /// In sandboxed mode with a fully-qualified spec (org + repo), the repo is
-    /// cloned first since it may not exist locally. Otherwise we resolve directly
-    /// against the local filesystem.
-    async fn resolve_skill(
-        foreground: &ModelSpawner<Self>,
-        args: &RunAgentArgs,
-        working_dir: &Path,
-        setup_events: &SetupClientEventReporter,
-    ) -> Result<Option<ResolvedSkill>, AgentDriverError> {
-        if !FeatureFlag::OzPlatformSkills.is_enabled() {
-            return Ok(None);
-        }
-        let Some(skill_spec) = args.skill.clone() else {
-            return Ok(None);
-        };
-
-        // In sandboxed mode with a fully-qualified spec, clone the repo first.
-        let needs_clone = args.sandboxed && skill_spec.org.is_some() && skill_spec.repo.is_some();
-        if needs_clone {
-            let org = skill_spec.org.as_ref().expect("org checked above");
-            let repo_name = skill_spec.repo.as_ref().expect("repo checked above");
-            log::info!("Cloning {org}/{repo_name} for skill resolution in sandboxed mode");
-            setup_events
-                .record_result(SetupStep::SkillRepoClone, async {
-                    clone_repo_for_skill(org, repo_name, working_dir)
-                        .await
-                        .map_err(|err| {
-                            AgentDriverError::SkillResolutionFailed(format_skill_resolution_error(
-                                err,
-                            ))
-                        })
-                })
-                .await?;
-        }
-
-        let working_dir_buf = working_dir.to_path_buf();
-        let skill = foreground
-            .spawn(move |_, ctx| resolve_skill_spec(&skill_spec, &working_dir_buf, ctx))
-            .await?
-            .map_err(|err| {
-                AgentDriverError::SkillResolutionFailed(format_skill_resolution_error(err))
-            })?;
-        log::debug!(
-            "Resolved skill '{}' from {}",
-            skill.name,
-            skill.skill_path.display()
-        );
-        Ok(Some(skill))
-    }
-
     /// Build the AgentDriverOptions and Task for a fresh local run.
     async fn build_driver_options_and_task(
         foreground: &ModelSpawner<Self>,
         args: RunAgentArgs,
-        setup_events: &SetupClientEventReporter,
     ) -> Result<(AgentDriverOptions, Task), AgentDriverError> {
         // Get the working directory
         let working_dir = match args.cwd.as_ref() {
@@ -388,10 +272,6 @@ impl AgentDriverRunner {
         }
         .map_err(AgentDriverError::ConfigBuildFailed)?;
 
-        // Resolve the skill, if we have one
-        let resolved_skill =
-            Self::resolve_skill(foreground, &args, &working_dir, setup_events).await?;
-
         let prompt = args.prompt_arg.to_prompt();
 
         // Build the AgentConfigSnapshot, Task, and AgentDriverOptions
@@ -399,7 +279,7 @@ impl AgentDriverRunner {
         let (merged_config, task, driver_options) = foreground
             .spawn(move |_, ctx| -> anyhow::Result<_> {
                 let (merged_config, task) =
-                    build_merged_config_and_task(&args, &resolved_skill, &prompt_clone, ctx)?;
+                    build_merged_config_and_task(&args, &prompt_clone, ctx)?;
 
                 let third_party_harness_model_config = merged_config
                     .harness

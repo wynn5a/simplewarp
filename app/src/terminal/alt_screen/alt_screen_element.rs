@@ -13,7 +13,6 @@ use warpui::event::{DispatchedEvent, InBoundsExt, KeyState, ModifiersState};
 use warpui::fonts::Properties;
 use warpui::geometry::rect::RectF;
 use warpui::geometry::vector::Vector2F;
-use warpui::platform::keyboard::KeyCode;
 use warpui::text::SelectionType;
 use warpui::units::{IntoLines, IntoPixels, Lines, Pixels};
 use warpui::{
@@ -78,10 +77,6 @@ pub struct AltScreenElement {
     cursor_hint_text: Option<Box<dyn Element>>,
 
     cli_subagent_view: Option<Box<dyn Element>>,
-
-    /// Voice input toggle key code for CLI agent footer integration.
-    #[cfg_attr(not(feature = "voice_input"), allow(unused))]
-    voice_input_toggle_key_code: Option<KeyCode>,
 }
 
 impl AltScreenElement {
@@ -148,19 +143,11 @@ impl AltScreenElement {
             max_scroll_top: None,
             cursor_hint_text,
             cli_subagent_view,
-            voice_input_toggle_key_code: None,
         }
     }
 
     pub fn with_ligature_rendering(mut self) -> Self {
         self.grid_render_params.use_ligature_rendering = true;
-        self
-    }
-
-    /// Sets the voice input toggle key code for CLI agent footer integration.
-    #[cfg(feature = "voice_input")]
-    pub fn with_voice_input_toggle_key(mut self, key_code: Option<KeyCode>) -> Self {
-        self.voice_input_toggle_key_code = key_code;
         self
     }
 
@@ -507,34 +494,6 @@ impl AltScreenElement {
     fn line_height(&self) -> Pixels {
         self.grid_render_params.size_info.cell_height_px()
     }
-
-    #[cfg(feature = "voice_input")]
-    fn maybe_handle_voice_toggle(
-        &self,
-        key_code: &KeyCode,
-        state: &KeyState,
-        ctx: &mut EventContext,
-    ) -> bool {
-        if let Some(voice_input_toggle_key_code) = self.voice_input_toggle_key_code
-            && *key_code == voice_input_toggle_key_code
-        {
-            ctx.dispatch_typed_action(TerminalAction::ToggleCLIAgentVoiceInput(
-                voice_input::VoiceInputToggledFrom::Key { state: *state },
-            ));
-            return true;
-        }
-        false
-    }
-
-    #[cfg(not(feature = "voice_input"))]
-    fn maybe_handle_voice_toggle(
-        &self,
-        _key_code: &KeyCode,
-        _state: &KeyState,
-        _ctx: &mut EventContext,
-    ) -> bool {
-        false
-    }
 }
 
 impl Element for AltScreenElement {
@@ -862,7 +821,7 @@ impl Element for AltScreenElement {
                         ctx.dispatch_typed_action(TerminalAction::ControlSequence(escape_sequence));
                         return true;
                     }
-                    self.maybe_handle_voice_toggle(key_code, state, ctx)
+                    false
                 } else {
                     false
                 }

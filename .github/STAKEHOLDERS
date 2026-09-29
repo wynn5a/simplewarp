@@ -115,7 +115,6 @@
 /app/src/ai/predict/ @Advait-M
 /app/src/ai/blocklist/passive_suggestions/ @Advait-M
 /app/src/voice/ @Advait-M
-/crates/voice_input/ @Advait-M
 
 # Rich input
 /app/src/terminal/view/use_agent_footer/ @Advait-M

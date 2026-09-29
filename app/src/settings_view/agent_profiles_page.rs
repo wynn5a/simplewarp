@@ -47,7 +47,7 @@ use crate::ai::execution_profiles::profiles::{
 };
 use crate::ai::execution_profiles::{
     AIExecutionProfile, AIExecutionProfileAppExt, ActionPermission, ExecutionProfileId,
-    WriteToPtyPermission, long_context_pricing_warning_title,
+    WriteToPtyPermission,
 };
 use crate::ai::llms::{LLMContextWindow, LLMId, LLMPreferences, LLMPreferencesEvent};
 use crate::ai::mcp::TemplatableMCPServerManager;
@@ -68,7 +68,6 @@ use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryT
 use crate::view_components::dropdown::DropdownAction;
 use crate::view_components::{
     Dropdown, DropdownItem, FilterableDropdown, SubmittableTextInput, SubmittableTextInputEvent,
-    render_warning_box,
 };
 
 const AI_SETTINGS_DROPDOWN_WIDTH: f32 = 250.;
@@ -1989,17 +1988,7 @@ impl AgentsWidget {
             .with_child(input_box)
             .finish();
 
-        let mut column = Flex::column().with_child(label).with_child(row);
-        if AgentProfilesPageView::active_profile_data(app)
-            .should_show_long_context_pricing_warning(view.dragged_context_window_value, app)
-        {
-            column.add_child(render_warning_box(
-                long_context_pricing_warning_title(),
-                appearance,
-            ));
-        }
-
-        Some(column.finish())
+        Some(Flex::column().with_child(label).with_child(row).finish())
     }
 
     fn render_permissions_section(

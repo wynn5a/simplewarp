@@ -159,7 +159,7 @@ cost, suggestions or citations. Always empty/zero:
 `/create-environment` request plumbing stay for P4. Conversation-list empty state no longer says
 "ambient agents". The PS1 "Look incorrect? Let us know." link is removed. Palette entry is now
 "Toggle workflows modal". `warp_cli`: `oz model list` / MAA / "Warp Agent" help strings reworded;
-`--skill` is hidden from help and completions unless OzPlatformSkills is on. `QueuedPromptsV2`
+`--skill` was hidden from help (the arg is now deleted, §6). `QueuedPromptsV2`
 doc fixed. The "inert strings" bullet is unchanged by design.
 
 - Agent tips (`ai/agent_tips.rs`): `:96` "Warp Drive objects", `:146` "share MCP servers with
@@ -181,20 +181,34 @@ doc fixed. The "inert strings" bullet is unchanged by design.
   regex, `firebase_uid` schema columns, `Software\Warp.dev\` registry path, `dev.warp.WarpOss`
   id in the `oss` bin, Flex debug panics linking notion.so/warpdev.
 
-## 6. Compiled out of simplewarp (not reachable, no action unless enabled)
+## 6. Compiled out of simplewarp
 
-- **AgentHarness** (off): `agent run --harness` rejected (`ai/agent_sdk/mod.rs:108`), picker
-  hidden (`harness_availability.rs:57`). If enabled, `setup_harness_plugins`
-  (`driver.rs:1325-1361`) auto-runs `claude plugin marketplace add warpdotdev/claude-code-warp`
-  (`terminal/cli_agent_sessions/plugin_manager/claude.rs:14,66-75`) — GitHub via the claude CLI.
-- **OzPlatformSkills** (off, default set only at `app/Cargo.toml:476`): `--sandboxed` + `org/repo`
-  skill would `git clone https://github.com/{org}/{repo}.git`
-  (`ai/skills/resolve_skill_spec.rs:148`).
-- **CloudRunners** (off): runner compute, one gate at `agent_sdk/mod.rs:162`.
-- **Voice input** (`voice_input` / `gui` features off): no transcriber exists anyway
-  (`editor/view/voice.rs:413`).
-- Dogfood-only server hints (never on at runtime): SummarizationViaMessageReplacement,
-  GPTConfigurableContextWindow, AgentModeAnalytics, SuggestedAgentModeWorkflows.
+**Done (2026-09-29).**
+
+- **AgentHarness**: `agent_harness` is now in the `simplewarp` feature set, so `agent run
+  --harness` is accepted. The harness list holds only Oz (`harness_availability.rs`), so the GUI
+  picker stays hidden. Note that `--harness claude` still runs `setup_harness_plugins`
+  (`driver.rs`), which shells out to `claude plugin marketplace add warpdotdev/claude-code-warp`
+  (GitHub, via the claude CLI); it is CLI-initiated only.
+- **OzPlatformSkills**: flag, cargo feature, the `--skill` CLI arg, `resolve_skill_spec.rs`
+  (including the `git clone`), `SetupStep::SkillRepoClone` and `AgentDriverError::SkillResolutionFailed`
+  are deleted. `warp_cli::skill::SkillSpec` stays (the conversation details panel still parses
+  `skill_spec` from task metadata).
+- **CloudRunners**: flag and cargo feature deleted, along with `runner_id` in the agent config
+  file schema and `AgentConfigSnapshot`.
+- **Voice input**: `crates/voice_input`, the `voice_input` cargo feature, the editor mic button
+  and cursor icon, the CLI-agent footer voice flow, the `agents.voice.*` settings, the Voice
+  settings section and the voice quota fields in `request_usage_model` are deleted (`gui` stays
+  as an empty feature because the bundle scripts pass it). `AgentToolbarItemKind::VoiceInput` stays
+  as a never-rendered variant so saved custom toolbar layouts still parse. Left alone: the
+  microphone plist/entitlement strings (generic permission for child processes) and the warpui
+  `microphone_access_state` API (no callers; cross-platform framework code).
+- **Dogfood-only server hints**: `SummarizationViaMessageReplacement` (the request field is now a
+  constant `false`), `GPTConfigurableContextWindow` (OpenAI models never expose a configurable
+  context window, so the long-context pricing warning and `warning_box` are gone),
+  `AgentModeAnalytics` (the `is_ai_ugc_telemetry_enabled` plumbing through the terminal model is
+  gone) and `SuggestedAgentModeWorkflows` (the workflow suggestion chip, its modal and the event
+  chain through terminal view, pane group and workspace are gone) are deleted.
 
 ## 7. Local bug found during the scan
 
@@ -210,8 +224,8 @@ reproduced in the app.
 
 - Status note: "`RequestComputerUse`/`UseComputer` tools are advertised" is wrong —
   `local_inference/src/tools.rs` filters them out (§1c).
-- Known non-targets: "`AgentHarness` flag (live by design)" — it is compiled out of simplewarp
-  (§6).
+- Known non-targets: "`AgentHarness` flag (live by design)" — it was compiled out of simplewarp;
+  it is now enabled (§6).
 
 ---
 

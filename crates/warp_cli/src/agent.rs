@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use crate::config_file::ConfigFileArgs;
 use crate::mcp::MCPSpec;
 use crate::model::ModelArgs;
-use crate::skill::SkillSpec;
 
 /// Output format for agent results.
 #[derive(Debug, Copy, Clone, ValueEnum, Eq, PartialEq, Default)]
@@ -271,7 +270,7 @@ impl AgentCommand {
         clap::ArgGroup::new("prompt_group")
             .required(true)
             .multiple(true)
-            .args(["prompt", "saved_prompt", "skill"])
+            .args(["prompt", "saved_prompt"])
     )
 )]
 pub struct RunAgentArgs {
@@ -283,18 +282,6 @@ pub struct RunAgentArgs {
 
     #[command(flatten)]
     pub config_file: ConfigFileArgs,
-
-    /// Use a skill as the base prompt for the agent.
-    ///
-    /// Format: `skill_name`, `repo:skill_name`, or `org/repo:skill_name`
-    ///
-    /// Skills are searched in `.agents/skills/`, `.warp/skills/`, `.claude/skills/`, and `.codex/skills/` directories.
-    /// If a repo is specified, searches only that repo. If org is also specified,
-    /// validates the repo's git remote matches the expected org.
-    ///
-    /// When used with --prompt, the skill provides the base context and the prompt is the task.
-    #[arg(long = "skill", value_name = "SKILL")]
-    pub skill: Option<SkillSpec>,
 
     /// Name for this agent task.
     #[arg(long = "name", short = 'n')]

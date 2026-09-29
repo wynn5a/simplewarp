@@ -14,10 +14,6 @@ pub struct AgentConfigSnapshot {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub environment_id: Option<String>,
-    /// Runner ID (JsonRunner GSO) used to override the environment's compute
-    /// config (docker image, instance shape, setup commands).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub runner_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -121,7 +117,6 @@ impl AgentConfigSnapshot {
         let Self {
             name,
             environment_id,
-            runner_id,
             model_id,
             base_prompt,
             mcp_servers,
@@ -136,7 +131,6 @@ impl AgentConfigSnapshot {
 
         name.is_none()
             && environment_id.is_none()
-            && runner_id.is_none()
             && model_id.is_none()
             && base_prompt.is_none()
             && mcp_servers.is_none()

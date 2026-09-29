@@ -1,8 +1,6 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use warp_core::settings::Setting as _;
-use warp_terminal::model::escape_sequences::{BRACKETED_PASTE_END, BRACKETED_PASTE_START};
 use warpui::{App, AppContext, SingletonEntity, ViewContext};
 
 use super::super::{AIBlockMetadata, RichContentMetadata, RichContentType};
@@ -19,11 +17,11 @@ use crate::ai::blocklist::{AIBlock, ClientIdentifiers};
 use crate::ai::llms::LLMId;
 use crate::features::FeatureFlag;
 use crate::settings::AISettings;
+use crate::terminal::CLIAgent;
 use crate::terminal::cli_agent_sessions::{
     CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
 };
 use crate::terminal::model::ansi::{BootstrappedValue, Handler as _, InitShellValue};
-use crate::terminal::{CLIAgent, Event};
 use crate::test_util::add_window_with_terminal;
 use crate::test_util::terminal::initialize_app_for_terminal_view;
 
@@ -387,59 +385,4 @@ fn test_rich_input_submit_strategy_for_hermes_uses_bracketed_paste() {
         rich_input_submit_strategy(CLIAgent::Hermes),
         RichInputSubmitStrategy::BracketedPaste
     );
-}
-
-#[test]
-fn insert_cli_agent_voice_text_hermes_multiline_uses_bracketed_paste_without_submitting() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-        let pty_writes = Rc::new(RefCell::new(Vec::new()));
-        let writes = pty_writes.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&terminal, move |_, event, _| {
-                if let Event::WriteBytesToPty { bytes } = event {
-                    writes.borrow_mut().push(bytes.to_vec());
-                }
-            });
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Hermes,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        listener: None,
-                        remote_host: None,
-                        plugin_version: None,
-                        received_rich_notification: false,
-                    },
-                    ctx,
-                );
-            });
-
-            view.handle_use_agent_footer_event(
-                &UseAgentToolbarEvent::InsertIntoCLIPty("line1\nline2".to_owned()),
-                ctx,
-            );
-        });
-
-        let writes = pty_writes.borrow();
-        assert_eq!(
-            writes.len(),
-            1,
-            "voice transcription should be inserted without a separate submit"
-        );
-
-        let mut expected_paste =
-            Vec::with_capacity(BRACKETED_PASTE_START.len() + 11 + BRACKETED_PASTE_END.len());
-        expected_paste.extend_from_slice(BRACKETED_PASTE_START);
-        expected_paste.extend_from_slice(b"line1\nline2");
-        expected_paste.extend_from_slice(BRACKETED_PASTE_END);
-        assert_eq!(writes[0], expected_paste);
-    })
 }

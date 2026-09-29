@@ -67,10 +67,5 @@ impl SkillPathQuery for PathBuf {
     }
 }
 
-mod resolve_skill_spec;
-pub use resolve_skill_spec::{
-    ResolveSkillError, ResolvedSkill, clone_repo_for_skill, resolve_skill_spec,
-};
-
 mod skill_manager;
 pub use skill_manager::SkillManager;

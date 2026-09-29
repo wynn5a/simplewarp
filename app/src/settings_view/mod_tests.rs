@@ -668,7 +668,7 @@ fn stub_widgets_page() -> PageType<TestSettingsView> {
             terms: "file search fuzzy opener",
         }),
         Box::new(StubWidget {
-            terms: "voice input",
+            terms: "terminal font size",
         }),
     ];
     PageType::new_uncategorized(widgets, None)

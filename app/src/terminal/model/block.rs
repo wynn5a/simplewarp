@@ -415,9 +415,6 @@ pub struct Block {
     /// track the count of discarded newlines here in order to correct the row number.
     leading_linefeeds_ignored: usize,
 
-    /// `true` if client-side telemetry for user-generated AI data is enabled.
-    pub(super) is_ai_ugc_telemetry_enabled: bool,
-
     /// Only set on restored blocks. Indicates whether the block was local or from a remote session.
     restored_block_was_local: Option<bool>,
 
@@ -555,27 +552,15 @@ impl From<&Block> for BlockType {
                     let mut command_with_obfuscated_secrets =
                         block.command_with_secrets_obfuscated(false);
 
-                    let (output_truncated, mut output_truncated_with_obfuscated_secrets) =
-                        if block.is_ai_ugc_telemetry_enabled {
-                            // If telemetry is enabled, we collect the full output but are limiting it to
-                            // the first and last 2500 lines in case the block is very large.
-                            (
-                                block.output_grid().content_summary(2500, 2500, false),
-                                block.output_grid().content_summary(2500, 2500, true),
-                            )
-                        } else {
-                            (
-                                block
-                                    .output_grid()
-                                    .contents_to_string(false, Some(MAX_SERIALIZED_OUTPUT_LINES)),
-                                block
-                                    .output_grid()
-                                    .contents_to_string_force_secrets_obfuscated(
-                                        false,
-                                        Some(MAX_SERIALIZED_OUTPUT_LINES),
-                                    ),
-                            )
-                        };
+                    let output_truncated = block
+                        .output_grid()
+                        .contents_to_string(false, Some(MAX_SERIALIZED_OUTPUT_LINES));
+                    let mut output_truncated_with_obfuscated_secrets = block
+                        .output_grid()
+                        .contents_to_string_force_secrets_obfuscated(
+                            false,
+                            Some(MAX_SERIALIZED_OUTPUT_LINES),
+                        );
 
                     // If secret redaction is disabled, we manually scan for secrets and redact them.
                     if matches!(
@@ -819,7 +804,6 @@ impl Block {
         block_index: BlockIndex,
         honor_ps1: bool,
         should_scan_for_secrets: ObfuscateSecrets,
-        is_ai_ugc_telemetry_enabled: bool,
         conversation_id: Option<AIConversationId>,
     ) -> Self {
         let perform_reset_grid_checks = if cfg!(windows) && bootstrap_stage.is_done() {
@@ -898,7 +882,6 @@ impl Block {
             should_hide_output_grid: false,
             should_hide_command_grid: false,
             leading_linefeeds_ignored: 0,
-            is_ai_ugc_telemetry_enabled,
             restored_block_was_local: None,
             agent_view_visibility: match conversation_id {
                 Some(id) => AgentViewVisibility::new_from_conversation(id),

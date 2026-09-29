@@ -1057,7 +1057,6 @@ impl View for AIBlock {
                 is_references_section_open: self.is_references_section_open,
                 autonomy_setting_speedbump: &self.autonomy_setting_speedbump,
                 suggested_rules: &self.suggested_rules,
-                suggested_agent_mode_workflow: &self.suggested_agent_mode_workflow,
                 manage_rules_button: &self.manage_rules_button,
                 keyboard_navigable_buttons: self.keyboard_navigable_buttons.as_ref(),
                 response_rating: &self.response_rating,

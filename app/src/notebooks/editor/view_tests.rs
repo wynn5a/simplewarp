@@ -86,8 +86,6 @@ fn initialize_editor(
     app.add_singleton_model(NotebookKeybindings::new);
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(CloudModel::mock);
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
 
     let (window, test_view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
         let window_id = ctx.window_id();

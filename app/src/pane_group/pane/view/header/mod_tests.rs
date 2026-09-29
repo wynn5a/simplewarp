@@ -107,8 +107,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_ctx| UpdateManager::new(None));
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
 }
 
 #[test]

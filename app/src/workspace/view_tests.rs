@@ -119,8 +119,6 @@ pub(crate) fn initialize_app(app: &mut App) {
         AIExecutionProfilesModel::new(&crate::LaunchMode::new_for_unit_test(), ctx)
     });
     app.add_singleton_model(RepoOutlines::new_for_test);
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
     app.add_singleton_model(BlocklistAIPermissions::new);
     app.add_singleton_model(|_| GPUState::new());
     app.add_singleton_model(|_| RestoredAgentConversations::new_seeded(vec![]));

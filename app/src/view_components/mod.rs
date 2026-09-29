@@ -14,7 +14,6 @@ mod filterable_dropdown;
 pub mod find;
 mod markdown_toggle_view;
 mod submittable_text_input;
-mod warning_box;
 
 pub use agent_toast::*;
 pub use alert::Alert;
@@ -27,4 +26,3 @@ pub use filterable_dropdown::{
 };
 pub use markdown_toggle_view::{MarkdownToggleEvent, MarkdownToggleView};
 pub use submittable_text_input::*;
-pub use warning_box::*;

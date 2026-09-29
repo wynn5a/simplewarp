@@ -204,9 +204,6 @@ impl TerminalView {
                 // Route like user-typed terminal input so the usual PTY write gates apply.
                 self.write_user_bytes_to_pty(text.as_bytes().to_vec(), ctx);
             }
-            UseAgentToolbarEvent::InsertIntoCLIPty(text) => {
-                self.insert_text_into_cli_agent_pty(text, ctx);
-            }
             UseAgentToolbarEvent::ToggleCodeReviewPane(cli_agent) => {
                 self.toggle_code_review_pane(
                     GitDeltaPreference::Always,
@@ -504,26 +501,6 @@ impl TerminalView {
         self.write_cli_agent_text_then_submit(text_bytes, strategy, ctx);
     }
 
-    /// Inserts `text` into the active CLI agent's input without submitting it.
-    ///
-    /// Voice transcription uses this when rich input is closed. Agents that
-    /// require bracketed paste receive one complete paste payload so embedded
-    /// newlines are inserted rather than interpreted as separate submissions.
-    fn insert_text_into_cli_agent_pty(&mut self, text: &str, ctx: &mut ViewContext<Self>) {
-        let Some(agent) = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .map(|s| s.agent)
-        else {
-            return;
-        };
-
-        if text.is_empty() {
-            return;
-        }
-
-        self.write_cli_agent_text(text.as_bytes(), rich_input_submit_strategy(agent), ctx);
-    }
-
     fn write_cli_agent_text(
         &mut self,
         text_bytes: &[u8],
@@ -702,7 +679,7 @@ impl TerminalView {
 ///
 /// For regular commands, displays a 'Use agent' keystroke button to enter agent mode.
 /// For CLI agent commands (e.g., Claude Code, Gemini CLI, Codex), displays a specialized
-/// footer with image attachment, voice input, file explorer, view changes, and share buttons.
+/// footer with image attachment, file explorer, view changes, and share buttons.
 pub struct UseAgentToolbar {
     terminal_view_id: EntityId,
     terminal_model: Arc<FairMutex<TerminalModel>>,
@@ -836,9 +813,6 @@ impl UseAgentToolbar {
             AgentInputFooterEvent::WriteToPty(text) => {
                 ctx.emit(UseAgentToolbarEvent::WriteToPty(text.clone()));
             }
-            AgentInputFooterEvent::InsertIntoCLIPty(text) => {
-                ctx.emit(UseAgentToolbarEvent::InsertIntoCLIPty(text.clone()));
-            }
             AgentInputFooterEvent::ToggleCodeReviewPane(agent) => {
                 ctx.emit(UseAgentToolbarEvent::ToggleCodeReviewPane(*agent));
             }
@@ -912,12 +886,6 @@ impl UseAgentToolbar {
     pub(in crate::terminal) fn is_warpify_active(&self, app: &AppContext) -> bool {
         self.warpify_footer_view.as_ref(app).is_active()
     }
-
-    /// Returns whether there's a current CLI agent (like Claude Code).
-    #[cfg(feature = "voice_input")]
-    pub fn has_cli_agent(&self, app: &AppContext) -> bool {
-        self.cli_agent(app).is_some()
-    }
 }
 
 /// Events emitted by UseAgentToolbar.
@@ -926,8 +894,6 @@ pub enum UseAgentToolbarEvent {
     Dismiss,
     /// Write text to the PTY (from CLI agent view).
     WriteToPty(String),
-    /// Insert text into the CLI agent's PTY input using its paste strategy.
-    InsertIntoCLIPty(String),
     /// Toggle the code review pane (from CLI agent view).
     ToggleCodeReviewPane(CLIAgent),
     /// Toggle the file explorer. `None` when no CLI agent session is attached

@@ -112,8 +112,6 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(|ctx| {
         AIExecutionProfilesModel::new(&crate::LaunchMode::new_for_unit_test(), ctx)
     });
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
 
     app.add_singleton_model(|_| SystemInfo::default());
 
