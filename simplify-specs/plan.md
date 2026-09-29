@@ -35,7 +35,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 1 — `simplewarp` binary: starts offline, straight to a terminal, 0 startup errors, no outbound connections | DONE |
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
-| 3b — Built-in model list, MCP tool support | OPEN |
+| 3b — Built-in model list, MCP tool support | Model list DONE (2026-09-29); MCP tool support OPEN |
 | 4 — Delete the dead cloud code and the TUI | DONE through 4id: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15) and, since 4id
@@ -1326,6 +1326,33 @@ Queue, in order:
    both checks clean. Status table's enable-candidate list is now EMPTY; Phase 3b remains
    the only open phase.
 
+42. ~~3b: built-in model list~~ — **done (2026-09-29, commit 06743c4f8).** The compiled-in
+   default catalog held only Warp's server-side routers (`auto`, `auto (responsive)`,
+   `cli-agent-auto`, `computer-use-agent-auto`), disabled client-side with
+   `DisableReason::NeedsWarpAccount` because no local build can reach them. All four feature
+   lists now share one first-party trio — `claude-sonnet-4-5` (Anthropic; the default),
+   `gpt-5.4` (OpenAI; the repo's own Codex migration target), `gemini-2.5-pro` (Google) —
+   `disable_reason: None`, vision on, `provider` tagged so BYOK detection works;
+   `local_inference` routes by slug shape onto the user's key for that provider. With no key
+   the entries show in the picker and a request fails with the actionable `NoApiKey` message
+   ("Add one in Settings > AI") instead of the old dead `auto` chip + `NoModelConfigured`.
+   To keep the fallback honest, `is_usable_llm` is now key-aware for first-party models
+   (same precedent as BYOK-aware `RequiresUpgrade`): a built-in without its provider's key is
+   skipped by `fallback_llm_info`/`usable_default_llm_info` and cleared by
+   `reconcile_disabled_model_preferences` on key events, so one provider's key resolves the
+   default to that provider's model instead of a model the key can't reach. **Deleted:**
+   `DisableReason::NeedsWarpAccount` (variant, tooltip arm, `should_clear_preference` arm,
+   the three picker filter arms — no producer left) and `default_computer_use_llms` (the
+   `get_computer_use_available` OnceLock fallback now uses the shared catalog). **Kept:**
+   `is_warp_router` in `local_inference::config` (a persisted `base_model: "auto"` selection
+   still resolves and gets the clear `NoModelConfigured` error), `is_auto_target` (router
+   YAML validation), and the rest of `DisableReason` (no local producer, but the enum is
+   wire-shaped and its tests exercise the machinery). **Known wart:** with a provider key
+   set, the live `/models` catalog can show alongside a same-slug built-in entry (ids differ
+   when the provider returns dated snapshots). Tests unchanged: 3,913 default / 3,915
+   simplewarp, 0 failed; clippy trio (the workspace run matches HEAD's 6-error red
+   baseline), format, both checks clean.
+
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,
@@ -1336,8 +1363,10 @@ enable-candidate flags above, and the `AgentHarness` flag (live by design).
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the
   server used to own are now in `local_inference`; quality can differ from Warp.
-- **Model configuration.** The model list used to come from the server; the local build needs its
-  own (Phase 3b).
+- **Model configuration.** The model list used to come from the server. The local build now
+  ships a small compiled-in first-party trio (round 42) plus whatever the user's keys reach
+  live; compiled-in slugs can age out — the failure is a 404 naming the model, and the live
+  list remains correct.
 - **Persisted shapes.** Deleting a serde variant or setting key can break loading old configs.
 
 ## Verification per round
