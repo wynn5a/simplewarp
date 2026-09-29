@@ -36,13 +36,14 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | DONE through 4ia: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
+| 4 — Delete the dead cloud code and the TUI | DONE through 4id: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
 
-Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
-`features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
-EditableMarkdownMermaid, ImeMarkedText, ITermImages, LocalDockerSandbox (local `sbx` sandbox
-pane; dogfood-only), computer use (`UseComputer` / `RequestComputerUse` and the `computer_use`
-actor crate; local-capable, but the local adapter does not offer the tools).
+Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15) and, since 4id
+(2026-09-29), EditableMarkdownMermaid, ImeMarkedText, ITermImages, LocalDockerSandbox and
+local computer use — all pinned by `features::tests`. The enable-candidate list is empty.
+With `local_computer_use` on, the `RequestComputerUse`/`UseComputer` tools are advertised
+when the computer-use setting and platform allow; real-model verification of a computer-use
+run is still TODO (needs a live session).
 
 ## Phase 4 progress
 
@@ -96,10 +97,11 @@ Product decisions, not deletions: the Oz branding of the local CLI install and ~
 `agent run --harness claude` no longer needs the Oz platform plugin (4hw). The onboarding tutorial is
 deleted (4hx).
 
-Outstanding product decisions (2026-09-29 user rulings): orchestration vertical **deleted**
-(4ia); provider 429 → `QuotaLimit` mapping **to do** (4ib); Oz branding → SimpleWarp **to do**
-(4ic); enable-candidates **all to be enabled** (4id). The Claude notification plugin keeps its
-current one-time GitHub fetch (user decision: no change).
+Outstanding product decisions — ALL RESOLVED (2026-09-29 user rulings, rounds 4ia–4id):
+orchestration vertical **deleted** (4ia); provider 429 → `QuotaLimit` **mapped** (4ib); Oz
+branding → SimpleWarp **rebranded** (4ic); enable-candidates **all enabled** (4id); Claude
+notification plugin **keeps** its one-time GitHub fetch (no change). Nothing left under Next
+except the open Phase 3b (built-in model list + MCP tool support).
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
 `CloudAgent` / `ScheduledAmbientAgent` shapes, `crates/isolation_platform` (local detection) and
@@ -1293,6 +1295,36 @@ Queue, in order:
    error; the resume (parent session) verified the uncommitted partial tree as untrusted
    input, completed the remaining scope, and repaired two botched edits (claude_tests.rs
    dangling fragment; agent_icon_tests match arm referencing a deleted variant).
+
+39. ~~Provider 429 → QuotaLimit (user decision: map)~~ — **4ib done (2026-09-29, commit
+   280d1f95e).** `From<&Arc<AIApiError>>` grew an `ErrorStatus(429, body)` arm producing
+   `RenderableAIError::QuotaLimit` with a best-effort display message extracted from the
+   provider body (`error.message` → `message` → `detail`; generic "Quota limit reached." copy
+   when nothing matches). Non-429 statuses unchanged; `agent run`'s error classification
+   improves with it. +2 tests: 3,913 default / 3,914 simplewarp, 0 failed.
+
+40. ~~Oz → SimpleWarp rebrand (user decision)~~ — **4ic done (2026-09-29, commits a191035c3 +
+   48a51d04f).** The symlink already installs as the channel's `cli_command_name`
+   (simplewarp), so this was copy: clap help `name`/`display_name`, Install/Uninstall CLI
+   palette entries + toasts (fns renamed `install_cli`/`uninstall_cli`,
+   `WorkspaceAction::{Install,Uninstall}Cli`; binding names were already neutral
+   `workspace:{,un}install_cli`), codex modal, init slash-command description, appearance
+   setting copy, execution-profile allow/deny descriptions, "Command from agent" workflow
+   title, the CLI log subdirectory `oz/` → `simplewarp/` (old logs stay put; the native_tests
+   legacy-oz decoy stays), deleted the legacy invoked-as-"oz" CLI-mode check in run(), and
+   reworded comments naming the Oz CLI / the deleted Oz secrets store. **Kept:** the
+   `Harness::Oz` wire name + `convert_run_agents_harness` "oz" string, legacy settings-page
+   slug mappings ("Oz", "OzCloudAPIKeys"), the worktree-name word list, `AgentHarness`-era
+   internal logs. Tests unchanged.
+
+41. ~~Enable-candidate flags (user decision: enable all)~~ — **4id done (2026-09-29, commit
+   7b27ff169).** Added `editable_markdown_mermaid`, `ime_marked_text`, `iterm_images`,
+   `local_computer_use` and `local_docker_sandbox` to the `simplewarp` feature set;
+   LocalDockerSandbox got a new cargo feature + features.rs mapping (it was
+   dogfood-list-only). Pinned by a `simplewarp_enables_the_local_feature_set` test next to
+   the jupyter one. Tests 3,913 default / 3,915 simplewarp, 0 failed; clippy trio, format,
+   both checks clean. Status table's enable-candidate list is now EMPTY; Phase 3b remains
+   the only open phase.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,
