@@ -72,9 +72,6 @@ pub enum DisableReason {
     ProviderOutage,
     RequiresUpgrade,
     Unavailable,
-    /// The model only resolves on a Warp server, so a build with no Warp account behind it can
-    /// never reach it. Set by the client, never sent by the server.
-    NeedsWarpAccount,
 }
 
 impl DisableReason {
@@ -88,10 +85,6 @@ impl DisableReason {
             }
             DisableReason::RequiresUpgrade => "Please upgrade your plan to access this model.",
             DisableReason::Unavailable => "This model is unavailable.",
-            DisableReason::NeedsWarpAccount => {
-                "This model runs on Warp's servers. Add your own API key or endpoint in \
-                 Settings > AI."
-            }
         }
     }
 
@@ -106,9 +99,7 @@ impl DisableReason {
     /// resolve without user action, so we preserve the selection.
     fn should_clear_preference(&self, has_byok_key: bool) -> bool {
         match self {
-            DisableReason::AdminDisabled
-            | DisableReason::Unavailable
-            | DisableReason::NeedsWarpAccount => true,
+            DisableReason::AdminDisabled | DisableReason::Unavailable => true,
             DisableReason::RequiresUpgrade => !has_byok_key,
             DisableReason::OutOfRequests | DisableReason::ProviderOutage => false,
         }
@@ -117,12 +108,14 @@ impl DisableReason {
 
 /// Returns `true` when the model is usable for the current user: not disabled,
 /// or disabled for a reason that doesn't block requests (see
-/// [`DisableReason::should_clear_preference`]).
+/// [`DisableReason::should_clear_preference`]), and — for a first-party model —
+/// backed by an API key, without which `local_inference` cannot route it.
 fn is_usable_llm(info: &LLMInfo, app: &AppContext) -> bool {
     let has_byok_key = is_using_api_key_for_provider(&info.provider, app);
     info.disable_reason
         .as_ref()
         .is_none_or(|reason| !reason.should_clear_preference(has_byok_key))
+        && (has_byok_key || info.provider == LLMProvider::Unknown)
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -418,8 +411,8 @@ impl AvailableLLMs {
 
 /// The set of models available to the client, grouped by the feature they support.
 ///
-/// This fork has no Warp server, so this holds the compiled-in default catalog
-/// (with Warp-routed entries disabled); local providers and custom endpoints
+/// This fork has no Warp server, so this holds the compiled-in first-party catalog
+/// (routed through the user's own API keys); local providers and custom endpoints
 /// are layered on top of it by [`LLMPreferences`].
 ///
 /// Currently, if a model is available for multiple features,
@@ -453,34 +446,50 @@ impl ModelsByFeature {
     }
 }
 
-/// Returns the default AvailableLLMs for computer use.
-/// Used both in `ModelsByFeature::default()` and as a fallback in `get_computer_use_available()`.
-fn default_computer_use_llms() -> AvailableLLMs {
+/// Builds one compiled-in first-party model entry.
+///
+/// `id` is the provider slug that `local_inference` sends as the model, so the request
+/// routes by slug shape: `claude*` → Anthropic, `gpt*` → OpenAI, `gemini*` → Google, each
+/// on the user's own API key for that provider.
+fn builtin_llm(id: &str, display_name: &str, provider: LLMProvider) -> LLMInfo {
+    LLMInfo {
+        display_name: display_name.to_owned(),
+        base_model_name: id.to_owned(),
+        id: id.to_owned().into(),
+        reasoning_level: None,
+        usage_metadata: LLMUsageMetadata {
+            request_multiplier: 1,
+            credit_multiplier: None,
+        },
+        description: Some(provider.display_name().to_owned()),
+        disable_reason: None,
+        vision_supported: true,
+        spec: None,
+        provider,
+        host_configs: HashMap::new(),
+        discount_percentage: None,
+        context_window: LLMContextWindow::default(),
+    }
+}
+
+/// The compiled-in catalog: one current-generation model per provider.
+///
+/// Once the user holds a key for a provider, [`LLMPreferences`] also lists that provider's
+/// live `/models` catalog, so these entries exist for the out-of-box picker and as the
+/// fallback defaults. Deliberately small: slugs age, and a stale one fails at request time
+/// with a 404 the user cannot act on, while the live list is whatever the key reaches today.
+fn builtin_available_llms() -> AvailableLLMs {
     AvailableLLMs {
-        default_id: "computer-use-agent-auto".to_owned().into(),
-        choices: vec![LLMInfo {
-            display_name: "auto".to_owned(),
-            base_model_name: "auto".to_owned(),
-            id: "computer-use-agent-auto".to_owned().into(),
-            reasoning_level: None,
-            usage_metadata: LLMUsageMetadata {
-                request_multiplier: 1,
-                credit_multiplier: None,
-            },
-            description: None,
-            // These are Warp's server-side routers: `auto` only resolves when a Warp server
-            // picks the model behind it. A build with no Warp account cannot reach one, so the
-            // entry is disabled there rather than offered and then failing at request time.
-            // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
-            // user's own custom endpoint instead.
-            disable_reason: Some(DisableReason::NeedsWarpAccount),
-            vision_supported: true,
-            spec: None,
-            provider: LLMProvider::Unknown,
-            host_configs: HashMap::new(),
-            discount_percentage: None,
-            context_window: LLMContextWindow::default(),
-        }],
+        default_id: "claude-sonnet-4-5".to_owned().into(),
+        choices: vec![
+            builtin_llm(
+                "claude-sonnet-4-5",
+                "Claude Sonnet 4.5",
+                LLMProvider::Anthropic,
+            ),
+            builtin_llm("gpt-5.4", "GPT-5.4", LLMProvider::OpenAI),
+            builtin_llm("gemini-2.5-pro", "Gemini 2.5 Pro", LLMProvider::Google),
+        ],
         preferred_codex_model_id: None,
     }
 }
@@ -488,88 +497,10 @@ fn default_computer_use_llms() -> AvailableLLMs {
 impl Default for ModelsByFeature {
     fn default() -> Self {
         Self {
-            agent_mode: AvailableLLMs {
-                default_id: "auto".to_owned().into(),
-                choices: vec![LLMInfo {
-                    display_name: "auto (cost-efficient)".to_owned(),
-                    base_model_name: "auto (cost-efficient)".to_owned(),
-                    id: "auto".to_owned().into(),
-                    reasoning_level: None,
-                    usage_metadata: LLMUsageMetadata {
-                        request_multiplier: 1,
-                        credit_multiplier: None,
-                    },
-                    description: None,
-                    // These are Warp's server-side routers: `auto` only resolves when a Warp server
-                    // picks the model behind it. A build with no Warp account cannot reach one, so the
-                    // entry is disabled there rather than offered and then failing at request time.
-                    // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
-                    // user's own custom endpoint instead.
-                    disable_reason: Some(DisableReason::NeedsWarpAccount),
-                    vision_supported: true,
-                    spec: None,
-                    provider: LLMProvider::Unknown,
-                    host_configs: HashMap::new(),
-                    discount_percentage: None,
-                    context_window: LLMContextWindow::default(),
-                }],
-                preferred_codex_model_id: None,
-            },
-            coding: AvailableLLMs {
-                default_id: "auto".to_owned().into(),
-                choices: vec![LLMInfo {
-                    display_name: "auto (responsive)".to_owned(),
-                    base_model_name: "auto (responsive)".to_owned(),
-                    id: "auto".to_owned().into(),
-                    reasoning_level: None,
-                    usage_metadata: LLMUsageMetadata {
-                        request_multiplier: 1,
-                        credit_multiplier: None,
-                    },
-                    description: None,
-                    // These are Warp's server-side routers: `auto` only resolves when a Warp server
-                    // picks the model behind it. A build with no Warp account cannot reach one, so the
-                    // entry is disabled there rather than offered and then failing at request time.
-                    // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
-                    // user's own custom endpoint instead.
-                    disable_reason: Some(DisableReason::NeedsWarpAccount),
-                    vision_supported: true,
-                    spec: None,
-                    provider: LLMProvider::Unknown,
-                    host_configs: HashMap::new(),
-                    discount_percentage: None,
-                    context_window: LLMContextWindow::default(),
-                }],
-                preferred_codex_model_id: None,
-            },
-            cli_agent: Some(AvailableLLMs {
-                default_id: "cli-agent-auto".to_owned().into(),
-                choices: vec![LLMInfo {
-                    display_name: "auto".to_owned(),
-                    base_model_name: "auto".to_owned(),
-                    id: "cli-agent-auto".to_owned().into(),
-                    reasoning_level: None,
-                    usage_metadata: LLMUsageMetadata {
-                        request_multiplier: 1,
-                        credit_multiplier: None,
-                    },
-                    description: None,
-                    // These are Warp's server-side routers: `auto` only resolves when a Warp server
-                    // picks the model behind it. A build with no Warp account cannot reach one, so the
-                    // entry is disabled there rather than offered and then failing at request time.
-                    // Disabling it also makes the existing fallback in `fallback_llm_info` pick the
-                    // user's own custom endpoint instead.
-                    disable_reason: Some(DisableReason::NeedsWarpAccount),
-                    vision_supported: false,
-                    spec: None,
-                    provider: LLMProvider::Unknown,
-                    host_configs: HashMap::new(),
-                    discount_percentage: None,
-                    context_window: LLMContextWindow::default(),
-                }],
-                preferred_codex_model_id: None,
-            }),
-            computer_use: Some(default_computer_use_llms()),
+            agent_mode: builtin_available_llms(),
+            coding: builtin_available_llms(),
+            cli_agent: Some(builtin_available_llms()),
+            computer_use: Some(builtin_available_llms()),
         }
     }
 }
@@ -783,12 +714,7 @@ impl LLMPreferences {
             .agent_mode
             .choices
             .iter()
-            .filter(|llm| {
-                !matches!(
-                    llm.disable_reason,
-                    Some(DisableReason::AdminDisabled | DisableReason::NeedsWarpAccount)
-                )
-            })
+            .filter(|llm| llm.disable_reason != Some(DisableReason::AdminDisabled))
             // Gate cloud/team routers behind the same flag as local routers so
             // the entire custom-router feature is controlled by one flag.
             .filter(move |llm| {
@@ -812,12 +738,7 @@ impl LLMPreferences {
             .coding
             .choices
             .iter()
-            .filter(|llm| {
-                !matches!(
-                    llm.disable_reason,
-                    Some(DisableReason::AdminDisabled | DisableReason::NeedsWarpAccount)
-                )
-            })
+            .filter(|llm| llm.disable_reason != Some(DisableReason::AdminDisabled))
             // Gate cloud/team routers behind the same flag as local routers.
             .filter(move |llm| {
                 routers_enabled || !custom_model_routers::is_cloud_custom_router_id(llm.id.as_str())
@@ -833,12 +754,7 @@ impl LLMPreferences {
         self.get_cli_agent_available()
             .choices
             .iter()
-            .filter(|llm| {
-                !matches!(
-                    llm.disable_reason,
-                    Some(DisableReason::AdminDisabled | DisableReason::NeedsWarpAccount)
-                )
-            })
+            .filter(|llm| llm.disable_reason != Some(DisableReason::AdminDisabled))
             .chain(self.custom_llm_choices())
             .chain(self.provider_llm_choices())
     }
@@ -918,7 +834,7 @@ impl LLMPreferences {
         self.models_by_feature
             .computer_use
             .as_ref()
-            .unwrap_or_else(|| DEFAULT.get_or_init(default_computer_use_llms))
+            .unwrap_or_else(|| DEFAULT.get_or_init(builtin_available_llms))
     }
 
     /// Returns metadata about an LLM, if the client knows about it.
