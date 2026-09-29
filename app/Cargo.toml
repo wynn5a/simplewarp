@@ -628,6 +628,11 @@ simplewarp = [
     "conversations_as_context",
     "markdown_tables",
     "jupyter_notebook_rendering",
+    "editable_markdown_mermaid",
+    "ime_marked_text",
+    "iterm_images",
+    "local_computer_use",
+    "local_docker_sandbox",
     "blocklist_markdown_table_rendering",
     "markdown_mermaid",
     "blocklist_markdown_images",
@@ -712,6 +717,7 @@ ligatures = []
 trim_trailing_blank_lines = []
 list_skills = []
 local_computer_use = []
+local_docker_sandbox = []
 jupyter_notebook_rendering = []
 markdown_tables = []
 markdown_mermaid = []

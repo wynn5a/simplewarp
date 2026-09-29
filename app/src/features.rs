@@ -235,6 +235,8 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AgentModeComputerUse,
         #[cfg(feature = "local_computer_use")]
         FeatureFlag::LocalComputerUse,
+        #[cfg(feature = "local_docker_sandbox")]
+        FeatureFlag::LocalDockerSandbox,
         #[cfg(feature = "background_computer_use")]
         FeatureFlag::BackgroundComputerUse,
         #[cfg(feature = "agent_toolbar_editor")]
@@ -344,5 +346,24 @@ mod tests {
     fn jupyter_notebook_rendering_is_compiled_into_the_build() {
         use super::*;
         assert!(enabled_features().contains(&FeatureFlag::JupyterNotebookRendering));
+    }
+
+    // SimpleWarp enables these compile-time flags: each is purely local
+    // functionality (mermaid editing, IME marked text, iTerm images, local
+    // computer use, the local Docker sandbox pane) with no cloud dependency.
+    #[test]
+    #[cfg(feature = "simplewarp")]
+    fn simplewarp_enables_the_local_feature_set() {
+        use super::*;
+        let enabled = enabled_features();
+        for flag in [
+            FeatureFlag::EditableMarkdownMermaid,
+            FeatureFlag::ImeMarkedText,
+            FeatureFlag::ITermImages,
+            FeatureFlag::LocalComputerUse,
+            FeatureFlag::LocalDockerSandbox,
+        ] {
+            assert!(enabled.contains(&flag), "{flag:?} should be enabled");
+        }
     }
 }
