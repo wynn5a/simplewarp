@@ -9109,13 +9109,6 @@ impl TerminalView {
                         self.maybe_suggest_open_in_warp(block_completed, ctx);
                     }
 
-                    // Check for environment creation command completion during /init flow
-                    if block_completed.was_part_of_agent_interaction
-                        && self.has_active_init_project(ctx)
-                    {
-                        self.maybe_handle_environment_create_command(block_completed, ctx);
-                    }
-
                     let terminal_view_state = {
                         let model = self.model.lock();
                         match model.block_list().last_non_hidden_block() {
@@ -10292,32 +10285,6 @@ impl TerminalView {
                 InitProjectModelEvent::LanguageServerInstalledAndEnabled => {
                     me.start_lsp_server_in_active_pwd(ctx);
                 }
-                InitProjectModelEvent::CreateEnvironment => {
-                    me.ai_controller.update(ctx, |controller, ctx| {
-                        controller.send_ai_input_with_context(
-                            |context| AIAgentInput::CreateEnvironment {
-                                context,
-                                display_query: None,
-                                repo_paths: vec![".".to_string()],
-                            },
-                            ctx,
-                        );
-                    });
-                }
-                InitProjectModelEvent::EnvironmentCreated => {
-                    let model = model.clone();
-                    me.on_next_conversation_finished(move |_me, _reason, ctx| {
-                        model.update(ctx, |m, ctx| {
-                            m.mark_step_completed(
-                                InitStepKind::CreateEnvironment,
-                                init_project::InitActionResult::CreateEnvironment(
-                                    init_project::CreateEnvironmentResult::Created,
-                                ),
-                                ctx,
-                            );
-                        });
-                    });
-                }
             }
         });
         // After subscribing, start the /init flow
@@ -10356,28 +10323,6 @@ impl TerminalView {
                 block_handle.update(ctx, |block, ctx| block.try_steal_focus(ctx));
                 return;
             }
-        }
-    }
-
-    /// Check if completed command was `warp environment create` and emit event if successful
-    fn maybe_handle_environment_create_command(
-        &mut self,
-        block_completed: &UserBlockCompleted,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let cli_name = ChannelState::cli_command_name();
-        let cmd = &block_completed.command;
-        let is_env_create =
-            cmd.contains(cli_name) && cmd.contains("environment") && cmd.contains("create");
-
-        if !is_env_create || !block_completed.serialized_block.exit_code.was_successful() {
-            return;
-        }
-
-        if let Some(model) = &self.active_init_project_model {
-            model.update(ctx, |_, ctx| {
-                ctx.emit(InitProjectModelEvent::EnvironmentCreated);
-            });
         }
     }
 

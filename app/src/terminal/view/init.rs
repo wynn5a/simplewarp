@@ -391,7 +391,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:toggle_teams_modal",
-            "Toggle team workflows modal",
+            "Toggle workflows modal",
             TerminalAction::OpenWorkflowModal,
         )
         .with_key_binding(cmd_or_ctrl_shift("s"))

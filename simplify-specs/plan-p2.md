@@ -152,6 +152,16 @@ cost, suggestions or citations. Always empty/zero:
 
 ## 5. Stale remote-shaped copy and links
 
+**Done (P15, 2026-09-29).** Tips: `@` context copy reworded, `/open-mcp-servers` no longer says
+"share with your team", `/create-environment` and `/usage` tips removed, `oz` tip now points at
+`simplewarp agent run`. The `/init` cloud-environment step is gone (step kind, block UI, the
+`warp environment create` block-completion hook); `AIAgentInput::CreateEnvironment` and the
+`/create-environment` request plumbing stay for P4. Conversation-list empty state no longer says
+"ambient agents". The PS1 "Look incorrect? Let us know." link is removed. Palette entry is now
+"Toggle workflows modal". `warp_cli`: `oz model list` / MAA / "Warp Agent" help strings reworded;
+`--skill` is hidden from help and completions unless OzPlatformSkills is on. `QueuedPromptsV2`
+doc fixed. The "inert strings" bullet is unchanged by design.
+
 - Agent tips (`ai/agent_tips.rs`): `:96` "Warp Drive objects", `:146` "share MCP servers with
   your team", `:151` `/create-environment` "remote docker environment" (no such command),
   `:186` `/usage` "AI credits" (no such command), `:191` "`oz` command".
@@ -227,5 +237,5 @@ is a product decision. Every item below needs a user decision before it becomes 
 | P12 | §3 LSP install downloads | keep (user-initiated) | Keep; optionally say in the Install UI that it downloads from GitHub/npm. |
 | P13 | §4 MCP gallery, autoinstall deeplink, FigmaDetection + figma skills, WellKnownMcpIds | delete | Delete — the gallery and well-known ids require the Warp server. |
 | P14 | §4 web-font fallback, zero-reference flags | delete | Delete (dead code). |
-| P15 | §5 stale copy/links, `--skill` in help | fix | One cleanup round. |
+| ~~P15~~ | §5 stale copy/links, `--skill` in help | fix | **Done** (see §5). |
 | P16 | §8 plan.md corrections | edit | Fold in with the next round. |

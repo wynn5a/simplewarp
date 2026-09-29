@@ -454,7 +454,7 @@ pub enum FeatureFlag {
     /// Gates the `/queue` slash command, which lets users queue a follow-up prompt
     /// while the agent is mid-response.
     QueueSlashCommand,
-    /// Extends queued prompts to Cloud Mode setup and follow-up draining.
+    /// Extends queued prompts to shell commands, summarization, and follow-up draining.
     QueuedPromptsV2,
 
     /// Enables an agent tool for the CLI subagent to explicitly transfer command control to the

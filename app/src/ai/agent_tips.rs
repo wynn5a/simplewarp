@@ -93,7 +93,7 @@ static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
             action: None,
         },
         AgentTip {
-            description: "`@` to add context from files, blocks, or Warp Drive objects to your prompt.".to_string(),
+            description: "`@` to add files, blocks, rules, or past conversations as context to your prompt.".to_string(),
             binding_name: None,
             action: None,
         },
@@ -143,12 +143,7 @@ static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
             action: None,
         },
         AgentTip {
-            description: "`/open-mcp-servers` to view and share MCP servers with your team.".to_string(),
-            binding_name: None,
-            action: None,
-        },
-        AgentTip {
-            description: "`/create-environment` to turn a repo into a remote docker environment an agent can run in.".to_string(),
+            description: "`/open-mcp-servers` to view and manage your MCP servers.".to_string(),
             binding_name: None,
             action: None,
         },
@@ -183,12 +178,7 @@ static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
             action: None,
         },
         AgentTip {
-            description: "`/usage` to show your current AI credits usage.".to_string(),
-            binding_name: None,
-            action: None,
-        },
-        AgentTip {
-            description: "Use the `oz` command to run the Warp Agent in headless mode, useful for remote machines.".to_string(),
+            description: "Use `simplewarp agent run` to run the agent headlessly, useful for remote machines.".to_string(),
             binding_name: None,
             action: None,
         },

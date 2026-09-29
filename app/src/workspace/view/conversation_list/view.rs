@@ -759,7 +759,7 @@ fn render_zero_state(
         .with_child(
             ConstrainedBox::new(
                 FormattedTextElement::from_str(
-                    "Your active and past conversations with local and ambient agents will appear here.",
+                    "Your active and past agent conversations will appear here.",
                     appearance.ui_font_family(),
                     14.,
                 )

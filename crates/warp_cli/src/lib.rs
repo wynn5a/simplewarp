@@ -4,6 +4,7 @@ use std::{env, fmt};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use url::Url;
 use warp_core::channel::ChannelState;
+use warp_core::features::FeatureFlag;
 
 use crate::agent::OutputFormat;
 
@@ -147,6 +148,22 @@ impl Args {
         // Substitute the actual binary name into help output. Ideally clap would do this for us.
         let bin_name =
             binary_name().unwrap_or_else(|| ChannelState::cli_command_name().to_string());
+
+        // `--skill` is parsed in every build (it is part of the prompt arg group) but rejected at
+        // runtime without OzPlatformSkills, so keep it out of help and completions there. Clap
+        // still lists hidden group members in the generated usage line, hence the override.
+        if !FeatureFlag::OzPlatformSkills.is_enabled() {
+            let run_usage = format!(
+                "{bin_name} agent run [OPTIONS] <--prompt <PROMPT>|--saved-prompt <SAVED_PROMPT>>"
+            );
+            command = command.mut_subcommand("agent", |agent| {
+                agent.mut_subcommand("run", |run| {
+                    run.mut_arg("skill", |arg| arg.hide(true))
+                        .override_usage(run_usage)
+                })
+            });
+        }
+
         command = command.after_help(color_print::cformat!(
             r#"<bold><underline>Examples:</underline></bold>
 

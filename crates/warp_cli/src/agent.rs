@@ -107,7 +107,7 @@ const HARNESS_VALUE_VARIANTS: [Harness; 5] = [
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Harness {
-    /// Use Warp's built-in MAA infrastructure (default).
+    /// Use the built-in agent (default).
     #[default]
     Oz,
     /// Delegate to the `claude` CLI.
@@ -133,9 +133,7 @@ impl ValueEnum for Harness {
 
     fn to_possible_value(&self) -> Option<PossibleValue> {
         let mut pv = match self {
-            Harness::Oz => {
-                PossibleValue::new("oz").help("Use Warp's built-in MAA infrastructure (default)")
-            }
+            Harness::Oz => PossibleValue::new("oz").help("Use the built-in agent (default)"),
             Harness::Claude => PossibleValue::new("claude")
                 .alias("claude-code")
                 .help("Delegate to the `claude` CLI"),
@@ -250,7 +248,7 @@ pub enum AgentProfileCommand {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Subcommand)]
 pub enum AgentCommand {
-    /// Run a new Warp Agent.
+    /// Run a new agent.
     Run(RunAgentArgs),
     /// Manage agent profiles.
     #[command(subcommand)]
@@ -354,7 +352,7 @@ pub struct RunAgentArgs {
 
     /// Execution harness for the agent run.
     ///
-    /// "oz" (default) uses Warp Agent.
+    /// "oz" (default) uses the built-in agent.
     /// "claude" delegates to the `claude` CLI.
     #[arg(long = "harness", value_name = "HARNESS", default_value_t = Harness::Oz, hide = true)]
     pub harness: Harness,
