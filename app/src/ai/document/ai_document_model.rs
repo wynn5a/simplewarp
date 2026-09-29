@@ -927,32 +927,6 @@ impl AIDocumentModel {
         }
     }
 
-    /// Updates the per-plan orchestration config and status; called from
-    /// the plan card config block on field edit / approval toggle.
-    pub fn set_orchestration_config_for_plan(
-        &mut self,
-        conversation_id: AIConversationId,
-        plan_id: String,
-        config: OrchestrationConfig,
-        status: OrchestrationConfigStatus,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.dirty_orchestration_events.insert(
-            (conversation_id, plan_id.clone()),
-            DirtyOrchestrationEvent {
-                plan_id: plan_id.clone(),
-                config: config.clone(),
-                status,
-            },
-        );
-        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, hctx| {
-            if let Some(conversation) = history.conversation_mut(&conversation_id) {
-                conversation.set_orchestration_config_for_plan(plan_id, config, status);
-            }
-            hctx.emit(BlocklistAIHistoryEvent::OrchestrationConfigUpdated { conversation_id });
-        });
-    }
-
     /// Restore a document to a previous version, creating a new version in the process.
     /// Returns the new version number on success.
     pub fn revert_to_document_version(

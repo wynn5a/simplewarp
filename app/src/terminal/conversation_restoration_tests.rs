@@ -5,8 +5,7 @@ use warp_multi_agent_api as api;
 use warp_terminal::model::BlockIndex;
 
 use super::find_block_indices_for_exchange_timestamps;
-use crate::AIConversationId;
-use crate::ai::agent::conversation::AIConversation;
+use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::terminal::view::ConversationRestorationInNewPaneType;
 
 /// Helper: create a `DateTime<Local>` from a unix timestamp in seconds.

@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use ai::agent::action::{AskUserQuestionItem, InsertReviewComment, RunAgentsRequest};
+use ai::agent::action::{AskUserQuestionItem, InsertReviewComment};
 use ai::document::DEFAULT_PLANNING_DOCUMENT_TITLE;
 use base64::Engine as _;
 use chrono::Duration;
@@ -104,9 +104,6 @@ use crate::ai::blocklist::inline_action::code_diff_view::convert_file_edits_to_f
 use crate::ai::blocklist::inline_action::requested_command::{
     self, RequestedActionViewType, RequestedCommand, RequestedCommandView,
     RequestedCommandViewEvent,
-};
-use crate::ai::blocklist::inline_action::run_agents_card_view::{
-    self, RunAgentsCardView, RunAgentsCardViewEvent,
 };
 use crate::ai::blocklist::inline_action::search_codebase::{
     SearchCodebaseView, SearchCodebaseViewEvent,
@@ -211,7 +208,6 @@ pub fn init(app: &mut AppContext) {
     ask_user_question_view::init(app);
     code_diff_view::init(app);
     requested_command::init(app);
-    run_agents_card_view::init(app);
     cli::init(app);
 }
 
@@ -939,9 +935,6 @@ pub struct AIBlock {
     imported_comments: HashMap<AIAgentActionId, ImportedCommentGroup>,
     has_imported_comments: bool,
 
-    /// Per-action `RunAgentsCardView`, lazily created.
-    run_agents_card_views: HashMap<AIAgentActionId, ViewHandle<RunAgentsCardView>>,
-
     /// Handle for the background link detection task, kept so we can abort a previous
     /// detection when a new one is spawned (e.g. on shell data change).
     link_detection_handle: Option<SpawnedFutureHandle>,
@@ -1335,7 +1328,6 @@ impl AIBlock {
             agent_view_controller,
             imported_comments: Default::default(),
             has_imported_comments: false,
-            run_agents_card_views: Default::default(),
             link_detection_handle: None,
             resolved_code_block_paths: Default::default(),
             resolved_blocklist_image_sources: Default::default(),
@@ -1678,7 +1670,6 @@ impl AIBlock {
                     let output = output.get();
                     self.handle_updated_output(&output, ctx);
                 }
-                self.notify_run_agents_card_views(ctx);
                 self.spawn_link_detection(ctx);
                 self.finish(FinishReason::Cancelled, ctx);
 
@@ -1686,7 +1677,6 @@ impl AIBlock {
             }
             AIBlockOutputStatus::Failed { .. } => {
                 let _server_output_id = self.model.server_output_id(ctx);
-                self.notify_run_agents_card_views(ctx);
                 // There are no actions to be taken in this block, it is finished.
                 self.finish(FinishReason::Error, ctx);
             }
@@ -1779,10 +1769,6 @@ impl AIBlock {
                     .skill_button_handles
                     .entry(action.id.clone())
                     .or_default();
-            }
-
-            if let AIAgentActionType::RunAgents(req) = &action.action {
-                self.ensure_run_agents_card_view(&action.id, req, ctx);
             }
 
             // Ensure a button component exists for UseComputer actions.
@@ -4457,14 +4443,6 @@ impl AIBlock {
         {
             ctx.focus(ask_user_question_view);
             did_focus_subview = true;
-        } else if let Some(card_view) =
-            pending_action_id.and_then(|id| self.run_agents_card_views.get(id))
-        {
-            // If there's a blocking RunAgents card, focus it so its
-            // own keybindings (`enter -> Accept`, `cmdorctrl-e ->
-            // ToggleEdit`, etc.) resolve.
-            ctx.focus(card_view);
-            did_focus_subview = true;
         } else if let Some(keyboard_navigable_buttons) = self.keyboard_navigable_buttons.as_ref() {
             // If there's buttons to take action on, focus those.
             ctx.focus(keyboard_navigable_buttons);
@@ -5832,36 +5810,9 @@ impl TypedActionView for AIBlock {
                 self.cancel_action(action_id, ctx);
             }
             AIBlockAction::ExecuteNextPendingAction => {
-                // If the next pending action is a RunAgents tool call,
-                // delegate to the per-card view's Accept handler so
-                // Enter routes through the executor-backed dispatch
-                // path. (Focus normally goes to the card view via
-                // `focus_subview_if_necessary`, in which case the
-                // card's own keybinding fires; this handler covers
-                // the case where focus is still on AIBlock.)
-                let run_agents_id = self
-                    .action_model
-                    .as_ref(ctx)
-                    .get_pending_actions_for_conversation(&self.client_ids.conversation_id)
-                    .filter(|action| matches!(action.action, AIAgentActionType::RunAgents(_)))
-                    .last()
-                    .map(|action| action.id.clone());
-                if let Some(run_agents_id) = run_agents_id {
-                    match self.run_agents_card_views.get(&run_agents_id).cloned() {
-                        Some(card_view) => {
-                            card_view.update(ctx, |view, ctx_view| view.accept(ctx_view));
-                        }
-                        _ => {
-                            log::warn!(
-                                "ExecuteNextPendingAction: no RunAgentsCardView for {run_agents_id:?}"
-                            );
-                        }
-                    }
-                } else {
-                    self.action_model.update(ctx, |action_model, ctx| {
-                        action_model.execute_next_action_for_user(self.conversation_id(), ctx)
-                    });
-                }
+                self.action_model.update(ctx, |action_model, ctx| {
+                    action_model.execute_next_action_for_user(self.conversation_id(), ctx)
+                });
             }
             AIBlockAction::ExecuteRequestedAction { action_id } => {
                 self.action_model.update(ctx, |action_model, ctx| {
@@ -6354,83 +6305,6 @@ impl TypedActionView for AIBlock {
     }
 }
 
-impl AIBlock {
-    /// Lazily create the per-action `RunAgentsCardView` so the
-    /// orchestrate confirmation card can render on its first frame.
-    /// Idempotent: re-running with an already-populated entry leaves
-    /// it unchanged. The view drives Accept dispatch through
-    /// [`BlocklistAIActionModel::execute_run_agents`] itself; only
-    /// `RejectRequested` flows back here so the existing
-    /// [`Self::cancel_action`] entry point handles cancellation.
-    fn ensure_run_agents_card_view(
-        &mut self,
-        action_id: &AIAgentActionId,
-        request: &RunAgentsRequest,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if let Some(existing_view) = self.run_agents_card_views.get(action_id) {
-            // The view was created on an earlier streaming chunk that may
-            // have carried a partial/empty request. Re-sync the edit state
-            // from the latest (potentially more complete) request so the
-            // card renders the correct agent count, summary, etc.
-            existing_view.update(ctx, |view, ctx| {
-                view.update_request(request, ctx);
-            });
-            return;
-        }
-
-        // Read the active orchestration config for auto-launch /
-        // denied decisions from the conversation (not the singleton).
-        let active_config = {
-            let history = crate::BlocklistAIHistoryModel::as_ref(ctx);
-            let conv = history.conversation(&self.client_ids.conversation_id);
-
-            if !request.plan_id.is_empty() {
-                conv.and_then(|conv| {
-                    conv.orchestration_config_for_plan(&request.plan_id)
-                        .map(|(config, status)| (config.clone(), status))
-                })
-            } else {
-                None
-            }
-        };
-
-        let action_id_clone = action_id.clone();
-        let request_clone = request.clone();
-        let action_model = self.action_model.clone();
-        let run_agents_executor = self.action_model.as_ref(ctx).run_agents_executor(ctx);
-        let block_model = self.model.clone();
-        let view = ctx.add_typed_action_view(move |ctx_view| {
-            RunAgentsCardView::new(
-                action_id_clone,
-                &request_clone,
-                active_config,
-                action_model,
-                run_agents_executor,
-                block_model,
-                ctx_view,
-            )
-        });
-        let action_id_for_event = action_id.clone();
-        ctx.subscribe_to_view(&view, move |me, _, event, ctx| match event {
-            RunAgentsCardViewEvent::RejectRequested => {
-                me.cancel_action(&action_id_for_event, ctx);
-            }
-        });
-        self.run_agents_card_views.insert(action_id.clone(), view);
-    }
-
-    /// Re-renders the orchestrate cards after the block's output stream ends
-    /// without succeeding. A `RunAgents` tool call that was still streaming at
-    /// that point never reaches the action queue, so it produces no action
-    /// result and no event of its own; without this nudge its card would keep
-    /// rendering the "Configuring agents…" placeholder forever.
-    fn notify_run_agents_card_views(&self, ctx: &mut ViewContext<Self>) {
-        for view in self.run_agents_card_views.values().cloned().collect_vec() {
-            view.update(ctx, |_, ctx| ctx.notify());
-        }
-    }
-}
 #[cfg(test)]
 #[path = "block_tests.rs"]
 mod tests;

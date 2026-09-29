@@ -11,10 +11,8 @@ pub(super) mod read_mcp_resource;
 pub(super) mod read_skill;
 pub(super) mod request_computer_use;
 pub(super) mod request_file_edits;
-pub(super) mod run_agents;
 pub(super) mod search_codebase;
 pub(super) mod shell_command;
-pub(super) mod start_agent;
 pub(super) mod suggest_new_conversation;
 pub(super) mod suggest_prompt;
 pub(super) mod use_computer;
@@ -26,7 +24,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use ai::agent::action_result::{
-    InsertReviewCommentsResult, RequestCommandOutputResult, StartRecordingResult,
+    InsertReviewCommentsResult, RequestCommandOutputResult, RunAgentsResult, StartRecordingResult,
     StopRecordingResult,
 };
 pub use ask_user_question::AskUserQuestionExecutor;
@@ -47,15 +45,8 @@ use read_mcp_resource::ReadMCPResourceExecutor;
 use read_skill::ReadSkillExecutor;
 use request_computer_use::RequestComputerUseExecutor;
 pub use request_file_edits::RequestFileEditsExecutor;
-pub use run_agents::{RunAgentsExecutor, RunAgentsExecutorEvent, RunAgentsSpawningSnapshot};
-#[cfg(test)]
-pub use run_agents::{compose_run_agents_child_prompt, run_agents_to_start_agent_mode};
 use serde::{Deserialize, Serialize};
 pub use shell_command::{ShellCommandExecutor, ShellCommandExecutorEvent};
-pub use start_agent::{
-    StartAgentExecutor, StartAgentExecutorEvent, StartAgentOutcome, StartAgentRequest,
-    StartAgentRequestId,
-};
 pub use suggest_new_conversation::NewConversationDecision;
 use suggest_new_conversation::SuggestNewConversationExecutor;
 pub use suggest_prompt::PromptSuggestionExecutor;
@@ -245,8 +236,6 @@ pub struct BlocklistAIActionExecutor {
     request_computer_use_executor: ModelHandle<RequestComputerUseExecutor>,
     read_skill_executor: ModelHandle<ReadSkillExecutor>,
     fetch_conversation_executor: ModelHandle<FetchConversationExecutor>,
-    start_agent_executor: ModelHandle<StartAgentExecutor>,
-    run_agents_executor: ModelHandle<RunAgentsExecutor>,
     ask_user_question_executor: ModelHandle<AskUserQuestionExecutor>,
     wait_for_events_executor: ModelHandle<WaitForEventsExecutor>,
     /// The actions currently executing asynchronously, keyed by action ID.
@@ -306,9 +295,6 @@ impl BlocklistAIActionExecutor {
             ctx.add_model(|_| RequestComputerUseExecutor::new(terminal_view_id));
         let read_skill_executor = ctx.add_model(|_| ReadSkillExecutor::new(active_session.clone()));
         let fetch_conversation_executor = ctx.add_model(|_| FetchConversationExecutor::new());
-        let start_agent_executor = ctx.add_model(StartAgentExecutor::new);
-        let run_agents_executor = ctx
-            .add_model(|_| RunAgentsExecutor::new(start_agent_executor.clone(), terminal_view_id));
         let ask_user_question_executor =
             ctx.add_model(|_| AskUserQuestionExecutor::new(terminal_view_id));
         let wait_for_events_executor =
@@ -332,8 +318,6 @@ impl BlocklistAIActionExecutor {
             async_executing_actions: Default::default(),
             read_skill_executor,
             fetch_conversation_executor,
-            start_agent_executor,
-            run_agents_executor,
             ask_user_question_executor,
             wait_for_events_executor,
         }
@@ -388,14 +372,6 @@ impl BlocklistAIActionExecutor {
 
     pub fn suggest_prompt_executor(&self) -> &ModelHandle<PromptSuggestionExecutor> {
         &self.suggest_prompt_executor
-    }
-
-    pub fn start_agent_executor(&self) -> &ModelHandle<StartAgentExecutor> {
-        &self.start_agent_executor
-    }
-
-    pub fn run_agents_executor(&self) -> &ModelHandle<RunAgentsExecutor> {
-        &self.run_agents_executor
     }
 
     pub fn action_phase(&self, action: &AIAgentAction, ctx: &AppContext) -> RunningActionPhase {
@@ -513,9 +489,7 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::AskUserQuestion { .. } => self
                 .ask_user_question_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::RunAgents(_) => self
-                .run_agents_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
+            AIAgentActionType::RunAgents(_) => futures::future::ready(()).boxed(),
             AIAgentActionType::WaitForEvents { .. } => self
                 .wait_for_events_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
@@ -704,10 +678,12 @@ impl BlocklistAIActionExecutor {
                 .ask_user_question_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
-            AIAgentActionType::RunAgents(_) => self
-                .run_agents_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
+            AIAgentActionType::RunAgents(_) => ActionExecution::<()>::Sync(
+                AIAgentActionResultType::RunAgents(RunAgentsResult::Failure {
+                    error: "Orchestration is no longer supported".to_owned(),
+                }),
+            )
+            .into(),
             AIAgentActionType::WaitForEvents { .. } => self
                 .wait_for_events_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
@@ -940,9 +916,7 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::AskUserQuestion { .. } => self
                 .ask_user_question_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::RunAgents(_) => self
-                .run_agents_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
+            AIAgentActionType::RunAgents(_) => false,
             AIAgentActionType::WaitForEvents { .. } => self
                 .wait_for_events_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),

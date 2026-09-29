@@ -4,8 +4,7 @@ mod saved_prompts;
 mod zero_state;
 
 pub use core::{
-    CommonCommandGates, InlineItem, SlashCommandDataSource, SlashCommandDataSourceState,
-    UpdatedActiveCommands,
+    InlineItem, SlashCommandDataSource, SlashCommandDataSourceState, UpdatedActiveCommands,
 };
 
 pub use gui::{GuiDataSourceArgs, GuiSlashCommandDataSource};

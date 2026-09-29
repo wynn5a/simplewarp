@@ -1,9 +1,6 @@
 use std::fs;
 
-use super::{
-    ClaudeCodePluginManager, CliAgentPluginManager, check_installed,
-    claude_code_marketplace_has_local_override, installed_version,
-};
+use super::{ClaudeCodePluginManager, CliAgentPluginManager, check_installed, installed_version};
 
 #[test]
 fn installed_when_plugin_present() {
@@ -23,76 +20,6 @@ fn installed_when_plugin_present() {
     .unwrap();
 
     assert!(check_installed(dir.path()));
-}
-
-#[test]
-fn local_marketplace_override_detects_directory_source() {
-    let dir = tempfile::tempdir().unwrap();
-    let settings = serde_json::json!({
-        "extraKnownMarketplaces": {
-            "claude-code-warp": {
-                "source": {
-                    "path": "/Users/example/Developer/claude-code-warp-internal",
-                    "source": "directory"
-                }
-            }
-        }
-    });
-    fs::write(
-        dir.path().join("settings.json"),
-        serde_json::to_string(&settings).unwrap(),
-    )
-    .unwrap();
-
-    assert!(claude_code_marketplace_has_local_override(dir.path()));
-}
-
-#[test]
-fn local_marketplace_override_ignores_repo_source() {
-    let dir = tempfile::tempdir().unwrap();
-    let settings = serde_json::json!({
-        "extraKnownMarketplaces": {
-            "claude-code-warp": {
-                "source": "warpdotdev/claude-code-warp"
-            }
-        }
-    });
-    fs::write(
-        dir.path().join("settings.json"),
-        serde_json::to_string(&settings).unwrap(),
-    )
-    .unwrap();
-
-    assert!(!claude_code_marketplace_has_local_override(dir.path()));
-}
-
-#[test]
-#[serial_test::serial]
-fn local_marketplace_override_via_trait_uses_claude_config_dir() {
-    let dir = tempfile::tempdir().unwrap();
-    let settings = serde_json::json!({
-        "extraKnownMarketplaces": {
-            "claude-code-warp": {
-                "source": {
-                    "path": "../claude-code-warp-internal",
-                    "source": "directory"
-                }
-            }
-        }
-    });
-    fs::write(
-        dir.path().join("settings.json"),
-        serde_json::to_string(&settings).unwrap(),
-    )
-    .unwrap();
-
-    // TODO: Audit that the environment access only happens in single-threaded code.
-    unsafe { std::env::set_var("CLAUDE_CONFIG_DIR", dir.path()) };
-    let result = ClaudeCodePluginManager::new(None, None, None).has_local_marketplace_override();
-    // TODO: Audit that the environment access only happens in single-threaded code.
-    unsafe { std::env::remove_var("CLAUDE_CONFIG_DIR") };
-
-    assert!(result);
 }
 
 #[test]

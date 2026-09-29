@@ -24,7 +24,6 @@ mod comments;
 mod header;
 mod imported_comments;
 mod input;
-mod orchestration;
 pub mod output;
 pub mod query;
 mod todos;
@@ -1076,7 +1075,6 @@ impl View for AIBlock {
                 terminal_view_id: self.terminal_view_id,
                 is_conversation_transcript_viewer,
                 imported_comments: &self.imported_comments,
-                run_agents_card_views: &self.run_agents_card_views,
                 resolved_code_block_paths: &self.resolved_code_block_paths,
                 resolved_blocklist_image_sources: &self.resolved_blocklist_image_sources,
                 thinking_display_mode: AISettings::as_ref(app).thinking_display_mode,

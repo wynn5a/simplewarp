@@ -67,10 +67,6 @@ pub enum HiddenPaneReason {
     // Pane was closed. We keep it around temporarily in case
     // the user wants to undo the close.
     Closed,
-
-    // Pane is a child agent spawned by an orchestrator. It stays hidden
-    // until the user explicitly reveals it from the status card.
-    ChildAgent,
 }
 
 impl HiddenPane {
@@ -96,12 +92,6 @@ impl HiddenPane {
         Self {
             pane_id,
             reason: HiddenPaneReason::Closed,
-        }
-    }
-    pub fn from_child_agent(pane_id: PaneId) -> Self {
-        Self {
-            pane_id,
-            reason: HiddenPaneReason::ChildAgent,
         }
     }
 }
@@ -300,29 +290,6 @@ impl PaneData {
         } else {
             report_error!("Attempted to show pane for the job but couldn't find it.")
         }
-    }
-
-    pub fn hide_pane_for_child_agent(&mut self, id: PaneId) {
-        if !self.is_pane_hidden(&id) {
-            self.hidden_panes.push(HiddenPane::from_child_agent(id));
-        }
-    }
-
-    pub fn show_pane_for_child_agent(&mut self, id: PaneId) {
-        if let Some(pos) = self
-            .hidden_panes
-            .iter()
-            .position(|pane| pane.pane_id == id && pane.reason == HiddenPaneReason::ChildAgent)
-        {
-            self.hidden_panes.remove(pos);
-        } else {
-            report_error!("Attempted to show child agent pane but couldn't find it.")
-        }
-    }
-
-    /// Returns true if `id` is hidden as a child agent pane.
-    pub fn is_pane_hidden_for_child_agent(&self, id: PaneId) -> bool {
-        pane_hidden_for_child_agent(&self.hidden_panes, &id)
     }
 
     pub fn toggle_pane_visibility_for_job(&mut self, id: PaneId) -> bool {
@@ -617,7 +584,6 @@ impl PaneNode {
                 !pane_hidden_for_job(hidden_panes, pane_id)
                     && !pane_hidden_for_undo(hidden_panes, pane_id)
                     && !pane_hidden_for_move(hidden_panes, pane_id)
-                    && !pane_hidden_for_child_agent(hidden_panes, pane_id)
             }
             PaneNode::Branch(branch) => branch.has_visible_children(hidden_panes),
         }
@@ -1335,12 +1301,6 @@ fn pane_hidden_for_undo(hidden_panes: &[HiddenPane], id: &PaneId) -> bool {
     hidden_panes
         .iter()
         .any(|pane| pane.reason == HiddenPaneReason::Closed && pane.pane_id == *id)
-}
-
-fn pane_hidden_for_child_agent(hidden_panes: &[HiddenPane], id: &PaneId) -> bool {
-    hidden_panes
-        .iter()
-        .any(|pane| pane.reason == HiddenPaneReason::ChildAgent && pane.pane_id == *id)
 }
 
 impl FindPaneByDirection for PaneBranch {

@@ -3283,7 +3283,8 @@ pub(crate) fn user_query_mode_prefix_highlight_len(mode: UserQueryMode) -> Optio
     match mode {
         UserQueryMode::Normal => None,
         UserQueryMode::Plan => Some(commands::PLAN.name.len()),
-        UserQueryMode::Orchestrate => Some(commands::ORCHESTRATE.name.len()),
+        // Wire-only mode; highlight the literal prefix of the retired command.
+        UserQueryMode::Orchestrate => Some("/orchestrate".len()),
     }
 }
 

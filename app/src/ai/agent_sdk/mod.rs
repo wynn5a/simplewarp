@@ -7,7 +7,6 @@ use std::path::Path;
 use anyhow::Context;
 pub use driver::AgentDriver;
 use driver::AgentDriverError;
-pub(crate) use driver::harness::validate_cli_installed;
 use tracing::Instrument as _;
 use warp_cli::agent::{AgentCommand, Harness, OutputFormat, Prompt, RunAgentArgs};
 use warp_cli::{CliCommand, GlobalOptions};

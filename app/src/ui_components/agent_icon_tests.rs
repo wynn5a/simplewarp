@@ -52,8 +52,7 @@ impl AgentIconFields {
                 status: status.clone(),
             }),
             IconWithStatusVariant::Neutral { .. }
-            | IconWithStatusVariant::NeutralElement { .. }
-            | IconWithStatusVariant::CustomAvatar { .. } => None,
+            | IconWithStatusVariant::NeutralElement { .. } => None,
         }
     }
 }

@@ -447,17 +447,6 @@ pub enum FeatureFlag {
     /// content changes via auto-reload.
     CodeReviewScrollPreservation,
 
-    /// Re-enables local Claude Code and Codex child harnesses in orchestration
-    /// flows while the default behavior temporarily keeps them disabled.
-    LocalClaudeCodexChildHarnesses,
-
-    /// Gates the client-side multi-level orchestration surfaces: child
-    /// conversations auto-executing their own `run_agents` calls and the
-    /// confirmation-card disclosure that launched agents may start
-    /// children of their own. When disabled, a child's `run_agents` call
-    /// fails gracefully instead of presenting a card in a hidden pane.
-    MultiLevelOrchestration,
-
     /// Shows a pending user query indicator during summarization when a follow-up
     /// prompt is queued via `/fork-and-compact` or `/compact-and`.
     PendingUserQueryIndicator,
@@ -616,7 +605,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::TerminalLifecycleRecovery,
     FeatureFlag::PromptCacheExpiryWarning,
     FeatureFlag::JupyterNotebookRendering,
-    FeatureFlag::MultiLevelOrchestration,
     FeatureFlag::McpJsonTreeView,
     FeatureFlag::BoxDrawingGlyphs,
 ];
@@ -637,7 +625,7 @@ pub const RELEASE_FLAGS: &[FeatureFlag] = &[
 ];
 
 /// Flags that we want to allow to switch at runtime (assuming RuntimeFeatureFlags is set)
-pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[FeatureFlag::LocalClaudeCodexChildHarnesses];
+pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[];
 
 impl FeatureFlag {
     pub fn is_enabled(&self) -> bool {

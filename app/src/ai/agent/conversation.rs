@@ -727,16 +727,6 @@ impl AIConversation {
         self.conversation_usage_metadata.platform_credits_spent
     }
 
-    /// Test-only helper that sets the conversation's credit total directly.
-    /// Used by unit tests that exercise downstream credit-aware logic
-    /// (e.g. the orchestration credit rollup) without having to wire up a
-    /// full `StreamFinished` event.
-    #[cfg(test)]
-    pub(crate) fn set_credits_spent_for_test(&mut self, credits: f32) {
-        self.conversation_usage_metadata.credits_spent = credits;
-        self.conversation_usage_metadata.platform_credits_spent = 0.0;
-    }
-
     /// Test-only helper that simulates the root-task upgrade performed by the
     /// `Action::CreateTask` branch of `apply_client_action` when the server
     /// confirms the root for a newly started conversation. Replaces the

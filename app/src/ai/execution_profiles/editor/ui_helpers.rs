@@ -517,14 +517,6 @@ pub fn render_permissions_section(
     ));
     column.add_child(render_permission_row(
         appearance,
-        Icon::Atom,
-        "Run orchestrated agents",
-        &view.run_agents_dropdown,
-        profile_data.run_agents.description(),
-    ));
-
-    column.add_child(render_permission_row(
-        appearance,
         Icon::Dataflow,
         "Call MCP servers",
         &view.call_mcp_servers_dropdown,

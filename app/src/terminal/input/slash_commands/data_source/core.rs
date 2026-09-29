@@ -48,14 +48,6 @@ fn split_command_and_argument(buffer: &str) -> (&str, Option<&str>) {
         })
 }
 
-/// Command availability gates whose inputs are identical on every surface.
-///
-/// These do not depend on GUI-only concepts such as cloud mode or the agent view;
-/// they are computed once per recompute and shared by both surfaces.
-pub struct CommonCommandGates {
-    is_orchestration_enabled: bool,
-}
-
 /// Subscribe a concrete surface data source to dependencies that affect both GUI and TUI command
 /// availability. The callback remains concrete, so this helper does not require a surface trait.
 pub(super) fn subscribe_to_shared_dependencies<T>(
@@ -329,29 +321,6 @@ pub trait SlashCommandDataSource {
         DetectedRepositories::as_ref(ctx)
             .get_root_for_path(&LocalOrRemotePath::Local(path))
             .is_some()
-    }
-
-    /// Whether a command should be shown given the availability set and the shared gates.
-    fn command_passes_common_gates(
-        &self,
-        command: &StaticCommand,
-        availability: Availability,
-        gates: &CommonCommandGates,
-    ) -> bool {
-        if !command.is_active(availability) {
-            return false;
-        }
-        if command.name == commands::ORCHESTRATE_NAME && !gates.is_orchestration_enabled {
-            return false;
-        }
-        true
-    }
-
-    fn common_command_gates(&self, ctx: &AppContext) -> CommonCommandGates {
-        let ai_settings = AISettings::as_ref(ctx);
-        CommonCommandGates {
-            is_orchestration_enabled: ai_settings.is_orchestration_enabled(),
-        }
     }
 
     /// Whether there is an active conversation, given whether the agent view is active.

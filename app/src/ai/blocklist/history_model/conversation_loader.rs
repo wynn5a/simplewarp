@@ -265,29 +265,22 @@ impl BlocklistAIHistoryModel {
                     summary,
                 } = row;
 
-                // Child agent conversations are managed by their parent's
-                // status card and should not appear in navigation/history.
-                // Record the parent→child mapping before filtering so that
-                // create_missing_child_agent_panes can discover children
-                // before they are loaded into conversations_by_id.
+                // Child agent conversations from old databases have no
+                // surface of their own and must not appear in
+                // navigation/history. Record the parent→child mapping before
+                // filtering so parent agents can still resolve their
+                // children.
                 if let Some(parent_id) = conversation_data
                     .as_ref()
                     .and_then(|data| self.resolved_parent_conversation_id_from_persisted_data(data))
                 {
                     self.index_child_conversation(conversation_id, parent_id);
                     // Eagerly hydrate the child conversation into
-                    // `conversations_by_id` so the pill bar and orchestration
-                    // transcript name resolution can find it before the
-                    // parent's hidden child pane materializes lazily. This is
-                    // restricted to orchestration children only — non-child
-                    // historical conversations continue to load lazily via
-                    // `restore_conversations`. We do NOT emit
-                    // `RestoredConversations`, touch
-                    // `live_conversation_ids_for_terminal_view`, or update
-                    // `terminal_view_created_at` here; those still happen
-                    // later when the hidden pane is materialized via
-                    // `restore_conversations`. A subsequent `restore_conversations`
-                    // call replaces this entry idempotently.
+                    // `conversations_by_id` so parent-side name resolution
+                    // finds it. This is restricted to orchestration children
+                    // only — non-child historical conversations continue to
+                    // load lazily via `restore_conversations`, which replaces
+                    // this entry idempotently.
                     //
                     // Startup rows carry no tasks, so the child's task
                     // payload is loaded from the local DB; fully-hydrated
@@ -305,7 +298,7 @@ impl BlocklistAIHistoryModel {
                     } else {
                         log::warn!(
                             "Failed to eagerly hydrate orchestration child {conversation_id}; \
-                             pill bar / name resolution will fall back to lazy materialization",
+                             name resolution will fall back to lazy materialization",
                         );
                     }
                     return None;

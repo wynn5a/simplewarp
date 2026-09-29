@@ -37,19 +37,6 @@ pub fn icon_for(harness: Harness) -> Icon {
     }
 }
 
-/// Brand tint for a [`Harness`]'s icon. `None` means "use the surface's
-/// default foreground color".
-pub fn brand_color(harness: Harness) -> Option<ColorU> {
-    match harness {
-        Harness::Oz => None,
-        Harness::Claude => Some(CLAUDE_ORANGE),
-        Harness::OpenCode => None,
-        Harness::Gemini => Some(GEMINI_BLUE),
-        Harness::Codex => Some(OPENAI_COLOR),
-        Harness::Unknown => None,
-    }
-}
-
 /// Circle background fill for a [`Harness`] icon rendered in a branded circle.
 /// Matches the treatment used in the vertical-tabs sidebar.
 pub fn circle_background(harness: Harness, theme: &WarpTheme) -> WarpThemeFill {

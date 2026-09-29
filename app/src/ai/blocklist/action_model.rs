@@ -21,12 +21,9 @@ use std::sync::Arc;
 pub(crate) use execute::coerce_integer_args;
 pub use execute::{
     AskUserQuestionExecutor, NewConversationDecision, PromptSuggestionExecutor,
-    RequestFileEditsExecutor, RunAgentsExecutor, RunAgentsExecutorEvent, RunAgentsSpawningSnapshot,
-    ShellCommandExecutor, ShellCommandExecutorEvent, StartAgentExecutor, StartAgentExecutorEvent,
-    StartAgentOutcome, StartAgentRequest, StartAgentRequestId, read_local_file_context,
+    RequestFileEditsExecutor, ShellCommandExecutor, ShellCommandExecutorEvent,
+    read_local_file_context,
 };
-#[cfg(test)]
-pub(crate) use execute::{compose_run_agents_child_prompt, run_agents_to_start_agent_mode};
 use futures::future::{BoxFuture, join_all};
 use itertools::Itertools;
 use parking_lot::FairMutex;
@@ -344,14 +341,6 @@ impl BlocklistAIActionModel {
         app: &AppContext,
     ) -> ModelHandle<PromptSuggestionExecutor> {
         self.executor.as_ref(app).suggest_prompt_executor().clone()
-    }
-
-    pub fn start_agent_executor(&self, app: &AppContext) -> ModelHandle<StartAgentExecutor> {
-        self.executor.as_ref(app).start_agent_executor().clone()
-    }
-
-    pub fn run_agents_executor(&self, app: &AppContext) -> ModelHandle<RunAgentsExecutor> {
-        self.executor.as_ref(app).run_agents_executor().clone()
     }
 
     pub fn ask_user_question_executor(

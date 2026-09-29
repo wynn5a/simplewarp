@@ -6,11 +6,6 @@ mod conversation_selection;
 mod ephemeral_message_model;
 mod gui_input_mode_policy;
 mod inline_agent_view_header;
-// TODO: Move orchestration_conversation_links module import elsewhere.
-pub(crate) mod orchestration_avatar;
-pub(crate) mod orchestration_conversation_links;
-pub mod orchestration_pill_bar;
-pub mod orchestration_pill_bar_model;
 pub mod shortcuts;
 mod zero_state_block;
 
@@ -24,7 +19,6 @@ pub(crate) use conversation_selection::AgentViewConversationSelection;
 pub use ephemeral_message_model::*;
 pub(crate) use gui_input_mode_policy::GuiInputModePolicy;
 pub use inline_agent_view_header::*;
-pub use orchestration_pill_bar::{OrchestrationPillBar, render_orchestration_breadcrumbs};
 use pathfinder_color::ColorU;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;

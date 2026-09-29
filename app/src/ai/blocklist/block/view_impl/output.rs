@@ -47,7 +47,7 @@ use super::imported_comments::render_imported_comments;
 use super::todos::{render_completed_todo_items, render_todos};
 use super::{
     CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN, WithContentItemSpacing,
-    add_highlights_to_rich_text, orchestration, render_autonomy_checkbox_setting_speedbump_footer,
+    add_highlights_to_rich_text, render_autonomy_checkbox_setting_speedbump_footer,
     render_citation_chips,
 };
 use crate::ai::agent::api::ServerConversationToken;
@@ -86,14 +86,12 @@ use crate::ai::blocklist::inline_action::requested_action::{
     render_requested_action_row, render_requested_action_row_for_text,
 };
 use crate::ai::blocklist::inline_action::requested_command::RequestedCommand;
-use crate::ai::blocklist::inline_action::run_agents_card_view::RunAgentsCardView;
 use crate::ai::blocklist::inline_action::search_codebase::SearchCodebaseView;
 use crate::ai::blocklist::inline_action::suggested_unit_tests::SuggestedUnitTestsView;
 use crate::ai::blocklist::inline_action::web_fetch::WebFetchView;
 use crate::ai::blocklist::inline_action::web_search::WebSearchView;
 use crate::ai::blocklist::keyboard_navigable_buttons::KeyboardNavigableButtons;
 use crate::ai::blocklist::secret_redaction::SecretRedactionState;
-use crate::ai::blocklist::usage::rollup::compute_orchestration_rollup;
 use crate::ai::blocklist::view_util::{
     FAILED_OUTPUT_USAGE_NOTICE_TEXT, format_credits, should_show_failed_output_usage_notice,
 };
@@ -167,12 +165,6 @@ pub(crate) struct Props<'a> {
     pub(super) terminal_view_id: EntityId,
     pub(super) is_conversation_transcript_viewer: bool,
     pub(super) imported_comments: &'a HashMap<AIAgentActionId, ImportedCommentGroup>,
-    /// Per-orchestrate-action card view. Each `RunAgentsCardView` owns
-    /// its own edit state, button + picker handles, and in-flight
-    /// spawning snapshot; AIBlock just lazily creates the view per
-    /// `AIAgentActionId` and embeds it via `ChildView` when the action
-    /// is rendered. Multi-card lifecycle = AIBlock lifecycle.
-    pub(crate) run_agents_card_views: &'a HashMap<AIAgentActionId, ViewHandle<RunAgentsCardView>>,
     pub(crate) resolved_code_block_paths:
         &'a HashMap<std::path::PathBuf, Option<std::path::PathBuf>>,
     pub(crate) resolved_blocklist_image_sources: &'a super::common::ResolvedBlocklistImageSources,
@@ -763,19 +755,10 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::RunAgents(_req),
-                            id,
                             ..
                         }) => {
-                            // Embed the per-action `RunAgentsCardView`
-                            // via `ChildView`. The view renders a
-                            // "Configuring agents..." placeholder while
-                            // streaming, then transitions to the full
-                            // confirmation card once complete.
                             should_render_footer = false;
                             should_render_suggestions = false;
-                            if let Some(card_view) = props.run_agents_card_views.get(id) {
-                                output_items.add_child(ChildView::new(card_view).finish());
-                            }
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
                             action:
@@ -784,19 +767,12 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                     subject,
                                     message,
                                 },
-                            id,
                             ..
                         }) => {
                             should_render_footer = false;
                             should_render_suggestions = false;
-                            output_items.add_child(orchestration::render_send_message(
-                                props,
-                                id,
-                                addresses,
-                                subject,
-                                message,
-                                &output_message.id,
-                                app,
+                            output_items.add_child(render_send_message_fallback(
+                                addresses, subject, message, app,
                             ));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
@@ -874,11 +850,14 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             }
                         }
                         AIAgentOutputMessageType::MessagesReceivedFromAgents { messages } => {
-                            output_items.add_child(
-                                orchestration::render_messages_received_from_agents(
-                                    messages, props, app,
-                                ),
-                            );
+                            for msg in messages {
+                                output_items.add_child(render_send_message_fallback(
+                                    &msg.addresses,
+                                    &msg.subject,
+                                    &msg.message_body,
+                                    app,
+                                ));
+                            }
                         }
                         AIAgentOutputMessageType::DebugOutput { text } => {
                             if ChannelState::enable_debug_features()
@@ -3382,30 +3361,50 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
     Some(flex.finish().with_content_item_spacing().finish())
 }
 
+/// Renders a compact fallback row for agent-to-agent messages so restored
+/// transcripts that contain them stay legible; the full orchestration UI is gone.
+fn render_send_message_fallback(
+    addresses: &[String],
+    subject: &str,
+    message: &str,
+    app: &AppContext,
+) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
+    let theme = appearance.theme();
+    let color = theme.sub_text_color(theme.background());
+    let recipients = if addresses.is_empty() {
+        String::from("agents")
+    } else {
+        addresses.join(", ")
+    };
+    let label = format!("Message to {recipients}: {subject}");
+    Flex::column()
+        .with_cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_child(
+            Text::new(label, appearance.ui_font_family(), 12.)
+                .with_color(color.into())
+                .with_selectable(false)
+                .finish(),
+        )
+        .with_child(
+            Text::new(message.to_string(), appearance.ui_font_family(), 12.)
+                .with_color(color.into())
+                .with_selectable(false)
+                .finish(),
+        )
+        .finish()
+}
+
 /// Renders the usage button that, on click, will expand & collapse the usage summary footer.
 fn render_usage_button(props: Props, app: &AppContext) -> Box<dyn Element> {
     let Some(conversation) = props.model.conversation(app) else {
         return Empty::new().finish();
     };
 
-    // Optional orchestration credit rollup. When the conversation has at
-    // least one locally-loaded descendant with credits spent, the pill's
-    // headline number and "has any usage" suppression check both switch
-    // over to the orchestration total (PRODUCT invariants 11, 11b). The
-    // `(+N)` last-block annotation below stays bound to the
-    // orchestrator's own credits. The rollup helper returns `None` for
-    // conversations with no descendants, so callers that aren't
-    // orchestrators pay only the cost of one descendant-index probe.
-    let rollup =
-        compute_orchestration_rollup(conversation.id(), BlocklistAIHistoryModel::as_ref(app));
-
     // If this conversation has no usage metadata (e.g. a forked conversation from
     // mid-way through a prior conversation where the server did not send
     // ConversationUsageMetadata), avoid rendering the usage button entirely.
-    let headline_credits = rollup
-        .as_ref()
-        .map(|r| r.total_credits)
-        .unwrap_or_else(|| conversation.credits_spent());
+    let headline_credits = conversation.credits_spent();
     let has_any_usage = headline_credits > 0.0
         || conversation.credits_spent_for_last_block().is_some()
         || !conversation.token_usage().is_empty()

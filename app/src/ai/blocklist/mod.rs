@@ -2,7 +2,6 @@
 mod action_model;
 pub mod agent_view;
 pub mod block;
-mod child_agent_launch;
 pub mod code_block;
 mod context_model;
 mod controller;
@@ -10,7 +9,6 @@ pub(crate) mod conversation_selection;
 pub(crate) mod diff_storage;
 pub(crate) mod diff_types;
 
-pub(crate) mod orchestration_topology;
 mod passive_suggestions;
 pub(crate) mod queued_query;
 pub(super) use controller::RequestInput;
@@ -36,20 +34,10 @@ pub(crate) use action_model::read_local_file_context;
 pub use action_model::{
     BlocklistAIActionEvent, BlocklistAIActionModel, ShellCommandExecutor, ShellCommandExecutorEvent,
 };
-#[allow(unused_imports)]
-pub use action_model::{
-    StartAgentExecutor, StartAgentExecutorEvent, StartAgentOutcome, StartAgentRequest,
-    StartAgentRequestId,
-};
 #[cfg(any(test, feature = "integration_tests"))]
 pub(crate) use block::model::testing::FakeAIBlockModel;
 pub(crate) use block::{AIBlock, AIBlockEvent, init, model};
 pub use block::{keyboard_navigable_buttons, toggleable_items};
-pub use child_agent_launch::inherit_child_agent_settings;
-#[allow(unused_imports)]
-pub use child_agent_launch::{
-    PreparedLocalOzChildLaunch, apply_child_agent_model_override, prepare_local_oz_child_launch,
-};
 pub(crate) use context_model::block_context_from_terminal_model;
 pub use context_model::{
     AttachmentType, BlocklistAIContextEvent, BlocklistAIContextModel, PendingAttachment,

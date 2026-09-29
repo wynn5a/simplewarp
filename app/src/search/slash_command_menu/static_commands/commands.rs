@@ -326,20 +326,6 @@ pub static PLAN: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     argument: Some(Argument::optional().with_hint_text("<describe your task>")),
 });
 
-pub const ORCHESTRATE_NAME: &str = "/orchestrate";
-
-pub static ORCHESTRATE: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: ORCHESTRATE_NAME,
-    description: "Break a task into subtasks and run them in parallel with multiple agents",
-    kind: SlashCommandKind::Orchestrate,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/warp-3.svg",
-    },
-    availability: Availability::LOCAL | Availability::AI_ENABLED,
-    auto_enter_ai_mode: true,
-    argument: Some(Argument::optional().with_hint_text("<describe your task>")),
-});
-
 /// If `query` starts with the given command `name` followed by a space,
 /// returns the remainder of the query. Otherwise returns `None`.
 pub fn strip_command_prefix(query: &str, name: &str) -> Option<String> {
@@ -642,8 +628,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
     if FeatureFlag::InlineRepoMenu.is_enabled() {
         commands.push(OPEN_REPO);
     }
-
-    commands.push(ORCHESTRATE.clone());
 
     if FeatureFlag::SettingsFile.is_enabled() {
         commands.push(OPEN_SETTINGS_FILE);

@@ -141,17 +141,6 @@ fn test_toolbar_command_map_matched_agent() {
     });
 }
 
-#[test]
-fn orchestration_is_enabled_when_ai_is_enabled() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-
-        AISettings::handle(&app).read(&app, |settings, _| {
-            assert!(settings.is_orchestration_enabled());
-        });
-    });
-}
-
 // VOICE_INPUT_LANGUAGES catalog tests
 
 #[test]

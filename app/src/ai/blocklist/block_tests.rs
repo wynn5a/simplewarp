@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use ai::agent::action::RunAgentsAgentRunConfig;
 use ai::skills::SkillReference;
 use settings::Setting;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
@@ -13,10 +12,7 @@ use super::{
     default_collapsible_state_for_orchestration_message, open_code_action_event,
     received_message_collapsible_id,
 };
-use crate::ai::agent::{AIAgentActionType, StartAgentExecutionMode};
-use crate::ai::blocklist::action_model::{
-    compose_run_agents_child_prompt, run_agents_to_start_agent_mode,
-};
+use crate::ai::agent::AIAgentActionType;
 use crate::code::editor_management::CodeSource;
 use crate::settings::{AISettings, OrchestrationMessageDisplayMode};
 use crate::test_util::settings::initialize_settings_for_tests;
@@ -302,65 +298,6 @@ fn received_message_collapsible_id_prefixes_row_ids() {
     assert_eq!(&*first, "received-message:message-1");
     assert_eq!(&*second, "received-message:message-2");
     assert_ne!(first, second);
-}
-
-#[test]
-fn compose_child_prompt_concatenates_when_both_non_empty() {
-    let composed = compose_run_agents_child_prompt("base", "do X");
-    assert_eq!(composed, "base\n\ndo X");
-}
-
-#[test]
-fn compose_child_prompt_uses_base_only_when_per_agent_empty() {
-    let composed = compose_run_agents_child_prompt("base", "");
-    assert_eq!(composed, "base");
-}
-
-#[test]
-fn compose_child_prompt_uses_per_agent_only_when_base_empty() {
-    let composed = compose_run_agents_child_prompt("", "do X");
-    assert_eq!(composed, "do X");
-}
-
-#[test]
-fn compose_child_prompt_returns_empty_when_both_empty() {
-    let composed = compose_run_agents_child_prompt("", "");
-    assert_eq!(composed, "");
-}
-
-#[test]
-fn compose_child_prompt_treats_whitespace_only_base_as_empty() {
-    let composed = compose_run_agents_child_prompt("   \n", "do X");
-    assert_eq!(composed, "do X");
-}
-
-fn agent_cfg() -> RunAgentsAgentRunConfig {
-    RunAgentsAgentRunConfig {
-        name: "child".to_string(),
-        prompt: "do X".to_string(),
-        title: "Child".to_string(),
-        model_id: String::new(),
-    }
-}
-
-#[test]
-fn local_arm_rejects_disabled_codex() {
-    let err = run_agents_to_start_agent_mode("codex", "auto", &agent_cfg())
-        .expect_err("Local+codex must be rejected while disabled");
-    assert_eq!(err, "Local Codex child agents are temporarily disabled.");
-}
-
-#[test]
-fn local_arm_allows_claude() {
-    let mode = run_agents_to_start_agent_mode("claude", "auto", &agent_cfg())
-        .expect("Local+claude should convert");
-    assert!(matches!(
-        mode,
-        StartAgentExecutionMode::Local {
-            harness_type: Some(ref harness_type),
-            model_id: Some(ref model_id),
-        } if harness_type == "claude" && model_id == "auto"
-    ));
 }
 
 #[test]

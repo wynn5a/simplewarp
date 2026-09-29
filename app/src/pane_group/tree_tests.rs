@@ -692,46 +692,6 @@ fn test_reset_pane_sizes_only_resets_containing_branch() {
 }
 
 #[test]
-fn test_hide_and_show_child_agent_pane() {
-    let panes = [PaneId::dummy_pane_id(), PaneId::dummy_pane_id()];
-    let mut tree = PaneData::new(panes[0]);
-    tree.split(panes[0], panes[1], Direction::Right);
-
-    // Both panes visible initially.
-    assert_eq!(tree.visible_pane_ids(), vec![panes[0], panes[1]]);
-    assert!(!tree.is_pane_hidden(&panes[1]));
-
-    // Hide the child agent pane.
-    tree.hide_pane_for_child_agent(panes[1]);
-    assert!(tree.is_pane_hidden(&panes[1]));
-    assert_eq!(tree.visible_pane_ids(), vec![panes[0]]);
-    // pane_ids still includes hidden panes (they remain in the tree).
-    assert_eq!(tree.pane_ids(), vec![panes[0], panes[1]]);
-
-    // Show the child agent pane.
-    tree.show_pane_for_child_agent(panes[1]);
-    assert!(!tree.is_pane_hidden(&panes[1]));
-    assert_eq!(tree.visible_pane_ids(), vec![panes[0], panes[1]]);
-}
-
-#[test]
-fn test_hide_child_agent_pane_is_idempotent() {
-    let panes = [PaneId::dummy_pane_id(), PaneId::dummy_pane_id()];
-    let mut tree = PaneData::new(panes[0]);
-    tree.split(panes[0], panes[1], Direction::Right);
-
-    // Hiding the same pane twice should not create duplicate entries.
-    tree.hide_pane_for_child_agent(panes[1]);
-    tree.hide_pane_for_child_agent(panes[1]);
-    assert_eq!(tree.num_hidden_panes(), 1);
-
-    // A single show call should fully unhide it.
-    tree.show_pane_for_child_agent(panes[1]);
-    assert!(!tree.is_pane_hidden(&panes[1]));
-    assert_eq!(tree.num_hidden_panes(), 0);
-}
-
-#[test]
 fn test_original_pane_for_replacement() {
     let original = PaneId::dummy_pane_id();
     let replacement = PaneId::dummy_pane_id();
@@ -760,25 +720,4 @@ fn test_original_pane_for_replacement() {
         Some(original)
     );
     assert_eq!(tree.original_pane_for_replacement(replacement), None);
-}
-
-#[test]
-fn test_hide_multiple_child_agent_panes() {
-    let panes = [
-        PaneId::dummy_pane_id(),
-        PaneId::dummy_pane_id(),
-        PaneId::dummy_pane_id(),
-    ];
-    let mut tree = PaneData::new(panes[0]);
-    tree.split(panes[0], panes[1], Direction::Right);
-    tree.split(panes[1], panes[2], Direction::Right);
-
-    tree.hide_pane_for_child_agent(panes[1]);
-    tree.hide_pane_for_child_agent(panes[2]);
-    assert_eq!(tree.visible_pane_ids(), vec![panes[0]]);
-
-    // Reveal only one child.
-    tree.show_pane_for_child_agent(panes[1]);
-    assert_eq!(tree.visible_pane_ids(), vec![panes[0], panes[1]]);
-    assert!(tree.is_pane_hidden(&panes[2]));
 }

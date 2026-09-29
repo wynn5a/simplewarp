@@ -9,7 +9,6 @@ use diesel::SqliteConnection;
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use warp_cli::agent::Harness;
 use warp_multi_agent_api::client_action::{Action, StartNewConversation};
 use warp_multi_agent_api::message::tool_call::Tool;
 use warp_multi_agent_api::response_event::stream_finished::{
@@ -417,45 +416,6 @@ impl BlocklistAIHistoryModel {
         if !children.contains(&child_id) {
             children.push(child_id);
         }
-    }
-
-    /// Creates a new child agent conversation.
-    pub fn start_new_child_conversation(
-        &mut self,
-        terminal_surface_id: EntityId,
-        name: String,
-        parent_conversation_id: AIConversationId,
-        orchestration_harness: Option<Harness>,
-        ctx: &mut ModelContext<Self>,
-    ) -> AIConversationId {
-        let parent_agent_id = self
-            .conversation(&parent_conversation_id)
-            .and_then(|c| c.orchestration_agent_id());
-        if parent_agent_id.is_none() {
-            log::warn!(
-                "No agent identifier for parent conversation {parent_conversation_id:?}; \
-                 child agent will not be linked to parent on the server."
-            );
-        }
-
-        let auto_execute = true; // Child auto-executes by default.
-        let conversation_id =
-            self.start_new_conversation(terminal_surface_id, auto_execute, false, ctx);
-        {
-            let conversation = self
-                .conversation_mut(&conversation_id)
-                .expect("Child conversation exists — was just created.");
-            if let Some(id) = parent_agent_id {
-                conversation.set_parent_agent_id(id);
-            }
-            conversation.set_agent_name(name);
-            if let Some(harness) = orchestration_harness {
-                conversation.set_orchestration_harness(harness);
-            }
-        }
-        self.set_parent_for_conversation(conversation_id, parent_conversation_id);
-        self.persist_conversation_state(conversation_id, ctx);
-        conversation_id
     }
 
     /// Sets the parent conversation ID on a child conversation and updates
@@ -1133,51 +1093,6 @@ impl BlocklistAIHistoryModel {
                 terminal_surface_id,
             });
         }
-    }
-
-    /// Assigns a `run_id` to a conversation that was spawned as a child agent
-    /// (e.g. a locally launched harness child). Updates the `agent_id_to_conversation_id` index and emits
-    /// `ConversationServerTokenAssigned` so the `StartAgentExecutor` can
-    /// complete the pending `start_agent` tool call.
-    pub fn assign_run_id_for_conversation(
-        &mut self,
-        conversation_id: AIConversationId,
-        run_id: String,
-        task_id: Option<crate::ai::ambient_agents::AmbientAgentTaskId>,
-        terminal_surface_id: EntityId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let (agent_key, server_token) = {
-            let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) else {
-                log::warn!(
-                    "assign_run_id_for_conversation: conversation {conversation_id:?} not found"
-                );
-                return;
-            };
-            conversation.set_run_id(run_id);
-            if let Some(task_id) = task_id {
-                conversation.set_task_id(task_id);
-            }
-            (
-                agent_id_key(conversation),
-                conversation.server_conversation_token().cloned(),
-            )
-        };
-
-        if let Some(key) = agent_key {
-            self.agent_id_to_conversation_id
-                .insert(key, conversation_id);
-        }
-        if let Some(token) = server_token {
-            self.server_token_to_conversation_id
-                .insert(token, conversation_id);
-        }
-
-        self.persist_conversation_state(conversation_id, ctx);
-        ctx.emit(BlocklistAIHistoryEvent::ConversationServerTokenAssigned {
-            conversation_id,
-            terminal_surface_id,
-        });
     }
 
     /// Resolves a server-side agent identifier to a local conversation ID.
@@ -2477,8 +2392,7 @@ pub enum BlocklistAIHistoryEvent {
     },
 
     /// Emitted when a conversation first receives its server-assigned conversation token
-    /// (during StreamInit). Used by the StartAgentExecutor to resolve pending StartAgent
-    /// actions for child agent conversations.
+    /// (during StreamInit), so models tracking conversations by token can resolve them.
     ConversationServerTokenAssigned {
         conversation_id: AIConversationId,
         terminal_surface_id: EntityId,
@@ -2496,13 +2410,6 @@ pub enum BlocklistAIHistoryEvent {
         conversation_id: AIConversationId,
         previous_terminal_surface_id: EntityId,
         new_terminal_surface_id: EntityId,
-    },
-
-    /// Links an executor-minted request to a freshly-created
-    /// conversation.
-    NewConversationRequestComplete {
-        request_id: crate::ai::blocklist::StartAgentRequestId,
-        conversation_id: AIConversationId,
     },
 
     /// Emitted when a conversation's orchestration config is updated
@@ -2611,9 +2518,6 @@ impl BlocklistAIHistoryEvent {
                 terminal_surface_id,
                 ..
             } => *terminal_surface_id,
-            // NewConversationRequestComplete is executor-scoped and has no
-            // terminal_surface_id.
-            BlocklistAIHistoryEvent::NewConversationRequestComplete { .. } => None,
             // OrchestrationConfigUpdated is conversation-scoped and has no
             // terminal_surface_id.
             BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. } => None,
@@ -2624,21 +2528,6 @@ impl BlocklistAIHistoryEvent {
             BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. } => None,
             // Conversation-scoped; subscribers resolve the owning view via conversation_id.
         }
-    }
-}
-
-impl BlocklistAIHistoryModel {
-    /// Emits [`BlocklistAIHistoryEvent::NewConversationRequestComplete`].
-    pub fn record_new_conversation_request_complete(
-        &mut self,
-        request_id: crate::ai::blocklist::StartAgentRequestId,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        ctx.emit(BlocklistAIHistoryEvent::NewConversationRequestComplete {
-            request_id,
-            conversation_id,
-        });
     }
 }
 

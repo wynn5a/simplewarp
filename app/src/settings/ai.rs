@@ -1550,10 +1550,6 @@ impl AISettings {
         *self.file_based_mcp_enabled
     }
 
-    pub fn is_orchestration_enabled(&self) -> bool {
-        self.is_any_ai_enabled()
-    }
-
     pub fn is_command_denylist_editable(&self) -> bool {
         self.is_any_ai_enabled()
     }
@@ -1593,10 +1589,6 @@ impl AISettings {
     pub fn is_mcp_permission_editable(&self) -> bool {
         // TODO: Allow workspace overrides on MCP permissions.
         self.is_any_ai_enabled()
-    }
-
-    pub fn is_run_agents_permissions_editable(&self) -> bool {
-        self.is_orchestration_enabled()
     }
 
     pub fn show_code_suggestion_speedbump(&self) -> bool {

@@ -65,16 +65,12 @@ pub enum DropdownStyle {
     /// No border, smaller text, smaller padding
     #[allow(dead_code)]
     Naked,
-    /// Similar to Secondary but with ActionButton-like hover behavior:
-    /// background fill on hover instead of border color change.
-    /// TODO this should probably replace the default `Secondary` theme
-    ActionButtonSecondary,
 }
 
 impl DropdownStyle {
     fn ui_component_styles(&self) -> UiComponentStyles {
         match self {
-            DropdownStyle::Secondary | DropdownStyle::ActionButtonSecondary => UiComponentStyles {
+            DropdownStyle::Secondary => UiComponentStyles {
                 padding: Some(Coords {
                     top: 5.,
                     bottom: 5.,
@@ -333,30 +329,6 @@ where
             self.child_anchor,
         );
         Some((menu, positioning))
-    }
-
-    /// Controls whether the open menu is rendered in an `Overlay`
-    /// layer (default) or attached as a positioned child in the
-    /// dropdown stack's Normal layer. See the field-level docs on
-    /// `use_overlay_layer` for when each is appropriate.
-    pub fn set_use_overlay_layer(&mut self, use_overlay_layer: bool, ctx: &mut ViewContext<Self>) {
-        self.use_overlay_layer = use_overlay_layer;
-        ctx.notify();
-    }
-
-    pub fn set_background(&mut self, background: Fill, ctx: &mut ViewContext<Self>) {
-        self.background = Some(background);
-        ctx.notify();
-    }
-
-    pub fn set_border_width(&mut self, border_width: f32, ctx: &mut ViewContext<Self>) {
-        self.border_width = Some(border_width);
-        ctx.notify();
-    }
-
-    pub fn set_border_radius(&mut self, border_radius: CornerRadius, ctx: &mut ViewContext<Self>) {
-        self.border_radius = Some(border_radius);
-        ctx.notify();
     }
 
     pub fn set_font_color(&mut self, color: ColorU, ctx: &mut ViewContext<Self>) {
@@ -638,7 +610,6 @@ where
                 match self.style {
                     DropdownStyle::Secondary => ButtonVariant::Outlined,
                     DropdownStyle::Naked => ButtonVariant::Text,
-                    DropdownStyle::ActionButtonSecondary => ButtonVariant::Secondary,
                 },
                 self.top_bar_mouse_state.clone(),
             )
@@ -656,7 +627,7 @@ where
                     vec2f(15., 15.),
                 )
                 .with_inner_padding(match self.style {
-                    DropdownStyle::Secondary | DropdownStyle::ActionButtonSecondary => 10.,
+                    DropdownStyle::Secondary => 10.,
                     DropdownStyle::Naked => 6.,
                 }),
             )

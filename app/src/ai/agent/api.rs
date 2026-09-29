@@ -105,7 +105,6 @@ pub struct RequestParams {
     pub computer_use_enabled: bool,
     pub ask_user_question_enabled: bool,
     pub research_agent_enabled: bool,
-    pub orchestration_enabled: bool,
     pub supported_tools_override: Option<Vec<warp_multi_agent_api::ToolType>>,
     /// The conversation ID of the parent agent that spawned this child agent, if any.
     pub parent_agent_id: Option<String>,
@@ -158,7 +157,6 @@ impl RequestParams {
             computer_use_enabled: false,
             ask_user_question_enabled: false,
             research_agent_enabled: false,
-            orchestration_enabled: false,
             supported_tools_override: None,
             parent_agent_id: None,
             agent_name: None,
@@ -286,15 +284,6 @@ impl RequestParams {
             .get_ask_user_question_setting(app, terminal_view_id)
             != crate::ai::execution_profiles::AskUserQuestionPermission::Never;
 
-        let orchestration_enabled = ai_settings.is_orchestration_enabled()
-            && BlocklistAIPermissions::as_ref(app)
-                .get_run_agents_setting(app, terminal_view_id)
-                .is_enabled()
-            && session_context
-                .session_type()
-                .as_ref()
-                .is_none_or(|t| matches!(t, crate::terminal::model::session::SessionType::Local));
-
         // Reconcile the persisted override against the active base model's
         // current `LLMContextWindow` instead of trusting whatever was stored
         // last. If the active model isn't configurable or has been removed
@@ -336,7 +325,6 @@ impl RequestParams {
             computer_use_enabled,
             ask_user_question_enabled,
             research_agent_enabled,
-            orchestration_enabled,
             supported_tools_override: request_input.supported_tools_override.clone(),
             parent_agent_id: None,
             agent_name: None,

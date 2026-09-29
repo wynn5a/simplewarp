@@ -2572,8 +2572,6 @@ pub enum UserQueryMode {
 pub fn extract_user_query_mode(query: String) -> (String, UserQueryMode) {
     if let Some(query) = commands::strip_command_prefix(&query, commands::PLAN_NAME) {
         (query, UserQueryMode::Plan)
-    } else if let Some(query) = commands::strip_command_prefix(&query, commands::ORCHESTRATE_NAME) {
-        (query, UserQueryMode::Orchestrate)
     } else {
         (query, UserQueryMode::Normal)
     }
@@ -2590,7 +2588,9 @@ pub fn display_user_query_with_mode(mode: UserQueryMode, query: &str) -> String 
     match mode {
         UserQueryMode::Normal => query.to_owned(),
         UserQueryMode::Plan => format!("{} {query}", commands::PLAN.name),
-        UserQueryMode::Orchestrate => format!("{} {query}", commands::ORCHESTRATE.name),
+        // Wire-only mode: the /orchestrate command is gone, but restored
+        // conversations can still carry the mode from an old transcript.
+        UserQueryMode::Orchestrate => format!("/orchestrate {query}"),
     }
 }
 

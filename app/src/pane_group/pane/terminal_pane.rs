@@ -1,37 +1,23 @@
 //! Implementation of terminal panes.
-use std::collections::HashMap;
 use std::sync::mpsc::SyncSender;
 
-use warp_cli::agent::Harness;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_errors::report_error;
 use warpui::{
     AppContext, EntityId, ModelHandle, SingletonEntity, ViewContext, ViewHandle, WindowId,
 };
 
-use super::local_harness_launch::{PreparedLocalHarnessLaunch, prepare_local_harness_child_launch};
 use super::{
     DetachType, PaneConfiguration, PaneContent, PaneId, PaneStackEvent, PaneView, TerminalPaneId,
 };
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
-use crate::ai::agent::StartAgentExecutionMode;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
-use crate::ai::ambient_agents::task::normalize_orchestrator_agent_name;
-use crate::ai::blocklist::agent_view::{AgentViewControllerEvent, AgentViewEntryOrigin};
-use crate::ai::blocklist::{
-    BlocklistAIHistoryEvent, BlocklistAIHistoryModel, StartAgentRequest,
-    apply_child_agent_model_override, prepare_local_oz_child_launch,
-};
+use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::conversation_utils;
 use crate::ai::llms::LLMPreferences;
 use crate::app_state::{LeafContents, TerminalPaneSnapshot};
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::pane_group::Event::OpenConversationHistory;
-use crate::pane_group::child_agent::{
-    ErrorChildAgentConversationRequest, HiddenChildAgentConversation,
-    HiddenChildAgentConversationRequest, HiddenChildAgentTaskContext,
-    create_error_child_agent_conversation, create_hidden_child_agent_conversation,
-};
 use crate::pane_group::{self, CodeSource, Direction, PaneGroup};
 use crate::persistence::{BlockCompleted, ModelEvent};
 use crate::session_management::SessionNavigationData;
@@ -231,21 +217,7 @@ impl PaneContent for TerminalPane {
         agent_view_controller.update(ctx, |controller, _ctx| {
             controller.set_pane_group_id(pane_group_id);
         });
-        ctx.subscribe_to_model(&agent_view_controller, move |group, _, event, ctx| {
-            if let AgentViewControllerEvent::EnteredAgentView {
-                conversation_id,
-                display_mode,
-                ..
-            } = event
-                && display_mode.is_fullscreen()
-            {
-                group.restore_missing_child_agent_panes_for_parent(
-                    *conversation_id,
-                    terminal_pane_id.into(),
-                    ctx,
-                );
-            }
-        });
+
         let active_session = terminal_view.as_ref(ctx).active_session().clone();
         ActiveAgentViewsModel::handle(ctx).update(ctx, |model, ctx| {
             model.register_agent_view_controller(
@@ -497,59 +469,6 @@ fn stop_agent_conversation(
     }
 }
 
-fn pane_group_hosting_split_off_child(
-    conversation_id: AIConversationId,
-    ctx: &AppContext,
-) -> Option<ViewHandle<PaneGroup>> {
-    WorkspaceRegistry::as_ref(ctx)
-        .all_workspaces(ctx)
-        .into_iter()
-        .find_map(|(_, workspace)| {
-            workspace.as_ref(ctx).tab_views().find_map(|pane_group| {
-                let group = pane_group.as_ref(ctx);
-                group
-                    .child_agent_origin()
-                    .is_some_and(|origin| origin.conversation_id == conversation_id)
-                    .then(|| pane_group.clone())
-            })
-        })
-}
-
-fn discard_child_agent_pane_for_conversation(
-    group: &mut PaneGroup,
-    owner_terminal_view_id: Option<EntityId>,
-    conversation_id: AIConversationId,
-    ctx: &mut ViewContext<PaneGroup>,
-) -> bool {
-    if group.discard_child_agent_pane_for_conversation(conversation_id, ctx) {
-        return true;
-    }
-    if let Some(split_off_pane_group) = pane_group_hosting_split_off_child(conversation_id, ctx)
-        && split_off_pane_group.id() != ctx.view_id()
-        && split_off_pane_group.update(ctx, |pane_group, ctx| {
-            pane_group.discard_child_agent_pane_for_conversation(conversation_id, ctx)
-        })
-    {
-        return true;
-    }
-
-    let Some(owner_terminal_view_id) = owner_terminal_view_id else {
-        return false;
-    };
-    let Some((owner_pane_group, _)) =
-        pane_group_and_terminal_view_for_owner(owner_terminal_view_id, ctx)
-    else {
-        return false;
-    };
-    if owner_pane_group.id() == ctx.view_id() {
-        return false;
-    }
-
-    owner_pane_group.update(ctx, |pane_group, ctx| {
-        pane_group.discard_child_agent_pane_for_conversation(conversation_id, ctx)
-    })
-}
-
 fn kill_agent_conversation(
     group: &mut PaneGroup,
     source_terminal_view_id: Option<EntityId>,
@@ -567,20 +486,6 @@ fn kill_agent_conversation(
     let owner_terminal_view_id = state
         .map(|state| state.owner_terminal_view_id)
         .or(source_terminal_view_id);
-    if !discard_child_agent_pane_for_conversation(
-        group,
-        owner_terminal_view_id,
-        conversation_id,
-        ctx,
-    ) {
-        log::warn!("KillAgentConversation: no child pane found for {conversation_id:?}");
-    }
-
-    if owner_terminal_view_id.is_none() {
-        log::warn!(
-            "KillAgentConversation: no terminal view found for conversation {conversation_id:?}"
-        );
-    }
     // Delete (not remove): drop the conversation from sqlite + cloud so a
     // killed child does not resurrect on restart.
     conversation_utils::delete_conversation(conversation_id, owner_terminal_view_id, ctx);
@@ -1029,57 +934,6 @@ fn handle_terminal_view_event(
                     open_code_review: open_code_review.clone(),
                 });
             }
-            Event::RevealChildAgent { conversation_id } => {
-                // Routed through the swap mechanism to land all reveal cases in one path.
-                if group.ensure_hidden_child_agent_pane_for_conversation(*conversation_id, ctx) {
-                    group.swap_active_pane_to_conversation(pane_id, *conversation_id, ctx);
-                } else {
-                    log::warn!(
-                        "RevealChildAgent: failed to materialize child conversation {conversation_id:?}"
-                    );
-                }
-            }
-            Event::SwapPaneToConversation { conversation_id } => {
-                // Swap visibility instead of cloning so in-flight state in the
-                // target pane is preserved.
-                if group.ensure_hidden_child_agent_pane_for_conversation(*conversation_id, ctx) {
-                    group.swap_active_pane_to_conversation(pane_id, *conversation_id, ctx);
-                } else {
-                    log::warn!(
-                        "SwapPaneToConversation: failed to materialize conversation {conversation_id:?}"
-                    );
-                }
-            }
-            Event::OpenChildAgentInNewTab { conversation_id } => {
-                // Pane group can't add tabs; forward to the workspace.
-                if group.ensure_hidden_child_agent_pane_for_conversation(*conversation_id, ctx) {
-                    ctx.emit(pane_group::Event::OpenChildAgentInNewTab {
-                        conversation_id: *conversation_id,
-                    });
-                } else {
-                    log::warn!(
-                        "OpenChildAgentInNewTab: failed to materialize child conversation {conversation_id:?}"
-                    );
-                }
-            }
-            Event::OpenChildAgentInNewPane { conversation_id } => {
-                // Reuse the existing hidden child pane to preserve in-flight
-                // state and the live transcript instead of creating a new view.
-                if group.ensure_hidden_child_agent_pane_for_conversation(*conversation_id, ctx) {
-                    if group
-                        .unhide_child_agent_pane_for_split_off(*conversation_id, ctx)
-                        .is_none()
-                    {
-                        log::warn!(
-                            "OpenChildAgentInNewPane: no hidden child pane registered for conversation {conversation_id:?}"
-                        );
-                    }
-                } else {
-                    log::warn!(
-                        "OpenChildAgentInNewPane: failed to materialize child conversation {conversation_id:?}"
-                    );
-                }
-            }
             Event::StopAgentConversation { conversation_id } => {
                 stop_agent_conversation(group, *conversation_id, ctx);
             }
@@ -1089,279 +943,11 @@ fn handle_terminal_view_event(
                     .map(|terminal_view| terminal_view.id());
                 kill_agent_conversation(group, source_terminal_view_id, *conversation_id, ctx);
             }
-            Event::StartAgentConversation(request) => {
-                dispatch_start_agent_conversation(
-                    group,
-                    pane_id,
-                    terminal_pane_id,
-                    request.clone(),
-                    ctx,
-                );
-            }
             _ => {}
         }
     } else {
         log::warn!("Session {terminal_pane_id:?} not found");
     }
-}
-
-/// Dispatches a StartAgent request to the appropriate per-mode helper.
-/// Each helper echoes the child conversation id back via
-/// [`BlocklistAIHistoryModel::record_new_conversation_request_complete`].
-fn dispatch_start_agent_conversation(
-    group: &mut PaneGroup,
-    parent_pane_id: PaneId,
-    terminal_pane_id: TerminalPaneId,
-    request: StartAgentRequest,
-    ctx: &mut ViewContext<PaneGroup>,
-) {
-    match request.execution_mode.clone() {
-        StartAgentExecutionMode::Local {
-            harness_type: None,
-            model_id,
-        } => {
-            launch_local_no_harness_child(group, parent_pane_id, request, model_id, ctx);
-        }
-        StartAgentExecutionMode::Local {
-            harness_type: Some(harness_type),
-            model_id,
-        } => {
-            launch_local_harness_child(
-                group,
-                parent_pane_id,
-                terminal_pane_id,
-                request,
-                harness_type,
-                model_id,
-                ctx,
-            );
-        }
-    }
-}
-
-/// Sets up a hidden child pane for a Local-no-harness (Oz) agent and
-/// dispatches the prompt. The child task id is minted locally: no server
-/// row is created. It is stamped onto the child's `AIConversation` (so the
-/// per-`Network` share-reporter in `local_tty/terminal_manager.rs` can link
-/// the shared session id to the child task once the shell bootstraps) and
-/// onto the child's `BlocklistAIController` via the
-/// `HiddenChildAgentTaskContext` (so the agent UI reflects it).
-fn launch_local_no_harness_child(
-    group: &mut PaneGroup,
-    parent_pane_id: PaneId,
-    request: StartAgentRequest,
-    model_id: Option<String>,
-    ctx: &mut ViewContext<PaneGroup>,
-) {
-    let request_id = request.id;
-    let parent_conversation_id = request.parent_conversation_id;
-    let prompt = request.prompt.clone();
-
-    let prepared = prepare_local_oz_child_launch(&request.name);
-    let child_task_id = prepared.task_id;
-    match create_hidden_child_agent_conversation(
-        group,
-        HiddenChildAgentConversationRequest {
-            parent_pane_id,
-            name: prepared.conversation_name.clone(),
-            parent_conversation_id,
-            orchestration_harness: Some(Harness::Oz),
-            env_vars: HashMap::new(),
-            task_context: Some(HiddenChildAgentTaskContext {
-                task_id: child_task_id,
-                working_dir: None,
-            }),
-        },
-        ctx,
-    ) {
-        Some(HiddenChildAgentConversation {
-            terminal_view: new_terminal_view,
-            terminal_view_id,
-            conversation_id,
-            ..
-        }) => {
-            apply_child_agent_model_override(terminal_view_id, model_id.as_deref(), ctx);
-
-            // Stamp the task id on the child conversation directly
-            // so the share-reporter in
-            // `local_tty/terminal_manager.rs` can resolve it from
-            // the selected conversation when the share handshake
-            // succeeds. Mirrors how `OrchestrationViewerModel`
-            // stamps run/task ids onto viewer child placeholders.
-            BlocklistAIHistoryModel::handle(ctx).update(ctx, |model, ctx| {
-                if let Some(conversation) = model.conversation_mut(&conversation_id) {
-                    conversation.set_task_id(child_task_id);
-                }
-                model.record_new_conversation_request_complete(request_id, conversation_id, ctx);
-            });
-
-            new_terminal_view.update(ctx, |terminal_view, ctx| {
-                terminal_view
-                    .ai_controller()
-                    .update(ctx, |controller, ctx| {
-                        controller.send_agent_query_in_conversation(
-                            prompt.clone(),
-                            conversation_id,
-                            ctx,
-                        );
-                    });
-
-                terminal_view.enter_agent_view(
-                    None,
-                    Some(conversation_id),
-                    AgentViewEntryOrigin::ChildAgent,
-                    ctx,
-                );
-            });
-        }
-        _ => {
-            let _ = create_error_child_agent_conversation(
-                group,
-                ErrorChildAgentConversationRequest {
-                    parent_pane_id,
-                    name: prepared.conversation_name,
-                    parent_conversation_id,
-                    request_id: Some(request_id),
-                    orchestration_harness: Some(Harness::Oz),
-                    error_message: "Failed to create a hidden pane for the local child agent."
-                        .to_string(),
-                },
-                ctx,
-            );
-        }
-    }
-}
-
-/// Asynchronously prepares a local harness launch, then creates the
-/// hidden child pane and executes the launch command.
-#[allow(clippy::too_many_arguments)]
-fn launch_local_harness_child(
-    group: &mut PaneGroup,
-    parent_pane_id: PaneId,
-    terminal_pane_id: TerminalPaneId,
-    request: StartAgentRequest,
-    harness_type: String,
-    model_id: Option<String>,
-    ctx: &mut ViewContext<PaneGroup>,
-) {
-    let startup_directory = group.startup_path_for_new_session(Some(terminal_pane_id), ctx);
-    let request_id = request.id;
-    let agent_name = normalize_orchestrator_agent_name(&request.name);
-    let request_name = agent_name.unwrap_or_default();
-    let parent_conversation_id = request.parent_conversation_id;
-    let prompt = request.prompt.clone();
-    let orchestration_harness =
-        Harness::parse_orchestration_harness(&harness_type).unwrap_or(Harness::Unknown);
-    let shell_type = group
-        .terminal_view_from_pane_id(parent_pane_id, ctx)
-        .and_then(|terminal_view| terminal_view.as_ref(ctx).active_session_shell_type(ctx));
-
-    let model_id_for_harness_env = model_id.clone();
-    let _ = ctx.spawn(
-        async move {
-            prepare_local_harness_child_launch(
-                prompt,
-                harness_type,
-                model_id_for_harness_env,
-                shell_type,
-                startup_directory,
-            )
-            .await
-        },
-        move |group, result, ctx| match result {
-            Ok(launch) => {
-                let PreparedLocalHarnessLaunch {
-                    command,
-                    env_vars,
-                    run_id,
-                    task_id,
-                } = launch;
-                match create_hidden_child_agent_conversation(
-                    group,
-                    HiddenChildAgentConversationRequest {
-                        parent_pane_id,
-                        name: request_name.clone(),
-                        parent_conversation_id,
-                        orchestration_harness: Some(orchestration_harness),
-                        env_vars,
-                        task_context: None,
-                    },
-                    ctx,
-                ) {
-                    Some(HiddenChildAgentConversation {
-                        terminal_view: new_terminal_view,
-                        terminal_view_id,
-                        conversation_id,
-                        ..
-                    }) => {
-                        apply_child_agent_model_override(
-                            terminal_view_id,
-                            model_id.as_deref(),
-                            ctx,
-                        );
-
-                        BlocklistAIHistoryModel::handle(ctx).update(ctx, |model, ctx| {
-                            model.record_new_conversation_request_complete(
-                                request_id,
-                                conversation_id,
-                                ctx,
-                            );
-                        });
-
-                        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                            history_model.assign_run_id_for_conversation(
-                                conversation_id,
-                                run_id,
-                                Some(task_id),
-                                terminal_view_id,
-                                ctx,
-                            );
-                        });
-
-                        new_terminal_view.update(ctx, |terminal_view, ctx| {
-                            terminal_view.execute_command_or_set_pending(&command, ctx);
-                            terminal_view.enter_agent_view(
-                                None,
-                                Some(conversation_id),
-                                AgentViewEntryOrigin::ChildAgent,
-                                ctx,
-                            );
-                        });
-                    }
-                    _ => {
-                        let _ = create_error_child_agent_conversation(
-                            group,
-                            ErrorChildAgentConversationRequest {
-                                parent_pane_id,
-                                name: request_name,
-                                parent_conversation_id,
-                                request_id: Some(request_id),
-                                orchestration_harness: Some(orchestration_harness),
-                                error_message:
-                                    "Failed to create a hidden pane for the local child harness."
-                                        .to_string(),
-                            },
-                            ctx,
-                        );
-                    }
-                }
-            }
-            Err(error_message) => {
-                let _ = create_error_child_agent_conversation(
-                    group,
-                    ErrorChildAgentConversationRequest {
-                        parent_pane_id,
-                        name: request_name,
-                        parent_conversation_id,
-                        request_id: Some(request_id),
-                        orchestration_harness: Some(orchestration_harness),
-                        error_message,
-                    },
-                    ctx,
-                );
-            }
-        },
-    );
 }
 
 fn handle_ai_history_event(
@@ -1457,7 +1043,6 @@ fn handle_ai_history_event(
         | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
         | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. }
         | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. }
-        | BlocklistAIHistoryEvent::NewConversationRequestComplete { .. }
         | BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
         | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. } => (),
     }

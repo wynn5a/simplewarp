@@ -947,7 +947,7 @@ impl Input {
                 }
                 self.open_repos_menu(ctx);
             }
-            SlashCommandKind::Compact | SlashCommandKind::Plan | SlashCommandKind::Orchestrate => {
+            SlashCommandKind::Compact | SlashCommandKind::Plan => {
                 // These slash commands just send AI requests with the slash command text as a
                 // prefix, and special handling is done downstream as an implementation detail
                 // of handling user queries with specific slash command prefixes.
@@ -1148,7 +1148,7 @@ impl Input {
 pub fn slash_command_is_submitted_as_prompt(command: &StaticCommand) -> bool {
     matches!(
         command.kind,
-        SlashCommandKind::Compact | SlashCommandKind::Plan | SlashCommandKind::Orchestrate
+        SlashCommandKind::Compact | SlashCommandKind::Plan
     )
 }
 

@@ -44,10 +44,6 @@ impl HarnessAvailabilityModel {
         }
     }
 
-    pub fn available_harnesses(&self) -> &[HarnessAvailability] {
-        &self.harnesses
-    }
-
     pub fn display_name_for(&self, harness: Harness) -> &str {
         self.harnesses
             .iter()
@@ -59,14 +55,6 @@ impl HarnessAvailabilityModel {
     /// Whether the harness selector should be shown (>1 known harness, including disabled).
     pub fn should_show_harness_selector(&self) -> bool {
         FeatureFlag::AgentHarness.is_enabled() && self.harnesses.len() > 1
-    }
-
-    pub fn models_for(&self, harness: Harness) -> Option<&[HarnessModelInfo]> {
-        self.harnesses
-            .iter()
-            .find(|h| h.harness == harness)
-            .map(|h| h.available_models.as_slice())
-            .filter(|m| !m.is_empty())
     }
 }
 

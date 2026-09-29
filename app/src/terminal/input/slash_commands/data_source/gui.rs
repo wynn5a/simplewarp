@@ -88,21 +88,15 @@ impl GuiSlashCommandDataSource {
     }
 
     pub(crate) fn command_is_active(&self, command: &StaticCommand, ctx: &AppContext) -> bool {
-        let availability = self.availability(ctx);
-        let gates = self.common_command_gates(ctx);
-        command.supports_gui() && self.command_passes_common_gates(command, availability, &gates)
+        command.supports_gui() && command.is_active(self.availability(ctx))
     }
 
     fn recompute_active_commands(&mut self, ctx: &mut ModelContext<Self>) {
         let availability = self.availability(ctx);
-        let gates = self.common_command_gates(ctx);
         let commands = HashMap::from_iter(
             COMMAND_REGISTRY
                 .all_commands_by_id()
-                .filter(|(_, command)| {
-                    command.supports_gui()
-                        && self.command_passes_common_gates(command, availability, &gates)
-                })
+                .filter(|(_, command)| command.supports_gui() && command.is_active(availability))
                 .map(|(id, command)| (id, command.clone())),
         );
         if self.replace_active_commands(commands) {

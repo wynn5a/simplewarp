@@ -101,7 +101,7 @@ pub async fn generate_multi_agent_output(
                 FeatureFlag::SummarizationViaMessageReplacement.is_enabled(),
             supports_bundled_skills: FeatureFlag::BundledSkills.is_enabled(),
             supports_research_agent: params.research_agent_enabled,
-            supports_orchestration_v2: supports_orchestration_v2(params.orchestration_enabled),
+            supports_orchestration_v2: false,
             supports_orchestration_runners: false,
             supports_background_computer_use: FeatureFlag::BackgroundComputerUse.is_enabled()
                 && computer_use::background_supported(),
@@ -201,10 +201,6 @@ fn api_keys_with_warp_credit_fallback_setting(
     }
 }
 
-fn supports_orchestration_v2(orchestration_enabled: bool) -> bool {
-    orchestration_enabled
-}
-
 fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {
     let mut supported_tools = vec![
         api::ToolType::Grep,
@@ -249,13 +245,6 @@ fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {
 
     if FeatureFlag::ListSkills.is_enabled() {
         supported_tools.push(api::ToolType::ReadSkill);
-    }
-
-    if params.orchestration_enabled {
-        supported_tools.push(api::ToolType::RunAgents);
-        // Declare client-handled wait_for_events so the server doesn't
-        // fall back to the legacy server-handled form.
-        supported_tools.push(api::ToolType::WaitForEvents);
     }
 
     if FeatureFlag::AskUserQuestion.is_enabled() && params.ask_user_question_enabled {
