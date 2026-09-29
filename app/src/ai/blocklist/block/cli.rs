@@ -175,7 +175,6 @@ pub fn init(app: &mut AppContext) {
 struct StateHandles {
     invalid_api_key_button_handle: MouseStateHandle,
     debug_copy_button_handle: MouseStateHandle,
-    submit_issue_button_handle: MouseStateHandle,
     query_selection_handle: SelectionHandle,
     output_selection_handle: SelectionHandle,
     action_selection_handle: SelectionHandle,
@@ -1208,16 +1207,10 @@ impl View for CLISubagentView {
                                     .state_handles
                                     .debug_copy_button_handle
                                     .clone(),
-                                submit_issue_button_handle: self
-                                    .state_handles
-                                    .submit_issue_button_handle
-                                    .clone(),
-                                should_render_feedback_below: true,
                             },
                             |debug_id, ctx| {
                                 ctx.dispatch_typed_action(CLISubagentAction::CopyDebugId(debug_id))
                             },
-                            |ctx| ctx.dispatch_typed_action(CLISubagentAction::OpenFeedbackDocs),
                             app,
                         ))
                         .with_margin_top(8.)
@@ -1433,7 +1426,6 @@ pub enum CLISubagentAction {
     DismissInput,
     SelectText,
     CopyDebugId(String),
-    OpenFeedbackDocs,
 }
 
 impl TypedActionView for CLISubagentView {
@@ -1516,9 +1508,6 @@ impl TypedActionView for CLISubagentView {
             CLISubagentAction::CopyDebugId(debug_id) => {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(debug_id.clone()));
-            }
-            CLISubagentAction::OpenFeedbackDocs => {
-                ctx.open_url("https://docs.warp.dev/support-and-billing/sending-us-feedback");
             }
         }
     }

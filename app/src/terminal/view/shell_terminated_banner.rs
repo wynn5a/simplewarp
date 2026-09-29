@@ -14,9 +14,6 @@ use warpui::{Entity, SingletonEntity as _, TypedActionView, View, ViewContext};
 
 use crate::ui_components;
 
-const FILE_ISSUE_TEXT: &str = "File issue";
-const MORE_INFO_TEXT: &str = "More info";
-
 /// A banner to display when the shell process terminates.
 ///
 /// This can be a simple informational banner or one giving information about
@@ -100,7 +97,6 @@ impl View for ShellTerminatedBanner {
 
 #[derive(Debug)]
 pub enum Action {
-    OpenUrl(String),
     CopyPtySpawnError(String),
 }
 
@@ -109,9 +105,6 @@ impl TypedActionView for ShellTerminatedBanner {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
-            Action::OpenUrl(url) => {
-                ctx.open_url(url);
-            }
             Action::CopyPtySpawnError(error_str) => {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(error_str.to_owned()));
@@ -200,37 +193,11 @@ impl TerminationType {
     ) -> Vec<Box<dyn Element>> {
         match self {
             TerminationType::Normal => vec![],
-            TerminationType::Premature { .. } => {
-                let ui_builder = inverted_color_ui_builder(appearance);
-
-                handles.resize_with(2, MouseStateHandle::default);
-                vec![
-                    ui_builder
-                        .button(ButtonVariant::Text, handles[0].clone())
-                        .with_text_label(FILE_ISSUE_TEXT.to_string())
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "https://github.com/warpdotdev/Warp/issues/new/choose".to_string(),
-                            ));
-                        })
-                        .finish(),
-                    ui_builder
-                        .button(ButtonVariant::Outlined, handles[1].clone())
-                        .with_text_label(MORE_INFO_TEXT.to_string())
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "https://docs.warp.dev/support-and-community/troubleshooting-and-support/known-issues#debugging".to_string(),
-                            ));
-                        })
-                        .finish(),
-                ]
-            }
+            TerminationType::Premature { .. } => vec![],
             TerminationType::PtySpawnFailure { pty_spawn_error } => {
                 let ui_builder = inverted_color_ui_builder(appearance);
 
-                handles.resize_with(3, MouseStateHandle::default);
+                handles.resize_with(1, MouseStateHandle::default);
                 let error_str = format!("{pty_spawn_error:#}");
                 vec![
                     ui_builder
@@ -240,26 +207,6 @@ impl TerminationType {
                         .on_click(move |evt_ctx, _ctx, _position| {
                             evt_ctx.dispatch_typed_action(Action::CopyPtySpawnError(
                                 error_str.clone(),
-                            ));
-                        })
-                        .finish(),
-                    ui_builder
-                        .button(ButtonVariant::Text, handles[1].clone())
-                        .with_text_label(FILE_ISSUE_TEXT.to_string())
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "https://github.com/warpdotdev/Warp/issues/new/choose".to_string(),
-                            ));
-                        })
-                        .finish(),
-                    ui_builder
-                        .button(ButtonVariant::Outlined, handles[2].clone())
-                        .with_text_label(MORE_INFO_TEXT.to_string())
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "https://docs.warp.dev/support-and-community/troubleshooting-and-support/known-issues#debugging".to_string(),
                             ));
                         })
                         .finish(),

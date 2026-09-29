@@ -3136,14 +3136,11 @@ pub(crate) struct DebugFooterProps<'a, V: View> {
     pub conversation: Option<&'a AIConversation>,
     pub model: &'a dyn AIBlockModel<View = V>,
     pub debug_copy_button_handle: MouseStateHandle,
-    pub submit_issue_button_handle: MouseStateHandle,
-    pub should_render_feedback_below: bool,
 }
 
 pub(crate) fn render_debug_footer<V: View>(
     props: DebugFooterProps<'_, V>,
     on_copy_debug_id: impl Fn(String, &mut EventContext) + 'static,
-    on_open_feedback: impl Fn(&mut EventContext) + 'static,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
@@ -3169,53 +3166,6 @@ pub(crate) fn render_debug_footer<V: View>(
             "conversation_id": conversation_token.as_str()
         })
         .to_string()
-    };
-
-    let submit_button = {
-        let submit_button_style = UiComponentStyles {
-            font_color: Some(
-                appearance
-                    .theme()
-                    .sub_text_color(appearance.theme().background())
-                    .into(),
-            ),
-            border_width: Some(1.),
-            border_color: Some(
-                appearance
-                    .theme()
-                    .sub_text_color(appearance.theme().background())
-                    .into(),
-            ),
-            border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-            padding: Some(Coords {
-                top: 4.,
-                bottom: 4.,
-                left: 8.,
-                right: 8.,
-            }),
-            font_size: Some(appearance.monospace_font_size()),
-            font_family_id: Some(appearance.ui_font_family()),
-            ..Default::default()
-        };
-        let submit_button_hover_style = UiComponentStyles {
-            background: Some(blended_colors::neutral_4(appearance.theme()).into()),
-            ..submit_button_style
-        };
-        appearance
-            .ui_builder()
-            .button(
-                warpui::ui_components::button::ButtonVariant::Text,
-                props.submit_issue_button_handle,
-            )
-            .with_centered_text_label("Send Feedback".to_string())
-            .with_style(submit_button_style)
-            .with_hovered_styles(submit_button_hover_style)
-            .with_clicked_styles(submit_button_hover_style)
-            .build()
-            .on_click(move |ctx, _, _| {
-                on_open_feedback(ctx);
-            })
-            .finish()
     };
 
     // render the conversation's debug id so screenshots automatically show the debug id
@@ -3276,15 +3226,6 @@ pub(crate) fn render_debug_footer<V: View>(
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_main_axis_size(MainAxisSize::Max);
 
-    // In narrow views, render the submit button in a separate row below.
-    // Otherwise, place it inline in the debug row.
-    let stacked_submit_button = if props.should_render_feedback_below {
-        Some(submit_button)
-    } else {
-        debug_row.add_child(Container::new(submit_button).with_margin_right(8.).finish());
-        None
-    };
-
     debug_row.add_child(
         Shrinkable::new(
             1.0,
@@ -3294,14 +3235,7 @@ pub(crate) fn render_debug_footer<V: View>(
     );
     debug_row.add_child(copy_button_with_tooltip);
 
-    if let Some(submit_button) = stacked_submit_button {
-        let mut column = Flex::column();
-        column.add_child(Expanded::new(1.0, debug_row.finish()).finish());
-        column.add_child(Container::new(submit_button).with_margin_top(8.).finish());
-        column.finish()
-    } else {
-        Container::new(Expanded::new(1.0, debug_row.finish()).finish()).finish()
-    }
+    Container::new(Expanded::new(1.0, debug_row.finish()).finish()).finish()
 }
 
 #[derive(Copy, Clone, Debug)]

@@ -64,25 +64,21 @@ pub trait AITip: Clone {
 static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
     vec![
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/capabilities/slash-commands".to_string()),
             description: "`/` to open the slash-command menu and access quick agent actions.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/terminal/input/universal-input#input-modes".to_string()),
             description: "<keybinding> to toggle natural language detection and switch between agent and terminal input.".to_string(),
             binding_name: Some(SET_INPUT_MODE_AGENT_ACTION_NAME),
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/capabilities/planning".to_string()),
             description: "`/plan` <prompt> to create a plan for the agent before executing.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/terminal/command-palette".to_string()),
             description: "<keybinding> to open the Command Palette and access Warp actions and shortcuts.".to_string(),
             binding_name: Some(TOGGLE_COMMAND_PALETTE_KEYBINDING_NAME),
             action: Some(WorkspaceAction::OpenPalette {
@@ -92,181 +88,151 @@ static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
             }),
         },
         AgentTip {
-            link: None,
             description: "Enter a new prompt to redirect the agent while it's running.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/local-agents/agent-context/using-to-add-context".to_string()),
             description: "`@` to add context from files, blocks, or Warp Drive objects to your prompt.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/local-agents/agent-context/blocks-as-context#attaching-blocks-as-context".to_string()),
             description: "<keybinding> to attach the prior command output as agent context.".to_string(),
             binding_name: Some(SELECT_PREVIOUS_BLOCK_ACTION_NAME),
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/capabilities/codebase-context".to_string()),
             description: "`/init` to index the repo so the agent can understand your codebase.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/capabilities/agent-profiles-permissions".to_string()),
             description: "Add agent profiles to customize permissions and models per session.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/local-agents/interacting-with-agents/conversation-forking".to_string()),
             description: "Right-click a block to fork the conversation from that point.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/terminal/blocks/block-actions#copy-input-output-of-block".to_string()),
             description: "Right-click a block to copy a conversation's output.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/local-agents/agent-context/images-as-context".to_string()),
             description: "Drag an image into the pane to attach it as agent context.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/capabilities/full-terminal-use".to_string()),
             description: "Prompt the agent to control interactive tools like node, python, postgres, gdb, or vim.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/code/code-review".to_string()),
             description: "<keybinding> to open the code review panel and review the agent's changes.".to_string(),
             binding_name: Some(TOGGLE_RIGHT_PANEL_BINDING_NAME),
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/capabilities/mcp".to_string()),
             description: "`/add-mcp` to add an MCP server to your workspace.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: None,
             description: "`/open-mcp-servers` to view and share MCP servers with your team.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/reference/cli/integration-setup".to_string()),
             description: "`/create-environment` to turn a repo into a remote docker environment an agent can run in.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: None,
             description: "`/add-prompt` to create a reusable prompt for repeatable workflows.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/capabilities/rules".to_string()),
             description: "`/add-rule` to create a global agent rule.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/local-agents/interacting-with-agents/conversation-forking".to_string()),
             description: "`/fork` to create a fresh copy of the current conversation, optionally with a new prompt.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: None,
             description: "`/open-code-review` to open the code review panel and inspect agent-generated diffs.".to_string(),
             binding_name: None,
             action: Some(WorkspaceAction::ToggleRightPanel),
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/local-agents/interacting-with-agents".to_string()),
             description: "`/new` to start a new agent conversation with clean context.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: None,
             description: "`/compact` to summarize the current conversation and free up space in the context window.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: None,
             description: "`/usage` to show your current AI credits usage.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/reference/cli".to_string()),
             description: "Use the `oz` command to run the Warp Agent in headless mode, useful for remote machines.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/local-agents/agent-context/blocks-as-context#attaching-blocks-as-context".to_string()),
             description: "Right-click selected text to attach it as agent context.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/capabilities/rules#project-rules-1".to_string()),
             description: "Use `AGENTS.md` or `CLAUDE.md` to apply project-scoped rules.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/local-agents/agent-context/urls-as-context".to_string()),
             description: "Paste a URL to attach that webpage as context for the agent.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/terminal/warpify".to_string()),
             description: "Warpify a remote SSH session to enable the Warp Agent inside that environment.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/capabilities/agent-profiles-permissions".to_string()),
             description: "Switch agent profiles to quickly change models and agent permissions.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/capabilities/rules".to_string()),
             description: "`/init` to generate a `WARP.md` file and define project rules for the agent.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/agents/capabilities/full-terminal-use#session-level-approvals".to_string()),
             description: "<keybinding> to auto-approve the agent's commands and diffs for the rest of the session.".to_string(),
             binding_name: Some(TOGGLE_AUTOEXECUTE_MODE_KEYBINDING),
             action: None,
         },
         AgentTip {
-            link: Some("https://docs.warp.dev/platform/managing-cloud-agents#in-app-agent-notifications".to_string()),
             description: "Enable desktop notifications to get an alert when an agent needs your attention.".to_string(),
             binding_name: None,
             action: None,
         },
         AgentTip {
-            link: None,
             description: "<keybinding> to cancel the current agent task.".to_string(),
             binding_name: Some(CANCEL_COMMAND_KEYBINDING),
             action: None,
@@ -281,7 +247,6 @@ pub struct AgentTip {
     /// "<keybinding>" is replaced with user-defined and platform-specific keybinding referenced by binding_name,
     /// `text` that is wrapped in backticks is formatted as inline code
     pub description: String,
-    pub link: Option<String>,
     pub binding_name: Option<&'static str>,
     pub action: Option<WorkspaceAction>,
 }
@@ -363,10 +328,6 @@ pub fn get_agent_tips(ctx: &AppContext) -> Vec<AgentTip> {
         tips.push(AgentTip {
             description: "Hold <keybinding> to speak your prompt directly to the agent."
                 .to_string(),
-            link: Some(
-                "https://docs.warp.dev/agents/local-agents/interacting-with-agents/voice"
-                    .to_string(),
-            ),
             binding_name: Some("FN"),
             action: None,
         });

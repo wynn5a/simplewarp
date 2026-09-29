@@ -13,8 +13,6 @@ use crate::terminal::view::{InlineBannerId, NotificationsTrigger, TerminalAction
 
 #[derive(Clone, Copy, Debug, Serialize)]
 pub enum NotificationsDiscoveryBannerAction {
-    LearnMore,
-    Troubleshoot,
     TurnOn(NotificationsTrigger),
     Configure,
     Close,
@@ -22,8 +20,6 @@ pub enum NotificationsDiscoveryBannerAction {
 
 #[derive(Default)]
 pub struct NotificationsDiscoveryBannerMouseStates {
-    pub learn_more: MouseStateHandle,
-    pub troubleshoot: MouseStateHandle,
     pub turn_on: MouseStateHandle,
     pub configure: MouseStateHandle,
     pub close: MouseStateHandle,
@@ -44,33 +40,6 @@ pub fn render_inline_notifications_discovery_banner(
 ) -> Box<dyn Element> {
     let active_ui_text_color = appearance.theme().active_ui_text_color().into_solid();
 
-    let learn_more_button = InlineBannerTextButton {
-        text: "Learn more".to_string(),
-        text_color: active_ui_text_color,
-        button_state: InlineBannerButtonState {
-            on_click_event: TerminalAction::NotificationsDiscoveryBanner(
-                NotificationsDiscoveryBannerAction::LearnMore,
-            ),
-            mouse_state_handle: state.mouse_states.learn_more.clone(),
-        },
-        font: Default::default(),
-        position_id: None,
-        variant: InlineBannerTextButtonVariant::Secondary,
-    };
-    let troubleshoot_button = InlineBannerTextButton {
-        text: "Troubleshoot".to_string(),
-        text_color: active_ui_text_color,
-        button_state: InlineBannerButtonState {
-            on_click_event: TerminalAction::NotificationsDiscoveryBanner(
-                NotificationsDiscoveryBannerAction::Troubleshoot,
-            ),
-            mouse_state_handle: state.mouse_states.troubleshoot.clone(),
-        },
-        font: Default::default(),
-        position_id: None,
-        variant: InlineBannerTextButtonVariant::Secondary,
-    };
-
     let (title, buttons) = match notifications_mode {
         NotificationsMode::Dismissed => (
             "We won't show this banner again, but you can always go to Settings to enable notifications.",
@@ -82,65 +51,53 @@ pub fn render_inline_notifications_discovery_banner(
         ),
         NotificationsMode::Unset => (
             trigger.discovery_banner_copy(),
-            vec![
-                learn_more_button,
-                InlineBannerTextButton {
-                    text: "Enable".to_string(),
-                    text_color: active_ui_text_color,
-                    button_state: InlineBannerButtonState {
-                        on_click_event: TerminalAction::NotificationsDiscoveryBanner(
-                            NotificationsDiscoveryBannerAction::TurnOn(trigger),
-                        ),
-                        mouse_state_handle: state.mouse_states.turn_on.clone(),
-                    },
-                    font: Default::default(),
-                    position_id: None,
-                    variant: InlineBannerTextButtonVariant::Primary,
+            vec![InlineBannerTextButton {
+                text: "Enable".to_string(),
+                text_color: active_ui_text_color,
+                button_state: InlineBannerButtonState {
+                    on_click_event: TerminalAction::NotificationsDiscoveryBanner(
+                        NotificationsDiscoveryBannerAction::TurnOn(trigger),
+                    ),
+                    mouse_state_handle: state.mouse_states.turn_on.clone(),
                 },
-            ],
+                font: Default::default(),
+                position_id: None,
+                variant: InlineBannerTextButtonVariant::Primary,
+            }],
         ),
         NotificationsMode::Enabled => {
             // Determine the messaging based on what the user's response was to the
             // permissions request (if any)
-            let (title, docs_button) = match request_outcome {
-                Some(request_outcome) => match request_outcome {
-                    RequestPermissionsOutcome::Accepted => (
-                        "Success! You are now ready to receive desktop notifications.",
-                        learn_more_button,
-                    ),
-                    RequestPermissionsOutcome::PermissionsDenied => (
-                        "Warp was denied permissions to send you notifications.",
-                        troubleshoot_button,
-                    ),
-                    RequestPermissionsOutcome::OtherError { .. } => (
-                        "Something went wrong while requesting permissions.",
-                        troubleshoot_button,
-                    ),
-                },
-                None => (
-                    "Don't forget to 'Allow' the permissions request to finish setting up notifications.",
-                    learn_more_button,
-                ),
+            let title = match request_outcome {
+                Some(RequestPermissionsOutcome::Accepted) => {
+                    "Success! You are now ready to receive desktop notifications."
+                }
+                Some(RequestPermissionsOutcome::PermissionsDenied) => {
+                    "Warp was denied permissions to send you notifications."
+                }
+                Some(RequestPermissionsOutcome::OtherError { .. }) => {
+                    "Something went wrong while requesting permissions."
+                }
+                None => {
+                    "Don't forget to 'Allow' the permissions request to finish setting up notifications."
+                }
             };
 
             (
                 title,
-                vec![
-                    docs_button,
-                    InlineBannerTextButton {
-                        text: "Configure notifications".to_string(),
-                        text_color: active_ui_text_color,
-                        button_state: InlineBannerButtonState {
-                            on_click_event: TerminalAction::NotificationsDiscoveryBanner(
-                                NotificationsDiscoveryBannerAction::Configure,
-                            ),
-                            mouse_state_handle: state.mouse_states.configure.clone(),
-                        },
-                        font: Default::default(),
-                        position_id: None,
-                        variant: InlineBannerTextButtonVariant::Secondary,
+                vec![InlineBannerTextButton {
+                    text: "Configure notifications".to_string(),
+                    text_color: active_ui_text_color,
+                    button_state: InlineBannerButtonState {
+                        on_click_event: TerminalAction::NotificationsDiscoveryBanner(
+                            NotificationsDiscoveryBannerAction::Configure,
+                        ),
+                        mouse_state_handle: state.mouse_states.configure.clone(),
                     },
-                ],
+                    font: Default::default(),
+                    position_id: None,
+                    variant: InlineBannerTextButtonVariant::Secondary,
+                }],
             )
         }
     };

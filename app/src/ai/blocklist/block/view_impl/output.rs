@@ -1137,16 +1137,10 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 .state_handles
                                 .debug_copy_button_handle
                                 .clone(),
-                            submit_issue_button_handle: props
-                                .state_handles
-                                .submit_issue_button_handle
-                                .clone(),
-                            should_render_feedback_below: false,
                         },
                         |debug_id, ctx| {
                             ctx.dispatch_typed_action(AIBlockAction::CopyDebugId(debug_id))
                         },
-                        |ctx| ctx.dispatch_typed_action(AIBlockAction::OpenFeedbackDocs),
                         app,
                     )
                     .with_agent_output_item_spacing(app)

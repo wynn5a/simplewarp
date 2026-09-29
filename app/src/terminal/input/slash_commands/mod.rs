@@ -707,9 +707,6 @@ impl Input {
             SlashCommandKind::Init => {
                 ctx.dispatch_typed_action(&TerminalAction::InitProject);
             }
-            SlashCommandKind::Feedback => {
-                ctx.dispatch_typed_action(&WorkspaceAction::SendFeedback);
-            }
             SlashCommandKind::OpenCodeReview => {
                 ctx.dispatch_typed_action(&TerminalAction::ToggleCodeReviewPane {
                     entrypoint: CodeReviewPaneEntrypoint::SlashCommand,

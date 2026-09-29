@@ -13,13 +13,11 @@ use crate::terminal::view::{InlineBannerId, TerminalAction};
 #[derive(Clone, Copy, Debug, Serialize)]
 pub enum NotificationsErrorBannerAction {
     SetPermissions,
-    Troubleshoot,
     Close,
 }
 
 #[derive(Default)]
 pub struct NotificationsErrorBannerMouseStates {
-    pub troubleshoot: MouseStateHandle,
     pub close: MouseStateHandle,
     pub set_permissions: MouseStateHandle,
 }
@@ -56,20 +54,6 @@ pub fn render_inline_notifications_error_banner(
             variant: InlineBannerTextButtonVariant::Primary,
         });
     }
-
-    buttons.push(InlineBannerTextButton {
-        text: "Troubleshoot".to_string(),
-        text_color: active_ui_text_color,
-        button_state: InlineBannerButtonState {
-            on_click_event: TerminalAction::NotificationsErrorBanner(
-                NotificationsErrorBannerAction::Troubleshoot,
-            ),
-            mouse_state_handle: state.mouse_states.troubleshoot.clone(),
-        },
-        font: Default::default(),
-        position_id: None,
-        variant: InlineBannerTextButtonVariant::Secondary,
-    });
 
     let close_button = InlineBannerCloseButton(InlineBannerButtonState {
         on_click_event: TerminalAction::NotificationsErrorBanner(

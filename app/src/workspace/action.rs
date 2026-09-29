@@ -289,9 +289,6 @@ pub enum WorkspaceAction {
         mode: PaletteMode,
         source: PaletteSource,
     },
-    JoinSlack,
-    ViewUserDocs,
-    SendFeedback,
     /// Open the log directory in the system file explorer with the current log file selected.
     ViewLogs,
     ChangeCursor(Cursor),
@@ -442,7 +439,7 @@ pub enum WorkspaceAction {
     /// Dismisses the Wayland crash recovery banner and opens a link to our docs page with more
     /// information.
     #[cfg(target_os = "linux")]
-    DismissWaylandCrashRecoveryBannerAndOpenLink,
+    DismissWaylandCrashRecoveryBanner,
     /// Open a new pane with its input in AI mode
     /// with query "Fix this" with error name and details from AI summary.
     FixInAgentMode {
@@ -767,9 +764,6 @@ impl WorkspaceAction {
             | ResetZoom
             | OpenPalette { .. }
             | TogglePalette { mode: _, source: _ }
-            | JoinSlack
-            | ViewUserDocs
-            | SendFeedback
             | ChangeCursor(_)
             | ToggleBlockSnackbar
             | ToggleErrorUnderlining
@@ -909,7 +903,7 @@ impl WorkspaceAction {
             FileRenamed { .. } => false, // File rename doesn't change workspace state
             FileDeleted { .. } => false, // File deletion doesn't change workspace state
             #[cfg(target_os = "linux")]
-            DismissWaylandCrashRecoveryBannerAndOpenLink => false,
+            DismissWaylandCrashRecoveryBanner => false,
             // actions that are related to updating user settings or
             // managing some ui elements (like closing/opening modals)
             // that don't reflect on actual workspace and don't need to

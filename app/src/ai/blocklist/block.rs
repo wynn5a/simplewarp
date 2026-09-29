@@ -358,8 +358,6 @@ pub(super) struct AIBlockStateHandles {
 
     /// Mouse state handle for the debug ID copy button
     debug_copy_button_handle: MouseStateHandle,
-    /// Mouse state handle for the submit issue button
-    submit_issue_button_handle: MouseStateHandle,
 
     /// Mouse state handle for the invalid API key button
     invalid_api_key_button_handle: MouseStateHandle,
@@ -5683,8 +5681,6 @@ pub enum AIBlockAction {
     DisableRuleSuggestions,
     /// Copy the debug ID to clipboard
     CopyDebugId(String),
-    /// Open Warp feedback documentation
-    OpenFeedbackDocs,
     /// Toggle the usage summary footer expansion state
     ToggleIsUsageFooterExpanded,
     CommentExpanded {
@@ -5831,9 +5827,6 @@ impl TypedActionView for AIBlock {
             AIBlockAction::CopyDebugId(debug_id) => {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(debug_id.clone()));
-            }
-            AIBlockAction::OpenFeedbackDocs => {
-                ctx.open_url("https://docs.warp.dev/support-and-community/troubleshooting-and-support/sending-us-feedback");
             }
             AIBlockAction::CancelRequestedAction { action_id } => {
                 self.cancel_action(action_id, ctx);

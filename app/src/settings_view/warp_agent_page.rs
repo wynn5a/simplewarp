@@ -92,9 +92,6 @@ const SUGGESTED_CODE_BANNERS_DESCRIPTION: &str = "Let AI suggest code diffs and 
 const GIT_OPERATIONS_AUTOGEN_DESCRIPTION: &str =
     "Let AI generate commit messages and pull request titles and descriptions.";
 const WISPR_FLOW_URL: &str = "https://wisprflow.ai/";
-const CUSTOM_INFERENCE_LEARN_MORE_URL: &str =
-    "https://docs.warp.dev/agents/inference/custom-inference-endpoint/";
-const CUSTOM_INFERENCE_TERMS_URL: &str = "https://www.warp.dev/legal/terms-of-service";
 const CUSTOM_INFERENCE_INFO_TOOLTIP_MAX_WIDTH: f32 = 320.;
 const CUSTOM_ENDPOINT_MODAL_MAX_HEIGHT_PERCENTAGE: f32 = 0.8;
 
@@ -2173,7 +2170,6 @@ impl SettingsWidget for ActiveAIWidget {
 
 #[derive(Default)]
 struct AIInputWidget {
-    incorrect_autodetection_highlight_index: HighlightedHyperlink,
     autodetection_toggle: SwitchStateHandle,
     nld_in_terminal_toggle: SwitchStateHandle,
     show_input_hint_toggle: SwitchStateHandle,
@@ -2207,7 +2203,6 @@ impl SettingsWidget for AIInputWidget {
         .finish();
 
         let natural_language_detection_section = Self::render_natural_language_detection_section(
-            self.incorrect_autodetection_highlight_index.clone(),
             self.autodetection_toggle.clone(),
             self.nld_in_terminal_toggle.clone(),
             view,
@@ -2314,7 +2309,6 @@ impl SettingsWidget for AIInputWidget {
 
 impl AIInputWidget {
     fn render_natural_language_detection_section(
-        incorrect_autodetection_highlight_index: HighlightedHyperlink,
         autodetection_toggle: SwitchStateHandle,
         nld_in_terminal_toggle: SwitchStateHandle,
         view: &WarpAgentPageView,
@@ -2345,17 +2339,6 @@ impl AIInputWidget {
         let mut section = Flex::column();
 
         if FeatureFlag::AgentView.is_enabled() {
-            static AUTODETECTION_DESCRIPTION_FRAGMENTS: LazyLock<Vec<FormattedTextFragment>> =
-                LazyLock::new(|| {
-                    vec![
-                        FormattedTextFragment::plain_text("Encountered an incorrect detection? "),
-                        FormattedTextFragment::hyperlink(
-                            "Let us know",
-                            "https://warpdotdev.typeform.com/to/offrTIpq",
-                        ),
-                    ]
-                });
-
             section.add_children([
                 render_ai_setting_toggle(
                     "Autodetect agent prompts in terminal input",
@@ -2373,44 +2356,14 @@ impl AIInputWidget {
                     autodetection_toggle,
                     app,
                 ),
-                Container::new(
-                    FormattedTextElement::new(
-                        FormattedText::new([FormattedTextLine::Line(
-                            (*AUTODETECTION_DESCRIPTION_FRAGMENTS).clone(),
-                        )]),
-                        CONTENT_FONT_SIZE,
-                        appearance.ui_font_family(),
-                        appearance.ui_font_family(),
-                        styles::description_font_color(is_toggleable, app).into(),
-                        incorrect_autodetection_highlight_index,
-                    )
-                    .with_hyperlink_font_color(appearance.theme().accent().into_solid())
-                    .register_default_click_handlers(|url, ctx, _| {
-                        ctx.dispatch_typed_action(WarpAgentPageAction::HyperlinkClick(url));
-                    })
-                    .finish(),
-                )
-                .with_margin_top(styles::DESCRIPTION_NEGATIVE_MARGIN_OFFSET)
-                .with_margin_bottom(styles::DESCRIPTION_MARGIN_BOTTOM)
-                .with_margin_right(styles::TOGGLE_WIDTH_MARGIN)
-                .finish(),
             ])
         } else {
             static NATURAL_LANGUAGE_DETECTION_DESCRIPTION_FRAGMENTS: LazyLock<
                 Vec<FormattedTextFragment>,
             > = LazyLock::new(|| {
-                vec![
-                    FormattedTextFragment::plain_text(
-                        "Enabling natural language detection will detect when natural language is written in the terminal input, and then automatically switch to Agent Mode for AI queries.",
-                    ),
-                    FormattedTextFragment::plain_text(
-                        " Encountered an incorrect input detection? ",
-                    ),
-                    FormattedTextFragment::hyperlink(
-                        "Let us know",
-                        "https://warpdotdev.typeform.com/to/offrTIpq",
-                    ),
-                ]
+                vec![FormattedTextFragment::plain_text(
+                    "Enabling natural language detection will detect when natural language is written in the terminal input, and then automatically switch to Agent Mode for AI queries.",
+                )]
             });
 
             section.add_children([
@@ -2431,12 +2384,8 @@ impl AIInputWidget {
                         appearance.ui_font_family(),
                         appearance.ui_font_family(),
                         styles::description_font_color(is_toggleable, app).into(),
-                        incorrect_autodetection_highlight_index,
+                        HighlightedHyperlink::default(),
                     )
-                    .with_hyperlink_font_color(appearance.theme().accent().into_solid())
-                    .register_default_click_handlers(|url, ctx, _| {
-                        ctx.dispatch_typed_action(WarpAgentPageAction::HyperlinkClick(url));
-                    })
                     .finish(),
                 )
                 .with_margin_top(styles::DESCRIPTION_NEGATIVE_MARGIN_OFFSET)
@@ -2846,8 +2795,6 @@ struct ApiKeysWidget {
     provider_api_key_editors: Vec<ProviderApiKeyEditor>,
 
     custom_inference_info_tooltip: MouseStateHandle,
-    custom_inference_terms_index: HighlightedHyperlink,
-    description_learn_more_index: HighlightedHyperlink,
 }
 
 impl ApiKeysWidget {
@@ -2948,8 +2895,6 @@ impl ApiKeysWidget {
             provider_api_key_editors,
 
             custom_inference_info_tooltip: Default::default(),
-            custom_inference_terms_index: Default::default(),
-            description_learn_more_index: Default::default(),
         }
     }
     fn render_api_key_input(
@@ -3031,22 +2976,14 @@ impl ApiKeysWidget {
         add_paragraph(vec![FormattedTextFragment::plain_text(
             "API keys added here are stored only on this device, not on Warp's servers.",
         )]);
-        add_paragraph(vec![FormattedTextFragment::hyperlink(
-            "Learn more",
-            CUSTOM_INFERENCE_LEARN_MORE_URL,
-        )]);
         let description = FormattedTextElement::new(
             FormattedText::new(lines),
             CONTENT_FONT_SIZE,
             appearance.ui_font_family(),
             appearance.ui_font_family(),
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
-            self.description_learn_more_index.clone(),
-        )
-        .with_hyperlink_font_color(appearance.theme().accent().into_solid())
-        .register_default_click_handlers(|url, ctx, _| {
-            ctx.dispatch_typed_action(WarpAgentPageAction::HyperlinkClick(url));
-        });
+            HighlightedHyperlink::default(),
+        );
         Container::new(description.finish())
             .with_margin_top(styles::DESCRIPTION_NEGATIVE_MARGIN_OFFSET)
             .with_margin_bottom(styles::DESCRIPTION_MARGIN_BOTTOM)
@@ -3069,11 +3006,7 @@ impl ApiKeysWidget {
 
         let tooltip_text = FormattedText::new([FormattedTextLine::Line(vec![
             FormattedTextFragment::plain_text(
-                "By using BYOK or custom endpoints, you agree to use them only as permitted by ",
-            ),
-            FormattedTextFragment::hyperlink("Warp's Terms of Service", CUSTOM_INFERENCE_TERMS_URL),
-            FormattedTextFragment::plain_text(
-                ". BYOK and custom endpoints are intended for individual use and small teams. Companies or organizations with more than 10 employees should use Warp Business or Enterprise.",
+                "BYOK and custom endpoints are intended for individual use and small teams. Companies or organizations with more than 10 employees should use Warp Business or Enterprise.",
             ),
         ])]);
         let tooltip_background = appearance.theme().tooltip_background();
@@ -3090,7 +3023,7 @@ impl ApiKeysWidget {
                                 appearance.ui_font_family(),
                                 appearance.ui_font_family(),
                                 appearance.theme().background().into_solid(),
-                                self.custom_inference_terms_index.clone(),
+                                HighlightedHyperlink::default(),
                             )
                             .with_hyperlink_font_color(
                                 appearance
