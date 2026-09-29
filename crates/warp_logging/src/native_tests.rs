@@ -40,7 +40,10 @@ fn frontend_resolves_directory_and_rotation_policy() {
     assert_eq!(gui.max_rotation, MAX_FILES_IN_GUI_ROTATION);
     assert_eq!(tui.log_directory, PathBuf::from("/tmp/warp-logs/warp-cli"));
     assert_eq!(tui.max_rotation, MAX_FILES_IN_CLI_ROTATION);
-    assert_eq!(cli.log_directory, PathBuf::from("/tmp/warp-logs/oz"));
+    assert_eq!(
+        cli.log_directory,
+        PathBuf::from("/tmp/warp-logs/simplewarp")
+    );
     assert_eq!(cli.max_rotation, MAX_FILES_IN_CLI_ROTATION);
 }
 
