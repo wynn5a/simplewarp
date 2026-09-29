@@ -804,6 +804,21 @@ pub enum TransientNetworkErrorKind {
     MissingExchangeError,
 }
 
+/// Best-effort extraction of a provider's rate-limit message from a 429 response body. Providers
+/// put the human-readable text at different JSON paths (`error.message` for OpenAI and Anthropic,
+/// a bare `message` or `detail` elsewhere), so try the common ones and fall back to the generic
+/// quota copy when nothing matches.
+fn quota_limit_display_message(body: &str) -> Option<String> {
+    let json = serde_json::from_str::<serde_json::Value>(body.trim()).ok()?;
+    json.pointer("/error/message")
+        .or_else(|| json.get("message"))
+        .or_else(|| json.get("detail"))
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|message| !message.is_empty())
+        .map(str::to_owned)
+}
+
 impl From<&Arc<AIApiError>> for RenderableAIError {
     fn from(value: &Arc<AIApiError>) -> Self {
         // Non-retryable 4xx errors (403 fraud block, 400 model/plan restriction, etc.)
@@ -811,6 +826,11 @@ impl From<&Arc<AIApiError>> for RenderableAIError {
         // state rather than ERROR state.
         let is_user_error = !value.is_recoverable();
         match value.as_ref() {
+            AIApiError::ErrorStatus(http::StatusCode::TOO_MANY_REQUESTS, body) => {
+                Self::QuotaLimit {
+                    user_display_message: quota_limit_display_message(body),
+                }
+            }
             AIApiError::Transport(error)
             | AIApiError::Deserialization(DeserializationError::Transport(error)) => {
                 // A transport error with no HTTP status is a lost-connection failure; one that

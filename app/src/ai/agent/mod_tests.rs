@@ -2,6 +2,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use http::StatusCode;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_multi_agent_api::{FileContent, FileContentLineRange};
 
@@ -351,3 +352,51 @@ fn format_for_copy_preserves_visual_markdown_sections() {
 
 #[path = "suggestions_tests.rs"]
 mod suggestions;
+
+#[test]
+fn provider_429_maps_to_quota_limit_with_body_message() {
+    let cases: [(&str, Option<&str>); 5] = [
+        (
+            r#"{"error":{"message":"Rate limit exceeded, retry in 20s"}}"#,
+            Some("Rate limit exceeded, retry in 20s"),
+        ),
+        (
+            r#"{"message":"Too many requests"}"#,
+            Some("Too many requests"),
+        ),
+        (
+            r#"{"detail":"Monthly quota exhausted"}"#,
+            Some("Monthly quota exhausted"),
+        ),
+        ("not json at all", None),
+        (r#"{"error":{"message":""}}"#, None),
+    ];
+    for (body, expected) in cases {
+        let error = Arc::new(AIApiError::ErrorStatus(
+            StatusCode::TOO_MANY_REQUESTS,
+            body.to_owned(),
+        ));
+        let RenderableAIError::QuotaLimit {
+            user_display_message,
+        } = RenderableAIError::from(&error)
+        else {
+            panic!("429 should map to QuotaLimit, got for body {body:?}");
+        };
+        assert_eq!(user_display_message.as_deref(), expected, "body {body:?}");
+    }
+}
+
+#[test]
+fn other_error_statuses_stay_generic() {
+    for status in [
+        StatusCode::BAD_REQUEST,
+        StatusCode::FORBIDDEN,
+        StatusCode::INTERNAL_SERVER_ERROR,
+    ] {
+        let error = Arc::new(AIApiError::ErrorStatus(status, "nope".to_owned()));
+        let RenderableAIError::Other { error_message, .. } = RenderableAIError::from(&error) else {
+            panic!("{status} should stay generic");
+        };
+        assert!(error_message.contains("nope"));
+    }
+}
