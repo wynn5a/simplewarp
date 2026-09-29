@@ -91,9 +91,8 @@ Workspace is down to 62 packages (`cargo metadata`). Gone, in rough order:
 The queue is empty.
 
 Product decisions, not deletions: the Oz branding of the local CLI install and ~23 user-visible
-"Oz" strings (rebrand); the Help menu / `JoinSlack` / feedback / ~69 `docs.warp.dev` links (repoint
-or drop; the preview-program Slack, the typeform feedback link and the cloud-agents tip are the
-ones actually wrong for this fork). The local Claude/Codex child-harness `oz run message` bug is fixed (4hv);
+"Oz" strings (rebrand). The Help menu / `JoinSlack` / feedback / docs.warp.dev links campaign is
+**done** (4hy): dropped, not repointed. The local Claude/Codex child-harness `oz run message` bug is fixed (4hv);
 `agent run --harness claude` no longer needs the Oz platform plugin (4hw). The onboarding tutorial is
 deleted (4hx).
 
@@ -1226,6 +1225,40 @@ Queue, in order:
    was removed. Tests unchanged: 4,092 default / 4,093 simplewarp, 0 failed (the tutorial had no
    tests). **Follow-up:** `session_config_rendering`'s accent-background (`bg: Some`) paths were for
    the old onboarding wizard; every caller now passes `None`.
+36. ~~Help menu / JoinSlack / feedback / in-app docs.warp.dev links~~ — **4hy done (2026-09-29, two
+   commits; user decision: drop, not repoint).** Part 1 (−566 lines in 23 files): the Help menu
+   (Send Feedback / Warp Documentation / GitHub Issues / Join Slack) and `util/links.rs`; workspace
+   actions `JoinSlack`/`ViewUserDocs`/`SendFeedback` + palette bindings; the `/feedback` slash
+   command; the AI settings page's typeform "Let us know", ToS hyperlink and custom-inference
+   "Learn more" with their highlight plumbing; agent tips' link field + "Learn more" renderer (34
+   tips); docs links in the slow-bootstrap / ControlMaster / incompatible-shell / pure-prompt
+   banners; the notifications discovery/error banners' Learn more/Troubleshoot buttons + action
+   variants; the permission toast's troubleshoot link; the shell-terminated banner's File issue /
+   More info buttons + `OpenUrl` action; the AI block debug footer's Send Feedback +
+   `OpenFeedbackDocs` actions; the wayland crash-recovery banner's docs link; orphaned
+   `NewSessionMenuItem::OpenLaunchConfigDocs`. Part 2 (−489 lines in 21 files): every remaining
+   user-facing docs.warp.dev link — settings pages: agent-profiles (codebase-context + MCP learn-more
+   links and their `HighlightedHyperlink` plumbing), appearance (the `CreateCustomThemeWidget`
+   docs-link widget deleted; blur + alt-screen-padding info buttons dropped),
+   knowledge (Rules learn-more + its `HyperlinkClick` action), features (8 sites — notifications,
+   session restoration ×2, sticky command header, Wayland global-hotkey, mouse reporting, text
+   selection, YAML workflows — plus `FeaturesPageAction::OpenUrl` and per-widget mouse states),
+   warpify title, external-editor markdown-viewer info button + its `OpenUrl` action, MCP list page
+   (2 links); terminal side: the open-in-Warp banner's Learn more button + action + URL consts, the
+   block-onboarding prompt's learn-more link + `HyperlinkClick`, the warpify success block's
+   learn-more link + `OpenUrl` (cascade: `WarpificationSource` enum deleted, the
+   `SessionBootstrappedEvent` destructure drops `session_type`), the launch-config save modal's
+   "Link to Documentation", the default-shell-fallback banner's "Learn more", the workflows
+   empty-state "creating your own workflow" link (sentence kept as plain text); plain-text URLs:
+   agent-SDK slow-bootstrap CLI warning, warpui wgpu Nvidia-adapter log, the launch-config YAML
+   template comment. Also fixed part-1 residue the clippy gate caught (`render_agent_tip` in
+   status_bar.rs: `single_match` + a `let _tip_description` dummy; part 1 had only run cargo
+   check). **Kept, deliberately:** `AIAgentCitation::WarpDocumentation` (multi-agent wire shape;
+   opens the public docs site like a WebPage citation — the only docs.warp.dev string left in
+   non-test code), `secure_storage/linux.rs`'s `releases.warp.dev` literal (a KDF salt, not a
+   link), the `warpui_core` platform doc-comment example, and all test fixtures (`warp.dev/about`,
+   `app.warp.dev` as sample URLs). Tests unchanged: 4,092 default / 4,093 simplewarp, 0 failed;
+   clippy trio, format, both cargo checks clean.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

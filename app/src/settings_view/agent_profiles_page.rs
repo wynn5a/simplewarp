@@ -1709,7 +1709,6 @@ fn render_ai_list(
 #[derive(Default)]
 struct AgentsWidget {
     codebase_context_toggle: SwitchStateHandle,
-    codebase_context_link_index: HighlightedHyperlink,
     show_in_prompt_checkbox: MouseStateHandle,
 }
 
@@ -2134,7 +2133,6 @@ impl AgentsWidget {
 
         let codebase_context = Self::render_codebase_context_outline_generation_setting(
             self.codebase_context_toggle.clone(),
-            self.codebase_context_link_index.clone(),
             view,
             ai_settings,
             appearance,
@@ -2382,7 +2380,6 @@ impl AgentsWidget {
 
     fn render_codebase_context_outline_generation_setting(
         codebase_context_toggle: SwitchStateHandle,
-        codebase_context_link_index: HighlightedHyperlink,
         _view: &AgentProfilesPageView,
         ai_settings: &AISettings,
         appearance: &Appearance,
@@ -2398,15 +2395,9 @@ impl AgentsWidget {
             app,
         );
 
-        let codebase_context_description = vec![
-            FormattedTextFragment::plain_text(
-                "Allow the Warp Agent to generate an outline of your codebase that can be used for context. No code is ever stored on our servers. ",
-            ),
-            FormattedTextFragment::hyperlink(
-                "Learn more",
-                "https://docs.warp.dev/agents/capabilities/codebase-context",
-            ),
-        ];
+        let codebase_context_description = vec![FormattedTextFragment::plain_text(
+            "Allow the Warp Agent to generate an outline of your codebase that can be used for context. No code is ever stored on our servers.",
+        )];
         let description = Container::new(
             FormattedTextElement::new(
                 FormattedText::new([FormattedTextLine::Line(codebase_context_description)]),
@@ -2414,12 +2405,8 @@ impl AgentsWidget {
                 appearance.ui_font_family(),
                 appearance.ui_font_family(),
                 styles::description_font_color(ai_settings.is_any_ai_enabled(), app).into(),
-                codebase_context_link_index,
+                HighlightedHyperlink::default(),
             )
-            .with_hyperlink_font_color(appearance.theme().accent().into_solid())
-            .register_default_click_handlers(|url, ctx, _| {
-                ctx.dispatch_typed_action(AgentProfilesPageAction::HyperlinkClick(url));
-            })
             .finish(),
         )
         .with_margin_top(styles::DESCRIPTION_NEGATIVE_MARGIN_OFFSET)
@@ -2477,11 +2464,6 @@ impl AgentsWidget {
                 FormattedTextFragment::hyperlink_action(
                     "Add a server",
                     AgentProfilesPageAction::OpenMCPServerCollection,
-                ),
-                FormattedTextFragment::plain_text(" or "),
-                FormattedTextFragment::hyperlink(
-                    "learn more about MCPs.",
-                    "https://docs.warp.dev/agents/capabilities/mcp",
                 ),
             ];
 

@@ -351,22 +351,14 @@ impl From<ViewHandle<WarpifyPageView>> for SettingsPageViewHandle {
 }
 
 #[derive(Default)]
-struct TitleWidget {
-    learn_more_highlight_index: HighlightedHyperlink,
-}
+struct TitleWidget {}
 
 impl TitleWidget {
     fn render_top_of_page(&self, appearance: &Appearance, _app: &AppContext) -> Box<dyn Element> {
-        let warpify_description = vec![
-            FormattedTextFragment::plain_text(
-                "Configure whether Warp attempts to “Warpify” (add support for blocks, \
-                    input modes, etc) certain shells. ",
-            ),
-            FormattedTextFragment::hyperlink(
-                "Learn more",
-                "https://docs.warp.dev/terminal/warpify/subshells",
-            ),
-        ];
+        let warpify_description = vec![FormattedTextFragment::plain_text(
+            "Configure whether Warp attempts to “Warpify” (add support for blocks, \
+                    input modes, etc) certain shells.",
+        )];
 
         let warpify_description = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(warpify_description)]),
@@ -374,12 +366,8 @@ impl TitleWidget {
             appearance.ui_font_family(),
             appearance.ui_font_family(),
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
-            self.learn_more_highlight_index.clone(),
+            HighlightedHyperlink::default(),
         )
-        .with_hyperlink_font_color(appearance.theme().accent().into_solid())
-        .register_default_click_handlers(|url, _, ctx| {
-            ctx.open_url(&url.url);
-        })
         .finish();
 
         Flex::column()

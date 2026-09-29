@@ -7,14 +7,13 @@ use warp_core::semantic_selection::SemanticSelection;
 use warp_core::ui::theme::WarpTheme;
 use warpui::elements::{
     Border, Container, CrossAxisAlignment, Flex, Icon, MainAxisAlignment, MainAxisSize,
-    MouseStateHandle, ParentElement, SelectableArea, SelectionHandle, Text,
+    ParentElement, SelectableArea, SelectionHandle, Text,
 };
-use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
-use super::render::{HORIZONTAL_TEXT_MARGIN, SSH_DOCS_URL, SUBSHELL_DOCS_URL};
+use super::render::HORIZONTAL_TEXT_MARGIN;
 use super::settings::WarpifySettings;
-use super::{WarpificationSource, render, subshell_bootstrap_success_block_bytes};
+use super::{render, subshell_bootstrap_success_block_bytes};
 use crate::ai::agent::ProgrammingLanguage;
 use crate::ai::blocklist::code_block::{CodeSnippetButtonHandles, render_runnable_code_snippet};
 use crate::appearance::Appearance;
@@ -35,7 +34,6 @@ pub enum WarpifySuccessBlockEvent {
 pub enum WarpifySuccessBlockAction {
     ClearAutoWarpifySnippet,
     OpenWarpifySettings,
-    OpenUrl(String),
 }
 
 struct AutoWarpifySnippet {
@@ -53,16 +51,13 @@ struct AutoWarpifySnippet {
 }
 
 pub struct WarpifySuccessBlock {
-    source: WarpificationSource,
     spawning_command: String,
-    learn_more_link_mouse_states: MouseStateHandle,
     auto_warpify_snippet: Option<AutoWarpifySnippet>,
 }
 
 impl WarpifySuccessBlock {
     #[allow(clippy::new_without_default)]
     pub fn new(
-        source: WarpificationSource,
         spawning_command: String,
         subshell_info: Option<SubshellInitializationInfo>,
         shell: Shell,
@@ -125,8 +120,6 @@ impl WarpifySuccessBlock {
         });
 
         Self {
-            source,
-            learn_more_link_mouse_states: Default::default(),
             spawning_command,
             auto_warpify_snippet,
         }
@@ -158,12 +151,6 @@ impl WarpifySuccessBlock {
         )
         .with_margin_right(8.)
         .finish();
-        let header_contents = Container::new(
-            Flex::row()
-                .with_children([header_contents, self.render_learn_more_link(appearance)])
-                .finish(),
-        )
-        .finish();
 
         Container::new(
             Flex::row()
@@ -176,38 +163,6 @@ impl WarpifySuccessBlock {
         .with_horizontal_margin(HORIZONTAL_TEXT_MARGIN)
         .with_margin_top(VERTICAL_TEXT_MARGIN)
         .finish()
-    }
-
-    fn render_learn_more_link(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let url = match self.source {
-            WarpificationSource::Ssh => SSH_DOCS_URL,
-            WarpificationSource::Subshell => SUBSHELL_DOCS_URL,
-        };
-
-        let font_family_id = appearance.monospace_font_family();
-        let font_size = appearance.monospace_font_size();
-        appearance
-            .ui_builder()
-            .link(
-                "Learn more".into(),
-                None,
-                Some(Box::new({
-                    move |ctx| {
-                        ctx.dispatch_typed_action(WarpifySuccessBlockAction::OpenUrl(
-                            url.to_owned(),
-                        ));
-                    }
-                })),
-                self.learn_more_link_mouse_states.clone(),
-            )
-            .soft_wrap(false)
-            .with_style(UiComponentStyles {
-                font_size: Some(font_size),
-                font_family_id: Some(font_family_id),
-                ..Default::default()
-            })
-            .build()
-            .finish()
     }
 
     /// Fired when a block ends and we are not in a Warpified session.
@@ -343,9 +298,6 @@ impl TypedActionView for WarpifySuccessBlock {
         match action {
             WarpifySuccessBlockAction::OpenWarpifySettings => {
                 ctx.emit(WarpifySuccessBlockEvent::OpenWarpifySettings);
-            }
-            WarpifySuccessBlockAction::OpenUrl(url) => {
-                ctx.open_url(url);
             }
             WarpifySuccessBlockAction::ClearAutoWarpifySnippet => {
                 self.clear_auto_warpify_snippet(ctx);

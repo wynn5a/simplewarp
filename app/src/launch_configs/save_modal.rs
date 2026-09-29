@@ -33,7 +33,6 @@ use crate::util::openable_file_type::FileTarget;
 const MODAL_WIDTH: f32 = 660.;
 const SIDE_PADDING: f32 = 16.;
 const BUTTON_SIZE: f32 = 24.;
-const DOC_LINK_WIDTH: f32 = 120.;
 const SAVE_CONFIG_BUTTON_LABEL: &str = "Save Configuration";
 const OPEN_FILE_BUTTON_LABEL: &str = "Open YAML File";
 
@@ -83,7 +82,6 @@ impl Entity for SnapshotTrigger {
 #[derive(Default)]
 struct SaveModalMouseStates {
     close_button_state: MouseStateHandle,
-    documentation_link_state: MouseStateHandle,
     save_button_state: MouseStateHandle,
     open_file_button_state: MouseStateHandle,
 }
@@ -500,29 +498,6 @@ impl LaunchConfigSaveModal {
                 .finish(),
         );
 
-        let link_to_docs = Container::new(
-            ConstrainedBox::new(
-                appearance
-                    .ui_builder()
-                    .link(
-                        "Link to Documentation".to_string(),
-                        Some(
-                            "https://docs.warp.dev/terminal/sessions/launch-configurations"
-                                .to_string(),
-                        ),
-                        None,
-                        self.mouse_states.documentation_link_state.clone(),
-                    )
-                    .soft_wrap(false)
-                    .build()
-                    .finish(),
-            )
-            .with_width(DOC_LINK_WIDTH)
-            .finish(),
-        )
-        .with_uniform_padding(SIDE_PADDING)
-        .finish();
-
         let info = match &self.save_state {
             SaveState::Success => header
                 .with_child(
@@ -533,8 +508,7 @@ impl LaunchConfigSaveModal {
                     ])
                     .with_padding_bottom(24.)
                     .finish(),
-                )
-                .with_child(link_to_docs),
+                ),
             SaveState::Failure(failure_type) => header.with_child(
                 self.render_text_block(
                     appearance,
@@ -571,7 +545,6 @@ impl LaunchConfigSaveModal {
                         .with_padding_bottom(24.)
                         .finish(),
                     )
-                    .with_child(link_to_docs)
                     .with_child(self.render_editor(app))
             }
         };

@@ -259,11 +259,6 @@ struct ScrollableListState {
 
 type CategorizedWorkflows = HashMap<WorkflowTag, Vec<Arc<WorkflowType>>>;
 
-#[derive(Default)]
-struct LinkMouseStateHandles {
-    documentation_link_handle: MouseStateHandle,
-}
-
 pub struct CategoriesView {
     handle: WeakViewHandle<Self>,
     workflow_list_state: ScrollableListState,
@@ -274,7 +269,6 @@ pub struct CategoriesView {
     category_names: Vec<String>,
     selected_workflow_index: usize,
     workflows_mouse_state_handles: Vec<MouseStateHandle>,
-    link_mouse_state_handles: LinkMouseStateHandles,
     selected_workflow_type: WorkflowViewType,
     focus_state: WorkflowsFocusState,
     search_term: String,
@@ -404,7 +398,6 @@ impl CategoriesView {
             active_workflows: Default::default(),
             selected_workflow_index: 0,
             workflows_mouse_state_handles: Default::default(),
-            link_mouse_state_handles: Default::default(),
             selected_workflow_type: WorkflowViewType::All,
             focus_state: WorkflowsFocusState::Editor,
             category_names: Default::default(),
@@ -713,37 +706,13 @@ impl CategoriesView {
     }
 
     fn render_empty_list_placeholder(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let no_workflows_text =
-            CategoriesView::text_label("No matching workflows found.", appearance);
-
-        let mut workflow_documentation_link_text =
-            Flex::row().with_child(CategoriesView::text_label("Try ", appearance));
-
-        workflow_documentation_link_text.add_child(
-            appearance
-                .ui_builder()
-                .link(
-                    "creating your own workflow".into(),
-                    Some(
-                        "https://docs.warp.dev/knowledge-and-collaboration/warp-drive/workflows"
-                            .into(),
-                    ),
-                    None,
-                    self.link_mouse_state_handles
-                        .documentation_link_handle
-                        .clone(),
-                )
-                .soft_wrap(false)
-                .with_style(UiComponentStyles {
-                    font_size: Some(WORKFLOW_SUBTEXT_FONT_SIZE),
-                    ..Default::default()
-                })
-                .build()
-                .finish(),
+        let no_workflows_text = CategoriesView::text_label(
+            "No matching workflows found. Try creating your own workflow.",
+            appearance,
         );
 
         let flex_column = Flex::column()
-            .with_children([no_workflows_text, workflow_documentation_link_text.finish()])
+            .with_children([no_workflows_text])
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
 
         Align::new(flex_column.finish()).finish()

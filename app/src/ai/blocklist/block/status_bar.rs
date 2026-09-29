@@ -867,17 +867,13 @@ fn render_agent_tip(tip: &AgentTip, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
 
-    let _tip_description = tip.description.clone();
-    let action_text = tip.action.clone().and_then(|action| action.display_text());
-
     let mut fragments = tip.to_formatted_text(app);
 
-    match (tip.action.clone(), action_text.clone()) {
-        (Some(action), Some(text)) => {
-            fragments.push(FormattedTextFragment::plain_text(" "));
-            fragments.push(FormattedTextFragment::hyperlink_action(text, action));
-        }
-        _ => {}
+    if let Some(action) = tip.action.clone()
+        && let Some(text) = action.display_text()
+    {
+        fragments.push(FormattedTextFragment::plain_text(" "));
+        fragments.push(FormattedTextFragment::hyperlink_action(text, action));
     }
 
     let formatted_text =

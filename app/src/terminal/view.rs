@@ -155,7 +155,6 @@ use super::model::selection::ExpandedSelectionRange;
 use super::model::session::SessionBootstrappedEvent;
 use super::settings::AltScreenPaddingMode;
 use super::ssh::util::{InteractiveSshCommand, SshWarpifyCommand, parse_interactive_ssh_command};
-use super::warpify::WarpificationSource;
 use super::warpify::success_block::{WarpifySuccessBlock, WarpifySuccessBlockEvent};
 use super::warpify::trigger_state::{SshBlockState, WarpifyState};
 use super::{CLIAgent, GridType};
@@ -7536,7 +7535,6 @@ impl TerminalView {
             spawning_command,
             subshell_info,
             shell,
-            session_type,
             ..
         }: SessionBootstrappedEvent,
         ctx: &mut ViewContext<Self>,
@@ -7550,18 +7548,8 @@ impl TerminalView {
             });
         }
 
-        let warpification_source = match session_type {
-            SessionType::WarpifiedRemote => WarpificationSource::Ssh,
-            SessionType::Local => WarpificationSource::Subshell,
-        };
         let ssh_success_block_handle = ctx.add_typed_action_view(|ctx| {
-            WarpifySuccessBlock::new(
-                warpification_source,
-                spawning_command,
-                subshell_info,
-                shell,
-                ctx,
-            )
+            WarpifySuccessBlock::new(spawning_command, subshell_info, shell, ctx)
         });
         ctx.subscribe_to_view(&ssh_success_block_handle, move |me, _, event, ctx| {
             me.handle_ssh_success_block_events(event, ctx);

@@ -10,12 +10,6 @@ use crate::ASSETS;
 use crate::terminal::model::terminal_model::SubshellInitializationInfo;
 use crate::terminal::shell::ShellType;
 
-#[derive(Debug)]
-pub enum WarpificationSource {
-    Ssh,
-    Subshell,
-}
-
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum SubshellSource {
     Command(String),
