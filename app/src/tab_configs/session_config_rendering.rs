@@ -18,27 +18,11 @@ use warpui::{Element, EventContext};
 use crate::appearance::Appearance;
 use crate::tab_configs::session_config::SessionType;
 use crate::ui_components::blended_colors;
-use crate::view_components::callout_bubble::{
-    callout_checkbox, callout_label_color, phenomenon_accent_color, phenomenon_background_color,
-    phenomenon_body_text_color, phenomenon_disabled_label_text_color, phenomenon_foreground_color,
-    phenomenon_subtle_border_color,
-};
 
 const PILL_GAP: f32 = 8.;
 
-fn session_type_item_color(
-    is_selected: bool,
-    on_accent_bg: bool,
-    theme: &WarpTheme,
-    bg_fill: Fill,
-) -> ColorU {
-    if on_accent_bg {
-        if is_selected {
-            phenomenon_background_color()
-        } else {
-            phenomenon_body_text_color()
-        }
-    } else if is_selected {
+fn session_type_item_color(is_selected: bool, theme: &WarpTheme, bg_fill: Fill) -> ColorU {
+    if is_selected {
         blended_colors::text_main(theme, bg_fill)
     } else {
         blended_colors::text_sub(theme, bg_fill)
@@ -58,41 +42,12 @@ pub fn render_session_type_pills<F>(
 where
     F: Fn(usize, &mut EventContext, Vector2F) + 'static,
 {
-    render_session_type_pills_with_background(
-        session_types,
-        selected_index,
-        pill_mouse_states,
-        on_select,
-        None,
-        appearance,
-    )
-}
-
-/// Renders session type pills with an optional background color override.
-/// When `bg` is `Some`, text and border colors are computed against that background
-/// (used for the accent-tinted onboarding callout).
-pub fn render_session_type_pills_with_background<F>(
-    session_types: &[SessionType],
-    selected_index: usize,
-    pill_mouse_states: &[MouseStateHandle],
-    on_select: F,
-    bg: Option<ColorU>,
-    appearance: &Appearance,
-) -> Box<dyn Element>
-where
-    F: Fn(usize, &mut EventContext, Vector2F) + 'static,
-{
     let theme = appearance.theme();
-    let bg_fill = bg.map(Fill::Solid).unwrap_or(theme.background());
-    let on_accent_bg = bg.is_some();
+    let bg_fill = theme.background();
     let on_select = Arc::new(on_select);
 
     let label = Text::new_inline("Session type".to_string(), appearance.ui_font_family(), 12.)
-        .with_color(if on_accent_bg {
-            callout_label_color(appearance)
-        } else {
-            blended_colors::text_disabled(theme, bg_fill)
-        })
+        .with_color(blended_colors::text_disabled(theme, bg_fill))
         .finish();
 
     let mut pills_row = Flex::row().with_spacing(PILL_GAP);
@@ -101,7 +56,7 @@ where
         let is_selected = i == selected_index;
         let mouse_state = pill_mouse_states[i].clone();
 
-        let item_color = session_type_item_color(is_selected, on_accent_bg, theme, bg_fill);
+        let item_color = session_type_item_color(is_selected, theme, bg_fill);
 
         let icon = ConstrainedBox::new(
             session_type
@@ -130,23 +85,13 @@ where
             .finish();
 
         let border_color = if is_selected {
-            if on_accent_bg {
-                phenomenon_accent_color()
-            } else {
-                theme.accent().into_solid()
-            }
-        } else if on_accent_bg {
-            phenomenon_subtle_border_color()
+            theme.accent().into_solid()
         } else {
             blended_colors::neutral_4(theme)
         };
 
         let background = if is_selected {
-            if on_accent_bg {
-                Some(Fill::Solid(phenomenon_foreground_color()))
-            } else {
-                Some(blended_colors::accent_overlay_1(theme))
-            }
+            Some(blended_colors::accent_overlay_1(theme))
         } else {
             None
         };
@@ -198,41 +143,15 @@ pub fn render_directory_picker<F>(
 where
     F: Fn(&mut EventContext, Vector2F) + 'static,
 {
-    render_directory_picker_with_background(
-        selected_directory,
-        mouse_state,
-        on_click,
-        None,
-        appearance,
-    )
-}
-
-/// Renders a directory picker with an optional background color override.
-pub fn render_directory_picker_with_background<F>(
-    selected_directory: &Path,
-    mouse_state: MouseStateHandle,
-    on_click: F,
-    bg: Option<ColorU>,
-    appearance: &Appearance,
-) -> Box<dyn Element>
-where
-    F: Fn(&mut EventContext, Vector2F) + 'static,
-{
     let theme = appearance.theme();
-    let bg_fill = bg.map(Fill::Solid).unwrap_or(theme.background());
-
-    let on_accent_bg = bg.is_some();
+    let bg_fill = theme.background();
 
     let label = Text::new_inline(
         "Select directory".to_string(),
         appearance.ui_font_family(),
         12.,
     )
-    .with_color(if on_accent_bg {
-        callout_label_color(appearance)
-    } else {
-        blended_colors::text_disabled(theme, bg_fill)
-    })
+    .with_color(blended_colors::text_disabled(theme, bg_fill))
     .finish();
 
     let home_dir = dirs::home_dir();
@@ -242,19 +161,11 @@ where
             .into_owned();
 
     let dir_text = Text::new_inline(dir_display, appearance.ui_font_family(), 14.)
-        .with_color(if on_accent_bg {
-            phenomenon_body_text_color()
-        } else {
-            blended_colors::text_main(theme, bg_fill)
-        })
+        .with_color(blended_colors::text_main(theme, bg_fill))
         .with_style(Properties::default().weight(Weight::Semibold))
         .finish();
 
-    let border_color = if on_accent_bg {
-        phenomenon_subtle_border_color()
-    } else {
-        blended_colors::neutral_4(theme)
-    };
+    let border_color = blended_colors::neutral_4(theme);
 
     let button = Hoverable::new(mouse_state, move |_| {
         let content_row = Flex::row()
@@ -295,41 +206,12 @@ pub fn render_worktree_checkbox<F>(
 where
     F: Fn(&mut EventContext, Vector2F) + 'static,
 {
-    render_worktree_checkbox_with_background(
-        enabled,
-        is_git_repo,
-        checkbox_mouse_state,
-        tooltip_mouse_state,
-        on_toggle,
-        None,
-        appearance,
-    )
-}
-
-/// Renders a worktree checkbox with an optional background color override.
-pub fn render_worktree_checkbox_with_background<F>(
-    enabled: bool,
-    is_git_repo: bool,
-    checkbox_mouse_state: MouseStateHandle,
-    tooltip_mouse_state: MouseStateHandle,
-    on_toggle: F,
-    bg: Option<ColorU>,
-    appearance: &Appearance,
-) -> Box<dyn Element>
-where
-    F: Fn(&mut warpui::EventContext, warpui::geometry::vector::Vector2F) + 'static,
-{
     let disabled = !is_git_repo;
-    let on_accent_bg = bg.is_some();
 
-    let mut checkbox = if on_accent_bg {
-        callout_checkbox(checkbox_mouse_state, Some(10.5), appearance).check(enabled)
-    } else {
-        appearance
-            .ui_builder()
-            .checkbox(checkbox_mouse_state, Some(10.5))
-            .check(enabled)
-    };
+    let mut checkbox = appearance
+        .ui_builder()
+        .checkbox(checkbox_mouse_state, Some(10.5))
+        .check(enabled);
 
     if disabled {
         checkbox = checkbox.disabled();
@@ -388,13 +270,7 @@ where
     };
 
     let theme = appearance.theme();
-    let label_color = if on_accent_bg {
-        if disabled {
-            phenomenon_disabled_label_text_color()
-        } else {
-            callout_label_color(appearance)
-        }
-    } else if disabled {
+    let label_color = if disabled {
         blended_colors::text_disabled(theme, theme.background())
     } else {
         blended_colors::text_sub(theme, theme.background())
@@ -426,41 +302,12 @@ pub fn render_autogenerate_worktree_branch_name_checkbox<F>(
 where
     F: Fn(&mut EventContext, Vector2F) + 'static,
 {
-    render_autogenerate_worktree_branch_name_checkbox_with_background(
-        checked,
-        enable_worktree,
-        checkbox_mouse_state,
-        tooltip_mouse_state,
-        on_toggle,
-        None,
-        appearance,
-    )
-}
-
-/// Renders the autogenerate checkbox with an optional background color override.
-pub fn render_autogenerate_worktree_branch_name_checkbox_with_background<F>(
-    checked: bool,
-    enable_worktree: bool,
-    checkbox_mouse_state: MouseStateHandle,
-    tooltip_mouse_state: MouseStateHandle,
-    on_toggle: F,
-    bg: Option<ColorU>,
-    appearance: &Appearance,
-) -> Box<dyn Element>
-where
-    F: Fn(&mut EventContext, Vector2F) + 'static,
-{
     let disabled = !enable_worktree;
-    let on_accent_bg = bg.is_some();
 
-    let mut checkbox = if on_accent_bg {
-        callout_checkbox(checkbox_mouse_state, Some(10.5), appearance).check(checked)
-    } else {
-        appearance
-            .ui_builder()
-            .checkbox(checkbox_mouse_state, Some(10.5))
-            .check(checked)
-    };
+    let mut checkbox = appearance
+        .ui_builder()
+        .checkbox(checkbox_mouse_state, Some(10.5))
+        .check(checked);
 
     if disabled {
         checkbox = checkbox.disabled();
@@ -521,13 +368,7 @@ where
     };
 
     let theme = appearance.theme();
-    let label_color = if on_accent_bg {
-        if disabled {
-            phenomenon_disabled_label_text_color()
-        } else {
-            callout_label_color(appearance)
-        }
-    } else if disabled {
+    let label_color = if disabled {
         blended_colors::text_disabled(theme, theme.background())
     } else {
         blended_colors::text_sub(theme, theme.background())

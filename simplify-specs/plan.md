@@ -36,7 +36,7 @@ No cloud, no login, no subscription, no Warp Drive.
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
 | 3b — Built-in model list, MCP tool support | OPEN |
-| 4 — Delete the dead cloud code and the TUI | DONE through 4hx: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
+| 4 — Delete the dead cloud code and the TUI | DONE through 4hz: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15, pinned by a
 `features::tests` test). Remaining enable-candidates (product decisions, not deletion work):
@@ -1223,8 +1223,7 @@ Queue, in order:
    `has_completed_onboarding` config write, `CloudObjectEventEntrypoint::Onboarding` (serde), the
    `AddGetStartedTab` debug binding, `set_enter_agent_view_after_pending_commands`. No setting key
    was removed. Tests unchanged: 4,092 default / 4,093 simplewarp, 0 failed (the tutorial had no
-   tests). **Follow-up:** `session_config_rendering`'s accent-background (`bg: Some`) paths were for
-   the old onboarding wizard; every caller now passes `None`.
+   tests). **Follow-up:** resolved by 4hz below.
 36. ~~Help menu / JoinSlack / feedback / in-app docs.warp.dev links~~ — **4hy done (2026-09-29, two
    commits; user decision: drop, not repoint).** Part 1 (−566 lines in 23 files): the Help menu
    (Send Feedback / Warp Documentation / GitHub Issues / Join Slack) and `util/links.rs`; workspace
@@ -1259,6 +1258,21 @@ Queue, in order:
    link), the `warpui_core` platform doc-comment example, and all test fixtures (`warp.dev/about`,
    `app.warp.dev` as sample URLs). Tests unchanged: 4,092 default / 4,093 simplewarp, 0 failed;
    clippy trio, format, both cargo checks clean.
+
+37. ~~`session_config_rendering` accent-background residue (4hx follow-up)~~ — **4hz done
+   (2026-09-29).** −407 lines. The four `*_with_background` variants took `bg: Option<ColorU>`;
+   the `Some` path rendered the Phenomenon-palette accent-tinted onboarding callout, and every
+   caller passed `None`. **Folded:** `render_session_type_pills_with_background` /
+   `render_directory_picker_with_background` / `render_worktree_checkbox_with_background` /
+   `render_autogenerate_worktree_branch_name_checkbox_with_background` into their plain wrappers
+   (`bg` param, `on_accent_bg` branches and `session_type_item_color`'s `on_accent_bg` arm
+   dropped). **Deleted:** `app/src/view_components/callout_bubble.rs` (89 lines — eight
+   Phenomenon-palette helpers plus `callout_label_color` / `callout_checkbox`, whose only consumer
+   was the dead accent branches) and its `mod` decl, and `warp_core`'s `ui/theme/phenomenon.rs`
+   (157 lines — the `PhenomenonStyle` palette, used by nothing else; `pub` in a lib crate so
+   dead-code lint never flagged it). The kept block-onboarding prompt block lives elsewhere and
+   does not use either file. Tests unchanged: 4,092 default / 4,093 simplewarp, 0 failed; clippy
+   trio, format, both cargo checks clean.
 
 Known non-targets (do not queue without a new user decision): persisted shapes (MoveToDrive,
 PersonalCloud, `autosync_plans_to_warp_drive`,

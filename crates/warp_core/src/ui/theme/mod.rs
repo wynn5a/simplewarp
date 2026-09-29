@@ -1,5 +1,4 @@
 pub mod color;
-pub mod phenomenon;
 
 use std::path::PathBuf;
 
