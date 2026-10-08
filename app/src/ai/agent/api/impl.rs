@@ -57,11 +57,14 @@ pub async fn generate_multi_agent_output(
         params.allow_use_of_warp_credits,
     );
 
+    let mut input = convert_input(params.input)?;
+    add_global_rules(&mut input, &params.global_rules);
+
     let request = api::Request {
         task_context: Some(api::request::TaskContext {
             tasks: params.tasks,
         }),
-        input: Some(convert_input(params.input)?),
+        input: Some(input),
         settings: Some(api::request::Settings {
             model_config: Some(api::request::settings::ModelConfig {
                 base: params.model.into(),
@@ -158,6 +161,35 @@ pub async fn generate_multi_agent_output(
             Ok(Box::pin(rx))
         }
     }
+}
+
+/// Hands the user's own rules to the local adapter as a project-rules entry with no root path.
+///
+/// The request has no field for them, because the server used to read them from the user's
+/// account. An entry with no root path is rendered as the user's rules for all their work.
+fn add_global_rules(input: &mut api::request::Input, rules: &[(String, String)]) {
+    if rules.is_empty() {
+        return;
+    }
+    let context = input.context.get_or_insert_with(Default::default);
+    context
+        .project_rules
+        .push(api::input_context::ProjectRules {
+            root_path: String::new(),
+            active_rule_files: rules
+                .iter()
+                .map(|(name, content)| api::FileContent {
+                    file_path: if name.is_empty() {
+                        "Rule".to_owned()
+                    } else {
+                        name.clone()
+                    },
+                    content: content.clone(),
+                    line_range: None,
+                })
+                .collect(),
+            additional_rule_file_paths: vec![],
+        });
 }
 
 /// Maps a local-inference failure onto the error type that the AI UI already renders.

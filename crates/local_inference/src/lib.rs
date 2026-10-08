@@ -18,6 +18,7 @@ use futures::stream::BoxStream;
 use warp_multi_agent_api as api;
 
 pub mod config;
+pub mod context;
 pub mod convert;
 pub mod models;
 pub mod prompt;

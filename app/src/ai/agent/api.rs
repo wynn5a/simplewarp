@@ -84,6 +84,10 @@ pub struct RequestParams {
     pub cli_agent_model: LLMId,
     pub computer_use_model: LLMId,
     pub is_memory_enabled: bool,
+    /// The user's own rules (the Knowledge page), as (name, content). Empty when rules are off.
+    /// The Warp server used to read these from the user's account; the local adapter reads them
+    /// from here.
+    pub global_rules: Vec<(String, String)>,
     pub context_window_limit: Option<u32>,
     pub mcp_context: Option<MCPContext>,
     pub planning_enabled: bool,
@@ -126,6 +130,25 @@ pub struct ConversationData {
     pub existing_suggestions: Option<Suggestions>,
 }
 
+/// The user's active rules, in a stable order so that an unchanged set of rules produces an
+/// unchanged prompt.
+fn global_rules(app: &AppContext) -> Vec<(String, String)> {
+    use crate::ai::facts::{AIFact, AIMemory, CloudAIFactModel};
+    use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
+    use crate::cloud_object::model::persistence::CloudModel;
+
+    let mut rules: Vec<(String, String)> = CloudModel::as_ref(app)
+        .get_all_objects_of_type::<GenericStringObjectId, CloudAIFactModel>()
+        .filter(|fact| fact.metadata.trashed_ts.is_none())
+        .filter_map(|fact| {
+            let AIFact::Memory(AIMemory { name, content, .. }) = fact.model().string_model.clone();
+            (!content.trim().is_empty()).then(|| (name.unwrap_or_default(), content))
+        })
+        .collect();
+    rules.sort();
+    rules
+}
+
 impl RequestParams {
     #[cfg(test)]
     pub fn new_for_test() -> Self {
@@ -143,6 +166,7 @@ impl RequestParams {
             cli_agent_model: LLMId::from("test-model"),
             computer_use_model: LLMId::from("test-model"),
             is_memory_enabled: false,
+            global_rules: vec![],
             context_window_limit: None,
             mcp_context: None,
             planning_enabled: false,
@@ -173,6 +197,11 @@ impl RequestParams {
     ) -> Self {
         let ai_settings = AISettings::as_ref(app);
         let is_memory_enabled = ai_settings.is_memory_enabled();
+        let global_rules = if is_memory_enabled {
+            global_rules(app)
+        } else {
+            vec![]
+        };
 
         // Build MCP context - either grouped by server or flat lists based on feature flag
         let mcp_context = if FeatureFlag::MCPGroupedServerContext.is_enabled() {
@@ -310,6 +339,7 @@ impl RequestParams {
             cli_agent_model: request_input.cli_agent_model_id.clone(),
             computer_use_model: request_input.computer_use_model_id.clone(),
             is_memory_enabled,
+            global_rules,
             mcp_context,
             planning_enabled: true,
             should_redact_secrets,

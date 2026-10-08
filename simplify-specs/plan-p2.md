@@ -56,6 +56,17 @@ replays history with no new instruction, on the user's key.
 
 ### 1b. Attached context never reaches the model
 
+**Partly done (P2 slice 1, 2026-10-08).** `local_inference::context` now renders the request
+context: the environment (cwd, home, OS, shell, time, git repo/branch/PR, codebases), project
+rules and the skills list go into the system prompt on every request (so a replayed history gets
+them again); terminal blocks, files, selected text, diffs and the query's referenced attachments
+join the user's turn. The user's own rules (Knowledge page) are read from `CloudModel` in
+`RequestParams::new` and handed over as a project-rules entry with no root path. Still open:
+images (providers are called with text only, so the model is told it cannot see them), the
+`LspServersContext`, and `rules_enabled` / per-conversation attachments in stored history.
+
+Original finding:
+
 `convert.rs` reads `task_context` only; `request.input.context` and `referenced_attachments` are
 never read, and `prompt.rs:16` is a static system prompt. Lost: attached blocks, files, images,
 selections, diff sets, conversations, rules / AGENTS.md, cwd / OS / shell, skills list, MCP

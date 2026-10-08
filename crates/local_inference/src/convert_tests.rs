@@ -213,6 +213,100 @@ fn the_new_input_is_appended_after_the_history() {
     assert_eq!(turns[2], Turn::User("second".to_string()));
 }
 
+fn user_inputs_request(
+    query: &str,
+    referenced: std::collections::HashMap<String, api::Attachment>,
+    context: Option<api::InputContext>,
+) -> api::Request {
+    use api::request::input::user_inputs::UserInput;
+    use api::request::input::user_inputs::user_input::Input;
+
+    api::Request {
+        input: Some(api::request::Input {
+            context,
+            r#type: Some(api::request::input::Type::UserInputs(
+                api::request::input::UserInputs {
+                    inputs: vec![UserInput {
+                        input: Some(Input::UserQuery(api::request::input::UserQuery {
+                            query: query.to_string(),
+                            referenced_attachments: referenced,
+                            ..Default::default()
+                        })),
+                    }],
+                },
+            )),
+        }),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn attachments_follow_the_query_in_the_same_user_turn() {
+    let referenced = std::collections::HashMap::from([(
+        "block".to_string(),
+        api::Attachment {
+            value: Some(api::attachment::Value::PlainText("the output".to_string())),
+        },
+    )]);
+    let mut context = api::InputContext::default();
+    context
+        .selected_text
+        .push(api::input_context::SelectedText {
+            text: "picked".to_string(),
+        });
+    let request = user_inputs_request("why did it fail?", referenced, Some(context));
+
+    let turns = turns_from_request(&request);
+    assert_eq!(
+        turns.len(),
+        1,
+        "the attachments join the user turn: {turns:?}"
+    );
+    let Turn::User(text) = &turns[0] else {
+        panic!("expected a user turn");
+    };
+    assert!(text.starts_with("why did it fail?"));
+    assert!(text.contains("Attachment `block`"));
+    assert!(text.contains("the output"));
+    assert!(text.contains("picked"));
+}
+
+#[test]
+fn a_tool_result_input_carries_no_attachments() {
+    use api::request::input::user_inputs::UserInput;
+    use api::request::input::user_inputs::user_input::Input;
+
+    let mut context = api::InputContext::default();
+    context
+        .selected_text
+        .push(api::input_context::SelectedText {
+            text: "stale selection".to_string(),
+        });
+    let mut request = request_with_messages(vec![user_message("go"), shell_call("call-1", "ls")]);
+    request.input = Some(api::request::Input {
+        context: Some(context),
+        r#type: Some(api::request::input::Type::UserInputs(
+            api::request::input::UserInputs {
+                inputs: vec![UserInput {
+                    input: Some(Input::ToolCallResult(input_result(
+                        api::request::input::tool_call_result::Result::RunShellCommand(
+                            Default::default(),
+                        ),
+                    ))),
+                }],
+            },
+        )),
+    });
+
+    let turns = turns_from_request(&request);
+    assert!(
+        !turns
+            .iter()
+            .any(|turn| matches!(turn, Turn::User(text) if text.contains("stale"))),
+        "{turns:?}"
+    );
+}
+
 #[test]
 fn an_unsupported_tool_call_is_left_out() {
     let call = message(message::Message::ToolCall(message::ToolCall {

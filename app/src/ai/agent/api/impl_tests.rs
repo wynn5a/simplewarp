@@ -2,7 +2,8 @@ use warp_core::features::FeatureFlag;
 use warp_multi_agent_api as api;
 
 use super::{
-    api_keys_with_warp_credit_fallback_setting, get_supported_cli_agent_tools, get_supported_tools,
+    add_global_rules, api_keys_with_warp_credit_fallback_setting, get_supported_cli_agent_tools,
+    get_supported_tools,
 };
 use crate::ai::agent::api::RequestParams;
 use crate::ai::blocklist::SessionContext;
@@ -26,6 +27,7 @@ fn request_params_with_ask_user_question_enabled(ask_user_question_enabled: bool
         cli_agent_model: model.clone(),
         computer_use_model: model,
         is_memory_enabled: false,
+        global_rules: vec![],
         context_window_limit: None,
         mcp_context: None,
         planning_enabled: true,
@@ -122,4 +124,31 @@ fn remote_supported_tools_omit_search_codebase() {
 
     assert!(!supported_tools.contains(&api::ToolType::SearchCodebase));
     assert!(!supported_cli_agent_tools.contains(&api::ToolType::SearchCodebase));
+}
+
+#[test]
+fn global_rules_reach_the_request_as_a_project_rules_entry_without_a_root() {
+    let mut input = api::request::Input::default();
+    add_global_rules(
+        &mut input,
+        &[
+            ("Tabs".to_owned(), "Use tabs.".to_owned()),
+            (String::new(), "Be brief.".to_owned()),
+        ],
+    );
+
+    let rules = &input.context.expect("context").project_rules;
+    assert_eq!(rules.len(), 1);
+    assert!(rules[0].root_path.is_empty());
+    let files = &rules[0].active_rule_files;
+    assert_eq!(files[0].file_path, "Tabs");
+    assert_eq!(files[0].content, "Use tabs.");
+    assert_eq!(files[1].file_path, "Rule");
+}
+
+#[test]
+fn no_global_rules_leaves_the_context_alone() {
+    let mut input = api::request::Input::default();
+    add_global_rules(&mut input, &[]);
+    assert!(input.context.is_none());
 }

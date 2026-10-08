@@ -31,7 +31,12 @@ pub async fn generate_local_output(request: &api::Request) -> Result<OutputStrea
         .unwrap_or_default();
     let tool_schemas = tools::schemas_for(&supported_tools);
 
-    let body = provider::build_body(&target, prompt::SYSTEM_PROMPT, &turns, &tool_schemas);
+    let body = provider::build_body(
+        &target,
+        &prompt::system_prompt(request),
+        &turns,
+        &tool_schemas,
+    );
 
     let mut builder = reqwest::Client::new()
         .post(target.endpoint_url())

@@ -8,6 +8,8 @@
 //! show the model the same thing.
 
 use serde_json::{Value, json};
+
+use crate::context;
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::message::{self, tool_call, tool_call_result};
 
@@ -143,20 +145,45 @@ fn push_input(turns: &mut Vec<Turn>, input: &api::request::Input) {
 
     match input.r#type.as_ref() {
         Some(Type::UserInputs(inputs)) => {
+            let mut has_query = false;
             for entry in &inputs.inputs {
                 match entry.input.as_ref() {
-                    Some(UserInput::UserQuery(query)) => push_user(turns, &query.query),
+                    Some(UserInput::UserQuery(query)) => {
+                        push_query(turns, query);
+                        has_query = true;
+                    }
                     Some(UserInput::ToolCallResult(result)) => {
                         push_rendered(turns, render_input_result(result));
                     }
                     _ => {}
                 }
             }
+            // What the user attached to the request belongs with their message, not with a
+            // tool result.
+            if has_query {
+                push_user(
+                    turns,
+                    &context::attachments(input.context.as_ref(), &Default::default()),
+                );
+            }
         }
-        Some(Type::UserQuery(query)) => push_user(turns, &query.query),
+        Some(Type::UserQuery(query)) => {
+            push_query(turns, query);
+            push_user(
+                turns,
+                &context::attachments(input.context.as_ref(), &Default::default()),
+            );
+        }
         Some(Type::ToolCallResult(result)) => push_rendered(turns, render_input_result(result)),
         _ => {}
     }
+}
+
+/// Pushes a user query, followed by the attachments that its text names by key.
+fn push_query(turns: &mut Vec<Turn>, query: &api::request::input::UserQuery) {
+    push_user(turns, &query.query);
+    let referenced = context::attachments(None, &query.referenced_attachments);
+    push_user(turns, &referenced);
 }
 
 fn push_message(turns: &mut Vec<Turn>, proto_message: &api::Message) {

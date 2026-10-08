@@ -5993,6 +5993,7 @@ name = "local_inference"
 version = "0.1.0"
 dependencies = [
  "aha-reqwest-eventsource",
+ "chrono",
  "futures",
  "prost",
  "prost-types",

@@ -12,7 +12,19 @@
 //! - The client refuses to start a command while another is still running, so the prompt points
 //!   at `read_shell_command_output` instead of `sleep`.
 
-/// The system prompt sent with every request.
+/// The system prompt for one request: the fixed text, then what the client says about the
+/// machine and the project (see [`crate::context::environment`]).
+pub fn system_prompt(request: &warp_multi_agent_api::Request) -> String {
+    let context = request
+        .input
+        .as_ref()
+        .and_then(|input| input.context.as_ref());
+    let mut prompt = SYSTEM_PROMPT.to_string();
+    prompt.push_str(&crate::context::environment(context));
+    prompt
+}
+
+/// The fixed part of the system prompt.
 pub const SYSTEM_PROMPT: &str = "\
 You are the agent inside SimpleWarp, a terminal application. You help the user with work on \
 their own machine: shell commands, reading and changing code, and answering questions about \
