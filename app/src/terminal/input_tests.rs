@@ -37,7 +37,6 @@ use crate::ai::blocklist::{AIQueryHistory, BlocklistAIPermissions, ResponseStrea
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::{LLMId, LLMPreferences};
-use crate::ai::mcp::gallery::MCPGalleryManager;
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManager;
 use crate::ai::outline::RepoOutlines;
 use crate::ai::persisted_workspace::PersistedWorkspace;
@@ -207,7 +206,6 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(ImportedConfigModel::new);
     app.add_singleton_model(|_| UpdateManager::mock());
-    app.add_singleton_model(|_| MCPGalleryManager::new());
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(PrivacySettings::mock);
     app.add_singleton_model(|_ctx| SyncedInputState::mock());

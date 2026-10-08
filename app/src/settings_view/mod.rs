@@ -1679,11 +1679,9 @@ impl SettingsView {
     }
 
     /// Open the MCP servers page, optionally to list page or edit page.
-    /// If `autoinstall_gallery_title` is provided, triggers auto-install of the specified gallery MCP.
     pub fn open_mcp_servers_page(
         &mut self,
         page: MCPServersSettingsPage,
-        autoinstall_gallery_title: Option<&str>,
         ctx: &mut ViewContext<Self>,
     ) {
         // Callers reach this through `Workspace::open_mcp_servers_page`, which
@@ -1694,9 +1692,6 @@ impl SettingsView {
         {
             view.update(ctx, |view, ctx| {
                 view.update_page(page, ctx);
-                if let Some(title) = autoinstall_gallery_title {
-                    view.autoinstall_from_gallery(title, ctx);
-                }
             })
         }
     }

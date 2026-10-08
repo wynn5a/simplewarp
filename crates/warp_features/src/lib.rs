@@ -8,8 +8,6 @@ pub use overrides::{get_overrides, set_overrides};
 pub enum FeatureFlag {
     DebugMode,
 
-    KnowledgeSidebar,
-
     RuntimeFeatureFlags,
 
     /// Does grid storage go forwards or backwards
@@ -109,9 +107,6 @@ pub enum FeatureFlag {
     /// Enables cycling through the next command suggestions with down arrow.
     CycleNextCommandSuggestion,
 
-    /// Enables multi-workspace selection.
-    MultiWorkspace,
-
     /// Maximizes data in flat storage to reduce memory usage.
     MaximizeFlatStorage,
 
@@ -133,14 +128,8 @@ pub enum FeatureFlag {
     /// Enables using `esc` to clear autosuggestions.
     ClearAutosuggestionOnEscape,
 
-    /// If enabled, the default theme is set to Adeberry for new users.
-    DefaultAdeberryTheme,
-
     /// Enables Kitty image rendering
     KittyImages,
-
-    /// Forces users to login.
-    ForceLogin,
 
     /// If enabled, command palette searches will use Tantivy search instead of the default fuzzy search.
     UseTantivySearch,
@@ -469,9 +458,6 @@ pub enum FeatureFlag {
     /// Enables the ask_user_question tool allowing the agent to ask clarifying questions.
     AskUserQuestion,
 
-    /// When enabled, solo users (not on a team) can use BYO API keys.
-    SoloUserByok,
-
     /// Replaces the in-block warpification banner with a warpify footer.
     WarpifyFooter,
 
@@ -517,11 +503,6 @@ pub enum FeatureFlag {
     /// procedurally as cell-filling rectangles instead of from the font,
     /// eliminating seams between adjacent box-drawing cells in the terminal.
     BoxDrawingGlyphs,
-
-    /// Accepts well-known non-UUID managed MCP ids (e.g. `"linear"`) as
-    /// `warp_id` values in MCP configs and as bare identifiers in CLI
-    /// `--mcp` arguments, resolved server-side at run setup.
-    WellKnownMcpIds,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =
@@ -549,7 +530,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::ResizeFix,
     FeatureFlag::AgentModeWorkflows,
     FeatureFlag::SshDragAndDrop,
-    FeatureFlag::MultiWorkspace,
     FeatureFlag::ImeMarkedText,
     FeatureFlag::MSYS2Shells,
     FeatureFlag::RunGeneratorsWithCmdExe,

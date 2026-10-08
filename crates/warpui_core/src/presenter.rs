@@ -366,7 +366,6 @@ impl Presenter {
         self.scene = Some(scene.clone());
         self.text_layout_cache.finish_frame();
         self.frame_count += 1;
-        ctx.load_requested_fallback_families(self.window_id);
         scene
     }
 

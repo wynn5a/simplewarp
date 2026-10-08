@@ -69,8 +69,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::DragTabsToWindows,
         #[cfg(feature = "cycle_next_command_suggestion")]
         FeatureFlag::CycleNextCommandSuggestion,
-        #[cfg(feature = "multi_workspace")]
-        FeatureFlag::MultiWorkspace,
         #[cfg(feature = "ime_marked_text")]
         FeatureFlag::ImeMarkedText,
         #[cfg(feature = "partial_next_command_suggestions")]
@@ -83,8 +81,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ClearAutosuggestionOnEscape,
         #[cfg(all(not(windows), feature = "kitty_images"))]
         FeatureFlag::KittyImages,
-        #[cfg(feature = "default_adeberry_theme")]
-        FeatureFlag::DefaultAdeberryTheme,
         #[cfg(feature = "command_correction_key")]
         FeatureFlag::CommandCorrectionKey,
         #[cfg(feature = "use_tantivy_search")]
@@ -197,8 +193,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::SummarizationConversationCommand,
         #[cfg(feature = "mcp_grouped_server_context")]
         FeatureFlag::MCPGroupedServerContext,
-        #[cfg(feature = "well_known_mcp_ids")]
-        FeatureFlag::WellKnownMcpIds,
         #[cfg(feature = "web_search_ui")]
         FeatureFlag::WebSearchUI,
         #[cfg(feature = "web_fetch_ui")]
@@ -303,8 +297,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::TransferControlTool,
         #[cfg(feature = "warpify_footer")]
         FeatureFlag::WarpifyFooter,
-        #[cfg(feature = "solo_user_byok")]
-        FeatureFlag::SoloUserByok,
         #[cfg(feature = "git_operations_in_code_review")]
         FeatureFlag::GitOperationsInCodeReview,
         #[cfg(feature = "trim_trailing_blank_lines")]

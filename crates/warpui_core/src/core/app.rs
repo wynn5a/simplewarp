@@ -10,7 +10,6 @@ use std::sync::{Arc, OnceLock};
 
 use anyhow::{Result, anyhow};
 use chrono::Utc;
-use futures::future::join_all;
 use futures::prelude::*;
 use instant::Instant;
 use itertools::Itertools;
@@ -29,12 +28,12 @@ use super::{
 use crate::accessibility::{AccessibilityVerbosity, ActionAccessibilityContent};
 use crate::actions::StandardAction;
 use crate::assets::AssetProvider;
-use crate::assets::asset_cache::{AssetCache, AssetHandle, AssetSource, AssetState};
+use crate::assets::asset_cache::{AssetCache, AssetHandle};
 use crate::r#async::executor::{self, Background, Foreground, ForegroundTask};
 use crate::r#async::{FutureId, SpawnableOutput, Timer, block_on};
 use crate::core::{ActionType, StoredView, Window};
 use crate::event::KeyState;
-use crate::fonts::{self, ExternalFontFamily, FallbackFontModel, RequestedFallbackFontSource};
+use crate::fonts;
 use crate::image_cache::{self, ImageCache};
 use crate::keymap::{
     BindingLens, Context, CustomTag, DescriptionContext, EditableBinding, EditableBindingLens,
@@ -729,12 +728,6 @@ pub struct AppContext {
     /// When set, all focus changes to this window are suppressed.
     /// Used during tab drag to prevent the new window from stealing focus.
     suppress_focus_for_window: Option<WindowId>,
-
-    /// An optional provider that creates an [`AssetSource`] for loading a
-    /// fallback font from a URL string. Injected by the application layer so
-    /// that `warpui_core` does not depend on `reqwest`.
-    #[allow(clippy::type_complexity)]
-    fallback_font_source_provider: Option<Box<dyn Fn(&str) -> AssetSource>>,
 }
 
 impl AppContext {
@@ -831,7 +824,6 @@ impl AppContext {
             structural_parent_to_children: Default::default(),
             view_parents: Default::default(),
             suppress_focus_for_window: None,
-            fallback_font_source_provider: None,
         };
 
         // Register a variety of required/core singleton models.
@@ -847,7 +839,6 @@ impl AppContext {
             )
         });
         ctx.add_singleton_model(|_| image_cache);
-        ctx.add_singleton_model(|_| FallbackFontModel::new());
 
         if !is_unit_test {
             ctx.background_executor()
@@ -858,15 +849,6 @@ impl AppContext {
         }
 
         ctx
-    }
-
-    /// Registers a provider that creates an [`AssetSource`] for a given URL.
-    /// Used to load fallback fonts without pulling `reqwest` into `warpui_core`.
-    pub fn set_fallback_font_source_provider(
-        &mut self,
-        provider: impl Fn(&str) -> AssetSource + 'static,
-    ) {
-        self.fallback_font_source_provider = Some(Box::new(provider));
     }
 
     pub fn foreground_executor(&self) -> &Rc<executor::Foreground> {
@@ -3666,161 +3648,6 @@ impl AppContext {
         })
     }
 
-    fn load_fallback_family_and_redraw(
-        &mut self,
-        window_id: WindowId,
-        fallback_family: ExternalFontFamily,
-        request_sources: Vec<RequestedFallbackFontSource>,
-        asset_sources: Vec<AssetSource>,
-    ) {
-        let asset_cache = AssetCache::as_ref(self);
-
-        let mut font_family_bytes: Vec<Vec<u8>> = Vec::new();
-        // Get the raw font bytes from the loaded assets.
-        for asset in asset_sources
-            .into_iter()
-            .map(|source| asset_cache.load_asset::<fonts::FontBytes>(source))
-        {
-            match asset {
-                AssetState::Loaded { data } => {
-                    // TODO(PLAT-746): Update API for loading a font family to
-                    // take an `Rc`, so we don't have to clone the font data.
-                    font_family_bytes.push(data.0.clone());
-                }
-                AssetState::Evicted => {
-                    log::warn!("Unable to load requested fallback font because it was evicted");
-                }
-                AssetState::FailedToLoad(e) => {
-                    log::warn!("Unable to load requested fallback font: {e:?}");
-                }
-                AssetState::Loading { .. } => {
-                    report_error!("Fallback font asset should not be in a loading state");
-                }
-            }
-        }
-
-        // Early return if we were not able to load any of the font assets for
-        // this family.
-        // TODO(PLAT-760): Implement a retry mechanism if we load some but not
-        // all of the font assets for the family. Currently we will load the
-        // partial font family into the cache and will not try loading again.
-        if font_family_bytes.is_empty() {
-            log::warn!(
-                "Failed to load any fonts for the family {}",
-                &fallback_family.name
-            );
-            return;
-        }
-
-        // Insert the family into the font cache.
-        if !self
-            .font_cache()
-            .is_fallback_family_loaded(fallback_family.name)
-        {
-            if let Err(e) = fonts::Cache::handle(self).update(self, |cache, _| {
-                cache.load_fallback_family_from_bytes(fallback_family, font_family_bytes)
-            }) {
-                log::warn!("Unable to load fallback family from bytes: {e:?}");
-                return;
-            }
-
-            // TODO(PLAT-747): Ideally the font cache itself is a model and can
-            // handle emitting these events.
-            FallbackFontModel::handle(self).update(self, |model, ctx| {
-                model.loaded_fallback_font(ctx);
-            });
-        }
-
-        // Clear the glyph/layout caches before redrawing. These caches must
-        // be cleared even if the fallback family has previously been loaded.
-        for source in request_sources {
-            match source {
-                RequestedFallbackFontSource::GlyphForChar(key) => {
-                    fonts::Cache::handle(self).update(self, |cache, _| {
-                        cache.remove_glyphs_by_char_entry(key);
-                    });
-                }
-                RequestedFallbackFontSource::Line(key) => {
-                    if let Some(presenter) = self.presenter(window_id) {
-                        presenter.borrow().text_layout_cache().remove_line(&key);
-                    }
-                }
-                RequestedFallbackFontSource::TextFrame(key) => {
-                    if let Some(presenter) = self.presenter(window_id) {
-                        presenter
-                            .borrow()
-                            .text_layout_cache()
-                            .remove_text_frame(&key);
-                    }
-                }
-            }
-        }
-
-        // Trigger a redraw on the window.
-        self.window_invalidations
-            .entry(window_id)
-            .or_default()
-            .redraw_requested = true;
-        self.update_windows();
-    }
-
-    pub(crate) fn load_requested_fallback_families(&mut self, window_id: WindowId) {
-        let Some(fallback_font_source_provider) = self.fallback_font_source_provider.as_ref()
-        else {
-            static ONCE: std::sync::Once = std::sync::Once::new();
-            ONCE.call_once(|| {
-                log::warn!(
-                    "No fallback_font_source_provider registered; cannot load fallback fonts"
-                );
-            });
-
-            return;
-        };
-
-        let requested_fallback_families =
-            fonts::Cache::as_ref(self).take_requested_fallback_families();
-        let asset_cache = AssetCache::as_ref(self);
-
-        for (fallback_family, request_sources) in requested_fallback_families {
-            let mut asset_sources = Vec::with_capacity(fallback_family.font_urls.len());
-            let mut futures = Vec::with_capacity(fallback_family.font_urls.len());
-            for fallback_font in fallback_family.font_urls.as_ref() {
-                let asset_source = fallback_font_source_provider(fallback_font);
-                let asset = asset_cache.load_asset::<fonts::FontBytes>(asset_source.clone());
-
-                // If the font is loading, collect the future so we can wait
-                // for it to resolve.
-                if let AssetState::Loading { ref handle } = asset
-                    && let Some(future) = handle.when_loaded(asset_cache)
-                {
-                    futures.push(future);
-                }
-                // We need to load the asset again once the future has resolved,
-                // so collect the asset source.
-                asset_sources.push(asset_source);
-            }
-
-            let weak_self_clone = self.weak_self.clone();
-            self.foreground
-                .spawn(async move {
-                    join_all(futures).await;
-
-                    let Some(app) = weak_self_clone.upgrade() else {
-                        return;
-                    };
-                    let mut app = app.borrow_mut();
-
-                    app.load_fallback_family_and_redraw(
-                        window_id,
-                        fallback_family,
-                        request_sources,
-                        asset_sources,
-                    );
-                })
-                .detach();
-        }
-    }
-
     fn handle_non_keybound_event(
         &mut self,
         event: Event,
@@ -4547,24 +4374,6 @@ impl AppContext {
 
     pub fn is_screen_reader_enabled(&self) -> Option<bool> {
         self.platform_delegate.is_screen_reader_enabled()
-    }
-
-    /// A way for applications to specify custom fallback fonts.
-    ///
-    /// Takes a function that maps characters to external font families, each
-    /// containing URLs to the font files for that family.
-    ///
-    /// If a character cannot be rendered using the existing loaded fonts, and
-    /// the fallback font function specifies a fallback font family, the font
-    /// family will be lazy-loaded and the character will be re-rendered with
-    /// the specified font.
-    pub fn set_fallback_font_fn(
-        &mut self,
-        f: impl Fn(char) -> Option<fonts::ExternalFontFamily> + Send + Sync + 'static,
-    ) {
-        fonts::Cache::handle(self).update(self, |cache, _| {
-            cache.set_fallback_font_fn(Box::new(f));
-        });
     }
 }
 

@@ -8,7 +8,6 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::ai::mcp::gallery::MCPGalleryManager;
 use crate::ai::mcp::templatable_installation::VariableValue;
 use crate::ai::mcp::{
     FileBasedMCPManager, TemplatableMCPServer, TemplatableMCPServerInstallation,
@@ -30,24 +29,6 @@ use crate::settings_view::mcp_servers::{ServerCardItemId, style};
 use crate::settings_view::settings_page::{MatchData, PageType, SettingsPageMeta, SettingsWidget};
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
-
-/// Describes where an MCP install request originated.
-///
-/// Used to decide whether an install request is allowed to bypass the
-/// installation modal. In-app gestures (gallery card click, reinstall button)
-/// are implicitly confirmed by the click itself. Deeplink-triggered installs
-/// are untrusted and must always route through the installation modal so the
-/// user can explicitly confirm before any installation or server spawn occurs.
-/// See `specs/GH686/product.md`.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum InstallOrigin {
-    /// Triggered by a user gesture inside Warp (gallery card click,
-    /// reinstall button, programmatic in-app flows, etc.).
-    InApp,
-    /// Triggered by a `warp://settings/mcp?autoinstall=...` deeplink; must be
-    /// gated by an explicit in-app confirmation before install or spawn.
-    Deeplink,
-}
 
 const PAGE_TITLE_TEXT: &str = "MCP Servers";
 #[derive(Debug, Default, Copy, Clone)]
@@ -161,9 +142,6 @@ impl MCPServersSettingsPageView {
                 });
                 self.add_toast(&message, ctx);
             }
-            ServerCardItemId::GalleryMCP(_) => {
-                report_error!("Logging out is not supported for gallery MCP servers.");
-            }
             ServerCardItemId::FileBasedMCP(uuid) => {
                 if let Some(installation) =
                     FileBasedMCPManager::as_ref(ctx).get_installation_by_uuid(uuid)
@@ -183,13 +161,12 @@ impl MCPServersSettingsPageView {
         &mut self,
         templatable_mcp_server: TemplatableMCPServer,
         instructions_in_markdown: Option<String>,
-        origin: InstallOrigin,
         ctx: &mut ViewContext<Self>,
     ) {
+        // The modal is only needed when the template has variables to fill in or instructions to show.
         let has_variables = !templatable_mcp_server.template.variables.is_empty();
         let has_instructions = instructions_in_markdown.is_some();
-        let should_show_modal =
-            Self::should_show_install_modal(origin, has_variables, has_instructions);
+        let should_show_modal = has_variables || has_instructions;
 
         if should_show_modal {
             self.installation_modal_state
@@ -210,23 +187,6 @@ impl MCPServersSettingsPageView {
             self.process_server_installation(&templatable_mcp_server, HashMap::new(), ctx);
         }
         ctx.notify();
-    }
-
-    /// Decides whether an install request should route through the installation
-    /// modal. Deeplink-origin requests always require explicit confirmation via
-    /// the modal, regardless of template shape. In-app requests keep the
-    /// pre-existing heuristic where the modal is only shown when the template
-    /// has variables or markdown instructions; the click gesture itself is the
-    /// user confirmation. See `specs/GH686/product.md`.
-    pub(crate) fn should_show_install_modal(
-        origin: InstallOrigin,
-        has_variables: bool,
-        has_instructions: bool,
-    ) -> bool {
-        match origin {
-            InstallOrigin::Deeplink => true,
-            InstallOrigin::InApp => has_variables || has_instructions,
-        }
     }
 
     fn process_server_installation(
@@ -263,108 +223,9 @@ impl MCPServersSettingsPageView {
                 TemplatableMCPServerManager::as_ref(ctx).get_templatable_mcp_server(template_uuid);
 
             if let Some(templatable_mcp_server) = templatable_mcp_server {
-                // Reinstall is always an in-app action triggered from the edit page
-                // reinstall button; it must not pick up the deeplink confirmation gating.
-                self.start_server_installation(
-                    templatable_mcp_server.clone(),
-                    None,
-                    InstallOrigin::InApp,
-                    ctx,
-                );
+                self.start_server_installation(templatable_mcp_server.clone(), None, ctx);
             }
         }
-    }
-
-    /// Emits an error toast in the current window.
-    fn add_error_toast(&mut self, message: String, ctx: &mut ViewContext<Self>) {
-        let window_id = ctx.window_id();
-        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            toast_stack.add_ephemeral_toast(DismissibleToast::error(message), window_id, ctx);
-        });
-    }
-
-    /// Auto-installs an MCP server from the gallery.
-    ///
-    /// This is the single sink for `warp://settings/mcp?autoinstall=<title>`
-    /// deeplinks; callers must therefore treat the `autoinstall_param` as
-    /// untrusted input. The `autoinstall_param` is matched case-insensitively
-    /// against gallery titles.
-    ///
-    /// Every deeplink autoinstall is routed through the installation modal and
-    /// requires an explicit user confirmation before any installation or
-    /// server spawn occurs — even for templates with no variables and no
-    /// markdown instructions. See `specs/GH686/product.md`.
-    pub fn autoinstall_from_gallery(
-        &mut self,
-        autoinstall_param: &str,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        log::info!("Received MCP deeplink autoinstall for value '{autoinstall_param}'");
-
-        // Concurrent deeplink guard: if a prior installation modal is still
-        // open, surface a toast and bail so we do not silently overwrite the
-        // current modal contents with a different template. See product
-        // invariant 7 in specs/GH686/product.md.
-        if self.installation_modal_state.is_open() {
-            log::warn!(
-                "Ignoring MCP deeplink autoinstall for '{autoinstall_param}': installation modal already open"
-            );
-            self.add_error_toast(
-                "Finish the current MCP install before opening another install link.".to_string(),
-                ctx,
-            );
-            return;
-        }
-
-        let autoinstall_lower = autoinstall_param.to_lowercase();
-        let gallery_server = MCPGalleryManager::as_ref(ctx)
-            .get_gallery()
-            .into_iter()
-            .find(|item| item.title().to_lowercase() == autoinstall_lower);
-        let Some(gallery_server) = gallery_server else {
-            log::warn!(
-                "Unrecognized autoinstall value '{autoinstall_param}': no matching gallery item found"
-            );
-            self.add_error_toast(format!("Unknown MCP server '{autoinstall_param}'"), ctx);
-            return;
-        };
-
-        // Skip if this gallery item is already installed.
-        let gallery_uuid = gallery_server.uuid();
-        let already_installed = TemplatableMCPServerManager::as_ref(ctx)
-            .get_installed_templatable_servers()
-            .values()
-            .any(|installation| installation.gallery_uuid() == Some(gallery_uuid));
-        if already_installed {
-            log::info!(
-                "Gallery MCP server '{}' is already installed, skipping autoinstall",
-                gallery_server.title()
-            );
-            return;
-        }
-
-        let instructions = gallery_server.instructions_in_markdown().cloned();
-        let gallery_title = gallery_server.title().to_string();
-        let Ok(templatable_mcp_server) = TemplatableMCPServer::try_from(gallery_server) else {
-            log::warn!(
-                "Failed to convert gallery item '{autoinstall_param}' to TemplatableMCPServer"
-            );
-            // Invariant 5 (specs/GH686/product.md): the match succeeded but the
-            // gallery entry cannot be turned into a valid template. Surface the
-            // failure to the user rather than silently returning.
-            self.add_error_toast(
-                format!("MCP server '{gallery_title}' cannot be installed from this link."),
-                ctx,
-            );
-            return;
-        };
-        log::info!("Opening MCP install confirmation for deeplink gallery title '{gallery_title}'");
-        self.start_server_installation(
-            templatable_mcp_server,
-            instructions,
-            InstallOrigin::Deeplink,
-            ctx,
-        );
     }
 
     fn handle_list_view_event(
@@ -390,12 +251,10 @@ impl MCPServersSettingsPageView {
             MCPServersListPageViewEvent::StartInstallation {
                 templatable_mcp_server: template,
                 instructions_in_markdown,
-                origin,
             } => {
                 self.start_server_installation(
                     template.clone(),
                     instructions_in_markdown.clone(),
-                    *origin,
                     ctx,
                 );
             }
@@ -552,10 +411,6 @@ impl SettingsPageMeta for MCPServersSettingsPageView {
         self.page.clear_highlighted_widget()
     }
 }
-
-#[cfg(test)]
-#[path = "mcp_servers_page_tests.rs"]
-mod tests;
 
 #[derive(Default)]
 pub struct MCPServersSettingsWidget {

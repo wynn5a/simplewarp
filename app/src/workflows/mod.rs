@@ -82,7 +82,6 @@ impl WorkflowViewMode {
 pub enum AIWorkflowOrigin {
     CommandSearch,
     AgentMode,
-    LegacyWarpAI,
 }
 
 /// Wrapper type for a workflow that may be saved locally or using cloud sync.

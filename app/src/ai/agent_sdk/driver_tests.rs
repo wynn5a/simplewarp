@@ -145,38 +145,6 @@ fn managed_resolver_fails_a_uuid_that_is_not_installed_locally() {
     ));
 }
 
-#[test]
-fn well_known_spec_is_skipped() {
-    // Well-known ids were resolved by the server and were always best-effort: a disconnected
-    // integration skipped the server rather than failing the run. With no server, every one
-    // of them skips.
-    let resolved = block_on(AgentDriver::resolve_mcp_specs_with_local_uuids(
-        &[MCPSpec::WellKnown("linear".to_string())],
-        &HashSet::new(),
-    ))
-    .unwrap();
-
-    assert!(resolved.local_uuids.is_empty());
-    assert!(resolved.ephemeral_installations.is_empty());
-}
-
-#[test]
-fn a_skipped_well_known_spec_does_not_drop_the_others() {
-    let config_json =
-        r#"{"mcpServers":{"GitHub MCP":{"command":"npx","env":{"API_TOKEN":"literal"}}}}"#;
-
-    let resolved = block_on(AgentDriver::resolve_mcp_specs_with_local_uuids(
-        &[
-            MCPSpec::WellKnown("linear".to_string()),
-            MCPSpec::Json(config_json.to_string()),
-        ],
-        &HashSet::new(),
-    ))
-    .unwrap();
-
-    assert_eq!(resolved.ephemeral_installations.len(), 1);
-}
-
 // ── IdleTimeoutSender tests ──────────────────────────────────────────────────────
 
 #[test]

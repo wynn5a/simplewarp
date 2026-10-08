@@ -132,8 +132,19 @@ deeplink (and `preferred_codex_model_id`), the remote codebase search stub (a re
 answers `CodebaseNotIndexed` directly), and the legacy Warp AI panel (panel, transcript, requests,
 the right-panel slot, toolbar button, warm welcome, focus navigation and its integration test).
 `ai_assistant/` keeps only `AskAIType` and the execution-context types, which the agent still uses.
-Left for later: `TipAction::WarpAI` and `AIWorkflowOrigin::LegacyWarpAI` (persisted shapes) and the
-now-unread `BlockOnboarding` experiment layer.
+
+**P13/P14 cleanup (2026-10-08).** Deleted: the MCP gallery (`MCPGalleryManager`, gallery cards, the
+"Shared from Warp" section, `ServerCardItemId::GalleryMCP`, `MCPServerUpdate::Gallery`, the
+`?autoinstall=` deeplink and the install-origin gating that only existed for it); the "Get Figma
+MCP" install chip (the "Enable Figma MCP" chip and the bundled Figma skills stay, because the
+status comes from a user-added `mcp.figma.com` server, not from the gallery); `WellKnownMcpIds`
+(flag, `MCPSpec::WellKnown`, CLI and config-file handling); the web-font fallback in `warpui_core`
+(`ExternalFontFamily`, `FallbackFontModel`, the fetch-and-redraw path and the app's URL provider);
+the zero-reference flags `SoloUserByok`, `KnowledgeSidebar`, `MultiWorkspace`,
+`DefaultAdeberryTheme`, `ForceLogin` and their cargo features; the unread `BlockOnboarding`
+experiment layer; and `AIWorkflowOrigin::LegacyWarpAI`. Kept on purpose: `TipAction::WarpAI`
+(its values are stored in old users' defaults and must not be reused) and the persisted
+`GalleryData` field on installed MCP templates.
 
 - **Custom model routers** (CustomModelRouters, on): "+ Add router"
   (`settings_view/warp_agent_page.rs:757`) and a feature-intro modal
@@ -293,7 +304,7 @@ is a product decision. Every item below needs a user decision before it becomes 
 | P10 | §2b network completion generators | keep / skip generators in validation / setting | Skip generators during autosuggestion validation (keep them on explicit Tab). |
 | P11 | §2c remote markdown images | keep / click-to-load / setting | Click-to-load, matching the AI blocklist's refusal. |
 | P12 | §3 LSP install downloads | keep (user-initiated) | Keep; optionally say in the Install UI that it downloads from GitHub/npm. |
-| P13 | §4 MCP gallery, autoinstall deeplink, FigmaDetection + figma skills, WellKnownMcpIds | delete | Delete — the gallery and well-known ids require the Warp server. |
-| P14 | §4 web-font fallback, zero-reference flags | delete | Delete (dead code). |
+| ~~P13~~ | §4 MCP gallery, autoinstall deeplink, FigmaDetection + figma skills, WellKnownMcpIds | delete | **Done (2026-10-08)** except the Figma detection/skills, which work from a user-added server and stay. |
+| ~~P14~~ | §4 web-font fallback, zero-reference flags | delete | **Done (2026-10-08).** |
 | ~~P15~~ | §5 stale copy/links, `--skill` in help | fix | **Done** (see §5). |
 | P16 | §8 plan.md corrections | edit | Fold in with the next round. |

@@ -270,12 +270,6 @@ impl UpdateModalBody {
                     formatted_time.to_string(),
                 )
             }
-            MCPServerUpdate::Gallery {
-                name, new_version, ..
-            } => (
-                format!("Update from {name}"),
-                format!("Version {new_version}"),
-            ),
         };
 
         let content = Flex::column()

@@ -31,7 +31,6 @@ use warpui::elements::{
     YAxisAnchor,
 };
 use warpui::event::ModifiersState;
-use warpui::fonts::{FallbackFontEvent, FallbackFontModel};
 use warpui::image_cache::ImageType;
 use warpui::keymap::{EditableBinding, FixedBinding, PerPlatformKeystroke};
 use warpui::platform::{Cursor, OperatingSystem};
@@ -1085,11 +1084,6 @@ impl RichTextEditorView {
             me.handle_appearance_or_font_change(ctx);
         });
 
-        ctx.subscribe_to_model(
-            &FallbackFontModel::handle(ctx),
-            Self::handle_fallback_font_event,
-        );
-
         // Re-render tooltips that include notebook-specific keybindings.
         ctx.observe(&NotebookKeybindings::handle(ctx), |_, _, ctx| ctx.notify());
 
@@ -1269,23 +1263,6 @@ impl RichTextEditorView {
         self.model.update(ctx, move |model, ctx| {
             model.update_rich_text_styles(new_styles, ctx);
         });
-    }
-
-    fn handle_fallback_font_event(
-        &mut self,
-        _: ModelHandle<FallbackFontModel>,
-        event: &FallbackFontEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            FallbackFontEvent::Loaded => {
-                // TODO(PLAT-748): We could potentially check if the notebook needs to
-                // be rebuilt, by checking if the TextFrames have missing chars.
-                self.model.update(ctx, |model, ctx| {
-                    model.rebuild_layout(ctx);
-                });
-            }
-        }
     }
 
     fn layout_affecting_asset_loads(&self, ctx: &ViewContext<Self>) -> LayoutAffectingAssetLoads {

@@ -218,9 +218,6 @@ impl MCPServersEditPageView {
                     });
                 }
             }
-            Some(ServerCardItemId::GalleryMCP(_uuid)) => {
-                log::warn!("Editing of gallery MCP unimplemented");
-            }
             Some(ServerCardItemId::FileBasedMCP(_)) => {
                 log::warn!("Editing of file-based MCP unimplemented");
             }
@@ -260,7 +257,7 @@ impl MCPServersEditPageView {
                         false
                     }
                 }
-                ServerCardItemId::GalleryMCP(_) | ServerCardItemId::FileBasedMCP(_) => false,
+                ServerCardItemId::FileBasedMCP(_) => false,
             }
         } else {
             false
@@ -355,9 +352,7 @@ impl MCPServersEditPageView {
                 template_uuid.is_some()
             }
             Some(ServerCardItemId::TemplatableMCP(_)) => true,
-            Some(ServerCardItemId::GalleryMCP(_)) | Some(ServerCardItemId::FileBasedMCP(_)) => {
-                false
-            }
+            Some(ServerCardItemId::FileBasedMCP(_)) => false,
             None => true,
         }
     }
@@ -719,9 +714,6 @@ impl TypedActionView for MCPServersEditPageView {
                             ctx.emit(MCPServersEditPageViewEvent::Back);
                         }
                     }
-                }
-                Some(ServerCardItemId::GalleryMCP(_uuid)) => {
-                    log::warn!("Editing of gallery MCP unimplemented");
                 }
                 Some(ServerCardItemId::FileBasedMCP(_)) => {
                     log::warn!("Editing of file-based MCP unimplemented");

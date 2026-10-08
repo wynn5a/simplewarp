@@ -24,7 +24,6 @@ use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::facts::manager::AIFactManager;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::LLMPreferences;
-use crate::ai::mcp::gallery::MCPGalleryManager;
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManager;
 use crate::ai::mcp::{FileBasedMCPManager, FileMCPWatcher};
 use crate::ai::outline::RepoOutlines;
@@ -75,7 +74,6 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| UpdateManager::mock());
-    app.add_singleton_model(|_| MCPGalleryManager::new());
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(AppearanceManager::new);
     app.add_singleton_model(|_| DisplayCount::mock());

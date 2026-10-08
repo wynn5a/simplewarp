@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use serde_json::{Map, Value};
 use warp_cli::mcp::MCPSpec;
-use warp_core::features::FeatureFlag;
 
 use crate::ai::mcp::TemplatableMCPServer;
 
@@ -33,17 +32,6 @@ pub(super) fn build_mcp_servers_from_specs(
                     Value::Object({
                         let mut obj = Map::new();
                         obj.insert("warp_id".to_string(), Value::String(name));
-                        obj
-                    }),
-                )?;
-            }
-            MCPSpec::WellKnown(id) => {
-                insert_unique(
-                    &mut merged,
-                    id.clone(),
-                    Value::Object({
-                        let mut obj = Map::new();
-                        obj.insert("warp_id".to_string(), Value::String(id.clone()));
                         obj
                     }),
                 )?;
@@ -127,17 +115,9 @@ fn validate_server_config(server_name: &str, config: &Value) -> anyhow::Result<(
             anyhow::anyhow!("MCP server '{server_name}' field 'warp_id' must be a string")
         })?;
 
-        // A warp_id is either a managed MCP server UUID or, behind
-        // `FeatureFlag::WellKnownMcpIds`, a well-known id (e.g. "linear").
-        // The server owns the set of recognized ids, so the client only
-        // requires a non-empty value.
-        if !FeatureFlag::WellKnownMcpIds.is_enabled() {
-            uuid::Uuid::parse_str(warp_id).with_context(|| {
-                format!("MCP server '{server_name}' field 'warp_id' must be a UUID")
-            })?;
-        } else if warp_id.trim().is_empty() {
-            anyhow::bail!("MCP server '{server_name}' field 'warp_id' must be non-empty");
-        }
+        uuid::Uuid::parse_str(warp_id).with_context(|| {
+            format!("MCP server '{server_name}' field 'warp_id' must be a UUID")
+        })?;
     }
 
     if has_command {

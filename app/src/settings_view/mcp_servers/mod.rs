@@ -21,7 +21,6 @@ pub mod update_modal;
 pub enum ServerCardItemId {
     TemplatableMCP(Uuid),
     TemplatableMCPInstallation(Uuid),
-    GalleryMCP(Uuid),
     FileBasedMCP(Uuid),
 }
 
@@ -48,7 +47,6 @@ impl Display for ServerCardItemId {
             ServerCardItemId::TemplatableMCPInstallation(uuid) => {
                 write!(f, "Templatable MCP Installation Id: {uuid}")
             }
-            ServerCardItemId::GalleryMCP(uuid) => write!(f, "Gallery MCP Id: {uuid}"),
             ServerCardItemId::FileBasedMCP(uuid) => write!(f, "File-Based MCP Id: {uuid}"),
         }
     }
@@ -59,7 +57,6 @@ impl ServerCardItemId {
         match self {
             ServerCardItemId::TemplatableMCP(template_uuid) => template_uuid.to_string(),
             ServerCardItemId::TemplatableMCPInstallation(uuid) => uuid.to_string(),
-            ServerCardItemId::GalleryMCP(uuid) => uuid.to_string(),
             ServerCardItemId::FileBasedMCP(uuid) => uuid.to_string(),
         }
     }

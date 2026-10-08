@@ -37,7 +37,7 @@ use crate::terminal::keys_settings::KeysSettings;
 use crate::terminal::shell::ShellType;
 use crate::terminal::view::cell_size_and_padding;
 use crate::themes::theme::AnsiColorIdentifier;
-use crate::uri::{OpenMCPSettingsArgs, OpenSettingsArgs};
+use crate::uri::OpenSettingsArgs;
 use crate::util::bindings::{self, is_binding_pty_compliant};
 use crate::window_settings::WindowSettings;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceAction, WorkspaceRegistry};
@@ -670,16 +670,11 @@ fn open_settings_in_new_window(args: &OpenSettingsArgs, ctx: &mut AppContext) {
 
 /// MCP servers page opener in a new window, in addition to the general-purpose
 /// [`open_settings_page_in_new_window`].
-fn open_mcp_settings_in_new_window(args: &OpenMCPSettingsArgs, ctx: &mut AppContext) {
-    let autoinstall = args.autoinstall.clone();
+fn open_mcp_settings_in_new_window(_: &(), ctx: &mut AppContext) {
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
         root_view.workspace.update(ctx, |workspace, ctx| {
-            workspace.open_mcp_servers_page(
-                MCPServersSettingsPage::List,
-                autoinstall.as_deref(),
-                ctx,
-            );
+            workspace.open_mcp_servers_page(MCPServersSettingsPage::List, ctx);
         });
     });
 }
@@ -1297,20 +1292,14 @@ impl RootView {
         true
     }
 
-    /// Opens the MCP servers settings page in an existing window, optionally triggering auto-install.
-    /// Waits for `initial_load_complete` before opening so gallery data is available for autoinstall.
+    /// Opens the MCP servers settings page in an existing window.
     pub fn open_mcp_settings_in_existing_window(
         &mut self,
-        args: &OpenMCPSettingsArgs,
+        _: &(),
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        let autoinstall = args.autoinstall.clone();
         self.workspace.update(ctx, |workspace, ctx| {
-            workspace.open_mcp_servers_page(
-                MCPServersSettingsPage::List,
-                autoinstall.as_deref(),
-                ctx,
-            );
+            workspace.open_mcp_servers_page(MCPServersSettingsPage::List, ctx);
         });
         let window_id = ctx.window_id();
         ctx.windows().show_window_and_focus_app(window_id);

@@ -632,15 +632,6 @@ impl AgentDriver {
                         message: "managed MCP servers are not available in this build".to_string(),
                     });
                 }
-                MCPSpec::WellKnown(id) => {
-                    // Well-known ids (e.g. "linear") were resolved by the server, which owned the
-                    // set of recognized ids. Resolution was already best-effort — a disconnected
-                    // integration skipped the server rather than failing the run — so with no
-                    // server to ask, every one of them skips.
-                    log::warn!(
-                        "Skipping well-known MCP server '{id}': managed MCP servers are not available in this build"
-                    );
-                }
                 MCPSpec::Json(json_str) => {
                     resolved
                         .ephemeral_installations

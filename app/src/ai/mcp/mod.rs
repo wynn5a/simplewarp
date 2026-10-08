@@ -22,8 +22,6 @@ pub use file_based_manager::FileBasedMCPManager;
 pub mod file_mcp_watcher;
 pub use file_mcp_watcher::{FileMCPWatcher, FileMCPWatcherEvent};
 
-pub mod gallery;
-pub use gallery::MCPGalleryManager;
 pub mod templatable;
 pub use cloud_object_models::{
     CLIServer, CloudMCPServer, JSONMCPServer, JSONTransportType, MCPServer, MCPServerState,
@@ -402,11 +400,6 @@ pub enum MCPServerUpdate {
     CloudTemplate {
         publisher: Author,
         new_version_ts: i64,
-        json_template: JsonTemplate,
-    },
-    Gallery {
-        name: String,
-        new_version: i32,
         json_template: JsonTemplate,
     },
 }

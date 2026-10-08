@@ -176,7 +176,7 @@ use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::facts::manager::AIFactManager;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::LLMPreferences;
-use crate::ai::mcp::{MCPGalleryManager, TemplatableMCPServerManager};
+use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::outline::RepoOutlines;
 use crate::ai::restored_conversations::RestoredAgentConversations;
 use crate::ai::skills::SkillManager;
@@ -958,8 +958,6 @@ pub(crate) fn initialize_app(
 
     ctx.add_singleton_model(::ai::api_keys::ApiKeyManager::new);
 
-    ctx.set_fallback_font_source_provider(|url| ::asset_cache::url_source(url));
-
     ctx.set_default_binding_validator(is_binding_cross_platform);
 
     experiments::init(ctx);
@@ -1219,10 +1217,6 @@ pub(crate) fn initialize_app(
             ctx,
         )
     });
-
-    // MCPGalleryManager subscribes to UpdateManager so that it can be notified when gallery items are updated.
-    // The registration of this singleton must be after UpdateManager is registered.
-    ctx.add_singleton_model(|_| MCPGalleryManager::new());
 
     // SkillManager is used to cache SKILL.md files for all active terminal views and their working directories
     ctx.add_singleton_model(SkillManager::new);

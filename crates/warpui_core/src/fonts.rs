@@ -1,5 +1,4 @@
 pub mod canvas;
-mod external_fallback;
 mod metrics;
 mod text_layout_system;
 
@@ -123,8 +122,6 @@ impl CustomWeightConversion for CustomWeight {
     }
 }
 
-pub use external_fallback::{ExternalFontFamily, FallbackFontEvent, FallbackFontModel};
-pub(crate) use external_fallback::{FontBytes, RequestedFallbackFontSource};
 use futures_util::FutureExt;
 use futures_util::future::BoxFuture;
 pub use metrics::Metrics;
@@ -136,8 +133,6 @@ pub struct FamilyId(pub usize);
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct FontId(pub usize);
-
-type FontFamilyName = &'static str;
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct Properties {
@@ -216,14 +211,6 @@ pub struct Cache {
     glyph_typographic_bounds: DashMap<(FontId, GlyphId), Result<RectI, Error>>,
     raster_bounds: DashMap<RasterBoundsKey, Result<RectI, Error>>,
     available_system_fonts: Option<Vec<(Option<FamilyId>, FontInfo)>>,
-    font_fallback_cache: FontFallbackCache,
-}
-
-#[derive(Default)]
-struct FontFallbackCache {
-    loaded_fallback_families: DashMap<FontFamilyName, FamilyId>,
-    requested_fallback_families: DashMap<ExternalFontFamily, Vec<RequestedFallbackFontSource>>,
-    fallback_font_fn: Option<Box<dyn Fn(char) -> Option<ExternalFontFamily> + Send + Sync>>,
 }
 
 impl Properties {
@@ -250,7 +237,6 @@ impl Cache {
             glyph_typographic_bounds: Default::default(),
             raster_bounds: Default::default(),
             available_system_fonts: Default::default(),
-            font_fallback_cache: Default::default(),
         }
     }
 
@@ -259,7 +245,6 @@ impl Cache {
     pub fn text_layout_system(&self) -> TextLayoutSystem<'_> {
         TextLayoutSystem {
             platform: self.font_db().text_layout_system(),
-            cache: &self.font_fallback_cache,
         }
     }
 
@@ -470,14 +455,7 @@ impl Cache {
         }
 
         if should_check_fallback_fonts {
-            self.font_fallback_cache.request_fallback_font_for_char(
-                char,
-                RequestedFallbackFontSource::GlyphForChar((font, char)),
-            );
-
-            let fallback_glyph_and_font = self
-                .app_font_fallback(char, font)
-                .or(self.system_font_fallback(char, font));
+            let fallback_glyph_and_font = self.system_font_fallback(char, font);
 
             self.glyphs_by_char
                 .insert((font, char), fallback_glyph_and_font);
@@ -510,10 +488,6 @@ impl Cache {
             "we verify in Config::new that we can measure the typographic bounds of the 'm' glyph",
         );
         bounds.width()
-    }
-
-    pub(crate) fn remove_glyphs_by_char_entry(&mut self, key: (FontId, char)) {
-        self.glyphs_by_char.remove(&key);
     }
 }
 

@@ -1,6 +1,5 @@
 use serde_json::{Map, Value, json};
 use warp_cli::mcp::MCPSpec;
-use warp_core::features::FeatureFlag;
 
 use super::build_mcp_servers_from_specs;
 
@@ -28,28 +27,7 @@ fn uuid_spec_is_coerced_to_warp_id() {
 }
 
 #[test]
-fn well_known_spec_is_coerced_to_warp_id() {
-    let _flag = FeatureFlag::WellKnownMcpIds.override_enabled(true);
-    let servers = build(vec![MCPSpec::WellKnown("linear".to_string())]);
-
-    let entry = servers.get("linear").unwrap();
-    assert_eq!(entry["warp_id"].as_str(), Some("linear"));
-}
-
-#[test]
-fn well_known_warp_id_passes_validation() {
-    // Non-UUID warp_ids resolve via the same managed MCP GraphQL; the server
-    // owns the set of recognized ids, so validation accepts any non-empty id.
-    let _flag = FeatureFlag::WellKnownMcpIds.override_enabled(true);
-    let spec = json!({ "mcpServers": { "linear": { "warp_id": "linear" } } }).to_string();
-    let servers = build(vec![MCPSpec::Json(spec)]);
-
-    assert_eq!(servers["linear"]["warp_id"].as_str(), Some("linear"));
-}
-
-#[test]
-fn non_uuid_warp_id_fails_validation_when_flag_disabled() {
-    let _flag = FeatureFlag::WellKnownMcpIds.override_enabled(false);
+fn non_uuid_warp_id_fails_validation() {
     let spec = json!({ "mcpServers": { "linear": { "warp_id": "linear" } } }).to_string();
     let err = build_mcp_servers_from_specs(&[MCPSpec::Json(spec)]).unwrap_err();
 
@@ -252,17 +230,10 @@ fn validation_rejects_invalid_entries() {
             .contains("must have exactly one of: 'warp_id', 'command', or 'url'")
     );
 
-    // warp_id must be a non-empty string (UUID or, behind WellKnownMcpIds,
-    // a well-known id — the server owns the set of recognized non-UUID ids).
+    // warp_id must be a UUID.
     let spec = json!({ "mcpServers": { "bad": { "warp_id": "" } } }).to_string();
-    let err = {
-        let _flag = FeatureFlag::WellKnownMcpIds.override_enabled(true);
-        build_mcp_servers_from_specs(&[MCPSpec::Json(spec)]).unwrap_err()
-    };
-    assert!(
-        err.to_string()
-            .contains("field 'warp_id' must be non-empty")
-    );
+    let err = build_mcp_servers_from_specs(&[MCPSpec::Json(spec)]).unwrap_err();
+    assert!(err.to_string().contains("field 'warp_id' must be a UUID"));
 
     // args must be array.
     let spec = json!({ "mcpServers": { "bad": { "command": "npx", "args": "nope" } } }).to_string();

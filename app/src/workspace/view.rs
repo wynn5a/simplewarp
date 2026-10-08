@@ -10764,7 +10764,7 @@ impl Workspace {
             }
             pane_group::Event::OpenMCPSettingsPage { page } => {
                 // Open the MCP servers settings page to the list page
-                self.open_mcp_servers_page(page.unwrap_or_default(), None, ctx);
+                self.open_mcp_servers_page(page.unwrap_or_default(), ctx);
             }
             pane_group::Event::OpenAddRulePane => {
                 // Open the AI Fact Collection pane directly with the Rule Editor page for adding a new rule
@@ -12374,17 +12374,16 @@ impl Workspace {
         self.open_settings_pane(section, Some(search_query), ctx);
     }
 
-    /// Opens the MCP servers settings page, optionally triggering auto-install of a gallery MCP.
+    /// Opens the MCP servers settings page.
     pub fn open_mcp_servers_page(
         &mut self,
         page: MCPServersSettingsPage,
-        autoinstall_gallery_title: Option<&str>,
         ctx: &mut ViewContext<Self>,
     ) {
         self.show_settings_with_section(Some(SettingsSection::AgentMCPServers), ctx);
 
         self.settings_pane.update(ctx, |view, ctx| {
-            view.open_mcp_servers_page(page, autoinstall_gallery_title, ctx);
+            view.open_mcp_servers_page(page, ctx);
         });
     }
 

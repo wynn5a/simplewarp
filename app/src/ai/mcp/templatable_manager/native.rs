@@ -29,13 +29,13 @@ use super::{
 use crate::GlobalResourceHandlesProvider;
 use crate::ai::mcp::file_based_manager::FileBasedMCPManagerEvent;
 use crate::ai::mcp::parsing::resolve_json;
-use crate::ai::mcp::templatable::{CloudTemplatableMCPServer, GalleryData};
+use crate::ai::mcp::templatable::CloudTemplatableMCPServer;
 use crate::ai::mcp::templatable_installation::VariableValue;
 use crate::ai::mcp::templatable_manager::FigmaMcpStatus;
 use crate::ai::mcp::{
-    Author, CloudMCPServer, FileBasedMCPManager, JsonTemplate, MCPGalleryManager, MCPServer,
-    MCPServerExt, MCPServerUpdate, ParsedTemplatableMCPServerResult, StaticEnvVar,
-    TemplatableMCPServer, TemplatableMCPServerInstallation, TransportType, logs,
+    Author, CloudMCPServer, FileBasedMCPManager, JsonTemplate, MCPServer, MCPServerExt,
+    MCPServerUpdate, ParsedTemplatableMCPServerResult, StaticEnvVar, TemplatableMCPServer,
+    TemplatableMCPServerInstallation, TransportType, logs,
 };
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{
@@ -558,28 +558,6 @@ impl TemplatableMCPServerManager {
         TemplatableMCPServerManager::as_ref(app)
             .get_installed_server_name(uuid)
             .or_else(|| TemplatableMCPServerManager::as_ref(app).get_template_server_name(uuid))
-    }
-
-    /// Extracts some piece of server info for all servers (template & installation) and returns it in a HashSet.
-    pub fn extract_server_info<T: std::cmp::Eq + std::hash::Hash>(
-        &self,
-        template_fn: fn(&TemplatableMCPServer) -> Option<T>,
-        installation_fn: fn(&TemplatableMCPServerInstallation) -> Option<T>,
-        _app: &AppContext,
-    ) -> HashSet<T> {
-        let template_results = self
-            .get_all_templatable_mcp_servers()
-            .into_iter()
-            .filter_map(template_fn);
-
-        let installation_results = self
-            .get_installed_templatable_servers()
-            .values()
-            .filter_map(installation_fn);
-
-        template_results
-            .chain(installation_results)
-            .collect::<HashSet<T>>()
     }
 
     fn get_installed_server_name(&self, installation_uuid: &Uuid) -> Option<String> {
@@ -1126,24 +1104,6 @@ impl TemplatableMCPServerManager {
         }
     }
 
-    /// Installs the Figma MCP server from the MCP gallery.
-    pub fn install_figma_from_gallery(&mut self, ctx: &mut ModelContext<Self>) {
-        let figma_gallery_server = MCPGalleryManager::as_ref(ctx)
-            .get_gallery()
-            .into_iter()
-            .find(|item| item.title() == "Figma");
-        let Some(figma_gallery_server) = figma_gallery_server else {
-            log::warn!("Could not find Figma MCP server in gallery");
-            return;
-        };
-        let Ok(templatable_mcp_server) = TemplatableMCPServer::try_from(figma_gallery_server)
-        else {
-            log::warn!("Failed to convert Figma gallery item to TemplatableMCPServer");
-            return;
-        };
-        self.install_from_template(templatable_mcp_server, HashMap::new(), true, ctx);
-    }
-
     pub fn delete_templatable_mcp_server_installation(
         &mut self,
         installation_uuid: Uuid,
@@ -1222,35 +1182,6 @@ impl TemplatableMCPServerManager {
         })
     }
 
-    fn get_update_from_gallery(
-        &self,
-        installation_uuid: Uuid,
-        app: &AppContext,
-    ) -> Option<MCPServerUpdate> {
-        let installation = self.get_installed_server(&installation_uuid)?;
-
-        let GalleryData {
-            gallery_item_id,
-            version: installed_gallery_version,
-        } = installation.templatable_mcp_server().gallery_data?;
-
-        let gallery_item = MCPGalleryManager::as_ref(app).get_gallery_item(gallery_item_id)?;
-
-        // Return early if the gallery version isn't out of date
-        if gallery_item.version() <= installed_gallery_version {
-            return None;
-        }
-
-        let gallery_templatable_mcp_server =
-            MCPGalleryManager::as_ref(app).get_templatable_mcp_server(gallery_item_id)?;
-
-        Some(MCPServerUpdate::Gallery {
-            name: gallery_item.title(),
-            new_version: gallery_item.version(),
-            json_template: gallery_templatable_mcp_server.template.clone(),
-        })
-    }
-
     fn deduplicate_updates(
         &self,
         installation_uuid: Uuid,
@@ -1272,7 +1203,6 @@ impl TemplatableMCPServerManager {
         for (index, update) in updates.iter().enumerate() {
             let json_template = match update {
                 MCPServerUpdate::CloudTemplate { json_template, .. } => json_template,
-                MCPServerUpdate::Gallery { json_template, .. } => json_template,
             };
 
             // De-duplicate those that are the same as the currently installed template
@@ -1287,30 +1217,14 @@ impl TemplatableMCPServerManager {
             if let Some(other_template_index) = templates_to_keep.get(json_template).copied() {
                 log::info!("De-duplicating one identical update for {installation_uuid}.");
 
-                // We should prioritize the gallery version & the newest version
+                // Prioritize the newest version.
                 let other_update = &updates[other_template_index];
-                let should_replace = match (update, other_update) {
-                    (
-                        MCPServerUpdate::CloudTemplate { new_version_ts, .. },
-                        MCPServerUpdate::CloudTemplate {
-                            new_version_ts: other_new_version_ts,
-                            ..
-                        },
-                    ) => new_version_ts > other_new_version_ts,
-                    (MCPServerUpdate::CloudTemplate { .. }, MCPServerUpdate::Gallery { .. }) => {
-                        false
-                    }
-                    (MCPServerUpdate::Gallery { .. }, MCPServerUpdate::CloudTemplate { .. }) => {
-                        true
-                    }
-                    (
-                        MCPServerUpdate::Gallery { new_version, .. },
-                        MCPServerUpdate::Gallery {
-                            new_version: other_new_version,
-                            ..
-                        },
-                    ) => new_version > other_new_version,
-                };
+                let MCPServerUpdate::CloudTemplate { new_version_ts, .. } = update;
+                let MCPServerUpdate::CloudTemplate {
+                    new_version_ts: other_new_version_ts,
+                    ..
+                } = other_update;
+                let should_replace = new_version_ts > other_new_version_ts;
 
                 if should_replace {
                     templates_to_keep.insert(json_template.clone(), index);
@@ -1327,28 +1241,20 @@ impl TemplatableMCPServerManager {
             .collect()
     }
 
-    pub fn is_update_available_for_installation(
-        &self,
-        installation_uuid: Uuid,
-        app: &AppContext,
-    ) -> bool {
+    pub fn is_update_available_for_installation(&self, installation_uuid: Uuid) -> bool {
         !self
-            .get_updates_available_for_installation(installation_uuid, app)
+            .get_updates_available_for_installation(installation_uuid)
             .is_empty()
     }
 
     pub fn get_updates_available_for_installation(
         &self,
         installation_uuid: Uuid,
-        app: &AppContext,
     ) -> Vec<MCPServerUpdate> {
-        let options: Vec<MCPServerUpdate> = [
-            self.get_update_from_cloud_server(installation_uuid),
-            self.get_update_from_gallery(installation_uuid, app),
-        ]
-        .iter()
-        .filter_map(|option| option.clone())
-        .collect();
+        let options: Vec<MCPServerUpdate> = [self.get_update_from_cloud_server(installation_uuid)]
+            .iter()
+            .filter_map(|option| option.clone())
+            .collect();
         for option in options.clone() {
             log::debug!("Updates: {:?}", option);
         }
