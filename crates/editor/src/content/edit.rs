@@ -79,12 +79,11 @@ pub fn resolve_asset_source_relative_to_directory(
 ) -> AssetSource {
     if let Some(data_uri_source) = asset_cache::data_uri_source(source) {
         data_uri_source
-    } else if source.starts_with("http://") || source.starts_with("https://") {
-        AssetSource::LocalFile {
-            path: source.to_string(),
-            content_version: None,
-        }
-    } else if source.starts_with("/") {
+    } else if source.starts_with("http://")
+        || source.starts_with("https://")
+        || source.starts_with("/")
+    {
+        // A remote URL lands here on purpose: as a "file" it cannot exist, so it never loads.
         AssetSource::LocalFile {
             path: source.to_string(),
             content_version: None,
