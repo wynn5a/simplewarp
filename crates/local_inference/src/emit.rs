@@ -25,6 +25,7 @@ use uuid::Uuid;
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::client_action::Action;
 
+use crate::inputs;
 use crate::provider::{Delta, StopReason};
 use crate::tools;
 
@@ -44,7 +45,15 @@ pub struct Emitter {
     /// The client sends the question in `Request::input` and keeps its own copy for the block it
     /// draws, but it never puts one in the task. Warp's server did that, and everything that reads
     /// a conversation back still expects it to be there. See [`Self::start`].
-    user_query: Option<api::message::UserQuery>,
+    user_query: Option<api::message::Message>,
+    /// The message that holds a conversation summary, when this reply is one.
+    ///
+    /// A `/compact` request is answered with a `Summarization` message, not with agent text. The
+    /// client shows it as a summary, and a later request reads it back as the start of the
+    /// conversation. See [`crate::convert`].
+    summary_message_id: Option<String>,
+    /// When the reply began, for the duration that a finished summary carries.
+    started_at: chrono::DateTime<chrono::Utc>,
     /// Tool calls being assembled, keyed by the index in the reply.
     pending_tools: BTreeMap<usize, PendingTool>,
 }
@@ -86,7 +95,9 @@ impl Emitter {
             needs_create_task,
             text_message_id: None,
             reasoning_message_id: None,
-            user_query: user_query_from_request(request),
+            user_query: stored_input_from_request(request),
+            summary_message_id: is_summarize_request(request).then(new_id),
+            started_at: chrono::Utc::now(),
             pending_tools: BTreeMap::new(),
         }
     }
@@ -128,11 +139,17 @@ impl Emitter {
         // a shared-session viewer alone; in a normal session its own copy already fills the
         // exchange. Here the message lands in the task's message list, which is what gets
         // persisted and replayed.
-        if let Some(query) = self.user_query.take() {
+        if let Some(input) = self.user_query.take() {
+            actions.push(add_action(&self.task_id, &new_id(), input));
+        }
+
+        // The summary starts out empty and unfinished, which is how the client knows that a
+        // summary is being written. The text is appended as it streams.
+        if let Some(id) = self.summary_message_id.as_ref() {
             actions.push(add_action(
                 &self.task_id,
-                &new_id(),
-                api::message::Message::UserQuery(query),
+                id,
+                api::message::Message::Summarization(summarization(String::new(), None)),
             ));
         }
 
@@ -179,7 +196,14 @@ impl Emitter {
     pub fn finish(&mut self, reason: StopReason) -> Vec<api::ResponseEvent> {
         let mut actions = Vec::new();
 
-        let tool_messages = std::mem::take(&mut self.pending_tools)
+        // A summary is text only. A tool call that came with it has nothing to run it.
+        let pending_tools = std::mem::take(&mut self.pending_tools);
+        let pending_tools = if self.summary_message_id.is_some() {
+            BTreeMap::new()
+        } else {
+            pending_tools
+        };
+        let tool_messages = pending_tools
             .into_values()
             .filter_map(|pending| {
                 let arguments = parse_arguments(&pending.arguments);
@@ -193,6 +217,30 @@ impl Emitter {
                 api::client_action::AddMessagesToTask {
                     task_id: self.task_id.clone(),
                     messages: tool_messages,
+                },
+            ));
+        }
+
+        if let Some(id) = self.summary_message_id.as_ref() {
+            let elapsed = prost_types::Duration {
+                seconds: (chrono::Utc::now() - self.started_at).num_seconds().max(0),
+                nanos: 0,
+            };
+            actions.push(Action::UpdateTaskMessage(
+                api::client_action::UpdateTaskMessage {
+                    task_id: self.task_id.clone(),
+                    message: Some(api::Message {
+                        id: id.clone(),
+                        task_id: self.task_id.clone(),
+                        message: Some(api::message::Message::Summarization(summarization(
+                            String::new(),
+                            Some(elapsed),
+                        ))),
+                        ..Default::default()
+                    }),
+                    mask: Some(prost_types::FieldMask {
+                        paths: vec!["summarization.finished_duration".to_string()],
+                    }),
                 },
             ));
         }
@@ -211,6 +259,14 @@ impl Emitter {
     }
 
     fn on_text(&mut self, text: String) -> Vec<Action> {
+        if let Some(id) = self.summary_message_id.as_ref() {
+            return vec![append_action(
+                &self.task_id,
+                id,
+                api::message::Message::Summarization(summarization(text, None)),
+                "summarization.conversation_summary.summary",
+            )];
+        }
         match self.text_message_id.clone() {
             Some(id) => vec![append_action(
                 &self.task_id,
@@ -257,47 +313,147 @@ impl Emitter {
     }
 }
 
-/// Reads the question the user asked in this request, if it asked one.
+/// Reads the input that this request answers, in the form that the client stores in a task.
 ///
 /// A request whose input is a set of tool results — the next step of an agent loop — carries no
 /// question, and must not be given one. Only the first request of a turn has it.
 ///
+/// Most inputs are stored as the question they stand for. The ones that are not a question have
+/// their own stored message, which is what Warp's server stored for them, and which the client
+/// already knows to leave out of the blocks it draws: a system query for `/compact`, `/continue`,
+/// new projects and clones; `InvokeSkill` for a skill; `CodeReview` for review comments.
+/// `/init` has no stored form of its own, so its prompt is stored as a question. [`crate::convert`]
+/// reads each of them back into the same text that the input produced.
+///
 /// The deprecated `UserQuery` input variant is still read, because a conversation that an older
 /// client started can carry it.
 #[allow(deprecated)]
-fn user_query_from_request(request: &api::Request) -> Option<api::message::UserQuery> {
+fn stored_input_from_request(request: &api::Request) -> Option<api::message::Message> {
+    use api::message::system_query::Type as SystemQuery;
     use api::request::input::Type;
     use api::request::input::user_inputs::user_input::Input as UserInput;
 
-    let query = match request.input.as_ref()?.r#type.as_ref()? {
+    let user_query = |query: String| {
+        // An empty question is not one. Storing it would leave the history panel with a blank
+        // title and tell the model nothing.
+        (!query.is_empty()).then(|| {
+            api::message::Message::UserQuery(api::message::UserQuery {
+                query,
+                ..Default::default()
+            })
+        })
+    };
+    let system_query = |inner: SystemQuery| {
+        Some(api::message::Message::SystemQuery(
+            api::message::SystemQuery {
+                r#type: Some(inner),
+                ..Default::default()
+            },
+        ))
+    };
+
+    match request.input.as_ref()?.r#type.as_ref()? {
         Type::UserInputs(inputs) => inputs.inputs.iter().find_map(|entry| {
             let UserInput::UserQuery(query) = entry.input.as_ref()? else {
                 return None;
             };
+            if query.query.is_empty() {
+                return None;
+            }
             // `Attachment` and `UserQueryMode` are the same types on both messages, so the extra
             // fields carry over as they are. `context` has no counterpart on the input, so a
             // stored query has none either.
-            Some(api::message::UserQuery {
+            Some(api::message::Message::UserQuery(api::message::UserQuery {
                 query: query.query.clone(),
                 referenced_attachments: query.referenced_attachments.clone(),
                 mode: query.mode,
                 intended_agent: query.intended_agent,
                 ..Default::default()
-            })
-        })?,
-        Type::UserQuery(query) => api::message::UserQuery {
-            query: query.query.clone(),
-            ..Default::default()
-        },
-        _ => return None,
-    };
-
-    // An empty question is not one. Storing it would leave the history panel with a blank title
-    // and tell the model nothing.
-    if query.query.is_empty() {
-        return None;
+            }))
+        }),
+        Type::UserQuery(query) => user_query(query.query.clone()),
+        Type::QueryWithCannedResponse(canned) => user_query(canned.query.clone()),
+        Type::InitProjectRules(_) => user_query(inputs::INIT_PROJECT_RULES.to_string()),
+        Type::SummarizeConversation(summarize) => system_query(SystemQuery::SummarizeConversation(
+            api::message::SummarizeConversation {
+                prompt: summarize.prompt.clone(),
+            },
+        )),
+        Type::ResumeConversation(_) => system_query(SystemQuery::ResumeConversation(
+            api::message::ResumeConversation {},
+        )),
+        Type::CreateNewProject(project) => system_query(SystemQuery::CreateNewProject(
+            api::message::CreateNewProject {
+                query: project.query.clone(),
+            },
+        )),
+        Type::CloneRepository(clone) => system_query(SystemQuery::CloneRepository(
+            api::message::CloneRepository {
+                url: clone.url.clone(),
+            },
+        )),
+        Type::InvokeSkill(invoke) => Some(api::message::Message::InvokeSkill(
+            api::message::InvokeSkill {
+                skill: invoke.skill.clone(),
+                user_query: invoke
+                    .user_query
+                    .as_ref()
+                    .map(|query| api::message::UserQuery {
+                        query: query.query.clone(),
+                        referenced_attachments: query.referenced_attachments.clone(),
+                        mode: query.mode,
+                        intended_agent: query.intended_agent,
+                        ..Default::default()
+                    }),
+            },
+        )),
+        Type::CodeReview(review) => {
+            let Some(api::request::input::code_review::Operation::InitialReviewComments(initial)) =
+                review.operation.as_ref()
+            else {
+                return None;
+            };
+            Some(api::message::Message::CodeReview(
+                api::message::CodeReview {
+                    comments: Some(api::ReviewComments {
+                        pending_comments: initial.review_comments.clone(),
+                        completed_comments: Vec::new(),
+                        diff_set: initial.diff_set.clone(),
+                    }),
+                },
+            ))
+        }
+        _ => None,
     }
-    Some(query)
+}
+
+/// True when the request asks for a conversation summary.
+fn is_summarize_request(request: &api::Request) -> bool {
+    matches!(
+        request
+            .input
+            .as_ref()
+            .and_then(|input| input.r#type.as_ref()),
+        Some(api::request::input::Type::SummarizeConversation(_))
+    )
+}
+
+/// A conversation summary message, with `finished_duration` set once the summary is done.
+fn summarization(
+    text: String,
+    finished: Option<prost_types::Duration>,
+) -> api::message::Summarization {
+    api::message::Summarization {
+        finished_duration: finished,
+        summary_type: Some(
+            api::message::summarization::SummaryType::ConversationSummary(
+                api::message::summarization::ConversationSummary {
+                    summary: text,
+                    token_count: 0,
+                },
+            ),
+        ),
+    }
 }
 
 /// Reads the collected argument fragments.

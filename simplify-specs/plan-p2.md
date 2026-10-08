@@ -35,6 +35,22 @@ content (their MCP servers, their git remote, their links) is theirs to point an
 
 ### 1a. Inputs other than a plain user query are dropped
 
+**Mostly done (P2 slice 2, 2026-10-08).** `local_inference::inputs` carries the prompts the server
+used to supply, and `convert.rs` expands each input into a user turn (and again when the stored
+form comes back in the task history). Done: `SummarizeConversation` (`/compact`; the reply is a
+`Summarization` message that is appended while it streams and finished with a duration, and a
+finished summary replaces everything before it on replay), `InvokeSkill`, `InitProjectRules`,
+`ResumeConversation`, `CodeReview`, `CreateNewProject`, `CloneRepository`, and
+`QueryWithCannedResponse` (the chip's own text; the canned reply is dropped, the model answers).
+The emitter stores each as the message the client already ignores when it draws blocks
+(`SystemQuery`, `InvokeSkill`, `CodeReview`; `/init` is stored as a question). Not done on
+purpose: `TriggerPassiveSuggestion` / `AutoCodeDiffQuery` (stopped by P3), `CreateEnvironment`
+(remote concept, P4). **Not verified against a live model or in the app** — the tests are unit
+tests over the proto shapes; a real `/compact`, `/init` and skill run still need a session with a
+provider key.
+
+Original finding:
+
 `crates/local_inference/src/convert.rs:140` (`push_input`) reads only `UserInputs`
 (UserQuery / ToolCallResult) and the deprecated UserQuery / ToolCallResult; everything else hits
 `_ => {}`. A new conversation then fails with `Error::NoInput` (`stream.rs:23`); an existing one
@@ -252,7 +268,7 @@ is a product decision. Every item below needs a user decision before it becomes 
 | ID | Item | Options | Recommendation |
 | --- | --- | --- | --- |
 | ~~P1~~ | §7 ClientId trash/delete | fix | **Done** (see §7). |
-| P2 | §1a/§1b core inputs: `SummarizeConversation`, `InvokeSkill`, `InitProjectRules`, `ResumeConversation`, `CodeReview`, `QueryWithCannedResponse`, attached context + rules | implement in `local_inference` / hide | Implement — they are local work the server merely orchestrated; highest user value. |
+| P2 | **Slices 1–2 done (see §1a, §1b).** §1a/§1b core inputs: `SummarizeConversation`, `InvokeSkill`, `InitProjectRules`, `ResumeConversation`, `CodeReview`, `QueryWithCannedResponse`, attached context + rules | implement in `local_inference` / hide | Implement — they are local work the server merely orchestrated; highest user value. |
 | ~~P3~~ | §1a passive requests: `TriggerPassiveSuggestion`, `AutoCodeDiffQuery` | stop sending | **Done (2026-10-08).** `AISettings::is_code_suggestions_enabled` is now constant `false`, which stops both senders in `passive_suggestions/legacy.rs` and the view-side "hide the banner while a diff is generated" path; the "Suggested Code Banners" settings section and its palette toggle are removed. The stored setting key stays so old configs load. Turn it back on together with P2. |
 | P4 | §1a `CreateEnvironment`, `CreateNewProject`, `CloneRepository` | implement / hide | Drop the cloud-environment `/init` step (remote concept); implement or hide the other two. |
 | P5 | §1c tools: MCP tool calls, computer use, AskUserQuestion, ReadSkill, SearchCodebase, InsertReviewComments, documents | implement / hide UI | MCP is Phase 3b; others per feature. |

@@ -690,3 +690,169 @@ fn a_reply_with_no_tool_calls_gains_nothing() {
     let turns = turns_from_request(&request);
     assert_eq!(turns.len(), 2, "got {turns:?}");
 }
+
+fn request_with_input_type(
+    history: Vec<api::Message>,
+    r#type: api::request::input::Type,
+) -> api::Request {
+    let mut request = request_with_messages(history);
+    request.input = Some(api::request::Input {
+        r#type: Some(r#type),
+        ..Default::default()
+    });
+    request
+}
+
+fn user_text(turns: &[Turn]) -> String {
+    turns
+        .iter()
+        .filter_map(|turn| match turn {
+            Turn::User(text) => Some(text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n---\n")
+}
+
+#[test]
+fn compact_becomes_the_summarize_prompt() {
+    let request = request_with_input_type(
+        vec![user_message("first"), agent_message("ok")],
+        api::request::input::Type::SummarizeConversation(
+            api::request::input::SummarizeConversation {
+                prompt: "the tests".to_string(),
+            },
+        ),
+    );
+    let turns = turns_from_request(&request);
+    assert_eq!(turns.len(), 3);
+    let Turn::User(text) = &turns[2] else {
+        panic!("expected a user turn");
+    };
+    assert!(text.contains("Summarize this conversation"));
+    assert!(text.ends_with("the tests"));
+}
+
+#[test]
+fn init_resume_clone_and_new_project_become_prompts() {
+    use api::request::input::Type;
+
+    let init = turns_from_request(&request_with_input_type(
+        vec![],
+        Type::InitProjectRules(Default::default()),
+    ));
+    assert!(user_text(&init).contains("AGENTS.md"));
+
+    let resume = turns_from_request(&request_with_input_type(
+        vec![user_message("go"), agent_message("partial")],
+        Type::ResumeConversation(Default::default()),
+    ));
+    assert!(user_text(&resume).contains("Continue from where you left off"));
+
+    let clone = turns_from_request(&request_with_input_type(
+        vec![],
+        Type::CloneRepository(api::request::input::CloneRepository {
+            url: "https://example.com/a.git".to_string(),
+        }),
+    ));
+    assert!(user_text(&clone).contains("https://example.com/a.git"));
+
+    let project = turns_from_request(&request_with_input_type(
+        vec![],
+        Type::CreateNewProject(api::request::input::CreateNewProject {
+            query: "a todo app".to_string(),
+        }),
+    ));
+    assert!(user_text(&project).contains("a todo app"));
+}
+
+#[test]
+fn inputs_with_no_text_here_add_no_turn() {
+    use api::request::input::Type;
+
+    for input in [
+        Type::CreateEnvironment(Default::default()),
+        Type::GeneratePassiveSuggestions(Default::default()),
+        Type::AutoCodeDiffQuery(Default::default()),
+    ] {
+        let request = request_with_input_type(vec![], input);
+        assert!(turns_from_request(&request).is_empty());
+    }
+}
+
+fn summary_message(text: &str, finished: bool) -> api::Message {
+    message(message::Message::Summarization(message::Summarization {
+        finished_duration: finished.then_some(prost_types::Duration {
+            seconds: 3,
+            nanos: 0,
+        }),
+        summary_type: Some(message::summarization::SummaryType::ConversationSummary(
+            message::summarization::ConversationSummary {
+                summary: text.to_string(),
+                token_count: 0,
+            },
+        )),
+    }))
+}
+
+#[test]
+fn a_finished_summary_replaces_everything_before_it() {
+    let history = vec![
+        user_message("old question"),
+        agent_message("old answer"),
+        summary_message("We fixed the build.", true),
+        user_message("next question"),
+    ];
+    let turns = turns_from_request(&request_with_messages(history));
+
+    assert_eq!(turns.len(), 1, "{turns:?}");
+    let Turn::User(text) = &turns[0] else {
+        panic!("expected a user turn");
+    };
+    assert!(text.contains("We fixed the build."));
+    assert!(text.ends_with("next question"));
+    assert!(!text.contains("old question"));
+}
+
+#[test]
+fn an_unfinished_or_empty_summary_drops_nothing() {
+    for summary in [
+        summary_message("partial", false),
+        summary_message("  ", true),
+    ] {
+        let history = vec![user_message("keep me"), agent_message("ok"), summary];
+        let turns = turns_from_request(&request_with_messages(history));
+        assert!(user_text(&turns).contains("keep me"), "{turns:?}");
+    }
+}
+
+#[test]
+fn stored_inputs_replay_as_the_text_the_input_produced() {
+    let skill = message(message::Message::InvokeSkill(message::InvokeSkill {
+        skill: Some(api::Skill {
+            descriptor: Some(api::SkillDescriptor {
+                name: "deploy".to_string(),
+                ..Default::default()
+            }),
+            content: Some(api::FileContent {
+                content: "Run ./deploy.sh".to_string(),
+                ..Default::default()
+            }),
+        }),
+        user_query: None,
+    }));
+    let compact = message(message::Message::SystemQuery(message::SystemQuery {
+        r#type: Some(message::system_query::Type::ResumeConversation(
+            message::ResumeConversation {},
+        )),
+        ..Default::default()
+    }));
+    let turns = turns_from_request(&request_with_messages(vec![
+        skill,
+        agent_message("done"),
+        compact,
+    ]));
+    let text = user_text(&turns);
+    assert!(text.contains("Run ./deploy.sh"));
+    assert!(text.contains("Continue from where you left off"));
+}

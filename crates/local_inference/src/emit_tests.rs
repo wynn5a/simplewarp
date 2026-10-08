@@ -414,3 +414,227 @@ fn the_question_is_stored_once() {
     assert_eq!(stored_queries(&first), vec!["hello"]);
     assert!(stored_queries(&second).is_empty());
 }
+
+fn request_with_input_type(task_id: &str, r#type: api::request::input::Type) -> api::Request {
+    let mut request = request_with_task(task_id);
+    request.input = Some(api::request::Input {
+        r#type: Some(r#type),
+        ..Default::default()
+    });
+    request
+}
+
+/// The messages that `start` adds to the task, in order.
+fn stored_messages(events: &[api::ResponseEvent]) -> Vec<api::message::Message> {
+    actions_of(events)
+        .into_iter()
+        .filter_map(|action| match action {
+            Action::AddMessagesToTask(add) => Some(add.messages),
+            _ => None,
+        })
+        .flatten()
+        .filter_map(|message| message.message)
+        .collect()
+}
+
+#[test]
+fn compact_is_stored_as_a_system_query() {
+    let request = request_with_input_type(
+        "task-1",
+        api::request::input::Type::SummarizeConversation(
+            api::request::input::SummarizeConversation {
+                prompt: "focus on tests".to_string(),
+            },
+        ),
+    );
+    let stored = stored_messages(&Emitter::new(&request).start());
+
+    let api::message::Message::SystemQuery(query) = &stored[0] else {
+        panic!("expected a system query, got {:?}", stored[0]);
+    };
+    let Some(api::message::system_query::Type::SummarizeConversation(summarize)) = &query.r#type
+    else {
+        panic!("expected a summarize query");
+    };
+    assert_eq!(summarize.prompt, "focus on tests");
+}
+
+#[test]
+fn a_summary_request_adds_an_unfinished_summary_message() {
+    let request = request_with_input_type(
+        "task-1",
+        api::request::input::Type::SummarizeConversation(Default::default()),
+    );
+    let stored = stored_messages(&Emitter::new(&request).start());
+
+    let Some(api::message::Message::Summarization(summary)) = stored.get(1) else {
+        panic!("expected a summarization after the query, got {stored:?}");
+    };
+    assert!(summary.finished_duration.is_none());
+}
+
+#[test]
+fn summary_text_is_appended_to_the_summary_and_no_agent_message_is_made() {
+    let request = request_with_input_type(
+        "task-1",
+        api::request::input::Type::SummarizeConversation(Default::default()),
+    );
+    let mut emitter = Emitter::new(&request);
+    let _ = emitter.start();
+
+    let actions = actions_of(&emitter.on_delta(Delta::Text("We did X.".to_string())));
+    let Action::AppendToMessageContent(append) = &actions[0] else {
+        panic!("expected an append, got {:?}", actions[0]);
+    };
+    assert_eq!(
+        append.mask.as_ref().expect("mask").paths,
+        vec!["summarization.conversation_summary.summary".to_string()]
+    );
+    let Some(api::message::Message::Summarization(summary)) =
+        append.message.as_ref().and_then(|m| m.message.as_ref())
+    else {
+        panic!("expected a summarization");
+    };
+    let Some(api::message::summarization::SummaryType::ConversationSummary(text)) =
+        &summary.summary_type
+    else {
+        panic!("expected a conversation summary");
+    };
+    assert_eq!(text.summary, "We did X.");
+}
+
+#[test]
+fn finishing_a_summary_sets_its_duration_and_drops_tool_calls() {
+    let request = request_with_input_type(
+        "task-1",
+        api::request::input::Type::SummarizeConversation(Default::default()),
+    );
+    let mut emitter = Emitter::new(&request);
+    let _ = emitter.start();
+    let _ = emitter.on_delta(Delta::ToolCallStart {
+        index: 0,
+        id: "call-1".to_string(),
+        name: "run_shell_command".to_string(),
+    });
+    let _ = emitter.on_delta(Delta::ToolCallArguments {
+        index: 0,
+        fragment: r#"{"command":"ls","is_read_only":true}"#.to_string(),
+    });
+
+    let actions = actions_of(&emitter.finish(StopReason::EndTurn));
+    assert!(
+        !actions
+            .iter()
+            .any(|action| matches!(action, Action::AddMessagesToTask(_))),
+        "a summary carries no tool call: {actions:?}"
+    );
+    let Some(Action::UpdateTaskMessage(update)) = actions
+        .iter()
+        .find(|action| matches!(action, Action::UpdateTaskMessage(_)))
+    else {
+        panic!("expected the summary to be finished: {actions:?}");
+    };
+    assert_eq!(
+        update.mask.as_ref().expect("mask").paths,
+        vec!["summarization.finished_duration".to_string()]
+    );
+    let Some(api::message::Message::Summarization(summary)) =
+        update.message.as_ref().and_then(|m| m.message.as_ref())
+    else {
+        panic!("expected a summarization");
+    };
+    assert!(summary.finished_duration.is_some());
+    assert!(matches!(actions.last(), Some(Action::CommitTransaction(_))));
+}
+
+#[test]
+fn a_normal_reply_makes_no_summary() {
+    let mut emitter = Emitter::new(&request_with_query("task-1", "hi"));
+    let _ = emitter.start();
+    let actions = actions_of(&emitter.finish(StopReason::EndTurn));
+    assert!(
+        !actions
+            .iter()
+            .any(|action| matches!(action, Action::UpdateTaskMessage(_)))
+    );
+}
+
+#[test]
+fn a_skill_and_review_comments_are_stored_as_their_own_messages() {
+    let skill = request_with_input_type(
+        "task-1",
+        api::request::input::Type::InvokeSkill(api::request::input::InvokeSkill {
+            skill: Some(api::Skill::default()),
+            user_query: Some(api::request::input::UserQuery {
+                query: "to staging".to_string(),
+                ..Default::default()
+            }),
+        }),
+    );
+    let stored = stored_messages(&Emitter::new(&skill).start());
+    let api::message::Message::InvokeSkill(invoke) = &stored[0] else {
+        panic!("expected a skill, got {:?}", stored[0]);
+    };
+    assert_eq!(
+        invoke.user_query.as_ref().expect("query").query,
+        "to staging"
+    );
+
+    let review = request_with_input_type(
+        "task-1",
+        api::request::input::Type::CodeReview(api::request::input::CodeReview {
+            operation: Some(
+                api::request::input::code_review::Operation::InitialReviewComments(
+                    api::request::input::code_review::InitialReviewComments {
+                        review_comments: vec![api::ReviewComment {
+                            comment: "Rename.".to_string(),
+                            ..Default::default()
+                        }],
+                        diff_set: None,
+                    },
+                ),
+            ),
+        }),
+    );
+    let stored = stored_messages(&Emitter::new(&review).start());
+    let api::message::Message::CodeReview(code_review) = &stored[0] else {
+        panic!("expected a code review, got {:?}", stored[0]);
+    };
+    assert_eq!(
+        code_review
+            .comments
+            .as_ref()
+            .expect("comments")
+            .pending_comments[0]
+            .comment,
+        "Rename."
+    );
+}
+
+#[test]
+fn init_is_stored_as_a_question_and_a_chip_as_its_own_text() {
+    let init = request_with_input_type(
+        "task-1",
+        api::request::input::Type::InitProjectRules(Default::default()),
+    );
+    let stored = stored_messages(&Emitter::new(&init).start());
+    let api::message::Message::UserQuery(query) = &stored[0] else {
+        panic!("expected a question, got {:?}", stored[0]);
+    };
+    assert_eq!(query.query, inputs::INIT_PROJECT_RULES);
+
+    let chip = request_with_input_type(
+        "task-1",
+        api::request::input::Type::QueryWithCannedResponse(
+            api::request::input::QueryWithCannedResponse {
+                query: "Install a package".to_string(),
+                ..Default::default()
+            },
+        ),
+    );
+    let stored = stored_messages(&Emitter::new(&chip).start());
+    let api::message::Message::UserQuery(query) = &stored[0] else {
+        panic!("expected a question, got {:?}", stored[0]);
+    };
+    assert_eq!(query.query, "Install a package");
+}

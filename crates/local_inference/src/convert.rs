@@ -9,7 +9,7 @@
 
 use serde_json::{Value, json};
 
-use crate::context;
+use crate::{context, inputs};
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::message::{self, tool_call, tool_call_result};
 
@@ -175,8 +175,53 @@ fn push_input(turns: &mut Vec<Turn>, input: &api::request::Input) {
             );
         }
         Some(Type::ToolCallResult(result)) => push_rendered(turns, render_input_result(result)),
-        _ => {}
+        Some(other) => {
+            if let Some(text) = expand_input(other) {
+                push_user(turns, &text);
+                push_user(
+                    turns,
+                    &context::attachments(input.context.as_ref(), &Default::default()),
+                );
+            }
+        }
+        None => {}
     }
+}
+
+/// The model-facing text for an input that is not a plain question. See [`inputs`].
+///
+/// `None` is for inputs that need a service this build does not have, or that the client no
+/// longer sends: passive suggestions, cloud environments and ambient runs.
+fn expand_input(input_type: &api::request::input::Type) -> Option<String> {
+    use api::request::input::Type;
+
+    Some(match input_type {
+        Type::SummarizeConversation(summarize) => inputs::summarize_conversation(&summarize.prompt),
+        Type::InitProjectRules(_) => inputs::INIT_PROJECT_RULES.to_string(),
+        Type::ResumeConversation(_) => inputs::RESUME_CONVERSATION.to_string(),
+        Type::CreateNewProject(project) => inputs::create_new_project(&project.query),
+        Type::CloneRepository(clone) => inputs::clone_repository(&clone.url),
+        Type::InvokeSkill(invoke) => inputs::invoke_skill(
+            invoke.skill.as_ref(),
+            invoke
+                .user_query
+                .as_ref()
+                .map(|query| query.query.as_str())
+                .unwrap_or_default(),
+        ),
+        Type::CodeReview(review) => {
+            let Some(api::request::input::code_review::Operation::InitialReviewComments(initial)) =
+                review.operation.as_ref()
+            else {
+                return None;
+            };
+            inputs::code_review(&initial.review_comments, initial.diff_set.as_ref())
+        }
+        // A chip's own text is what the user asked. The server answered it with a canned
+        // reply first; here the model answers it.
+        Type::QueryWithCannedResponse(canned) => canned.query.clone(),
+        _ => return None,
+    })
 }
 
 /// Pushes a user query, followed by the attachments that its text names by key.
@@ -195,9 +240,69 @@ fn push_message(turns: &mut Vec<Turn>, proto_message: &api::Message) {
         Some(message::Message::AgentReasoning(reasoning)) => {
             push_agent_reasoning(turns, &reasoning.reasoning)
         }
-        // Todos, summaries, and server events carry no instruction that the model needs
-        // replayed, so they are left out.
+        // The inputs that the client stores in place of a question. See [`crate::emit`].
+        Some(message::Message::SystemQuery(query)) => {
+            if let Some(text) = system_query_text(query) {
+                push_user(turns, &text);
+            }
+        }
+        Some(message::Message::InvokeSkill(invoke)) => push_user(
+            turns,
+            &inputs::invoke_skill(
+                invoke.skill.as_ref(),
+                invoke
+                    .user_query
+                    .as_ref()
+                    .map(|query| query.query.as_str())
+                    .unwrap_or_default(),
+            ),
+        ),
+        Some(message::Message::CodeReview(review)) => {
+            if let Some(comments) = review.comments.as_ref() {
+                push_user(
+                    turns,
+                    &inputs::code_review(&comments.pending_comments, comments.diff_set.as_ref()),
+                );
+            }
+        }
+        // A finished summary stands in for everything before it, so the history starts over
+        // from the summary. A summary still being written has nothing to stand in with yet.
+        Some(message::Message::Summarization(summarization)) => {
+            if let Some(summary) = finished_summary(summarization) {
+                turns.clear();
+                push_user(turns, &inputs::summary_turn(summary));
+            }
+        }
+        // Todos and server events carry no instruction that the model needs replayed, so they
+        // are left out.
         _ => {}
+    }
+}
+
+/// The text of a stored system query, in the same words the input carried.
+fn system_query_text(query: &message::SystemQuery) -> Option<String> {
+    use message::system_query::Type;
+
+    Some(match query.r#type.as_ref()? {
+        Type::SummarizeConversation(summarize) => inputs::summarize_conversation(&summarize.prompt),
+        Type::ResumeConversation(_) => inputs::RESUME_CONVERSATION.to_string(),
+        Type::CreateNewProject(project) => inputs::create_new_project(&project.query),
+        Type::CloneRepository(clone) => inputs::clone_repository(&clone.url),
+        // Passive suggestions and the rest were never answered by this build.
+        _ => return None,
+    })
+}
+
+/// The summary text of a conversation summary that has finished, if this is one.
+fn finished_summary(summarization: &message::Summarization) -> Option<&str> {
+    summarization.finished_duration?;
+    match summarization.summary_type.as_ref()? {
+        message::summarization::SummaryType::ConversationSummary(summary)
+            if !summary.summary.trim().is_empty() =>
+        {
+            Some(summary.summary.as_str())
+        }
+        _ => None,
     }
 }
 
