@@ -12,12 +12,11 @@ use diesel::result::Error;
 use crate::{
     CloudAIExecutionProfile, CloudAIExecutionProfileModel, CloudAIFact, CloudAIFactModel,
     CloudEnvVarCollection, CloudEnvVarCollectionModel, CloudMCPServer, CloudMCPServerModel,
-    CloudPreference, CloudPreferenceModel, CloudTemplatableMCPServer,
-    CloudTemplatableMCPServerModel, CloudWorkflowEnum, CloudWorkflowEnumModel,
+    CloudTemplatableMCPServer, CloudTemplatableMCPServerModel, CloudWorkflowEnum,
+    CloudWorkflowEnumModel,
 };
 
 pub enum PersistedGenericStringObject {
-    Preference(CloudPreference),
     EnvVarCollection(CloudEnvVarCollection),
     WorkflowEnum(CloudWorkflowEnum),
     AIFact(CloudAIFact),
@@ -36,7 +35,7 @@ pub fn read_generic_string_objects(
             let metadata = read_context.metadata_for_object(
                 object.id,
                 ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
-                    JsonObjectType::Preference,
+                    JsonObjectType::EnvVarCollection,
                 )),
             )?;
             let object_id = id_from_metadata(metadata)?;
@@ -49,17 +48,6 @@ pub fn read_generic_string_objects(
                 .try_into()
                 .ok()?;
             match json_object_type {
-                JsonObjectType::Preference => {
-                    let model = CloudPreferenceModel::deserialize_owned(&object.data);
-                    model.ok().map(|model| {
-                        PersistedGenericStringObject::Preference(CloudPreference::new(
-                            object_id,
-                            model,
-                            to_cloud_object_metadata(metadata),
-                            cloud_object_permissions,
-                        ))
-                    })
-                }
                 JsonObjectType::EnvVarCollection => {
                     let model = CloudEnvVarCollectionModel::deserialize_owned(&object.data);
                     model.ok().map(|model| {

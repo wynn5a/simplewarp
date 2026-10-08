@@ -3,9 +3,7 @@ use warpui::{Entity, ModelContext, SingletonEntity};
 use super::CloudEnvVarCollectionModel;
 use crate::cloud_object::{CloudObject, Owner, Revision};
 use crate::env_vars::CloudEnvVarCollection;
-use crate::server::cloud_objects::update_manager::{
-    ObjectOperation, OperationSuccessType, UpdateManagerEvent,
-};
+use crate::server::cloud_objects::update_manager::{ObjectOperation, UpdateManagerEvent};
 use crate::server::ids::{ClientId, SyncId};
 use crate::{AppContext, CloudModel, UpdateManager};
 
@@ -58,9 +56,10 @@ impl ActiveEnvVarCollectionData {
 
         let UpdateManagerEvent::ObjectOperationComplete { result } = event;
 
-        if let (ObjectOperation::Trash | ObjectOperation::Untrash, OperationSuccessType::Success) =
-            (&result.operation, &result.success_type)
-            && self.id() == Some(result.id)
+        if matches!(
+            result.operation,
+            ObjectOperation::Trash | ObjectOperation::Untrash
+        ) && self.id() == Some(result.id)
             && cloud_model.get_env_var_collection(&result.id).is_some()
         {
             ctx.emit(ActiveEnvVarCollectionDataEvent::TrashStatusChanged);

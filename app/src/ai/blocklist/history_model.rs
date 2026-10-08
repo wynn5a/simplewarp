@@ -1285,7 +1285,7 @@ impl BlocklistAIHistoryModel {
         if let Err(e) = sqlite_sender.send(ModelEvent::UpdateMultiAgentConversation {
             conversation_id: forked_conversation_id.to_string(),
             updated_tasks: updated_tasks_with_new_ids.clone(),
-            conversation_data: conversation_data.clone(),
+            conversation_data: Box::new(conversation_data.clone()),
         }) {
             return Err(anyhow!("Failed to persist forked conversation: {e:?}."));
         }
@@ -1458,7 +1458,7 @@ impl BlocklistAIHistoryModel {
         if let Err(e) = sqlite_sender.send(ModelEvent::UpdateMultiAgentConversation {
             conversation_id: forked_conversation_id.to_string(),
             updated_tasks: updated_tasks_with_new_ids.clone(),
-            conversation_data: conversation_data.clone(),
+            conversation_data: Box::new(conversation_data.clone()),
         }) {
             return Err(anyhow!(
                 "Failed to persist forked conversation at block: {e:?}."

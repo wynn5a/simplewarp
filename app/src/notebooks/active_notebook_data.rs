@@ -6,7 +6,7 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObject, Owner};
 use crate::notebooks::CloudNotebook;
 use crate::server::cloud_objects::update_manager::{
-    ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
+    ObjectOperation, UpdateManager, UpdateManagerEvent,
 };
 use crate::server::ids::{ClientId, SyncId};
 
@@ -71,9 +71,10 @@ impl ActiveNotebookData {
     ) {
         let UpdateManagerEvent::ObjectOperationComplete { result } = event;
 
-        if let (ObjectOperation::Trash | ObjectOperation::Untrash, OperationSuccessType::Success) =
-            (&result.operation, &result.success_type)
-            && self.id() == Some(result.id)
+        if matches!(
+            result.operation,
+            ObjectOperation::Trash | ObjectOperation::Untrash
+        ) && self.id() == Some(result.id)
         {
             ctx.emit(ActiveNotebookDataEvent::TrashStatusChanged);
         }

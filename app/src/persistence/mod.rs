@@ -237,7 +237,7 @@ pub enum ModelEvent {
     UpdateMultiAgentConversation {
         conversation_id: String,
         updated_tasks: Vec<api::Task>,
-        conversation_data: AgentConversationData,
+        conversation_data: Box<AgentConversationData>,
     },
     /// Persists read-time-derived conversation summaries for rows written
     /// before the `summary` column existed.

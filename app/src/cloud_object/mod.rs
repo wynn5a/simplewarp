@@ -133,10 +133,6 @@ pub trait CloudObject: Debug {
         self.containing_object_names(app).join(" / ")
     }
 
-    fn is_welcome_object(&self) -> bool {
-        self.metadata().is_welcome_object
-    }
-
     /// The folder this object is placed in directly (even if that folder is nested), or `None`
     /// when it sits at the top level of the personal space.
     fn parent_folder(&self, cloud_model: &CloudModel) -> Option<SyncId> {

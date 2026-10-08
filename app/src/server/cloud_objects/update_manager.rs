@@ -38,11 +38,6 @@ lazy_static! {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum OperationSuccessType {
-    Success,
-}
-
-#[derive(Debug, PartialEq)]
 pub enum ObjectOperation {
     Trash,
     Untrash,
@@ -51,7 +46,6 @@ pub enum ObjectOperation {
 
 #[derive(Debug)]
 pub struct ObjectOperationResult {
-    pub success_type: OperationSuccessType,
     pub operation: ObjectOperation,
     pub id: SyncId,
     pub num_objects: Option<i32>, // counts number of objects (including descendants) deleted for permadeletion
@@ -491,7 +485,6 @@ impl UpdateManager {
 
         ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
             result: ObjectOperationResult {
-                success_type: OperationSuccessType::Success,
                 operation: ObjectOperation::Trash,
                 id: sync_id,
                 num_objects: None,
@@ -528,7 +521,6 @@ impl UpdateManager {
 
         ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
             result: ObjectOperationResult {
-                success_type: OperationSuccessType::Success,
                 operation: ObjectOperation::Untrash,
                 id: sync_id,
                 num_objects: None,
@@ -559,7 +551,6 @@ impl UpdateManager {
         let num_deleted_objects = self.on_object_delete_success(vec![sync_id], ctx);
         ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
             result: ObjectOperationResult {
-                success_type: OperationSuccessType::Success,
                 operation: ObjectOperation::Delete { initiated_by },
                 id: sync_id,
                 num_objects: Some(num_deleted_objects),

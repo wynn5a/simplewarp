@@ -142,25 +142,13 @@ pub fn upsert_cloud_object(
         object_metadata, revision_ts, server_id, trashed_ts,
     };
     use schema::object_permissions::dsl::{
-        anyone_with_link_access_level, anyone_with_link_source, object_guests, object_metadata_id,
-        object_permissions, permissions_last_updated_at, subject_id, subject_type, subject_uid,
+        object_metadata_id, object_permissions, subject_id, subject_type, subject_uid,
     };
 
     let (subject_type_value, subject_id_value, subject_uid_value) =
         match cloud_object_permissions.owner {
             Owner::User { user_uid } => ("USER", Some(user_uid.to_string()), user_uid.to_string()),
-            Owner::Team { team_uid } => ("TEAM", None, team_uid.to_string()),
         };
-    let permissions_ts = cloud_object_permissions
-        .permissions_last_updated_ts
-        .map(|ts| ts.timestamp_micros());
-    // Guest and link-sharing ACLs are not persisted; the columns stay NULL.
-    let guests: Option<Vec<u8>> = None;
-    let (anyone_with_link_access_level_value, anyone_with_link_source_value): (
-        Option<&'static str>,
-        Option<Vec<u8>>,
-    ) = (None, None);
-
     let revision = cloud_object_metadata
         .revision
         .as_ref()
@@ -216,10 +204,6 @@ pub fn upsert_cloud_object(
                     subject_type.eq(subject_type_value),
                     subject_id.eq(subject_id_value),
                     subject_uid.eq(subject_uid_value),
-                    permissions_last_updated_at.eq(permissions_ts),
-                    object_guests.eq(guests),
-                    anyone_with_link_access_level.eq(anyone_with_link_access_level_value),
-                    anyone_with_link_source.eq(anyone_with_link_source_value),
                 ))
                 .execute(conn)?;
         }
@@ -247,9 +231,8 @@ pub fn upsert_cloud_object(
                 folder_id: cloud_object_metadata
                     .folder_id
                     .map(|sync_id| sync_id.sqlite_uid_hash()),
-                // When we insert an object, mark whether it's a welcome object. This
-                // field won't ever be updated and this is the only pathway for it to be set.
-                is_welcome_object: cloud_object_metadata.is_welcome_object,
+                // Tombstone column from upstream Warp's onboarding objects.
+                is_welcome_object: false,
                 creator_uid: cloud_object_metadata.creator_uid,
                 last_editor_uid: cloud_object_metadata.last_editor_uid,
                 current_editor: cloud_object_metadata.current_editor_uid,
@@ -273,10 +256,11 @@ pub fn upsert_cloud_object(
                 subject_type: subject_type_value.to_owned(),
                 subject_id: subject_id_value,
                 subject_uid: subject_uid_value,
-                permissions_last_updated_at: permissions_ts,
-                object_guests: guests,
-                anyone_with_link_access_level: anyone_with_link_access_level_value,
-                anyone_with_link_source: anyone_with_link_source_value,
+                // Sharing columns are tombstones from upstream Warp; nothing is shared.
+                permissions_last_updated_at: None,
+                object_guests: None,
+                anyone_with_link_access_level: None,
+                anyone_with_link_source: None,
             };
             diesel::insert_into(schema::object_permissions::dsl::object_permissions)
                 .values(new_object_permissions)
@@ -446,7 +430,6 @@ pub fn to_cloud_object_metadata(metadata: &ObjectMetadata) -> CloudObjectMetadat
             .as_deref()
             .and_then(ClientId::from_hash)
             .map(SyncId::from),
-        is_welcome_object: metadata.is_welcome_object,
         creator_uid: metadata.creator_uid.clone(),
         last_editor_uid: metadata.last_editor_uid.clone(),
     }
@@ -456,16 +439,7 @@ pub fn to_cloud_object_permissions(
     permissions: &ObjectPermissions,
 ) -> Option<CloudObjectPermissions> {
     let owner = owner_for_permissions(permissions)?;
-    let permissions_last_updated_ts = permissions
-        .permissions_last_updated_at
-        .and_then(|ts| ServerTimestamp::from_unix_timestamp_micros(ts).ok());
-
-    Some(CloudObjectPermissions {
-        owner,
-        permissions_last_updated_ts,
-        guests: Vec::new(),
-        anyone_with_link: None,
-    })
+    Some(CloudObjectPermissions { owner })
 }
 
 fn owner_for_permissions(permissions: &ObjectPermissions) -> Option<Owner> {
@@ -474,9 +448,6 @@ fn owner_for_permissions(permissions: &ObjectPermissions) -> Option<Owner> {
             let user_uid = UserUid::new(permissions.subject_id.as_deref()?);
             Some(Owner::User { user_uid })
         }
-        "TEAM" => Some(Owner::Team {
-            team_uid: cloud_objects::ids::ServerId::from_string_lossy(&permissions.subject_uid),
-        }),
         _ => None,
     }
 }

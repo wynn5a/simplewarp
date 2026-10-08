@@ -191,9 +191,7 @@ use crate::search::command_search::settings::CommandSearchSettings;
 use crate::search::command_search::view::{CommandSearchEvent, CommandSearchView};
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::search::{self, QueryFilter};
-use crate::server::cloud_objects::update_manager::{
-    OperationSuccessType, UpdateManager, UpdateManagerEvent,
-};
+use crate::server::cloud_objects::update_manager::{UpdateManager, UpdateManagerEvent};
 use crate::server::ids::{ObjectUid, SyncId};
 use crate::server::network_log_pane_manager::NetworkLogPaneManager;
 use crate::session_management::{SessionNavigationData, SessionSource, TabNavigationData};
@@ -12101,29 +12099,19 @@ impl Workspace {
                 // Early exit for objects that don't show toasts.
                 return;
             }
-            if let Some(message) = CloudObjectToastMessage::toast_message(
-                object,
-                &result.operation,
-                &result.success_type,
-            ) {
-                self.toast_stack
-                    .update(ctx, |view, ctx| match result.success_type {
-                        OperationSuccessType::Success => {
-                            let new_toast =
-                                DismissibleToast::success(message).with_object_id(object_id);
-                            view.add_ephemeral_toast(new_toast, ctx);
-                        }
-                    });
+            if let Some(message) = CloudObjectToastMessage::toast_message(object, &result.operation)
+            {
+                self.toast_stack.update(ctx, |view, ctx| {
+                    let new_toast = DismissibleToast::success(message).with_object_id(object_id);
+                    view.add_ephemeral_toast(new_toast, ctx);
+                });
             }
         }
 
         // For confirmation toast of permadeletion
         if let Some(n) = result.num_objects
-            && let Some(message) = CloudObjectToastMessage::toast_deletion_confirm_message(
-                n,
-                &result.operation,
-                &result.success_type,
-            )
+            && let Some(message) =
+                CloudObjectToastMessage::toast_deletion_confirm_message(n, &result.operation)
         {
             self.toast_stack.update(ctx, |view, ctx| {
                 let new_toast = DismissibleToast::success(message);

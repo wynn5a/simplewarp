@@ -8,8 +8,7 @@ use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 
 use crate::UserUid;
-use crate::drive::sharing::{SharingAccessLevel, Subject};
-use crate::ids::{ServerId, SyncId};
+use crate::ids::SyncId;
 use crate::time::ServerTimestamp;
 
 mod generic_cloud_object;
@@ -161,7 +160,6 @@ impl ToString for GenericStringObjectFormat {
 /// An object sub-type for objects that implement the JsonModel trait.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Hash)]
 pub enum JsonObjectType {
-    Preference,
     EnvVarCollection,
     WorkflowEnum,
     AIFact,
@@ -176,7 +174,6 @@ pub enum JsonObjectType {
 impl JsonObjectType {
     pub fn as_str(&self) -> &'static str {
         match self {
-            JsonObjectType::Preference => "PREFERENCE",
             JsonObjectType::EnvVarCollection => "ENVVARCOLLECTION",
             JsonObjectType::WorkflowEnum => "WORKFLOWENUM",
             JsonObjectType::AIFact => "AIFACT",
@@ -195,7 +192,6 @@ impl TryFrom<&str> for JsonObjectType {
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
         match value {
-            "PREFERENCE" => Ok(JsonObjectType::Preference),
             "ENVVARCOLLECTION" => Ok(JsonObjectType::EnvVarCollection),
             "WORKFLOWENUM" => Ok(JsonObjectType::WorkflowEnum),
             "AIFACT" => Ok(JsonObjectType::AIFact),
@@ -266,9 +262,6 @@ impl From<DateTime<Utc>> for Revision {
 pub enum Owner {
     /// The owner of the object is a user (the object is in their personal drive).
     User { user_uid: UserUid },
-    /// The owner of the object is a team. Kept so objects cached by upstream Warp still load; the
-    /// app treats them as the user's own.
-    Team { team_uid: ServerId },
 }
 
 impl Owner {
@@ -281,21 +274,11 @@ impl Owner {
     }
 }
 
-/// Server representation of an object's container. This corresponds to the `Container` GraphQL
-/// type: an object's canonical parent, its one parent folder or drive that permissions are
-/// inherited from.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ServerObjectContainer {
-    Folder { folder_uid: ServerId },
-    Drive { owner: Owner },
-}
-
+/// Who owns an object. Every object lives in the user's personal space, so this is only the
+/// owner recorded in sqlite.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CloudObjectPermissions {
     pub owner: Owner,
-    pub permissions_last_updated_ts: Option<ServerTimestamp>,
-    pub anyone_with_link: Option<CloudLinkSharing>,
-    pub guests: Vec<CloudObjectGuest>,
 }
 
 impl CloudObjectPermissions {
@@ -304,34 +287,8 @@ impl CloudObjectPermissions {
     pub fn mock_personal() -> Self {
         Self {
             owner: Owner::mock_current_user(),
-            permissions_last_updated_ts: Some(Utc::now().into()),
-            guests: Vec::new(),
-            anyone_with_link: None,
         }
     }
-
-    /// Returns `true` if the given user has direct personal access to this object —
-    /// either via an explicit user guest ACL entry or via link sharing.
-    /// Returns `false` if the only access is through a team guest ACL.
-    pub fn has_direct_user_access(&self, user_uid: UserUid) -> bool {
-        self.anyone_with_link.is_some() || self.guests.iter().any(|g| g.subject.is_user(user_uid))
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CloudLinkSharing {
-    pub access_level: SharingAccessLevel,
-    // If this sharing setting was inherited, the `source` identifies the container it's inherited
-    // from.
-    pub source: Option<ServerObjectContainer>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CloudObjectGuest {
-    pub subject: Subject,
-    pub access_level: SharingAccessLevel,
-    /// If this guest was added to a container object, the `source` identifies that object.
-    pub source: Option<ServerObjectContainer>,
 }
 
 #[derive(Clone, Debug)]
@@ -341,9 +298,6 @@ pub struct CloudObjectMetadata {
     pub current_editor_uid: Option<String>,
     pub trashed_ts: Option<ServerTimestamp>,
     pub folder_id: Option<SyncId>,
-    /// Welcome objects are created on the server when a user first receives
-    /// access to Warp Drive as part of onboarding.
-    pub is_welcome_object: bool,
     pub last_editor_uid: Option<String>,
     pub creator_uid: Option<String>,
 }
@@ -362,7 +316,6 @@ impl CloudObjectMetadata {
             metadata_last_updated_ts: Some(Utc::now().into()),
             trashed_ts: None,
             folder_id: None,
-            is_welcome_object: false,
             last_editor_uid: None,
             creator_uid: None,
         }

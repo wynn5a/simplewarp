@@ -1,5 +1,3 @@
-pub mod sharing;
-
 use crate::cloud_object::{GenericStringObjectFormat, ObjectIdType, ObjectType};
 use crate::ids::{HashedSqliteId, ObjectUid, SyncId};
 

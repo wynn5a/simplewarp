@@ -32,15 +32,11 @@ fn mock_cloud_ai_fact(id: i64, name: &str, content: &str, revision: Revision) ->
             metadata_last_updated_ts: None,
             current_editor_uid: None,
             trashed_ts: None,
-            is_welcome_object: false,
             creator_uid: None,
             last_editor_uid: None,
         },
         CloudObjectPermissions {
             owner: Owner::mock_current_user(),
-            guests: Vec::new(),
-            permissions_last_updated_ts: None,
-            anyone_with_link: None,
         },
     )
 }

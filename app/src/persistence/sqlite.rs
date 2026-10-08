@@ -485,7 +485,7 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
             connection,
             &conversation_id,
             &updated_tasks,
-            conversation_data,
+            *conversation_data,
         )
         .map_err(anyhow::Error::from),
         ModelEvent::BackfillConversationSummaries { backfills } => {
@@ -1893,7 +1893,6 @@ fn box_persisted_generic_string_object(
     object: PersistedGenericStringObject,
 ) -> Box<dyn CloudObject> {
     match object {
-        PersistedGenericStringObject::Preference(object) => Box::new(object),
         PersistedGenericStringObject::EnvVarCollection(object) => Box::new(object),
         PersistedGenericStringObject::WorkflowEnum(object) => Box::new(object),
         PersistedGenericStringObject::AIFact(object) => Box::new(object),

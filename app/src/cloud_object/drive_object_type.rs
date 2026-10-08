@@ -48,8 +48,7 @@ impl DriveObjectType {
                     JsonObjectType::EnvVarCollection => Some(Self::EnvVarCollection),
                     JsonObjectType::AIFact => Some(Self::AIFact),
                     JsonObjectType::MCPServer => Some(Self::MCPServer),
-                    JsonObjectType::Preference
-                    | JsonObjectType::WorkflowEnum
+                    JsonObjectType::WorkflowEnum
                     | JsonObjectType::AIExecutionProfile
                     | JsonObjectType::TemplatableMCPServer
                     | JsonObjectType::CloudEnvironment

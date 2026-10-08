@@ -106,17 +106,10 @@ impl<K, M> GenericCloudObject<K, M> {
                 metadata_last_updated_ts: Default::default(),
                 current_editor_uid: Default::default(),
                 trashed_ts: Default::default(),
-                // Objects created from the client are never welcome objects.
-                is_welcome_object: false,
                 creator_uid: None,
                 last_editor_uid: None,
             },
-            permissions: CloudObjectPermissions {
-                owner,
-                anyone_with_link: None,
-                guests: Default::default(),
-                permissions_last_updated_ts: None,
-            },
+            permissions: CloudObjectPermissions { owner },
             _marker: PhantomData,
         }
     }

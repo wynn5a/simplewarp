@@ -355,11 +355,21 @@ plan documents (notebooks), env var collections and folders. Removed:
   json-preference and shared-metadata-id restore tests (and their fixtures) were deleted, as was the
   workflow-pane palette test whose palette action no longer exists.
 
-Not done, same family: `Owner::Team`, `CloudObjectPermissions` / guests / link sharing /
-`ServerObjectContainer` (persisted as NULL), `CloudPreference` objects (nothing creates them),
-`is_welcome_object`, `OperationSuccessType` (one variant), and the `ServerId`-backed
-`NotebookId`/`WorkflowId`/`FolderId`/`GenericStringObjectId` marker types (also the plan-artifact
-`notebook_uid`, which only a server-provided artifact could fill).
+### 9.2 Sharing / team / welcome residue (2026-10-08, third pass)
 
-Still open from the local-only survey: Windows/Linux platform code (user decision: **keep**), the
-dead tool UIs (P5/P6), and the sharing/team ownership cluster above.
+Removed: `Owner::Team`, `CloudLinkSharing`, `CloudObjectGuest`, `ServerObjectContainer`,
+`drive/sharing.rs` (`SharingAccessLevel`, `Subject`), and the `guests` / `anyone_with_link` /
+`permissions_last_updated_ts` fields (`CloudObjectPermissions` is now just the owner; the sqlite
+columns stay NULL). `CloudPreference` / `Preference` / `Platform` and `JsonObjectType::Preference`
+are gone, as are `is_welcome_object` and `OperationSuccessType`. Rows owned by a team, or holding a
+`PREFERENCE` object, are no longer loaded. `ModelEvent::UpdateMultiAgentConversation` now boxes its
+`AgentConversationData`: shrinking the cloud metadata made it the odd one out for
+`clippy::large_enum_variant`.
+
+Not done, same family: the `ServerId`-backed `NotebookId` / `WorkflowId` / `FolderId` /
+`GenericStringObjectId` marker types (also the plan-artifact `notebook_uid`, which only a
+server-provided artifact could fill), and the other dead `JsonObjectType`s (`MCPServer`,
+`CloudEnvironment`, `ScheduledAmbientAgent`, `CloudAgentConfig`, `AIExecutionProfile`).
+
+Still open from the local-only survey: Windows/Linux platform code (user decision: **keep**) and
+the dead tool UIs (P5/P6).

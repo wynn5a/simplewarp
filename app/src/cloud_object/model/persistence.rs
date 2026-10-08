@@ -407,14 +407,6 @@ impl CloudModel {
             .map(|object| object.as_ref())
     }
 
-    /// Returns all active (not trashed) and non-welcome cloud objects.
-    pub fn active_non_welcome_cloud_objects(&self) -> impl Iterator<Item = &dyn CloudObject> {
-        self.objects_by_id
-            .values()
-            .filter(move |object| !object.is_trashed(self) && !object.is_welcome_object())
-            .map(|object| object.as_ref())
-    }
-
     #[cfg(test)]
     pub fn mock(_ctx: &mut ModelContext<Self>) -> Self {
         Self::new(None, Vec::new())

@@ -3095,7 +3095,7 @@ impl AIConversation {
         let event = ModelEvent::UpdateMultiAgentConversation {
             conversation_id: self.id.to_string(),
             updated_tasks,
-            conversation_data: AgentConversationData {
+            conversation_data: Box::new(AgentConversationData {
                 server_conversation_token: self
                     .server_conversation_token
                     .clone()
@@ -3120,7 +3120,7 @@ impl AIConversation {
                 autoexecute_override: Some(self.autoexecute_override.into()),
                 last_event_sequence: self.last_event_sequence,
                 pinned: self.pinned,
-            },
+            }),
         };
         ctx.spawn(
             async move {
