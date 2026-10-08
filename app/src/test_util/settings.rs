@@ -32,9 +32,9 @@ pub fn initialize_settings_for_tests_with_mode(
     use crate::settings::{
         AISettings, AccessibilitySettings, AliasExpansionSettings, AppEditorSettings,
         BlockVisibilitySettings, CodeSettings, DebugSettings, EmacsBindingsSettings, FontSettings,
-        GPUSettings, InputModeSettings, InputSettings, NativePreferenceSettings, PaneSettings,
-        SameLinePromptBlockSettings, ScrollSettings, SelectionSettings, SshSettings, ThemeSettings,
-        VimBannerSettings, init_and_register_user_preferences,
+        GPUSettings, InputModeSettings, InputSettings, PaneSettings, ScrollSettings,
+        SelectionSettings, SshSettings, ThemeSettings, VimBannerSettings,
+        init_and_register_user_preferences,
     };
     use crate::terminal::BlockListSettings;
     use crate::terminal::general_settings::GeneralSettings;
@@ -86,9 +86,7 @@ pub fn initialize_settings_for_tests_with_mode(
         LinuxAppConfiguration::register(app);
     }
 
-    NativePreferenceSettings::register(app);
     SafeModeSettings::register(app);
-    SameLinePromptBlockSettings::register(app);
     ScrollSettings::register(app);
     SelectionSettings::register(app);
     app.update(|ctx| {

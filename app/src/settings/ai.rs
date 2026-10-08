@@ -787,31 +787,6 @@ define_settings_group!(AISettings, settings: [
         description: "Maps custom toolbar command patterns to specific CLI agents.",
     }
 
-    // This is not a user-visible setting - it tracks whether a paid user has dismissed the
-    // agent management help page by clicking "View Agents".
-    //
-    // When false and user is on a paid plan, the help page is shown.
-    // When true, the help page is hidden (user dismissed it).
-    // Free users never see the help page by default regardless of this setting.
-    did_dismiss_cloud_setup_guide: DidDismissAgentManagementHelpPage {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    }
-
-    // Whether the ambient agent trial widget has been dismissed by the user.
-    //
-    // Not a user-visible setting - we model it as a setting so we can track state.
-    ambient_agent_trial_widget_dismissed: AmbientAgentTrialWidgetDismissed {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    }
-
     // The raw stored default mode for new sessions. Use `default_session_mode()` to retrieve the
     // effective value, which is gated on AI availability.
     default_session_mode_internal: DefaultSessionMode,
@@ -827,19 +802,6 @@ define_settings_group!(AISettings, settings: [
         private: false,
         toml_path: "general.default_tab_config_path",
     }
-
-    // Whether computer use is enabled for cloud agent conversations started from the Warp app.
-    // This setting is only used when the AI autonomy setting is AlwaysAsk or not set.
-    cloud_agent_computer_use_enabled: CloudAgentComputerUseEnabled {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.warp_agent.other.cloud_agent_computer_use_enabled",
-        description: "Whether computer use is enabled for cloud agent conversations.",
-    }
-
 
     // Whether file-based MCP servers from third-party AI tools (e.g. Claude, Codex) should
     // be automatically detected and spawned. Warp-native config files (.warp/.mcp.json) are
@@ -903,52 +865,6 @@ define_settings_group!(AISettings, settings: [
         private: false,
         toml_path: "agents.warp_agent.other.show_conversation_history",
         description: "Whether conversation history appears in the tools panel.",
-    }
-
-
-    // Controls whether agent notifications (mailbox button, toasts, notification items) are shown.
-    show_agent_notifications: ShowAgentNotifications {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.warp_agent.other.show_agent_notifications",
-        description: "Whether agent notifications are shown.",
-    }
-
-    // Per-agent, per-host tracking of whether the user dismissed the plugin install chip.
-    // Keys are "<agent_prefix>" for local sessions or "<agent_prefix>@<host>" for remote.
-    // Local-only so dismissal doesn't sync across devices.
-    plugin_install_chip_dismissed_map: PluginInstallChipDismissedMap {
-        type: HashMap<String, bool>,
-        default: HashMap::default(),
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    }
-
-    // Per-agent, per-host tracking of the MINIMUM_PLUGIN_VERSION for which the user
-    // dismissed the plugin update chip. Empty/absent means not dismissed.
-    // Keys are "<agent_prefix>" for local sessions or "<agent_prefix>@<host>" for remote.
-    // Local-only so dismissal doesn't sync across devices.
-    plugin_update_chip_dismissed_for_version_map: PluginUpdateChipDismissedForVersionMap {
-        type: HashMap<String, String>,
-        default: HashMap::default(),
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    }
-
-    // Whether Oz should add attribution (co-author line) to commit messages and PRs.
-    agent_attribution_enabled: AgentAttributionEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.warp_agent.other.agent_attribution_enabled",
-        description: "Whether the Warp Agent adds an attribution co-author line to commit messages and pull requests it creates.",
     }
 
 

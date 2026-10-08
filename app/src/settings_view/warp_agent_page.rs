@@ -50,9 +50,8 @@ use super::remove_custom_endpoint_confirmation_dialog::{
 use super::set_default_model_modal::{SetDefaultModelModalBody, SetDefaultModelModalBodyEvent};
 use super::settings_page::{
     CONTENT_FONT_SIZE, HEADER_PADDING, MatchData, PageType, SettingsPageMeta,
-    SettingsPageViewHandle, SettingsWidget, TOGGLE_BUTTON_RIGHT_PADDING, ToggleState,
-    build_sub_header, build_toggle_element, render_body_item_label, render_dropdown_item,
-    render_separator,
+    SettingsPageViewHandle, SettingsWidget, TOGGLE_BUTTON_RIGHT_PADDING, build_sub_header,
+    render_dropdown_item, render_separator,
 };
 use super::{
     SettingActionPairContexts, SettingActionPairDescriptions, SettingsAction, SettingsSection,
@@ -1304,7 +1303,6 @@ impl WarpAgentPageView {
         if FeatureFlag::CustomModelRouters.is_enabled() {
             widgets.push(Box::new(CustomModelRoutersWidget));
         }
-        widgets.push(Box::new(AgentAttributionWidget::default()));
         widgets.push(Box::new(OtherAIWidget::default()));
 
         // This page is multi-section: it renders its own subheader-sized
@@ -1425,7 +1423,6 @@ pub enum WarpAgentPageAction {
     ToggleFileBasedMcp,
     ToggleIncludeAgentCommandsInHistory,
     ToggleAutoApproveBypassesCommandDenylist,
-    ToggleAgentAttribution,
 
     // Custom model routers
     OpenAddCustomRouter,
@@ -1660,16 +1657,6 @@ impl TypedActionView for WarpAgentPageView {
             }
             WarpAgentPageAction::OpenEditCustomEndpointModal(index) => {
                 self.show_edit_custom_endpoint_modal(*index, ctx);
-            }
-            WarpAgentPageAction::ToggleAgentAttribution => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .agent_attribution_enabled
-                            .toggle_and_save_value(ctx)
-                    );
-                });
-                ctx.notify();
             }
         }
     }
@@ -2401,82 +2388,6 @@ impl SettingsWidget for OtherAIWidget {
         ));
 
         column.finish()
-    }
-}
-
-#[derive(Default)]
-struct AgentAttributionWidget {
-    toggle: SwitchStateHandle,
-}
-
-impl SettingsWidget for AgentAttributionWidget {
-    type View = WarpAgentPageView;
-
-    fn search_terms(&self) -> &str {
-        "agent attribution commit pull request co-author author credit oz warp"
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let ai_settings = AISettings::as_ref(app);
-        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
-
-        let is_enabled = *ai_settings.agent_attribution_enabled;
-
-        let ui_builder = appearance.ui_builder();
-        let toggle = if !is_any_ai_enabled {
-            ui_builder
-                .switch(self.toggle.clone())
-                .check(is_enabled)
-                .with_disabled(true)
-                .build()
-                .finish()
-        } else {
-            ui_builder
-                .switch(self.toggle.clone())
-                .check(is_enabled)
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(WarpAgentPageAction::ToggleAgentAttribution);
-                })
-                .finish()
-        };
-
-        let toggle_row = build_toggle_element(
-            render_body_item_label::<WarpAgentPageAction>(
-                "Enable agent attribution".to_string(),
-                Some(styles::header_font_color(is_any_ai_enabled, app)),
-                None,
-                ToggleState::Enabled,
-                appearance,
-            ),
-            toggle,
-            appearance,
-            None,
-        );
-
-        Flex::column()
-            .with_child(render_separator(appearance))
-            .with_child(
-                build_sub_header(
-                    appearance,
-                    "Agent Attribution",
-                    Some(styles::header_font_color(is_any_ai_enabled, app)),
-                )
-                .with_padding_bottom(HEADER_PADDING)
-                .finish(),
-            )
-            .with_child(toggle_row)
-            .with_child(render_ai_setting_description(
-                "Warp Agent can add attribution to commit messages and pull requests it creates",
-                is_any_ai_enabled,
-                app,
-            ))
-            .finish()
     }
 }
 

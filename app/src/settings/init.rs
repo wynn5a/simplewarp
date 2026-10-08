@@ -9,13 +9,11 @@ use warpui::{AppContext, SingletonEntity};
 use warpui_extras::user_preferences;
 
 use super::app_icon::AppIconSettings;
-use super::native_preference::NativePreferenceSettings;
 use super::{
     AISettings, AccessibilitySettings, AliasExpansionSettings, AppEditorSettings,
     BlockVisibilitySettings, CodeSettings, DebugSettings, EmacsBindingsSettings, FontSettings,
     FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings, InputSettings,
-    PaneSettings, SameLinePromptBlockSettings, ScrollSettings, SelectionSettings, SshSettings,
-    ThemeSettings, VimBannerSettings,
+    PaneSettings, ScrollSettings, SelectionSettings, SshSettings, ThemeSettings, VimBannerSettings,
 };
 use crate::appearance;
 use crate::banner::BannerState;
@@ -71,7 +69,6 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     InputModeSettings::register(ctx);
     ThemeSettings::register(ctx);
     AccessibilitySettings::register(ctx);
-    NativePreferenceSettings::register(ctx);
     AppIconSettings::register(ctx);
     AppEditorSettings::register(ctx);
     InputSettings::register(ctx);
@@ -82,7 +79,6 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     VimBannerSettings::register(ctx);
     WorkflowAliases::register(ctx);
     EmacsBindingsSettings::register(ctx);
-    SameLinePromptBlockSettings::register(ctx);
     SemanticSelection::register(ctx);
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     super::LinuxAppConfiguration::register(ctx);
