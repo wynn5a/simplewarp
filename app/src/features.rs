@@ -327,8 +327,8 @@ mod tests {
     }
 
     // SimpleWarp enables these compile-time flags: each is purely local
-    // functionality (mermaid editing, IME marked text, iTerm images, local
-    // computer use, the local Docker sandbox pane, the Tantivy palette search) with no cloud dependency.
+    // functionality (mermaid editing, IME marked text, iTerm images, the
+    // local Docker sandbox pane, the Tantivy palette search) with no cloud dependency.
     #[test]
     #[cfg(feature = "simplewarp")]
     fn simplewarp_enables_the_local_feature_set() {
@@ -338,11 +338,26 @@ mod tests {
             FeatureFlag::EditableMarkdownMermaid,
             FeatureFlag::ImeMarkedText,
             FeatureFlag::ITermImages,
-            FeatureFlag::LocalComputerUse,
             FeatureFlag::LocalDockerSandbox,
             FeatureFlag::UseTantivySearch,
         ] {
             assert!(enabled.contains(&flag), "{flag:?} should be enabled");
+        }
+    }
+
+    // The local agent never offers the model a computer-use tool, so SimpleWarp ships none of its
+    // surface (the permission rows, the request and result blocks).
+    #[test]
+    #[cfg(feature = "simplewarp")]
+    fn simplewarp_leaves_computer_use_off() {
+        use super::*;
+        let enabled = enabled_features();
+        for flag in [
+            FeatureFlag::AgentModeComputerUse,
+            FeatureFlag::LocalComputerUse,
+            FeatureFlag::BackgroundComputerUse,
+        ] {
+            assert!(!enabled.contains(&flag), "{flag:?} should be off");
         }
     }
 }

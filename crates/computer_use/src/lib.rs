@@ -1,20 +1,14 @@
-#[cfg_attr(macos, path = "mac/mod.rs")]
-#[cfg_attr(linux, path = "linux/mod.rs")]
-#[cfg_attr(windows, path = "windows/mod.rs")]
-#[cfg(not(noop))]
-mod imp;
+//! The data types for an agent's computer-use actions, and a backend that performs none of them.
+//!
+//! SimpleWarp's local agent never offers the model a computer-use tool, so there is nothing to
+//! drive the screen. The types stay because conversations saved earlier still hold these
+//! actions, and they have to decode and draw.
+
 mod noop;
-#[cfg(any(macos, linux, windows))]
-mod screenshot_utils;
 
 use std::borrow::Cow;
 
 use async_trait::async_trait;
-// Clippy doesn't like us pulling in a file as two different modules,
-// so we add this alias instead of using another cfg_attr on the imp
-// module definition.
-#[cfg(noop)]
-use noop as imp;
 pub use pathfinder_geometry::vector::Vector2I;
 use serde::{Deserialize, Serialize};
 use serde_with::{DurationSecondsWithFrac, serde_as};
@@ -29,114 +23,20 @@ pub enum Platform {
 }
 
 pub fn is_supported_on_current_platform() -> bool {
-    if cfg!(feature = "test-util") {
-        noop::is_supported_on_current_platform()
-    } else {
-        imp::is_supported_on_current_platform()
-    }
+    noop::is_supported_on_current_platform()
 }
 /// Returns an actor that can perform actions on the computer.
 pub fn create_actor() -> Box<dyn Actor> {
-    if cfg!(feature = "test-util") {
-        Box::new(noop::Actor::new())
-    } else {
-        Box::new(imp::Actor::new())
-    }
+    Box::new(noop::Actor::new())
 }
 
-/// Returns whether background, per-window control (driving a specific window without raising it
-/// or moving the cursor) is available on this client and OS. When false, callers should target
-/// the whole screen / frontmost application.
-///
-/// How faithfully "background" holds varies by platform:
-///
-/// - macOS: events are posted directly to the owning process (`CGEventPostToPid`), so a window
-///   can be driven even while fully covered, and nothing user-visible changes.
-/// - Linux X11: events come from a dedicated second input seat (an XInput2/MPX master pair), so
-///   the user's cursor, keyboard focus, and modifier state are untouched and applications see
-///   real (non-synthetic) input. The trade-offs, inherent to X11's position-routed event
-///   delivery, are:
-///   - Pointer actions land on the topmost window at the target point. If the target window is
-///     covered there, the actor first raises it *without* taking the user's focus; the action
-///     fails if the raise does not take effect. Keyboard input needs no raise: it follows the
-///     agent seat's own focus even while the window is covered.
-///   - A second visible cursor appears on screen while window-targeted actions run.
-///   - Under a click-to-focus window manager, the WM itself may react to an agent click by
-///     focusing/raising the target for the user too. WM-less servers (e.g. Xvfb in cloud
-///     environments) have no such side effect.
-/// - Linux Wayland and Windows: unsupported (this returns false); only whole-screen control is
-///   available.
+/// Returns whether background, per-window control is available. It never is.
 pub fn background_supported() -> bool {
-    if cfg!(feature = "test-util") {
-        noop::background_supported()
-    } else {
-        imp::background_supported()
-    }
+    noop::background_supported()
 }
 
-/// Ends the background computer-use session owned by `owner` (the client conversation id),
-/// releasing the session state that outlives individual action batches.
-///
-/// On macOS a background session activates the target window and installs focus-suppression
-/// taps; this tears down only the windows owned by `owner`, deactivates them, and re-activates the
-/// app that was frontmost before the session, so the user's keystrokes return to where they were.
-/// On Linux X11 a background session drives a session-scoped agent seat (a second input seat
-/// shared across the session's action batches so state like a held mouse button mid-drag
-/// survives between batches); this removes `owner`'s seat, its on-screen cursor, and any input
-/// state it still holds. Scoping by owner keeps concurrent background sessions (e.g. another
-/// conversation driving a different window) intact. Idempotent and a no-op when `owner` has no
-/// active session, and on platforms without background per-window control.
-///
-/// Call this whenever a computer-use session ends — normal completion, cancellation, or teardown.
-pub fn end_background_session(owner: &str) {
-    #[cfg(any(macos, linux))]
-    {
-        imp::end_background_session(owner);
-    }
-    #[cfg(not(any(macos, linux)))]
-    {
-        let _ = owner;
-    }
-}
-
-/// Enumerates the on-screen windows, returning their metadata so a caller can pick one to
-/// target. Returns an empty list on platforms where window enumeration is unsupported.
-pub fn enumerate_windows() -> Vec<WindowInfo> {
-    #[cfg(any(macos, linux))]
-    {
-        imp::enumerate_windows()
-    }
-    #[cfg(not(any(macos, linux)))]
-    {
-        Vec::new()
-    }
-}
-
-/// Experimental: lists on-screen windows as a formatted diagnostic string. macOS and Linux
-/// (X11) only.
-///
-/// Unlike [`enumerate_windows`], which returns slim [`WindowInfo`] records for window selection
-/// and wire serialization, this function returns richer data including window bounds, formatted
-/// as a human-readable table for CLI debugging. The two use separate types intentionally:
-/// [`WindowInfo`] is kept wire-safe and bounds-free; the diagnostic output carries bounds that
-/// are not part of the API representation.
-#[cfg(macos)]
-pub fn experimental_list_windows() -> Result<String, String> {
-    Ok(imp::list_windows())
-}
-
-/// Experimental: lists on-screen windows as a formatted diagnostic string. macOS and Linux
-/// (X11) only.
-#[cfg(linux)]
-pub fn experimental_list_windows() -> Result<String, String> {
-    imp::list_windows()
-}
-
-/// Experimental: lists on-screen windows. Unsupported on this platform.
-#[cfg(not(any(macos, linux)))]
-pub fn experimental_list_windows() -> Result<String, String> {
-    Err("Window listing is only supported on macOS and Linux (X11).".to_string())
-}
+/// Ends the background computer-use session owned by `owner`. There is no session to end.
+pub fn end_background_session(_owner: &str) {}
 
 /// The surface that a computer-use action or screenshot targets.
 ///
