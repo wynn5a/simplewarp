@@ -3778,13 +3778,13 @@ impl TerminalView {
                     .contains(&ContextChipKind::GithubPullRequest))
     }
 
-    fn needs_pr_info_for_agent_context(&self, ctx: &AppContext) -> bool {
-        self.current_repo_path.is_some() && self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
-    }
-
     /// Whether this terminal needs PR info from the git status model.
+    ///
+    /// Only a visible PR chip asks for it. The agent's context used to ask as well, which ran
+    /// `gh pr view` against GitHub every minute for anyone in a git repo with AI input on, with
+    /// no chip on screen. The agent still gets the PR when the chip is subscribed.
     fn needs_pr_info(&self, ctx: &AppContext) -> bool {
-        self.needs_pr_info_for_chip_ui(ctx) || self.needs_pr_info_for_agent_context(ctx)
+        self.needs_pr_info_for_chip_ui(ctx)
     }
 
     fn should_retry_default_pr_chip_validation(ctx: &AppContext) -> bool {
@@ -3896,7 +3896,7 @@ impl TerminalView {
                         });
                 });
                 // Acquire a GitHub-info handle if the terminal's prompt/footer
-                // chips or agent context need PR or repository info. The AI
+                // chips need PR or repository info. The AI
                 // context model reads PR / repository info from that GitHub-info
                 // handle, so it is wired up by `sync_pr_info_subscription` rather
                 // than here.
