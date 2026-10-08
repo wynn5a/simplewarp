@@ -10,7 +10,6 @@
 //! outcome variant, and wire up dispatch.
 
 use pathfinder_geometry::vector::vec2f;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::{
     Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ClippedScrollable,
@@ -32,7 +31,6 @@ use crate::code_review::diff_state::{
     CommitChainMode, DiffStateModel, DiffStateModelEvent, GitOpResult,
 };
 use crate::code_review::telemetry_event::GitOperationKind;
-use crate::settings::AISettings;
 use crate::ui_components::dialog::{Dialog, dialog_styles};
 use crate::ui_components::icons::Icon;
 use crate::util::git::{Commit, FileChangeEntry};
@@ -101,20 +99,6 @@ fn show_toast(msg: impl Into<String>, ctx: &mut ViewContext<GitDialog>) {
         let toast = DismissibleToast::default(msg);
         toast_stack.add_ephemeral_toast(toast, window_id, ctx);
     });
-}
-
-/// Whether the git-operations AI autogen flow should send an AI request.
-///
-/// Folds the parent feature flag, the user's dedicated per-feature AI toggle
-/// (which itself requires active AI / auth / remote-session org policy to
-/// allow AI), and the current team's Git Operations AI tier policy.
-///
-/// When this returns `false`, call sites skip AI entirely: commit.rs opens
-/// with the manual-type placeholder and pr.rs goes straight to
-/// `gh pr create --fill`.
-fn should_send_git_ops_ai_request(app: &AppContext) -> bool {
-    FeatureFlag::GitOperationsInCodeReview.is_enabled()
-        && AISettings::as_ref(app).is_git_operations_autogen_enabled(app)
 }
 
 /// Maps a raw git error string to a user-friendly toast message. Known
@@ -503,9 +487,6 @@ impl GitDialog {
             cancel_button,
             close_button,
         };
-        // Open-time AI commit-message autogen; the result returns via the diff-state
-        // subscription wired up just above.
-        commit::maybe_start_commit_message_autogen(&this, ctx);
         this.refresh_confirm_enabled(ctx);
         this
     }
@@ -615,13 +596,6 @@ impl GitDialog {
         event: &DiffStateModelEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        // Commit-message autogen arrives at dialog open (before any op is
-        // initiated), so it's handled outside the `loading` gate the
-        // op-completion events use below.
-        if let DiffStateModelEvent::CommitMessageGenerated(result) = event {
-            commit::apply_generated_commit_message(self, result.clone(), ctx);
-            return;
-        }
         // The create-PR dialog fetches its committed file list on open
         // (committed-only, so it matches what the PR will contain); the result
         // arrives here and populates the Changes box.

@@ -61,18 +61,3 @@ pub async fn run_push(
 pub async fn create_pr(repo_path: &Path, path_env: Option<&str>) -> anyhow::Result<PrInfo> {
     git::create_pr(repo_path, None, None, path_env).await
 }
-
-/// Validates that the working tree has changes to summarize. AI commit-message
-/// generation is gone (the server wall fell with the cloud-run round), so this
-/// always reports unavailability and the dialog keeps its manual placeholder.
-pub async fn generate_commit_message(
-    repo_path: &Path,
-    include_unstaged: bool,
-) -> anyhow::Result<String> {
-    let diff = git::get_diff_for_commit_message(repo_path, include_unstaged).await?;
-    // Skip the round trip when there's nothing to summarize.
-    if diff.trim().is_empty() {
-        anyhow::bail!("no changes to generate a commit message from");
-    }
-    anyhow::bail!("AI commit message generation is unavailable in this build")
-}

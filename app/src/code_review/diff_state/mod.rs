@@ -330,10 +330,6 @@ pub enum DiffStateModelEvent {
     /// A git operation completed. The model has already applied any
     /// successful metadata delta to the cached metadata.
     GitOpCompleted(GitOpResult),
-    /// A commit-message generation request (issued at commit-dialog open) completed. `Ok`
-    /// carries the message, `Err` the error string. The `GitDialog` populates its message editor
-    /// from this.
-    CommitMessageGenerated(Result<String, String>),
     /// Committed branch files (`merge_base(HEAD, main)..HEAD`) arrived for the
     /// Create PR dialog's Changes box. Fetched on dialog open; the local model computes them
     /// off-thread and emits this.

@@ -16236,9 +16236,6 @@ impl Workspace {
             context.set.insert(flags::CODE_SUGGESTIONS_FLAG);
         }
 
-        if *ai_settings.git_operations_autogen_enabled_internal.value() {
-            context.set.insert(flags::GIT_OPERATIONS_AUTOGEN_FLAG);
-        }
         if *ai_settings.include_agent_commands_in_history.value() {
             context
                 .set

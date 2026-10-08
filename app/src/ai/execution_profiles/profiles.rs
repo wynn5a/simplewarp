@@ -646,25 +646,6 @@ impl AIExecutionProfilesModel {
         if current_value != Some(permission) {}
     }
 
-    pub fn set_web_search_enabled(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        enabled: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.web_search_enabled != enabled {
-                    profile.web_search_enabled = enabled;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-    }
-
     pub fn set_profile_name(
         &mut self,
         profile_id: &ExecutionProfileId,

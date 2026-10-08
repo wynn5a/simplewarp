@@ -1224,26 +1224,6 @@ impl DiffStateModel {
         );
     }
 
-    /// Reports commit-message unavailability for the working tree and emits
-    /// `CommitMessageGenerated`. AI generation is gone, so the dialog keeps
-    /// its manual placeholder.
-    pub fn generate_commit_message(&self, include_unstaged: bool, ctx: &mut ModelContext<Self>) {
-        let Some(repo_path) = self.active_repository_path(ctx) else {
-            ctx.emit(DiffStateModelEvent::CommitMessageGenerated(Err(
-                "no active repository".to_string(),
-            )));
-            return;
-        };
-        ctx.spawn(
-            async move { git_actions::generate_commit_message(&repo_path, include_unstaged).await },
-            |_me, result, ctx| {
-                ctx.emit(DiffStateModelEvent::CommitMessageGenerated(
-                    result.map_err(|e| e.to_string()),
-                ));
-            },
-        );
-    }
-
     /// Future resolving to the user's interactive-shell `PATH` (or `None`),
     /// forwarded to git/gh so hooks and tooling resolve like an interactive
     /// shell.

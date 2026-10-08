@@ -18,7 +18,7 @@ use crate::code_review::diff_state::CommitChainMode;
 use crate::code_review::git_dialog::pr::show_pr_created_toast;
 use crate::code_review::git_dialog::{
     GitDialog, GitDialogAction, GitDialogEvent, GitDialogMode, render_branch_section,
-    render_file_changes_box, should_send_git_ops_ai_request, show_toast, user_facing_git_error,
+    render_file_changes_box, show_toast, user_facing_git_error,
 };
 use crate::code_review::telemetry_event::{GitDialogStatus, GitOperationKind};
 use crate::editor::{
@@ -39,12 +39,6 @@ pub enum CommitSubAction {
 
 const EDITOR_FONT_SIZE: f32 = 12.;
 const EDITOR_MIN_HEIGHT: f32 = 72.;
-/// Placeholder shown while the open-time AI commit-message autogen is in
-/// flight.
-const GENERATING_PLACEHOLDER_TEXT: &str = "Generating commit message\u{2026}";
-/// Placeholder shown once the open-time autogen resolves — either as a
-/// nudge if the user later clears the generated draft, or as guidance when
-/// autogen failed and the editor is blank. Also used when autogen is off.
 const FALLBACK_PLACEHOLDER_TEXT: &str = "Type a commit message";
 /// Loading-state label while the commit / chain runs. Static regardless of
 /// which chain is in flight — the success toast communicates what actually
@@ -86,15 +80,6 @@ pub(super) fn new_state(
     } else {
         ("Commit and publish", Icon::UploadCloud)
     };
-    // If AI autogen is on, the dialog opens with "Generating\u{2026}" and a
-    // background request fills the editor when it resolves. Otherwise, we
-    // land on the manual-type prompt immediately.
-    let ai_autogen_enabled = should_send_git_ops_ai_request(ctx);
-    let initial_placeholder = if ai_autogen_enabled {
-        GENERATING_PLACEHOLDER_TEXT
-    } else {
-        FALLBACK_PLACEHOLDER_TEXT
-    };
     let message_editor = ctx.add_typed_action_view(|ctx| {
         let appearance = Appearance::as_ref(ctx);
         let options = EditorOptions {
@@ -112,7 +97,7 @@ pub(super) fn new_state(
         };
 
         let mut editor = EditorView::new(options, ctx);
-        editor.set_placeholder_text(initial_placeholder, ctx);
+        editor.set_placeholder_text(FALLBACK_PLACEHOLDER_TEXT, ctx);
         editor
     });
 
@@ -202,9 +187,6 @@ pub(super) fn on_focus(state: &CommitState, ctx: &mut ViewContext<GitDialog>) {
 
 pub(super) fn is_ready_to_confirm(state: &CommitState, app: &AppContext) -> bool {
     // Confirm requires committable changes and a non-empty commit message.
-    // While open-time autogen is in flight the editor is still empty, so this
-    // keeps the button disabled until the draft lands (or the user types
-    // something).
     has_committable_changes(state) && commit_message(state, app).is_some()
 }
 
@@ -226,65 +208,6 @@ pub(super) fn confirm_tooltip(state: &CommitState, app: &AppContext) -> Option<&
         return Some("Enter a commit message");
     }
     None
-}
-
-/// Populates the commit message editor from an AI-generated message, whose
-/// open-time autogen arrives via the `CommitMessageGenerated` model event: on
-/// success, fill the editor unless the user already typed; on failure, swap
-/// to the manual-type placeholder (no toast — the empty editor tells the
-/// story and the failure isn't retryable).
-pub(super) fn apply_generated_commit_message(
-    me: &mut GitDialog,
-    result: Result<String, String>,
-    ctx: &mut ViewContext<GitDialog>,
-) {
-    let editor_handle = match me.mode() {
-        GitDialogMode::Commit(state) => state.message_editor.clone(),
-        _ => return,
-    };
-    match result {
-        Ok(generated) => {
-            let user_typed = !editor_handle.as_ref(ctx).buffer_text(ctx).trim().is_empty();
-            editor_handle.update(ctx, |editor, ctx| {
-                // Swap "Generating\u{2026}" for the manual-type prompt so it
-                // shows if the user later clears the generated draft.
-                editor.set_placeholder_text(FALLBACK_PLACEHOLDER_TEXT, ctx);
-                // User input wins — don't clobber their text.
-                if !user_typed {
-                    editor.system_reset_buffer_text(generated.trim(), ctx);
-                }
-            });
-            me.refresh_confirm_enabled(ctx);
-            ctx.notify();
-        }
-        Err(err) => {
-            log::warn!("Failed to autogenerate commit message: {err}");
-            editor_handle.update(ctx, |editor, ctx| {
-                editor.set_placeholder_text(FALLBACK_PLACEHOLDER_TEXT, ctx);
-            });
-            me.refresh_confirm_enabled(ctx);
-            ctx.notify();
-        }
-    }
-}
-
-/// Kicks off AI commit-message autogen request.
-/// The model runs the generation in-process and
-/// the result returns via `DiffStateModelEvent::CommitMessageGenerated`, applied by `apply_generated_commit_message`.
-pub(super) fn maybe_start_commit_message_autogen(me: &GitDialog, ctx: &mut ViewContext<GitDialog>) {
-    if !should_send_git_ops_ai_request(ctx) {
-        return;
-    }
-    // Generate from the same scope that will be committed (the "include
-    // unstaged" toggle), so the message describes what `run_commit` stages
-    // rather than always assuming the full working set.
-    let include_unstaged = match me.mode() {
-        GitDialogMode::Commit(state) => state.include_unstaged,
-        _ => return,
-    };
-    me.diff_state_model().update(ctx, |m, ctx| {
-        m.generate_commit_message(include_unstaged, ctx);
-    });
 }
 
 pub(super) fn handle_sub_action(

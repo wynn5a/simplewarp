@@ -9,7 +9,6 @@ use warpui::elements::{
     MouseStateHandle, ParentElement, ScrollbarWidth,
 };
 use warpui::ui_components::slider::SliderStateHandle;
-use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{
     AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
@@ -132,9 +131,6 @@ pub enum ExecutionProfileEditorViewAction {
         id: uuid::Uuid,
     },
     DeleteProfile,
-    SetWebSearchEnabled {
-        enabled: bool,
-    },
 }
 
 pub struct ExecutionProfileEditorView {
@@ -170,7 +166,6 @@ pub struct ExecutionProfileEditorView {
     mcp_denylist_mouse_state_handles: Vec<MouseStateHandle>,
     profile_name_editor: ViewHandle<EditorView>,
     delete_button: ViewHandle<ActionButton>,
-    web_search_switch: SwitchStateHandle,
 }
 
 impl ExecutionProfileEditorView {
@@ -543,7 +538,6 @@ impl ExecutionProfileEditorView {
             mcp_denylist_mouse_state_handles,
             profile_name_editor,
             delete_button,
-            web_search_switch: Default::default(),
         };
 
         ctx.subscribe_to_view(&view.profile_name_editor, |view, _, event, ctx| {
@@ -1514,12 +1508,6 @@ impl TypedActionView for ExecutionProfileEditorView {
                     profiles_model.delete_profile(&self.profile_id, ctx);
                 });
                 ctx.emit(ExecutionProfileEditorViewEvent::Pane(PaneEvent::Close));
-            }
-            ExecutionProfileEditorViewAction::SetWebSearchEnabled { enabled } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_web_search_enabled(&self.profile_id, *enabled, ctx);
-                });
-                ctx.notify();
             }
         }
     }

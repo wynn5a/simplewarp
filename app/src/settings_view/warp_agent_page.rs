@@ -87,8 +87,6 @@ const AI_SETTINGS_DROPDOWN_MAX_HEIGHT: f32 = 250.;
 const NEXT_COMMAND_DESCRIPTION: &str = "Let AI suggest the next command to run based on your command history, outputs, and common workflows.";
 const PROMPT_SUGGESTIONS_DESCRIPTION: &str = "Let AI suggest natural language prompts, as inline banners in the input, based on recent commands and their outputs.";
 const SUGGESTED_CODE_BANNERS_DESCRIPTION: &str = "Let AI suggest code diffs and queries as inline banners in the blocklist, based on recent commands and their outputs.";
-const GIT_OPERATIONS_AUTOGEN_DESCRIPTION: &str =
-    "Let AI generate commit messages and pull request titles and descriptions.";
 const CUSTOM_INFERENCE_INFO_TOOLTIP_MAX_WIDTH: f32 = 320.;
 const CUSTOM_ENDPOINT_MODAL_MAX_HEIGHT_PERCENTAGE: f32 = 0.8;
 
@@ -315,25 +313,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             .collect();
         app.register_fixed_bindings(lrc_mode_bindings);
     }
-    ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
-        vec![
-            ToggleSettingActionPair::new(
-                "commit and pull request generation",
-                builder(SettingsAction::WarpAgent(
-                    WarpAgentPageAction::ToggleGitOperationsAutogen,
-                )),
-                &(context.clone() & id!(flags::IS_ACTIVE_AI_ENABLED)),
-                flags::GIT_OPERATIONS_AUTOGEN_FLAG,
-            )
-            .with_enabled(|| FeatureFlag::GitOperationsInCodeReview.is_enabled())
-            .is_supported_on_current_platform(
-                AISettings::as_ref(app)
-                    .git_operations_autogen_enabled_internal
-                    .is_supported_on_current_platform(),
-            ),
-        ],
-        app,
-    );
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![
             ToggleSettingActionPair::custom(
@@ -1291,10 +1270,6 @@ impl WarpAgentPageView {
             || ai_settings
                 .prompt_suggestions_enabled_internal
                 .is_supported_on_current_platform()
-            || (FeatureFlag::GitOperationsInCodeReview.is_enabled()
-                && ai_settings
-                    .git_operations_autogen_enabled_internal
-                    .is_supported_on_current_platform())
         {
             widgets.push(Box::new(ActiveAIWidget::new(ctx)));
         }
@@ -1409,7 +1384,6 @@ pub enum WarpAgentPageAction {
     ToggleIntelligentAutosuggestions,
     TogglePromptSuggestions,
     ToggleCodeSuggestions,
-    ToggleGitOperationsAutogen,
     ToggleAIInputAutoDetection,
     ToggleNLDInTerminal,
     ToggleUseAgentToolbar,
@@ -1500,19 +1474,6 @@ impl TypedActionView for WarpAgentPageView {
                     Ok(_new_value) => {}
                     Err(e) => {
                         log::warn!("Failed to set value for Code Suggestions setting: {e:?}");
-                    }
-                }
-                ctx.notify();
-            }
-            WarpAgentPageAction::ToggleGitOperationsAutogen => {
-                match AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    settings
-                        .git_operations_autogen_enabled_internal
-                        .toggle_and_save_value(ctx)
-                }) {
-                    Ok(_new_value) => {}
-                    Err(e) => {
-                        log::warn!("Failed to set value for Git Operations Autogen setting: {e:?}");
                     }
                 }
                 ctx.notify();
@@ -1751,7 +1712,6 @@ struct ActiveAIWidget {
     intelligent_autosuggestions_toggle: SwitchStateHandle,
     prompt_suggestions_toggle: SwitchStateHandle,
     code_suggestions_toggle: SwitchStateHandle,
-    git_operations_autogen_toggle: SwitchStateHandle,
 }
 
 impl ActiveAIWidget {
@@ -1761,7 +1721,6 @@ impl ActiveAIWidget {
             intelligent_autosuggestions_toggle: Default::default(),
             prompt_suggestions_toggle: Default::default(),
             code_suggestions_toggle: Default::default(),
-            git_operations_autogen_toggle: Default::default(),
         }
     }
     fn is_next_command_toggleable(&self, app: &AppContext) -> bool {
@@ -1780,13 +1739,6 @@ impl ActiveAIWidget {
     /// `AISettings::is_code_suggestions_enabled`.
     fn is_suggested_code_banners_toggleable(&self, _app: &AppContext) -> bool {
         false
-    }
-
-    fn is_git_operations_autogen_toggleable(&self, app: &AppContext) -> bool {
-        FeatureFlag::GitOperationsInCodeReview.is_enabled()
-            && AISettings::as_ref(app)
-                .git_operations_autogen_enabled_internal
-                .is_supported_on_current_platform()
     }
 
     fn render_next_command_section(
@@ -1861,44 +1813,19 @@ impl ActiveAIWidget {
             ))
             .finish()
     }
-
-    fn render_git_operations_autogen_section(
-        &self,
-        _view: &WarpAgentPageView,
-        app: &warpui::AppContext,
-    ) -> Box<dyn warpui::Element> {
-        let ai_settings = AISettings::as_ref(app);
-        let is_toggleable = ai_settings.is_active_ai_enabled(app);
-        Flex::column()
-            .with_child(render_ai_setting_toggle(
-                "Commit & Pull Request Generation",
-                WarpAgentPageAction::ToggleGitOperationsAutogen,
-                *ai_settings.git_operations_autogen_enabled_internal,
-                is_toggleable,
-                self.git_operations_autogen_toggle.clone(),
-                app,
-            ))
-            .with_child(render_ai_setting_description(
-                GIT_OPERATIONS_AUTOGEN_DESCRIPTION,
-                is_toggleable,
-                app,
-            ))
-            .finish()
-    }
 }
 
 impl SettingsWidget for ActiveAIWidget {
     type View = WarpAgentPageView;
 
     fn search_terms(&self) -> &str {
-        "active ai a.i. next command prompt suggestions commit pull request pr git code review autogen generate"
+        "active ai a.i. next command prompt suggestions"
     }
 
     fn should_render(&self, app: &AppContext) -> bool {
         self.is_next_command_toggleable(app)
             || self.is_prompt_suggestions_toggleable(app)
             || self.is_suggested_code_banners_toggleable(app)
-            || self.is_git_operations_autogen_toggleable(app)
     }
 
     fn render(
@@ -1951,10 +1878,6 @@ impl SettingsWidget for ActiveAIWidget {
 
         if self.is_suggested_code_banners_toggleable(app) {
             column.add_child(self.render_suggested_code_banners_section(view, app));
-        }
-
-        if self.is_git_operations_autogen_toggleable(app) {
-            column.add_child(self.render_git_operations_autogen_section(view, app));
         }
 
         column.finish()

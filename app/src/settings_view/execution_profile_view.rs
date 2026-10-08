@@ -357,18 +357,6 @@ impl View for ExecutionProfileView {
                             }
                         }
 
-                        if FeatureFlag::WebSearchUI.is_enabled() {
-                            permissions_column.add_child(with_standard_vertical_margin(
-                                render_bool_permission_line_with_icon(
-                                    Icon::Globe,
-                                    "Call web tools:",
-                                    profile.web_search_enabled,
-                                    appearance,
-                                    is_any_ai_enabled,
-                                ),
-                            ));
-                        }
-
                         permissions_column.finish()
                     })
                     .with_margin_top(16.)
@@ -739,17 +727,6 @@ fn render_ask_user_question_permission_line_with_icon(
         }
         AskUserQuestionPermission::AlwaysAsk => "Always ask",
     };
-    render_permission_line_with_icon(icon, label, permission_text, appearance, is_ai_enabled)
-}
-
-fn render_bool_permission_line_with_icon(
-    icon: Icon,
-    label: impl Into<String>,
-    enabled: bool,
-    appearance: &Appearance,
-    is_ai_enabled: bool,
-) -> Box<dyn Element> {
-    let permission_text = if enabled { "On" } else { "Off" };
     render_permission_line_with_icon(icon, label, permission_text, appearance, is_ai_enabled)
 }
 

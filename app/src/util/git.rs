@@ -447,14 +447,6 @@ pub fn git_operation_in_progress(repo_path: &Path) -> bool {
 /// message / PR title / PR description generation.
 const MAX_DIFF_CHARS_FOR_AI: usize = 16_000;
 
-/// Per-file cap for untracked-file content we synthesise into the diff sent
-/// to AI. Keeps any one new file from dominating the budget.
-const MAX_UNTRACKED_FILE_BYTES: usize = 4_000;
-
-/// Number of leading bytes examined when classifying an untracked file as
-/// binary, mirroring the heuristic in `count_lines_if_text_file`.
-const BINARY_CHECK_BYTES: usize = 1_024;
-
 /// Maximum number of bytes in a PR title passed to `gh pr create`. GitHub's
 /// hard limit is 256; we cap short of that to leave headroom for an
 /// ellipsis marker. Measured in bytes because it's fed to
@@ -474,100 +466,6 @@ fn truncate_on_char_boundary(s: &str, byte_cap: usize) -> &str {
         cut -= 1;
     }
     &s[..cut]
-}
-
-/// Returns the diff for commit message generation, truncated to avoid token
-/// limits. When `include_unstaged` is true, diffs against HEAD (all
-/// uncommitted changes) and also appends untracked files as synthetic diff
-/// hunks so the LLM has full context even when the commit consists entirely
-/// of new files. When `include_unstaged` is false, diffs only staged changes.
-pub async fn get_diff_for_commit_message(
-    repo_path: &Path,
-    include_unstaged: bool,
-) -> Result<String> {
-    let mut diff = if !include_unstaged {
-        run_git_command(repo_path, &["diff", "--cached"]).await?
-    } else if run_git_command(repo_path, &["rev-parse", "--verify", "HEAD"])
-        .await
-        .is_ok()
-    {
-        run_git_command(repo_path, &["diff", "HEAD"]).await?
-    } else {
-        // No HEAD before the first commit. Include staged changes plus
-        // unstaged edits to staged files; untracked files are added below.
-        let mut diff = run_git_command(repo_path, &["diff", "--cached"]).await?;
-        diff.push_str(&run_git_command(repo_path, &["diff"]).await?);
-        diff
-    };
-
-    // `git diff HEAD` only shows changes to already-tracked files. New files that
-    // haven't been staged yet are invisible to it, so we synthesise diff hunks for
-    // them here — mirroring the logic in `get_file_change_entries`.
-    if include_unstaged
-        && let Ok(untracked) = run_git_command(
-            repo_path,
-            &["ls-files", "--others", "--exclude-standard", "-z"],
-        )
-        .await
-    {
-        // `-z` separates paths with NUL bytes and disables C-style
-        // quoting, so paths containing spaces or non-ASCII characters
-        // round-trip intact.
-        // Cap the read to cover both the binary-check window and the
-        // synthesised-hunk budget.
-        let read_cap = BINARY_CHECK_BYTES.max(MAX_UNTRACKED_FILE_BYTES);
-        for file_name_bytes in untracked.as_bytes().split(|b| *b == 0) {
-            if file_name_bytes.is_empty() {
-                continue;
-            }
-            let Ok(file_name) = std::str::from_utf8(file_name_bytes) else {
-                continue;
-            };
-            let file_path = repo_path.join(file_name);
-            // Async + bounded so a large untracked file doesn't block
-            // the executor or balloon memory.
-            let Ok(file) = tokio::fs::File::open(&file_path).await else {
-                continue;
-            };
-            let mut bytes = Vec::with_capacity(read_cap);
-            use tokio::io::AsyncReadExt as _;
-            if file
-                .take(read_cap as u64)
-                .read_to_end(&mut bytes)
-                .await
-                .is_err()
-            {
-                continue;
-            }
-            let check_len = bytes.len().min(BINARY_CHECK_BYTES);
-            if warp_util::file_type::is_buffer_binary(&bytes[..check_len]) {
-                continue;
-            }
-            let Ok(content) = std::str::from_utf8(&bytes) else {
-                continue;
-            };
-            let content = truncate_on_char_boundary(content, MAX_UNTRACKED_FILE_BYTES);
-            let line_count = content.lines().count();
-            diff.push_str(&format!(
-                "diff --git a/{file_name} b/{file_name}\nnew file mode 100644\n\
-                     --- /dev/null\n+++ b/{file_name}\n@@ -0,0 +1,{line_count} @@\n"
-            ));
-            for line in content.lines() {
-                diff.push('+');
-                diff.push_str(line);
-                diff.push('\n');
-            }
-        }
-    }
-
-    if diff.len() <= MAX_DIFF_CHARS_FOR_AI {
-        Ok(diff)
-    } else {
-        Ok(format!(
-            "{}\n... (diff truncated)",
-            truncate_on_char_boundary(&diff, MAX_DIFF_CHARS_FOR_AI)
-        ))
-    }
 }
 
 /// Commits changes. If `include_unstaged` is true, stages all changes first via `git add -A`.
