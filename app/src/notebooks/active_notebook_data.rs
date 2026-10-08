@@ -85,9 +85,9 @@ impl ActiveNotebookData {
             (ObjectOperation::Trash, OperationSuccessType::Success)
             | (ObjectOperation::Untrash, OperationSuccessType::Success) => {
                 let current_id = self.id();
-                let server_id = result.server_id.expect("Expect server id on success");
                 if let Some(id) = current_id
-                    && id.into_server() == Some(server_id)
+                    && ((id.into_server().is_some() && id.into_server() == result.server_id)
+                        || (id.into_client().is_some() && id.into_client() == result.client_id))
                 {
                     ctx.emit(ActiveNotebookDataEvent::TrashStatusChanged);
                 }

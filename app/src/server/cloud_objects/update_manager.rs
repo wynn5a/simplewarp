@@ -532,11 +532,7 @@ impl UpdateManager {
     }
 
     pub fn trash_object(&mut self, id: CloudObjectTypeAndId, ctx: &mut ModelContext<Self>) {
-        // If the object isn't known to the server yet, we can't trash it.
-        let Some(server_id) = id.server_id() else {
-            return;
-        };
-
+        let sync_id = id.sync_id();
         let hashed_id = id.uid();
         // If there's a pending online-only operation for this object, don't trash it.
         let Some(has_pending_online_only_operation) =
@@ -564,7 +560,7 @@ impl UpdateManager {
                     .has_pending_metadata_change = false;
             }
 
-            let hashed_sqlite_id = server_id.sqlite_type_and_uid_hash(id.object_id_type());
+            let hashed_sqlite_id = sync_id.sqlite_uid_hash(id.object_id_type());
             self.save_in_memory_object_metadata_to_sqlite(
                 cloud_model,
                 &hashed_id,
@@ -576,8 +572,8 @@ impl UpdateManager {
             result: ObjectOperationResult {
                 success_type: OperationSuccessType::Success,
                 operation: ObjectOperation::Trash,
-                client_id: None,
-                server_id: Some(ServerId::from_string_lossy(&hashed_id)),
+                client_id: sync_id.into_client(),
+                server_id: sync_id.into_server(),
                 num_objects: None,
             },
         });
@@ -585,11 +581,7 @@ impl UpdateManager {
     }
 
     pub fn untrash_object(&mut self, id: CloudObjectTypeAndId, ctx: &mut ModelContext<Self>) {
-        // If the object isn't known to the server yet, we can't untrash it.
-        let Some(server_id) = id.server_id() else {
-            return;
-        };
-
+        let sync_id = id.sync_id();
         let hashed_id = id.uid();
         // If there's a pending online-only operation for this object, don't untrash it.
         let Some(has_pending_online_only_operation) =
@@ -615,7 +607,7 @@ impl UpdateManager {
                     .pending_changes_statuses
                     .pending_untrash = false;
 
-                let hashed_sqlite_id = server_id.sqlite_type_and_uid_hash(id.object_id_type());
+                let hashed_sqlite_id = sync_id.sqlite_uid_hash(id.object_id_type());
                 let type_and_id = object.cloud_object_type_and_id();
                 self.save_in_memory_object_metadata_to_sqlite(
                     cloud_model,
@@ -632,8 +624,8 @@ impl UpdateManager {
             result: ObjectOperationResult {
                 success_type: OperationSuccessType::Success,
                 operation: ObjectOperation::Untrash,
-                client_id: None,
-                server_id: Some(ServerId::from_string_lossy(&hashed_id)),
+                client_id: sync_id.into_client(),
+                server_id: sync_id.into_server(),
                 num_objects: None,
             },
         });
@@ -654,11 +646,7 @@ impl UpdateManager {
         initiated_by: InitiatedBy,
         ctx: &mut ModelContext<Self>,
     ) {
-        // If the object isn't known to the server yet, we can't delete it.
-        let Some(server_id) = id.server_id() else {
-            return;
-        };
-
+        let sync_id = id.sync_id();
         let uid = id.uid();
         // If there's a pending online-only operation or delete for this object, don't delete it.
         let Some((has_pending_online_only_operation, has_pending_delete)) = CloudModel::handle(ctx)
@@ -678,14 +666,13 @@ impl UpdateManager {
             return;
         }
 
-        let num_deleted_objects =
-            self.on_object_delete_success(vec![SyncId::ServerId(server_id)], ctx);
+        let num_deleted_objects = self.on_object_delete_success(vec![sync_id], ctx);
         ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
             result: ObjectOperationResult {
                 success_type: OperationSuccessType::Success,
                 operation: ObjectOperation::Delete { initiated_by },
-                client_id: None,
-                server_id: Some(ServerId::from_string_lossy(&uid)),
+                client_id: sync_id.into_client(),
+                server_id: sync_id.into_server(),
                 num_objects: Some(num_deleted_objects),
             },
         });
@@ -759,3 +746,7 @@ impl Entity for UpdateManager {
 }
 
 impl SingletonEntity for UpdateManager {}
+
+#[cfg(test)]
+#[path = "update_manager_tests.rs"]
+mod tests;

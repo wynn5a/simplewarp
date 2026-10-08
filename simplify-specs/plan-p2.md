@@ -212,13 +212,16 @@ doc fixed. The "inert strings" bullet is unchanged by design.
 
 ## 7. Local bug found during the scan
 
-`app/src/server/cloud_objects/update_manager.rs:535` (`trash_object`), `:588` (`untrash_object`)
-and `:657` (`delete_object_with_initiated_by`) return early unless the id is a `ServerId`
-("isn't known to the server yet"). Locally created objects are always `SyncId::ClientId` and
-reload as ClientId (`crates/cloud_object_persistence/src/objects.rs:446`), so user-created AI
-rules, templatable MCP servers, workflows, notebooks and env-var collections likely can never be
-trashed or deleted. `new_local` also leaves `content_sync_status = InFlight(1)` forever. Not yet
-reproduced in the app.
+**Fixed (P1, 2026-10-08).** `trash_object`, `untrash_object` and `delete_object_with_initiated_by`
+in `app/src/server/cloud_objects/update_manager.rs` returned early unless the id was a
+`ServerId`, so locally created objects (always `SyncId::ClientId`) could never be trashed,
+untrashed or deleted. Reproduced with two unit tests that fail on the old code. The three
+methods now work from the `SyncId` (`sqlite_uid_hash` for the sqlite key) and the
+`ObjectOperationResult` carries `client_id` or `server_id` as appropriate; the old
+`ServerId::from_string_lossy("Client-...")` would have panicked in debug builds. The
+notebook `Trash`/`Untrash` handler in `active_notebook_data.rs` no longer `expect`s a server id.
+`new_local` leaving `content_sync_status = InFlight(1)` is harmless: the trash/delete guards
+read only the pending-change flags.
 
 ## 8. Corrections to plan.md
 
@@ -237,7 +240,7 @@ is a product decision. Every item below needs a user decision before it becomes 
 
 | ID | Item | Options | Recommendation |
 | --- | --- | --- | --- |
-| P1 | §7 ClientId trash/delete | fix | Fix first: reproduce, then let ClientId objects trash/delete locally. |
+| ~~P1~~ | §7 ClientId trash/delete | fix | **Done** (see §7). |
 | P2 | §1a/§1b core inputs: `SummarizeConversation`, `InvokeSkill`, `InitProjectRules`, `ResumeConversation`, `CodeReview`, `QueryWithCannedResponse`, attached context + rules | implement in `local_inference` / hide | Implement — they are local work the server merely orchestrated; highest user value. |
 | P3 | §1a passive requests: `TriggerPassiveSuggestion`, `AutoCodeDiffQuery` | implement / stop sending | Stop sending (or default off) until implemented — they spend the user's key unasked. |
 | P4 | §1a `CreateEnvironment`, `CreateNewProject`, `CloneRepository` | implement / hide | Drop the cloud-environment `/init` step (remote concept); implement or hide the other two. |
