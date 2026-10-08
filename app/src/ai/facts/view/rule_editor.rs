@@ -13,7 +13,7 @@ use warpui::{
     ViewHandle,
 };
 
-use super::{AIFact, CloudAIFact, CloudAIFactModel, is_delete_allowed, style};
+use super::{AIFact, CloudAIFact, CloudAIFactModel, style};
 use crate::ai::facts::AIMemory;
 use crate::cloud_object::CloudObject;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
@@ -22,7 +22,6 @@ use crate::editor::{
     EditorOptions, EditorView, EnterAction, EnterSettings, Event as EditorEvent,
     PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
-use crate::network::NetworkStatus;
 use crate::server::ids::SyncId;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
@@ -76,11 +75,6 @@ pub struct RuleEditorView {
 
 impl RuleEditorView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let network_status = NetworkStatus::handle(ctx);
-        ctx.subscribe_to_model(&network_status, |_me, _, _event, ctx| {
-            ctx.notify();
-        });
-
         let appearance = Appearance::as_ref(ctx);
         let font_family = appearance.ui_font_family();
         let text = TextOptions {
@@ -371,9 +365,7 @@ impl View for RuleEditorView {
             .with_child(self.render_header(appearance))
             .with_child(self.render_form(appearance));
 
-        if let Some(ai_fact) = &self.ai_fact
-            && is_delete_allowed(ai_fact.clone(), app)
-        {
+        if self.ai_fact.is_some() {
             col.add_child(ChildView::new(&self.delete_button).finish());
         }
         col.finish()

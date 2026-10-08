@@ -4,9 +4,7 @@ use warpui::{App, ModelHandle};
 use super::*;
 use crate::cloud_object::folders::CloudFolderModel;
 use crate::cloud_object::model::generic_string_model::GenericStringModel;
-use crate::cloud_object::{
-    CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus, Owner,
-};
+use crate::cloud_object::{CloudObjectMetadata, CloudObjectPermissions, Owner};
 use crate::notebooks::CloudNotebookModel;
 use crate::server::ids::ClientId;
 use crate::settings::{CloudPreference, Platform, Preference};
@@ -38,13 +36,6 @@ fn mock_cloud_folder(id: SyncId, name: String, folder_id: Option<SyncId>) -> Clo
             is_warp_pack: false,
         },
         CloudObjectMetadata {
-            pending_changes_statuses: CloudObjectStatuses {
-                content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
-                has_pending_metadata_change: false,
-                has_pending_permissions_change: false,
-                pending_untrash: false,
-                pending_delete: false,
-            },
             folder_id,
             revision: Default::default(),
             metadata_last_updated_ts: Default::default(),
@@ -68,13 +59,6 @@ fn mock_cloud_notebook(id: SyncId, title: String, folder_id: Option<SyncId>) -> 
             conversation_id: None,
         },
         CloudObjectMetadata {
-            pending_changes_statuses: CloudObjectStatuses {
-                content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
-                has_pending_metadata_change: false,
-                has_pending_permissions_change: false,
-                pending_untrash: false,
-                pending_delete: false,
-            },
             folder_id,
             revision: Default::default(),
             metadata_last_updated_ts: Default::default(),
@@ -109,13 +93,6 @@ fn test_create_json_object() {
             .expect("error creating preference"),
         ),
         CloudObjectMetadata {
-            pending_changes_statuses: CloudObjectStatuses {
-                content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
-                has_pending_metadata_change: false,
-                has_pending_permissions_change: false,
-                pending_untrash: false,
-                pending_delete: false,
-            },
             folder_id: Default::default(),
             revision: Default::default(),
             metadata_last_updated_ts: Default::default(),

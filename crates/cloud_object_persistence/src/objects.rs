@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use cloud_objects::UserUid;
 use cloud_objects::cloud_object::{
-    CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus,
-    GENERIC_STRING_OBJECT_PREFIX, GenericStringObjectFormat, NumInFlightRequests, ObjectIdType,
-    ObjectType, Owner, Revision,
+    CloudObjectMetadata, CloudObjectPermissions, GENERIC_STRING_OBJECT_PREFIX,
+    GenericStringObjectFormat, ObjectIdType, ObjectType, Owner, Revision,
 };
 use cloud_objects::ids::{ClientId, FolderId, HashableId, SyncId, ToServerId};
 use cloud_objects::time::ServerTimestamp;
@@ -139,8 +138,8 @@ pub fn upsert_cloud_object(
     update_object_fn: UpdateCloudObjectFn,
 ) -> Result<(), Error> {
     use schema::object_metadata::dsl::{
-        client_id, current_editor, folder_id, is_pending, last_editor_uid,
-        metadata_last_updated_ts, object_metadata, revision_ts, server_id, trashed_ts,
+        client_id, current_editor, folder_id, last_editor_uid, metadata_last_updated_ts,
+        object_metadata, revision_ts, server_id, trashed_ts,
     };
     use schema::object_permissions::dsl::{
         anyone_with_link_access_level, anyone_with_link_source, object_guests, object_metadata_id,
@@ -166,7 +165,6 @@ pub fn upsert_cloud_object(
         .revision
         .as_ref()
         .map(|r| r.timestamp_micros());
-    let has_pending_content_changes = cloud_object_metadata.has_pending_content_changes();
 
     let hashed_sync_id = sync_id.sqlite_uid_hash(cloud_object_type.into());
     // Filter to find metadata row.
@@ -198,44 +196,32 @@ pub fn upsert_cloud_object(
             diesel::update(metadata_filter)
                 .set((
                     revision_ts.eq(revision),
-                    is_pending.eq(has_pending_content_changes),
                     last_editor_uid.eq(cloud_object_metadata.last_editor_uid),
                 ))
                 .execute(conn)?;
 
-            if !cloud_object_metadata
-                .pending_changes_statuses
-                .has_pending_metadata_change
-            {
-                diesel::update(metadata_filter)
-                    .set((
-                        metadata_last_updated_ts.eq(metadata_last_updated_at),
-                        trashed_ts.eq(trashed_timestamp),
-                        folder_id.eq(folder_id_str),
-                        current_editor.eq(cloud_object_metadata.current_editor_uid),
-                    ))
-                    .execute(conn)?;
-            }
+            diesel::update(metadata_filter)
+                .set((
+                    metadata_last_updated_ts.eq(metadata_last_updated_at),
+                    trashed_ts.eq(trashed_timestamp),
+                    folder_id.eq(folder_id_str),
+                    current_editor.eq(cloud_object_metadata.current_editor_uid),
+                ))
+                .execute(conn)?;
 
-            if !cloud_object_metadata
-                .pending_changes_statuses
-                .has_pending_permissions_change
-            {
-                // Update the permissions.
-                let permissions_filter =
-                    object_permissions.filter(object_metadata_id.eq(metadata.id));
-                diesel::update(permissions_filter)
-                    .set((
-                        subject_type.eq(subject_type_value),
-                        subject_id.eq(subject_id_value),
-                        subject_uid.eq(subject_uid_value),
-                        permissions_last_updated_at.eq(permissions_ts),
-                        object_guests.eq(guests),
-                        anyone_with_link_access_level.eq(anyone_with_link_access_level_value),
-                        anyone_with_link_source.eq(anyone_with_link_source_value),
-                    ))
-                    .execute(conn)?;
-            }
+            // Update the permissions.
+            let permissions_filter = object_permissions.filter(object_metadata_id.eq(metadata.id));
+            diesel::update(permissions_filter)
+                .set((
+                    subject_type.eq(subject_type_value),
+                    subject_id.eq(subject_id_value),
+                    subject_uid.eq(subject_uid_value),
+                    permissions_last_updated_at.eq(permissions_ts),
+                    object_guests.eq(guests),
+                    anyone_with_link_access_level.eq(anyone_with_link_access_level_value),
+                    anyone_with_link_source.eq(anyone_with_link_source_value),
+                ))
+                .execute(conn)?;
         }
         None => {
             // The object doesn't exist in sqlite so create the object.
@@ -245,7 +231,8 @@ pub fn upsert_cloud_object(
                 object_type: cloud_object_type.sqlite_object_type_as_str().to_string(),
                 revision_ts: revision,
                 shareable_object_id: object_id,
-                is_pending: has_pending_content_changes,
+                // The column is a tombstone from the sync queue: nothing is ever pending.
+                is_pending: false,
                 retry_count: 0,
                 author_id: None,
                 // One of these is set below.
@@ -462,17 +449,6 @@ pub fn to_cloud_object_metadata(metadata: &ObjectMetadata) -> CloudObjectMetadat
         revision: metadata
             .revision_ts
             .and_then(|epoch| Revision::from_unix_timestamp_micros(epoch).ok()),
-        pending_changes_statuses: CloudObjectStatuses {
-            pending_delete: false,
-            content_sync_status: if metadata.is_pending {
-                CloudObjectSyncStatus::InFlight(NumInFlightRequests(1))
-            } else {
-                CloudObjectSyncStatus::NoLocalChanges
-            },
-            has_pending_metadata_change: false,
-            has_pending_permissions_change: false,
-            pending_untrash: false,
-        },
         trashed_ts: metadata
             .trashed_ts
             .and_then(|epoch| ServerTimestamp::from_unix_timestamp_micros(epoch).ok()),

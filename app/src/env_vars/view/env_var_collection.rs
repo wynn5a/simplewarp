@@ -33,7 +33,6 @@ use crate::env_vars::{
 };
 use crate::external_secrets::SecretManager;
 use crate::menu::MenuItem;
-use crate::network::{NetworkStatus, NetworkStatusEvent};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
@@ -463,11 +462,6 @@ impl EnvVarCollectionView {
         ctx.observe(
             &active_env_var_collection_data,
             Self::handle_active_env_var_collection_change,
-        );
-
-        ctx.subscribe_to_model(
-            &NetworkStatus::handle(ctx),
-            Self::handle_network_status_event,
         );
 
         let title_editor = Self::create_editor_handle(
@@ -937,22 +931,6 @@ impl EnvVarCollectionView {
                 .iter()
                 .find_map(|row| row.validation_state.get_first_error())
         })
-    }
-
-    pub(super) fn is_online(&self, app: &AppContext) -> bool {
-        NetworkStatus::as_ref(app).is_online()
-    }
-
-    fn handle_network_status_event(
-        &mut self,
-        _handle: ModelHandle<NetworkStatus>,
-        event: &NetworkStatusEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let NetworkStatusEvent::NetworkStatusChanged { new_status: _ } = event;
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.refresh_pane_header_overflow_menu_items(ctx)
-        });
     }
 
     pub fn set_saving_status(&mut self, status: SavingStatus, ctx: &mut ViewContext<Self>) {

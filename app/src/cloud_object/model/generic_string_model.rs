@@ -180,8 +180,4 @@ where
     fn should_clear_on_unique_key_conflict(&self) -> bool {
         self.string_model.should_clear_on_unique_key_conflict()
     }
-
-    fn should_update_after_server_conflict(&self) -> bool {
-        true
-    }
 }

@@ -6,10 +6,7 @@ use crate::NetworkStatus;
 use crate::ai::facts::{AIFact, AIMemory, CloudAIFact};
 use crate::cloud_object::model::generic_string_model::GenericStringModel;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{
-    CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus, Owner,
-    Revision,
-};
+use crate::cloud_object::{CloudObjectMetadata, CloudObjectPermissions, Owner, Revision};
 use crate::notebooks::manager::NotebookManager;
 use crate::search::ai_context_menu::rules::data_source::RulesDataSource;
 use crate::search::data_source::Query;
@@ -30,13 +27,6 @@ fn mock_cloud_ai_fact(id: i64, name: &str, content: &str, revision: Revision) ->
             suggested_logging_id: None,
         })),
         CloudObjectMetadata {
-            pending_changes_statuses: CloudObjectStatuses {
-                content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
-                has_pending_metadata_change: false,
-                has_pending_permissions_change: false,
-                pending_untrash: false,
-                pending_delete: false,
-            },
             folder_id: None,
             revision: Some(revision),
             metadata_last_updated_ts: None,

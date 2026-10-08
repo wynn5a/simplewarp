@@ -501,64 +501,21 @@ impl UpdateManager {
         self.save_to_db([ModelEvent::InsertObjectAction { object_action }]);
     }
 
-    fn mark_object_trashed_and_return_timestamps(
-        &self,
-        uid: &ObjectUid,
-        ctx: &mut ModelContext<Self>,
-    ) -> (Option<ServerTimestamp>, Option<ServerTimestamp>) {
-        let timestamp = ServerTimestamp::new(Utc::now());
-        CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
-            if let Some(object) = cloud_model.get_mut_by_uid(uid) {
-                // Here, we write a timestamp to the trashed_ts field. There is no server to
-                // confirm a canonical timestamp, so the local one is authoritative.
-
-                object.metadata_mut().trashed_ts = Some(timestamp);
-                object
-                    .metadata_mut()
-                    .pending_changes_statuses
-                    .has_pending_metadata_change = true;
-                ctx.emit(CloudModelEvent::ObjectTrashed {
-                    type_and_id: object.cloud_object_type_and_id(),
-                });
-                ctx.notify();
-                (
-                    object.metadata().metadata_last_updated_ts,
-                    object.metadata().trashed_ts,
-                )
-            } else {
-                (None, None)
-            }
-        })
-    }
-
     pub fn trash_object(&mut self, id: CloudObjectTypeAndId, ctx: &mut ModelContext<Self>) {
         let sync_id = id.sync_id();
         let hashed_id = id.uid();
-        // If there's a pending online-only operation for this object, don't trash it.
-        let Some(has_pending_online_only_operation) =
-            CloudModel::handle(ctx).read(ctx, |model, _| {
-                model
-                    .get_by_uid(&hashed_id)
-                    .map(|object| object.metadata().has_pending_online_only_change())
-            })
-        else {
-            return;
-        };
 
-        if has_pending_online_only_operation {
-            return;
-        }
-
-        self.mark_object_trashed_and_return_timestamps(&hashed_id, ctx);
-
-        // Persist the metadata change in sqlite.
-        CloudModel::handle(ctx).update(ctx, |cloud_model, _| {
-            if let Some(object) = cloud_model.get_mut_by_uid(&hashed_id) {
-                object
-                    .metadata_mut()
-                    .pending_changes_statuses
-                    .has_pending_metadata_change = false;
-            }
+        // The local clock is authoritative: there is no server to confirm a canonical timestamp.
+        let timestamp = ServerTimestamp::new(Utc::now());
+        let trashed = CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
+            let Some(object) = cloud_model.get_mut_by_uid(&hashed_id) else {
+                return false;
+            };
+            object.metadata_mut().trashed_ts = Some(timestamp);
+            ctx.emit(CloudModelEvent::ObjectTrashed {
+                type_and_id: object.cloud_object_type_and_id(),
+            });
+            ctx.notify();
 
             let hashed_sqlite_id = sync_id.sqlite_uid_hash(id.object_id_type());
             self.save_in_memory_object_metadata_to_sqlite(
@@ -566,7 +523,11 @@ impl UpdateManager {
                 &hashed_id,
                 &hashed_sqlite_id,
             );
+            true
         });
+        if !trashed {
+            return;
+        }
 
         ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
             result: ObjectOperationResult {
@@ -583,42 +544,28 @@ impl UpdateManager {
     pub fn untrash_object(&mut self, id: CloudObjectTypeAndId, ctx: &mut ModelContext<Self>) {
         let sync_id = id.sync_id();
         let hashed_id = id.uid();
-        // If there's a pending online-only operation for this object, don't untrash it.
-        let Some(has_pending_online_only_operation) =
-            CloudModel::handle(ctx).read(ctx, |model, _| {
-                model
-                    .get_by_uid(&hashed_id)
-                    .map(|object| object.metadata().has_pending_online_only_change())
-            })
-        else {
-            return;
-        };
 
-        if has_pending_online_only_operation {
+        let untrashed = CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
+            let Some(object) = cloud_model.get_mut_by_uid(&hashed_id) else {
+                return false;
+            };
+            object.metadata_mut().trashed_ts = None;
+
+            let hashed_sqlite_id = sync_id.sqlite_uid_hash(id.object_id_type());
+            let type_and_id = object.cloud_object_type_and_id();
+            self.save_in_memory_object_metadata_to_sqlite(
+                cloud_model,
+                &hashed_id,
+                &hashed_sqlite_id,
+            );
+
+            ctx.emit(CloudModelEvent::ObjectUntrashed { type_and_id });
+            ctx.notify();
+            true
+        });
+        if !untrashed {
             return;
         }
-
-        // Clear the trash timestamp and persist the metadata change in sqlite.
-        CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
-            if let Some(object) = cloud_model.get_mut_by_uid(&hashed_id) {
-                object.metadata_mut().trashed_ts = None;
-                object
-                    .metadata_mut()
-                    .pending_changes_statuses
-                    .pending_untrash = false;
-
-                let hashed_sqlite_id = sync_id.sqlite_uid_hash(id.object_id_type());
-                let type_and_id = object.cloud_object_type_and_id();
-                self.save_in_memory_object_metadata_to_sqlite(
-                    cloud_model,
-                    &hashed_id,
-                    &hashed_sqlite_id,
-                );
-
-                ctx.emit(CloudModelEvent::ObjectUntrashed { type_and_id });
-                ctx.notify();
-            }
-        });
 
         ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
             result: ObjectOperationResult {
@@ -647,22 +594,7 @@ impl UpdateManager {
         ctx: &mut ModelContext<Self>,
     ) {
         let sync_id = id.sync_id();
-        let uid = id.uid();
-        // If there's a pending online-only operation or delete for this object, don't delete it.
-        let Some((has_pending_online_only_operation, has_pending_delete)) = CloudModel::handle(ctx)
-            .read(ctx, |model, _| {
-                model.get_by_uid(&uid).map(|object| {
-                    (
-                        object.metadata().has_pending_online_only_change(),
-                        object.metadata().pending_changes_statuses.pending_delete,
-                    )
-                })
-            })
-        else {
-            return;
-        };
-
-        if has_pending_online_only_operation || has_pending_delete {
+        if CloudModel::as_ref(ctx).get_by_uid(&id.uid()).is_none() {
             return;
         }
 

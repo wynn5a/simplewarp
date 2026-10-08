@@ -35,10 +35,6 @@ impl CloudModelType for CloudFolderModel {
         }
     }
 
-    fn should_update_after_server_conflict(&self) -> bool {
-        false
-    }
-
     fn serialized(&self) -> SerializedModel {
         SerializedModel::new(self.name.to_owned())
     }

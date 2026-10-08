@@ -369,15 +369,12 @@ impl EnvVarCollectionView {
                 .into_item(),
         );
 
-        // Add "Trash" to menu
-        if self.is_online(ctx) {
-            menu_items.push(
-                MenuItemFields::new("Trash")
-                    .with_on_select_action(EnvVarCollectionAction::Trash)
-                    .with_icon(Icon::Trash)
-                    .into_item(),
-            );
-        }
+        menu_items.push(
+            MenuItemFields::new("Trash")
+                .with_on_select_action(EnvVarCollectionAction::Trash)
+                .with_icon(Icon::Trash)
+                .into_item(),
+        );
 
         menu_items.push(
             MenuItemFields::new("Export")

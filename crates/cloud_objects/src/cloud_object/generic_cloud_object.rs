@@ -1,28 +1,8 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use super::{
-    CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus,
-    NumInFlightRequests, ObjectType, Owner,
-};
+use super::{CloudObjectMetadata, CloudObjectPermissions, ObjectType, Owner};
 use crate::ids::{ClientId, SyncId};
-
-#[derive(Clone, Debug, Default)]
-pub enum ConflictStatus<T> {
-    #[default]
-    NoConflicts,
-    ConflictingChanges {
-        object: Arc<T>,
-    },
-}
-
-impl<T> ConflictStatus<T> {
-    /// Utility function that allows for a more ergonomic way of figuring out whether there is a
-    /// conflict (for cases where we don't care about the conflict details).
-    pub fn has_conflicts(&self) -> bool {
-        matches!(self, ConflictStatus::ConflictingChanges { .. })
-    }
-}
 
 /// A portable payload for persisting or otherwise upserting a cloud object without app-local event types.
 #[derive(Clone, Debug)]
@@ -53,9 +33,6 @@ pub struct GenericCloudObject<K, M> {
     pub id: SyncId,
     pub metadata: CloudObjectMetadata,
     pub permissions: CloudObjectPermissions,
-    /// Tracks whether this object has a conflict with the server version.
-    /// This is runtime state (not persisted) - conflicts are always NoConflicts when loaded from SQLite.
-    pub conflict_status: ConflictStatus<Self>,
 
     // Intentionally not public to prevent users of this class from holding
     // onto references to the model outside of this struct.
@@ -67,8 +44,7 @@ pub struct GenericCloudObject<K, M> {
     // Callers who want to update the model need to call set_model to update the
     // entire model atomically.
     model: Arc<M>,
-    /// Keeps `K` well-formed now that the id type only appears (via `Self`) in the
-    /// conflict snapshot, which is only ever held behind an `Arc`.
+    /// Keeps `K` well-formed: the id type no longer appears in any field.
     _marker: PhantomData<fn() -> K>,
 }
 
@@ -109,7 +85,6 @@ impl<K, M> GenericCloudObject<K, M> {
             model: model.into(),
             metadata,
             permissions,
-            conflict_status: ConflictStatus::NoConflicts,
             _marker: PhantomData,
         }
     }
@@ -126,13 +101,6 @@ impl<K, M> GenericCloudObject<K, M> {
             id: SyncId::ClientId(client_id),
             model: model.into(),
             metadata: CloudObjectMetadata {
-                pending_changes_statuses: CloudObjectStatuses {
-                    content_sync_status: CloudObjectSyncStatus::InFlight(NumInFlightRequests(1)),
-                    has_pending_metadata_change: false,
-                    has_pending_permissions_change: false,
-                    pending_untrash: false,
-                    pending_delete: false,
-                },
                 folder_id: initial_folder_id,
                 revision: Default::default(),
                 metadata_last_updated_ts: Default::default(),
@@ -149,7 +117,6 @@ impl<K, M> GenericCloudObject<K, M> {
                 guests: Default::default(),
                 permissions_last_updated_ts: None,
             },
-            conflict_status: ConflictStatus::NoConflicts,
             _marker: PhantomData,
         }
     }

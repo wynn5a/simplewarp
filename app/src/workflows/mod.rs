@@ -190,9 +190,6 @@ impl CloudModelType for CloudWorkflowModel {
         }
     }
 
-    fn should_update_after_server_conflict(&self) -> bool {
-        true
-    }
     fn can_export(&self) -> bool {
         true
     }

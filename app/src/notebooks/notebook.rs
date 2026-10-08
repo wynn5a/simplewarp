@@ -49,7 +49,6 @@ use crate::editor::{
     SingleLineEditorOptions, TextColors, TextOptions,
 };
 use crate::menu::{MenuItem, MenuItemFields};
-use crate::network::{NetworkStatus, NetworkStatusEvent};
 use crate::notebooks::CloudNotebook;
 use crate::notebooks::editor::model::NotebooksEditorModel;
 use crate::notebooks::editor::rich_text_styles;
@@ -260,11 +259,6 @@ impl NotebookView {
                 me.handle_appearance_change(ctx)
             }
         });
-
-        ctx.subscribe_to_model(
-            &NetworkStatus::handle(ctx),
-            Self::handle_network_status_event,
-        );
 
         let active_notebook_data = ctx.add_model(ActiveNotebookData::new);
         ctx.subscribe_to_model(&active_notebook_data, Self::handle_active_notebook_event);
@@ -793,11 +787,8 @@ impl NotebookView {
         ctx.notify();
     }
 
-    /// Enters edit mode from an explicit user request, unless the notebook has conflicts.
+    /// Enters edit mode from an explicit user request.
     pub fn request_edit_mode(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.active_notebook_data.as_ref(ctx).has_conflicts(ctx) {
-            return;
-        }
         self.start_editing(ctx);
 
         self.focus_input(ctx);
@@ -991,33 +982,14 @@ impl NotebookView {
             );
         }
 
-        // Add "Trash" to menu
-        if self.is_online(ctx) {
-            menu_items.push(
-                MenuItemFields::new("Trash")
-                    .with_on_select_action(NotebookAction::Trash)
-                    .with_icon(icons::Icon::Trash)
-                    .into_item(),
-            );
-        }
+        menu_items.push(
+            MenuItemFields::new("Trash")
+                .with_on_select_action(NotebookAction::Trash)
+                .with_icon(icons::Icon::Trash)
+                .into_item(),
+        );
 
         menu_items
-    }
-
-    fn handle_network_status_event(
-        &mut self,
-        _handle: ModelHandle<NetworkStatus>,
-        event: &NetworkStatusEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let NetworkStatusEvent::NetworkStatusChanged { new_status: _ } = event;
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.refresh_pane_header_overflow_menu_items(ctx)
-        });
-    }
-
-    fn is_online(&self, app: &AppContext) -> bool {
-        NetworkStatus::as_ref(app).is_online()
     }
 
     /// Takes a given `notebook_id` and tries to load it into view. If it doesn't exist in

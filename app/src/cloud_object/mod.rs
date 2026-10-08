@@ -188,69 +188,6 @@ pub trait CloudObject: Debug {
         }
     }
 
-    /// Returns whether this object has conflicting changes with the server.
-    fn has_conflicting_changes(&self) -> bool;
-
-    /// Returns the revision of the conflicting object, if any.
-    /// This is used for object-safe access to conflict information.
-    fn conflicting_object_revision(&self) -> Option<Revision>;
-
-    /// Clears the conflict status back to NoConflicts.
-    fn clear_conflict_status(&mut self);
-
-    /// Updates the object to deal with any conflict status.
-    fn replace_object_with_conflict(&mut self);
-
-    /// Sets the content sync status of this object to `InFlight` (if it wasn't already) and
-    /// increments the number of in flight requests tracked in the `InFlight` enum.
-    fn increment_in_flight_request_count(&mut self) {
-        let new_reqs = match &self.metadata().pending_changes_statuses.content_sync_status {
-            CloudObjectSyncStatus::InFlight(reqs) => reqs.0 + 1,
-            _ => 1,
-        };
-
-        self.set_pending_content_changes_status(CloudObjectSyncStatus::InFlight(
-            NumInFlightRequests(new_reqs),
-        ))
-    }
-
-    /// Decrements the number of in flight requests tracked in this object's `InFlight` enum. If
-    /// that number becomes 0, it's no longer in flight, so it will be set to `status_if_no_reqs`.
-    /// Returns true if the object is no longer in flight.
-    fn decrement_in_flight_request_count(
-        &mut self,
-        status_if_no_reqs: CloudObjectSyncStatus,
-    ) -> bool {
-        match &self.metadata().pending_changes_statuses.content_sync_status {
-            CloudObjectSyncStatus::InFlight(reqs) => {
-                if reqs.0 - 1 == 0 {
-                    self.set_pending_content_changes_status(status_if_no_reqs);
-                    return true;
-                } else {
-                    self.set_pending_content_changes_status(CloudObjectSyncStatus::InFlight(
-                        NumInFlightRequests(reqs.0 - 1),
-                    ));
-                    return false;
-                }
-            }
-            _ => report_error!(
-                "called decrement_in_flight_request_count with a non-`InFlight` cloud status"
-            ),
-        }
-
-        true
-    }
-
-    /// Sets the content change status on this object's metadata
-    fn set_pending_content_changes_status(
-        &mut self,
-        pending_content_changes_status: CloudObjectSyncStatus,
-    ) {
-        self.metadata_mut()
-            .pending_changes_statuses
-            .content_sync_status = pending_content_changes_status;
-    }
-
     /// Whether or not this object can be exported.
     fn can_export(&self) -> bool;
 
@@ -357,13 +294,6 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
     fn supports_linking(&self) -> bool {
         true
     }
-    /// Returns whether this model type should be updated after a server conflict.
-    /// Note that for now the only model type that this is relevant for is Notebooks,
-    /// where we show a banner in case of conflicts and ask users to manually take action.
-    /// For other types we typically just want to replace the local object with the server
-    /// revision, which doesn't go through this code path.
-    fn should_update_after_server_conflict(&self) -> bool;
-
     /// Whether this model type can be exported.
     fn can_export(&self) -> bool {
         false
@@ -481,44 +411,6 @@ where
         self.model().should_clear_on_unique_key_conflict()
     }
 
-    fn has_conflicting_changes(&self) -> bool {
-        self.conflict_status.has_conflicts()
-    }
-
-    fn conflicting_object_revision(&self) -> Option<Revision> {
-        match &self.conflict_status {
-            ConflictStatus::ConflictingChanges { object } => object.metadata.revision,
-            ConflictStatus::NoConflicts => None,
-        }
-    }
-
-    fn clear_conflict_status(&mut self) {
-        self.conflict_status = ConflictStatus::NoConflicts;
-    }
-
-    fn replace_object_with_conflict(&mut self) {
-        let mut new_conflict = ConflictStatus::NoConflicts;
-        std::mem::swap(&mut new_conflict, &mut self.conflict_status);
-
-        self.set_pending_content_changes_status(CloudObjectSyncStatus::NoLocalChanges);
-
-        if let ConflictStatus::ConflictingChanges { object } = new_conflict
-            && self.model().should_update_after_server_conflict()
-        {
-            // Update metadata revision from the server object.
-            self.metadata.revision = object.metadata.revision;
-            self.metadata.last_editor_uid = object.metadata.last_editor_uid.clone();
-            // Update the model from the server.
-            self.set_model(object.model().clone());
-            // Update conflict status - this may create a new conflict if there are pending changes.
-            if self.metadata.has_pending_content_changes() {
-                self.conflict_status = ConflictStatus::ConflictingChanges { object };
-            } else {
-                self.conflict_status = ConflictStatus::NoConflicts;
-            }
-        }
-    }
-
     fn upsert_event(&self) -> ModelEvent {
         M::upsert_event(self.upsert_params(self.object_type()))
     }
@@ -605,8 +497,6 @@ impl CloudObjectMetadataExt for CloudObjectMetadata {
             .map(|r| format!("Edited {}", format_approx_duration_from_now_utc(r.utc())))
     }
 }
-
-use warp_errors::report_error;
 
 /// Display name of the single, personal space every object lives in. Also the export
 /// subdirectory name.

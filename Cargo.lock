@@ -2101,14 +2101,11 @@ dependencies = [
  "derivative",
  "itertools 0.14.0",
  "lasso",
- "pathfinder_geometry",
  "schemars 1.0.4",
  "serde",
  "settings_value",
  "thiserror 2.0.17",
  "uuid",
- "warp_core",
- "warpui_core",
 ]
 
 [[package]]

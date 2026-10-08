@@ -7,7 +7,6 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::personal_drive;
 use crate::env_vars::active_env_var_collection_data::SavingStatus;
 use crate::env_vars::view::env_var_collection::EnvVarCollectionView;
-use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
@@ -21,7 +20,6 @@ fn initialize_app(app: &mut App) {
     let global_resources = GlobalResourceHandles::mock(app);
     app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resources));
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| Appearance::mock());
 
     app.add_singleton_model(|_| UpdateManager::mock());

@@ -54,7 +54,6 @@ use crate::editor::{
     SingleLineEditorOptions, TextOptions, TextStyleOperation,
 };
 use crate::menu::{MenuItem, MenuItemFields};
-use crate::network::NetworkStatus;
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
@@ -1567,10 +1566,6 @@ impl WorkflowView {
         ctx.emit(WorkflowViewEvent::Pane(PaneEvent::FocusSelf));
     }
 
-    fn is_online(&self, app: &AppContext) -> bool {
-        NetworkStatus::as_ref(app).is_online()
-    }
-
     fn show_unsaved_changes_dialog(
         &mut self,
         unsave_type: UnsavedChangeType,
@@ -2427,27 +2422,17 @@ impl BackingView for WorkflowView {
         self.handle_action(action, ctx);
     }
 
-    fn pane_header_overflow_menu_items(&self, ctx: &AppContext) -> Vec<MenuItem<WorkflowAction>> {
-        let mut menu_items = Vec::new();
-
-        menu_items.push(
+    fn pane_header_overflow_menu_items(&self, _ctx: &AppContext) -> Vec<MenuItem<WorkflowAction>> {
+        vec![
             MenuItemFields::new("Duplicate")
                 .with_on_select_action(WorkflowAction::Duplicate)
                 .with_icon(Icon::Duplicate)
                 .into_item(),
-        );
-
-        // Add "Trash" to menu
-        if self.is_online(ctx) {
-            menu_items.push(
-                MenuItemFields::new("Trash")
-                    .with_on_select_action(WorkflowAction::Trash)
-                    .with_icon(Icon::Trash)
-                    .into_item(),
-            );
-        }
-
-        menu_items
+            MenuItemFields::new("Trash")
+                .with_on_select_action(WorkflowAction::Trash)
+                .with_icon(Icon::Trash)
+                .into_item(),
+        ]
     }
 
     fn close(&mut self, ctx: &mut ViewContext<Self>) {
