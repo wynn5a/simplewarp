@@ -138,8 +138,6 @@ pub enum AgentViewEntryOrigin {
     Keybinding(Keystroke),
     /// Entered agent view by attaching context from the code review panel.
     CodeReviewContext,
-    /// Entered agent view from codex integration modal.
-    CodexModal,
     /// Entered agent view by selecting a conversation from the inline history menu.
     InlineHistoryMenu,
     InlineConversationMenu,

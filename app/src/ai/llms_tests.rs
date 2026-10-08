@@ -420,7 +420,6 @@ fn available(default_id: &str, choices: Vec<LLMInfo>) -> AvailableLLMs {
     AvailableLLMs {
         default_id: default_id.into(),
         choices,
-        preferred_codex_model_id: None,
     }
 }
 
@@ -454,7 +453,6 @@ fn with_model_picker_query_test_context(f: impl FnOnce(&LLMPreferences, &AppCont
                     agent_llm("gpt-5", "GPT 5"),
                     disabled_agent_llm("disabled-gpt", "GPT Disabled"),
                 ],
-                None,
             )
             .expect("choices are non-empty");
             let preferences = LLMPreferences {
@@ -654,7 +652,6 @@ fn preferences_for_profile_model_tests() -> LLMPreferences {
             agent_llm("auto", "auto (cost-efficient)"),
             agent_llm("claude-opus", "Opus"),
         ],
-        None,
     )
     .expect("choices are non-empty");
     LLMPreferences {

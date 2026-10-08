@@ -8,7 +8,6 @@
 use warpui::integration::AssertionCallback;
 use warpui::{App, Entity, View, ViewHandle, WindowId, async_assert};
 
-use crate::ai_assistant::panel::AIAssistantPanelView;
 use crate::input_suggestions::InputSuggestions;
 use crate::notebooks::notebook::NotebookView;
 use crate::pane_group::{PaneGroup, PaneView};
@@ -225,11 +224,6 @@ pub fn settings_view(app: &App, window_id: WindowId) -> ViewHandle<SettingsView>
 
 /// Panics if there isn't a single workflows view in the view hierarchy.
 pub fn workflow_categories_view(app: &App, window_id: WindowId) -> ViewHandle<CategoriesView> {
-    singleton_view_of_type(app, window_id)
-}
-
-/// Panics if there isn't a single ai assistant panel view in the view hierarchy.
-pub fn ai_assistant_panel_view(app: &App, window_id: WindowId) -> ViewHandle<AIAssistantPanelView> {
     singleton_view_of_type(app, window_id)
 }
 

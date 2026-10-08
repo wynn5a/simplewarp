@@ -66,7 +66,7 @@ fn assert_context_window_limit_for_request(
         let available_model_id = profile_model_id.clone();
         llm_preferences.update(&mut app, move |preferences, _| {
             preferences.set_models_by_feature_for_test(ModelsByFeature {
-                agent_mode: AvailableLLMs::new(available_model_id, [model], None)
+                agent_mode: AvailableLLMs::new(available_model_id, [model])
                     .expect("test model should create available LLMs"),
                 ..Default::default()
             });

@@ -309,9 +309,6 @@ pub struct AvailableLLMs {
     /// The Warp "default" LLM.
     default_id: LLMId,
     choices: Vec<LLMInfo>,
-
-    #[serde(default)]
-    preferred_codex_model_id: Option<LLMId>,
 }
 
 impl AvailableLLMs {
@@ -325,7 +322,6 @@ impl AvailableLLMs {
     pub fn new<T: Into<LLMInfo>>(
         mut default_id: LLMId,
         choices: impl IntoIterator<Item = T>,
-        preferred_codex_model_id: Option<LLMId>,
     ) -> Result<Self, anyhow::Error> {
         let choices: Vec<LLMInfo> = choices.into_iter().map(Into::into).collect();
         if choices.is_empty() {
@@ -349,7 +345,6 @@ impl AvailableLLMs {
         Ok(Self {
             default_id,
             choices: choices.into_iter().collect(),
-            preferred_codex_model_id,
         })
     }
 
@@ -477,7 +472,6 @@ fn builtin_available_llms() -> AvailableLLMs {
             builtin_llm("gpt-5.4", "GPT-5.4", LLMProvider::OpenAI),
             builtin_llm("gemini-2.5-pro", "Gemini 2.5 Pro", LLMProvider::Google),
         ],
-        preferred_codex_model_id: None,
     }
 }
 
@@ -881,15 +875,6 @@ impl LLMPreferences {
     /// (disable-aware, see [`Self::fallback_llm_info`]).
     pub fn get_default_coding_model(&self, app: &AppContext) -> &LLMInfo {
         self.fallback_llm_info(&self.models_by_feature.coding, app)
-    }
-
-    /// Returns the preferred Codex model, if set by the server.
-    pub fn get_preferred_codex_model(&self) -> Option<&LLMInfo> {
-        self.models_by_feature
-            .agent_mode
-            .preferred_codex_model_id
-            .as_ref()
-            .and_then(|id| self.models_by_feature.agent_mode.info_for_id(id))
     }
 
     #[cfg(feature = "integration_tests")]

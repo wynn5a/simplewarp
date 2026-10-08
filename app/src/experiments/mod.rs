@@ -16,7 +16,7 @@ use std::str::FromStr;
 use std::sync::OnceLock;
 
 use anyhow::Result;
-pub use block_onboarding_layer::{BLOCK_ONBOARDING_LAYER, BlockOnboarding};
+pub use block_onboarding_layer::BLOCK_ONBOARDING_LAYER;
 use dashmap::DashMap;
 pub use improved_palette_search_layer::{IMPROVED_PALETTE_SEARCH_LAYER, ImprovedPaletteSearch};
 use lazy_static::lazy_static;

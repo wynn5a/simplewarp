@@ -6,11 +6,8 @@ use ai::index::locations::CodeContextLocation;
 use futures_util::stream::AbortHandle;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity as _};
 
-use crate::ai::agent::{AIAgentActionId, SearchCodebaseResult};
-use crate::ai::blocklist::SessionContext;
+use crate::ai::agent::AIAgentActionId;
 use crate::ai::outline::{OutlineStatus, RepoOutlines};
-#[path = "remote_search/native.rs"]
-mod remote_search;
 
 #[derive(Debug)]
 pub enum GetRelevantFilesControllerEvent {
@@ -35,18 +32,8 @@ impl GetRelevantFilesControllerEvent {
 #[derive(Debug)]
 pub enum GetRelevantFilesControllerResult {
     Locations(Arc<HashSet<CodeContextLocation>>),
-    SearchResult(SearchCodebaseResult),
 }
 
-pub enum GetRelevantFilesRequestTarget {
-    Local {
-        directory: PathBuf,
-    },
-    Remote {
-        session_context: SessionContext,
-        requested_codebase_path: Option<String>,
-    },
-}
 #[derive(Debug, thiserror::Error)]
 pub enum GetRelevantFilesError {
     #[error("Repo outline is still being computed.")]
@@ -71,43 +58,16 @@ impl GetRelevantFilesController {
         Self::default()
     }
 
-    /// Start a new search query based on the repo outline.
+    /// Start a new search query based on the repo outline of `directory`.
     pub fn send_request(
-        &mut self,
-        target: GetRelevantFilesRequestTarget,
-        query: String,
-        partial_path_segments: Option<&Vec<String>>,
-        action_id: AIAgentActionId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<(), GetRelevantFilesError> {
-        // Cancel any previous request for this action before dispatching to either the local or
-        // remote implementation.
-        self.cancel_request_for_action(&action_id, ctx);
-        match target {
-            GetRelevantFilesRequestTarget::Local { directory } => {
-                self.send_local_request(&directory, partial_path_segments, action_id, ctx)
-            }
-            GetRelevantFilesRequestTarget::Remote {
-                session_context,
-                requested_codebase_path,
-            } => self.send_remote_request(
-                session_context,
-                requested_codebase_path,
-                query,
-                partial_path_segments.cloned(),
-                action_id,
-                ctx,
-            ),
-        }
-    }
-
-    fn send_local_request(
         &mut self,
         directory: &Path,
         partial_path_segments: Option<&Vec<String>>,
         action_id: AIAgentActionId,
         ctx: &mut ModelContext<Self>,
     ) -> Result<(), GetRelevantFilesError> {
+        // Cancel any previous request for this action.
+        self.cancel_request_for_action(&action_id, ctx);
         const WHOLE_REPO_SUGGESTION_FILE_LIMIT: usize = 2;
 
         match RepoOutlines::as_ref(ctx).get_outline(directory) {
@@ -139,44 +99,11 @@ impl GetRelevantFilesController {
         }
     }
 
-    fn send_remote_request(
-        &mut self,
-        session_context: SessionContext,
-        requested_codebase_path: Option<String>,
-        query: String,
-        partial_path_segments: Option<Vec<String>>,
-        action_id: AIAgentActionId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<(), GetRelevantFilesError> {
-        let remote_search::RemoteSearchRequest::Ready(result) = remote_search::send_request(
-            query,
-            partial_path_segments,
-            session_context,
-            requested_codebase_path,
-            action_id.clone(),
-            ctx,
-        );
-        ctx.emit(GetRelevantFilesControllerEvent::Success {
-            action_id,
-            result: GetRelevantFilesControllerResult::SearchResult(result),
-        });
-        Ok(())
-    }
-
     /// Returns the path to the root directory for a codebase search where pwd is `directory`.
     pub fn root_directory_for_search(&self, directory: &Path, app: &AppContext) -> Option<PathBuf> {
         RepoOutlines::as_ref(app)
             .get_outline(directory)
             .map(|(_, root)| root)
-    }
-
-    pub fn root_directory_for_remote_search(
-        &self,
-        session_context: &SessionContext,
-        requested_codebase_path: Option<&str>,
-        app: &AppContext,
-    ) -> Option<PathBuf> {
-        remote_search::root_directory_for_search(session_context, requested_codebase_path, app)
     }
 
     pub fn cancel_request_for_action(
