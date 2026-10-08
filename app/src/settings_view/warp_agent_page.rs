@@ -192,22 +192,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     );
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![
-            ToggleSettingActionPair::new(
-                "code suggestions",
-                builder(SettingsAction::WarpAgent(
-                    WarpAgentPageAction::ToggleCodeSuggestions,
-                )),
-                &(context.clone()
-                    & id!(flags::IS_ACTIVE_AI_ENABLED)
-                    & id!(flags::PROMPT_SUGGESTIONS_FLAG)),
-                flags::CODE_SUGGESTIONS_FLAG,
-            )
-            .with_group(bindings::BindingGroup::WarpAi),
-        ],
-        app,
-    );
-    ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
-        vec![
             ToggleSettingActionPair::custom(
                 SettingActionPairDescriptions::new("Show agent tips", "Hide agent tips"),
                 builder(SettingsAction::WarpAgent(
@@ -1805,10 +1789,10 @@ impl ActiveAIWidget {
             .is_supported_on_current_platform()
     }
 
-    fn is_suggested_code_banners_toggleable(&self, app: &AppContext) -> bool {
-        AISettings::as_ref(app)
-            .code_suggestions_enabled_internal
-            .is_supported_on_current_platform()
+    /// The toggle is hidden while code suggestions are off in this build; see
+    /// `AISettings::is_code_suggestions_enabled`.
+    fn is_suggested_code_banners_toggleable(&self, _app: &AppContext) -> bool {
+        false
     }
 
     fn is_git_operations_autogen_toggleable(&self, app: &AppContext) -> bool {
@@ -1920,7 +1904,7 @@ impl SettingsWidget for ActiveAIWidget {
     type View = WarpAgentPageView;
 
     fn search_terms(&self) -> &str {
-        "active ai a.i. next command prompt suggestions code diffs suggested banners passive unit tests commit pull request pr git code review autogen generate"
+        "active ai a.i. next command prompt suggestions commit pull request pr git code review autogen generate"
     }
 
     fn should_render(&self, app: &AppContext) -> bool {

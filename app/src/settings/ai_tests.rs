@@ -25,6 +25,19 @@ fn auto_approve_denylist_bypass_defaults_on_and_is_available_in_gui_settings() {
     assert!(surfaces.includes(SettingsMode::Gui));
 }
 
+/// Passive code suggestions spend the user's key on requests the local adapter cannot answer
+/// (plan-p2 P3), so they stay off even though the stored setting defaults to true.
+#[test]
+fn code_suggestions_stay_off_while_the_setting_defaults_on() {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        AISettings::handle(&app).read(&app, |settings, ctx| {
+            assert!(*settings.code_suggestions_enabled_internal);
+            assert!(!settings.is_code_suggestions_enabled(ctx));
+        });
+    })
+}
+
 // ToolbarCommandMap Tests
 
 #[test]

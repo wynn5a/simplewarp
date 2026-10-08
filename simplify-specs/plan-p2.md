@@ -51,7 +51,7 @@ replays history with no new instruction, on the user's key.
 | `CodeReview` | "Send diff comments to Agent" | `terminal/view.rs:17475` |
 | `ResumeConversation` | AIResumeButton | `ai/blocklist/controller.rs:1329` |
 | `AutoCodeDiffQuery` | passive code diffs | `controller.rs:1401` |
-| `TriggerPassiveSuggestion` | unit-test suggestion after every successful `git commit` (**automatic**, setting on by default) | `controller.rs:1433`, `passive_suggestions/legacy.rs:459` |
+| `TriggerPassiveSuggestion` | ~~unit-test suggestion after every successful `git commit` (**automatic**, setting on by default)~~ — stopped by P3 | `controller.rs:1433`, `passive_suggestions/legacy.rs:459` |
 | `QueryWithCannedResponse` | zero-state chips Install / Code / Deploy / Something else | `terminal/view/inline_banner/prompt_suggestions.rs:75` |
 
 ### 1b. Attached context never reaches the model
@@ -118,7 +118,7 @@ cost, suggestions or citations. Always empty/zero:
 | 2a | GitHub PR info polling via `gh repo view` / `gh pr view` | `code_review/github_repo_model/model.rs:19,134-151` (60 s timer), `util/git.rs:672,694,747` | api.github.com via the user's `gh` | on creation, on branch change and every 60 s, whenever the PR chip shows (`github_pr_prompt_chip` on) **or** AI input is active in a git repo (`terminal/view.rs:3790` `needs_pr_info_for_agent_context`); silent no-op without `gh` |
 | 2b | Completion generators run during autosuggestion validation | `terminal/input.rs:7230` → `ai/predict/next_command_model.rs:666-720` (`is_command_valid`, 150 ms timeout, ValidateAutosuggestions on) | whatever the spec's generator runs — the pinned `warpdotdev/command-signatures` specs include `curl registry.npmjs.org` (npm/yarn/pnpm/bun), cdn.deno.land, package.elm-lang.org, api.sdkman.io, api.github.com, `gh pr list`, `aws`/`gcloud`/`heroku` list commands | while typing, for history-predicted commands; also on Tab |
 | 2c | Remote images in markdown / notebooks | `crates/editor/src/content/edit.rs:80,866` → `crates/asset_cache/src/lib.rs:148` (`reqwest::get`, bypasses `http_client`) | any host named in the document | opening a markdown file or `.ipynb`; AI blocklist refuses http images (`ai/blocklist/block/view_impl/common.rs:2339`) |
-| 2d | Passive unit-test suggestion | §1a `TriggerPassiveSuggestion` | the user's AI provider (allowed host, but unrequested spend, and the input is dropped) | every successful `git commit` |
+| ~~2d~~ | Passive unit-test suggestion (**stopped by P3**) | §1a `TriggerPassiveSuggestion` | the user's AI provider (allowed host, but unrequested spend, and the input is dropped) | every successful `git commit` |
 | 2e | Global MCP servers auto-start | `ai/mcp/file_based_manager.rs:328-374` | user-configured; `npx -y` / `uvx` stdio servers download packages | app launch, for `~/.warp/.mcp.json`; third-party global configs only if `file_based_mcp_enabled` (default false) |
 
 2e is user-configured and allowed by the goal; listed for completeness.
@@ -242,7 +242,7 @@ is a product decision. Every item below needs a user decision before it becomes 
 | --- | --- | --- | --- |
 | ~~P1~~ | §7 ClientId trash/delete | fix | **Done** (see §7). |
 | P2 | §1a/§1b core inputs: `SummarizeConversation`, `InvokeSkill`, `InitProjectRules`, `ResumeConversation`, `CodeReview`, `QueryWithCannedResponse`, attached context + rules | implement in `local_inference` / hide | Implement — they are local work the server merely orchestrated; highest user value. |
-| P3 | §1a passive requests: `TriggerPassiveSuggestion`, `AutoCodeDiffQuery` | implement / stop sending | Stop sending (or default off) until implemented — they spend the user's key unasked. |
+| ~~P3~~ | §1a passive requests: `TriggerPassiveSuggestion`, `AutoCodeDiffQuery` | stop sending | **Done (2026-10-08).** `AISettings::is_code_suggestions_enabled` is now constant `false`, which stops both senders in `passive_suggestions/legacy.rs` and the view-side "hide the banner while a diff is generated" path; the "Suggested Code Banners" settings section and its palette toggle are removed. The stored setting key stays so old configs load. Turn it back on together with P2. |
 | P4 | §1a `CreateEnvironment`, `CreateNewProject`, `CloneRepository` | implement / hide | Drop the cloud-environment `/init` step (remote concept); implement or hide the other two. |
 | P5 | §1c tools: MCP tool calls, computer use, AskUserQuestion, ReadSkill, SearchCodebase, InsertReviewComments, documents | implement / hide UI | MCP is Phase 3b; others per feature. |
 | P6 | §1c web search / web fetch | hide UI / implement web fetch locally | Web search needs a hosted search API → hide; web fetch can be local (would be new provider-external traffic — decide). |

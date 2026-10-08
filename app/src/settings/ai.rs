@@ -1057,8 +1057,13 @@ impl AISettings {
         self.is_active_ai_enabled(app) && *self.rule_suggestions_enabled_internal
     }
 
-    pub fn is_code_suggestions_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_active_ai_enabled(app) && *self.code_suggestions_enabled_internal
+    /// Always `false`. Passive code suggestions (the unit-test suggestion after a successful
+    /// `git commit` and the passive code diff after a coding prompt suggestion) sent request
+    /// inputs that the local adapter drops, so they only spent the user's key on a request that
+    /// could not be answered. The stored setting is kept so existing configs still load; see
+    /// plan-p2 P3. Turn this back on together with the adapter support for those inputs.
+    pub fn is_code_suggestions_enabled(&self, _app: &warpui::AppContext) -> bool {
+        false
     }
 
     pub fn is_git_operations_autogen_enabled(&self, app: &warpui::AppContext) -> bool {
