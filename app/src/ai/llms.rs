@@ -1,18 +1,14 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent, CustomEndpoint, CustomEndpointModel};
 pub use ai::{LLMId, LLMProvider};
 use serde::{Deserialize, Serialize, de};
-use warp_core::features::FeatureFlag;
 use warp_core::ui::Icon;
 use warp_errors::report_error;
-use warp_multi_agent_api as api;
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
 
-use super::custom_model_routers::{self, CustomModelRouter, ModelConfigError};
 use super::execution_profiles::profiles::AIExecutionProfilesModel;
-use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 
 /// Whether the user has an API key for the given provider.
 pub fn is_using_api_key_for_provider(provider: &LLMProvider, app: &AppContext) -> bool {
@@ -39,7 +35,6 @@ pub fn should_show_key_icon_for_model(llm: &LLMInfo, app: &AppContext) -> bool {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ModelIconFlags {
-    pub is_custom_router: bool,
     pub is_auto: bool,
 }
 
@@ -48,9 +43,7 @@ pub struct ModelIconFlags {
 /// Auto models deliberately get the generic agent glyph rather than a host or
 /// provider logo.
 pub fn model_leading_icon(llm: &LLMInfo, flags: ModelIconFlags) -> Icon {
-    if flags.is_custom_router {
-        Icon::Dataflow
-    } else if flags.is_auto {
+    if flags.is_auto {
         Icon::Agent
     } else {
         llm.provider.icon().unwrap_or(Icon::Agent)
@@ -260,12 +253,6 @@ impl<'de> Deserialize<'de> for LLMInfo {
 impl LLMInfo {
     /// Returns the display name for the LLM, to be used in the LLM selector menu.
     pub fn menu_display_name(&self) -> String {
-        // Custom model routers carry a routing/source description that belongs in
-        // the sidecar detail panel, not inline in the chip label. Appending it
-        // here would produce a redundant "(Routes by … · …)" suffix.
-        if custom_model_routers::is_custom_router_id(self.id.as_str()) {
-            return self.display_name.clone();
-        }
         // Base label includes optional description in parentheses
         match &self.description {
             // This is a temporary implementation that won't scale well for longer
@@ -530,8 +517,6 @@ pub struct LLMPreferences {
     /// Refetched on every `ApiKeyManagerEvent::KeysUpdated`, so pasting a key populates the
     /// picker without a restart.
     provider_llms: Vec<LLMInfo>,
-    /// All custom model routers, including both local and cloud-backed.
-    custom_model_routers: Vec<CustomModelRouter>,
 }
 
 impl LLMPreferences {
@@ -550,17 +535,6 @@ impl LLMPreferences {
             },
         );
 
-        // Rebuild custom model routers whenever the local `model_configs/` directory
-        // changes, and reconcile any now-stale local selection.
-        if FeatureFlag::CustomModelRouters.is_enabled() {
-            ctx.subscribe_to_model(&WarpConfig::handle(ctx), |me, _, event, ctx| {
-                if matches!(event, WarpConfigUpdateEvent::ModelConfigs) {
-                    me.rebuild_custom_model_routers(ctx);
-                    me.reconcile_stale_custom_router_selection(ctx);
-                }
-            });
-        }
-
         let base_llm_for_terminal_view = HashMap::new();
         let custom_llms = build_custom_llm_infos(ApiKeyManager::as_ref(ctx).keys());
 
@@ -569,18 +543,11 @@ impl LLMPreferences {
             base_llm_for_terminal_view,
             custom_llms,
             provider_llms: Vec::new(),
-            custom_model_routers: Vec::new(),
         };
 
         // A key stored from a previous run is already loaded, so ask its provider what it can
         // reach now rather than waiting for the user to touch the key again.
         me.refresh_provider_llms(ctx);
-
-        // Seed from any already-loaded local config (the async load emits
-        // `ModelConfigs` shortly after startup to populate fully).
-        if FeatureFlag::CustomModelRouters.is_enabled() {
-            me.rebuild_custom_model_routers(ctx);
-        }
 
         me
     }
@@ -646,10 +613,8 @@ impl LLMPreferences {
             .unwrap_or_else(|| available.default_llm_info())
     }
 
-    /// Resolves `id` against `available` (a feature's server-provided model
-    /// list, custom-router gated), then the user's custom-endpoint models and
-    /// local custom routers (both gated on their respective entitlement /
-    /// feature flag).
+    /// Resolves `id` against `available` (a feature's model list), then the
+    /// user's custom-endpoint models and the provider-fetched models.
     ///
     /// Shared by the per-surface override and execution-profile resolution
     /// paths so their lookup semantics can't drift.
@@ -658,9 +623,9 @@ impl LLMPreferences {
         available: &'a AvailableLLMs,
         id: &LLMId,
     ) -> Option<&'a LLMInfo> {
-        Self::server_info_for_id_router_gated(available, id)
+        available
+            .info_for_id(id)
             .or_else(|| self.custom_llm_info_for_id(id))
-            .or_else(|| self.custom_router_llm_info_for_id_if_enabled(id))
             .or_else(|| self.provider_llm_info_for_id(id))
     }
 
@@ -688,41 +653,16 @@ impl LLMPreferences {
             .unwrap_or_else(|| self.fallback_llm_info(&self.models_by_feature.coding, app))
     }
 
-    /// Resolves `id` against a server-provided model list, but hides cloud/team
-    /// custom routers when the custom-router feature flag is off. Mirrors the
-    /// gating applied to local routers (see
-    /// [`Self::custom_router_llm_info_for_id_if_enabled`]) so the whole
-    /// custom-router feature is controlled by a single client flag.
-    fn server_info_for_id_router_gated<'a>(
-        available: &'a AvailableLLMs,
-        id: &LLMId,
-    ) -> Option<&'a LLMInfo> {
-        let info = available.info_for_id(id)?;
-        if !FeatureFlag::CustomModelRouters.is_enabled()
-            && custom_model_routers::is_cloud_custom_router_id(info.id.as_str())
-        {
-            return None;
-        }
-        Some(info)
-    }
-
     /// Returns the set of LLMs available for Agent Mode use.
     pub fn get_base_llm_choices_for_agent_mode(&self) -> impl Iterator<Item = &LLMInfo> + use<'_> {
         // Don't show admin-disabled models in the dropdown
-        let routers_enabled = FeatureFlag::CustomModelRouters.is_enabled();
         self.models_by_feature
             .agent_mode
             .choices
             .iter()
             .filter(|llm| llm.disable_reason != Some(DisableReason::AdminDisabled))
-            // Gate cloud/team routers behind the same flag as local routers so
-            // the entire custom-router feature is controlled by one flag.
-            .filter(move |llm| {
-                routers_enabled || !custom_model_routers::is_cloud_custom_router_id(llm.id.as_str())
-            })
             .chain(self.custom_llm_choices())
             .chain(self.provider_llm_choices())
-            .chain(self.custom_router_choices())
     }
 
     #[cfg(any(test, feature = "test-util"))]
@@ -733,19 +673,13 @@ impl LLMPreferences {
     /// Returns the set of LLMs available for coding.
     pub fn get_coding_llm_choices(&self) -> impl Iterator<Item = &LLMInfo> + use<'_> {
         // Don't show admin-disabled models in the dropdown
-        let routers_enabled = FeatureFlag::CustomModelRouters.is_enabled();
         self.models_by_feature
             .coding
             .choices
             .iter()
             .filter(|llm| llm.disable_reason != Some(DisableReason::AdminDisabled))
-            // Gate cloud/team routers behind the same flag as local routers.
-            .filter(move |llm| {
-                routers_enabled || !custom_model_routers::is_cloud_custom_router_id(llm.id.as_str())
-            })
             .chain(self.custom_llm_choices())
             .chain(self.provider_llm_choices())
-            .chain(self.custom_router_choices())
     }
 
     /// Returns the set of LLMs available for CLI agent.
@@ -844,7 +778,6 @@ impl LLMPreferences {
         self.models_by_feature
             .info_for_id(id)
             .or_else(|| self.custom_llm_info_for_id(id))
-            .or_else(|| self.custom_router_llm_info_for_id(id))
     }
 
     /// Resolves an `LLMId` against the user's custom-endpoint LLMs.
@@ -866,162 +799,6 @@ impl LLMPreferences {
     /// Iterator over the user's custom-endpoint LLMs.
     pub fn custom_llm_choices(&self) -> std::slice::Iter<'_, LLMInfo> {
         self.custom_llms.iter()
-    }
-
-    /// Resolves a custom model router by its `config_key`/`LLMId`.
-    pub fn custom_model_router_for_id(&self, id: &LLMId) -> Option<&CustomModelRouter> {
-        self.custom_model_routers.iter().find(|m| m.llm_id() == *id)
-    }
-
-    fn custom_router_llm_info_for_id(&self, id: &LLMId) -> Option<&LLMInfo> {
-        self.custom_model_routers
-            .iter()
-            .find(|m| m.info.id == *id)
-            .map(|m| &m.info)
-    }
-
-    fn custom_router_llm_info_for_id_if_enabled(&self, id: &LLMId) -> Option<&LLMInfo> {
-        FeatureFlag::CustomModelRouters
-            .is_enabled()
-            .then(|| self.custom_router_llm_info_for_id(id))
-            .flatten()
-    }
-
-    /// Iterator over the custom router picker entries, gated on the feature flag.
-    /// Mirrors [`Self::custom_llm_choices`].
-    pub fn custom_router_choices(&self) -> impl Iterator<Item = &LLMInfo> {
-        let enabled = FeatureFlag::CustomModelRouters.is_enabled();
-        self.custom_model_routers
-            .iter()
-            .filter(move |_| enabled)
-            .map(|m| &m.info)
-    }
-
-    /// Builds the custom_model_routers registry for an outbound request.
-    pub fn custom_model_routers_for_request(
-        &self,
-        base_id: &LLMId,
-        coding_id: &LLMId,
-    ) -> api::request::settings::CustomModelRouters {
-        let mut models = Vec::new();
-        let mut seen = HashSet::new();
-        for id in [base_id, coding_id] {
-            if let Some(entry) = self.custom_router_proto_entry(id)
-                && seen.insert(entry.config_key.clone())
-            {
-                models.push(entry);
-            }
-        }
-        api::request::settings::CustomModelRouters { routers: models }
-    }
-
-    /// Returns the proto registry entry for a local custom-router id, or `None`
-    /// if `id` is not a known local router.
-    fn custom_router_proto_entry(
-        &self,
-        id: &LLMId,
-    ) -> Option<api::request::settings::custom_model_routers::CustomModelRouter> {
-        self.custom_model_router_for_id(id).map(|m| m.to_proto())
-    }
-
-    /// Rebuilds `custom_model_routers` from the `model_configs/` directory,
-    /// then notifies subscribers.
-    ///
-    /// Routers whose targets include an unknown model are excluded and a
-    /// warning is logged. The check uses the currently loaded model list
-    /// (server-fetched + cached), so it is best-effort at startup before
-    /// the server responds.
-    fn rebuild_custom_model_routers(&mut self, ctx: &mut ModelContext<Self>) {
-        let local = WarpConfig::as_ref(ctx).custom_model_routers().clone();
-
-        let mut deduped = Vec::with_capacity(local.len());
-        let mut seen = HashSet::new();
-        for model in local {
-            if seen.insert(model.config_key()) {
-                deduped.push(model);
-            }
-        }
-        let mut validation_errors: Vec<ModelConfigError> = Vec::new();
-        deduped.retain(|router| {
-            let unknown: Vec<&str> = router
-                .all_targets()
-                .into_iter()
-                .filter(|id| self.get_llm_info(&LLMId::from(*id)).is_none())
-                .collect();
-            if unknown.is_empty() {
-                return true;
-            }
-            let error_message = format!("unknown target model(s): {}", unknown.join(", "));
-            log::warn!(
-                "Custom model router '{}': {} — excluding from picker",
-                router.info.display_name,
-                error_message,
-            );
-            validation_errors.push(ModelConfigError {
-                file_name: router
-                    .source_path
-                    .as_ref()
-                    .and_then(|p| p.file_name())
-                    .and_then(|n| n.to_str())
-                    .unwrap_or(router.info.display_name.as_str())
-                    .to_owned(),
-                file_path: router.source_path.clone().unwrap_or_default(),
-                error_message,
-            });
-            false
-        });
-        if !validation_errors.is_empty() {
-            WarpConfig::handle(ctx).update(ctx, |_, ctx| {
-                ctx.emit(WarpConfigUpdateEvent::ModelConfigErrors(validation_errors));
-            });
-        }
-
-        // vision is supported only when every concrete target model supports it.
-        for router in &mut deduped {
-            router.info.vision_supported = router.all_targets().iter().all(|id| {
-                self.get_llm_info(&LLMId::from(*id))
-                    .is_some_and(|info| info.vision_supported)
-            });
-        }
-
-        self.custom_model_routers = deduped;
-        ctx.emit(LLMPreferencesEvent::UpdatedAvailableLLMs);
-    }
-
-    /// Clears the in-memory per-pane Agent Mode override for any local custom-router
-    /// selection that no longer resolves to a loaded definition, so the visible
-    /// model chip updates to the fallback when a config file is removed or renamed.
-    ///
-    /// **Execution-profile (persisted/synced) preferences are intentionally NOT
-    /// cleared here**, even when a `custom-router:local:…` id is absent from the
-    /// current registry.  An id missing from the local registry may have been
-    /// configured on another device and synced to this one; clearing it would
-    /// propagate the removal back to cloud and erase the user's setting on the
-    /// device that still has the router configured.  This mirrors the QUALITY-866
-    /// guard in `reconcile_disabled_model_preferences`: only recognised (locally
-    /// known) ids are cleared.  The display fallback (`model_info_for_id` returning
-    /// `None` → `fallback_llm_info`) already shows the default when a router
-    /// cannot be resolved locally — no explicit profile clear is required.
-    fn reconcile_stale_custom_router_selection(&mut self, ctx: &mut ModelContext<Self>) {
-        let valid_local: HashSet<LLMId> = self
-            .custom_model_routers
-            .iter()
-            .map(|m| m.llm_id())
-            .collect();
-
-        let mut updated_agent_mode = false;
-
-        self.base_llm_for_terminal_view.retain(|_, id| {
-            let stale = custom_model_routers::is_local_custom_router_id(id.as_str())
-                && !valid_local.contains(&*id);
-            updated_agent_mode |= stale;
-            !stale
-        });
-
-        if updated_agent_mode {
-            self.trigger_snapshot_save(ctx);
-            ctx.emit(LLMPreferencesEvent::UpdatedActiveAgentModeLLM);
-        }
     }
 
     /// Reads the user's current `ApiKeyManager.custom_endpoints` and replaces `custom_llms`

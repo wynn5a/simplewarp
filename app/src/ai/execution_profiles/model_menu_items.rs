@@ -9,7 +9,6 @@ use warpui::elements::{
 use warpui::fonts::{Properties, Style};
 use warpui::{Action, AppContext, Element};
 
-use crate::ai::custom_model_routers::is_custom_router_id;
 use crate::ai::llms::{
     DisableReason, LLMId, LLMInfo, ModelIconFlags, model_leading_icon,
     should_show_key_icon_for_model,
@@ -85,11 +84,9 @@ fn make_item_fields<A: Action + Clone>(
         llm.menu_display_name()
     };
     let is_using_api_key = should_show_key_icon_for_model(llm, app);
-    let is_custom_router = is_custom_router_id(llm.id.as_str());
     let leading_icon = model_leading_icon(
         llm,
         ModelIconFlags {
-            is_custom_router,
             is_auto: is_auto_model,
         },
     );

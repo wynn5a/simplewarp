@@ -843,21 +843,6 @@ define_settings_group!(AISettings, settings: [
         toml_path: "agents.warp_agent.other.show_conversation_history",
         description: "Whether conversation history appears in the tools panel.",
     }
-
-
-    // Not a user-visible setting - it tracks which one-time feature-intro popups the
-    // user has already seen, keyed by the feature-intro id (see `FEATURE_INTROS`).
-    //
-    // We model it as a globally-synced setting (not respecting the user's sync setting)
-    // so each feature is announced at most once per user, regardless of how many devices
-    // they use. A feature is considered seen when its id is present and mapped to `true`.
-    seen_feature_intro_ids: SeenFeatureIntroIds {
-        type: HashMap<String, bool>,
-        default: HashMap::default(),
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    }
 ]);
 
 impl AISettings {
@@ -1095,25 +1080,6 @@ impl AISettings {
             self.cli_agent_footer_enabled_commands
                 .set_value(ToolbarCommandMap::new(map), ctx)
         );
-    }
-
-    /// Whether the feature-intro popover with the given id key has been seen.
-    pub fn is_feature_intro_seen(&self, key: &str) -> bool {
-        self.seen_feature_intro_ids
-            .get(key)
-            .copied()
-            .unwrap_or(false)
-    }
-
-    /// Records that the feature-intro popover with the given id key has been seen,
-    /// so it is never shown again. No-op if already recorded.
-    pub fn mark_feature_intro_seen(&mut self, key: &str, ctx: &mut ModelContext<Self>) {
-        if self.is_feature_intro_seen(key) {
-            return;
-        }
-        let mut map = self.seen_feature_intro_ids.clone();
-        map.insert(key.to_owned(), true);
-        report_if_error!(self.seen_feature_intro_ids.set_value(map, ctx));
     }
 }
 

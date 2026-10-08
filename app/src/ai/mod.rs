@@ -20,8 +20,6 @@ pub(crate) mod conversation_navigation;
 pub(crate) mod conversation_rename;
 pub(crate) mod conversation_status_ui;
 pub(crate) mod conversation_utils;
-pub(crate) mod custom_model_router_editor;
-pub(crate) mod custom_model_routers;
 pub(crate) mod document;
 pub(crate) mod get_relevant_files;
 pub mod harness_availability;

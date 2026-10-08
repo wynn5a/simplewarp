@@ -569,12 +569,6 @@ pub enum WorkspaceAction {
     ToggleConversationListView,
     OpenConversationListView,
     OpenAgentManagementView,
-    /// Open the Feature Intro Modal (for debugging)
-    #[cfg(debug_assertions)]
-    OpenFeatureIntroModal,
-    /// Reset the feature intro seen state (for debugging)
-    #[cfg(debug_assertions)]
-    ResetFeatureIntroModalState,
     /// Install the opencode-warp plugin from GitHub into the global opencode config.
     #[cfg(debug_assertions)]
     InstallOpenCodeWarpPlugin,
@@ -613,8 +607,6 @@ pub enum WorkspaceAction {
         image: lightbox::LightboxImage,
     },
     ShowSessionConfigModal,
-    /// Dismiss the non-blocking feature-intro popover without requiring it to hold focus.
-    DismissFeatureIntroModal,
     /// Open the "New worktree" modal for creating a reusable worktree tab config.
     OpenNewWorktreeModal,
     /// Open the native folder picker for the repo field in the new-worktree modal.
@@ -880,7 +872,6 @@ impl WorkspaceAction {
             | OpenLightbox { .. }
             | UpdateLightboxImage { .. }
             | ShowSessionConfigModal
-            | DismissFeatureIntroModal
             | SaveCurrentTabAsNewConfig(_)
             | SyncTrafficLights
             | OpenTabConfigErrorFile { .. }
@@ -891,10 +882,7 @@ impl WorkspaceAction {
             | FixSettingsWithOz { .. }
             | OpenNetworkLogPane => false,
             #[cfg(debug_assertions)]
-            OpenFeatureIntroModal
-            | ResetFeatureIntroModalState
-            | InstallOpenCodeWarpPlugin
-            | UseLocalOpenCodeWarpPlugin => false,
+            InstallOpenCodeWarpPlugin | UseLocalOpenCodeWarpPlugin => false,
             ViewLogs => false,
             #[cfg(target_os = "macos")]
             SampleProcess => false,

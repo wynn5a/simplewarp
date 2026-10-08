@@ -17,11 +17,10 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, EntityId, SingletonEntity as _};
 
 use super::model_spec_scores::{
-    CUSTOM_MODEL_ROUTER_DESCRIPTION, CUSTOM_MODEL_ROUTER_TITLE, CostRow, MODEL_SPECS_DESCRIPTION,
-    MODEL_SPECS_TITLE, ModelSpecScoresLayout, REASONING_LEVEL_DESCRIPTION, REASONING_LEVEL_TITLE,
-    render_model_spec_header, render_model_spec_scores,
+    CostRow, MODEL_SPECS_DESCRIPTION, MODEL_SPECS_TITLE, ModelSpecScoresLayout,
+    REASONING_LEVEL_DESCRIPTION, REASONING_LEVEL_TITLE, render_model_spec_header,
+    render_model_spec_scores,
 };
-use crate::ai::custom_model_routers::is_custom_router_id;
 use crate::ai::execution_profiles::model_menu_items::is_auto;
 use crate::ai::llms::{
     BYO_KEY_INFERENCE_LABEL, DisableReason, LLMId, LLMInfo, LLMPreferences, LLMSpec,
@@ -210,16 +209,11 @@ impl ModelSelectorDataSource {
         choices: Vec<&'a LLMInfo>,
     ) -> Vec<&'a LLMInfo> {
         let mut auto_choices = Vec::new();
-        let mut custom_router_choices = Vec::new();
         let mut custom_choices = Vec::new();
         let mut other_choices = Vec::new();
 
         for llm in choices {
-            // Check custom router before is_auto because custom router ids contain
-            // "auto" and would otherwise land in auto_choices.
-            if is_custom_router_id(llm.id.as_str()) {
-                custom_router_choices.push(llm);
-            } else if is_auto(llm) {
+            if is_auto(llm) {
                 auto_choices.push(llm);
             } else if llm_preferences.custom_llm_info_for_id(&llm.id).is_some() {
                 custom_choices.push(llm);
@@ -230,7 +224,6 @@ impl ModelSelectorDataSource {
 
         auto_choices
             .into_iter()
-            .chain(custom_router_choices)
             .chain(custom_choices)
             .chain(other_choices)
             .collect()
@@ -289,9 +282,6 @@ struct ModelSearchItem {
     uses_byo_key: bool,
     display_text: String,
     is_selected: bool,
-    is_custom_router: bool,
-    /// Source/routing description for custom model routers (from `LLMInfo.description`).
-    description: Option<String>,
     disable_reason: Option<DisableReason>,
     name_match_result: Option<FuzzyMatchResult>,
     score: OrderedFloat<f64>,
@@ -303,16 +293,9 @@ struct ModelSearchItem {
 impl ModelSearchItem {
     fn new(choice: ModelPickerChoice, active_llm_id: &LLMId, app: &AppContext) -> Self {
         let llm = &choice.llm;
-        let is_custom_router = is_custom_router_id(llm.id.as_str());
         let is_auto = is_auto(llm);
         let uses_byo_key = should_show_key_icon_for_model(llm, app);
-        let leading_icon = model_leading_icon(
-            llm,
-            ModelIconFlags {
-                is_custom_router,
-                is_auto,
-            },
-        );
+        let leading_icon = model_leading_icon(llm, ModelIconFlags { is_auto });
         let credential_icon = uses_byo_key.then_some(Icon::Key);
         Self {
             id: llm.id.clone(),
@@ -322,8 +305,6 @@ impl ModelSearchItem {
             uses_byo_key,
             display_text: llm.display_name.clone(),
             is_selected: &llm.id == active_llm_id,
-            is_custom_router,
-            description: llm.description.clone(),
             disable_reason: choice.disable_reason,
             name_match_result: choice.name_match_result,
             score: choice.score,
@@ -487,31 +468,6 @@ impl SearchItem for ModelSearchItem {
 
         let appearance = crate::appearance::Appearance::as_ref(app);
         let theme = appearance.theme();
-
-        // Custom auto models get an informational blurb instead of spec bars.
-        if self.is_custom_router {
-            let header = render_model_spec_header(
-                CUSTOM_MODEL_ROUTER_TITLE,
-                CUSTOM_MODEL_ROUTER_DESCRIPTION,
-                app,
-            );
-            let source_text = Text::new(
-                self.description.as_deref().unwrap_or("").to_string(),
-                appearance.ui_font_family(),
-                inline_styles::font_size(appearance),
-            )
-            .with_color(theme.disabled_ui_text_color().into())
-            .finish();
-            let column = Flex::column()
-                .with_child(Container::new(header).with_margin_bottom(12.).finish())
-                .with_child(source_text)
-                .finish();
-            return Some(
-                ConstrainedBox::new(column)
-                    .with_width(model_specs_width(app))
-                    .finish(),
-            );
-        }
 
         let (title, description) = if self.reasoning_level.is_some() {
             (REASONING_LEVEL_TITLE, REASONING_LEVEL_DESCRIPTION)

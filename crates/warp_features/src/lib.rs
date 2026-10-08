@@ -501,10 +501,6 @@ pub enum FeatureFlag {
     /// `DOGFOOD_FLAGS` once the underlying issues are resolved.
     NldPromptHistoryMatch,
 
-    /// Gates the custom model router feature, which allows users to define
-    /// their own model routers.
-    CustomModelRouters,
-
     /// Enables state-mutating recovery for abnormal terminal lifecycle sequences.
     TerminalLifecycleRecovery,
 

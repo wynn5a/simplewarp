@@ -1,11 +1,10 @@
 //! The "Warp Agent" settings page, shown under the Agents umbrella.
 //!
 //! Covers Warp's own AI: the global toggle, Active AI suggestions, agent
-//! input behavior, credentials (BYO keys, custom endpoints,
-//! custom routers) and the miscellaneous agent display settings.
+//! input behavior, credentials (BYO keys, custom endpoints) and the
+//! miscellaneous agent display settings.
 
 use std::ops::Not;
-use std::path::PathBuf;
 use std::sync::LazyLock;
 
 use ::ai::api_keys::{ApiKeyManager, ApiKeys, CustomEndpointParams};
@@ -408,10 +407,6 @@ pub struct WarpAgentPageView {
     default_prompt_submission_mode_dropdown: ViewHandle<Dropdown<WarpAgentPageAction>>,
     lrc_submission_mode_dropdown: ViewHandle<Dropdown<WarpAgentPageAction>>,
 
-    // Custom model router views (gated on FeatureFlag::CustomModelRouters)
-    router_views: Vec<ViewHandle<super::custom_router_view::CustomRouterView>>,
-    add_router_button: ViewHandle<ActionButton>,
-
     custom_endpoint_modal_state: CustomEndpointModalViewState,
     remove_custom_endpoint_confirmation_dialog: ViewHandle<RemoveCustomEndpointConfirmationDialog>,
     pending_remove_custom_endpoint_index: Option<usize>,
@@ -600,22 +595,6 @@ impl WarpAgentPageView {
             ctx.notify();
         });
 
-        let router_views = Self::create_router_views(ctx);
-        let add_router_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("+ Add router", SecondaryTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(WarpAgentPageAction::OpenAddCustomRouter);
-                })
-        });
-        {
-            let is_enabled = warp_core::features::FeatureFlag::CustomModelRouters.is_enabled()
-                && is_any_ai_enabled;
-            add_router_button.update(ctx, |button, ctx| {
-                button.set_disabled(!is_enabled, ctx);
-            });
-        }
-
         let custom_inference_controls_enabled = is_any_ai_enabled;
         let custom_inference_add_button = ctx.add_typed_action_view(|_| {
             ActionButton::new("+ Add custom model", SecondaryTheme)
@@ -727,18 +706,6 @@ impl WarpAgentPageView {
             AgentToolbarInlineEditor::new(AgentToolbarEditorMode::AgentView, ctx)
         });
 
-        // Subscribe to WarpConfig to refresh router views when files change.
-        ctx.subscribe_to_model(
-            &crate::user_config::WarpConfig::handle(ctx),
-            |me, _, event, ctx| {
-                use crate::user_config::WarpConfigUpdateEvent;
-                if matches!(event, WarpConfigUpdateEvent::ModelConfigs) {
-                    me.router_views = Self::create_router_views(ctx);
-                    ctx.notify();
-                }
-            },
-        );
-
         Self {
             page: Self::build_page(ctx),
             autodetection_denylist_editor,
@@ -747,8 +714,6 @@ impl WarpAgentPageView {
             orchestration_message_display_mode_dropdown,
             default_prompt_submission_mode_dropdown,
             lrc_submission_mode_dropdown,
-            router_views,
-            add_router_button,
             custom_endpoint_modal_state,
             remove_custom_endpoint_confirmation_dialog,
             pending_remove_custom_endpoint_index: None,
@@ -1275,9 +1240,6 @@ impl WarpAgentPageView {
         }
         widgets.push(Box::new(AIInputWidget::default()));
         widgets.push(Box::new(ApiKeysWidget::new(ctx)));
-        if FeatureFlag::CustomModelRouters.is_enabled() {
-            widgets.push(Box::new(CustomModelRoutersWidget));
-        }
         widgets.push(Box::new(OtherAIWidget::default()));
 
         // This page is multi-section: it renders its own subheader-sized
@@ -1309,48 +1271,6 @@ impl WarpAgentPageView {
             _ => {}
         }
     }
-
-    fn create_router_views(
-        ctx: &mut ViewContext<Self>,
-    ) -> Vec<ViewHandle<super::custom_router_view::CustomRouterView>> {
-        use super::custom_router_view::{CustomRouterView, CustomRouterViewEvent};
-        use crate::user_config::WarpConfig;
-        if !warp_core::features::FeatureFlag::CustomModelRouters.is_enabled() {
-            return Vec::new();
-        }
-        let routers: Vec<crate::ai::custom_model_routers::CustomModelRouter> =
-            WarpConfig::as_ref(ctx).custom_model_routers().clone();
-        routers
-            .into_iter()
-            .map(|router| {
-                let router_clone = router.clone();
-                let view = ctx.add_typed_action_view(|ctx| CustomRouterView::new(router, ctx));
-                ctx.subscribe_to_view(&view, move |me, _, event, ctx| match event {
-                    CustomRouterViewEvent::OpenFile(path) => {
-                        ctx.emit(WarpAgentPageEvent::OpenCustomRouterFile(path.clone()));
-                    }
-                    CustomRouterViewEvent::Edit => {
-                        let r = router_clone.clone();
-                        ctx.emit(WarpAgentPageEvent::OpenCustomRouterEditor(Some(r)));
-                    }
-                    CustomRouterViewEvent::Delete => {
-                        if let Some(path) = &router_clone.source_path {
-                            {
-                                if let Err(e) =
-                                    crate::user_config::WarpConfig::delete_custom_model_router(path)
-                                {
-                                    log::warn!("Failed to delete custom router: {e:?}");
-                                }
-                            }
-                            me.router_views = Self::create_router_views(ctx);
-                            ctx.notify();
-                        }
-                    }
-                });
-                view
-            })
-            .collect()
-    }
 }
 
 impl View for WarpAgentPageView {
@@ -1363,11 +1283,9 @@ impl View for WarpAgentPageView {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
+#[allow(clippy::enum_variant_names)]
 pub enum WarpAgentPageEvent {
     FocusModal,
-    OpenCustomRouterEditor(Option<crate::ai::custom_model_routers::CustomModelRouter>),
-    OpenCustomRouterFile(PathBuf),
     ShowModal,
     HideModal,
 }
@@ -1397,9 +1315,6 @@ pub enum WarpAgentPageAction {
     ToggleFileBasedMcp,
     ToggleIncludeAgentCommandsInHistory,
     ToggleAutoApproveBypassesCommandDenylist,
-
-    // Custom model routers
-    OpenAddCustomRouter,
 
     // Custom inference
     OpenAddCustomEndpointModal,
@@ -1609,9 +1524,6 @@ impl TypedActionView for WarpAgentPageView {
                     );
                 });
                 ctx.notify();
-            }
-            WarpAgentPageAction::OpenAddCustomRouter => {
-                ctx.emit(WarpAgentPageEvent::OpenCustomRouterEditor(None));
             }
             WarpAgentPageAction::OpenAddCustomEndpointModal => {
                 self.show_add_custom_endpoint_modal(ctx);
@@ -2738,101 +2650,5 @@ impl SettingsWidget for ApiKeysWidget {
         }
 
         column.finish()
-    }
-}
-
-/// Stable `&'static str` id for the custom model routers settings widget,
-/// exposed for the `warp://settings?widget=custom_router` deeplink (see
-/// `settings_widget_deeplink_target`).
-pub(crate) fn custom_model_routers_widget_id() -> &'static str {
-    CustomModelRoutersWidget::static_widget_id()
-}
-
-#[derive(Default)]
-struct CustomModelRoutersWidget;
-
-impl SettingsWidget for CustomModelRoutersWidget {
-    type View = WarpAgentPageView;
-
-    fn search_terms(&self) -> &str {
-        "custom model router complexity prompt auto model routing"
-    }
-
-    fn should_render(&self, _app: &AppContext) -> bool {
-        FeatureFlag::CustomModelRouters.is_enabled()
-    }
-
-    fn render(
-        &self,
-        view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
-        let header_color = styles::header_font_color(is_any_ai_enabled, app);
-
-        // Header row: "Custom Model Routers" + add button
-        let header_row = Flex::row()
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(build_sub_header(appearance, "Custom Routers", Some(header_color)).finish())
-            .with_child({
-                {
-                    warpui::elements::Container::new(view.add_router_button.as_ref(app).render(app))
-                        .with_margin_bottom(4.)
-                        .with_margin_top(-4.)
-                        .finish()
-                }
-            })
-            .finish();
-
-        let column = Flex::column()
-            .with_child(render_separator(appearance))
-            .with_child(
-                Container::new(header_row)
-                    .with_padding_bottom(HEADER_PADDING)
-                    .finish(),
-            )
-            .with_child(render_ai_setting_description(
-                "Automatically route tasks to specific models based on task complexity or custom rules. Custom routers will appear in your model selector menu.",
-                is_any_ai_enabled,
-                app,
-            ));
-
-        // Error cards and router summary cards
-        let column = {
-            use super::custom_router_view::render_router_error_card;
-            use crate::user_config::WarpConfig;
-            let mut c = column;
-            // Error cards (files that failed to parse) — shown first
-            let errors = WarpConfig::as_ref(app).custom_model_router_errors();
-            for error in errors.iter() {
-                c.add_child(
-                    Container::new(render_router_error_card(
-                        &error.file_name,
-                        &error.error_message,
-                        appearance,
-                    ))
-                    .with_margin_top(8.)
-                    .finish(),
-                );
-            }
-            // Router summary cards
-            for view_handle in &view.router_views {
-                c.add_child(
-                    Container::new(warpui::elements::ChildView::new(view_handle).finish())
-                        .with_margin_top(8.)
-                        .finish(),
-                );
-            }
-            c
-        };
-
-        // Add trailing space beneath this section (matching sibling sections) so the following
-        // section's title isn't crowded against the router cards.
-        Container::new(column.finish())
-            .with_margin_bottom(HEADER_PADDING)
-            .finish()
     }
 }

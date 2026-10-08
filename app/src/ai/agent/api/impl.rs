@@ -108,7 +108,7 @@ pub async fn generate_multi_agent_output(
             supports_background_computer_use: FeatureFlag::BackgroundComputerUse.is_enabled()
                 && computer_use::background_supported(),
             custom_model_providers: params.custom_model_providers,
-            custom_model_routers: params.custom_model_routers,
+            custom_model_routers: None,
         }),
         metadata: Some(api::request::Metadata {
             logging: logging_metadata,

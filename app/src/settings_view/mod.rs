@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use about_page::AboutPageView;
 use agent_profiles_page::{AgentProfilesPageAction, AgentProfilesPageEvent, AgentProfilesPageView};
 use appearance_page::{AppearancePageAction, AppearanceSettingsPageView};
@@ -40,7 +38,6 @@ use warpui::{
 };
 
 use crate::GlobalResourceHandlesProvider;
-use crate::ai::custom_model_routers::CustomModelRouter;
 use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::appearance::Appearance;
 use crate::editor::{
@@ -67,7 +64,6 @@ mod appearance_page;
 mod cli_agents_page;
 mod code_editor_review_page;
 pub(crate) mod custom_inference_modal;
-mod custom_router_view;
 mod directory_color_add_picker;
 mod execution_profile_view;
 mod features;
@@ -94,7 +90,6 @@ pub use settings_page::{
     AdditionalInfo, InputListItem, ToggleState, render_body_item_label, render_info_icon,
     render_input_list, render_separator,
 };
-pub(crate) use warp_agent_page::custom_model_routers_widget_id;
 
 /// Original sidebar width used when the settings-file footer is not
 /// enabled. Preserved for Preview/Stable until `FeatureFlag::SettingsFile`
@@ -221,8 +216,6 @@ pub enum SettingsViewEvent {
     },
     OpenAIFactCollection,
     OpenMCPServerCollection,
-    OpenCustomRouterEditor(Box<Option<CustomModelRouter>>),
-    OpenCustomRouterFile(PathBuf),
     OpenExecutionProfileEditor(ExecutionProfileId),
 }
 
@@ -350,7 +343,6 @@ pub fn settings_widget_deeplink_target(slug: &str) -> Option<(SettingsSection, &
             SettingsSection::Features,
             features_page::global_hotkey_widget_id(),
         )),
-        "custom_router" => Some((SettingsSection::WarpAgent, custom_model_routers_widget_id())),
         "cli_agents" => Some((
             SettingsSection::ThirdPartyCLIAgents,
             cli_agent_settings_widget_id(),
@@ -440,7 +432,6 @@ pub mod flags {
     pub const USE_LATEST_USER_PROMPT_AS_CONVERSATION_TITLE_IN_TAB_NAMES_FLAG: &str =
         "Use_Latest_User_Prompt_As_Conversation_Title_In_Tab_Names";
     pub const ALT_SCREEN_PADDING_FLAG: &str = "Alt_Screen_Padding";
-    pub const FEATURE_INTRO_MODAL_OPEN: &str = "Feature_Intro_Modal_Open";
     pub const FOCUS_PANES_ON_HOVER_CONTEXT_FLAG: &str = "Focus_Panes_On_Hover";
     pub const HIDE_WORKSPACE_DECORATIONS_CONTEXT_FLAG: &str = "Hide_Workspace_Decorations";
     pub const ALIAS_EXPANSION_FLAG: &str = "Alias_Expansion_Enabled";
@@ -1537,14 +1528,6 @@ impl SettingsView {
     ) {
         match event {
             WarpAgentPageEvent::FocusModal => ctx.focus(&self.search_editor),
-            WarpAgentPageEvent::OpenCustomRouterEditor(router) => {
-                ctx.emit(SettingsViewEvent::OpenCustomRouterEditor(Box::new(
-                    router.clone(),
-                )));
-            }
-            WarpAgentPageEvent::OpenCustomRouterFile(path) => {
-                ctx.emit(SettingsViewEvent::OpenCustomRouterFile(path.clone()));
-            }
             WarpAgentPageEvent::ShowModal | WarpAgentPageEvent::HideModal => {
                 // Modal rendering is handled in get_modal_content_for_page
                 ctx.notify();

@@ -28,7 +28,7 @@ use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::{BlocklistAIPermissions, RequestInput, SessionContext};
 use crate::ai::execution_profiles::AIExecutionProfileAppExt;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-use crate::ai::llms::{LLMId, LLMPreferences};
+use crate::ai::llms::LLMId;
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::server::server_api::AIApiError;
 use crate::settings::AISettings;
@@ -98,10 +98,6 @@ pub struct RequestParams {
     /// User-provided custom model providers (BYOK endpoints).
     pub custom_model_providers:
         Option<warp_multi_agent_api::request::settings::CustomModelProviders>,
-    /// User-defined custom model routers referenced by the current selection. Mirrors
-    /// `custom_model_providers`: the selected model's `config_key` indexes into this
-    /// registry. `None` when no custom router is selected.
-    pub custom_model_routers: Option<warp_multi_agent_api::request::settings::CustomModelRouters>,
     pub allow_use_of_warp_credits: bool,
     pub autonomy_level: warp_multi_agent_api::AutonomyLevel,
     pub isolation_level: warp_multi_agent_api::IsolationLevel,
@@ -173,7 +169,6 @@ impl RequestParams {
             should_redact_secrets: false,
             api_keys: None,
             custom_model_providers: None,
-            custom_model_routers: None,
             allow_use_of_warp_credits: false,
             autonomy_level: Default::default(),
             isolation_level: Default::default(),
@@ -274,12 +269,6 @@ impl RequestParams {
         let api_key_manager = ApiKeyManager::as_ref(app);
         let api_keys = api_key_manager.api_keys_for_request();
         let custom_model_providers = api_key_manager.custom_model_providers_for_request();
-        let custom_model_routers = FeatureFlag::CustomModelRouters.is_enabled().then(|| {
-            LLMPreferences::as_ref(app).custom_model_routers_for_request(
-                &request_input.model_id,
-                &request_input.coding_model_id,
-            )
-        });
         let app_execution_mode = AppExecutionMode::as_ref(app);
         let autonomy_level = if app_execution_mode.is_autonomous() {
             warp_multi_agent_api::AutonomyLevel::Unsupervised
@@ -345,7 +334,6 @@ impl RequestParams {
             should_redact_secrets,
             api_keys,
             custom_model_providers,
-            custom_model_routers,
             // Warp credits belong to a Warp account; this fork has none, so credit
             // fallback can never turn on.
             allow_use_of_warp_credits: false,

@@ -515,7 +515,6 @@ default = [
     "queue_slash_command",
     "queued_prompts_v2",
     "solo_user_byok",
-    "custom_model_routers",
     "git_operations_in_code_review",
     "terminal_lifecycle_recovery",
     "well_known_mcp_ids",
@@ -650,7 +649,6 @@ simplewarp = [
     "queue_slash_command",
     "queued_prompts_v2",
     "solo_user_byok",
-    "custom_model_routers",
     "git_operations_in_code_review",
     "terminal_lifecycle_recovery",
     "well_known_mcp_ids",
@@ -868,7 +866,6 @@ grouped_tabs = []
 pinned_tabs = []
 agent_harness = []
 transfer_control_tool = []
-custom_model_routers = []
 solo_user_byok = []
 configurable_toolbar = []
 warpify_footer = []

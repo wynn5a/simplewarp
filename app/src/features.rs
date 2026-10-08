@@ -309,8 +309,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::GitOperationsInCodeReview,
         #[cfg(feature = "trim_trailing_blank_lines")]
         FeatureFlag::TrimTrailingBlankLines,
-        #[cfg(feature = "custom_model_routers")]
-        FeatureFlag::CustomModelRouters,
         #[cfg(feature = "nld_prompt_history_match")]
         FeatureFlag::NldPromptHistoryMatch,
         #[cfg(feature = "prompt_cache_expiry_warning")]

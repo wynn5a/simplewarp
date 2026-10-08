@@ -123,7 +123,6 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| GPUState::new());
     app.add_singleton_model(|_| RestoredAgentConversations::new_seeded(vec![]));
     app.add_singleton_model(|_| AIRequestUsageModel::new());
-    app.add_singleton_model(OneTimeModalModel::new);
     let global_resource_handles = GlobalResourceHandles::mock(app);
     app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resource_handles));
     app.add_singleton_model(DefaultTerminal::new);

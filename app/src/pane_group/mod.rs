@@ -119,7 +119,6 @@ pub use pane::ai_document_pane::AIDocumentPane;
 pub use pane::ai_fact_pane::AIFactPane;
 pub use pane::code_diff_pane::CodeDiffPane;
 pub use pane::code_pane::CodePane;
-pub use pane::custom_router_editor_pane::CustomRouterEditorPane;
 pub use pane::env_var_collection_pane::EnvVarCollectionPane;
 pub use pane::execution_profile_editor_pane::ExecutionProfileEditorPane;
 pub use pane::file_pane::FilePane;
@@ -1599,7 +1598,7 @@ impl PaneGroup {
             LeafContents::CodeReview(_) => {
                 Err(anyhow::anyhow!("Code review panes are no longer supported"))
             }
-            LeafContents::ExecutionProfileEditor | LeafContents::CustomRouterEditor => {
+            LeafContents::ExecutionProfileEditor => {
                 // Editor panes are not restored from persistence.
                 Err(anyhow::anyhow!("Can't restore editor panes"))
             }

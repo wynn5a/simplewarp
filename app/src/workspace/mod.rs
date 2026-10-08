@@ -9,7 +9,6 @@ pub mod header_toolbar_editor;
 pub mod header_toolbar_item;
 mod lightbox_view;
 mod native_modal;
-mod one_time_modal_model;
 mod registry;
 pub mod rewind_confirmation_dialog;
 pub mod sync_inputs;
@@ -53,7 +52,6 @@ pub fn panel_header_corner_radius() -> warpui::elements::CornerRadius {
     warpui::elements::CornerRadius::with_top(warpui::elements::Radius::Pixels(8.))
 }
 
-pub use one_time_modal_model::OneTimeModalModel;
 pub use registry::WorkspaceRegistry;
 pub use toast_stack::{ToastStack, ToastStackEvent};
 
@@ -79,7 +77,6 @@ pub fn init(app: &mut AppContext) {
     delete_conversation_confirmation_dialog::init(app);
     crate::tab_configs::remove_confirmation_dialog::init(app);
     tab_configs::session_config_modal::init(app);
-    view::feature_intro_modal::init(app);
     view::codex_modal::init(app);
     view::global_search::view::GlobalSearchView::init(app);
     view::right_panel::RightPanelView::init(app);
@@ -100,16 +97,6 @@ pub fn init(app: &mut AppContext) {
         WorkspaceAction::DumpDebugInfo,
         id!("Workspace"),
     )]);
-    app.register_fixed_bindings([
-        // Feature intro never steals focus, so Escape must be handled at the workspace
-        // level while the popover is open rather than on FeatureIntroModal itself.
-        FixedBinding::new(
-            "escape",
-            WorkspaceAction::DismissFeatureIntroModal,
-            id!("Workspace") & id!(flags::FEATURE_INTRO_MODAL_OPEN),
-        ),
-    ]);
-
     if ChannelState::enable_debug_features() {
         app.register_editable_bindings([
             EditableBinding::new(
@@ -136,18 +123,6 @@ pub fn init(app: &mut AppContext) {
         {
             // Debug actions for test fixtures (command palette only)
             app.register_editable_bindings([
-                EditableBinding::new(
-                    "workspace:open_feature_intro_modal",
-                    "[Debug] Open Feature Intro Modal",
-                    WorkspaceAction::OpenFeatureIntroModal,
-                )
-                .with_context_predicate(id!("Workspace")),
-                EditableBinding::new(
-                    "workspace:reset_feature_intro_modal_state",
-                    "[Debug] Reset Feature Intro Modal State",
-                    WorkspaceAction::ResetFeatureIntroModalState,
-                )
-                .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:install_opencode_warp_plugin",
                     "[Debug] Install OpenCode Warp plugin",
