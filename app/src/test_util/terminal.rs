@@ -8,6 +8,7 @@ use warpui::{App, ViewHandle, WindowId};
 use watcher::HomeDirectoryWatcher;
 
 use super::settings::initialize_history_persistence_for_tests;
+use crate::AgentNotificationsModel;
 use crate::ai::AIRequestUsageModel;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
@@ -45,7 +46,6 @@ use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 use crate::workflows::local_workflows::LocalWorkflows;
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::{ActiveSession, WorkspaceRegistry};
-use crate::{AgentNotificationsModel, experiments};
 
 /// Initializes all of the necessary models to use a terminal view.
 pub fn initialize_app_for_terminal_view(app: &mut App) {
@@ -120,7 +120,6 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(AgentConversationsModel::new);
     app.add_singleton_model(PersistedWorkspace::new_for_test);
 
-    app.update(experiments::init);
     AltScreenReporting::register(app);
 }
 

@@ -328,7 +328,7 @@ mod tests {
 
     // SimpleWarp enables these compile-time flags: each is purely local
     // functionality (mermaid editing, IME marked text, iTerm images, local
-    // computer use, the local Docker sandbox pane) with no cloud dependency.
+    // computer use, the local Docker sandbox pane, the Tantivy palette search) with no cloud dependency.
     #[test]
     #[cfg(feature = "simplewarp")]
     fn simplewarp_enables_the_local_feature_set() {
@@ -340,6 +340,7 @@ mod tests {
             FeatureFlag::ITermImages,
             FeatureFlag::LocalComputerUse,
             FeatureFlag::LocalDockerSandbox,
+            FeatureFlag::UseTantivySearch,
         ] {
             assert!(enabled.contains(&flag), "{flag:?} should be enabled");
         }

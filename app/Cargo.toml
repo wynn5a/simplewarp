@@ -394,6 +394,7 @@ completions_v2 = [
 ]
 cross_repo_context = []
 default = [
+    "use_tantivy_search",
     "agent_mode",
     "osc_hyperlinks",
     "render_continuous_block_selections_with_single_border",
@@ -521,6 +522,7 @@ default = [
 # Build it with: cargo run --no-default-features --features simplewarp --bin simplewarp
 # It is the `default` set, less the cloud, sharing, hand-off, and billing features.
 simplewarp = [
+    "use_tantivy_search",
     "agent_mode",
     "osc_hyperlinks",
     "render_continuous_block_selections_with_single_border",

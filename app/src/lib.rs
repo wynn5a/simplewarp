@@ -24,7 +24,6 @@ mod drive;
 #[cfg(windows)]
 mod dynamic_libraries;
 mod env_vars;
-mod experiments;
 mod external_secrets;
 mod global_resource_handles;
 mod gpu_state;
@@ -189,7 +188,6 @@ use crate::code::language_server_shutdown_manager::LanguageServerShutdownManager
 use crate::context_chips::prompt::Prompt;
 use crate::default_terminal::DefaultTerminal;
 use crate::env_vars::manager::EnvVarCollectionManager;
-use crate::experiments::ImprovedPaletteSearch;
 pub use crate::global_resource_handles::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 use crate::gpu_state::GPUState;
 use crate::network::NetworkStatus;
@@ -803,8 +801,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         ctx.add_singleton_model(move |_ctx| pty_spawner);
 
         // Register user preferences.  This must be done before initializing
-        // feature flags or experiments, both of which check user preferences for
-        // overrides.
+        // feature flags, which check user preferences for overrides.
         ctx.add_singleton_model(move |_ctx| ::settings::PublicPreferences::new(public_preferences));
         ctx.add_singleton_model(move |_ctx| private_preferences);
         let startup_toml_parse_error = startup_toml_parse_error;
@@ -817,10 +814,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             plugin::PluginHost::new(ctx).expect("Could not instantiate PluginHost")
         });
         let app_state = initialize_app(&launch_mode, timer, startup_toml_parse_error, ctx);
-
-        if ImprovedPaletteSearch::improved_search_enabled(ctx) {
-            FeatureFlag::UseTantivySearch.set_enabled(true);
-        }
 
         launch(ctx, app_state, launch_mode)
     })
@@ -959,8 +952,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(::ai::api_keys::ApiKeyManager::new);
 
     ctx.set_default_binding_validator(is_binding_cross_platform);
-
-    experiments::init(ctx);
 
     // Initialize timestamp for session id and last active event
     App::record_last_active_timestamp();

@@ -89,9 +89,7 @@ use crate::test_util::settings::initialize_settings_for_tests;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 use crate::workspace::{ActiveSession, ToastStack, WorkspaceRegistry};
-use crate::{
-    AgentNotificationsModel, GlobalResourceHandles, GlobalResourceHandlesProvider, experiments,
-};
+use crate::{AgentNotificationsModel, GlobalResourceHandles, GlobalResourceHandlesProvider};
 
 #[test]
 fn renders_git_checkout_prompt_chip_command_as_single_shell_argument() {
@@ -262,7 +260,6 @@ pub fn initialize_app(app: &mut App) {
         app.add_singleton_model(|_| SystemInfo::default());
     }
 
-    app.update(experiments::init);
     AltScreenReporting::register(app);
     app.add_singleton_model(|_| RestoredAgentConversations::new_seeded(vec![]));
     app.add_singleton_model(|_| WorkspaceRegistry::new());

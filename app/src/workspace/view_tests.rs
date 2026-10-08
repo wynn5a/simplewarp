@@ -60,9 +60,7 @@ use crate::user_config::tab_configs_dir;
 use crate::util::traffic_lights::windows::RendererState;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 use crate::workflows::local_workflows::LocalWorkflows;
-use crate::{
-    AgentNotificationsModel, GlobalResourceHandlesProvider, ObjectActions, experiments, workspace,
-};
+use crate::{AgentNotificationsModel, GlobalResourceHandlesProvider, ObjectActions, workspace};
 pub(crate) fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
 
@@ -140,8 +138,6 @@ pub(crate) fn initialize_app(app: &mut App) {
 
     #[cfg(enable_crash_recovery)]
     crate::crash_recovery::CrashRecovery::register_for_test(app);
-
-    app.update(experiments::init);
 
     app.add_singleton_model(|_| ProjectContextModel::default());
     app.add_singleton_model(|ctx| PersistedWorkspace::new(vec![], HashMap::new(), None, ctx));
