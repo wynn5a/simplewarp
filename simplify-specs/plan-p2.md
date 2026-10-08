@@ -121,6 +121,15 @@ cost, suggestions or citations. Always empty/zero:
 
 ### 1e. Other server-owned AI features
 
+**Settings cleanup (2026-10-08).** Deleted, each with its setting/flag/plumbing: custom model
+routers (settings section, editor pane, YAML loader, picker entries, request field, flag, cargo
+feature) and the feature-intro popover that only announced them; AI commit/PR generation (the
+toggle, setting and the dialog's autogen path); Suggested Rules (toggle, footer chips, modal,
+event chain, setting, flag); the profile "Call web tools" rows (the `web_search_enabled` field and
+the rendering of old web messages stay); agent attribution; the web-only "Open links in desktop
+app" setting; and seven settings with no readers. Still open from this section: Codex modal,
+legacy AI panel, remote codebase search stub.
+
 - **Custom model routers** (CustomModelRouters, on): "+ Add router"
   (`settings_view/warp_agent_page.rs:757`) and a feature-intro modal
   (`workspace/view/feature_intro_modal/view.rs:76`) are live; `custom_model_routers` is sent but
@@ -274,7 +283,7 @@ is a product decision. Every item below needs a user decision before it becomes 
 | P5 | §1c tools: MCP tool calls, computer use, AskUserQuestion, ReadSkill, SearchCodebase, InsertReviewComments, documents | implement / hide UI | MCP is Phase 3b; others per feature. |
 | P6 | §1c web search / web fetch | hide UI / implement web fetch locally | Web search needs a hosted search API → hide; web fetch can be local (would be new provider-external traffic — decide). |
 | P7 | §1d credits/usage, SuggestedRules, WarpDocumentation citation | derive usage from provider response / hide | Map provider token usage into `StreamFinished`; hide credits copy and SuggestedRules. |
-| P8 | §1e custom model routers, AI commit/PR toggle, Codex modal, legacy AI panel, remote codebase search stub | delete / hide / implement | Delete routers + legacy panel + remote search stub + Codex modal; hide or implement commit generation. |
+| P8 | §1e custom model routers, AI commit/PR toggle, Codex modal, legacy AI panel, remote codebase search stub | delete / hide / implement | **Routers and the commit/PR toggle done (2026-10-08).** Still to delete: legacy panel, remote search stub, Codex modal. |
 | P9 | §2a `gh` polling | keep / make on-demand / setting | Poll only while the PR chip is visible, drop the agent-context trigger, or add an off switch. |
 | P10 | §2b network completion generators | keep / skip generators in validation / setting | Skip generators during autosuggestion validation (keep them on explicit Tab). |
 | P11 | §2c remote markdown images | keep / click-to-load / setting | Click-to-load, matching the AI blocklist's refusal. |
