@@ -35,7 +35,7 @@ use super::{
     AIAgentAction, AIAgentActionId, AIAgentContext, AIAgentExchange, AIAgentExchangeId,
     AIAgentInput, AIAgentOutput, AIAgentOutputStatus, AIAgentTodo, AIAgentTodoId,
     FinishedAIAgentOutput, MessageId, OutputModelInfo, RenderableAIError, RequestCost,
-    ServerOutputId, Shared, SuggestedLoggingId, Suggestions,
+    ServerOutputId, Shared, Suggestions,
 };
 use crate::ai::agent::api::convert_conversation::{
     ConvertToExchanges, proto_timestamp_to_local_datetime,
@@ -302,8 +302,6 @@ pub struct AIConversation {
     existing_suggestions: Option<Suggestions>,
 
     /// A set of suggestion logging IDs that have been dismissed for this conversation.
-    dismissed_suggestion_ids: HashSet<SuggestedLoggingId>,
-
     total_request_cost: RequestCost,
     total_token_usage_by_model: HashMap<String, TokenUsage>,
     /// Server-authoritative cumulative provider cost in US cents. New
@@ -393,7 +391,6 @@ impl AIConversation {
             hidden_exchanges: Default::default(),
             reverted_action_ids: Default::default(),
             existing_suggestions: None,
-            dismissed_suggestion_ids: Default::default(),
             total_request_cost: RequestCost::new(0.),
             total_token_usage_by_model: Default::default(),
             total_provider_cost_in_cents: Some(0.),
@@ -638,7 +635,6 @@ impl AIConversation {
             existing_suggestions: None,
             hidden_exchanges: Default::default(),
             reverted_action_ids,
-            dismissed_suggestion_ids: Default::default(),
             total_request_cost: RequestCost::new(0.),
             total_token_usage_by_model: Default::default(),
             total_provider_cost_in_cents,
@@ -1344,23 +1340,6 @@ impl AIConversation {
 
     pub fn existing_suggestions(&self) -> Option<&Suggestions> {
         self.existing_suggestions.as_ref()
-    }
-
-    pub fn dismissed_suggestion_ids(&self) -> &HashSet<SuggestedLoggingId> {
-        &self.dismissed_suggestion_ids
-    }
-
-    pub fn dismiss_current_suggestions(&mut self) {
-        if let Some(suggestions) = &self.existing_suggestions {
-            self.dismissed_suggestion_ids
-                .extend(suggestions.rules.iter().map(|r| r.logging_id.clone()));
-            self.dismissed_suggestion_ids.extend(
-                suggestions
-                    .agent_mode_workflows
-                    .iter()
-                    .map(|w| w.logging_id.clone()),
-            );
-        }
     }
 
     pub fn is_exchange_hidden(&self, exchange_id: AIAgentExchangeId) -> bool {

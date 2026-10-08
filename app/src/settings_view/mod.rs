@@ -494,7 +494,6 @@ pub mod flags {
     pub const AUTO_APPROVE_BYPASSES_COMMAND_DENYLIST_FLAG: &str =
         "Auto_Approve_Bypasses_Command_Denylist";
     pub const AI_RULES_FLAG: &str = "AI_Rules";
-    pub const SUGGESTED_RULES_FLAG: &str = "Suggested_Rules";
     pub const FILE_BASED_MCP_FLAG: &str = "File_Based_MCP";
     pub const SHOW_BASE_MODEL_PICKER_IN_PROMPT_FLAG: &str = "Show_Base_Model_Picker_In_Prompt";
     pub const DEBUG_SHOW_MEMORY_STATS_FLAG: &str = "Debug_Memory_Statistics";

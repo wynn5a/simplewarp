@@ -13,7 +13,7 @@ use warpui::{
     Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, id,
 };
 
-use super::ai_shared::{render_ai_setting_description, render_ai_setting_toggle, styles};
+use super::ai_shared::{render_ai_setting_toggle, styles};
 use super::settings_page::{
     CONTENT_FONT_SIZE, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle,
     SettingsWidget, render_full_pane_width_ai_button,
@@ -40,9 +40,6 @@ impl KnowledgePageView {
         let mut widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = Vec::new();
         if FeatureFlag::AIRules.is_enabled() {
             widgets.push(Box::new(RulesWidget::default()));
-            if FeatureFlag::SuggestedRules.is_enabled() {
-                widgets.push(Box::new(SuggestedRulesWidget::default()));
-            }
             widgets.push(Box::new(ManageRulesWidget::default()));
         }
         PageType::new_uncategorized(widgets, Some(PAGE_TITLE))
@@ -70,7 +67,6 @@ pub enum KnowledgePageEvent {
 #[derive(Debug, Clone)]
 pub enum KnowledgePageAction {
     ToggleRules,
-    ToggleRuleSuggestions,
     OpenAIFactCollection,
 }
 
@@ -82,14 +78,6 @@ impl TypedActionView for KnowledgePageView {
             KnowledgePageAction::ToggleRules => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     let _ = settings.memory_enabled.toggle_and_save_value(ctx);
-                });
-                ctx.notify();
-            }
-            KnowledgePageAction::ToggleRuleSuggestions => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    let _ = settings
-                        .rule_suggestions_enabled_internal
-                        .toggle_and_save_value(ctx);
                 });
                 ctx.notify();
             }
@@ -143,18 +131,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             )
             .with_group(bindings::BindingGroup::WarpAi)
             .with_enabled(|| FeatureFlag::AIRules.is_enabled()),
-            ToggleSettingActionPair::new(
-                "Suggested Rules",
-                builder(SettingsAction::Knowledge(
-                    KnowledgePageAction::ToggleRuleSuggestions,
-                )),
-                &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
-                flags::SUGGESTED_RULES_FLAG,
-            )
-            .with_group(bindings::BindingGroup::WarpAi)
-            .with_enabled(|| {
-                FeatureFlag::AIRules.is_enabled() && FeatureFlag::SuggestedRules.is_enabled()
-            }),
         ],
         app,
     );
@@ -206,47 +182,6 @@ impl SettingsWidget for RulesWidget {
         .with_margin_bottom(styles::DESCRIPTION_MARGIN_BOTTOM)
         .with_margin_right(styles::TOGGLE_WIDTH_MARGIN)
         .finish();
-
-        Flex::column()
-            .with_child(toggle)
-            .with_child(description)
-            .finish()
-    }
-}
-
-#[derive(Default)]
-struct SuggestedRulesWidget {
-    rule_suggestions_toggle: SwitchStateHandle,
-}
-
-impl SettingsWidget for SuggestedRulesWidget {
-    type View = KnowledgePageView;
-
-    fn search_terms(&self) -> &str {
-        "suggested rules suggest save"
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        _appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let ai_settings = AISettings::as_ref(app);
-        let toggle = render_ai_setting_toggle(
-            "Suggested Rules",
-            KnowledgePageAction::ToggleRuleSuggestions,
-            *ai_settings.rule_suggestions_enabled_internal,
-            ai_settings.is_any_ai_enabled(),
-            self.rule_suggestions_toggle.clone(),
-            app,
-        );
-
-        let description = render_ai_setting_description(
-            "Let AI suggest rules to save based on your interactions.",
-            ai_settings.is_any_ai_enabled(),
-            app,
-        );
 
         Flex::column()
             .with_child(toggle)

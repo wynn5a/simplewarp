@@ -408,7 +408,6 @@ default = [
     "dynamic_workflow_enums",
     "rect_selection",
     "ai_rules",
-    "suggested_rules",
     "am_workflows",
     "render_agent_mode_output_markdown",
     "command_correction_key",
@@ -539,7 +538,6 @@ simplewarp = [
     "dynamic_workflow_enums",
     "rect_selection",
     "ai_rules",
-    "suggested_rules",
     "am_workflows",
     "render_agent_mode_output_markdown",
     "command_correction_key",
@@ -791,7 +789,6 @@ ime_marked_text = []
 partial_next_command_suggestions = []
 iterm_images = []
 validate_autosuggestions = []
-suggested_rules = []
 command_correction_key = []
 use_tantivy_search = []
 agent_management_popup = []

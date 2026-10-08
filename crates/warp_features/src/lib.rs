@@ -139,9 +139,6 @@ pub enum FeatureFlag {
     /// Enables Kitty image rendering
     KittyImages,
 
-    /// Enables suggested rules.
-    SuggestedRules,
-
     /// Forces users to login.
     ForceLogin,
 

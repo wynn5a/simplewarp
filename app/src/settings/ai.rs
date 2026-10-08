@@ -549,18 +549,6 @@ define_settings_group!(AISettings, settings: [
         toml_path: "agents.warp_agent.active_ai.code_suggestions_enabled",
         description: "Controls whether AI code suggestions are enabled.",
     }
-    // This field should not be referenced directly to lookup Rule Suggestions
-    // enablement -- use the `is_rule_suggestions_enabled()` getter.
-    rule_suggestions_enabled_internal: RuleSuggestionsEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.warp_agent.active_ai.rule_suggestions_enabled",
-        description: "Controls whether the agent suggests rules to save after responses.",
-        feature_flag: FeatureFlag::SuggestedRules,
-    }
     // Predicates that Agent Mode can use to decide if it can execute
     // a command without explicit user consent.
     //
@@ -956,10 +944,6 @@ impl AISettings {
 
     pub fn is_prompt_suggestions_enabled(&self, app: &warpui::AppContext) -> bool {
         self.is_active_ai_enabled(app) && *self.prompt_suggestions_enabled_internal
-    }
-
-    pub fn is_rule_suggestions_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_active_ai_enabled(app) && *self.rule_suggestions_enabled_internal
     }
 
     /// Always `false`. Passive code suggestions (the unit-test suggestion after a successful

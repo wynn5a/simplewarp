@@ -220,10 +220,6 @@ impl<T: View> Modal<T> {
         self.title = title;
     }
 
-    pub fn set_offset_positioning(&mut self, offset_positioning: OffsetPositioning) {
-        self.offset_positioning = offset_positioning;
-    }
-
     fn handle_appearance_update(
         &mut self,
         handle: ModelHandle<Appearance>,

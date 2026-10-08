@@ -19,8 +19,6 @@ mod input_model;
 mod permissions;
 mod persistence;
 pub mod prompt;
-pub mod suggested_rule_modal;
-mod suggestion_chip_view;
 pub mod summarization_cancel_dialog;
 pub mod usage;
 
@@ -79,7 +77,6 @@ pub(crate) use queued_query::{
 };
 #[allow(unused_imports)]
 pub use queued_query::{QueuedQueryEvent, QueuedQueryModel};
-pub use suggestion_chip_view::*;
 pub use view_util::error_color;
 pub(crate) use view_util::{
     ATTACH_AS_AGENT_MODE_CONTEXT_TEXT, CLAUDE_ORANGE, NEW_AGENT_PANE_LABEL, ai_brand_color,
