@@ -25,9 +25,8 @@ use uuid::Uuid;
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::client_action::Action;
 
-use crate::inputs;
 use crate::provider::{Delta, StopReason};
-use crate::tools;
+use crate::{inputs, tools};
 
 /// Builds the response events for one reply.
 pub struct Emitter {

@@ -8,10 +8,10 @@
 //! show the model the same thing.
 
 use serde_json::{Value, json};
-
-use crate::{context, inputs};
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::message::{self, tool_call, tool_call_result};
+
+use crate::{context, inputs};
 
 /// One turn of the conversation, in a shape that both providers can render.
 #[derive(Debug, Clone, PartialEq)]

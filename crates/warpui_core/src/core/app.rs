@@ -33,7 +33,6 @@ use crate::r#async::executor::{self, Background, Foreground, ForegroundTask};
 use crate::r#async::{FutureId, SpawnableOutput, Timer, block_on};
 use crate::core::{ActionType, StoredView, Window};
 use crate::event::KeyState;
-use crate::fonts;
 use crate::image_cache::{self, ImageCache};
 use crate::keymap::{
     BindingLens, Context, CustomTag, DescriptionContext, EditableBinding, EditableBindingLens,
@@ -59,7 +58,7 @@ use crate::{
     EntityIdSet, Event, GetSingletonModelHandle, ModelAsRef, ModelContext, ModelHandle,
     NextNewWindowsHasThisWindowsBoundsUponClose, Presenter, ReadModel, ReadView, Scene,
     SingletonEntity, SpawnedFuture, TaskId, TypedActionView, UpdateModel, UpdateView, View,
-    ViewAsRef, ViewContext, ViewHandle, WindowId, WindowInvalidation, ZoomFactor, assets,
+    ViewAsRef, ViewContext, ViewHandle, WindowId, WindowInvalidation, ZoomFactor, assets, fonts,
     rendering,
 };
 
