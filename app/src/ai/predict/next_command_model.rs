@@ -1,7 +1,5 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 use chrono::Utc;
 use diesel::SqliteConnection;
@@ -16,7 +14,6 @@ use warp_completer::meta::Spanned;
 use warp_completer::parsers::ParsedExpression;
 use warp_completer::parsers::hir::{ArgType, Command, Expression, FlagType};
 use warp_core::features::FeatureFlag;
-use warpui::r#async::FutureExt;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::generate_ai_input_suggestions::{
@@ -38,8 +35,6 @@ const MAX_NUM_SIMILAR_HISTORY_CONTEXT: usize = 25;
 /// The number of additional preceding commands for each HistoryContext
 /// included in the LLM request.
 const NUM_ADDITIONAL_PREV_COMMAND_CONTEXT_LLM: usize = 2;
-
-const ARG_GENERATOR_VALIDATION_TIMEOUT: Duration = Duration::from_millis(150);
 
 pub fn is_next_command_enabled(app: &warpui::AppContext) -> bool {
     AISettings::as_ref(app).is_intelligent_autosuggestions_enabled(app)
@@ -368,7 +363,7 @@ impl NextCommandModel {
                         let most_likely_next_commands =
                             history_next_command_counts.k_most_common_ordered(5);
                         for (most_likely_next_command, count) in &most_likely_next_commands {
-                            if !is_command_valid(most_likely_next_command, completion_context.as_ref(), session_env_vars.as_ref()).await {
+                            if !is_command_valid(most_likely_next_command, completion_context.as_ref()).await {
                                 log::debug!("Discarding most likely next command from rich history that failed validation: `{most_likely_next_command}`");
                                 total_history_count -= *count;
                                 continue;
@@ -444,7 +439,7 @@ impl NextCommandModel {
                     // First, return the most recent command with a matching prefix run in the same pwd
                     // (if exists, otherwise just most recent command anywhere with matching prefix).
                     for reverse_chronological_command in reverse_chronological_potential_autosuggestions.unwrap_or_default() {
-                        if is_command_valid(&reverse_chronological_command.command, completion_context.as_ref(), session_env_vars.as_ref()).await {
+                        if is_command_valid(&reverse_chronological_command.command, completion_context.as_ref()).await {
                             return (
                                 GenerateAIInputSuggestionsResponseV2 {
                                     commands: vec![reverse_chronological_command.command.clone()],
@@ -492,7 +487,7 @@ impl NextCommandModel {
                         });
 
                         if let Some(autosuggestion) = autosuggestion
-                            && is_command_valid(&autosuggestion, Some(&completion_context), session_env_vars.as_ref()).await {
+                            && is_command_valid(&autosuggestion, Some(&completion_context)).await {
                                 return (
                                     GenerateAIInputSuggestionsResponseV2 {
                                         commands: vec![autosuggestion.clone()],
@@ -604,7 +599,6 @@ async fn is_arg_valid(
     full_command: &str,
     arg: &Spanned<ParsedExpression>,
     ctx: &SessionContext,
-    session_env_vars: Option<&HashMap<String, String>>,
 ) -> bool {
     let Expression::ValidatableArgument(arg_types_to_validate) = arg.expression() else {
         return true;
@@ -615,9 +609,10 @@ async fn is_arg_valid(
         return true;
     }
     // If we have arg types to validate, the arg must pass validation for at least one of them.
-    // If the argument has one or more generators, validate these last because they're more expensive
-    // and we can check all generators together using completions suggestions.
-    let mut has_generator_arg_type = false;
+    // Generator args are never checked: running a generator runs the spec's command, which can
+    // reach the network (`curl registry.npmjs.org`, `gh pr list`, `aws ...`), and validation runs
+    // on every keystroke. A generator arg is assumed valid, and its completions still run when the
+    // user presses Tab.
     for arg_type in arg_types_to_validate {
         match arg_type {
             ArgType::File => {
@@ -644,60 +639,8 @@ async fn is_arg_valid(
                     return true;
                 }
             }
-            ArgType::Generator(_) => {
-                has_generator_arg_type = true;
-            }
+            ArgType::Generator(_) => return true,
         };
-    }
-    if has_generator_arg_type {
-        // We don't have completions implemented for feature flags like --features=with_local_server.
-        // If arg is the span of `with_local_server`, attempting to complete on --features= to validate it will return no results.
-        // We should only use completions to validate the arg if the previous character is whitespace, until completions handles this case.
-        let prev_char = full_command
-            .get(..arg.span.start())
-            .and_then(|s| s.chars().next_back());
-        if prev_char.is_some_and(|c| !c.is_whitespace()) {
-            return true;
-        }
-        // Running completions runs all generators, so we only need to do this once.
-        // TODO(roland): this also generates completions from sources other than generators, which are unnecessary.
-        // If performance becomes a concern, consider validating against generators sequentially and returning early if valid.
-        // We use completions suggestions because it's simpler to implement and read.
-        let completions_future = completer::suggestions(
-            full_command,
-            arg.span.start(),
-            session_env_vars,
-            CompleterOptions {
-                match_strategy: MatchStrategy::CaseSensitive,
-                fallback_strategy: CompletionsFallbackStrategy::None,
-                suggest_file_path_completions_only: false,
-                parse_quotes_as_literals: false,
-            },
-            ctx,
-        );
-
-        // If the completions call times out, assume the arg is valid.
-        // This is necessary because some generators can hang (e.g. kubectl commands if the cluster isn't running).
-        let Ok(completion_result) = completions_future
-            .with_timeout(ARG_GENERATOR_VALIDATION_TIMEOUT)
-            .await
-        else {
-            log::debug!(
-                "Generator validation for arg `{}` in command `{}` timed out - assuming it's valid",
-                arg.value().as_str(),
-                full_command
-            );
-            return true;
-        };
-
-        let Some(completion_result) = completion_result else {
-            return true;
-        };
-        for suggestion in completion_result.suggestions {
-            if suggestion.display() == arg.value().as_str() {
-                return true;
-            }
-        }
     }
     // If we didn't pass validation for any of the possible arg types, this arg is invalid.
     log::debug!(
@@ -712,11 +655,7 @@ async fn is_arg_valid(
 /// Currently uses completions specs to check if parsing is successful, and validates
 /// that any filepaths args actually exist on disk.
 /// This uses a file system call, so this function should be called only in background threads.
-pub async fn is_command_valid(
-    command: &str,
-    ctx: Option<&SessionContext>,
-    session_env_vars: Option<&HashMap<String, String>>,
-) -> bool {
+pub async fn is_command_valid(command: &str, ctx: Option<&SessionContext>) -> bool {
     if !FeatureFlag::ValidateAutosuggestions.is_enabled() {
         return true;
     }
@@ -751,7 +690,7 @@ pub async fn is_command_valid(
     };
     if let Some(positionals) = &shell_command.args.positionals {
         for positional in positionals {
-            if !is_arg_valid(&expanded_command_line, positional, ctx, session_env_vars).await {
+            if !is_arg_valid(&expanded_command_line, positional, ctx).await {
                 return false;
             }
         }
@@ -759,7 +698,7 @@ pub async fn is_command_valid(
     if let Some(flags) = shell_command.args.flags {
         for flag in flags.iter() {
             if let FlagType::Argument { value } = &flag.flag_type
-                && !is_arg_valid(&expanded_command_line, value, ctx, session_env_vars).await
+                && !is_arg_valid(&expanded_command_line, value, ctx).await
             {
                 return false;
             }

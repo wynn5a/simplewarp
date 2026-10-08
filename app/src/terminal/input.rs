@@ -7171,7 +7171,6 @@ impl Input {
                                 if is_command_valid(
                                     &most_likely_next_command,
                                     completion_context.as_ref(),
-                                    session_env_vars.as_ref(),
                                 )
                                 .await
                                 {
@@ -7195,7 +7194,6 @@ impl Input {
                             && is_command_valid(
                                 &reverse_chronological_command.command,
                                 completion_context.as_ref(),
-                                session_env_vars.as_ref(),
                             )
                             .await
                         {

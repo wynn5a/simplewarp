@@ -225,13 +225,30 @@ fn test_feature_flag_arg_is_valid_with_no_whitespace_before_arg() {
             ParsedToken::new("fast_dev".to_string()),
         )
         .spanned((39, 47));
-        let is_valid = is_arg_valid(full_command, &with_local_server_arg, &ctx, None).await;
+        let is_valid = is_arg_valid(full_command, &with_local_server_arg, &ctx).await;
         assert!(is_valid);
 
-        let is_valid = is_arg_valid(full_command, &fast_dev_arg, &ctx, None).await;
+        let is_valid = is_arg_valid(full_command, &fast_dev_arg, &ctx).await;
         assert!(is_valid);
 
-        let is_valid = is_command_valid(full_command, Some(&ctx), None).await;
+        let is_valid = is_command_valid(full_command, Some(&ctx)).await;
         assert!(is_valid);
+    });
+}
+
+#[test]
+fn test_generator_arg_is_assumed_valid_without_running_it() {
+    App::test((), |app| async move {
+        let ctx = test_session_context(TypedPathBuf::from("/test/home/"), &app);
+
+        // The generator would run a command if it were consulted, so a value no generator could
+        // produce proves validation does not consult it.
+        let full_command = "cargo build --features ";
+        let arg = ParsedExpression::new(
+            Expression::ValidatableArgument(vec![ArgType::Generator("feature_flags".into())]),
+            ParsedToken::new("definitely_not_a_feature".to_string()),
+        )
+        .spanned((23, 47));
+        assert!(is_arg_valid(full_command, &arg, &ctx).await);
     });
 }
