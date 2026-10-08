@@ -10,7 +10,7 @@ pub async fn run_git_command(repo_path: &Path, args: &[&str]) -> Result<String> 
 
 /// Like [`run_git_command`] but sets `PATH` on the child when `path_env` is
 /// `Some`. Used by callers whose hooks need user-installed binaries (e.g.
-/// the LFS `pre-push` hook → `git-lfs`). See `specs/APP-4188/TECH.md`.
+/// the LFS `pre-push` hook → `git-lfs`).
 pub async fn run_git_command_with_env(
     repo_path: &Path,
     args: &[&str],

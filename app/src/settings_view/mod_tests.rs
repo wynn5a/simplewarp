@@ -137,8 +137,7 @@ fn slugs_were_seeded_from_the_display_labels_they_replaced() {
 fn from_slug_accepts_legacy_spellings() {
     // Both the legacy "Oz" name and the current "Warp Agent" slug must resolve
     // to SettingsSection::WarpAgent so existing deep links, persisted sessions
-    // and external callers keep working after the user-facing rename (see
-    // specs/GH1063/product.md, Behavior #8).
+    // and external callers keep working after the user-facing rename.
     assert_eq!(
         SettingsSection::from_slug("Oz"),
         Some(SettingsSection::WarpAgent)
