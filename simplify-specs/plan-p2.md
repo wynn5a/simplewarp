@@ -300,11 +300,37 @@ is a product decision. Every item below needs a user decision before it becomes 
 | P6 | §1c web search / web fetch | hide UI / implement web fetch locally | Web search needs a hosted search API → hide; web fetch can be local (would be new provider-external traffic — decide). |
 | P7 | §1d credits/usage, SuggestedRules, WarpDocumentation citation | derive usage from provider response / hide | Map provider token usage into `StreamFinished`; hide credits copy and SuggestedRules. |
 | P8 | §1e custom model routers, AI commit/PR toggle, Codex modal, legacy AI panel, remote codebase search stub | delete / hide / implement | **Done (2026-10-08).** Routers, commit/PR toggle, Codex modal, legacy AI panel and remote search stub are deleted. |
-| P9 | §2a `gh` polling | keep / make on-demand / setting | Poll only while the PR chip is visible, drop the agent-context trigger, or add an off switch. |
-| P10 | §2b network completion generators | keep / skip generators in validation / setting | Skip generators during autosuggestion validation (keep them on explicit Tab). |
-| P11 | §2c remote markdown images | keep / click-to-load / setting | Click-to-load, matching the AI blocklist's refusal. |
+| ~~P9~~ | §2a `gh` polling | keep / make on-demand / setting | **Done (2026-10-08).** Only a visible PR chip subscribes; the agent-context trigger is gone. |
+| ~~P10~~ | §2b network completion generators | keep / skip generators in validation / setting | **Done (2026-10-08).** A generator arg is assumed valid; generators run only on Tab. The fallback completion that proposes an autosuggestion still runs them when history has no match. |
+| ~~P11~~ | §2c remote markdown images | keep / click-to-load / setting | **Done (2026-10-08), but refused rather than click-to-load**: the editor's image renderer is a custom painter with no click handling, so remote `http(s)` images simply do not load, as in the AI blocklist. `asset_cache` lost `url_source`, the persistence path and `reqwest`; it only decodes `data:` URIs now. Click-to-load can be added later. |
 | P12 | §3 LSP install downloads | keep (user-initiated) | Keep; optionally say in the Install UI that it downloads from GitHub/npm. |
 | ~~P13~~ | §4 MCP gallery, autoinstall deeplink, FigmaDetection + figma skills, WellKnownMcpIds | delete | **Done (2026-10-08)** except the Figma detection/skills, which work from a user-added server and stay. |
 | ~~P14~~ | §4 web-font fallback, zero-reference flags | delete | **Done (2026-10-08).** |
 | ~~P15~~ | §5 stale copy/links, `--skill` in help | fix | **Done** (see §5). |
 | P16 | §8 plan.md corrections | edit | Fold in with the next round. |
+
+## 9. Local-only cleanup round (2026-10-08)
+
+P9–P11 above, plus:
+
+- **`app/src/experiments/`** deleted. Its one layer put 100% of users in the Tantivy palette-search
+  arm, so `use_tantivy_search` is now a cargo feature in `default` and `simplewarp` (pinned by
+  `features::tests`). The unused `ServerExperiment` diesel structs went too; the
+  `server_experiments` table stays in the schema.
+- **Computer use**: the mac/linux/windows backends, the `use_computer` bin and the native deps
+  (~7,000 lines) are gone; `crates/computer_use` keeps its data types and a no-op actor because
+  saved conversations still hold these actions. `agent_mode_computer_use`,
+  `background_computer_use` and `local_computer_use` are off in simplewarp (this reverses the 4id
+  enable). **Not done:** the executors (`request_computer_use.rs`, `use_computer.rs`), the
+  profile permission rows and the `crates/ai` action types are still there, dead behind the off
+  flags. Removing them touches ~50 files and the persisted action shapes.
+- **Upstream baggage**: `specs/`, `agents/specs`, `.agents/specs`, the `.github` issue/PR
+  templates, triage config, dependabot and three bot workflows, ten agent skills, seven
+  `.warp/workflows`. `CONTRIBUTING.md`, `FAQ.md` and `README.md` still describe the upstream
+  contribution flow and now link to the deleted `specs/`.
+- Verification: workspace nextest 6474 / 6485; the 11 failures are `integration` GUI tests that
+  fail the same way on b79567e7c (8 settings/palette tests time out, 3 report "test not found").
+
+Still open from the local-only survey: Windows/Linux platform code (user decision), the cloud-object
+sync branches (`SyncId::ServerId`, `content_sync_status`), the dead tool UIs (P5/P6), and
+`env_vars` reachability.
