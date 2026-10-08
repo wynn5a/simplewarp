@@ -725,6 +725,24 @@ fn test_resolve_asset_source_leaves_non_local_markdown_images_unchanged() {
 }
 
 #[test]
+fn test_resolve_asset_source_never_fetches_remote_images() {
+    for source in [
+        "https://example.com/image.png",
+        "http://example.com/image.png",
+    ] {
+        // A remote image must resolve to something that cannot load, never to an async fetch.
+        assert_eq!(
+            resolve_asset_source_relative_to_directory(source, Some(Path::new("/tmp"))),
+            AssetSource::LocalFile {
+                path: source.to_string(),
+                content_version: None,
+            },
+            "remote source must not be fetched: {source}"
+        );
+    }
+}
+
+#[test]
 fn test_layout_text_block_uses_rich_table_when_flag_enabled() {
     App::test((), |app| async move {
         app.read(|ctx| {

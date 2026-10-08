@@ -675,9 +675,9 @@ impl TypedActionView for RootView {
                         |view, index, ctx| {
                             if let Some(image) = view.async_lightbox_images.get_mut(index) {
                                 image.source = LightboxImageSource::Resolved {
-                                    asset_source: ::asset_cache::url_source(
-                                        "https://cdn.terminaltrove.com/m/b1c31938-6e80-4f28-a2cd-d2047eddcdb2.png",
-                                    ),
+                                    asset_source: AssetSource::Bundled {
+                                        path: "bundled/png/dev.png",
+                                    },
                                 };
                                 image.description =
                                     Some(format!("Image {} \u{2014} loaded!", index + 1));

@@ -63,7 +63,6 @@ ctrlc.workspace = true
 font-kit.workspace = true
 
 [dev-dependencies]
-asset_cache.workspace = true
 env_logger.workspace = true
 futures-timer = "3.0.2"
 image = { workspace = true, default-features = false, features = ["png"] }

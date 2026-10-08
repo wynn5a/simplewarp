@@ -68,7 +68,9 @@ pub(crate) fn layout_mermaid_block_for_test(
 /// Supports the following markdown image formats per the CommonMark spec:
 /// https://spec.commonmark.org/0.31.2/#images
 /// - Inline data: base64 `data:` URIs (e.g. notebook image outputs)
-/// - URLs: `http://` or `https://` prefixed paths
+/// - URLs: `http://` or `https://` prefixed paths. These are never fetched; the source is a local
+///   file that cannot exist, so the image does not draw. Opening a document must not make requests
+///   to hosts the document names.
 /// - Absolute paths: paths starting with `/`
 /// - Relative paths: all other paths, resolved relative to the document location
 pub fn resolve_asset_source_relative_to_directory(
@@ -78,7 +80,10 @@ pub fn resolve_asset_source_relative_to_directory(
     if let Some(data_uri_source) = asset_cache::data_uri_source(source) {
         data_uri_source
     } else if source.starts_with("http://") || source.starts_with("https://") {
-        asset_cache::url_source(source)
+        AssetSource::LocalFile {
+            path: source.to_string(),
+            content_version: None,
+        }
     } else if source.starts_with("/") {
         AssetSource::LocalFile {
             path: source.to_string(),

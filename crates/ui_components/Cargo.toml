@@ -13,7 +13,6 @@ warp_core.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
-asset_cache.workspace = true
 rust-embed.workspace = true
 rustls.workspace = true
 warpui.workspace = true

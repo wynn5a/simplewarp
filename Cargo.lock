@@ -950,16 +950,9 @@ name = "asset_cache"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "async-compat",
- "async-fs",
  "base64 0.22.1",
  "bytes",
- "cfg-if",
  "futures",
- "log",
- "reqwest",
- "url",
- "warp_errors",
  "warpui_core",
 ]
 
@@ -11418,7 +11411,6 @@ name = "ui_components"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "asset_cache",
  "pathfinder_color",
  "pathfinder_geometry",
  "rust-embed 8.7.2",
@@ -12562,7 +12554,6 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "arboard",
- "asset_cache",
  "async-io",
  "async-task",
  "bimap",

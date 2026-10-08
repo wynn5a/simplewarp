@@ -1,3 +1,5 @@
+use anyhow::Result;
+
 use super::*;
 
 /// Drive the fetch closure of an [`AssetSource::Async`] to completion.
