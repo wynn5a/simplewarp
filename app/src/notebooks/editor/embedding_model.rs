@@ -32,7 +32,7 @@ use crate::cloud_object::CloudObject;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::completer::SessionAgnosticContext;
 use crate::notebooks::styles::block_footer_action_button;
-use crate::server::ids::{HashableId, ToServerId};
+use crate::server::ids::{ClientId, HashableId, SyncId};
 use crate::settings::FontSettings;
 use crate::terminal::input::decorations::{
     ParsedTokensSnapshot, parse_current_commands_and_tokens,
@@ -40,7 +40,7 @@ use crate::terminal::input::decorations::{
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::CustomAction;
-use crate::workflows::{CloudWorkflow, WorkflowId};
+use crate::workflows::CloudWorkflow;
 
 #[derive(Default)]
 struct MouseStateHandles {
@@ -180,9 +180,9 @@ impl NotebookEmbed {
 
         // Currently we are only supporting embedded workflows. We could support
         // more drive objects in the future.
-        let id = WorkflowId::from_hash(&self.hashed_id)?;
+        let id = SyncId::from(ClientId::from_hash(&self.hashed_id)?);
         cloud_model
-            .get_by_uid(&id.to_server_id().uid())
+            .get_by_uid(&id.uid())
             .and_then(|object| object.as_any().downcast_ref::<CloudWorkflow>())
             .and_then(|workflow| {
                 if workflow.is_trashed(cloud_model) {

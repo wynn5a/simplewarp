@@ -90,7 +90,7 @@ impl WorkflowManager {
                     *owner,
                     *initial_folder_id,
                     *is_for_agent_mode,
-                    SyncId::ClientId(ClientId::default()),
+                    SyncId::from(ClientId::default()),
                     ctx,
                 )
             }),

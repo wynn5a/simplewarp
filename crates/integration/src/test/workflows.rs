@@ -1,6 +1,3 @@
-use warp::integration_testing::command_palette::{
-    TestStepsExt, open_command_palette_and_run_action,
-};
 use warp::integration_testing::step::new_step_with_default_assertions;
 use warp::integration_testing::terminal::util::ExpectedExitStatus;
 use warp::integration_testing::terminal::{
@@ -8,8 +5,7 @@ use warp::integration_testing::terminal::{
 };
 use warp::integration_testing::window::save_active_window_id;
 use warp::integration_testing::workflow::{
-    assert_no_workflow_pane_open, assert_open_workflow_pane_count_equals, assert_workflow_id,
-    create_a_personal_workflow, open_workflow,
+    assert_workflow_id, create_a_personal_workflow, open_workflow,
 };
 use warp::integration_testing::{self, view_of_type};
 use warp::workflows::CategoriesView;
@@ -31,22 +27,6 @@ pub fn test_open_workflow_in_pane() -> Builder {
                 .add_named_assertion_with_data_from_prior_step(
                     "Verify workflow is open",
                     assert_workflow_id(0, 0, "workflow_2_key"),
-                ),
-        )
-}
-
-pub fn test_create_personal_workflow_pane_from_command_palette() -> Builder {
-    new_builder()
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(TestStep::new("Noop step").add_named_assertion(
-            "Make sure no workflow panes are open",
-            assert_no_workflow_pane_open(),
-        ))
-        .with_steps(
-            open_command_palette_and_run_action("Create a New Personal Workflow")
-                .add_named_assertion(
-                    "There should be one workflow pane open",
-                    assert_open_workflow_pane_count_equals(1),
                 ),
         )
 }

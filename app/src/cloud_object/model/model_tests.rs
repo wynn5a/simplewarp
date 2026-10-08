@@ -81,7 +81,7 @@ fn mock_trashed_cloud_folder(id: SyncId, name: String, folder_id: Option<SyncId>
 #[test]
 fn test_create_json_object() {
     let client_id = ClientId::default();
-    let id = SyncId::ClientId(client_id);
+    let id = SyncId::from(client_id);
     let json_object: Box<dyn CloudObject> = Box::new(CloudPreference::new(
         id,
         GenericStringModel::new(
@@ -129,11 +129,11 @@ fn naive_active_object_uids(model: &CloudModel) -> HashSet<String> {
 
 #[test]
 fn active_object_uids_matches_naive_with_no_trashed_objects() {
-    let folder_id = SyncId::ServerId(1.into());
+    let folder_id = SyncId::from(1);
     let objects: Vec<Box<dyn CloudObject>> = vec![
         Box::new(mock_cloud_folder(folder_id, "Folder".into(), None)),
         Box::new(mock_cloud_notebook(
-            SyncId::ServerId(2.into()),
+            SyncId::from(2),
             "Notebook".into(),
             Some(folder_id),
         )),
@@ -150,8 +150,8 @@ fn active_object_uids_matches_naive_with_no_trashed_objects() {
 
 #[test]
 fn active_object_uids_matches_naive_with_directly_trashed_object() {
-    let trashed_folder_id = SyncId::ServerId(1.into());
-    let active_notebook_id = SyncId::ServerId(2.into());
+    let trashed_folder_id = SyncId::from(1);
+    let active_notebook_id = SyncId::from(2);
     let objects: Vec<Box<dyn CloudObject>> = vec![
         Box::new(mock_trashed_cloud_folder(
             trashed_folder_id,
@@ -181,9 +181,9 @@ fn active_object_uids_matches_naive_with_directly_trashed_object() {
 fn active_object_uids_matches_naive_with_indirectly_trashed_children() {
     // A trashed folder with a non-trashed notebook inside it.
     // The notebook should be considered trashed (indirectly) by both approaches.
-    let trashed_folder_id = SyncId::ServerId(1.into());
-    let child_notebook_id = SyncId::ServerId(2.into());
-    let active_notebook_id = SyncId::ServerId(3.into());
+    let trashed_folder_id = SyncId::from(1);
+    let child_notebook_id = SyncId::from(2);
+    let active_notebook_id = SyncId::from(3);
     let objects: Vec<Box<dyn CloudObject>> = vec![
         Box::new(mock_trashed_cloud_folder(
             trashed_folder_id,
@@ -217,10 +217,10 @@ fn active_object_uids_matches_naive_with_indirectly_trashed_children() {
 fn active_object_uids_matches_naive_with_nested_trashed_folder() {
     // folder_a (trashed) -> folder_b (not trashed) -> notebook (not trashed)
     // Both folder_b and notebook should be indirectly trashed.
-    let folder_a_id = SyncId::ServerId(1.into());
-    let folder_b_id = SyncId::ServerId(2.into());
-    let notebook_id = SyncId::ServerId(3.into());
-    let active_notebook_id = SyncId::ServerId(4.into());
+    let folder_a_id = SyncId::from(1);
+    let folder_b_id = SyncId::from(2);
+    let notebook_id = SyncId::from(3);
+    let active_notebook_id = SyncId::from(4);
     let objects: Vec<Box<dyn CloudObject>> = vec![
         Box::new(mock_trashed_cloud_folder(
             folder_a_id,

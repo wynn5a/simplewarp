@@ -11,7 +11,7 @@ use crate::cloud_object::{
 use crate::env_vars::CloudEnvVarCollection;
 use crate::notebooks::CloudNotebook;
 use crate::persistence::ModelEvent;
-use crate::server::ids::{HashableId, ObjectUid, SyncId, ToServerId};
+use crate::server::ids::{HashableId, ObjectUid, SyncId};
 use crate::workflows::CloudWorkflow;
 use crate::workflows::workflow_enum::CloudWorkflowEnum;
 
@@ -124,15 +124,7 @@ impl CloudModel {
         object_id: SyncId,
         ctx: &mut ModelContext<Self>,
     ) where
-        K: HashableId
-            + ToServerId
-            + std::fmt::Debug
-            + Into<String>
-            + Clone
-            + Copy
-            + Send
-            + Sync
-            + 'static,
+        K: HashableId + std::fmt::Debug + Into<String> + Clone + Copy + Send + Sync + 'static,
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
         if let Some(cloud_object) = self.get_object_of_type_mut(&object_id) {
@@ -259,7 +251,7 @@ impl CloudModel {
 
     pub fn get_object_of_type<K, M>(&self, object_id: &SyncId) -> Option<&GenericCloudObject<K, M>>
     where
-        K: HashableId + ToServerId + std::fmt::Debug + Into<String> + Clone + 'static,
+        K: HashableId + std::fmt::Debug + Into<String> + Clone + 'static,
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
         self.objects_by_id
@@ -272,7 +264,7 @@ impl CloudModel {
         object_id: &SyncId,
     ) -> Option<&mut GenericCloudObject<K, M>>
     where
-        K: HashableId + ToServerId + std::fmt::Debug + Into<String> + Clone + 'static,
+        K: HashableId + std::fmt::Debug + Into<String> + Clone + 'static,
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
         self.objects_by_id
@@ -282,7 +274,7 @@ impl CloudModel {
 
     pub fn get_all_objects_of_type<K, M>(&self) -> impl Iterator<Item = &GenericCloudObject<K, M>>
     where
-        K: HashableId + ToServerId + std::fmt::Debug + Into<String> + Clone + 'static,
+        K: HashableId + std::fmt::Debug + Into<String> + Clone + 'static,
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
         self.objects_by_id

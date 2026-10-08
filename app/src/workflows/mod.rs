@@ -136,13 +136,6 @@ impl WorkflowType {
         }
     }
 
-    pub fn server_id(&self) -> Option<WorkflowId> {
-        match self.object_id() {
-            Some(CloudObjectTypeAndId::Workflow(id)) => id.into_server().map(Into::into),
-            _ => None,
-        }
-    }
-
     /// We don't show env var selection for Agent Mode suggested commands.
     pub(super) fn should_show_env_var_selection(&self) -> bool {
         !matches!(self, WorkflowType::AIGenerated { .. },)

@@ -505,7 +505,7 @@ impl EnumCreationDialog {
             // If we don't have an existing index, we are creating a new enum
             None => {
                 ctx.emit(EnumCreationDialogEvent::CreateEnum(WorkflowEnumData {
-                    id: SyncId::ClientId(ClientId::default()),
+                    id: SyncId::from(ClientId::default()),
                     name: self.name_editor.as_ref(ctx).buffer_text(ctx),
                     is_shared: true,
                     revision_ts: self.revision_ts,

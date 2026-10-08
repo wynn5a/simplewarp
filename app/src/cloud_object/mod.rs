@@ -14,7 +14,7 @@ use self::model::generic_string_model::{
 };
 use self::model::persistence::CloudModel;
 use crate::persistence::ModelEvent;
-use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, SyncId, ToServerId};
+use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, SyncId};
 use crate::util::time_format::format_approx_duration_from_now_utc;
 
 pub mod cloud_object_styling;
@@ -202,7 +202,7 @@ pub trait CloudObject: Debug {
     fn as_model_type<K, M>(cloud_object: &dyn CloudObject) -> Option<&GenericCloudObject<K, M>>
     where
         Self: Sized,
-        K: HashableId + ToServerId + Debug + Into<String> + Clone + 'static,
+        K: HashableId + Debug + Into<String> + Clone + 'static,
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
         cloud_object
@@ -217,7 +217,7 @@ pub trait CloudObject: Debug {
     ) -> Option<&mut GenericCloudObject<K, M>>
     where
         Self: Sized,
-        K: HashableId + ToServerId + Debug + Into<String> + Clone + 'static,
+        K: HashableId + Debug + Into<String> + Clone + 'static,
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
         cloud_object
@@ -247,7 +247,7 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
     /// The associated CloudObject type for this model (e.g. CloudNotebook, CloudWorkflow, etc)
     type CloudObjectType: CloudObject + 'static;
     // TODO: @ianhodge - remove for sync ID refactor.
-    type IdType: HashableId + ToServerId + Debug + Into<String> + Clone + 'static;
+    type IdType: HashableId + Debug + Into<String> + Clone + 'static;
 
     /// Returns the name of this model type (e.g. Workflow, Folder, Notebook)
     fn model_type_name(&self) -> &'static str;
@@ -308,7 +308,7 @@ pub trait CloudObjectLookup: Sized + Clone {
 
 impl<K, M> CloudObjectLookup for GenericCloudObject<K, M>
 where
-    K: HashableId + ToServerId + Debug + Into<String> + Clone + 'static,
+    K: HashableId + Debug + Into<String> + Clone + 'static,
     M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
 {
     fn get_all(app: &AppContext) -> Vec<Self> {
@@ -356,7 +356,7 @@ lazy_static! {
 
 impl<K, M> CloudObject for GenericCloudObject<K, M>
 where
-    K: HashableId + ToServerId + Debug + Into<String> + Clone + 'static,
+    K: HashableId + Debug + Into<String> + Clone + 'static,
     M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
 {
     fn model_type_name(&self) -> &'static str {
@@ -368,7 +368,7 @@ where
     }
 
     fn hashed_sqlite_id(&self) -> HashedSqliteId {
-        self.id.sqlite_uid_hash(self.object_type().into())
+        self.id.sqlite_uid_hash()
     }
 
     fn sync_id(&self) -> SyncId {
@@ -438,7 +438,7 @@ where
 
 impl<'a, K, M> From<&'a dyn CloudObject> for Option<&'a GenericCloudObject<K, M>>
 where
-    K: HashableId + ToServerId + Debug + Into<String> + Clone + 'static,
+    K: HashableId + Debug + Into<String> + Clone + 'static,
     M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
 {
     fn from(value: &'a dyn CloudObject) -> Self {
@@ -448,7 +448,7 @@ where
 
 impl<'a, K, M> From<&'a Box<dyn CloudObject>> for Option<&'a GenericCloudObject<K, M>>
 where
-    K: HashableId + ToServerId + Debug + Into<String> + Clone + 'static,
+    K: HashableId + Debug + Into<String> + Clone + 'static,
     M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
 {
     fn from(value: &'a Box<dyn CloudObject>) -> Self {
@@ -458,7 +458,7 @@ where
 
 impl<'a, K, M> From<&'a mut Box<dyn CloudObject>> for Option<&'a mut GenericCloudObject<K, M>>
 where
-    K: HashableId + ToServerId + Debug + Into<String> + Clone + 'static,
+    K: HashableId + Debug + Into<String> + Clone + 'static,
     M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
 {
     fn from(value: &'a mut Box<dyn CloudObject>) -> Self {

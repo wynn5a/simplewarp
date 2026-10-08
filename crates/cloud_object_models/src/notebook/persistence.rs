@@ -8,7 +8,7 @@ use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnect
 use persistence::model::{NewNotebook, Notebook};
 use persistence::schema;
 
-use super::{CloudNotebook, CloudNotebookModel, NotebookId};
+use super::{CloudNotebook, CloudNotebookModel};
 
 pub fn upsert_notebooks(
     conn: &mut SqliteConnection,
@@ -76,7 +76,7 @@ pub fn read_notebooks(
         .into_iter()
         .filter_map(|notebook| {
             let metadata = read_context.metadata_for_object(notebook.id, ObjectType::Notebook)?;
-            let notebook_id = id_from_metadata::<NotebookId>(metadata)?;
+            let notebook_id = id_from_metadata(metadata)?;
             let cloud_object_permissions = read_context.permissions_for_metadata(metadata)?;
             let ai_document_id = notebook
                 .ai_document_id

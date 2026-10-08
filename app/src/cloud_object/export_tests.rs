@@ -12,13 +12,13 @@ use warpui::{AddSingletonModel, App, SingletonEntity, WindowId};
 use super::{ExportEvent, ExportId, ExportManager, safe_filename};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{
-    CloudObjectMetadata, CloudObjectPermissions, CloudObjectTypeAndId, ObjectIdType, ObjectType,
+    CloudObjectMetadata, CloudObjectPermissions, CloudObjectTypeAndId, ObjectType,
     PERSONAL_SPACE_NAME,
 };
-use crate::notebooks::{CloudNotebook, CloudNotebookModel, NotebookId};
+use crate::notebooks::{CloudNotebook, CloudNotebookModel};
 use crate::server::ids::SyncId;
 use crate::workflows::workflow::Workflow;
-use crate::workflows::{CloudWorkflow, CloudWorkflowModel, WorkflowId};
+use crate::workflows::{CloudWorkflow, CloudWorkflowModel};
 use crate::workspace::ToastStack;
 
 struct ExportTest {
@@ -142,7 +142,7 @@ fn test_export_workflow_success() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let workflow_id = SyncId::ServerId(WorkflowId::from(123).into());
+        let workflow_id = SyncId::from(123);
         let workflow = Workflow::new("Test workflow", "echo hello world");
         add_workflow(workflow_id, workflow, &mut app);
 
@@ -186,7 +186,7 @@ fn test_export_workflow_duplicate() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let workflow_id = SyncId::ServerId(WorkflowId::from(123).into());
+        let workflow_id = SyncId::from(123);
         let workflow = Workflow::new("Test workflow", "echo hello world");
         add_workflow(workflow_id, workflow, &mut app);
 
@@ -241,7 +241,7 @@ fn test_export_workflow_failure() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let workflow_id = SyncId::ServerId(WorkflowId::from(123).into());
+        let workflow_id = SyncId::from(123);
         let workflow = Workflow::new("Test workflow", "echo hello world");
         add_workflow(workflow_id, workflow, &mut app);
 
@@ -264,11 +264,11 @@ fn test_export_notebook_with_embeds() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let workflow_id = SyncId::ServerId(WorkflowId::from(123).into());
+        let workflow_id = SyncId::from(123);
         let workflow = Workflow::new("Test workflow", "echo hello world");
         add_workflow(workflow_id, workflow, &mut app);
 
-        let notebook_id = SyncId::ServerId(NotebookId::from(456).into());
+        let notebook_id = SyncId::from(456);
         add_notebook(
             notebook_id,
             "Test notebook",
@@ -285,7 +285,7 @@ This is code:
 print("hello")
 ```
 "#,
-                workflow_id.sqlite_uid_hash(ObjectIdType::Workflow)
+                workflow_id.sqlite_uid_hash()
             ),
             &mut app,
         );
@@ -325,7 +325,7 @@ author: ~
 author_url: ~
 shells: []
 environment_variables: ~
-id: Workflow-test_uid00000000000123
+id: Client-00000000-0000-0000-0000-00000000007b
 
 ```
 
@@ -342,7 +342,7 @@ print("hello")
 fn test_export_untitled_notebook() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let notebook_id = SyncId::ServerId(NotebookId::from(456).into());
+        let notebook_id = SyncId::from(456);
         add_notebook(notebook_id, "", "This is untitled", &mut app);
 
         let exporter = ExportTest::new(&mut app);
@@ -372,7 +372,7 @@ fn test_export_with_special_characters() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let workflow_id = SyncId::ServerId(WorkflowId::from(123).into());
+        let workflow_id = SyncId::from(123);
         let workflow = Workflow::new("Prefix: Some/workflow", "echo hello world");
         add_workflow(workflow_id, workflow, &mut app);
 
@@ -416,15 +416,15 @@ fn test_export_multiple_objects() {
         initialize_app(&mut app);
 
         // Create two workflows and a notebook
-        let workflow_id1 = SyncId::ServerId(WorkflowId::from(123).into());
+        let workflow_id1 = SyncId::from(123);
         let workflow1 = Workflow::new("Test workflow 1", "echo hello world");
         add_workflow(workflow_id1, workflow1, &mut app);
 
-        let workflow_id2 = SyncId::ServerId(WorkflowId::from(456).into());
+        let workflow_id2 = SyncId::from(456);
         let workflow2 = Workflow::new("Test workflow 2", "echo goodbye world");
         add_workflow(workflow_id2, workflow2, &mut app);
 
-        let notebook_id = SyncId::ServerId(NotebookId::from(789).into());
+        let notebook_id = SyncId::from(789);
         add_notebook(
             notebook_id,
             "Test notebook",

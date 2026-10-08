@@ -2,7 +2,7 @@ pub mod persistence;
 
 use ai::document::AIDocumentId;
 use cloud_objects::cloud_object::GenericCloudObject;
-use cloud_objects::ids::{ServerId, SyncId};
+use cloud_objects::ids::ServerId;
 use serde::{Deserialize, Serialize};
 
 /// Serialized representation of a notebook for sync queue
@@ -26,12 +26,6 @@ pub struct CloudNotebookModel {
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct NotebookId(ServerId);
 cloud_objects::server_id_traits! { NotebookId, "Notebook" }
-
-impl From<NotebookId> for SyncId {
-    fn from(id: NotebookId) -> Self {
-        Self::ServerId(id.into())
-    }
-}
 
 /// `CloudNotebook` is a notebook retrieved from the server.
 pub type CloudNotebook = GenericCloudObject<NotebookId, CloudNotebookModel>;

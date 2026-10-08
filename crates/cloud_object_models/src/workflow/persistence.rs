@@ -7,7 +7,7 @@ use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnect
 use persistence::model::{NewWorkflow, Workflow as PersistedWorkflow};
 use persistence::schema;
 
-use super::{CloudWorkflow, CloudWorkflowModel, WorkflowId};
+use super::{CloudWorkflow, CloudWorkflowModel};
 
 pub fn upsert_workflows(
     conn: &mut SqliteConnection,
@@ -64,7 +64,7 @@ pub fn read_workflows(
         .filter_map(|workflow| {
             let metadata = read_context.metadata_for_object(workflow.id, ObjectType::Workflow)?;
             let workflow_content = serde_json::from_str(workflow.data.as_str()).ok()?;
-            let workflow_id = id_from_metadata::<WorkflowId>(metadata)?;
+            let workflow_id = id_from_metadata(metadata)?;
             let cloud_object_permissions = read_context.permissions_for_metadata(metadata)?;
             Some(CloudWorkflow::new(
                 workflow_id,

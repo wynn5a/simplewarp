@@ -1,16 +1,12 @@
 use warp::features::FeatureFlag;
-use warp::integration_testing::notebook::{
-    assert_cloud_preference_exists, assert_notebook_contents, assert_notebook_metadata_revision,
-};
+use warp::integration_testing::notebook::assert_notebook_contents;
 use warp::integration_testing::step::{
     new_step_with_default_assertions, new_step_with_default_assertions_for_pane,
 };
 use warp::integration_testing::tab::assert_pane_title;
 use warp::integration_testing::terminal::wait_until_bootstrapped_single_pane_for_tab;
 use warp::integration_testing::view_getters::single_terminal_view_for_tab;
-use warp::integration_testing::workflow::assert_workflow_metadata_revision;
 use warp::integration_testing::{self};
-use warp::settings::{Platform, Preference};
 use warp::settings_view::{SettingsSection, SettingsView};
 use warp::sqlite_testing::set_user_and_hostname_for_blocks;
 use warp::terminal::model::session::get_local_hostname;
@@ -370,52 +366,6 @@ pub fn test_restore_snapshot_with_workflows() -> Builder {
                 .add_assertion(assert_pane_title(0, 1, "My Workflow"))
                 .add_assertion(assert_pane_title(0, 0, "Untitled")),
         )
-}
-
-/// Tests restoring a snapshot that includes a test json object.
-///
-/// The test json object has as its contents the string "egpmggresq"
-pub fn test_restore_snapshot_with_test_json_object() -> Builder {
-    new_builder()
-        .with_setup(|_utils| {
-            integration_testing::create_file_from_assets(
-                TEST_ONLY_ASSETS,
-                "test_json_object.sqlite",
-                &integration_testing::persistence::database_file_path(),
-            );
-        })
-        .with_step(
-            TestStep::new("Verify json object contents").add_assertion(
-                assert_cloud_preference_exists(
-                    Preference::new("HonorPS1".to_string(), "false", Platform::Global)
-                        .expect("error creating preference"),
-                ),
-            ),
-        )
-}
-
-/// Tests restoring a snapshot that has multiple objects with the same shareable_object_id
-/// in the metadata table.  This test verifies a regression introduced in
-/// https://github.com/warpdotdev/warp-internal/pull/7406 and fixed in
-/// https://github.com/warpdotdev/warp-internal/pull/7480
-///
-/// The two objects have server ids Workflow-ftv7on4HwTeixO2xF5hmKf and Notebook-Flbu686H9XDCHZlYRriVpB
-/// and shareable_object_id 2.
-pub fn test_restore_snapshot_with_common_shareable_metadata_ids() -> Builder {
-    new_builder()
-        .with_setup(|_utils| {
-            integration_testing::create_file_from_assets(
-                TEST_ONLY_ASSETS,
-                "test_duplicate_shareable_ids.sqlite",
-                &integration_testing::persistence::database_file_path(),
-            );
-        })
-        .with_step(TestStep::new("Verify revision of workflow").add_assertion(
-            assert_workflow_metadata_revision("ftv7on4HwTeixO2xF5hmKf", 1676321629559090),
-        ))
-        .with_step(TestStep::new("Verify revision of notebook").add_assertion(
-            assert_notebook_metadata_revision("Flbu686H9XDCHZlYRriVpB", 1690991057168223),
-        ))
 }
 
 /// Tests restoring a snapshot that includes a Markdown file pane.

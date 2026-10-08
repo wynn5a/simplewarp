@@ -6,7 +6,6 @@ use cloud_objects::cloud_object::{
     GENERIC_STRING_OBJECT_PREFIX, GenericStringObjectFormat, JSON_OBJECT_PREFIX, JsonObjectType,
     ObjectType,
 };
-use cloud_objects::ids::GenericStringObjectId;
 use diesel::SqliteConnection;
 use diesel::result::Error;
 
@@ -40,7 +39,7 @@ pub fn read_generic_string_objects(
                     JsonObjectType::Preference,
                 )),
             )?;
-            let object_id = id_from_metadata::<GenericStringObjectId>(metadata)?;
+            let object_id = id_from_metadata(metadata)?;
             let cloud_object_permissions = read_context.permissions_for_metadata(metadata)?;
             let json_object_type: JsonObjectType = metadata
                 .object_type

@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use cloud_objects::UserUid;
 use cloud_objects::cloud_object::{
     CloudObjectMetadata, CloudObjectPermissions, GENERIC_STRING_OBJECT_PREFIX,
-    GenericStringObjectFormat, ObjectIdType, ObjectType, Owner, Revision,
+    GenericStringObjectFormat, ObjectType, Owner, Revision,
 };
-use cloud_objects::ids::{ClientId, FolderId, HashableId, SyncId, ToServerId};
+use cloud_objects::ids::{ClientId, HashableId, SyncId};
 use cloud_objects::time::ServerTimestamp;
 use diesel::result::Error;
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection};
@@ -166,7 +166,7 @@ pub fn upsert_cloud_object(
         .as_ref()
         .map(|r| r.timestamp_micros());
 
-    let hashed_sync_id = sync_id.sqlite_uid_hash(cloud_object_type.into());
+    let hashed_sync_id = sync_id.sqlite_uid_hash();
     // Filter to find metadata row.
     // The diesel types for `filter`s are dependent on the columns being filtered
     // so while the `hashed_sync_id` will only match one of `client_id` and `server_id`,
@@ -189,7 +189,7 @@ pub fn upsert_cloud_object(
                 .map(|ts| ts.timestamp_micros());
             let folder_id_str = cloud_object_metadata
                 .folder_id
-                .map(|folder_sync_id| folder_sync_id.sqlite_uid_hash(ObjectIdType::Folder));
+                .map(|folder_sync_id| folder_sync_id.sqlite_uid_hash());
 
             // Update the metadata. Note: this is holistic write of all the metadata based on the current state of the in-memory object.
             // TODO: we need to update author_id as well.
@@ -246,7 +246,7 @@ pub fn upsert_cloud_object(
                     .map(|ts| ts.timestamp_micros()),
                 folder_id: cloud_object_metadata
                     .folder_id
-                    .map(|sync_id| sync_id.sqlite_uid_hash(ObjectIdType::Folder)),
+                    .map(|sync_id| sync_id.sqlite_uid_hash()),
                 // When we insert an object, mark whether it's a welcome object. This
                 // field won't ever be updated and this is the only pathway for it to be set.
                 is_welcome_object: cloud_object_metadata.is_welcome_object,
@@ -255,17 +255,7 @@ pub fn upsert_cloud_object(
                 current_editor: cloud_object_metadata.current_editor_uid,
             };
 
-            // There are two distinct cases:
-            // - If the client created this object, the clientId will be set. There is another model event to set the server id.
-            // - Otherwise, the server notified the client about this object so only the serverId will be set.
-            match sync_id {
-                SyncId::ClientId(_) => {
-                    new_object_metadata.client_id = Some(hashed_sync_id);
-                }
-                SyncId::ServerId(_) => {
-                    new_object_metadata.server_id = Some(hashed_sync_id);
-                }
-            }
+            new_object_metadata.client_id = Some(hashed_sync_id);
             diesel::insert_into(schema::object_metadata::dsl::object_metadata)
                 .values(new_object_metadata)
                 .execute(conn)?;
@@ -302,12 +292,11 @@ pub fn upsert_cloud_object(
 pub fn delete_cloud_object(
     conn: &mut SqliteConnection,
     sync_id: SyncId,
-    object_id_type: ObjectIdType,
     delete_object_fn: DeleteCloudObjectFn,
 ) -> Result<(), Error> {
     use schema::object_metadata::dsl::*;
 
-    let hashed_sync_id = sync_id.sqlite_uid_hash(object_id_type);
+    let hashed_sync_id = sync_id.sqlite_uid_hash();
     // Filter to find metadata row.
     // The diesel types for `filter`s are dependent on the columns being filtered
     // so while the `hashed_sync_id` will only match one of `client_id` and `server_id`,
@@ -414,7 +403,7 @@ pub fn update_object_metadata(
     let trashed_timestamp = metadata.trashed_ts.map(|ts| ts.timestamp_micros());
     let folder_id_str = metadata
         .folder_id
-        .map(|folder_sync_id| folder_sync_id.sqlite_uid_hash(ObjectIdType::Folder));
+        .map(|folder_sync_id| folder_sync_id.sqlite_uid_hash());
 
     conn.transaction::<(), Error, _>(|conn| {
         diesel::update(object_metadata.filter(server_id.eq(Some(hashed_id.as_str()))))
@@ -430,14 +419,14 @@ pub fn update_object_metadata(
     })
 }
 
-pub fn id_from_metadata<K: HashableId + ToServerId>(metadata: &ObjectMetadata) -> Option<SyncId> {
-    match (&metadata.server_id, &metadata.client_id) {
-        (Some(server_id), _) => {
-            K::from_hash(server_id).map(|id| SyncId::ServerId(id.to_server_id()))
-        }
-        (None, Some(client_id)) => ClientId::from_hash(client_id).map(SyncId::ClientId),
-        _ => None,
-    }
+pub fn id_from_metadata(metadata: &ObjectMetadata) -> Option<SyncId> {
+    // Only client ids exist. Rows with just a server id predate the local-only fork and are
+    // not loaded.
+    metadata
+        .client_id
+        .as_deref()
+        .and_then(ClientId::from_hash)
+        .map(SyncId::from)
 }
 
 pub fn to_cloud_object_metadata(metadata: &ObjectMetadata) -> CloudObjectMetadata {
@@ -452,17 +441,11 @@ pub fn to_cloud_object_metadata(metadata: &ObjectMetadata) -> CloudObjectMetadat
         trashed_ts: metadata
             .trashed_ts
             .and_then(|epoch| ServerTimestamp::from_unix_timestamp_micros(epoch).ok()),
-        folder_id: metadata.folder_id.as_ref().and_then(|folder_id_str| {
-            // First, attempt to convert the string into a server id.
-            let as_server_id =
-                FolderId::from_hash(folder_id_str).map(|id| SyncId::ServerId(id.into()));
-            if as_server_id.is_none() {
-                // If the string cannot be converted to server id, it may be a client id.
-                ClientId::from_hash(folder_id_str).map(SyncId::ClientId)
-            } else {
-                as_server_id
-            }
-        }),
+        folder_id: metadata
+            .folder_id
+            .as_deref()
+            .and_then(ClientId::from_hash)
+            .map(SyncId::from),
         is_welcome_object: metadata.is_welcome_object,
         creator_uid: metadata.creator_uid.clone(),
         last_editor_uid: metadata.last_editor_uid.clone(),

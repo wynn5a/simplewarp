@@ -1,7 +1,7 @@
 pub mod persistence;
 
 use cloud_objects::cloud_object::GenericCloudObject;
-use cloud_objects::ids::{GenericStringObjectId, ServerId, SyncId};
+use cloud_objects::ids::{ServerId, SyncId};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
@@ -122,18 +122,6 @@ impl Workflow {
             .chars()
             .next()
             .is_some_and(|first| first.eq_ignore_ascii_case(&c))
-    }
-
-    /// Return a list of every enum ID that has been synced to the server, used for telemetry.
-    pub fn get_server_enum_ids(&self) -> Vec<GenericStringObjectId> {
-        self.arguments()
-            .iter()
-            .filter_map(|arg| match arg.arg_type {
-                ArgumentType::Enum { enum_id } => enum_id.into_server(),
-                ArgumentType::Text => None,
-            })
-            .map(Into::into)
-            .collect()
     }
 
     pub fn default_env_vars(&self) -> Option<SyncId> {

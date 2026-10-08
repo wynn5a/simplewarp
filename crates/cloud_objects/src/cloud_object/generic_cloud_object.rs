@@ -98,7 +98,7 @@ impl<K, M> GenericCloudObject<K, M> {
         client_id: ClientId,
     ) -> Self {
         Self {
-            id: SyncId::ClientId(client_id),
+            id: SyncId::from(client_id),
             model: model.into(),
             metadata: CloudObjectMetadata {
                 folder_id: initial_folder_id,

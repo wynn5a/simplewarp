@@ -58,48 +58,12 @@ impl ActiveEnvVarCollectionData {
 
         let UpdateManagerEvent::ObjectOperationComplete { result } = event;
 
-        match (&result.operation, &result.success_type) {
-            (ObjectOperation::Update, OperationSuccessType::Success) => {
-                if let Some(current_id) = self.id() {
-                    // If we match on a non-None client id or a non-None server id then
-                    // update the data
-                    if (current_id.into_client().is_some()
-                        && current_id.into_client() == result.client_id)
-                        || (current_id.into_server().is_some()
-                            && current_id.into_server() == result.server_id)
-                    {
-                        let server_id = result.server_id.expect("Expect server id on success");
-                        let env_var_collection_id = SyncId::ServerId(server_id);
-                        if let Some(env_var_collection) =
-                            cloud_model.get_env_var_collection(&env_var_collection_id)
-                        {
-                            self.saving_status = SavingStatus::Saved;
-                            self.active_env_var_collection =
-                                ActiveEnvVarCollection::CommittedEnvVarCollection(
-                                    env_var_collection_id,
-                                );
-
-                            self.revision_ts
-                                .clone_from(&env_var_collection.metadata.revision);
-
-                            ctx.notify();
-                        }
-                    }
-                }
-            }
-            (ObjectOperation::Trash, OperationSuccessType::Success)
-            | (ObjectOperation::Untrash, OperationSuccessType::Success) => {
-                let server_id = result.server_id.expect("Expect server id on success");
-                if let Some(current_id) = self.id()
-                    && current_id.into_client() == result.client_id
-                    && cloud_model
-                        .get_env_var_collection(&SyncId::ServerId(server_id))
-                        .is_some()
-                {
-                    ctx.emit(ActiveEnvVarCollectionDataEvent::TrashStatusChanged);
-                }
-            }
-            _ => {}
+        if let (ObjectOperation::Trash | ObjectOperation::Untrash, OperationSuccessType::Success) =
+            (&result.operation, &result.success_type)
+            && self.id() == Some(result.id)
+            && cloud_model.get_env_var_collection(&result.id).is_some()
+        {
+            ctx.emit(ActiveEnvVarCollectionDataEvent::TrashStatusChanged);
         }
     }
 
@@ -151,14 +115,6 @@ impl ActiveEnvVarCollectionData {
 
     pub fn active_env_var_collection(&self) -> ActiveEnvVarCollection {
         self.active_env_var_collection.clone()
-    }
-
-    /// Whether or not the EVC has been synced to the server.
-    pub fn is_on_server(&self) -> bool {
-        matches!(
-            &self.active_env_var_collection,
-            ActiveEnvVarCollection::CommittedEnvVarCollection(SyncId::ServerId(_))
-        )
     }
 
     pub fn is_active_env_var_collection(&self, env_var_collection_id: SyncId) -> bool {

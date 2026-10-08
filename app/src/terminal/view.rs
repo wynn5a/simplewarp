@@ -3393,19 +3393,19 @@ impl TerminalView {
                 ctx,
             )
         });
-        ctx.subscribe_to_view(&conversation_details_panel, |me, _, event, ctx| {
-            match event {
+        ctx.subscribe_to_view(
+            &conversation_details_panel,
+            |me, _, event, ctx| match event {
                 ConversationDetailsPanelEvent::Close => {
                     me.is_conversation_details_panel_open = false;
                     ctx.notify();
                 }
                 ConversationDetailsPanelEvent::OpenPlanNotebook { notebook_uid } => {
-                    // Convert NotebookId -> SyncId -> ObjectUid (String)
-                    let object_uid = SyncId::from(*notebook_uid).uid();
+                    let object_uid = ObjectUid::from(*notebook_uid);
                     ctx.emit(Event::OpenWarpDriveObjectInPane(object_uid));
                 }
-            }
-        });
+            },
+        );
 
         let window_id = ctx.window_id();
         let mut terminal_view = Self {

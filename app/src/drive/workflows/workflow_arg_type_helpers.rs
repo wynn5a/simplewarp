@@ -150,28 +150,17 @@ pub fn save_enum<V>(
         variants,
     };
 
-    // Depending on the type of ID, create or update the relevant objects.
-    match enum_data.id {
-        SyncId::ClientId(client_id) => {
-            if let Some(owner) = owner {
-                UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                    update_manager.create_object(
-                        CloudWorkflowEnumModel::new(workflow_enum),
-                        owner,
-                        client_id,
-                        true,
-                        None,
-                        ctx,
-                    );
-                });
-            }
-        }
-        SyncId::ServerId(_) => {
-            // We will issue enum update requests here
-            UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                update_manager.update_workflow_enum(workflow_enum, enum_data.id, ctx);
-            })
-        }
+    if let Some(owner) = owner {
+        UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
+            update_manager.create_object(
+                CloudWorkflowEnumModel::new(workflow_enum),
+                owner,
+                enum_data.id.client_id(),
+                true,
+                None,
+                ctx,
+            );
+        });
     }
 }
 

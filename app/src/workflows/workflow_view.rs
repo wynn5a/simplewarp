@@ -57,9 +57,7 @@ use crate::menu::{MenuItem, MenuItemFields};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
-use crate::server::cloud_objects::update_manager::{
-    ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
-};
+use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::ui_components::buttons::icon_button;
@@ -357,7 +355,7 @@ impl WorkflowView {
         let view_only_content_editor_highlight_model =
             ctx.add_model(|ctx| SyntaxHighlightable::new(view_only_content_editor.clone(), ctx));
 
-        let workflow_id = SyncId::ClientId(ClientId::default());
+        let workflow_id = SyncId::from(ClientId::default());
         let alias_bar = ctx.add_typed_action_view(|ctx| AliasBar::new(workflow_id, ctx));
         ctx.subscribe_to_view(&alias_bar, |me, _, event, ctx| {
             me.handle_alias_bar_event(event, ctx);
@@ -456,11 +454,6 @@ impl WorkflowView {
         ctx.subscribe_to_model(&CloudModel::handle(ctx), move |workflow, _, event, ctx| {
             workflow.handle_cloud_model_event(event, ctx)
         });
-
-        let update_manager = UpdateManager::handle(ctx);
-        ctx.subscribe_to_model(&update_manager, |me, _, event, ctx| {
-            me.handle_update_manager_event(event, ctx);
-        });
     }
 
     fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ViewContext<Self>) {
@@ -476,27 +469,6 @@ impl WorkflowView {
             | CloudModelEvent::ObjectDeleted { .. }
             | CloudModelEvent::ObjectUntrashed { .. } => ctx.notify(),
             _ => (),
-        }
-    }
-
-    fn handle_update_manager_event(
-        &mut self,
-        event: &UpdateManagerEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event;
-
-        if let (ObjectOperation::Update, OperationSuccessType::Success) =
-            (&result.operation, &result.success_type)
-            && let Some(workflow) = self.get_cloud_workflow(ctx)
-        {
-            // This makes sure we get the correct updated revision_ts. So our subsequent
-            // updates don't fail
-            if self.workflow_id.into_client() == result.client_id
-                || self.workflow_id.uid() == result.server_id.unwrap_or_default().uid()
-            {
-                self.load(workflow, self.workflow_view_mode, ctx);
-            }
         }
     }
 
@@ -1379,13 +1351,7 @@ impl WorkflowView {
                 self.try_set_view_mode(ctx);
             }
             WorkflowViewMode::Create => {
-                let client_id = if let Some(id) = self.workflow_id.into_client() {
-                    id
-                } else {
-                    report_error!("No client_id obtained for creating workflow");
-                    self.display_error_toast(String::from("Could not create workflow"), ctx);
-                    return;
-                };
+                let client_id = self.workflow_id.client_id();
 
                 if let Some(space) = self.owner {
                     UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {

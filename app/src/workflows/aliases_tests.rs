@@ -5,8 +5,8 @@ use crate::settings::init_and_register_user_preferences;
 
 #[test]
 fn test_set_aliases() {
-    let workflow_1: SyncId = SyncId::ServerId(1.into());
-    let workflow_2: SyncId = SyncId::ServerId(2.into());
+    let workflow_1: SyncId = SyncId::from(1);
+    let workflow_2: SyncId = SyncId::from(2);
     let alias_1: WorkflowAlias = WorkflowAlias {
         alias: "alias1".to_string(),
         workflow_id: workflow_1,
@@ -69,7 +69,7 @@ fn test_set_aliases() {
 #[test]
 fn test_set_aliases_replacement() {
     // Test that replacing aliases works correctly.
-    let workflow_1: SyncId = SyncId::ServerId(1.into());
+    let workflow_1: SyncId = SyncId::from(1);
     let alias_1: WorkflowAlias = WorkflowAlias {
         alias: "alias1".to_string(),
         workflow_id: workflow_1,
@@ -107,8 +107,8 @@ fn test_set_aliases_replacement() {
 
 #[test]
 fn test_remove_aliases() {
-    let workflow_1: SyncId = SyncId::ServerId(1.into());
-    let workflow_2: SyncId = SyncId::ServerId(2.into());
+    let workflow_1: SyncId = SyncId::from(1);
+    let workflow_2: SyncId = SyncId::from(2);
     let alias_1: WorkflowAlias = WorkflowAlias {
         alias: "alias1".to_string(),
         workflow_id: workflow_1,

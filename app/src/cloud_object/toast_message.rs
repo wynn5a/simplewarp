@@ -1,4 +1,4 @@
-use super::{CloudObject, ObjectType};
+use super::CloudObject;
 use crate::server::cloud_objects::update_manager::{
     InitiatedBy, ObjectOperation, OperationSuccessType,
 };
@@ -13,17 +13,11 @@ impl CloudObjectToastMessage {
     ) -> Option<String> {
         let object_name = object.model_type_name().to_owned();
 
-        match (object.object_type(), operation, success_type) {
-            // notebooks intentionally do not have an update message, as they are updated
-            // as the user types and so toasts would be VERY noisy
-            (ObjectType::Notebook, ObjectOperation::Update, OperationSuccessType::Success) => None,
-            (_, ObjectOperation::Update, OperationSuccessType::Success) => {
-                Some(format!("{object_name} updated"))
-            }
-            (_, ObjectOperation::Trash, OperationSuccessType::Success) => {
+        match (operation, success_type) {
+            (ObjectOperation::Trash, OperationSuccessType::Success) => {
                 Some(format!("{object_name} trashed"))
             }
-            (_, ObjectOperation::Untrash, OperationSuccessType::Success) => {
+            (ObjectOperation::Untrash, OperationSuccessType::Success) => {
                 Some(format!("{object_name} restored"))
             }
             _ => None,

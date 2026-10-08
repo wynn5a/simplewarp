@@ -1,20 +1,9 @@
-use warpui::integration::{AssertionCallback, AssertionWithDataCallback};
-use warpui::{App, ViewHandle, async_assert, async_assert_eq};
+use warpui::integration::AssertionWithDataCallback;
+use warpui::{App, async_assert_eq};
 
-use crate::integration_testing::cloud_object::assert_metadata_revision;
 use crate::integration_testing::view_getters::workflow_view;
 use crate::server::ids::SyncId;
 use crate::workflows::workflow_view::WorkflowView;
-use crate::workflows::{CloudWorkflowModel, WorkflowId};
-
-/// Asserts metadata exists for the workflow with the given key and that the revision in that
-/// metadata matches the given expected revision.
-pub fn assert_workflow_metadata_revision(
-    id: impl AsRef<str>,
-    expected_revision: i64,
-) -> AssertionCallback {
-    assert_metadata_revision::<WorkflowId, CloudWorkflowModel>(id.as_ref(), expected_revision)
-}
 
 /// Asserts that a pane has the given workflow open.
 pub fn assert_workflow_id(
@@ -36,23 +25,6 @@ pub fn assert_workflow_id(
     })
 }
 
-pub fn assert_no_workflow_pane_open() -> AssertionCallback {
-    Box::new(move |app, _| {
-        let count = get_all_open_workflows(app).len();
-        async_assert!(count == 0, "Expected no workflow panes to be open")
-    })
-}
-
-pub fn assert_open_workflow_pane_count_equals(num: usize) -> AssertionCallback {
-    Box::new(move |app, _| {
-        let count = get_all_open_workflows(app).len();
-        async_assert!(
-            count == num,
-            "Expected number of open workflow panes to be: {num}. Found {count} instead"
-        )
-    })
-}
-
 /// Find number of workflows that are open by id
 pub fn open_workflow_count(app: &App, id: SyncId) -> usize {
     app.window_ids()
@@ -61,12 +33,4 @@ pub fn open_workflow_count(app: &App, id: SyncId) -> usize {
         .flatten()
         .filter(move |view| view.read(app, |view, _ctx| view.workflow_id()) == id)
         .count()
-}
-
-fn get_all_open_workflows(app: &mut App) -> Vec<ViewHandle<WorkflowView>> {
-    app.window_ids()
-        .into_iter()
-        .flat_map(|window_id| app.views_of_type::<WorkflowView>(window_id))
-        .flatten()
-        .collect()
 }

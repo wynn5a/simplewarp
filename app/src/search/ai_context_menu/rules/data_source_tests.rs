@@ -19,7 +19,7 @@ use crate::system::SystemStats;
 
 fn mock_cloud_ai_fact(id: i64, name: &str, content: &str, revision: Revision) -> CloudAIFact {
     CloudAIFact::new(
-        SyncId::ServerId(id.into()),
+        SyncId::from(id),
         GenericStringModel::new(AIFact::Memory(AIMemory {
             name: Some(name.to_string()),
             content: content.to_string(),
@@ -65,7 +65,7 @@ fn zero_state_scores_reflect_recency() {
         let now = Utc::now();
         CloudModel::handle(&app).update(&mut app, |model, _| {
             model.add_object(
-                SyncId::ServerId(1.into()),
+                SyncId::from(1),
                 mock_cloud_ai_fact(
                     1,
                     "oldest rule",
@@ -74,7 +74,7 @@ fn zero_state_scores_reflect_recency() {
                 ),
             );
             model.add_object(
-                SyncId::ServerId(2.into()),
+                SyncId::from(2),
                 mock_cloud_ai_fact(
                     2,
                     "middle rule",
@@ -83,7 +83,7 @@ fn zero_state_scores_reflect_recency() {
                 ),
             );
             model.add_object(
-                SyncId::ServerId(3.into()),
+                SyncId::from(3),
                 mock_cloud_ai_fact(
                     3,
                     "newest rule",
@@ -114,7 +114,7 @@ fn filtered_state_adds_recency_bonus() {
         // All rules contain "rule" so fuzzy scores should be similar
         CloudModel::handle(&app).update(&mut app, |model, _| {
             model.add_object(
-                SyncId::ServerId(1.into()),
+                SyncId::from(1),
                 mock_cloud_ai_fact(
                     1,
                     "my first rule",
@@ -123,7 +123,7 @@ fn filtered_state_adds_recency_bonus() {
                 ),
             );
             model.add_object(
-                SyncId::ServerId(2.into()),
+                SyncId::from(2),
                 mock_cloud_ai_fact(
                     2,
                     "my second rule",
@@ -132,7 +132,7 @@ fn filtered_state_adds_recency_bonus() {
                 ),
             );
             model.add_object(
-                SyncId::ServerId(3.into()),
+                SyncId::from(3),
                 mock_cloud_ai_fact(
                     3,
                     "my third rule",

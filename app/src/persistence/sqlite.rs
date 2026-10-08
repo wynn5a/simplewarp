@@ -77,10 +77,9 @@ use crate::app_state::{
 use crate::cloud_object::model::actions::{
     ObjectAction, ObjectActionSubtype, object_action_from_persisted,
 };
-use crate::cloud_object::model::generic_string_model::{CloudStringObject, GenericStringObjectId};
+use crate::cloud_object::model::generic_string_model::CloudStringObject;
 use crate::cloud_object::{CloudObject, ObjectIdType};
 use crate::code::editor_management::CodeSource;
-use crate::notebooks::NotebookId;
 use crate::persistence::block_list::{
     get_all_restored_blocks, process_ai_queries_for_nld_history_match,
     process_ai_queries_for_uparrow_prompt, read_recent_ai_queries,
@@ -95,7 +94,6 @@ use crate::tab::SelectedTabColor;
 use crate::terminal::ShellLaunchData;
 use crate::terminal::history::PersistedCommand;
 use crate::themes::theme::AnsiColorIdentifier;
-use crate::workflows::WorkflowId;
 use crate::workspace::tab_group::TabGroupId;
 
 diesel::define_sql_function! {
@@ -988,10 +986,9 @@ fn save_pane_state(
         }
         LeafContents::Notebook(notebook_snapshot) => {
             let (notebook_id, local_path) = match notebook_snapshot {
-                NotebookPaneSnapshot::CloudNotebook { notebook_id } => (
-                    notebook_id.map(|id| id.sqlite_uid_hash(ObjectIdType::Notebook)),
-                    None,
-                ),
+                NotebookPaneSnapshot::CloudNotebook { notebook_id } => {
+                    (notebook_id.map(|id| id.sqlite_uid_hash()), None)
+                }
                 NotebookPaneSnapshot::LocalFileNotebook { path } => {
                     (None, path.clone().map(encode_path))
                 }
@@ -1042,8 +1039,7 @@ fn save_pane_state(
             let env_var_collection_id = match env_var_collection_snapshot {
                 EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
                     env_var_collection_id,
-                } => env_var_collection_id
-                    .map(|id| id.sqlite_uid_hash(ObjectIdType::GenericStringObject)),
+                } => env_var_collection_id.map(|id| id.sqlite_uid_hash()),
             };
 
             let env_var_collection = model::NewEnvVarCollectionPane {
@@ -1058,7 +1054,7 @@ fn save_pane_state(
         LeafContents::Workflow(workflow_pane_snapshot) => {
             let workflow_id = match workflow_pane_snapshot {
                 WorkflowPaneSnapshot::CloudWorkflow { workflow_id } => {
-                    workflow_id.map(|id| id.sqlite_uid_hash(ObjectIdType::Workflow))
+                    workflow_id.map(|id| id.sqlite_uid_hash())
                 }
             };
 
@@ -1708,11 +1704,9 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                         .select(model::NotebookPane::as_select())
                         .first(conn)?;
 
-                    let notebook_id = notebook_pane.notebook_id.and_then(|id| {
-                        ClientId::from_hash(&id).map(SyncId::ClientId).or_else(|| {
-                            NotebookId::from_hash(&id).map(|id| SyncId::ServerId(id.into()))
-                        })
-                    });
+                    let notebook_id = notebook_pane
+                        .notebook_id
+                        .and_then(|id| ClientId::from_hash(&id).map(SyncId::from));
 
                     let local_path = notebook_pane.local_path.map(decode_path);
 
@@ -1732,11 +1726,9 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                         .select(model::WorkflowPane::as_select())
                         .first(conn)?;
 
-                    let workflow_id = workflow_pane.workflow_id.and_then(|id| {
-                        ClientId::from_hash(&id).map(SyncId::ClientId).or_else(|| {
-                            WorkflowId::from_hash(&id).map(|id| SyncId::ServerId(id.into()))
-                        })
-                    });
+                    let workflow_id = workflow_pane
+                        .workflow_id
+                        .and_then(|id| ClientId::from_hash(&id).map(SyncId::from));
 
                     LeafContents::Workflow(WorkflowPaneSnapshot::CloudWorkflow { workflow_id })
                 }
@@ -1782,12 +1774,7 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
 
                     let env_var_collection_id = env_var_collection_pane
                         .env_var_collection_id
-                        .and_then(|id| {
-                            ClientId::from_hash(&id).map(SyncId::ClientId).or_else(|| {
-                                GenericStringObjectId::from_hash(&id)
-                                    .map(|id| SyncId::ServerId(id.into()))
-                            })
-                        });
+                        .and_then(|id| ClientId::from_hash(&id).map(SyncId::from));
 
                     LeafContents::EnvVarCollection(
                         EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
@@ -2231,9 +2218,7 @@ impl From<StartedCommandMetadata> for model::NewCommand {
                 id.try_into().ok()
             }),
             git_branch: metadata.git_branch,
-            cloud_workflow_id: metadata
-                .cloud_workflow_id
-                .map(|id| id.sqlite_uid_hash(ObjectIdType::Workflow)),
+            cloud_workflow_id: metadata.cloud_workflow_id.map(|id| id.sqlite_uid_hash()),
             workflow_command: metadata.workflow_command,
             is_agent_executed: Some(metadata.is_agent_executed),
         }
@@ -2406,27 +2391,19 @@ fn delete_objects(
                 ObjectIdType::Notebook => delete_cloud_object(
                     conn,
                     sync_id,
-                    object_id_type,
                     Box::new(notebook_persistence::delete_notebook),
                 )?,
                 ObjectIdType::Workflow => delete_cloud_object(
                     conn,
                     sync_id,
-                    object_id_type,
                     Box::new(workflow_persistence::delete_workflow),
                 )?,
-                ObjectIdType::Folder => delete_cloud_object(
-                    conn,
-                    sync_id,
-                    object_id_type,
-                    Box::new(folder_persistence::delete_folder),
-                )?,
-                ObjectIdType::GenericStringObject => delete_cloud_object(
-                    conn,
-                    sync_id,
-                    object_id_type,
-                    Box::new(delete_generic_string_object),
-                )?,
+                ObjectIdType::Folder => {
+                    delete_cloud_object(conn, sync_id, Box::new(folder_persistence::delete_folder))?
+                }
+                ObjectIdType::GenericStringObject => {
+                    delete_cloud_object(conn, sync_id, Box::new(delete_generic_string_object))?
+                }
             }
         }
         Ok(())

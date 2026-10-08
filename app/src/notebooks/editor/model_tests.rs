@@ -40,13 +40,13 @@ use crate::notebooks::editor::view::{RichTextEditorConfig, RichTextEditorView};
 use crate::notebooks::file::MarkdownDisplayMode;
 use crate::notebooks::link::{NotebookLinks, SessionSource};
 use crate::search::files::model::FileSearchModel;
-use crate::server::ids::{ServerId, SyncId};
+use crate::server::ids::SyncId;
 use crate::settings::FontSettings;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workflows::workflow::Workflow;
-use crate::workflows::{CloudWorkflow, CloudWorkflowModel, WorkflowId};
+use crate::workflows::{CloudWorkflow, CloudWorkflowModel};
 use crate::workspace::ActiveSession;
 use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 
@@ -1820,9 +1820,7 @@ Second command
 
 // Mock out a server workflow with the given i64 ID.
 fn mock_server_workflow(id: i64, app: &mut App) {
-    let server_id: ServerId = id.into();
-    let workflow_id: WorkflowId = server_id.into();
-    let sync_id = SyncId::ServerId(workflow_id.into());
+    let sync_id = SyncId::from(id);
 
     let workflow = CloudWorkflow::new(
         sync_id,
@@ -1849,11 +1847,11 @@ fn test_interleaving_command_and_embedding() {
         let model_handle = model_from_markdown(
             r#"Text
 ```warp-embedded-object
-id: Workflow-test_uid00000000000123
+id: Client-00000000-0000-0000-0000-00000000007b
 ```
 More text
 ```warp-embedded-object
-id: Workflow-test_uid00000000000245
+id: Client-00000000-0000-0000-0000-0000000000f5
 ```
 ```Python
 def

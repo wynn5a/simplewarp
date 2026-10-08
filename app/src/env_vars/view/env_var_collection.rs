@@ -753,25 +753,22 @@ impl EnvVarCollectionView {
             // If the EVC hasn't been committed yet, create the EVC through update
             // manager, and update the active EVC
             ActiveEnvVarCollection::NewEnvVarCollection(env_var_collection) => {
-                if let Some(client_id) = env_var_collection.id.into_client() {
-                    UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                        update_manager.create_env_var_collection(
-                            client_id,
-                            env_var_collection.permissions.owner,
-                            env_var_collection.metadata.folder_id,
-                            CloudEnvVarCollectionModel::new(new_env_var_collection),
-                            true,
-                            ctx,
-                        );
-                    });
+                let client_id = env_var_collection.id.client_id();
+                UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
+                    update_manager.create_env_var_collection(
+                        client_id,
+                        env_var_collection.permissions.owner,
+                        env_var_collection.metadata.folder_id,
+                        CloudEnvVarCollectionModel::new(new_env_var_collection),
+                        true,
+                        ctx,
+                    );
+                });
 
-                    self.active_env_var_collection_data.update(ctx, |data, _| {
-                        data.active_env_var_collection =
-                            ActiveEnvVarCollection::CommittedEnvVarCollection(SyncId::ClientId(
-                                client_id,
-                            ))
-                    });
-                }
+                self.active_env_var_collection_data.update(ctx, |data, _| {
+                    data.active_env_var_collection =
+                        ActiveEnvVarCollection::CommittedEnvVarCollection(SyncId::from(client_id))
+                });
             }
             ActiveEnvVarCollection::None => {
                 report_error!("Tried to save EVC, but none were active")

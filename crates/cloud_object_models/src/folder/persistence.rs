@@ -2,7 +2,6 @@ use cloud_object_persistence::{
     CloudObjectReadContext, id_from_metadata, to_cloud_object_metadata, upsert_cloud_object,
 };
 use cloud_objects::cloud_object::ObjectType;
-use cloud_objects::ids::FolderId;
 use diesel::result::Error;
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection};
 use persistence::model::{Folder, NewFolder};
@@ -67,7 +66,7 @@ pub fn read_folders(
         .into_iter()
         .filter_map(|folder| {
             let metadata = read_context.metadata_for_object(folder.id, ObjectType::Folder)?;
-            let folder_id = id_from_metadata::<FolderId>(metadata)?;
+            let folder_id = id_from_metadata(metadata)?;
             let cloud_object_permissions = read_context.permissions_for_metadata(metadata)?;
             Some(CloudFolder::new(
                 folder_id,

@@ -27,7 +27,7 @@ fn add_local_notebook(app: &mut App) -> CloudObjectTypeAndId {
         None,
         client_id,
     );
-    let id = SyncId::ClientId(client_id);
+    let id = SyncId::from(client_id);
     CloudModel::handle(app).update(app, |model, ctx| model.create_object(id, notebook, ctx));
     CloudObjectTypeAndId::Notebook(id)
 }
@@ -62,13 +62,11 @@ fn locally_created_objects_can_be_trashed_untrashed_and_deleted() {
 }
 
 #[test]
-fn operation_results_carry_the_client_id_for_local_objects() {
+fn operation_results_carry_the_id_of_the_object() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
         let id = add_local_notebook(&mut app);
-        let SyncId::ClientId(client_id) = id.sync_id() else {
-            panic!("expected a client id");
-        };
+        let sync_id = id.sync_id();
 
         let manager = UpdateManager::handle(&app);
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -78,8 +76,7 @@ fn operation_results_carry_the_client_id_for_local_objects() {
                 let super::UpdateManagerEvent::ObjectOperationComplete { result } = event;
                 sink.lock().unwrap().push((
                     matches!(result.operation, ObjectOperation::Trash),
-                    result.client_id,
-                    result.server_id,
+                    result.id,
                 ));
             });
         });
@@ -88,6 +85,6 @@ fn operation_results_carry_the_client_id_for_local_objects() {
 
         let events = events.lock().unwrap();
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0], (true, Some(client_id), None));
+        assert_eq!(events[0], (true, sync_id));
     })
 }

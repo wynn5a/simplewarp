@@ -30,10 +30,10 @@ use warpui::{AppContext, Element, LayoutContext, SingletonEntity, SizeConstraint
 use crate::cloud_object::cloud_object_styling::warp_drive_icon_color;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObject, DriveObjectType};
-use crate::server::ids::{HashableId, ToServerId};
+use crate::server::ids::{ClientId, HashableId, SyncId};
 use crate::ui_components::icons::Icon;
+use crate::workflows::CloudWorkflow;
 use crate::workflows::workflow::Workflow;
-use crate::workflows::{CloudWorkflow, WorkflowId};
 
 // Spacing for the embedded workflow card.
 const EMBED_WORKFLOW_SPACING: BlockSpacing = BlockSpacing {
@@ -206,9 +206,7 @@ impl EmbeddedWorkflow {
 
     /// Get the backing [`CloudWorkflow`] for this embed.
     fn get_workflow<'a>(&self, app: &'a AppContext) -> Option<&'a CloudWorkflow> {
-        // TODO: @ianhodge - replace the `from_hash` when we create a new API for going from
-        // sqlite hash id -> uid
-        let uid = WorkflowId::from_hash(&self.hashed_id).map(|id| id.to_server_id().uid())?;
+        let uid = SyncId::from(ClientId::from_hash(&self.hashed_id)?).uid();
         CloudModel::as_ref(app)
             .get_by_uid(&uid)
             .and_then(|object| object.as_any().downcast_ref())

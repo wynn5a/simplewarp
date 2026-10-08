@@ -71,28 +71,11 @@ impl ActiveNotebookData {
     ) {
         let UpdateManagerEvent::ObjectOperationComplete { result } = event;
 
-        match (&result.operation, &result.success_type) {
-            (ObjectOperation::Update, OperationSuccessType::Success) => {
-                if let Some(current_id) = self.id() {
-                    let server_id = result.server_id.expect("Expect server id on success");
-                    if current_id.into_server() == Some(server_id) {
-                        self.feature_not_available = false;
-                        self.saving_status = SavingStatus::Saved;
-                        ctx.notify();
-                    }
-                }
-            }
-            (ObjectOperation::Trash, OperationSuccessType::Success)
-            | (ObjectOperation::Untrash, OperationSuccessType::Success) => {
-                let current_id = self.id();
-                if let Some(id) = current_id
-                    && ((id.into_server().is_some() && id.into_server() == result.server_id)
-                        || (id.into_client().is_some() && id.into_client() == result.client_id))
-                {
-                    ctx.emit(ActiveNotebookDataEvent::TrashStatusChanged);
-                }
-            }
-            _ => {}
+        if let (ObjectOperation::Trash | ObjectOperation::Untrash, OperationSuccessType::Success) =
+            (&result.operation, &result.success_type)
+            && self.id() == Some(result.id)
+        {
+            ctx.emit(ActiveNotebookDataEvent::TrashStatusChanged);
         }
     }
 
@@ -150,14 +133,6 @@ impl ActiveNotebookData {
 
     pub fn active_notebook(&self) -> ActiveNotebook {
         self.active_notebook.clone()
-    }
-
-    /// Whether or not the notebook has been synced to the server.
-    pub fn is_on_server(&self) -> bool {
-        matches!(
-            &self.active_notebook,
-            ActiveNotebook::CommittedNotebook(SyncId::ServerId(_))
-        )
     }
 
     /// Whether a notebook is open and still present (possibly trashed) in [`CloudModel`].

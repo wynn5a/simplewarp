@@ -56,48 +56,23 @@ impl From<String> for ClientId {
     }
 }
 
-/// ID of an object in the sync queue.
+/// ID of a cloud object. Every object is created on this machine, so the id is always a
+/// client-generated UUID.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, schemars::JsonSchema)]
-#[schemars(description = "Identifier for a synced object, either local or server-assigned.")]
-pub enum SyncId {
-    /// Item has not been sync-ed yet. Using a client-created UUID.
-    #[schemars(
-        description = "A locally-generated identifier for an object not yet synced to the server."
-    )]
-    ClientId(ClientId),
-    /// Item has been sync-ed to the cloud. Using the server ID.
-    #[schemars(description = "A server-assigned identifier for a synced object.")]
-    ServerId(ServerId),
-}
+#[schemars(description = "Identifier for a locally stored object.")]
+pub struct SyncId(ClientId);
 
 impl SyncId {
     pub fn uid(&self) -> ObjectUid {
-        match self {
-            Self::ClientId(id) => id.to_string(),
-            Self::ServerId(id) => id.uid(),
-        }
+        self.0.to_string()
     }
 
-    pub fn sqlite_uid_hash(&self, object_id_type: ObjectIdType) -> String {
-        match self {
-            SyncId::ClientId(id) => id.sqlite_hash(),
-            SyncId::ServerId(id) => id.sqlite_type_and_uid_hash(object_id_type),
-        }
+    pub fn sqlite_uid_hash(&self) -> String {
+        self.0.sqlite_hash()
     }
 
-    /// If this item has been synced to the cloud, extract its server ID.
-    pub fn into_server(self) -> Option<ServerId> {
-        match self {
-            Self::ServerId(id) => Some(id),
-            Self::ClientId(_) => None,
-        }
-    }
-
-    pub fn into_client(self) -> Option<ClientId> {
-        match self {
-            Self::ServerId(_) => None,
-            Self::ClientId(id) => Some(id),
-        }
+    pub fn client_id(self) -> ClientId {
+        self.0
     }
 }
 
@@ -105,47 +80,44 @@ impl settings_value::SettingsValue for SyncId {}
 
 impl fmt::Display for SyncId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::ServerId(id) => id.fmt(f),
-            Self::ClientId(id) => id.fmt(f),
-        }
+        self.0.fmt(f)
     }
 }
 
-impl From<ServerId> for SyncId {
-    fn from(id: ServerId) -> SyncId {
-        SyncId::ServerId(id)
+impl From<ClientId> for SyncId {
+    fn from(id: ClientId) -> SyncId {
+        SyncId(id)
     }
 }
 
-/// Custom serialize function for SyncIds.
+/// Creates a deterministic id from an i64 for use in tests: 123 becomes
+/// `Client-00000000-0000-0000-0000-00000000007b`.
+#[cfg(any(test, feature = "test-util"))]
+impl From<i64> for SyncId {
+    fn from(id: i64) -> Self {
+        SyncId(ClientId(Uuid::from_u128(id.unsigned_abs().into())))
+    }
+}
+
+/// Serializes as the `Client-{uuid}` hash, the form that is stored in sqlite and app state.
 impl Serialize for SyncId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        match self {
-            SyncId::ServerId(server_id) => server_id.serialize(serializer),
-            SyncId::ClientId(client_id) => client_id.to_hash().serialize(serializer),
-        }
+        self.0.to_hash().serialize(serializer)
     }
 }
 
-/// Custom deserialize function for SyncIds.
 impl<'de> Deserialize<'de> for SyncId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s: String = Deserialize::deserialize(deserializer)?;
-
-        // We try to deserialize as a ClientID, which only succeeds if the ID is prefixed with `Client-`.
-        // If that fails, we assume this is a server id and create a server ID.
-        if let Some(hashed) = ClientId::from_hash(s.as_str()) {
-            Ok(SyncId::ClientId(hashed))
-        } else {
-            Ok(SyncId::ServerId(ServerId::from_string_lossy(s)))
-        }
+        ClientId::from_hash(s.as_str())
+            .map(SyncId)
+            .ok_or_else(|| serde::de::Error::custom(format!("not a client id: {s}")))
     }
 }
 
@@ -316,22 +288,6 @@ impl std::fmt::Debug for ServerId {
     }
 }
 
-pub trait ToServerId {
-    fn to_server_id(&self) -> ServerId;
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ServerIdAndType {
-    pub id: ServerId,
-    pub id_type: ObjectIdType,
-}
-
-impl ServerIdAndType {
-    pub fn sqlite_type_and_uid_hash(&self) -> HashedSqliteId {
-        self.id.sqlite_type_and_uid_hash(self.id_type)
-    }
-}
-
 /// string_id_traits is a macro used for generating implementations for the type aliases on
 /// ServerId, implements different To/From and Display, and HashableId traits.
 /// Takes type and desired prefix for HashableId.
@@ -385,12 +341,6 @@ macro_rules! server_id_traits {
                 Self(id)
             }
         }
-
-        impl $crate::ids::ToServerId for $t {
-            fn to_server_id(&self) -> $crate::ids::ServerId {
-                self.0
-            }
-        }
     };
 }
 
@@ -398,19 +348,7 @@ macro_rules! server_id_traits {
 pub struct FolderId(ServerId);
 server_id_traits! { FolderId, "Folder" }
 
-impl From<FolderId> for SyncId {
-    fn from(id: FolderId) -> Self {
-        Self::ServerId(id.into())
-    }
-}
-
 /// Object ID type that is common for all generic string objects.
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct GenericStringObjectId(ServerId);
 crate::server_id_traits! { GenericStringObjectId, "GenericStringObject" }
-
-impl From<GenericStringObjectId> for SyncId {
-    fn from(id: GenericStringObjectId) -> Self {
-        Self::ServerId(id.into())
-    }
-}

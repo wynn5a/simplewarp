@@ -356,9 +356,7 @@ impl EnvVarCollectionView {
 
         let active_collection_data = self.active_env_var_collection_data.as_ref(ctx);
 
-        if !active_collection_data.is_on_server()
-            || active_collection_data.trash_status(ctx) != TrashStatus::Active
-        {
+        if active_collection_data.trash_status(ctx) != TrashStatus::Active {
             return menu_items;
         }
 

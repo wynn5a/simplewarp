@@ -104,7 +104,7 @@ impl ExportArgument {
                         let client_id = ClientId::default();
                         new_enum_info = Some((client_id, enum_data));
                         ArgumentType::Enum {
-                            enum_id: SyncId::ClientId(client_id),
+                            enum_id: SyncId::from(client_id),
                         }
                     }
                     // If we are missing some enum info, use the default type instead

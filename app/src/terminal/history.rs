@@ -16,7 +16,7 @@ use crate::terminal::model::session::{Session, SessionId};
 use crate::util::dedupe_from_last;
 use crate::workflows::local_workflows::LocalWorkflows;
 use crate::workflows::workflow::Workflow;
-use crate::workflows::{WorkflowId, WorkflowSource, WorkflowType};
+use crate::workflows::{WorkflowSource, WorkflowType};
 
 mod up_arrow;
 pub use up_arrow::UpArrowHistoryConfig;
@@ -70,14 +70,10 @@ impl From<crate::persistence::model::Command> for PersistedCommand {
                     .map(SessionId::from)
             }),
             git_branch: command.git_branch,
-            workflow_id: command.cloud_workflow_id.and_then(|workflow_id| {
-                if let Some(client_id) = ClientId::from_hash(workflow_id.as_str()) {
-                    Some(SyncId::ClientId(client_id))
-                } else {
-                    WorkflowId::from_hash(workflow_id.as_str())
-                        .map(|id| SyncId::ServerId(id.into()))
-                }
-            }),
+            workflow_id: command
+                .cloud_workflow_id
+                .and_then(|workflow_id| ClientId::from_hash(workflow_id.as_str()))
+                .map(SyncId::from),
             workflow_command: command.workflow_command,
             is_agent_executed: command.is_agent_executed.unwrap_or(false),
         }

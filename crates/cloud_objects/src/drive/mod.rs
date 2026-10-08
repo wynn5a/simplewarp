@@ -1,7 +1,7 @@
 pub mod sharing;
 
 use crate::cloud_object::{GenericStringObjectFormat, ObjectIdType, ObjectType};
-use crate::ids::{HashedSqliteId, ObjectUid, ServerId, SyncId};
+use crate::ids::{HashedSqliteId, ObjectUid, SyncId};
 
 /// Enum to use to pass down type and id between actions to avoid multiplying actions whenever we
 /// need to pass the object id, etc.
@@ -48,14 +48,7 @@ impl CloudObjectTypeAndId {
     }
 
     pub fn sqlite_uid_hash(self) -> HashedSqliteId {
-        match self {
-            CloudObjectTypeAndId::Notebook(id) => id.sqlite_uid_hash(ObjectIdType::Notebook),
-            CloudObjectTypeAndId::Workflow(id) => id.sqlite_uid_hash(ObjectIdType::Workflow),
-            CloudObjectTypeAndId::Folder(id) => id.sqlite_uid_hash(ObjectIdType::Folder),
-            CloudObjectTypeAndId::GenericStringObject { object_type: _, id } => {
-                id.sqlite_uid_hash(ObjectIdType::GenericStringObject)
-            }
-        }
+        self.sync_id().sqlite_uid_hash()
     }
 
     pub fn object_id_type(&self) -> ObjectIdType {
@@ -97,32 +90,6 @@ impl CloudObjectTypeAndId {
     pub fn as_generic_string_object_id(self) -> Option<SyncId> {
         match self {
             CloudObjectTypeAndId::GenericStringObject { object_type: _, id } => Some(id),
-            _ => None,
-        }
-    }
-
-    pub fn has_server_id(self) -> bool {
-        matches!(
-            self,
-            CloudObjectTypeAndId::Notebook(SyncId::ServerId(_))
-                | CloudObjectTypeAndId::Workflow(SyncId::ServerId(_))
-                | CloudObjectTypeAndId::Folder(SyncId::ServerId(_))
-                | CloudObjectTypeAndId::GenericStringObject {
-                    id: SyncId::ServerId(_),
-                    ..
-                }
-        )
-    }
-
-    pub fn server_id(self) -> Option<ServerId> {
-        match self {
-            CloudObjectTypeAndId::Notebook(SyncId::ServerId(notebook_id)) => Some(notebook_id),
-            CloudObjectTypeAndId::Workflow(SyncId::ServerId(workflow_id)) => Some(workflow_id),
-            CloudObjectTypeAndId::Folder(SyncId::ServerId(folder_id)) => Some(folder_id),
-            CloudObjectTypeAndId::GenericStringObject {
-                id: SyncId::ServerId(json_object_id),
-                ..
-            } => Some(json_object_id),
             _ => None,
         }
     }

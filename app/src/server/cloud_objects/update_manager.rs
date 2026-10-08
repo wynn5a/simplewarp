@@ -22,9 +22,8 @@ use crate::cloud_object::{
 use crate::env_vars::{CloudEnvVarCollectionModel, EnvVarCollection};
 use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::persistence::ModelEvent;
-use crate::server::ids::{ClientId, HashableId, ObjectUid, ServerId, SyncId, ToServerId};
+use crate::server::ids::{ClientId, HashableId, ObjectUid, SyncId};
 use crate::workflows::workflow::Workflow;
-use crate::workflows::workflow_enum::{CloudWorkflowEnumModel, WorkflowEnum};
 use crate::workflows::{CloudWorkflowModel, WorkflowId};
 
 lazy_static! {
@@ -45,7 +44,6 @@ pub enum OperationSuccessType {
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectOperation {
-    Update,
     Trash,
     Untrash,
     Delete { initiated_by: InitiatedBy },
@@ -55,8 +53,7 @@ pub enum ObjectOperation {
 pub struct ObjectOperationResult {
     pub success_type: OperationSuccessType,
     pub operation: ObjectOperation,
-    pub client_id: Option<ClientId>,
-    pub server_id: Option<ServerId>,
+    pub id: SyncId,
     pub num_objects: Option<i32>, // counts number of objects (including descendants) deleted for permadeletion
 }
 
@@ -148,19 +145,6 @@ impl UpdateManager {
         self.update_object(CloudWorkflowModel::new(workflow), workflow_id, ctx);
     }
 
-    pub fn update_workflow_enum(
-        &mut self,
-        workflow_enum: WorkflowEnum,
-        workflow_enum_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.update_object(
-            CloudWorkflowEnumModel::new(workflow_enum),
-            workflow_enum_id,
-            ctx,
-        );
-    }
-
     pub fn update_env_var_collection(
         &mut self,
         env_var_collection: EnvVarCollection,
@@ -248,15 +232,7 @@ impl UpdateManager {
 
     fn duplicate_object_internal<K, M>(&mut self, id: &SyncId, ctx: &mut ModelContext<Self>)
     where
-        K: HashableId
-            + ToServerId
-            + std::fmt::Debug
-            + Into<String>
-            + Clone
-            + Copy
-            + Send
-            + Sync
-            + 'static,
+        K: HashableId + std::fmt::Debug + Into<String> + Clone + Copy + Send + Sync + 'static,
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
         let (duplicate_model, client_id, owner, initial_folder_id) = {
@@ -414,18 +390,10 @@ impl UpdateManager {
         initial_folder_id: Option<SyncId>,
         ctx: &mut ModelContext<Self>,
     ) where
-        K: HashableId
-            + ToServerId
-            + std::fmt::Debug
-            + Into<String>
-            + Clone
-            + Copy
-            + Send
-            + Sync
-            + 'static,
+        K: HashableId + std::fmt::Debug + Into<String> + Clone + Copy + Send + Sync + 'static,
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
-        let object_id = SyncId::ClientId(client_id);
+        let object_id = SyncId::from(client_id);
         // Update in-memory model.
         CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
             let object = GenericCloudObject::<K, M>::new_local(
@@ -450,15 +418,7 @@ impl UpdateManager {
 
     pub fn update_object<K, M>(&mut self, model: M, object_id: SyncId, ctx: &mut ModelContext<Self>)
     where
-        K: HashableId
-            + ToServerId
-            + std::fmt::Debug
-            + Into<String>
-            + Clone
-            + Copy
-            + Send
-            + Sync
-            + 'static,
+        K: HashableId + std::fmt::Debug + Into<String> + Clone + Copy + Send + Sync + 'static,
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
         // Update in-memory model.
@@ -517,7 +477,7 @@ impl UpdateManager {
             });
             ctx.notify();
 
-            let hashed_sqlite_id = sync_id.sqlite_uid_hash(id.object_id_type());
+            let hashed_sqlite_id = sync_id.sqlite_uid_hash();
             self.save_in_memory_object_metadata_to_sqlite(
                 cloud_model,
                 &hashed_id,
@@ -533,8 +493,7 @@ impl UpdateManager {
             result: ObjectOperationResult {
                 success_type: OperationSuccessType::Success,
                 operation: ObjectOperation::Trash,
-                client_id: sync_id.into_client(),
-                server_id: sync_id.into_server(),
+                id: sync_id,
                 num_objects: None,
             },
         });
@@ -551,7 +510,7 @@ impl UpdateManager {
             };
             object.metadata_mut().trashed_ts = None;
 
-            let hashed_sqlite_id = sync_id.sqlite_uid_hash(id.object_id_type());
+            let hashed_sqlite_id = sync_id.sqlite_uid_hash();
             let type_and_id = object.cloud_object_type_and_id();
             self.save_in_memory_object_metadata_to_sqlite(
                 cloud_model,
@@ -571,8 +530,7 @@ impl UpdateManager {
             result: ObjectOperationResult {
                 success_type: OperationSuccessType::Success,
                 operation: ObjectOperation::Untrash,
-                client_id: sync_id.into_client(),
-                server_id: sync_id.into_server(),
+                id: sync_id,
                 num_objects: None,
             },
         });
@@ -603,8 +561,7 @@ impl UpdateManager {
             result: ObjectOperationResult {
                 success_type: OperationSuccessType::Success,
                 operation: ObjectOperation::Delete { initiated_by },
-                client_id: sync_id.into_client(),
-                server_id: sync_id.into_server(),
+                id: sync_id,
                 num_objects: Some(num_deleted_objects),
             },
         });

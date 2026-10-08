@@ -331,6 +331,35 @@ P9–P11 above, plus:
 - Verification: workspace nextest 6474 / 6485; the 11 failures are `integration` GUI tests that
   fail the same way on b79567e7c (8 settings/palette tests time out, 3 report "test not found").
 
-Still open from the local-only survey: Windows/Linux platform code (user decision), the cloud-object
-sync branches (`SyncId::ServerId`, `content_sync_status`), the dead tool UIs (P5/P6), and
-`env_vars` reachability.
+### 9.1 Cloud-object sync residue (2026-10-08, second pass)
+
+The cloud-object layer is now only the local store behind saved workflows, AI rules, MCP servers,
+plan documents (notebooks), env var collections and folders. Removed:
+
+- `CloudObjectSyncStatus` / `NumInFlightRequests` / `CloudObjectStatuses`
+  (`pending_changes_statuses`), `ConflictStatus`, `should_update_after_server_conflict`, the
+  sync-state icon and the in-flight counters. `update_manager` trash/untrash/delete no longer wait
+  on "pending online-only" flags.
+- `SyncId` is a newtype over `ClientId`; the `ServerId` arm, `has_server_id`, `is_on_server`,
+  `ToServerId`, `ServerIdAndType` and `ObjectOperationResult.{client,server}_id` are gone
+  (`ObjectOperationResult.id` instead). `ObjectOperation::Update` had no emitter, so its handlers
+  went too (they `expect`ed a server id and would have panicked).
+- Offline gating: trash/duplicate/rule-edit were hidden while `NetworkStatus` was offline.
+- **Behaviour fixes this exposed**: the notebook and env-var header menus returned empty for any
+  object that was not `is_on_server()` (all of them), the rule delete button required
+  `has_server_id()` (never true), and embedded-workflow lookups parsed `Workflow-<server id>` hashes
+  (never matched a client id). All three work now.
+- **Old data**: rows that only have a `server_id` (and `SyncId` strings without the `Client-`
+  prefix) are no longer loaded or deserialized. The `is_pending` and `server_id` columns stay as
+  tombstones. `restored_notebooks`/`restored_workflows` fixtures were rewritten to client ids; the
+  json-preference and shared-metadata-id restore tests (and their fixtures) were deleted, as was the
+  workflow-pane palette test whose palette action no longer exists.
+
+Not done, same family: `Owner::Team`, `CloudObjectPermissions` / guests / link sharing /
+`ServerObjectContainer` (persisted as NULL), `CloudPreference` objects (nothing creates them),
+`is_welcome_object`, `OperationSuccessType` (one variant), and the `ServerId`-backed
+`NotebookId`/`WorkflowId`/`FolderId`/`GenericStringObjectId` marker types (also the plan-artifact
+`notebook_uid`, which only a server-provided artifact could fill).
+
+Still open from the local-only survey: Windows/Linux platform code (user decision: **keep**), the
+dead tool UIs (P5/P6), and the sharing/team ownership cluster above.

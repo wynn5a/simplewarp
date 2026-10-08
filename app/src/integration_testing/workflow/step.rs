@@ -19,7 +19,7 @@ pub fn create_a_personal_workflow(key: impl Into<String>) -> TestStep {
     TestStep::new("Create a personal workflow")
         .with_action(move |app, _, data| {
             let client_id = ClientId::new();
-            let sync_id = SyncId::ClientId(client_id);
+            let sync_id = SyncId::from(client_id);
             UpdateManager::handle(app).update(app, |update_manager, ctx| {
                 update_manager.create_workflow(
                     workflow.clone(),

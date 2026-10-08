@@ -11,7 +11,7 @@ const TEST_FONT_FAMILY: warpui::fonts::FamilyId = warpui::fonts::FamilyId(0);
 
 fn test_candidate(name: &str, query: &str) -> SavedPromptCandidate {
     SavedPromptCandidate {
-        id: SyncId::ClientId(ClientId::new()),
+        id: SyncId::from(ClientId::new()),
         model: Arc::new(CloudWorkflowModel {
             data: Workflow::AgentMode {
                 name: name.to_owned(),
