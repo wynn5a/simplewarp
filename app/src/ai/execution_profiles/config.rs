@@ -14,8 +14,8 @@ use itertools::Itertools as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use super::{
-    AIExecutionProfile, ActionPermission, AskUserQuestionPermission,
-    RunAgentsPermission, WriteToPtyPermission,
+    AIExecutionProfile, ActionPermission, AskUserQuestionPermission, RunAgentsPermission,
+    WriteToPtyPermission,
 };
 use crate::ai::llms::LLMId;
 use crate::cloud_object::model::generic_string_model::StringModel as _;

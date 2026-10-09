@@ -58,8 +58,8 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentCitation, AIAgentInput, AIAgentOutputMessage,
     AIAgentOutputMessageType, AIAgentText, AIAgentTextSection, CancellationOutcome, MessageId,
     ReadFilesFailedFile, ReadFilesRequest, ReadFilesResult, RequestCommandOutputResult,
-    SearchCodebaseFailureReason, SearchCodebaseResult,
-    SubagentCall, SubagentType, SuggestNewConversationResult, SummarizationType, TodoOperation,
+    SearchCodebaseFailureReason, SearchCodebaseResult, SubagentCall, SubagentType,
+    SuggestNewConversationResult, SummarizationType, TodoOperation,
 };
 use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus};

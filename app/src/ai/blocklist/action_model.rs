@@ -225,7 +225,6 @@ pub struct BlocklistAIActionModel {
     /// In view-only mode, we never block on user acceptance and avoid any interactive controls.
     /// This is used for agent session sharing to avoid any tools blocking on the viewer's acceptance.
     is_view_only: bool,
-
 }
 
 impl BlocklistAIActionModel {

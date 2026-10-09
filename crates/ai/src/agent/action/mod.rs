@@ -22,10 +22,9 @@ use crate::agent::action_result::{
     EditDocumentsResult, FetchConversationResult, FileGlobResult, FileGlobV2Result, GrepResult,
     InsertReviewCommentsResult, ReadDocumentsResult, ReadFilesResult, ReadMCPResourceResult,
     ReadShellCommandOutputResult, ReadSkillResult, RequestCommandOutputResult,
-    RequestFileEditsResult, RunAgentsResult, SearchCodebaseResult,
-    SendMessageToAgentResult, SuggestNewConversationResult, SuggestPromptResult,
-    TransferShellCommandControlToUserResult, WaitForEventsResult,
-    WriteToLongRunningShellCommandResult,
+    RequestFileEditsResult, RunAgentsResult, SearchCodebaseResult, SendMessageToAgentResult,
+    SuggestNewConversationResult, SuggestPromptResult, TransferShellCommandControlToUserResult,
+    WaitForEventsResult, WriteToLongRunningShellCommandResult,
 };
 use crate::agent::{AIAgentCitation, FileLocations};
 use crate::diff_validation::ParsedDiff;
